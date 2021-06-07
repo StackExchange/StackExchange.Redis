@@ -239,6 +239,8 @@ namespace StackExchange.Redis
 
         public ValueTask<WriteResult> TryWriteAsync(Message message) => GetBridge(message.Command)?.TryWriteAsync(message, isReplica) ?? new ValueTask<WriteResult>(WriteResult.NoConnectionAvailable);
 
+        public ValueTask<WriteResult> TryWriteAsync(Request message) => TryWriteAsync(message.message);
+
         internal void Activate(ConnectionType type, LogProxy log)
         {
             GetBridge(type, true, log);

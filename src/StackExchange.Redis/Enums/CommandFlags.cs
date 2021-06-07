@@ -83,5 +83,20 @@ namespace StackExchange.Redis
         NoScriptCache = 512,
 
         // 1024: used for timed-out; never user-specified, so not visible on the public API
+
+        /// <summary>
+        /// It's the default option and indicates command is never retried on connection restore
+        /// </summary>
+        OnConnectionRestoreNoRetry = 2048,
+
+        /// <summary>
+        /// A configured retry manager may use this to indicate that on connection failure this operation will be retried if it was not yet sent
+        /// </summary>
+        OnConnectionRestoreRetryIfNotYetSent = 4096,
+
+        /// <summary>
+        /// A configured retry manager may use this to indicate that always retry command on connection restore 
+        /// </summary>
+        OnConnectionRestoreAlwaysRetry = 8192
     }
 }

@@ -135,6 +135,8 @@ namespace StackExchange.Redis
             return counters;
         }
 
+        internal readonly MessageRetryManager messageRetryManager;
+
         /// <summary>
         /// Gets the client-name that will be used on all new connections
         /// </summary>
@@ -198,6 +200,14 @@ namespace StackExchange.Redis
         /// Gets the configuration of the connection
         /// </summary>
         public string Configuration => RawConfig.ToString();
+
+        internal void OnRequestFailedHandler(Request request)
+        {
+            if(RequestFailed != null)
+            {
+                RequestFailed(this, request);
+            }
+        }
 
         internal void OnConnectionFailed(EndPoint endpoint, ConnectionType connectionType, ConnectionFailureType failureType, Exception exception, bool reconfigure, string physicalName)
         {
@@ -543,6 +553,12 @@ namespace StackExchange.Redis
                 }
             }
         }
+
+        /// <summary>
+        /// Raised when a message fails due to a connection exception
+        /// </summary>
+        public event EventHandler<Request> RequestFailed;
+
 
         /// <summary>
         /// Raised whenever a physical connection fails
@@ -2140,6 +2156,11 @@ namespace StackExchange.Redis
 
         private IDisposable pulse;
 
+        internal ServerEndPoint SelectServer(Request message)
+        {
+            return SelectServer(message.message);
+        }
+
         internal ServerEndPoint SelectServer(Message message)
         {
             if (message == null) return null;
@@ -2737,6 +2758,11 @@ namespace StackExchange.Redis
                 ThrowFailed(tcs, ex);
             }
             return tcs == null ? default(T) : await tcs.Task.ForAwait();
+        }
+
+        internal Exception GetException(WriteResult result, Request message, ServerEndPoint server)
+        {
+            return GetException(result, message.message, server);
         }
 
         internal Exception GetException(WriteResult result, Message message, ServerEndPoint server)

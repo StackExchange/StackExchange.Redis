@@ -50,9 +50,49 @@ namespace StackExchange.Redis
         public LogProxy Log => log;
     }
 
+    /// <summary>
+    /// 
+    /// </summary>
+    public class Request
+    {
+        internal Message message;
+        /// <summary>
+        /// 
+        /// </summary>
+        public bool ResultBoxIsAsync { get; internal set; }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        public char Command { get; internal set; }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        public CommandStatus Status { get; internal set; }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        public CommandFlags Flags { get; internal set; }
+
+        internal Request(Message message)
+        {
+            this.message = message;
+        }
+
+        internal int GetWriteTime() => throw new NotImplementedException();
+        internal void SetEnqueued(object p) => throw new NotImplementedException();
+        internal void ResetStatusToWaitingToBeSent() => throw new NotImplementedException();
+        internal void SetExceptionAndComplete(RedisConnectionException inner, object p) => throw new NotImplementedException();
+    }
+
+
     internal abstract class Message : ICompletable
     {
         public readonly int Db;
+
+        internal void ResetStatusToWaitingToBeSent() => Status = CommandStatus.WaitingToBeSent;
 
 #if DEBUG
         internal int QueuePosition { get; private set; }
@@ -629,6 +669,11 @@ namespace StackExchange.Redis
 
         internal virtual void SetExceptionAndComplete(Exception exception, PhysicalBridge bridge)
         {
+            if(bridge != null)
+            {
+               bridge.Multiplexer.OnRequestFailedHandler(new Request(this));
+            }
+
             resultBox?.SetException(exception);
             Complete();
         }
