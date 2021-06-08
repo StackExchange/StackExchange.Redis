@@ -701,11 +701,10 @@ namespace StackExchange.Redis
             Trace("Writing: " + message);
             message.SetEnqueued(physical); // this also records the read/write stats at this point
 
-            // AVOID REORDERING USER MESSAGES
+            // AVOID REORDERING MESSAGES
             // Prefer to add it to the backlog if this thread can see that there might already be a message backlog.
             // We do this before attempting to take the writelock, because we won't actually write, we'll just let the backlog get processed in due course
-            // We currently make an exception for InternalCall because Handshaking relies on being able to 'jump the queue'
-            if (!message.IsInternalCall && PushToBacklog(message, onlyIfExists: true))
+            if (PushToBacklog(message, onlyIfExists: true))
             {
                 return WriteResult.Success; // queued counts as success
             }
@@ -987,11 +986,10 @@ namespace StackExchange.Redis
             Trace("Writing: " + message);
             message.SetEnqueued(physical); // this also records the read/write stats at this point
 
-            // AVOID REORDERING USER MESSAGES
+            // AVOID REORDERING MESSAGES
             // Prefer to add it to the backlog if this thread can see that there might already be a message backlog.
             // We do this before attempting to take the writelock, because we won't actually write, we'll just let the backlog get processed in due course
-            // We currently make an exception for InternalCall because Handshaking relies on being able to 'jump the queue'
-            if (!message.IsInternalCall && PushToBacklog(message, onlyIfExists: true))
+            if (PushToBacklog(message, onlyIfExists: true))
             {
                 return new ValueTask<WriteResult>(WriteResult.Success); // queued counts as success
             }
