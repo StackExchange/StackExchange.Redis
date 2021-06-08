@@ -781,14 +781,14 @@ namespace StackExchange.Redis
             string user = Multiplexer.RawConfig.User, password = Multiplexer.RawConfig.Password ?? "";
             if (!string.IsNullOrWhiteSpace(user))
             {
-                log?.WriteLine("Authenticating (user/password)");
+                log?.WriteLine("Authenticating (user/password) to endpoint " + Endpoint);
                 msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.AUTH, (RedisValue)user, (RedisValue)password);
                 msg.SetInternalCall();
                 await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
             }
             else if (!string.IsNullOrWhiteSpace(password))
             {
-                log?.WriteLine("Authenticating (password)");
+                log?.WriteLine("Authenticating (password) to endpoint " + Endpoint);
                 msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.AUTH, (RedisValue)password);
                 msg.SetInternalCall();
                 await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
