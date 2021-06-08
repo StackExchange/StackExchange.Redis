@@ -41,13 +41,17 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void CanNotOpenNonsenseConnection_IP()
+        public async Task CanNotOpenNonsenseConnection_IP()
         {
-            var ex = Assert.Throws<RedisConnectionException>(() =>
+            await RunBlockingSynchronousWithExtraThreadAsync(innerScenario).ForAwait();
+            void innerScenario()
             {
-                using (ConnectionMultiplexer.Connect(TestConfig.Current.MasterServer + ":6500,connectTimeout=1000", Writer)) { }
-            });
-            Log(ex.ToString());
+                var ex = Assert.Throws<RedisConnectionException>(() =>
+                {
+                    using (ConnectionMultiplexer.Connect(TestConfig.Current.MasterServer + ":6500,connectTimeout=1000", Writer)) { }
+                });
+                Log(ex.ToString());
+            }
         }
 
         [Fact]
@@ -61,22 +65,30 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void CreateDisconnectedNonsenseConnection_IP()
+        public async Task CreateDisconnectedNonsenseConnection_IP()
         {
-            using (var conn = ConnectionMultiplexer.Connect(TestConfig.Current.MasterServer + ":6500,abortConnect=false,connectTimeout=1000", Writer))
+            await RunBlockingSynchronousWithExtraThreadAsync(innerScenario).ForAwait();
+            void innerScenario()
             {
-                Assert.False(conn.GetServer(conn.GetEndPoints().Single()).IsConnected);
-                Assert.False(conn.GetDatabase().IsConnected(default(RedisKey)));
+                using (var conn = ConnectionMultiplexer.Connect(TestConfig.Current.MasterServer + ":6500,abortConnect=false,connectTimeout=1000", Writer))
+                {
+                    Assert.False(conn.GetServer(conn.GetEndPoints().Single()).IsConnected);
+                    Assert.False(conn.GetDatabase().IsConnected(default(RedisKey)));
+                }
             }
         }
 
         [Fact]
-        public void CreateDisconnectedNonsenseConnection_DNS()
+        public async Task CreateDisconnectedNonsenseConnection_DNS()
         {
-            using (var conn = ConnectionMultiplexer.Connect($"doesnot.exist.ds.{Guid.NewGuid():N}.com:6500,abortConnect=false,connectTimeout=1000", Writer))
+            await RunBlockingSynchronousWithExtraThreadAsync(innerScenario).ForAwait();
+            void innerScenario()
             {
-                Assert.False(conn.GetServer(conn.GetEndPoints().Single()).IsConnected);
-                Assert.False(conn.GetDatabase().IsConnected(default(RedisKey)));
+                using (var conn = ConnectionMultiplexer.Connect($"doesnot.exist.ds.{Guid.NewGuid():N}.com:6500,abortConnect=false,connectTimeout=1000", Writer))
+                {
+                    Assert.False(conn.GetServer(conn.GetEndPoints().Single()).IsConnected);
+                    Assert.False(conn.GetDatabase().IsConnected(default(RedisKey)));
+                }
             }
         }
     }
