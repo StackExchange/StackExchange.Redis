@@ -1738,9 +1738,14 @@ namespace StackExchange.Redis
                             }
                             else
                             {
-                                // Potential race: connection happens after we land in the else here
                                 var tcs = new TaskCompletionSource<bool>();
                                 server.FullyEstablished += (o, e) => tcs.TrySetResult(true);
+                                // In case we race against a connection completion - check again after attached to explicitly fire
+                                // The first one there wins, and either way we are notified ASAP.
+                                if (server.IsConnected)
+                                {
+                                    tcs.TrySetResult(true);
+                                }
                                 available[i] = tcs.Task;
                             }
                             if (useTieBreakers)
