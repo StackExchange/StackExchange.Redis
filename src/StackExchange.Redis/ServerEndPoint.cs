@@ -504,6 +504,7 @@ namespace StackExchange.Redis
                 connection.RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
             }
         }
+        
         internal void OnFullyEstablished(PhysicalConnection connection)
         {
             try
