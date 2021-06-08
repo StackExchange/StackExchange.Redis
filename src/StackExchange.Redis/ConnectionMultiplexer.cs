@@ -1731,7 +1731,18 @@ namespace StackExchange.Redis
                                 server.AutoConfigure(null);
                             }
                             log?.WriteLine($"Server endpoint {server.EndPoint} is in {server.ConnectionState}");
-                            available[i] = server.SendTracer(log);
+                            if (server.IsConnected)
+                            {
+                                // If we're connected, send the tracer immediately
+                                available[i] = server.SendTracer(log);
+                            }
+                            else
+                            {
+                                // Potential race: connection happens after we land in the else here
+                                var tcs = new TaskCompletionSource<bool>();
+                                server.FullyEstablished += (o, e) => tcs.TrySetResult(true);
+                                available[i] = tcs.Task;
+                            }
                             if (useTieBreakers)
                             {
                                 log?.WriteLine($"Requesting tie-break from {Format.ToString(server.EndPoint)} > {RawConfig.TieBreaker}...");

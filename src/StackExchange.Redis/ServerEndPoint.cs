@@ -504,6 +504,8 @@ namespace StackExchange.Redis
                 connection.RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
             }
         }
+
+        internal event EventHandler FullyEstablished;
         
         internal void OnFullyEstablished(PhysicalConnection connection)
         {
@@ -519,6 +521,7 @@ namespace StackExchange.Redis
                     }
                     Multiplexer.OnConnectionRestored(EndPoint, bridge.ConnectionType, connection?.ToString());
                 }
+                FullyEstablished?.Invoke(this, null);
             }
             catch (Exception ex)
             {
