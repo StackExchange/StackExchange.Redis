@@ -2081,7 +2081,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                 {
                     if (result.StartsWith(CommonReplies.authFail_trimmed) || result.StartsWith(CommonReplies.NOAUTH))
                     {
-                        connection.RecordConnectionFailed(ConnectionFailureType.AuthenticationFailure, new Exception(result.ToString() + " Verify if the Redis password provided is correct. (While sending:" + message.command + ")"));
+                        connection.RecordConnectionFailed(ConnectionFailureType.AuthenticationFailure, new Exception(result.ToString() + " Verify if the Redis password provided is correct. (While sending:" + message.Command + ")"));
                     }
                     else if (result.StartsWith(CommonReplies.loading))
                     {
