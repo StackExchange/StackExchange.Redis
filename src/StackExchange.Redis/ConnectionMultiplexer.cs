@@ -1730,6 +1730,7 @@ namespace StackExchange.Redis
                                 // so we know that the configuration will be up to date if we see the tracer
                                 server.AutoConfigure(null);
                             }
+                            log?.WriteLine($"Server endpoint {server.EndPoint} is {server.IsConnected ? "" : "NOT "}yet connected");
                             available[i] = server.SendTracer(log);
                             if (useTieBreakers)
                             {

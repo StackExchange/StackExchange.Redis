@@ -781,14 +781,14 @@ namespace StackExchange.Redis
             string user = Multiplexer.RawConfig.User, password = Multiplexer.RawConfig.Password ?? "";
             if (!string.IsNullOrWhiteSpace(user))
             {
-                log?.WriteLine("Authenticating (user/password) to endpoint " + Endpoint);
+                log?.WriteLine("Authenticating (user/password) to endpoint " + EndPoint);
                 msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.AUTH, (RedisValue)user, (RedisValue)password);
                 msg.SetInternalCall();
                 await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
             }
             else if (!string.IsNullOrWhiteSpace(password))
             {
-                log?.WriteLine("Authenticating (password) to endpoint " + Endpoint);
+                log?.WriteLine("Authenticating (password) to endpoint " + EndPoint);
                 msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.AUTH, (RedisValue)password);
                 msg.SetInternalCall();
                 await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
@@ -822,9 +822,9 @@ namespace StackExchange.Redis
                 log?.WriteLine("Auto-configure...");
                 AutoConfigure(connection);
             }
-            log?.WriteLine($"Sending critical tracer: {bridge}");
             var tracer = GetTracerMessage(true);
             tracer = LoggingMessage.Create(log, tracer);
+            log?.WriteLine($"Sending critical tracer message {tracer.CommandAndKey}: {bridge}");
             await WriteDirectOrQueueFireAndForgetAsync(connection, tracer, ResultProcessor.EstablishConnection).ForAwait();
 
             // note: this **must** be the last thing on the subscription handshake, because after this
