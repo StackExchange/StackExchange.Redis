@@ -1913,11 +1913,11 @@ namespace StackExchange.Redis
         /// Get the value of key and update its expiry. If the key does not exist the special value nil is returned.
         /// </summary>
         /// <param name="key">The key of the string.</param>
-        /// <param name="expiry">The expiry to set. <c>null</c> or <see cref="TimeSpan.MaxValue"/> will remove expiry.</param>
+        /// <param name="expiry">The expiry to set. <see cref="TimeSpan.MaxValue"/> will remove expiry.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The value of key, or nil when key does not exist.</returns>
         /// <remarks>https://redis.io/commands/getex</remarks>
-        RedisValue StringGet(RedisKey key, TimeSpan? expiry, CommandFlags flags = CommandFlags.None);
+        RedisValue StringGetSetExpiry(RedisKey key, TimeSpan expiry, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Get the value of key and update its expiry. If the key does not exist the special value nil is returned.
@@ -1927,7 +1927,16 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The value of key, or nil when key does not exist.</returns>
         /// <remarks>https://redis.io/commands/getex</remarks>
-        RedisValue StringGet(RedisKey key, DateTime expiry, CommandFlags flags = CommandFlags.None);
+        RedisValue StringGetSetExpiry(RedisKey key, DateTime expiry, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Get the value of key and remove its expiry. If the key does not exist the special value nil is returned.
+        /// </summary>
+        /// <param name="key">The key of the string.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The value of key, or nil when key does not exist.</returns>
+        /// <remarks>https://redis.io/commands/getex</remarks>
+        RedisValue StringGetRemoveExpiry(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Returns the values of all specified keys. For every key that does not hold a string value or does not exist, the special value nil is returned.

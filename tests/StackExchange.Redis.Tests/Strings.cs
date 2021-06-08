@@ -78,7 +78,7 @@ namespace StackExchange.Redis.Tests
             var key = Me();
             conn.KeyDelete(key, CommandFlags.FireAndForget);
 
-            var empty_val = await conn.StringGetAsync(key, TimeSpan.FromHours(1));
+            var empty_val = await conn.StringGetSetExpiryAsync(key, TimeSpan.FromHours(1));
 
             Assert.False(empty_val.HasValue);
         }
@@ -94,7 +94,7 @@ namespace StackExchange.Redis.Tests
             conn.KeyDelete(key, CommandFlags.FireAndForget);
 
             conn.StringSet(key, "abc", TimeSpan.FromHours(1));
-            var relative_sec = conn.StringGetAsync(key, TimeSpan.FromMinutes(30));
+            var relative_sec = conn.StringGetSetExpiryAsync(key, TimeSpan.FromMinutes(30));
             var relative_sec_ttl = conn.KeyTimeToLiveAsync(key);
 
             Assert.Equal("abc", await relative_sec);
@@ -113,7 +113,7 @@ namespace StackExchange.Redis.Tests
             conn.KeyDelete(key, CommandFlags.FireAndForget);
 
             conn.StringSet(key, "abc", TimeSpan.FromHours(1));
-            var val = conn.StringGetAsync(key, DateTime.UtcNow.AddMinutes(30));
+            var val = conn.StringGetSetExpiryAsync(key, DateTime.UtcNow.AddMinutes(30));
             var val_ttl = conn.KeyTimeToLiveAsync(key);
 
             Assert.Equal("abc", await val);
@@ -132,7 +132,7 @@ namespace StackExchange.Redis.Tests
             conn.KeyDelete(key, CommandFlags.FireAndForget);
 
             conn.StringSet(key, "abc", TimeSpan.FromHours(1));
-            var val = conn.StringGetAsync(key, null);
+            var val = conn.StringGetRemoveExpiryAsync(key);
             var val_ttl = conn.KeyTimeToLiveAsync(key);
 
             Assert.Equal("abc", await val);

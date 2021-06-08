@@ -2410,27 +2410,39 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.RedisValue);
         }
 
-        public RedisValue StringGet(RedisKey key, TimeSpan? expiry, CommandFlags flags = CommandFlags.None)
+        public RedisValue StringGetSetExpiry(RedisKey key, TimeSpan expiry, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStringGetExMessage(key, expiry, flags);
             return ExecuteSync(msg, ResultProcessor.RedisValue);
         }
 
-        public Task<RedisValue> StringGetAsync(RedisKey key, TimeSpan? expiry, CommandFlags flags = CommandFlags.None)
+        public Task<RedisValue> StringGetSetExpiryAsync(RedisKey key, TimeSpan expiry, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStringGetExMessage(key, expiry, flags);
             return ExecuteAsync(msg, ResultProcessor.RedisValue);
         }
 
-        public RedisValue StringGet(RedisKey key, DateTime expiry, CommandFlags flags = CommandFlags.None)
+        public RedisValue StringGetSetExpiry(RedisKey key, DateTime expiry, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStringGetExMessage(key, expiry, flags);
             return ExecuteSync(msg, ResultProcessor.RedisValue);
         }
 
-        public Task<RedisValue> StringGetAsync(RedisKey key, DateTime expiry, CommandFlags flags = CommandFlags.None)
+        public Task<RedisValue> StringGetSetExpiryAsync(RedisKey key, DateTime expiry, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStringGetExMessage(key, expiry, flags);
+            return ExecuteAsync(msg, ResultProcessor.RedisValue);
+        }
+
+        public RedisValue StringGetRemoveExpiry(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.GETEX, key, RedisLiterals.PERSIST);
+            return ExecuteSync(msg, ResultProcessor.RedisValue);
+        }
+
+        public Task<RedisValue> StringGetRemoveExpiryAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.GETEX, key, RedisLiterals.PERSIST);
             return ExecuteAsync(msg, ResultProcessor.RedisValue);
         }
 
@@ -3442,13 +3454,13 @@ namespace StackExchange.Redis
             return Message.CreateInSlot(Database, slot, flags, RedisCommand.BITOP, new[] { op, destination.AsRedisValue(), first.AsRedisValue(), second.AsRedisValue() });
         }
 
-        private Message GetStringGetExMessage(in RedisKey key, TimeSpan? expiry, CommandFlags flags = CommandFlags.None)
+        private Message GetStringGetExMessage(in RedisKey key, TimeSpan expiry, CommandFlags flags = CommandFlags.None)
         {
-            if (expiry == null || expiry.Value == TimeSpan.MaxValue)
+            if (expiry == TimeSpan.MaxValue)
             {
                 return Message.Create(Database, flags, RedisCommand.GETEX, key, RedisLiterals.PERSIST);
             }
-            long milliseconds = expiry.Value.Ticks / TimeSpan.TicksPerMillisecond;
+            long milliseconds = expiry.Ticks / TimeSpan.TicksPerMillisecond;
 
             if ((milliseconds % 1000) == 0)
             {
