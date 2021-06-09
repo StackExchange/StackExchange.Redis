@@ -76,19 +76,56 @@ namespace StackExchange.Redis
 
         public bool IsConnecting => interactive?.IsConnecting == true;
 
-        /// <summary>
-        /// Fired when the Interactive connection of this endpoint changes state
-        /// </summary>
-        public Action<State> OnConnectionStateChange
+        private readonly List<TaskCompletionSource<bool>> _pendingConnectionMonitors = new List<TaskCompletionSource<bool>>();
+
+        internal void OnConnectionStateChange(State oldState, State newState)
         {
-            get => interactive?.OnStateChange;
-            set
+            switch (newState)
             {
-                var tmp = interactive;
-                if (tmp != null)
+                case State.ConnectedEstablished:
+                    lock (_pendingConnectionMonitors)
+                    {
+                        foreach (var tcs in _pendingConnectionMonitors)
+                        {
+                            tcs.TrySetResult(true);
+                        }
+                        _pendingConnectionMonitors.Clear();
+                    }
+                    break;
+                case State.Disconnected:
+                    lock (_pendingConnectionMonitors)
+                    {
+                        foreach (var tcs in _pendingConnectionMonitors)
+                        {
+                            tcs.TrySetResult(false);
+                        }
+                        _pendingConnectionMonitors.Clear();
+                    }
+                    break;
+            }
+        }
+
+        /// <summary>
+        /// Awaitable state seeing if this endpoint is connected.
+        /// </summary>
+        public Task<bool> OnConnectedAsync(LogProxy log = null, bool sendTracerIfConnected = false)
+        {
+            if (!IsConnected)
+            {
+                var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                lock (_pendingConnectionMonitors)
                 {
-                    tmp.OnStateChange = value;
+                    _pendingConnectionMonitors.Add(tcs);
                 }
+                return tcs.Task;
+            }
+            else if (sendTracerIfConnected)
+            {
+                return SendTracer(log);
+            }
+            else
+            {
+                return Task.FromResult(true);
             }
         }
 
