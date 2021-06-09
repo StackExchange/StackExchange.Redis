@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Net;
 using System.Runtime.CompilerServices;
@@ -76,6 +75,22 @@ namespace StackExchange.Redis
         public bool IsConnected => interactive?.IsConnected == true;
 
         public bool IsConnecting => interactive?.IsConnecting == true;
+
+        /// <summary>
+        /// Fired when the Interactive connection of this endpoint changes state
+        /// </summary>
+        public Action<State> OnConnectionStateChange
+        {
+            get => interactive?.OnStateChange;
+            set
+            {
+                var tmp = interactive;
+                if (tmp != null)
+                {
+                    tmp.OnStateChange = value;
+                }
+            }
+        }
 
         internal Exception LastException
         {
@@ -493,6 +508,7 @@ namespace StackExchange.Redis
             }
             return Task.CompletedTask;
         }
+
         private async Task OnEstablishingAsyncAwaited(PhysicalConnection connection, Task handshake)
         {
             try
@@ -504,8 +520,6 @@ namespace StackExchange.Redis
                 connection.RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
             }
         }
-
-        internal event EventHandler FullyEstablished;
         
         internal void OnFullyEstablished(PhysicalConnection connection)
         {
@@ -521,7 +535,6 @@ namespace StackExchange.Redis
                     }
                     Multiplexer.OnConnectionRestored(EndPoint, bridge.ConnectionType, connection?.ToString());
                 }
-                FullyEstablished?.Invoke(this, null);
             }
             catch (Exception ex)
             {

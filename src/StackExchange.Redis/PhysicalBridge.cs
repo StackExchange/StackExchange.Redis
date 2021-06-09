@@ -1127,6 +1127,11 @@ namespace StackExchange.Redis
         private void UnmarkActiveMessage(Message message)
             => Interlocked.CompareExchange(ref _activeMessage, null, message); // remove if it is us
 
+        /// <summary>
+        /// Triggered whenever the state changes on this bridge
+        /// </summary>
+        internal Action<State> OnStateChange;
+
         private State ChangeState(State newState)
         {
 #pragma warning disable 0420
@@ -1135,6 +1140,7 @@ namespace StackExchange.Redis
             if (oldState != newState)
             {
                 Multiplexer.Trace(ConnectionType + " state changed from " + oldState + " to " + newState);
+                OnStateChange?.Invoke(newState);
             }
             return oldState;
         }
@@ -1147,6 +1153,7 @@ namespace StackExchange.Redis
             if (result)
             {
                 Multiplexer.Trace(ConnectionType + " state changed from " + oldState + " to " + newState);
+                OnStateChange?.Invoke(newState);
             }
             return result;
         }        

@@ -1726,35 +1726,30 @@ namespace StackExchange.Redis
                             if (reconfigureAll && server.IsConnected)
                             {
                                 log?.WriteLine($"Refreshing {Format.ToString(server.EndPoint)}...");
-                                // note that these will be processed synchronously *BEFORE* the tracer is processed,
+                                // Note that these will be processed synchronously *BEFORE* the tracer is processed,
                                 // so we know that the configuration will be up to date if we see the tracer
                                 server.AutoConfigure(null);
                             }
-                            log?.WriteLine($"Server endpoint {server.EndPoint} is in {server.ConnectionState}");
-                            if (server.IsConnected)
+                            log?.WriteLine($"Server endpoint {Format.ToString(server.EndPoint)} is in {server.ConnectionState}");
+
+                            // Unconditionally attach a listener to the connection state change here, in case we race against
+                            // the .IsConnected check below. If it wins, that's fine.
+                            var tcs = new TaskCompletionSource<bool>();
+                            // Replace the connection handler with our task completion
+                            // If we're here, we're already going to send a tracer, as part of the initial connection or reconnection
+                            server.OnConnectionStateChange = (state) =>
                             {
-                                // If we're connected, send the tracer immediately
-                                available[i] = server.SendTracer(log);
-                            }
-                            else
-                            {
-                                var tcs = new TaskCompletionSource<bool>();
-                                server.FullyEstablished += (o, e) => tcs.TrySetResult(true);
-                                // In case we race against a connection completion - check again after attached to explicitly fire
-                                // The first one there wins, and either way we are notified ASAP.
-                                if (server.IsConnected)
+                                if (state == PhysicalBridge.State.ConnectedEstablished)
                                 {
                                     tcs.TrySetResult(true);
                                 }
-                                available[i] = tcs.Task;
-                            }
-                            if (useTieBreakers)
+                            };
+                            available[i] = tcs.Task;
+
+                            // If we're already connected (including a potential race above), verify we're still connected: 
+                            if (server.IsConnected)
                             {
-                                log?.WriteLine($"Requesting tie-break from {Format.ToString(server.EndPoint)} > {RawConfig.TieBreaker}...");
-                                Message msg = Message.Create(0, flags, RedisCommand.GET, tieBreakerKey);
-                                msg.SetInternalCall();
-                                msg = LoggingMessage.Create(log, msg);
-                                tieBreakers[i] = server.WriteDirectAsync(msg, ResultProcessor.String);
+                                available[i] = server.SendTracer(log);
                             }
                         }
 
@@ -1763,6 +1758,21 @@ namespace StackExchange.Redis
                         log?.WriteLine($"Allowing endpoints {TimeSpan.FromMilliseconds(remaining)} to respond...");
                         Trace("Allowing endpoints " + TimeSpan.FromMilliseconds(remaining) + " to respond...");
                         await WaitAllIgnoreErrorsAsync(available, remaining, log).ForAwait();
+
+                        // After we've successfully connected (and authed), kickoff tie breakers if needed
+                        if (useTieBreakers)
+                        {
+                            for (int i = 0; i < available.Length; i++)
+                            {
+                                var server = servers[i];
+
+                                log?.WriteLine($"Requesting tie-break from {Format.ToString(server.EndPoint)} > {RawConfig.TieBreaker}...");
+                                Message msg = Message.Create(0, flags, RedisCommand.GET, tieBreakerKey);
+                                msg.SetInternalCall();
+                                msg = LoggingMessage.Create(log, msg);
+                                tieBreakers[i] = server.WriteDirectAsync(msg, ResultProcessor.String);
+                            }
+                        }
 
                         EndPointCollection updatedClusterEndpointCollection = null;
                         for (int i = 0; i < available.Length; i++)
