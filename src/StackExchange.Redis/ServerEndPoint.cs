@@ -78,33 +78,6 @@ namespace StackExchange.Redis
 
         private readonly List<TaskCompletionSource<bool>> _pendingConnectionMonitors = new List<TaskCompletionSource<bool>>();
 
-        internal void OnConnectionStateChange(State oldState, State newState)
-        {
-            switch (newState)
-            {
-                case State.ConnectedEstablished:
-                    lock (_pendingConnectionMonitors)
-                    {
-                        foreach (var tcs in _pendingConnectionMonitors)
-                        {
-                            tcs.TrySetResult(true);
-                        }
-                        _pendingConnectionMonitors.Clear();
-                    }
-                    break;
-                case State.Disconnected:
-                    lock (_pendingConnectionMonitors)
-                    {
-                        foreach (var tcs in _pendingConnectionMonitors)
-                        {
-                            tcs.TrySetResult(false);
-                        }
-                        _pendingConnectionMonitors.Clear();
-                    }
-                    break;
-            }
-        }
-
         /// <summary>
         /// Awaitable state seeing if this endpoint is connected.
         /// </summary>
@@ -529,6 +502,18 @@ namespace StackExchange.Redis
             return bridge != null && (allowDisconnected || bridge.IsConnected);
         }
 
+        internal void OnDisconnected()
+        {
+            lock (_pendingConnectionMonitors)
+            {
+                foreach (var tcs in _pendingConnectionMonitors)
+                {
+                    tcs.TrySetResult(false);
+                }
+                _pendingConnectionMonitors.Clear();
+            }
+        }
+
         internal Task OnEstablishingAsync(PhysicalConnection connection, LogProxy log)
         {
             try
@@ -571,6 +556,14 @@ namespace StackExchange.Redis
                         Multiplexer.ResendSubscriptions(this);
                     }
                     Multiplexer.OnConnectionRestored(EndPoint, bridge.ConnectionType, connection?.ToString());
+                }
+                lock (_pendingConnectionMonitors)
+                {
+                    foreach (var tcs in _pendingConnectionMonitors)
+                    {
+                        tcs.TrySetResult(true);
+                    }
+                    _pendingConnectionMonitors.Clear();
                 }
             }
             catch (Exception ex)

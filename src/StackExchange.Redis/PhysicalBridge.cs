@@ -430,6 +430,7 @@ namespace StackExchange.Redis
                         r.ForceExponentialBackoffReplicationCheck();
                     }
                 }
+                ServerEndPoint.OnDisconnected();
 
                 if (!isDisposed && Interlocked.Increment(ref failConnectCount) == 1)
                 {
@@ -1118,7 +1119,6 @@ namespace StackExchange.Redis
             if (oldState != newState)
             {
                 Multiplexer.Trace(ConnectionType + " state changed from " + oldState + " to " + newState);
-                ServerEndPoint?.OnConnectionStateChange(oldState, newState);
             }
             return oldState;
         }
@@ -1131,7 +1131,6 @@ namespace StackExchange.Redis
             if (result)
             {
                 Multiplexer.Trace(ConnectionType + " state changed from " + oldState + " to " + newState);
-                ServerEndPoint?.OnConnectionStateChange(oldState, newState);
             }
             return result;
         }
