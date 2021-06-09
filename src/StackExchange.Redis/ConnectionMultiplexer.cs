@@ -2363,7 +2363,7 @@ namespace StackExchange.Redis
         {
             if (ServerSelectionStrategy.ServerType != ServerType.Sentinel)
                 throw new RedisConnectionException(ConnectionFailureType.UnableToConnect,
-                    "Sentinel: The ConnectionMultiplexer is not a Sentinel connection.");
+                    "Sentinel: The ConnectionMultiplexer is not a Sentinel connection. Detected as: " + ServerSelectionStrategy.ServerType);
 
             if (string.IsNullOrEmpty(config.ServiceName))
                 throw new ArgumentException("A ServiceName must be specified.");
