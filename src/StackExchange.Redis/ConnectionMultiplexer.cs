@@ -2284,7 +2284,7 @@ namespace StackExchange.Redis
 
         internal Timer sentinelMasterReconnectTimer;
 
-        internal Dictionary<string, ConnectionMultiplexer> sentinelConnectionChildren;
+        internal Dictionary<string, ConnectionMultiplexer> sentinelConnectionChildren = new Dictionary<string, ConnectionMultiplexer>();
         internal ConnectionMultiplexer sentinelConnection = null;
 
         /// <summary>
@@ -2299,8 +2299,6 @@ namespace StackExchange.Redis
             {
                 return;
             }
-
-            sentinelConnectionChildren = new Dictionary<string, ConnectionMultiplexer>();
 
             // Subscribe to sentinel change events
             ISubscriber sub = GetSubscriber();
