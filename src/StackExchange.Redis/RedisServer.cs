@@ -441,20 +441,15 @@ namespace StackExchange.Redis
                 default:
                     throw new ArgumentOutOfRangeException(nameof(shutdownMode));
             }
+
             try
             {
                 ExecuteSync(msg, ResultProcessor.DemandOK);
             }
-            catch (RedisConnectionException ex)
+            catch (RedisConnectionException ex) when (ex.FailureType == ConnectionFailureType.SocketClosed || ex.FailureType == ConnectionFailureType.SocketFailure)
             {
-                switch (ex.FailureType)
-                {
-                    case ConnectionFailureType.SocketClosed:
-                    case ConnectionFailureType.SocketFailure:
-                        // that's fine
-                        return;
-                }
-                throw; // otherwise, not something we were expecting
+                // that's fine
+                return;
             }
         }
 

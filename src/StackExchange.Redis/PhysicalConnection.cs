@@ -180,13 +180,9 @@ namespace StackExchange.Redis
                     }
                 }
             }
-            catch (NotImplementedException ex)
+            catch (NotImplementedException ex) when (!(endpoint is IPEndPoint))
             {
-                if (!(endpoint is IPEndPoint))
-                {
-                    throw new InvalidOperationException("BeginConnect failed with NotImplementedException; consider using IP endpoints, or enable ResolveDns in the configuration", ex);
-                }
-                throw;
+                throw new InvalidOperationException("BeginConnect failed with NotImplementedException; consider using IP endpoints, or enable ResolveDns in the configuration", ex);
             }
             finally
             {
@@ -889,13 +885,9 @@ namespace StackExchange.Redis
                     // here lies the evil
                     flush.AsTask().Wait();
                 }
-                catch (AggregateException ex)
+                catch (AggregateException ex) when (ex.InnerExceptions.Any(e => e is TaskCanceledException))
                 {
-                    if (ex.InnerExceptions.Any(e => e is TaskCanceledException))
-                    {
-                        ThrowTimeout();
-                    }
-                    throw;
+                    ThrowTimeout();
                 }
                 finally
                 {
