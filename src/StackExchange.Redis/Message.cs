@@ -774,8 +774,7 @@ namespace StackExchange.Redis
             {
                 WriteImpl(physical);
             }
-            catch (Exception ex)
-            when (!(ex is RedisCommandException)) // these have specific meaning; don't wrap
+            catch (Exception ex) when (!(ex is RedisCommandException)) // these have specific meaning; don't wrap
             {
                 physical?.OnInternalError(ex);
                 Fail(ConnectionFailureType.InternalFailure, ex, null);

@@ -446,9 +446,7 @@ namespace StackExchange.Redis
             {
                 ExecuteSync(msg, ResultProcessor.DemandOK);
             }
-            catch (RedisConnectionException ex)
-            when (ex.FailureType == ConnectionFailureType.SocketClosed ||
-                  ex.FailureType == ConnectionFailureType.SocketFailure)
+            catch (RedisConnectionException ex) when (ex.FailureType == ConnectionFailureType.SocketClosed || ex.FailureType == ConnectionFailureType.SocketFailure)
             {
                 // that's fine
                 return;

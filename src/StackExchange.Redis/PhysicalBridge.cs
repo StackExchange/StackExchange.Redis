@@ -1156,7 +1156,7 @@ namespace StackExchange.Redis
                 OnStateChange?.Invoke(newState);
             }
             return result;
-        }        
+        }
 
         public PhysicalConnection TryConnect(LogProxy log)
         {
