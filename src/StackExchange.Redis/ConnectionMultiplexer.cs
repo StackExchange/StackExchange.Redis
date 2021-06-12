@@ -1218,6 +1218,25 @@ namespace StackExchange.Redis
                 return new ServerSnapshot(arr, _count + 1);
             }
 
+            internal ServerSnapshot Remove(ServerEndPoint value)
+            {
+                if (value == null) return this;
+                var arr = _arr;
+                var arrCopy = new ServerEndPoint[arr.Length];
+                int inserted = 0;
+                for (int i = 0; i < _count; ++i)
+                {
+                    if (arr[i] != value)
+                    {
+                        arrCopy[inserted++] = arr[i];
+                    }
+                }
+
+                if (inserted == _count) return this;
+
+                return new ServerSnapshot(arrCopy, inserted);
+            }
+
             internal EndPoint[] GetEndPoints()
             {
                 if (_count == 0) return Array.Empty<EndPoint>();
@@ -1230,6 +1249,7 @@ namespace StackExchange.Redis
                 return arr;
             }
         }
+
         internal ServerEndPoint GetServerEndPoint(EndPoint endpoint, LogProxy log = null, bool activate = true)
         {
             if (endpoint == null) return null;
@@ -1806,12 +1826,18 @@ namespace StackExchange.Redis
                                             closeTask[1] = server.Close(ConnectionType.Subscription);
                                             await Task.WhenAll(closeTask);
 
-                                            // server cleanup
-                                            lock (this.servers)
+                                            // if discovery endpoint is not in the list of endpoints close it
+                                            var endpointInClusterNodes = updatedClusterEndpointCollection.FirstOrDefault( endpoint => server.EndPoint.Equals(endpoint));
+                                            if (endpointInClusterNodes == null)
                                             {
-                                                this.servers.Remove(server.EndPoint);
+                                                // server cleanup
+                                                lock (this.servers)
+                                                {
+                                                    this.servers.Remove(server.EndPoint);
+                                                    _serverSnapshot.Remove(server);
+                                                }
+                                                server.Dispose();
                                             }
-                                            server.Dispose();
                                             continue;
                                         }
                                     }
