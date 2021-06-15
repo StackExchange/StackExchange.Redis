@@ -113,6 +113,6 @@ jobs:
     - uses: dorny/test-reporter@v1
       if: success() || failure()
       with:
-        name: StackExchange.Redis.Tests - Results
+        name: StackExchange.Redis.Tests (Windows Server 2019) - Results
         path: 'test-results/*.trx'
         reporter: dotnet-trx      
