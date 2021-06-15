@@ -1966,7 +1966,19 @@ namespace StackExchange.Redis
             try
             {
                 var clusterConfig = await ExecuteAsyncImpl(message, ResultProcessor.ClusterNodes, null, server).ForAwait();
-                return new EndPointCollection(clusterConfig.Nodes.Select(node => node.EndPoint).ToList());
+                var clusterEndpoints = new EndPointCollection(clusterConfig.Nodes.Select(node => node.EndPoint).ToList());
+                // Loop through nodes in the cluster and update nodes relations to other nodes
+                ServerEndPoint serverEndpoint = null;
+                foreach (EndPoint endpoint in clusterEndpoints)
+                {
+                    serverEndpoint = GetServerEndPoint(endpoint);
+                    if (serverEndpoint != null)
+                    {
+                        serverEndpoint.UpdateNodeRelations(clusterConfig);
+                    }
+                    
+                }
+                return clusterEndpoints;
             }
             catch (Exception ex)
             {
