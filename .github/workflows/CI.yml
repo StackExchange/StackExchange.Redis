@@ -32,11 +32,11 @@ jobs:
     - name: StackExchange.Redis.Tests
       run: dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj -c Release --logger trx --results-directory ./test-results/ /p:CI=true
     - uses: dorny/test-reporter@v1
-        if: success() || failure()
-        with:
-          name: StackExchange.Redis.Tests - Results
-          path: 'test-results/*.trx'
-          reporter: dotnet-trx
+      if: success() || failure()
+      with:
+        name: StackExchange.Redis.Tests - Results
+        path: 'test-results/*.trx'
+        reporter: dotnet-trx
     - name: .NET Lib Pack
       run: dotnet pack src/StackExchange.Redis/StackExchange.Redis.csproj --no-build -c Release /p:Packing=true /p:PackageOutputPath=%CD%\.nupkgs /p:CI=true
 
@@ -64,11 +64,11 @@ jobs:
     - name: NRedisSearch.Tests
       run: dotnet test tests/NRediSearch.Test/NRediSearch.Test.csproj -c Release --logger trx --results-directory ./test-results/ /p:CI=true
     - uses: dorny/test-reporter@v1
-        if: success() || failure()
-        with:
-          name: NRedisSearch.Tests - Results
-          path: 'test-results/*.trx'
-          reporter: dotnet-trx
+      if: success() || failure()
+      with:
+        name: NRedisSearch.Tests - Results
+        path: 'test-results/*.trx'
+        reporter: dotnet-trx
     - name: .NET Lib Pack
       run: dotnet pack src/NRediSearch/NRediSearch.csproj --no-build -c Release /p:Packing=true /p:PackageOutputPath=%CD%\.nupkgs /p:CI=true
 
@@ -111,8 +111,8 @@ jobs:
     - name: StackExchange.Redis.Tests
       run: dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj -c Release --logger trx --results-directory ./test-results/ /p:CI=true
     - uses: dorny/test-reporter@v1
-        if: success() || failure()
-        with:
-          name: StackExchange.Redis.Tests - Results
-          path: 'test-results/*.trx'
-          reporter: dotnet-trx      
+      if: success() || failure()
+      with:
+        name: StackExchange.Redis.Tests - Results
+        path: 'test-results/*.trx'
+        reporter: dotnet-trx      
