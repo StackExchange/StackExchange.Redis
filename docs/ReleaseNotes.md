@@ -4,6 +4,7 @@
 
 - performance optimization for PING accuracy (#1714 via eduardobr)
 - improvement to reconnect logic (exponential backoff) (#1735 via deepakverma)
+- fix messages sent out of order when they are written through PhysicalBridge bypassing backlogged messages (#1749 via TimLovellSmith)
 
 ## 2.2.4
 
