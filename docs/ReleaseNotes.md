@@ -4,6 +4,7 @@
 
 - performance optimization for PING accuracy (#1714 via eduardobr)
 - improvement to reconnect logic (exponential backoff) (#1735 via deepakverma)
+- refresh replica endpoint list on failover (#1684 by laurauzcategui)
 
 ## 2.2.4
 
