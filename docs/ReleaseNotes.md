@@ -4,6 +4,7 @@
 
 - performance optimization for PING accuracy (#1714 via eduardobr)
 - improvement to reconnect logic (exponential backoff) (#1735 via deepakverma)
+- resolve race in AUTH connection reconfigurations (#1759 via TimLovellSmith and NickCraver)
 
 ## 2.2.4
 
