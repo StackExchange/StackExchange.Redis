@@ -1188,11 +1188,10 @@ namespace StackExchange.Redis
             {
                 return ExecuteSync(msg, ResultProcessor.ScriptResult);
             }
-            catch (RedisServerException)
+            catch (RedisServerException) when (msg.IsScriptUnavailable)
             {
                 // could be a NOSCRIPT; for a sync call, we can re-issue that without problem
-                if (msg.IsScriptUnavailable) return ExecuteSync(msg, ResultProcessor.ScriptResult);
-                throw;
+                return ExecuteSync(msg, ResultProcessor.ScriptResult);
             }
         }
 

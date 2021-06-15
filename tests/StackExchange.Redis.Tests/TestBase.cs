@@ -35,6 +35,11 @@ namespace StackExchange.Redis.Tests
             ClearAmbientFailures();
         }
 
+        /// <summary> Useful to temporarily get extra worker threads for an otherwise synchronous test case which will 'block' the thread, on a synchronous API like Task.Wait() or Task.Result</summary>
+        /// <note> Must NOT be used for test cases which *goes async*, as then the inferred return type will become 'async void', and we will fail to observe the result of  the async part</note>
+        /// <remarks>See 'ConnectFailTimeout' class for example usage.</remarks>
+        protected Task RunBlockingSynchronousWithExtraThreadAsync(Action testScenario) => Task.Factory.StartNew(testScenario, CancellationToken.None, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+
         protected void LogNoTime(string message) => LogNoTime(Writer, message);
         internal static void LogNoTime(TextWriter output, string message)
         {

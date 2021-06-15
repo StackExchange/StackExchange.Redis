@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
@@ -25,7 +26,8 @@ namespace StackExchange.Redis
 
         private readonly long[] profileLog = new long[ProfileLogSamples];
 
-        private readonly Queue<Message> _backlog = new Queue<Message>();
+        private readonly ConcurrentQueue<Message> _backlog = new ConcurrentQueue<Message>();
+        private int _backlogProcessorIsRunning = 0;
 
         private int activeWriters = 0;
         private int beating;
@@ -126,8 +128,6 @@ namespace StackExchange.Redis
 
         public override string ToString() => ConnectionType + "/" + Format.ToString(ServerEndPoint.EndPoint);
 
-        public void TryConnect(LogProxy log) => GetConnection(log);
-
         private WriteResult QueueOrFailMessage(Message message)
         {
             if (message.IsInternalCall && message.Command != RedisCommand.QUIT)
@@ -135,11 +135,8 @@ namespace StackExchange.Redis
                 // you can go in the queue, but we won't be starting
                 // a worker, because the handshake has not completed
                 message.SetEnqueued(null);
-                lock (_backlog)
-                {
-                    message.SetBacklogState(_backlog.Count, null);
-                    _backlog.Enqueue(message);
-                }
+                message.SetBacklogState(_backlog.Count, null);
+                _backlog.Enqueue(message);
                 return WriteResult.Success; // we'll take it...
             }
             else
@@ -291,10 +288,7 @@ namespace StackExchange.Redis
             out BacklogStatus bs, out PhysicalConnection.ReadStatus rs, out PhysicalConnection.WriteStatus ws)
         {
             inst = (int)(Interlocked.Read(ref operationCount) - Interlocked.Read(ref profileLastLog));
-            lock(_backlog)
-            {
-                qu = _backlog.Count;
-            }
+            qu = _backlog.Count;
             aw = !_singleWriterMutex.IsAvailable;
             bs = _backlogStatus;
             var tmp = physical;
@@ -401,7 +395,7 @@ namespace StackExchange.Redis
             {
                 tmp.RecordConnectionFailed(ConnectionFailureType.UnableToConnect);
             }
-            GetConnection(null);
+            TryConnect(null);
         }
 
         internal void OnConnectionFailed(PhysicalConnection connection, ConnectionFailureType failureType, Exception innerException)
@@ -436,10 +430,11 @@ namespace StackExchange.Redis
                         r.ForceExponentialBackoffReplicationCheck();
                     }
                 }
+                ServerEndPoint.OnDisconnected();
 
                 if (!isDisposed && Interlocked.Increment(ref failConnectCount) == 1)
                 {
-                    GetConnection(null); // try to connect immediately
+                    TryConnect(null); // try to connect immediately
                 }
             }
             else if (physical == null)
@@ -454,19 +449,11 @@ namespace StackExchange.Redis
 
         private void AbandonPendingBacklog(Exception ex)
         {
-            Message next;
-            do
+            while (_backlog.TryDequeue(out Message next))
             {
-                lock (_backlog)
-                {
-                    next = _backlog.Count == 0 ? null : _backlog.Dequeue();
-                }
-                if (next != null)
-                {
-                    Multiplexer?.OnMessageFaulted(next, ex);
-                    next.SetExceptionAndComplete(ex, this);
-                }
-            } while (next != null);
+                Multiplexer?.OnMessageFaulted(next, ex);
+                next.SetExceptionAndComplete(ex, this);
+            }
         }
         internal void OnFullyEstablished(PhysicalConnection connection)
         {
@@ -479,11 +466,8 @@ namespace StackExchange.Redis
                 Interlocked.Exchange(ref failConnectCount, 0);
                 ServerEndPoint.OnFullyEstablished(connection);
 
-                bool createWorker;
-                lock (_backlog) // do we have pending system things to do?
-                {
-                    createWorker = _backlog.Count != 0;
-                }
+                // do we have pending system things to do?
+                bool createWorker = !_backlog.IsEmpty;
                 if (createWorker) StartBacklogProcessor();
 
                 if (ConnectionType == ConnectionType.Interactive) ServerEndPoint.CheckInfoReplication();
@@ -578,7 +562,7 @@ namespace StackExchange.Redis
                         {
                             Multiplexer.Trace("Resurrecting " + ToString());
                             Multiplexer.OnResurrecting(ServerEndPoint?.EndPoint, ConnectionType);
-                            GetConnection(null);
+                            TryConnect(null);
                         }
                         break;
                     default:
@@ -716,14 +700,6 @@ namespace StackExchange.Redis
             Trace("Writing: " + message);
             message.SetEnqueued(physical); // this also records the read/write stats at this point
 
-            // AVOID REORDERING MESSAGES
-            // Prefer to add it to the backlog if this thread can see that there might already be a message backlog.
-            // We do this before attempting to take the writelock, because we won't actually write, we'll just let the backlog get processed in due course
-            if (PushToBacklog(message, onlyIfExists: true))
-            {
-                return WriteResult.Success; // queued counts as success
-            }
-
             LockToken token = default;
             try
             {
@@ -765,26 +741,34 @@ namespace StackExchange.Redis
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private bool PushToBacklog(Message message, bool onlyIfExists)
         {
-            bool wasEmpty;
-            lock (_backlog)
-            {
-                int count = _backlog.Count;
-                wasEmpty = count == 0;
-                if (wasEmpty & onlyIfExists) return false;
+            // Note, for deciding emptyness for whether to push onlyIfExists, and start worker, 
+            // we only need care if WE are able to 
+            // see the queue when its empty. Not whether anyone else sees it as empty.
+            // So strong synchronization is not required.
+            if (_backlog.IsEmpty & onlyIfExists) return false;
 
-                message.SetBacklogState(count, physical);
-                _backlog.Enqueue(message);
-            }
-            if (wasEmpty) StartBacklogProcessor();
+            
+            int count = _backlog.Count;
+            message.SetBacklogState(count, physical);
+            _backlog.Enqueue(message);
+
+            // The correct way to decide to start backlog process is not based on previously empty
+            // but based on a) not empty now (we enqueued!) and b) no backlog processor already running.
+            // Which StartBacklogProcessor will check.
+            StartBacklogProcessor();
             return true;
         }
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void StartBacklogProcessor()
         {
+            if (Interlocked.CompareExchange(ref _backlogProcessorIsRunning, 1, 0) == 0)
+            {
+                
 #if DEBUG
-            _backlogProcessorRequestedTime = Environment.TickCount;
+                _backlogProcessorRequestedTime = Environment.TickCount;
 #endif
-            Task.Run(ProcessBacklogAsync);
+                Task.Run(ProcessBacklogAsync);
+            }
         }
 #if DEBUG
         private volatile int _backlogProcessorRequestedTime;
@@ -792,22 +776,35 @@ namespace StackExchange.Redis
 
         private void CheckBacklogForTimeouts() // check the head of the backlog queue, consuming anything that looks dead
         {
-            lock (_backlog)
+            var now = Environment.TickCount;
+            var timeout = TimeoutMilliseconds;
+
+            // Because peeking at the backlog, checking message and then dequeueing, is not thread-safe, we do have to use
+            // a lock here, for mutual exclusion of backlog DEQUEUERS. Unfortunately.
+            // But we reduce contention by only locking if we see something that looks timed out.
+            Message message;
+            while (_backlog.TryPeek(out message))
             {
-                var now = Environment.TickCount;
-                var timeout = TimeoutMilliseconds;
-                while (_backlog.Count != 0)
+                if (message.IsInternalCall) break; // don't stomp these (not that they should have the async timeout flag, but...)
+                if (!message.HasAsyncTimedOut(now, timeout, out var _)) break; // not a timeout - we can stop looking
+                lock (_backlog)
                 {
-                    var message = _backlog.Peek();
-                    if (message.IsInternalCall) break; // don't stomp these (not that they should have the async timeout flag, but...)
+                    // peek again since we didn't have lock before...
+                    // and rerun the exact same checks as above, note that it may be a different message now
+                    if (!_backlog.TryPeek(out message)) break;
+                    if (message.IsInternalCall) break;
+                    if (!message.HasAsyncTimedOut(now, timeout, out var _)) break;
 
-                    if (!message.HasAsyncTimedOut(now, timeout, out var _)) break; // not a timeout - we can stop looking
-                    _backlog.Dequeue(); // consume it for real
-
-                    // tell the message that it failed
-                    var ex = Multiplexer.GetException(WriteResult.TimeoutBeforeWrite, message, ServerEndPoint);
-                    message.SetExceptionAndComplete(ex, this);
+                    if (!_backlog.TryDequeue(out var message2) || (message != message2)) // consume it for real
+                    {
+                        throw new RedisException("Thread safety bug detected! A queue message disappeared while we had the backlog lock");
+                    }
                 }
+
+                // Tell the message it has failed
+                // Note: Attempting to *avoid* reentrancy/deadlock issues by not holding the lock while completing messages.
+                var ex = Multiplexer.GetException(WriteResult.TimeoutBeforeWrite, message, ServerEndPoint);
+                message.SetExceptionAndComplete(ex, this);
             }
         }
         internal enum BacklogStatus : byte
@@ -841,10 +838,7 @@ namespace StackExchange.Redis
                 while (true)
                 {
                     // check whether the backlog is empty *before* even trying to get the lock
-                    lock (_backlog)
-                    {
-                        if (_backlog.Count == 0) return; // nothing to do
-                    }
+                    if (_backlog.IsEmpty) return; // nothing to do
 
                     // try and get the lock; if unsuccessful, retry
                     token = await _singleWriterMutex.TryWaitAsync().ConfigureAwait(false);
@@ -866,10 +860,11 @@ namespace StackExchange.Redis
                 while(true)
                 {
                     _backlogStatus = BacklogStatus.CheckingForWork;
+                    // We need to lock _backlog when dequeueing because of 
+                    // races with timeout processing logic
                     lock (_backlog)
                     {
-                        if (_backlog.Count == 0) break; // all done
-                        message = _backlog.Dequeue();
+                        if (!_backlog.TryDequeue(out message)) break; // all done
                     }
 
                     try
@@ -931,6 +926,24 @@ namespace StackExchange.Redis
             finally
             {   
                 token.Dispose();
+
+                // Do this in finally block, so that thread aborts can't convince us the backlog processor is running forever
+                if (Interlocked.CompareExchange(ref _backlogProcessorIsRunning, 0, 1) != 1)
+                {
+                    throw new RedisException("Bug detection, couldn't indicate shutdown of backlog processor");
+                }
+
+                // Now that nobody is processing the backlog, we should consider starting a new backlog processor
+                // in case a new message came in after we ended this loop.
+                if (!_backlog.IsEmpty)
+                {
+                    // Check for faults mainly to prevent unlimited tasks spawning in a fault scenario
+                    // - it isn't StackOverflowException due to the Task.Run()
+                    if (_backlogStatus != BacklogStatus.Faulted)
+                    {
+                        StartBacklogProcessor();
+                    }
+                }
             }
         }
 
@@ -964,20 +977,11 @@ namespace StackExchange.Redis
             Trace("Writing: " + message);
             message.SetEnqueued(physical); // this also records the read/write stats at this point
 
-            // AVOID REORDERING MESSAGES
-            // Prefer to add it to the backlog if this thread can see that there might already be a message backlog.
-            // We do this before attempting to take the writelock, because we won't actually write, we'll just let the backlog get processed in due course
-            if (PushToBacklog(message, onlyIfExists: true))
-            {
-                return new ValueTask<WriteResult>(WriteResult.Success); // queued counts as success
-            }
-
             bool releaseLock = true; // fine to default to true, as it doesn't matter until token is a "success"
             int lockTaken = 0;
             LockToken token = default;
             try
             {
-
                 // try to acquire it synchronously
                 // note: timeout is specified in mutex-constructor
                 token = _singleWriterMutex.TryWait(options: WaitOptions.NoDelay);
@@ -1131,7 +1135,7 @@ namespace StackExchange.Redis
             return result;
         }
 
-        private PhysicalConnection GetConnection(LogProxy log)
+        public PhysicalConnection TryConnect(LogProxy log)
         {
             if (state == (int)State.Disconnected)
             {
@@ -1146,7 +1150,7 @@ namespace StackExchange.Redis
                             Interlocked.Increment(ref socketCount);
                             Interlocked.Exchange(ref connectStartTicks, Environment.TickCount);
                             // separate creation and connection for case when connection completes synchronously
-                            // in that case PhysicalConnection will call back to PhysicalBridge, and most of  PhysicalBridge methods assumes that physical is not null;
+                            // in that case PhysicalConnection will call back to PhysicalBridge, and most PhysicalBridge methods assume that physical is not null;
                             physical = new PhysicalConnection(this);
 
                             physical.BeginConnectAsync(log).RedisFireAndForget();

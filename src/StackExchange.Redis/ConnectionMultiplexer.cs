@@ -1230,6 +1230,7 @@ namespace StackExchange.Redis
                 return arr;
             }
         }
+
         internal ServerEndPoint GetServerEndPoint(EndPoint endpoint, LogProxy log = null, bool activate = true)
         {
             if (endpoint == null) return null;
@@ -1720,25 +1721,22 @@ namespace StackExchange.Redis
                         for (int i = 0; i < available.Length; i++)
                         {
                             Trace("Testing: " + Format.ToString(endpoints[i]));
+
                             var server = GetServerEndPoint(endpoints[i]);
                             //server.ReportNextFailure();
                             servers[i] = server;
+                            // This awaits either the endpoint's initial connection, or a tracer if we're already connected
+                            // (which is the reconfigure case)
+                            available[i] = server.OnConnectedAsync(log, sendTracerIfConnected: true);
+
                             if (reconfigureAll && server.IsConnected)
                             {
                                 log?.WriteLine($"Refreshing {Format.ToString(server.EndPoint)}...");
-                                // note that these will be processed synchronously *BEFORE* the tracer is processed,
+                                // Note that these will be processed synchronously *BEFORE* the tracer is processed,
                                 // so we know that the configuration will be up to date if we see the tracer
                                 server.AutoConfigure(null);
                             }
-                            available[i] = server.SendTracer(log);
-                            if (useTieBreakers)
-                            {
-                                log?.WriteLine($"Requesting tie-break from {Format.ToString(server.EndPoint)} > {RawConfig.TieBreaker}...");
-                                Message msg = Message.Create(0, flags, RedisCommand.GET, tieBreakerKey);
-                                msg.SetInternalCall();
-                                msg = LoggingMessage.Create(log, msg);
-                                tieBreakers[i] = server.WriteDirectAsync(msg, ResultProcessor.String);
-                            }
+                            log?.WriteLine($"Server endpoint {Format.ToString(server.EndPoint)} is in {server.ConnectionState}");
                         }
 
                         watch ??= Stopwatch.StartNew();
@@ -1746,6 +1744,21 @@ namespace StackExchange.Redis
                         log?.WriteLine($"Allowing endpoints {TimeSpan.FromMilliseconds(remaining)} to respond...");
                         Trace("Allowing endpoints " + TimeSpan.FromMilliseconds(remaining) + " to respond...");
                         await WaitAllIgnoreErrorsAsync(available, remaining, log).ForAwait();
+
+                        // After we've successfully connected (and authed), kickoff tie breakers if needed
+                        if (useTieBreakers)
+                        {
+                            for (int i = 0; i < available.Length; i++)
+                            {
+                                var server = servers[i];
+
+                                log?.WriteLine($"Requesting tie-break from {Format.ToString(server.EndPoint)} > {RawConfig.TieBreaker}...");
+                                Message msg = Message.Create(0, flags, RedisCommand.GET, tieBreakerKey);
+                                msg.SetInternalCall();
+                                msg = LoggingMessage.Create(log, msg);
+                                tieBreakers[i] = server.WriteDirectAsync(msg, ResultProcessor.String);
+                            }
+                        }
 
                         EndPointCollection updatedClusterEndpointCollection = null;
                         for (int i = 0; i < available.Length; i++)
@@ -1953,7 +1966,19 @@ namespace StackExchange.Redis
             try
             {
                 var clusterConfig = await ExecuteAsyncImpl(message, ResultProcessor.ClusterNodes, null, server).ForAwait();
-                return new EndPointCollection(clusterConfig.Nodes.Select(node => node.EndPoint).ToList());
+                var clusterEndpoints = new EndPointCollection(clusterConfig.Nodes.Select(node => node.EndPoint).ToList());
+                // Loop through nodes in the cluster and update nodes relations to other nodes
+                ServerEndPoint serverEndpoint = null;
+                foreach (EndPoint endpoint in clusterEndpoints)
+                {
+                    serverEndpoint = GetServerEndPoint(endpoint);
+                    if (serverEndpoint != null)
+                    {
+                        serverEndpoint.UpdateNodeRelations(clusterConfig);
+                    }
+                    
+                }
+                return clusterEndpoints;
             }
             catch (Exception ex)
             {
@@ -2271,7 +2296,7 @@ namespace StackExchange.Redis
 
         internal Timer sentinelMasterReconnectTimer;
 
-        internal Dictionary<string, ConnectionMultiplexer> sentinelConnectionChildren;
+        internal Dictionary<string, ConnectionMultiplexer> sentinelConnectionChildren = new Dictionary<string, ConnectionMultiplexer>();
         internal ConnectionMultiplexer sentinelConnection = null;
 
         /// <summary>
@@ -2286,8 +2311,6 @@ namespace StackExchange.Redis
             {
                 return;
             }
-
-            sentinelConnectionChildren = new Dictionary<string, ConnectionMultiplexer>();
 
             // Subscribe to sentinel change events
             ISubscriber sub = GetSubscriber();
@@ -2352,15 +2375,15 @@ namespace StackExchange.Redis
         {
             if (ServerSelectionStrategy.ServerType != ServerType.Sentinel)
                 throw new RedisConnectionException(ConnectionFailureType.UnableToConnect,
-                    "Sentinel: The ConnectionMultiplexer is not a Sentinel connection.");
+                    "Sentinel: The ConnectionMultiplexer is not a Sentinel connection. Detected as: " + ServerSelectionStrategy.ServerType);
 
             if (string.IsNullOrEmpty(config.ServiceName))
                 throw new ArgumentException("A ServiceName must be specified.");
 
             lock (sentinelConnectionChildren)
             {
-                if (sentinelConnectionChildren.ContainsKey(config.ServiceName) && !sentinelConnectionChildren[config.ServiceName].IsDisposed)
-                    return sentinelConnectionChildren[config.ServiceName];
+                if (sentinelConnectionChildren.TryGetValue(config.ServiceName, out var sentinelConnectionChild) && !sentinelConnectionChild.IsDisposed)
+                    return sentinelConnectionChild;
             }
 
             bool success = false;

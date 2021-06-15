@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Net;
 using System.Runtime.CompilerServices;
@@ -76,6 +75,32 @@ namespace StackExchange.Redis
         public bool IsConnected => interactive?.IsConnected == true;
 
         public bool IsConnecting => interactive?.IsConnecting == true;
+
+        private readonly List<TaskCompletionSource<bool>> _pendingConnectionMonitors = new List<TaskCompletionSource<bool>>();
+
+        /// <summary>
+        /// Awaitable state seeing if this endpoint is connected.
+        /// </summary>
+        public Task<bool> OnConnectedAsync(LogProxy log = null, bool sendTracerIfConnected = false)
+        {
+            if (!IsConnected)
+            {
+                var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                lock (_pendingConnectionMonitors)
+                {
+                    _pendingConnectionMonitors.Add(tcs);
+                }
+                return tcs.Task;
+            }
+            else if (sendTracerIfConnected)
+            {
+                return SendTracer(log);
+            }
+            else
+            {
+                return Task.FromResult(true);
+            }
+        }
 
         internal Exception LastException
         {
@@ -196,26 +221,32 @@ namespace StackExchange.Redis
                 Multiplexer.Trace("Updating cluster ranges...");
                 Multiplexer.UpdateClusterRange(configuration);
                 Multiplexer.Trace("Resolving genealogy...");
-                var thisNode = configuration.Nodes.FirstOrDefault(x => x.EndPoint.Equals(EndPoint));
-                if (thisNode != null)
-                {
-                    List<ServerEndPoint> replicas = null;
-                    ServerEndPoint master = null;
-                    foreach (var node in configuration.Nodes)
-                    {
-                        if (node.NodeId == thisNode.ParentNodeId)
-                        {
-                            master = Multiplexer.GetServerEndPoint(node.EndPoint);
-                        }
-                        else if (node.ParentNodeId == thisNode.NodeId)
-                        {
-                            (replicas ?? (replicas = new List<ServerEndPoint>())).Add(Multiplexer.GetServerEndPoint(node.EndPoint));
-                        }
-                    }
-                    Master = master;
-                    Replicas = replicas?.ToArray() ?? Array.Empty<ServerEndPoint>();
-                }
+                UpdateNodeRelations(configuration);
                 Multiplexer.Trace("Cluster configured");
+            }
+        }
+
+        public void UpdateNodeRelations(ClusterConfiguration configuration)
+        {
+            var thisNode = configuration.Nodes.FirstOrDefault(x => x.EndPoint.Equals(EndPoint));
+            if (thisNode != null)
+            {
+                Multiplexer.Trace($"Updating node relations for {thisNode.EndPoint.ToString()}...");
+                List<ServerEndPoint> replicas = null;
+                ServerEndPoint master = null;
+                foreach (var node in configuration.Nodes)
+                {
+                    if (node.NodeId == thisNode.ParentNodeId)
+                    {
+                        master = Multiplexer.GetServerEndPoint(node.EndPoint);
+                    }
+                    else if (node.ParentNodeId == thisNode.NodeId)
+                    {
+                        (replicas ?? (replicas = new List<ServerEndPoint>())).Add(Multiplexer.GetServerEndPoint(node.EndPoint));
+                    }
+                }
+                Master = master;
+                Replicas = replicas?.ToArray() ?? Array.Empty<ServerEndPoint>();
             }
         }
 
@@ -477,6 +508,18 @@ namespace StackExchange.Redis
             return bridge != null && (allowDisconnected || bridge.IsConnected);
         }
 
+        internal void OnDisconnected()
+        {
+            lock (_pendingConnectionMonitors)
+            {
+                foreach (var tcs in _pendingConnectionMonitors)
+                {
+                    tcs.TrySetResult(false);
+                }
+                _pendingConnectionMonitors.Clear();
+            }
+        }
+
         internal Task OnEstablishingAsync(PhysicalConnection connection, LogProxy log)
         {
             try
@@ -493,6 +536,7 @@ namespace StackExchange.Redis
             }
             return Task.CompletedTask;
         }
+
         private async Task OnEstablishingAsyncAwaited(PhysicalConnection connection, Task handshake)
         {
             try
@@ -504,6 +548,7 @@ namespace StackExchange.Redis
                 connection.RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
             }
         }
+        
         internal void OnFullyEstablished(PhysicalConnection connection)
         {
             try
@@ -517,6 +562,14 @@ namespace StackExchange.Redis
                         Multiplexer.ResendSubscriptions(this);
                     }
                     Multiplexer.OnConnectionRestored(EndPoint, bridge.ConnectionType, connection?.ToString());
+                }
+                lock (_pendingConnectionMonitors)
+                {
+                    foreach (var tcs in _pendingConnectionMonitors)
+                    {
+                        tcs.TrySetResult(true);
+                    }
+                    _pendingConnectionMonitors.Clear();
                 }
             }
             catch (Exception ex)
@@ -781,14 +834,14 @@ namespace StackExchange.Redis
             string user = Multiplexer.RawConfig.User, password = Multiplexer.RawConfig.Password ?? "";
             if (!string.IsNullOrWhiteSpace(user))
             {
-                log?.WriteLine("Authenticating (user/password)");
+                log?.WriteLine("Authenticating (user/password) to endpoint " + EndPoint);
                 msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.AUTH, (RedisValue)user, (RedisValue)password);
                 msg.SetInternalCall();
                 await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
             }
             else if (!string.IsNullOrWhiteSpace(password))
             {
-                log?.WriteLine("Authenticating (password)");
+                log?.WriteLine("Authenticating (password) to endpoint " + EndPoint);
                 msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.AUTH, (RedisValue)password);
                 msg.SetInternalCall();
                 await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
@@ -822,9 +875,9 @@ namespace StackExchange.Redis
                 log?.WriteLine("Auto-configure...");
                 AutoConfigure(connection);
             }
-            log?.WriteLine($"Sending critical tracer: {bridge}");
             var tracer = GetTracerMessage(true);
             tracer = LoggingMessage.Create(log, tracer);
+            log?.WriteLine($"Sending critical tracer message {tracer.CommandAndKey}: {bridge}");
             await WriteDirectOrQueueFireAndForgetAsync(connection, tracer, ResultProcessor.EstablishConnection).ForAwait();
 
             // note: this **must** be the last thing on the subscription handshake, because after this
