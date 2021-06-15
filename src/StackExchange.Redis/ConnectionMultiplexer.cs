@@ -2370,8 +2370,8 @@ namespace StackExchange.Redis
 
             lock (sentinelConnectionChildren)
             {
-                if (sentinelConnectionChildren.ContainsKey(config.ServiceName) && !sentinelConnectionChildren[config.ServiceName].IsDisposed)
-                    return sentinelConnectionChildren[config.ServiceName];
+                if (sentinelConnectionChildren.TryGetValue(config.ServiceName, out var sentinelConnectionChild) && !sentinelConnectionChild.IsDisposed)
+                    return sentinelConnectionChild;
             }
 
             bool success = false;
