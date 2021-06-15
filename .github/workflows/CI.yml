@@ -30,7 +30,7 @@ jobs:
       working-directory: ./tests/RedisConfigs
       run: docker-compose -f docker-compose.yml up -d
     - name: StackExchange.Redis.Tests
-      run: dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj -c Release --logger GitHubActions /p:CI=true
+      run: dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj -c Release --logger "GitHubActions;report-warnings=false" /p:CI=true
     - name: .NET Lib Pack
       run: dotnet pack src/StackExchange.Redis/StackExchange.Redis.csproj --no-build -c Release /p:Packing=true /p:PackageOutputPath=%CD%\.nupkgs /p:CI=true
 
