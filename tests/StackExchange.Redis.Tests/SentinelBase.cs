@@ -148,7 +148,7 @@ namespace StackExchange.Redis.Tests
                 await Task.Delay(1000).ForAwait();
             }
 
-            throw new RedisException("Timeout waiting for server to have expected role assigned");
+            throw new RedisException($"Timeout waiting for server ({server.EndPoint}) to have expected role (\"{role}\") assigned");
         }
 
         protected async Task WaitForReplicationAsync(IServer master, TimeSpan? duration = null)
