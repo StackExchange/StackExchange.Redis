@@ -50,44 +50,6 @@ namespace StackExchange.Redis
         public LogProxy Log => log;
     }
 
-    /// <summary>
-    /// 
-    /// </summary>
-    public class Request
-    {
-        internal Message message;
-        /// <summary>
-        /// 
-        /// </summary>
-        public bool ResultBoxIsAsync { get; internal set; }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        public char Command { get; internal set; }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        public CommandStatus Status { get; internal set; }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        public CommandFlags Flags { get; internal set; }
-
-        internal Request(Message message)
-        {
-            this.message = message;
-        }
-
-        internal int GetWriteTime() => message.GetWriteTime();
-        internal void SetEnqueued(PhysicalConnection connection) => message.SetEnqueued(connection);
-        internal void ResetStatusToWaitingToBeSent() => message.ResetStatusToWaitingToBeSent();
-        internal void SetExceptionAndComplete(Exception exception, PhysicalBridge bridge) => message.SetExceptionAndComplete(exception, bridge);
-    }
-
-
     internal abstract class Message : ICompletable
     {
         public readonly int Db;
@@ -130,7 +92,10 @@ namespace StackExchange.Redis
 #pragma warning restore CS0618
                                                        | CommandFlags.FireAndForget
                                                        | CommandFlags.NoRedirect
-                                                       | CommandFlags.NoScriptCache;
+                                                       | CommandFlags.NoScriptCache
+                                                       | CommandFlags.OnConnectionRestoreAlwaysRetry
+                                                       | CommandFlags.OnConnectionRestoreNoRetry
+                                                       | CommandFlags.OnConnectionRestoreRetryIfNotYetSent;
         private IResultBox resultBox;
 
         private ResultProcessor resultProcessor;
@@ -262,6 +227,10 @@ namespace StackExchange.Redis
 
         public bool IsFireAndForget => (Flags & CommandFlags.FireAndForget) != 0;
         public bool IsInternalCall => (Flags & InternalCallFlag) != 0;
+        public bool IsOnConnectionRestoreRetryIfNotYetSent => (Flags & CommandFlags.OnConnectionRestoreRetryIfNotYetSent) != 0;
+        public bool IsOnConnectionRestoreAlwaysRetry => (Flags & CommandFlags.OnConnectionRestoreAlwaysRetry) != 0;
+        public bool IsOnConnectionRestoreNoRetry => (Flags & CommandFlags.OnConnectionRestoreNoRetry) != 0;
+        private bool IsOnConnectionRestoreFlagSet => IsOnConnectionRestoreAlwaysRetry || IsOnConnectionRestoreRetryIfNotYetSent || IsOnConnectionRestoreNoRetry;
 
         public IResultBox ResultBox => resultBox;
 
@@ -661,15 +630,54 @@ namespace StackExchange.Redis
             }
         }
 
+        internal void OverrideConnectionRestoreFlagIfNotSet(OnConnectionRestore? onConnectionRestore)
+        {
+            if (onConnectionRestore.HasValue && !IsOnConnectionRestoreFlagSet)
+            {
+                switch (onConnectionRestore)
+                {
+                    case OnConnectionRestore.AlwaysRetry:
+                        Flags |= CommandFlags.OnConnectionRestoreAlwaysRetry;
+                        break;
+                    case OnConnectionRestore.RetryIfNotYetSent:
+                        Flags |= CommandFlags.OnConnectionRestoreRetryIfNotYetSent;
+                        break;
+                    case OnConnectionRestore.NoRetry:
+                    default:
+                        Flags |= CommandFlags.OnConnectionRestoreNoRetry;
+                        break;
+                }
+            }
+        }
+
         internal void Fail(ConnectionFailureType failure, Exception innerException, string annotation)
         {
             PhysicalConnection.IdentifyFailureType(innerException, ref failure);
             resultProcessor?.ConnectionFail(this, failure, innerException, annotation);
         }
 
-        internal virtual void SetExceptionAndComplete(Exception exception, PhysicalBridge bridge)
+        private bool TryEnqueueForConnectionRestoreRetry(Exception exception, PhysicalBridge bridge, bool pushMessageToRetryManager = false)
         {
-            if(bridge != null && bridge.Multiplexer.TryRequestFailedHandler(this))
+            if (pushMessageToRetryManager)
+            {
+                try
+                {
+                    return bridge.Multiplexer.messageRetryManager.PushMessageForRetry(this);
+                }
+                catch (Exception e)
+                {
+                    exception.Data.Add("OnConnectionRestoreRetryManagerError", e.ToString());
+                }
+            }
+            return false;
+        }
+
+        internal virtual void SetExceptionAndComplete(Exception exception, PhysicalBridge bridge, bool onConnectionRestoreRetry)
+        {
+            if (TryEnqueueForConnectionRestoreRetry(exception, bridge,
+                onConnectionRestoreRetry &&
+                exception is RedisConnectionException &&
+                bridge != null))
             {
                 return;
             }

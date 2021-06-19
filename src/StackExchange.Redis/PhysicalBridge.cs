@@ -464,7 +464,7 @@ namespace StackExchange.Redis
                 if (next != null)
                 {
                     Multiplexer?.OnMessageFaulted(next, ex);
-                    next.SetExceptionAndComplete(ex, this);
+                    next.SetExceptionAndComplete(ex, this, next.IsOnConnectionRestoreAlwaysRetry || next.IsOnConnectionRestoreRetryIfNotYetSent);
                 }
             } while (next != null);
         }
@@ -485,7 +485,7 @@ namespace StackExchange.Redis
                     createWorker = _backlog.Count != 0;
                 }
                 if (createWorker) StartBacklogProcessor();
-
+                
                 if (ConnectionType == ConnectionType.Interactive) ServerEndPoint.CheckInfoReplication();
             }
             else
@@ -503,7 +503,7 @@ namespace StackExchange.Redis
             try
             {
                 CheckBacklogForTimeouts();
-
+                Multiplexer.messageRetryManager.CheckRetryQueueForTimeouts();
                 runThisTime = !isDisposed && Interlocked.CompareExchange(ref beating, 1, 0) == 0;
                 if (!runThisTime) return;
 
@@ -798,7 +798,7 @@ namespace StackExchange.Redis
 
                     // tell the message that it failed
                     var ex = Multiplexer.GetException(WriteResult.TimeoutBeforeWrite, message, ServerEndPoint);
-                    message.SetExceptionAndComplete(ex, this);
+                    message.SetExceptionAndComplete(ex, this, onConnectionRestoreRetry: false);
                 }
             }
         }
@@ -880,7 +880,7 @@ namespace StackExchange.Redis
                             if (maxFlush >= 0) ex.Data["Redis-MaxFlush"] = maxFlush.ToString() + "ms, " + (physical?.MaxFlushBytes ?? -1).ToString();
                             if (_maxLockDuration >= 0) ex.Data["Redis-MaxLockDuration"] = _maxLockDuration;
 #endif
-                            message.SetExceptionAndComplete(ex, this);
+                            message.SetExceptionAndComplete(ex, this, onConnectionRestoreRetry: false);
                         }
                         else
                         {
@@ -1082,7 +1082,7 @@ namespace StackExchange.Redis
         private WriteResult HandleWriteException(Message message, Exception ex)
         {
             var inner = new RedisConnectionException(ConnectionFailureType.InternalFailure, "Failed to write", ex);
-            message.SetExceptionAndComplete(inner, this);
+            message.SetExceptionAndComplete(inner, this, message.IsOnConnectionRestoreAlwaysRetry);
             return WriteResult.WriteFailure;
         }
 

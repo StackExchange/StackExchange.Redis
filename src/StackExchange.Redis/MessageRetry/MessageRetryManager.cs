@@ -8,9 +8,9 @@ using StackExchange.Redis;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// options for a message to be retried onconnection retry
+    /// options for a message to be retried onconnection failure
     /// </summary>
-    public enum MessageRetry
+    public enum OneConnectionRestoreRetryOption
     {
 
         /// <summary>
@@ -29,48 +29,9 @@ namespace StackExchange.Redis
         AlwaysRetry
     }
 
-    /// <summary>
-    /// 
-    /// </summary>
-    public class ConnectionFailureRequestRetry
-    {
-        private MessageRetryManager retry;
-        private MessageRetry retryFlag;
-        /// <summary>
-        /// Default to always retry 
-        /// </summary>
-        /// <param name="mux"></param>
-        public ConnectionFailureRequestRetry(ConnectionMultiplexer mux) : this(mux, MessageRetry.AlwaysRetry) {}
-
-        
-        /// <summary>
-        /// Queues and then retry requests on connection restore
-        /// </summary>
-        /// <param name="mux"></param>
-        /// <param name="retryFlag"></param>
-        public ConnectionFailureRequestRetry(ConnectionMultiplexer mux, MessageRetry retryFlag)
-        {
-            retry = new MessageRetryManager(mux);
-            this.retryFlag = retryFlag;
-            mux.RequestFailed += Mux_RequestFailed;
-            mux.ConnectionRestored += Mux_ConnectionRestored;
-        }
-
-        private void Mux_ConnectionRestored(object sender, ConnectionFailedEventArgs e)
-        {
-            retry.StartRetryQueueProcessor();
-        }
-
-        private void Mux_RequestFailed(object sender, Request e)
-        {
-            if((retryFlag & MessageRetry.AlwaysRetry) != 0)
-                retry.PushMessageForRetry(e);
-        }
-    }
-
     internal class MessageRetryManager : IDisposable
     {
-        private readonly Queue<Request> queue = new Queue<Request>();
+        private readonly Queue<Message> queue = new Queue<Message>();
         private readonly ConnectionMultiplexer multiplexer;
 
         internal MessageRetryManager(ConnectionMultiplexer mux)
@@ -78,13 +39,19 @@ namespace StackExchange.Redis
             this.multiplexer = mux;
         }
 
+        internal int RetryQueueCount => queue.Count;
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal bool PushMessageForRetry(Request message)
+        internal bool PushMessageForRetry(Message message)
         {
             bool wasEmpty;
             lock (queue)
             {
                 int count = queue.Count;
+                if (count >= multiplexer.RawConfig.RetryQueueLengthOnConnectionRestore)
+                {
+                    return false;
+                }
                 wasEmpty = count == 0;
                 queue.Enqueue(message);
 
@@ -112,20 +79,14 @@ namespace StackExchange.Redis
 
         private async Task ProcessRetryQueueAsync()
         {
-            Request message = null;
+            Message message = null;
             var timeout = multiplexer.AsyncTimeoutMilliseconds;
             long messageProcessedCount = 0;
-            bool isDelayProcessingRequired = false;
             while (true)
             {
                 message = null;
 
                 ServerEndPoint server = null;
-                CheckRetryQueueForTimeouts();
-                if(isDelayProcessingRequired)
-                {
-                    await Task.Delay(ConnectionMultiplexer.MillisecondsPerHeartbeat); // 1 second
-                }
                 lock (queue)
                 {
                     if (queue.Count == 0) break; // all done
@@ -133,8 +94,7 @@ namespace StackExchange.Redis
                     server = multiplexer.SelectServer(message);
                     if (server == null)
                     {
-                        isDelayProcessingRequired = true;
-                        continue;
+                        break;
                     }
                     message = queue.Dequeue();
                 }
@@ -147,13 +107,11 @@ namespace StackExchange.Redis
                         var ex = GetTimeoutException(message);
                         HandleException(message, ex);
                     }
-                    else if(server != null)
+                    else
                     {
-                        isDelayProcessingRequired = false;
                         // reset the noredirect flag in order for retry to follow moved exception
                         message.Flags &= ~CommandFlags.NoRedirect;
                         var result = await server.TryWriteAsync(message).ForAwait();
-                        messageProcessedCount++;
                         if (result != WriteResult.Success)
                         {
                             var ex = multiplexer.GetException(result, message, server);
@@ -165,13 +123,15 @@ namespace StackExchange.Redis
                 {
                     HandleException(message, ex);
                 }
+                messageProcessedCount++;
             }
         }
+        
 
-        private void HandleException(Request message, Exception ex)
+        internal void HandleException(Message message, Exception ex)
         {
             var inner = new RedisConnectionException(ConnectionFailureType.UnableToConnect, "Failed while retrying on connection restore", ex);
-            message.SetExceptionAndComplete(inner, null);
+            message.SetExceptionAndComplete(inner, null, onConnectionRestoreRetry: false);
         }
 
         internal void CheckRetryQueueForTimeouts() // check the head of the backlog queue, consuming anything that looks dead
@@ -196,7 +156,7 @@ namespace StackExchange.Redis
         }
 
         // I am not using ExceptionFactory.Timeout as it can cause deadlock while trying to lock writtenawaiting response queue for GetHeadMessages
-        private RedisTimeoutException GetTimeoutException(Request message)
+        internal RedisTimeoutException GetTimeoutException(Message message)
         {
             var sb = new StringBuilder();
             sb.Append("Timeout while waiting for connectionrestore ").Append(message.Command).Append(" (").Append(Format.ToString(multiplexer.TimeoutMilliseconds)).Append("ms)");
