@@ -1863,7 +1863,7 @@ namespace StackExchange.Redis
                         var preferred = await NominatePreferredMaster(log, servers, useTieBreakers, tieBreakers, masters).ObserveErrors().ForAwait();
                         foreach (var master in masters)
                         {
-                            if (master == preferred)
+                            if (master == preferred || master.IsReplica)
                             {
                                 master.ClearUnselectable(UnselectableFlags.RedundantMaster);
                             }
