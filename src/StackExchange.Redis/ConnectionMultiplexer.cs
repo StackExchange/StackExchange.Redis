@@ -511,7 +511,7 @@ namespace StackExchange.Redis
             {
                 Interlocked.Exchange(ref activeConfigCause, null);
             }
-            if (!ReconfigureAsync(false, true, log, srv.EndPoint, "make master").ObserveErrors().Wait(5000))
+            if (!ReconfigureAsync(first: false, reconfigureAll: true, log, srv.EndPoint, "make master").ObserveErrors().Wait(5000))
             {
                 log?.WriteLine("Verifying the configuration was incomplete; please verify");
             }
@@ -855,7 +855,7 @@ namespace StackExchange.Redis
                     muxer = CreateMultiplexer(configuration, logProxy, out connectHandler);
                     killMe = muxer;
                     Interlocked.Increment(ref muxer._connectAttemptCount);
-                    bool configured = await muxer.ReconfigureAsync(true, false, logProxy, null, "connect").ObserveErrors().ForAwait();
+                    bool configured = await muxer.ReconfigureAsync(first: true, reconfigureAll: false, logProxy, null, "connect").ObserveErrors().ForAwait();
                     if (!configured)
                     {
                         throw ExceptionFactory.UnableToConnect(muxer, muxer.failureMessage);
@@ -1145,7 +1145,7 @@ namespace StackExchange.Redis
                     killMe = muxer;
                     Interlocked.Increment(ref muxer._connectAttemptCount);
                     // note that task has timeouts internally, so it might take *just over* the regular timeout
-                    var task = muxer.ReconfigureAsync(true, false, logProxy, null, "connect");
+                    var task = muxer.ReconfigureAsync(first: true, reconfigureAll: false, logProxy, null, "connect");
 
                     if (!task.Wait(muxer.SyncConnectTimeout(true)))
                     {
@@ -1524,7 +1524,7 @@ namespace StackExchange.Redis
             {
                 bool reconfigureAll = fromBroadcast || publishReconfigure;
                 Trace("Configuration change detected; checking nodes", "Configuration");
-                ReconfigureAsync(false, reconfigureAll, null, blame, cause, publishReconfigure, flags).ObserveErrors();
+                ReconfigureAsync(first: false, reconfigureAll, null, blame, cause, publishReconfigure, flags).ObserveErrors();
                 return true;
             }
             else
@@ -1542,7 +1542,7 @@ namespace StackExchange.Redis
         {
             using (var logProxy = LogProxy.TryCreate(log))
             {
-                return await ReconfigureAsync(false, true, logProxy, null, "configure").ObserveErrors();
+                return await ReconfigureAsync(first: false, reconfigureAll: true, logProxy, null, "configure").ObserveErrors();
             }
         }
 
@@ -1556,7 +1556,7 @@ namespace StackExchange.Redis
             // so to avoid near misses, here we wait 2*[n]
             using (var logProxy = LogProxy.TryCreate(log))
             {
-                var task = ReconfigureAsync(false, true, logProxy, null, "configure");
+                var task = ReconfigureAsync(first: false, reconfigureAll: true, logProxy, null, "configure");
                 if (!task.Wait(SyncConnectTimeout(false)))
                 {
                     task.ObserveErrors();
@@ -1642,8 +1642,9 @@ namespace StackExchange.Redis
 
             bool ranThisCall = false;
             try
-            {   // note that "activeReconfigs" starts at one; we don't need to set it the first time
-                ranThisCall = first || Interlocked.CompareExchange(ref activeConfigCause, cause, null) == null;
+            {
+                // Note that we *always* exchange the reason (first one counts) to prevent duplicate runs
+                ranThisCall = Interlocked.CompareExchange(ref activeConfigCause, cause, null) == null;
 
                 if (!ranThisCall)
                 {
@@ -2340,7 +2341,7 @@ namespace StackExchange.Redis
             ConnectionFailed += (sender, e) =>
             {
                 // Reconfigure to get subscriptions back online
-                ReconfigureAsync(false, true, logProxy, e.EndPoint, "Lost sentinel connection", false).Wait();
+                ReconfigureAsync(first: false, reconfigureAll: true, logProxy, e.EndPoint, "Lost sentinel connection", false).Wait();
             };
 
             // Subscribe to new sentinels being added
@@ -2575,7 +2576,7 @@ namespace StackExchange.Redis
                     }
                     Trace(string.Format("Switching master to {0}", newMasterEndPoint));
                     // Trigger a reconfigure
-                    connection.ReconfigureAsync(false, false, logProxy, switchBlame,
+                    connection.ReconfigureAsync(first: false, reconfigureAll: false, logProxy, switchBlame,
                         string.Format("master switch {0}", serviceName), false, CommandFlags.PreferMaster).Wait();
 
                     UpdateSentinelAddressList(serviceName);
@@ -2611,7 +2612,7 @@ namespace StackExchange.Redis
             if (hasNew)
             {
                 // Reconfigure the sentinel multiplexer if we added new endpoints
-                ReconfigureAsync(false, true, null, RawConfig.EndPoints[0], "Updating Sentinel List", false).Wait();
+                ReconfigureAsync(first: false, reconfigureAll: true, null, RawConfig.EndPoints[0], "Updating Sentinel List", false).Wait();
             }
         }
 
