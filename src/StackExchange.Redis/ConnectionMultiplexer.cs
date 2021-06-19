@@ -135,6 +135,8 @@ namespace StackExchange.Redis
             return counters;
         }
 
+        internal readonly MessageRetryManager messageRetryManager;
+
         /// <summary>
         /// Gets the client-name that will be used on all new connections
         /// </summary>
@@ -199,16 +201,6 @@ namespace StackExchange.Redis
         /// </summary>
         public string Configuration => RawConfig.ToString();
 
-        internal bool TryRequestFailedHandler(Message message)
-        {
-            if(RequestFailed != null)
-            {
-                RequestFailed(this, new Request(message));
-                return true;
-            }
-            return false;
-        }
-
         internal void OnConnectionFailed(EndPoint endpoint, ConnectionType connectionType, ConnectionFailureType failureType, Exception exception, bool reconfigure, string physicalName)
         {
             if (_isDisposed) return;
@@ -246,10 +238,20 @@ namespace StackExchange.Redis
         {
             if (_isDisposed) return;
             var handler = ConnectionRestored;
-            if (handler != null)
+            var handlerFullyEstablished = FullyEstablished;
+            if(handlerFullyEstablished != null || handler != null)
             {
-                ConnectionMultiplexer.CompleteAsWorker(
-                    new ConnectionFailedEventArgs(handler, this, endpoint, connectionType, ConnectionFailureType.None, null, physicalName));
+
+                var connectionfailedArg = new ConnectionFailedEventArgs(handler, this, endpoint, connectionType, ConnectionFailureType.None, null, physicalName);
+                if (handlerFullyEstablished != null)
+                {
+                    FullyEstablished(this, connectionfailedArg);
+                }
+                else
+                {
+                    ConnectionMultiplexer.CompleteAsWorker(
+                        new ConnectionFailedEventArgs(handler, this, endpoint, connectionType, ConnectionFailureType.None, null, physicalName));
+                }
             }
             ReconfigureIfNeeded(endpoint, false, "connection restored");
         }
@@ -553,11 +555,6 @@ namespace StackExchange.Redis
                 }
             }
         }
-
-        /// <summary>
-        /// Raised when a message fails due to a connection exception
-        /// </summary>
-        internal event EventHandler<Request> RequestFailed;
 
 
         /// <summary>
@@ -1302,6 +1299,7 @@ namespace StackExchange.Redis
                 ConfigurationChangedChannel = Encoding.UTF8.GetBytes(configChannel);
             }
             lastHeartbeatTicks = Environment.TickCount;
+            messageRetryManager = new MessageRetryManager(this);
         }
 
         partial void OnCreateReaderWriter(ConfigurationOptions configuration);
@@ -2156,11 +2154,6 @@ namespace StackExchange.Redis
 
         private IDisposable pulse;
 
-        internal ServerEndPoint SelectServer(Request message)
-        {
-            return SelectServer(message.message);
-        }
-
         internal ServerEndPoint SelectServer(Message message)
         {
             if (message == null) return null;
@@ -2724,6 +2717,8 @@ namespace StackExchange.Redis
                 return CompletedTask<T>.Default(state);
             }
 
+            message.OverrideConnectionRestoreFlagIfNotSet(this.RawConfig.CommandRetryOnConnectionRestore);
+
             TaskCompletionSource<T> tcs = null;
             IResultBox<T> source = null;
             if (!message.IsFireAndForget)
@@ -2743,7 +2738,12 @@ namespace StackExchange.Redis
                 if (result != WriteResult.Success)
                 {
                     var ex = GetException(result, message, server);
-                    if (!ShouldRetryOnConnectionRestore(message, result, ex))
+                    if (ShouldRetryOnConnectionRestore(message, ex))
+                    {
+                        if (!messageRetryManager.PushMessageForRetry(message))
+                            ThrowFailed(tcs, ex);
+                    }
+                    else
                     {
                         ThrowFailed(tcs, ex);
                     }
@@ -2758,17 +2758,17 @@ namespace StackExchange.Redis
             if (result != WriteResult.Success)
             {
                 var ex = @this.GetException(result, message, server);
-                if (!@this.ShouldRetryOnConnectionRestore(message, result, ex))
+                if (@this.ShouldRetryOnConnectionRestore(message, ex))
+                {
+                    if(!@this.messageRetryManager.PushMessageForRetry(message))
+                        ThrowFailed(tcs, ex);
+                }
+                else
                 {
                     ThrowFailed(tcs, ex);
                 }
             }
             return tcs == null ? default(T) : await tcs.Task.ForAwait();
-        }
-
-        internal Exception GetException(WriteResult result, Request message, ServerEndPoint server)
-        {
-            return GetException(result, message.message, server);
         }
 
         internal Exception GetException(WriteResult result, Message message, ServerEndPoint server)
@@ -2800,7 +2800,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal bool ShouldRetryOnConnectionRestore(Message message, WriteResult writeresult, Exception ex) => writeresult == WriteResult.NoConnectionAvailable && ex is RedisConnectionException && TryRequestFailedHandler(message);
+        internal bool ShouldRetryOnConnectionRestore(Message message, Exception ex) => ex is RedisConnectionException && (message.IsOnConnectionRestoreAlwaysRetry || message.IsOnConnectionRestoreRetryIfNotYetSent);
 
         internal T ExecuteSyncImpl<T>(Message message, ResultProcessor<T> processor, ServerEndPoint server)
         {
@@ -2810,6 +2810,8 @@ namespace StackExchange.Redis
             {
                 return default(T);
             }
+
+            message.OverrideConnectionRestoreFlagIfNotSet(this.RawConfig.CommandRetryOnConnectionRestore);
 
             if (message.IsFireAndForget)
             {
@@ -2831,7 +2833,12 @@ namespace StackExchange.Redis
                     if (result != WriteResult.Success)
                     {
                         var exResult = GetException(result, message, server);
-                        if (!ShouldRetryOnConnectionRestore(message, result, exResult))
+                        if (ShouldRetryOnConnectionRestore(message, exResult))
+                        {
+                            if(!messageRetryManager.PushMessageForRetry(message))
+                                throw exResult;
+                        }
+                        else
                         {
                             throw exResult;
                         }
