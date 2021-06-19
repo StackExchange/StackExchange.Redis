@@ -98,7 +98,7 @@ namespace StackExchange.Redis
             Trace("Connecting...");
             _socket = SocketManager.CreateSocket(endpoint);
             bridge.Multiplexer.OnConnecting(endpoint, bridge.ConnectionType);
-            log?.WriteLine($"BeginConnect: {Format.ToString(endpoint)}");
+            log?.WriteLine($"{Format.ToString(endpoint)}: BeginConnect");
 
             CancellationTokenSource timeoutSource = null;
             try
@@ -142,7 +142,7 @@ namespace StackExchange.Redis
                         }
                         else if (await ConnectedAsync(x, log, bridge.Multiplexer.SocketManager).ForAwait())
                         {
-                            log?.WriteLine("Starting read");
+                            log?.WriteLine($"{Format.ToString(endpoint)}: Starting read");
                             try
                             {
                                 StartReading();
@@ -1346,7 +1346,7 @@ namespace StackExchange.Redis
 
                 _ioPipe = pipe;
 
-                log?.WriteLine($"Connected {bridge}");
+                log?.WriteLine($"{bridge?.Name}: Connected ");
 
                 await bridge.OnConnectedAsync(this, log).ForAwait();
                 return true;

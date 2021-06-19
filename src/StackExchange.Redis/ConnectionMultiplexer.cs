@@ -452,8 +452,8 @@ namespace StackExchange.Redis
 #pragma warning restore CS0618
             }
 
-            // There's an inherent race here in zero-lantency environments (e.g. when Redis is on localhost) when a broadcast is specified
-            // The broadast can get back from redis and trigger a reconfigure before we get a chance to get to ReconfigureAsync() below
+            // There's an inherent race here in zero-latency environments (e.g. when Redis is on localhost) when a broadcast is specified
+            // The broadcast can get back from redis and trigger a reconfigure before we get a chance to get to ReconfigureAsync() below
             // This results in running an outdated reconfig and the .CompareExchange() (due to already running a reconfig) failing...making our needed reconfig a no-op.
             // If we don't block *that* run, then *our* run (at low latency) gets blocked. Then we're waiting on the
             // ConfigurationOptions.ConfigCheckSeconds interval to identify the current (created by this method call) topology correctly.
@@ -499,7 +499,7 @@ namespace StackExchange.Redis
             }
 
             // ...and send one after it happens - because the first broadcast may have landed on a secondary client
-            // and it can reconfgure before any topology change actually happened. This is most likely to happen
+            // and it can reconfigure before any topology change actually happened. This is most likely to happen
             // in low-latency environments.
             Broadcast(nodes);
 
@@ -1726,18 +1726,10 @@ namespace StackExchange.Redis
                             var server = GetServerEndPoint(endpoints[i]);
                             //server.ReportNextFailure();
                             servers[i] = server;
+
                             // This awaits either the endpoint's initial connection, or a tracer if we're already connected
                             // (which is the reconfigure case)
-                            available[i] = server.OnConnectedAsync(log, sendTracerIfConnected: true);
-
-                            if (reconfigureAll && server.IsConnected)
-                            {
-                                log?.WriteLine($"Refreshing {Format.ToString(server.EndPoint)}...");
-                                // Note that these will be processed synchronously *BEFORE* the tracer is processed,
-                                // so we know that the configuration will be up to date if we see the tracer
-                                server.AutoConfigure(null);
-                            }
-                            log?.WriteLine($"Server endpoint {Format.ToString(server.EndPoint)} is in {server.ConnectionState}");
+                            available[i] = server.OnConnectedAsync(log, sendTracerIfConnected: true, autoConfigureIfConnected: reconfigureAll);
                         }
 
                         watch ??= Stopwatch.StartNew();
@@ -1746,14 +1738,20 @@ namespace StackExchange.Redis
                         Trace("Allowing endpoints " + TimeSpan.FromMilliseconds(remaining) + " to respond...");
                         await WaitAllIgnoreErrorsAsync(available, remaining, log).ForAwait();
 
-                        // After we've successfully connected (and authed), kickoff tie breakers if needed
+                        // Log current state after await
+                        foreach (var server in servers)
+                        {
+                            log?.WriteLine($"{Format.ToString(server.EndPoint)}: Endpoint is {server.ConnectionState}");
+                        }
+
+                        // After we've successfully connected (and authenticated), kickoff tie breakers if needed
                         if (useTieBreakers)
                         {
                             for (int i = 0; i < available.Length; i++)
                             {
                                 var server = servers[i];
 
-                                log?.WriteLine($"Requesting tie-break from {Format.ToString(server.EndPoint)} > {RawConfig.TieBreaker}...");
+                                log?.WriteLine($"{Format.ToString(server.EndPoint)}: Requesting tie-break (Key=\"{RawConfig.TieBreaker}\")...");
                                 Message msg = Message.Create(0, flags, RedisCommand.GET, tieBreakerKey);
                                 msg.SetInternalCall();
                                 msg = LoggingMessage.Create(log, msg);
@@ -1765,29 +1763,29 @@ namespace StackExchange.Redis
                         for (int i = 0; i < available.Length; i++)
                         {
                             var task = available[i];
+                            var server = servers[i];
                             Trace(Format.ToString(endpoints[i]) + ": " + task.Status);
                             if (task.IsFaulted)
                             {
-                                servers[i].SetUnselectable(UnselectableFlags.DidNotRespond);
+                                server.SetUnselectable(UnselectableFlags.DidNotRespond);
                                 var aex = task.Exception;
                                 foreach (var ex in aex.InnerExceptions)
                                 {
-                                    log?.WriteLine($"{Format.ToString(endpoints[i])} faulted: {ex.Message}");
+                                    log?.WriteLine($"{Format.ToString(server)}: Faulted: {ex.Message}");
                                     failureMessage = ex.Message;
                                 }
                             }
                             else if (task.IsCanceled)
                             {
-                                servers[i].SetUnselectable(UnselectableFlags.DidNotRespond);
-                                log?.WriteLine($"{Format.ToString(endpoints[i])} was canceled");
+                                server.SetUnselectable(UnselectableFlags.DidNotRespond);
+                                log?.WriteLine($"{Format.ToString(server)}: Connect task canceled");
                             }
                             else if (task.IsCompleted)
                             {
-                                var server = servers[i];
                                 if (task.Result)
                                 {
-                                    servers[i].ClearUnselectable(UnselectableFlags.DidNotRespond);
-                                    log?.WriteLine($"{Format.ToString(endpoints[i])} returned with success");
+                                    server.ClearUnselectable(UnselectableFlags.DidNotRespond);
+                                    log?.WriteLine($"{Format.ToString(server)}: Returned with success as {server.ServerType} {(server.IsReplica ? "replica" : "primary")}");
 
                                     // count the server types
                                     switch (server.ServerType)
@@ -1820,31 +1818,33 @@ namespace StackExchange.Redis
                                         case ServerType.Sentinel:
                                         case ServerType.Standalone:
                                         case ServerType.Cluster:
-                                            servers[i].ClearUnselectable(UnselectableFlags.ServerType);
+                                            server.ClearUnselectable(UnselectableFlags.ServerType);
                                             if (server.IsReplica)
-                                            {
-                                                servers[i].ClearUnselectable(UnselectableFlags.RedundantMaster);
+                                            { 
+                                                log?.WriteLine($"{Format.ToString(server)}: Set as a replica");
+                                                server.ClearUnselectable(UnselectableFlags.RedundantMaster);
                                             }
                                             else
                                             {
+                                                log?.WriteLine($"{Format.ToString(server)}: Set as a master");
                                                 masters.Add(server);
                                             }
                                             break;
                                         default:
-                                            servers[i].SetUnselectable(UnselectableFlags.ServerType);
+                                            server.SetUnselectable(UnselectableFlags.ServerType);
                                             break;
                                     }
                                 }
                                 else
                                 {
-                                    servers[i].SetUnselectable(UnselectableFlags.DidNotRespond);
-                                    log?.WriteLine($"{Format.ToString(endpoints[i])} returned, but incorrectly");
+                                    server.SetUnselectable(UnselectableFlags.DidNotRespond);
+                                    log?.WriteLine($"{Format.ToString(server)}: Returned, but incorrectly");
                                 }
                             }
                             else
                             {
-                                servers[i].SetUnselectable(UnselectableFlags.DidNotRespond);
-                                log?.WriteLine($"{Format.ToString(endpoints[i])} did not respond");
+                                server.SetUnselectable(UnselectableFlags.DidNotRespond);
+                                log?.WriteLine($"{Format.ToString(server)}: Did not respond");
                             }
                         }
 
@@ -1873,15 +1873,18 @@ namespace StackExchange.Redis
                         {
                             ServerSelectionStrategy.ServerType = ServerType.Standalone;
                         }
+
                         var preferred = await NominatePreferredMaster(log, servers, useTieBreakers, tieBreakers, masters).ObserveErrors().ForAwait();
                         foreach (var master in masters)
                         {
                             if (master == preferred || master.IsReplica)
                             {
+                                log?.WriteLine($"{Format.ToString(master)}: Clearing as RedundantMaster");
                                 master.ClearUnselectable(UnselectableFlags.RedundantMaster);
                             }
                             else
                             {
+                                log?.WriteLine($"{Format.ToString(master)}: Setting as RedundantMaster");
                                 master.SetUnselectable(UnselectableFlags.RedundantMaster);
                             }
                         }
@@ -2046,37 +2049,37 @@ namespace StackExchange.Redis
             switch (masters.Count)
             {
                 case 0:
-                    log?.WriteLine("No masters detected");
+                    log?.WriteLine("Election: No masters detected");
                     return null;
                 case 1:
-                    log?.WriteLine($"Single master detected: {Format.ToString(masters[0].EndPoint)}");
+                    log?.WriteLine($"Election: Single master detected: {Format.ToString(masters[0].EndPoint)}");
                     return masters[0];
                 default:
-                    log?.WriteLine("Multiple masters detected...");
+                    log?.WriteLine("Election: Multiple masters detected...");
                     if (useTieBreakers && uniques != null)
                     {
                         switch (uniques.Count)
                         {
                             case 0:
-                                log?.WriteLine("nobody nominated a tie-breaker");
+                                log?.WriteLine("Election: No nominations by tie-breaker");
                                 break;
                             case 1:
                                 string unanimous = uniques.Keys.Single();
-                                log?.WriteLine($"tie-break is unanimous at {unanimous}");
+                                log?.WriteLine($"Election: Tie-breaker unanimous: {unanimous}");
                                 var found = SelectServerByElection(servers, unanimous, log);
                                 if (found != null)
                                 {
-                                    log?.WriteLine($"Elected: {Format.ToString(found.EndPoint)}");
+                                    log?.WriteLine($"Election: Elected: {Format.ToString(found.EndPoint)}");
                                     return found;
                                 }
                                 break;
                             default:
-                                log?.WriteLine("tie-break is contested:");
+                                log?.WriteLine("Election is contested:");
                                 ServerEndPoint highest = null;
                                 bool arbitrary = false;
                                 foreach (var pair in uniques.OrderByDescending(x => x.Value))
                                 {
-                                    log?.WriteLine($"{pair.Key} has {pair.Value} votes");
+                                    log?.WriteLine($"Election: {pair.Key} has {pair.Value} votes");
                                     if (highest == null)
                                     {
                                         highest = SelectServerByElection(servers, pair.Key, log);
@@ -2091,11 +2094,11 @@ namespace StackExchange.Redis
                                 {
                                     if (arbitrary)
                                     {
-                                        log?.WriteLine($"Choosing master arbitrarily: {Format.ToString(highest.EndPoint)}");
+                                        log?.WriteLine($"Election: Choosing master arbitrarily: {Format.ToString(highest.EndPoint)}");
                                     }
                                     else
                                     {
-                                        log?.WriteLine($"Elected: {Format.ToString(highest.EndPoint)}");
+                                        log?.WriteLine($"Election: Elected: {Format.ToString(highest.EndPoint)}");
                                     }
                                     return highest;
                                 }
@@ -2105,7 +2108,7 @@ namespace StackExchange.Redis
                     break;
             }
 
-            log?.WriteLine($"Choosing master arbitrarily: {Format.ToString(masters[0].EndPoint)}");
+            log?.WriteLine($"Election: Choosing master arbitrarily: {Format.ToString(masters[0].EndPoint)}");
             return masters[0];
         }
 

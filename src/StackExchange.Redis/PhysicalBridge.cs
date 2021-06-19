@@ -1143,7 +1143,7 @@ namespace StackExchange.Redis
                 {
                     if (!Multiplexer.IsDisposed)
                     {
-                        log?.WriteLine($"Connecting {Name}...");
+                        log?.WriteLine($"{Name}: Connecting...");
                         Multiplexer.Trace("Connecting...", Name);
                         if (ChangeState(State.Disconnected, State.Connecting))
                         {
@@ -1160,7 +1160,7 @@ namespace StackExchange.Redis
                 }
                 catch (Exception ex)
                 {
-                    log?.WriteLine($"Connect {Name} failed: {ex.Message}");
+                    log?.WriteLine($"{Name}: Connect failed: {ex.Message}");
                     Multiplexer.Trace("Connect failed: " + ex.Message, Name);
                     ChangeState(State.Disconnected);
                     OnInternalError(ex);

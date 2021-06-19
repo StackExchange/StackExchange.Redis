@@ -624,17 +624,20 @@ namespace StackExchange.Redis
             }
         }
 
-        private sealed class AutoConfigureProcessor : ResultProcessor<bool>
+        internal sealed class AutoConfigureProcessor : ResultProcessor<bool>
         {
+            private ConnectionMultiplexer.LogProxy Log { get; }
+            public AutoConfigureProcessor(ConnectionMultiplexer.LogProxy log = null) => Log = log;
+
             public override bool SetResult(PhysicalConnection connection, Message message, in RawResult result)
             {
                 if (result.IsError && result.StartsWith(CommonReplies.READONLY))
                 {
                     var bridge = connection.BridgeCouldBeNull;
-                    if(bridge != null)
+                    if (bridge != null)
                     {
                         var server = bridge.ServerEndPoint;
-                        server.Multiplexer.Trace("Auto-configured role: replica");
+                        Log?.WriteLine($"{Format.ToString(server)}: Auto-configured role: replica");
                         server.IsReplica = true;
                     }
                 }
@@ -672,12 +675,12 @@ namespace StackExchange.Redis
                                         {
                                             case "master":
                                                 server.IsReplica = false;
-                                                server.Multiplexer.Trace("Auto-configured role: master");
+                                                Log?.WriteLine($"{Format.ToString(server)}: Auto-configured (INFO) role: master");
                                                 break;
                                             case "replica":
                                             case "slave":
                                                 server.IsReplica = true;
-                                                server.Multiplexer.Trace("Auto-configured role: replica");
+                                                Log?.WriteLine($"{Format.ToString(server)}: Auto-configured (INFO) role: replica");
                                                 break;
                                         }
                                     }
@@ -694,7 +697,7 @@ namespace StackExchange.Redis
                                         if (Version.TryParse(val, out Version version))
                                         {
                                             server.Version = version;
-                                            server.Multiplexer.Trace("Auto-configured version: " + version);
+                                            Log?.WriteLine($"{Format.ToString(server)}: Auto-configured (INFO) version: " + version);
                                         }
                                     }
                                     else if ((val = Extract(line, "redis_mode:")) != null)
@@ -703,15 +706,15 @@ namespace StackExchange.Redis
                                         {
                                             case "standalone":
                                                 server.ServerType = ServerType.Standalone;
-                                                server.Multiplexer.Trace("Auto-configured server-type: standalone");
+                                                Log?.WriteLine($"{Format.ToString(server)}: Auto-configured (INFO) server-type: standalone");
                                                 break;
                                             case "cluster":
                                                 server.ServerType = ServerType.Cluster;
-                                                server.Multiplexer.Trace("Auto-configured server-type: cluster");
+                                                Log?.WriteLine($"{Format.ToString(server)}: Auto-configured (INFO) server-type: cluster");
                                                 break;
                                             case "sentinel":
                                                 server.ServerType = ServerType.Sentinel;
-                                                server.Multiplexer.Trace("Auto-configured server-type: sentinel");
+                                                Log?.WriteLine($"{Format.ToString(server)}: Auto-configured (INFO) server-type: sentinel");
                                                 break;
                                         }
                                     }
@@ -729,7 +732,7 @@ namespace StackExchange.Redis
                         else if (message?.Command == RedisCommand.SENTINEL)
                         {
                             server.ServerType = ServerType.Sentinel;
-                            server.Multiplexer.Trace("Auto-configured server-type: sentinel");
+                            Log?.WriteLine($"{Format.ToString(server)}: Auto-configured (SENTINEL) server-type: sentinel");
                         }
                         SetResult(message, true);
                         return true;
@@ -757,14 +760,14 @@ namespace StackExchange.Redis
                                         {
                                             targetSeconds = (timeoutSeconds * 3) / 4;
                                         }
-                                        server.Multiplexer.Trace("Auto-configured timeout: " + targetSeconds + "s");
+                                        Log?.WriteLine($"{Format.ToString(server)}: Auto-configured (CONFIG) timeout: " + targetSeconds + "s");
                                         server.WriteEverySeconds = targetSeconds;
                                     }
                                 }
                                 else if (key.IsEqual(CommonReplies.databases) && val.TryGetInt64(out i64))
                                 {
                                     int dbCount = checked((int)i64);
-                                    server.Multiplexer.Trace("Auto-configured databases: " + dbCount);
+                                    Log?.WriteLine($"{Format.ToString(server)}: Auto-configured (CONFIG) databases: " + dbCount);
                                     server.Databases = dbCount;
                                 }
                                 else if (key.IsEqual(CommonReplies.slave_read_only) || key.IsEqual(CommonReplies.replica_read_only))
@@ -772,12 +775,12 @@ namespace StackExchange.Redis
                                     if (val.IsEqual(CommonReplies.yes))
                                     {
                                         server.ReplicaReadOnly = true;
-                                        server.Multiplexer.Trace("Auto-configured read-only replica: true");
+                                        Log?.WriteLine($"{Format.ToString(server)}: Auto-configured (CONFIG) read-only replica: true");
                                     }
                                     else if (val.IsEqual(CommonReplies.no))
                                     {
                                         server.ReplicaReadOnly = false;
-                                        server.Multiplexer.Trace("Auto-configured read-only replica: false");
+                                        Log?.WriteLine($"{Format.ToString(server)}: Auto-configured (CONFIG) read-only replica: false");
                                     }
                                 }
                             }
@@ -785,7 +788,7 @@ namespace StackExchange.Redis
                         else if (message?.Command == RedisCommand.SENTINEL)
                         {
                             server.ServerType = ServerType.Sentinel;
-                            server.Multiplexer.Trace("Auto-configured server-type: sentinel");
+                            Log?.WriteLine($"{Format.ToString(server)}: Auto-configured (SENTINEL) server-type: sentinel");
                         }
                         SetResult(message, true);
                         return true;
