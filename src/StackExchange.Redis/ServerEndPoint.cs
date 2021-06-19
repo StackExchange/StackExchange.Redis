@@ -502,6 +502,8 @@ namespace StackExchange.Redis
             return msg;
         }
 
+        internal UnselectableFlags GetUnselectableFlags() => unselectableReasons;
+
         internal bool IsSelectable(RedisCommand command, bool allowDisconnected = false)
         {
             var bridge = unselectableReasons == 0 ? GetBridge(command, false) : null;

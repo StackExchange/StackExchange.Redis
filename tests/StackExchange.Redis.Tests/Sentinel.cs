@@ -1,63 +1,16 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
 using System.Linq;
 using System.Net;
-using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
-    public class Sentinel : TestBase, IAsyncLifetime
+    public class Sentinel : SentinelBase
     {
-        private string ServiceName => TestConfig.Current.SentinelSeviceName;
-        private ConfigurationOptions ServiceOptions => new ConfigurationOptions { ServiceName = ServiceName, AllowAdmin = true };
-
-        private ConnectionMultiplexer Conn { get; set; }
-        private IServer SentinelServerA { get; set; }
-        private IServer SentinelServerB { get; set; }
-        private IServer SentinelServerC { get; set; }
-        public IServer[] SentinelsServers { get; set; }
-        protected StringWriter ConnectionLog { get; set; }
-
-        public Sentinel(ITestOutputHelper output) : base(output)
-        {
-            ConnectionLog = new StringWriter();
-
-            Skip.IfNoConfig(nameof(TestConfig.Config.SentinelServer), TestConfig.Current.SentinelServer);
-            Skip.IfNoConfig(nameof(TestConfig.Config.SentinelSeviceName), TestConfig.Current.SentinelSeviceName);
-        }
-
-        public Task DisposeAsync() => Task.CompletedTask;
-
-        public async Task InitializeAsync()
-        {
-            var options = ServiceOptions.Clone();
-            options.EndPoints.Add(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortA);
-            options.EndPoints.Add(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortB);
-            options.EndPoints.Add(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortC);
-            Conn = ConnectionMultiplexer.SentinelConnect(options, ConnectionLog);
-
-            for (var i = 0; i < 150; i++)
-            {
-                await Task.Delay(20).ForAwait();
-                if (Conn.IsConnected && Conn.GetSentinelMasterConnection(options).IsConnected)
-                {
-                    break;
-                }
-            }
-            Assert.True(Conn.IsConnected);
-            SentinelServerA = Conn.GetServer(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortA);
-            SentinelServerB = Conn.GetServer(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortB);
-            SentinelServerC = Conn.GetServer(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortC);
-            SentinelsServers = new[] { SentinelServerA, SentinelServerB, SentinelServerC };
-
-            // wait until we are in a state of a single master and replica
-            await WaitForReadyAsync();
-        }
+        public Sentinel(ITestOutputHelper output) : base(output) { }
 
         [Fact]
         public async Task MasterConnectTest()
@@ -127,71 +80,6 @@ namespace StackExchange.Redis.Tests
 
             // force read from replica, replication has some lag
             await WaitForReplicationAsync(servers.First(), TimeSpan.FromSeconds(10)).ForAwait();
-            value = await db.StringGetAsync(key, CommandFlags.DemandReplica);
-            Assert.Equal(expected, value);
-        }
-
-        [Fact]
-        public async Task ManagedMasterConnectionEndToEndWithFailoverTest()
-        {
-            var connectionString = $"{TestConfig.Current.SentinelServer}:{TestConfig.Current.SentinelPortA},serviceName={ServiceOptions.ServiceName},allowAdmin=true";
-            var conn = await ConnectionMultiplexer.ConnectAsync(connectionString);
-            conn.ConfigurationChanged += (s, e) => {
-                Log($"Configuration changed: {e.EndPoint}");
-            };
-
-            var db = conn.GetDatabase();
-            await db.PingAsync();
-
-            var endpoints = conn.GetEndPoints();
-            Assert.Equal(2, endpoints.Length);
-
-            var servers = endpoints.Select(e => conn.GetServer(e)).ToArray();
-            Assert.Equal(2, servers.Length);
-
-            var master = servers.FirstOrDefault(s => !s.IsReplica);
-            Assert.NotNull(master);
-            var replica = servers.FirstOrDefault(s => s.IsReplica);
-            Assert.NotNull(replica);
-            Assert.NotEqual(master.EndPoint.ToString(), replica.EndPoint.ToString());
-
-            // set string value on current master
-            var expected = DateTime.Now.Ticks.ToString();
-            Log("Tick Key: " + expected);
-            var key = Me();
-            await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
-            await db.StringSetAsync(key, expected);
-
-            var value = await db.StringGetAsync(key);
-            Assert.Equal(expected, value);
-
-            // force read from replica, replication has some lag
-            await WaitForReplicationAsync(servers.First()).ForAwait();
-            value = await db.StringGetAsync(key, CommandFlags.DemandReplica);
-            Assert.Equal(expected, value);
-
-            // forces and verifies failover
-            await DoFailoverAsync();
-
-            endpoints = conn.GetEndPoints();
-            Assert.Equal(2, endpoints.Length);
-
-            servers = endpoints.Select(e => conn.GetServer(e)).ToArray();
-            Assert.Equal(2, servers.Length);
-
-            var newMaster = servers.FirstOrDefault(s => !s.IsReplica);
-            Assert.NotNull(newMaster);
-            Assert.Equal(replica.EndPoint.ToString(), newMaster.EndPoint.ToString());
-            var newReplica = servers.FirstOrDefault(s => s.IsReplica);
-            Assert.NotNull(newReplica);
-            Assert.Equal(master.EndPoint.ToString(), newReplica.EndPoint.ToString());
-            Assert.NotEqual(master.EndPoint.ToString(), replica.EndPoint.ToString());
-
-            value = await db.StringGetAsync(key);
-            Assert.Equal(expected, value);
-
-            // force read from replica, replication has some lag
-            await WaitForReplicationAsync(newMaster).ForAwait();
             value = await db.StringGetAsync(key, CommandFlags.DemandReplica);
             Assert.Equal(expected, value);
         }
@@ -330,15 +218,6 @@ namespace StackExchange.Redis.Tests
                     Log("{0}:{1}", kvp.Key, kvp.Value);
                 }
             }
-        }
-
-        // Sometimes it's global, sometimes it's local
-        // Depends what mood Redis is in but they're equal and not the point of our tests
-        private static readonly IpComparer _ipComparer = new IpComparer();
-        private class IpComparer : IEqualityComparer<string>
-        {
-            public bool Equals(string x, string y) => x == y || x?.Replace("0.0.0.0", "127.0.0.1") == y?.Replace("0.0.0.0", "127.0.0.1");
-            public int GetHashCode(string obj) => obj.GetHashCode();
         }
 
         [Fact]
@@ -548,121 +427,6 @@ namespace StackExchange.Redis.Tests
             Assert.True(s.IsNullOrEmpty);
             //var ex = Assert.Throws<RedisConnectionException>(() => db.StringSet("test", "try write to read only instance"));
             //Assert.StartsWith("No connection is available to service this operation", ex.Message);
-        }
-
-        private async Task DoFailoverAsync()
-        {
-            await WaitForReadyAsync();
-
-            // capture current replica
-            var replicas = SentinelServerA.SentinelGetReplicaAddresses(ServiceName);
-
-            Log("Starting failover...");
-            var sw = Stopwatch.StartNew();
-            SentinelServerA.SentinelFailover(ServiceName);
-
-            // wait until the replica becomes the master
-            await WaitForReadyAsync(expectedMaster: replicas[0]);
-            Log($"Time to failover: {sw.Elapsed}");
-        }
-
-        private async Task WaitForReadyAsync(EndPoint expectedMaster = null, bool waitForReplication = false, TimeSpan? duration = null)
-        {
-            duration ??= TimeSpan.FromSeconds(30);
-
-            var sw = Stopwatch.StartNew();
-
-            // wait until we have 1 master and 1 replica and have verified their roles
-            var master = SentinelServerA.SentinelGetMasterAddressByName(ServiceName);
-            if (expectedMaster != null && expectedMaster.ToString() != master.ToString())
-            {
-                while (sw.Elapsed < duration.Value)
-                {
-                    await Task.Delay(1000).ForAwait();
-                    try
-                    {
-                        master = SentinelServerA.SentinelGetMasterAddressByName(ServiceName);
-                        if (expectedMaster.ToString() == master.ToString())
-                            break;
-                    }
-                    catch (Exception)
-                    {
-                        // ignore
-                    }
-                }
-            }
-            if (expectedMaster != null && expectedMaster.ToString() != master.ToString())
-                throw new RedisException($"Master was expected to be {expectedMaster}");
-            Log($"Master is {master}");
-
-            var replicas = SentinelServerA.SentinelGetReplicaAddresses(ServiceName);
-            var checkConn = Conn.GetSentinelMasterConnection(ServiceOptions);
-
-            await WaitForRoleAsync(checkConn.GetServer(master), "master", duration.Value.Subtract(sw.Elapsed)).ForAwait();
-            if (replicas.Length > 0)
-            {
-                await WaitForRoleAsync(checkConn.GetServer(replicas[0]), "slave", duration.Value.Subtract(sw.Elapsed)).ForAwait();
-            }
-
-            if (waitForReplication)
-            {
-                await WaitForReplicationAsync(checkConn.GetServer(master), duration.Value.Subtract(sw.Elapsed)).ForAwait();
-            }
-        }
-
-        private async Task WaitForRoleAsync(IServer server, string role, TimeSpan? duration = null)
-        {
-            duration ??= TimeSpan.FromSeconds(30);
-
-            Log($"Waiting for server ({server.EndPoint}) role to be \"{role}\"...");
-            var sw = Stopwatch.StartNew();
-            while (sw.Elapsed < duration.Value)
-            {
-                try
-                {
-                    if (server.Role().Value == role)
-                    {
-                        Log($"Done waiting for server ({server.EndPoint}) role to be \"{role}\"");
-                        return;
-                    }
-                }
-                catch (Exception)
-                {
-                    // ignore
-                }
-
-                await Task.Delay(1000).ForAwait();
-            }
-
-            throw new RedisException("Timeout waiting for server to have expected role assigned");
-        }
-
-        private async Task WaitForReplicationAsync(IServer master, TimeSpan? duration = null)
-        {
-            duration ??= TimeSpan.FromSeconds(10);
-
-            Log("Waiting for master/replica replication to be in sync...");
-            var sw = Stopwatch.StartNew();
-            while (sw.Elapsed < duration.Value)
-            {
-                var info = master.Info("replication");
-                var replicationInfo = info.FirstOrDefault(f => f.Key == "Replication")?.ToArray().ToDictionary();
-                var replicaInfo = replicationInfo?.FirstOrDefault(i => i.Key.StartsWith("slave")).Value?.Split(',').ToDictionary(i => i.Split('=').First(), i => i.Split('=').Last());
-                var replicaOffset = replicaInfo?["offset"];
-                var masterOffset = replicationInfo?["master_repl_offset"];
-
-                if (replicaOffset == masterOffset)
-                {
-                    Log($"Done waiting for master ({masterOffset}) / replica ({replicaOffset}) replication to be in sync");
-                    return;
-                }
-
-                Log($"Waiting for master ({masterOffset}) / replica ({replicaOffset}) replication to be in sync...");
-
-                await Task.Delay(250).ForAwait();
-            }
-
-            throw new RedisException("Timeout waiting for test servers master/replica replication to be in sync.");
         }
     }
 }
