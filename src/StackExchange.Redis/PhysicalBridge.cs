@@ -457,7 +457,7 @@ namespace StackExchange.Redis
                 next.SetExceptionAndComplete(ex, this);
             }
         }
-        internal void OnFullyEstablished(PhysicalConnection connection)
+        internal void OnFullyEstablished(PhysicalConnection connection, string source)
         {
             Trace("OnFullyEstablished");
             connection?.SetIdle();
@@ -466,7 +466,7 @@ namespace StackExchange.Redis
                 reportNextFailure = reconfigureNextFailure = true;
                 LastException = null;
                 Interlocked.Exchange(ref failConnectCount, 0);
-                ServerEndPoint.OnFullyEstablished(connection);
+                ServerEndPoint.OnFullyEstablished(connection, source);
 
                 // do we have pending system things to do?
                 bool createWorker = !_backlog.IsEmpty;

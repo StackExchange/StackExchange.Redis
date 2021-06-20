@@ -76,14 +76,14 @@ namespace StackExchange.Redis
 
         public bool IsConnecting => interactive?.IsConnecting == true;
 
-        private readonly List<TaskCompletionSource<bool>> _pendingConnectionMonitors = new List<TaskCompletionSource<bool>>();
+        private readonly List<TaskCompletionSource<string>> _pendingConnectionMonitors = new List<TaskCompletionSource<string>>();
 
         /// <summary>
         /// Awaitable state seeing if this endpoint is connected.
         /// </summary>
-        public Task<bool> OnConnectedAsync(LogProxy log = null, bool sendTracerIfConnected = false, bool autoConfigureIfConnected = false)
+        public Task<string> OnConnectedAsync(LogProxy log = null, bool sendTracerIfConnected = false, bool autoConfigureIfConnected = false)
         {
-            async Task<bool> IfConnectedAsync(LogProxy log, bool sendTracerIfConnected, bool autoConfigureIfConnected)
+            async Task<string> IfConnectedAsync(LogProxy log, bool sendTracerIfConnected, bool autoConfigureIfConnected)
             {
                 if (autoConfigureIfConnected)
                 {
@@ -91,21 +91,21 @@ namespace StackExchange.Redis
                 }
                 if (sendTracerIfConnected)
                 {
-                    return await SendTracer(log);
+                    await SendTracer(log);
                 }
-                return true;
+                return "Already connected";
             }
 
             if (!IsConnected)
             {
-                var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
                 lock (_pendingConnectionMonitors)
                 {
                     _pendingConnectionMonitors.Add(tcs);
                     // In case we complete in a race above, before attaching
                     if (IsConnected)
                     {
-                        tcs.TrySetResult(true);
+                        tcs.TrySetResult("Connection race");
                         _pendingConnectionMonitors.Remove(tcs);
                     }
                 }
@@ -531,7 +531,7 @@ namespace StackExchange.Redis
             {
                 foreach (var tcs in _pendingConnectionMonitors)
                 {
-                    tcs.TrySetResult(false);
+                    tcs.TrySetResult("Disconnected");
                 }
                 _pendingConnectionMonitors.Clear();
             }
@@ -566,7 +566,7 @@ namespace StackExchange.Redis
             }
         }
         
-        internal void OnFullyEstablished(PhysicalConnection connection)
+        internal void OnFullyEstablished(PhysicalConnection connection, string source)
         {
             try
             {
@@ -584,7 +584,7 @@ namespace StackExchange.Redis
                 {
                     foreach (var tcs in _pendingConnectionMonitors)
                     {
-                        tcs.TrySetResult(true);
+                        tcs.TrySetResult(source);
                     }
                     _pendingConnectionMonitors.Clear();
                 }

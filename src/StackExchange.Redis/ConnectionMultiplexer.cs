@@ -1713,7 +1713,7 @@ namespace StackExchange.Redis
                     {
                         if (endpoints == null) break;
 
-                        var available = new Task<bool>[endpoints.Count];
+                        var available = new Task<string>[endpoints.Count];
                         tieBreakers = useTieBreakers ? new Task<string>[endpoints.Count] : null;
                         servers = new ServerEndPoint[available.Length];
 
@@ -1782,10 +1782,10 @@ namespace StackExchange.Redis
                             }
                             else if (task.IsCompleted)
                             {
-                                if (task.Result)
+                                if (task.Result != "Disconnected")
                                 {
                                     server.ClearUnselectable(UnselectableFlags.DidNotRespond);
-                                    log?.WriteLine($"{Format.ToString(server)}: Returned with success as {server.ServerType} {(server.IsReplica ? "replica" : "primary")}");
+                                    log?.WriteLine($"{Format.ToString(server)}: Returned with success as {server.ServerType} {(server.IsReplica ? "replica" : "primary")} (Source: {task.Result})");
 
                                     // count the server types
                                     switch (server.ServerType)
