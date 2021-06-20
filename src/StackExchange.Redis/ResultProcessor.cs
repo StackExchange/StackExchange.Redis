@@ -2142,7 +2142,10 @@ The coordinates as a two items x,y array (longitude,latitude).
                 }
                 if (happy)
                 {
-                    if (establishConnection) connection.BridgeCouldBeNull?.OnFullyEstablished(connection, $"From command: {message.Command}");
+                    if (establishConnection)
+                    {
+                        connection.BridgeCouldBeNull?.OnFullyEstablished(connection, $"From command: {message.Command}");
+                    }
                     SetResult(message, happy);
                     return true;
                 }
