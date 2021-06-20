@@ -336,6 +336,7 @@ namespace StackExchange.Redis
             {
                 case ConnectionType.Interactive:
                     msg = ServerEndPoint.GetTracerMessage(false);
+                    msg.Flags |= CommandFlags.FireAndForget; // in this case, we're not awaiting the result
                     msg.SetSource(ResultProcessor.Tracer, null);
                     break;
                 case ConnectionType.Subscription:
@@ -377,6 +378,7 @@ namespace StackExchange.Redis
             if (physical == connection && !isDisposed && ChangeState(State.Connecting, State.ConnectedEstablishing))
             {
                 await ServerEndPoint.OnEstablishingAsync(connection, log).ForAwait();
+                log?.WriteLine($"{Format.ToString(ServerEndPoint)}: OnEstablishingAsync complete");
             }
             else
             {

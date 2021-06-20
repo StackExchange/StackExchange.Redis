@@ -83,27 +83,36 @@ namespace StackExchange.Redis
         /// </summary>
         public Task<bool> OnConnectedAsync(LogProxy log = null, bool sendTracerIfConnected = false, bool autoConfigureIfConnected = false)
         {
+            async Task<bool> IfConnectedAsync(LogProxy log, bool sendTracerIfConnected, bool autoConfigureIfConnected)
+            {
+                if (autoConfigureIfConnected)
+                {
+                    await AutoConfigureAsync(null, log);
+                }
+                if (sendTracerIfConnected)
+                {
+                    return await SendTracer(log);
+                }
+                return true;
+            }
+
             if (!IsConnected)
             {
                 var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
                 lock (_pendingConnectionMonitors)
                 {
                     _pendingConnectionMonitors.Add(tcs);
+                    // In case we complete in a race above, before attaching
+                    if (IsConnected)
+                    {
+                        tcs.TrySetResult(true);
+                        _pendingConnectionMonitors.Remove(tcs);
+                    }
                 }
+                tcs.Task.ContinueWith(t => log?.WriteLine($"{Format.ToString(this)}: OnConnectedAsync completed ({t.Result})"));
                 return tcs.Task;
             }
-            if (autoConfigureIfConnected)
-            {
-                AutoConfigure(null, log);
-            }
-            if (sendTracerIfConnected)
-            {
-                return SendTracer(log);
-            }
-            else
-            {
-                return Task.FromResult(true);
-            }
+            return IfConnectedAsync(log, sendTracerIfConnected, autoConfigureIfConnected);
         }
 
         internal Exception LastException
@@ -287,7 +296,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal void AutoConfigure(PhysicalConnection connection, LogProxy log = null)
+        internal async Task AutoConfigureAsync(PhysicalConnection connection, LogProxy log = null)
         {
             if (serverType == ServerType.Twemproxy)
             {
@@ -307,27 +316,26 @@ namespace StackExchange.Redis
 
             var autoConfigProcessor = new ResultProcessor.AutoConfigureProcessor(log);
 
-#pragma warning disable CS0618
             if (commandMap.IsAvailable(RedisCommand.CONFIG))
             {
                 if (Multiplexer.RawConfig.KeepAlive <= 0)
                 {
                     msg = Message.Create(-1, flags, RedisCommand.CONFIG, RedisLiterals.GET, RedisLiterals.timeout);
                     msg.SetInternalCall();
-                    WriteDirectOrQueueFireAndForgetSync(connection, msg, autoConfigProcessor);
+                    await WriteDirectOrQueueFireAndForgetAsync(connection, msg, autoConfigProcessor).ForAwait();
                 }
                 msg = Message.Create(-1, flags, RedisCommand.CONFIG, RedisLiterals.GET, features.ReplicaCommands ? RedisLiterals.replica_read_only : RedisLiterals.slave_read_only);
                 msg.SetInternalCall();
-                WriteDirectOrQueueFireAndForgetSync(connection, msg, autoConfigProcessor);
+                await WriteDirectOrQueueFireAndForgetAsync(connection, msg, autoConfigProcessor).ForAwait();
                 msg = Message.Create(-1, flags, RedisCommand.CONFIG, RedisLiterals.GET, RedisLiterals.databases);
                 msg.SetInternalCall();
-                WriteDirectOrQueueFireAndForgetSync(connection, msg, autoConfigProcessor);
+                await WriteDirectOrQueueFireAndForgetAsync(connection, msg, autoConfigProcessor).ForAwait();
             }
             if (commandMap.IsAvailable(RedisCommand.SENTINEL))
             {
                 msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.MASTERS);
                 msg.SetInternalCall();
-                WriteDirectOrQueueFireAndForgetSync(connection, msg, autoConfigProcessor);
+                await WriteDirectOrQueueFireAndForgetAsync(connection, msg, autoConfigProcessor).ForAwait();
             }
             if (commandMap.IsAvailable(RedisCommand.INFO))
             {
@@ -336,17 +344,17 @@ namespace StackExchange.Redis
                 {
                     msg = Message.Create(-1, flags, RedisCommand.INFO, RedisLiterals.replication);
                     msg.SetInternalCall();
-                    WriteDirectOrQueueFireAndForgetSync(connection, msg, autoConfigProcessor);
+                    await WriteDirectOrQueueFireAndForgetAsync(connection, msg, autoConfigProcessor).ForAwait();
 
                     msg = Message.Create(-1, flags, RedisCommand.INFO, RedisLiterals.server);
                     msg.SetInternalCall();
-                    WriteDirectOrQueueFireAndForgetSync(connection, msg, autoConfigProcessor);
+                    await WriteDirectOrQueueFireAndForgetAsync(connection, msg, autoConfigProcessor).ForAwait();
                 }
                 else
                 {
                     msg = Message.Create(-1, flags, RedisCommand.INFO);
                     msg.SetInternalCall();
-                    WriteDirectOrQueueFireAndForgetSync(connection, msg, autoConfigProcessor);
+                    await WriteDirectOrQueueFireAndForgetAsync(connection, msg, autoConfigProcessor).ForAwait();
                 }
             }
             else if (commandMap.IsAvailable(RedisCommand.SET))
@@ -357,15 +365,14 @@ namespace StackExchange.Redis
                 // indication to anyone watching via "monitor", but we could send two guids (key/value) and it would work the same
                 msg = Message.Create(0, flags, RedisCommand.SET, key, RedisLiterals.replica_read_only, RedisLiterals.PX, 1, RedisLiterals.NX);
                 msg.SetInternalCall();
-                WriteDirectOrQueueFireAndForgetSync(connection, msg, autoConfigProcessor);
+                await WriteDirectOrQueueFireAndForgetAsync(connection, msg, autoConfigProcessor).ForAwait();
             }
             if (commandMap.IsAvailable(RedisCommand.CLUSTER))
             {
                 msg = Message.Create(-1, flags, RedisCommand.CLUSTER, RedisLiterals.NODES);
                 msg.SetInternalCall();
-                WriteDirectOrQueueFireAndForgetSync(connection, msg, ResultProcessor.ClusterNodes);
+                await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.ClusterNodes).ForAwait();
             }
-#pragma warning restore CS0618
         }
 
         private int _nextReplicaOffset;
@@ -483,7 +490,7 @@ namespace StackExchange.Redis
             // see also: TracerProcessor
             var map = Multiplexer.CommandMap;
             Message msg;
-            const CommandFlags flags = CommandFlags.NoRedirect | CommandFlags.FireAndForget;
+            const CommandFlags flags = CommandFlags.NoRedirect;
             if (assertIdentity && map.IsAvailable(RedisCommand.ECHO))
             {
                 msg = Message.Create(-1, flags, RedisCommand.ECHO, (RedisValue)Multiplexer.UniqueId);
@@ -547,7 +554,7 @@ namespace StackExchange.Redis
             return Task.CompletedTask;
         }
 
-        private async Task OnEstablishingAsyncAwaited(PhysicalConnection connection, Task handshake)
+        private static async Task OnEstablishingAsyncAwaited(PhysicalConnection connection, Task handshake)
         {
             try
             {
@@ -791,37 +798,6 @@ namespace StackExchange.Redis
             return default;
         }
 
-        [Obsolete("prefer async")]
-        internal void WriteDirectOrQueueFireAndForgetSync<T>(PhysicalConnection connection, Message message, ResultProcessor<T> processor)
-        {
-            if (message != null)
-            {
-                message.SetSource(processor, null);
-                if (connection == null)
-                {
-                    Multiplexer.Trace($"{Format.ToString(this)}: Enqueue (sync): " + message);
-#pragma warning disable CS0618
-                    GetBridge(message.Command).TryWriteSync(message, isReplica);
-#pragma warning restore CS0618
-                }
-                else
-                {
-                    Multiplexer.Trace($"{Format.ToString(this)}: Writing direct (sync): " + message);
-                    var bridge = connection.BridgeCouldBeNull;
-                    if (bridge == null)
-                    {
-                        throw new ObjectDisposedException(connection.ToString());
-                    }
-                    else
-                    {
-#pragma warning disable CS0618
-                        bridge.WriteMessageTakingWriteLockSync(connection, message);
-#pragma warning restore CS0618
-                    }
-                }
-            }
-        }
-
         private PhysicalBridge CreateBridge(ConnectionType type, LogProxy log)
         {
             if (Multiplexer.IsDisposed) return null;
@@ -882,8 +858,9 @@ namespace StackExchange.Redis
 
             if (connType == ConnectionType.Interactive)
             {
-                AutoConfigure(connection, log);
+                await AutoConfigureAsync(connection, log);
             }
+
             var tracer = GetTracerMessage(true);
             tracer = LoggingMessage.Create(log, tracer);
             log?.WriteLine($"{Format.ToString(this)}: Sending critical tracer (handshake): {tracer.CommandAndKey}");
