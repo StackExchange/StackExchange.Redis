@@ -579,14 +579,19 @@ namespace StackExchange.Redis
                         Multiplexer.ResendSubscriptions(this);
                     }
                     Multiplexer.OnConnectionRestored(EndPoint, bridge.ConnectionType, connection?.ToString());
-                }
-                lock (_pendingConnectionMonitors)
-                {
-                    foreach (var tcs in _pendingConnectionMonitors)
+
+                    // Only finish connecting on the interactive completion
+                    if (bridge.ConnectionType == ConnectionType.Interactive)
                     {
-                        tcs.TrySetResult(source);
+                        lock (_pendingConnectionMonitors)
+                        {
+                            foreach (var tcs in _pendingConnectionMonitors)
+                            {
+                                tcs.TrySetResult(source);
+                            }
+                            _pendingConnectionMonitors.Clear();
+                        }
                     }
-                    _pendingConnectionMonitors.Clear();
                 }
             }
             catch (Exception ex)
