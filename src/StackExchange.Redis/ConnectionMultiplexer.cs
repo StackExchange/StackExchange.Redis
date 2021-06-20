@@ -709,7 +709,7 @@ namespace StackExchange.Redis
             return true;
         }
 
-        private async Task<bool> WaitAllIgnoreErrorsAsync(Task[] tasks, int timeoutMilliseconds, LogProxy log, [CallerMemberName] string caller = null, [CallerLineNumber] int callerLineNumber = 0)
+        private async Task<bool> WaitAllIgnoreErrorsAsync(string name, Task[] tasks, int timeoutMilliseconds, LogProxy log, [CallerMemberName] string caller = null, [CallerLineNumber] int callerLineNumber = 0)
         {
             if (tasks == null) throw new ArgumentNullException(nameof(tasks));
             if (tasks.Length == 0)
@@ -725,7 +725,7 @@ namespace StackExchange.Redis
             }
 
             var watch = Stopwatch.StartNew();
-            LogWithThreadPoolStats(log, "Awaiting task completion", out _);
+            LogWithThreadPoolStats(log, $"Awaiting {tasks.Length} {name} task completion(s)", out _);
             try
             {
                 // if none error, great
@@ -738,7 +738,7 @@ namespace StackExchange.Redis
 
                 var allTasks = Task.WhenAll(tasks).ObserveErrors();
                 bool all = await allTasks.TimeoutAfter(timeoutMs: remaining).ObserveErrors().ForAwait();
-                LogWithThreadPoolStats(log, all ? "All tasks completed cleanly" : $"Not all tasks completed cleanly (from {caller}#{callerLineNumber}, timeout {timeoutMilliseconds}ms)", out _);
+                LogWithThreadPoolStats(log, all ? $"All {tasks.Length} {name} tasks completed cleanly" : $"Not all {name} tasks completed cleanly (from {caller}#{callerLineNumber}, timeout {timeoutMilliseconds}ms)", out _);
                 return all;
             }
             catch
@@ -1734,9 +1734,9 @@ namespace StackExchange.Redis
 
                         watch ??= Stopwatch.StartNew();
                         var remaining = RawConfig.ConnectTimeout - checked((int)watch.ElapsedMilliseconds);
-                        log?.WriteLine($"Allowing endpoints {TimeSpan.FromMilliseconds(remaining)} to respond...");
+                        log?.WriteLine($"Allowing {available.Length} endpoint(s) {TimeSpan.FromMilliseconds(remaining)} to respond...");
                         Trace("Allowing endpoints " + TimeSpan.FromMilliseconds(remaining) + " to respond...");
-                        await WaitAllIgnoreErrorsAsync(available, remaining, log).ForAwait();
+                        await WaitAllIgnoreErrorsAsync("available", available, remaining, log).ForAwait();
 
                         // Log current state after await
                         foreach (var server in servers)
@@ -1821,12 +1821,10 @@ namespace StackExchange.Redis
                                             server.ClearUnselectable(UnselectableFlags.ServerType);
                                             if (server.IsReplica)
                                             { 
-                                                log?.WriteLine($"{Format.ToString(server)}: Set as a replica");
                                                 server.ClearUnselectable(UnselectableFlags.RedundantMaster);
                                             }
                                             else
                                             {
-                                                log?.WriteLine($"{Format.ToString(server)}: Set as a master");
                                                 masters.Add(server);
                                             }
                                             break;
@@ -2011,7 +2009,7 @@ namespace StackExchange.Redis
             {   // count the votes
                 uniques = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
                 log?.WriteLine("Waiting for tiebreakers...");
-                await WaitAllIgnoreErrorsAsync(tieBreakers, 50, log).ForAwait();
+                await WaitAllIgnoreErrorsAsync("tiebreaker", tieBreakers, 50, log).ForAwait();
                 for (int i = 0; i < tieBreakers.Length; i++)
                 {
                     var ep = servers[i].EndPoint;
@@ -2022,17 +2020,17 @@ namespace StackExchange.Redis
                             string s = tieBreakers[i].Result;
                             if (string.IsNullOrWhiteSpace(s))
                             {
-                                log?.WriteLine($"{Format.ToString(ep)} had no tiebreaker set");
+                                log?.WriteLine($"Election: {Format.ToString(ep)} had no tiebreaker set");
                             }
                             else
                             {
-                                log?.WriteLine($"{Format.ToString(ep)} nominates: {s}");
+                                log?.WriteLine($"Election: {Format.ToString(ep)} nominates: {s}");
                                 if (!uniques.TryGetValue(s, out int count)) count = 0;
                                 uniques[s] = count + 1;
                             }
                             break;
                         case TaskStatus.Faulted:
-                            log?.WriteLine($"{Format.ToString(ep)} failed to nominate ({status})");
+                            log?.WriteLine($"Election: {Format.ToString(ep)} failed to nominate ({status})");
                             foreach (var ex in tieBreakers[i].Exception.InnerExceptions)
                             {
                                 if (ex.Message.StartsWith("MOVED ") || ex.Message.StartsWith("ASK ")) continue;
@@ -2040,7 +2038,7 @@ namespace StackExchange.Redis
                             }
                             break;
                         default:
-                            log?.WriteLine($"{Format.ToString(ep)} failed to nominate ({status})");
+                            log?.WriteLine($"Election: {Format.ToString(ep)} failed to nominate ({status})");
                             break;
                     }
                 }
@@ -2705,7 +2703,7 @@ namespace StackExchange.Redis
             if (allowCommandsToComplete)
             {
                 var quits = QuitAllServers();
-                await WaitAllIgnoreErrorsAsync(quits, RawConfig.AsyncTimeout, null).ForAwait();
+                await WaitAllIgnoreErrorsAsync("quit", quits, RawConfig.AsyncTimeout, null).ForAwait();
             }
 
             DisposeAndClearServers();

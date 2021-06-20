@@ -81,13 +81,13 @@ namespace StackExchange.Redis.Tests
                 int nullCount = (a == null ? 1 : 0) + (b == null ? 1 : 0);
                 if ((a == b && nullCount == 0) || nullCount == 1)
                 {
-                    Assert.True(text.Contains("tie-break is unanimous"), "unanimous");
-                    Assert.False(text.Contains("Choosing master arbitrarily"), "arbitrarily");
+                    Assert.True(text.Contains("Election: Tie-breaker unanimous"), "unanimous");
+                    Assert.False(text.Contains("Election: Choosing master arbitrarily"), "arbitrarily");
                 }
                 else
                 {
-                    Assert.False(text.Contains("tie-break is unanimous"), "unanimous");
-                    Assert.True(text.Contains("Choosing master arbitrarily"), "arbitrarily");
+                    Assert.False(text.Contains("Election: Tie-breaker unanimous"), "unanimous");
+                    Assert.True(text.Contains("Election: Choosing master arbitrarily"), "arbitrarily");
                 }
             }
         }
