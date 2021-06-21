@@ -38,8 +38,8 @@ namespace StackExchange.Redis.Tests
                 // the redis folks
                 await UntilCondition(TimeSpan.FromSeconds(5), () => !fromDb.KeyExists(key) && toDb.KeyExists(key));
 
-                Assert.False(fromDb.KeyExists(key));
-                Assert.True(toDb.KeyExists(key));
+                Assert.False(fromDb.KeyExists(key), "Exists at source");
+                Assert.True(toDb.KeyExists(key), "Exists at destination");
                 string s = toDb.StringGet(key);
                 Assert.Equal("foo", s);
             }

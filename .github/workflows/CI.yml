@@ -32,9 +32,10 @@ jobs:
     - name: StackExchange.Redis.Tests
       run: dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj -c Release --logger trx --results-directory ./test-results/ /p:CI=true
     - uses: dorny/test-reporter@v1
+      continue-on-error: true
       if: success() || failure()
       with:
-        name: StackExchange.Redis.Tests - Results
+        name: StackExchange.Redis.Tests (Ubuntu) - Results
         path: 'test-results/*.trx'
         reporter: dotnet-trx
     - name: .NET Lib Pack
@@ -64,6 +65,7 @@ jobs:
     - name: NRedisSearch.Tests
       run: dotnet test tests/NRediSearch.Test/NRediSearch.Test.csproj -c Release --logger trx --results-directory ./test-results/ /p:CI=true
     - uses: dorny/test-reporter@v1
+      continue-on-error: true
       if: success() || failure()
       with:
         name: NRedisSearch.Tests - Results
@@ -111,6 +113,7 @@ jobs:
     - name: StackExchange.Redis.Tests
       run: dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj -c Release --logger trx --results-directory ./test-results/ /p:CI=true
     - uses: dorny/test-reporter@v1
+      continue-on-error: true
       if: success() || failure()
       with:
         name: StackExchange.Redis.Tests (Windows Server 2019) - Results

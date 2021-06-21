@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -68,11 +69,12 @@ namespace StackExchange.Redis.Tests
             }
 
             // see what happens
-            using (var log = new StringWriter())
-            using (Create(log: log, tieBreaker: TieBreak))
+            var log = new StringBuilder();
+            Writer.EchoTo(log);
+
+            using (Create(log: Writer, tieBreaker: TieBreak))
             {
                 string text = log.ToString();
-                Log(text);
                 Assert.False(text.Contains("failed to nominate"), "failed to nominate");
                 if (elected != null)
                 {
