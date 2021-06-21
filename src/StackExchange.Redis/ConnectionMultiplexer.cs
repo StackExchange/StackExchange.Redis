@@ -739,6 +739,14 @@ namespace StackExchange.Redis
                 var allTasks = Task.WhenAll(tasks).ObserveErrors();
                 bool all = await allTasks.TimeoutAfter(timeoutMs: remaining).ObserveErrors().ForAwait();
                 LogWithThreadPoolStats(log, all ? $"All {tasks.Length} {name} tasks completed cleanly" : $"Not all {name} tasks completed cleanly (from {caller}#{callerLineNumber}, timeout {timeoutMilliseconds}ms)", out _);
+                // If we failed, log the details...
+                if (!all)
+                {
+                    for (var i = 0; i < tasks.Length; i++)
+                    {
+                        log?.WriteLine($"  Task[{i}] Status: {tasks[i].Status}");
+                    }
+                }
                 return all;
             }
             catch

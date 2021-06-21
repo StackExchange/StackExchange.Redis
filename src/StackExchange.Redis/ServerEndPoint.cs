@@ -579,10 +579,7 @@ namespace StackExchange.Redis
                     {
                         Multiplexer.ResendSubscriptions(this);
                     }
-                    Multiplexer.OnConnectionRestored(EndPoint, bridge.ConnectionType, connection?.ToString());
-
-                    // Only finish connecting on the interactive completion
-                    if (bridge.ConnectionType == ConnectionType.Interactive)
+                    else if (bridge == interactive)
                     {
                         lock (_pendingConnectionMonitors)
                         {
@@ -593,6 +590,8 @@ namespace StackExchange.Redis
                             _pendingConnectionMonitors.Clear();
                         }
                     }
+
+                    Multiplexer.OnConnectionRestored(EndPoint, bridge.ConnectionType, connection?.ToString());                    
                 }
             }
             catch (Exception ex)
