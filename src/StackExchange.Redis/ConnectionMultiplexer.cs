@@ -725,7 +725,7 @@ namespace StackExchange.Redis
             }
 
             var watch = Stopwatch.StartNew();
-            LogWithThreadPoolStats(log, $"Awaiting {tasks.Length} {name} task completion(s)", out _);
+            LogWithThreadPoolStats(log, $"Awaiting {tasks.Length} {name} task completion(s) for {timeoutMilliseconds}ms", out _);
             try
             {
                 // if none error, great
