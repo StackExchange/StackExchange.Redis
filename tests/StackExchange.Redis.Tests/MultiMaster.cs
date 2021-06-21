@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -68,11 +69,12 @@ namespace StackExchange.Redis.Tests
             }
 
             // see what happens
-            using (var log = new StringWriter())
-            using (Create(log: log, tieBreaker: TieBreak))
+            var log = new StringBuilder();
+            Writer.EchoTo(log);
+
+            using (Create(log: Writer, tieBreaker: TieBreak))
             {
                 string text = log.ToString();
-                Log(text);
                 Assert.False(text.Contains("failed to nominate"), "failed to nominate");
                 if (elected != null)
                 {
@@ -81,13 +83,13 @@ namespace StackExchange.Redis.Tests
                 int nullCount = (a == null ? 1 : 0) + (b == null ? 1 : 0);
                 if ((a == b && nullCount == 0) || nullCount == 1)
                 {
-                    Assert.True(text.Contains("tie-break is unanimous"), "unanimous");
-                    Assert.False(text.Contains("Choosing master arbitrarily"), "arbitrarily");
+                    Assert.True(text.Contains("Election: Tie-breaker unanimous"), "unanimous");
+                    Assert.False(text.Contains("Election: Choosing master arbitrarily"), "arbitrarily");
                 }
                 else
                 {
-                    Assert.False(text.Contains("tie-break is unanimous"), "unanimous");
-                    Assert.True(text.Contains("Choosing master arbitrarily"), "arbitrarily");
+                    Assert.False(text.Contains("Election: Tie-breaker unanimous"), "unanimous");
+                    Assert.True(text.Contains("Election: Choosing master arbitrarily"), "arbitrarily");
                 }
             }
         }

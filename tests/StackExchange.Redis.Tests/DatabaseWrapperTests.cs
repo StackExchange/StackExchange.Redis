@@ -9,6 +9,11 @@ using Xunit;
 
 namespace StackExchange.Redis.Tests
 {
+
+    [CollectionDefinition(nameof(MoqDependentCollection), DisableParallelization = true)]
+    public class MoqDependentCollection { }
+
+    [Collection(nameof(MoqDependentCollection))]
     public sealed class DatabaseWrapperTests
     {
         private readonly Mock<IDatabase> mock;
