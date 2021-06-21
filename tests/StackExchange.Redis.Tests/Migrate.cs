@@ -2,6 +2,7 @@
 
 using System;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
@@ -17,8 +18,8 @@ namespace StackExchange.Redis.Tests
         {
             var fromConfig = new ConfigurationOptions { EndPoints = { { TestConfig.Current.SecureServer, TestConfig.Current.SecurePort } }, Password = TestConfig.Current.SecurePassword, AllowAdmin = true };
             var toConfig = new ConfigurationOptions { EndPoints = { { TestConfig.Current.MasterServer, TestConfig.Current.MasterPort } }, AllowAdmin = true };
-            using (var from = ConnectionMultiplexer.Connect(fromConfig))
-            using (var to = ConnectionMultiplexer.Connect(toConfig))
+            using (var from = ConnectionMultiplexer.Connect(fromConfig, Writer))
+            using (var to = ConnectionMultiplexer.Connect(toConfig, Writer))
             {
                 if (await IsWindows(from) || await IsWindows(to))
                     Skip.Inconclusive("'migrate' is unreliable on redis-64");
