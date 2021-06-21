@@ -43,7 +43,7 @@ namespace StackExchange.Redis.Tests
             Assert.Equal(expected, value);
 
             // force read from replica, replication has some lag
-            await WaitForReplicationAsync(servers.First()).ForAwait();
+            await WaitForReplicationAsync(servers.First(), TimeSpan.FromSeconds(10)).ForAwait();
             value = db.StringGet(key, CommandFlags.DemandReplica);
             Assert.Equal(expected, value);
         }
@@ -79,7 +79,7 @@ namespace StackExchange.Redis.Tests
             Assert.Equal(expected, value);
 
             // force read from replica, replication has some lag
-            await WaitForReplicationAsync(servers.First()).ForAwait();
+            await WaitForReplicationAsync(servers.First(), TimeSpan.FromSeconds(10)).ForAwait();
             value = await db.StringGetAsync(key, CommandFlags.DemandReplica);
             Assert.Equal(expected, value);
         }
