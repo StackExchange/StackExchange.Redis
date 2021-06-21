@@ -238,20 +238,10 @@ namespace StackExchange.Redis
         {
             if (_isDisposed) return;
             var handler = ConnectionRestored;
-            var handlerFullyEstablished = FullyEstablished;
-            if(handlerFullyEstablished != null || handler != null)
+            if (handler != null)
             {
-
-                var connectionfailedArg = new ConnectionFailedEventArgs(handler, this, endpoint, connectionType, ConnectionFailureType.None, null, physicalName);
-                if (handlerFullyEstablished != null)
-                {
-                    FullyEstablished(this, connectionfailedArg);
-                }
-                else
-                {
-                    ConnectionMultiplexer.CompleteAsWorker(
-                        new ConnectionFailedEventArgs(handler, this, endpoint, connectionType, ConnectionFailureType.None, null, physicalName));
-                }
+                ConnectionMultiplexer.CompleteAsWorker(
+                    new ConnectionFailedEventArgs(handler, this, endpoint, connectionType, ConnectionFailureType.None, null, physicalName));
             }
             ReconfigureIfNeeded(endpoint, false, "connection restored");
         }
