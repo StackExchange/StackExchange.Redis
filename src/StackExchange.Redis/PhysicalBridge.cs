@@ -336,7 +336,6 @@ namespace StackExchange.Redis
             {
                 case ConnectionType.Interactive:
                     msg = ServerEndPoint.GetTracerMessage(false);
-                    msg.Flags |= CommandFlags.FireAndForget; // in this case, we're not awaiting the result
                     msg.SetSource(ResultProcessor.Tracer, null);
                     break;
                 case ConnectionType.Subscription:
@@ -432,7 +431,7 @@ namespace StackExchange.Redis
                         r.ForceExponentialBackoffReplicationCheck();
                     }
                 }
-                ServerEndPoint.OnDisconnected();
+                ServerEndPoint.OnDisconnected(this);
 
                 if (!isDisposed && Interlocked.Increment(ref failConnectCount) == 1)
                 {
