@@ -98,6 +98,8 @@ namespace StackExchange.Redis
                 return "Already connected";
             }
 
+            log?.WriteLine($"{Format.ToString(this)}: OnConnectedAsync init (State={interactive?.ConnectionState})");
+
             if (!IsConnected)
             {
                 var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -492,7 +494,7 @@ namespace StackExchange.Redis
             // see also: TracerProcessor
             var map = Multiplexer.CommandMap;
             Message msg;
-            const CommandFlags flags = CommandFlags.NoRedirect;
+            const CommandFlags flags = CommandFlags.NoRedirect | CommandFlags.FireAndForget;
             if (assertIdentity && map.IsAvailable(RedisCommand.ECHO))
             {
                 msg = Message.Create(-1, flags, RedisCommand.ECHO, (RedisValue)Multiplexer.UniqueId);
@@ -539,7 +541,13 @@ namespace StackExchange.Redis
             }
         }
 
-        internal void OnDisconnected() => CompletePendingConnectionMonitors("Disconnected");
+        internal void OnDisconnected(PhysicalBridge bridge)
+        {
+            if (bridge == interactive)
+            {
+                CompletePendingConnectionMonitors("Disconnected");
+            }
+        }
 
         internal Task OnEstablishingAsync(PhysicalConnection connection, LogProxy log)
         {
