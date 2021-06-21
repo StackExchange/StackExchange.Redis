@@ -675,19 +675,19 @@ namespace StackExchange.Redis
             }
         }
 
-        private static async Task<T> WriteDirectAsync_Awaited<T>(ServerEndPoint @this, Message message, ValueTask<WriteResult> write, TaskCompletionSource<T> tcs)
-        {
-            var result = await write.ForAwait();
-            if (result != WriteResult.Success)
-            {
-                var ex = @this.Multiplexer.GetException(result, message, @this);
-                ConnectionMultiplexer.ThrowFailed(tcs, ex);
-            }
-            return await tcs.Task.ForAwait();
-        }
-
         internal Task<T> WriteDirectAsync<T>(Message message, ResultProcessor<T> processor, object asyncState = null, PhysicalBridge bridge = null)
         {
+            static async Task<T> Awaited(ServerEndPoint @this, Message message, ValueTask<WriteResult> write, TaskCompletionSource<T> tcs)
+            {
+                var result = await write.ForAwait();
+                if (result != WriteResult.Success)
+                {
+                    var ex = @this.Multiplexer.GetException(result, message, @this);
+                    ConnectionMultiplexer.ThrowFailed(tcs, ex);
+                }
+                return await tcs.Task.ForAwait();
+            }
+
             var source = TaskResultBox<T>.Create(out var tcs, asyncState);
             message.SetSource(processor, source);
             if (bridge == null) bridge = GetBridge(message.Command);
@@ -700,7 +700,10 @@ namespace StackExchange.Redis
             else
             {
                 var write = bridge.TryWriteAsync(message, isReplica);
-                if (!write.IsCompletedSuccessfully) return WriteDirectAsync_Awaited<T>(this, message, write, tcs);
+                if (!write.IsCompletedSuccessfully)
+                {
+                    return Awaited(this, message, write, tcs);
+                }
                 result = write.Result;
             }
 
@@ -798,7 +801,10 @@ namespace StackExchange.Redis
                     }
                 }
 
-                if (!result.IsCompletedSuccessfully) return Awaited(result);
+                if (!result.IsCompletedSuccessfully)
+                {
+                    return Awaited(result);
+                }
             }
             return default;
         }
