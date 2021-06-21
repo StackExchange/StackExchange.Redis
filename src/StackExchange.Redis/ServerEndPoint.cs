@@ -85,6 +85,7 @@ namespace StackExchange.Redis
         {
             async Task<string> IfConnectedAsync(LogProxy log, bool sendTracerIfConnected, bool autoConfigureIfConnected)
             {
+                log?.WriteLine($"{Format.ToString(this)}: OnConnectedAsync completed (already connected start)");
                 if (autoConfigureIfConnected)
                 {
                     await AutoConfigureAsync(null, log);
@@ -93,7 +94,7 @@ namespace StackExchange.Redis
                 {
                     await SendTracer(log);
                 }
-                log?.WriteLine($"{Format.ToString(this)}: OnConnectedAsync completed (already connected)");
+                log?.WriteLine($"{Format.ToString(this)}: OnConnectedAsync completed (already connected end)");
                 return "Already connected";
             }
 
@@ -526,17 +527,19 @@ namespace StackExchange.Redis
             return bridge != null && (allowDisconnected || bridge.IsConnected);
         }
 
-        internal void OnDisconnected()
+        private void CompletePendingConnectionMonitors(string source)
         {
             lock (_pendingConnectionMonitors)
             {
                 foreach (var tcs in _pendingConnectionMonitors)
                 {
-                    tcs.TrySetResult("Disconnected");
+                    tcs.TrySetResult(source);
                 }
                 _pendingConnectionMonitors.Clear();
             }
         }
+
+        internal void OnDisconnected() => CompletePendingConnectionMonitors("Disconnected");
 
         internal Task OnEstablishingAsync(PhysicalConnection connection, LogProxy log)
         {
@@ -571,8 +574,7 @@ namespace StackExchange.Redis
         {
             try
             {
-                if (connection == null) return;
-                var bridge = connection.BridgeCouldBeNull;
+                var bridge = connection?.BridgeCouldBeNull;
                 if (bridge != null)
                 {
                     if (bridge == subscription)
@@ -581,14 +583,7 @@ namespace StackExchange.Redis
                     }
                     else if (bridge == interactive)
                     {
-                        lock (_pendingConnectionMonitors)
-                        {
-                            foreach (var tcs in _pendingConnectionMonitors)
-                            {
-                                tcs.TrySetResult(source);
-                            }
-                            _pendingConnectionMonitors.Clear();
-                        }
+                        CompletePendingConnectionMonitors(source);
                     }
 
                     Multiplexer.OnConnectionRestored(EndPoint, bridge.ConnectionType, connection?.ToString());                    
