@@ -8,7 +8,7 @@ namespace StackExchange.Redis.Tests.Helpers
     public class TextWriterOutputHelper : TextWriter
     {
         private StringBuilder Buffer { get; } = new StringBuilder(2048);
-        private StringWriter Echo { get; set; }
+        private StringBuilder Echo { get; set; }
         public override Encoding Encoding => Encoding.UTF8;
         private readonly ITestOutputHelper Output;
         private readonly bool ToConsole;
@@ -18,7 +18,7 @@ namespace StackExchange.Redis.Tests.Helpers
             ToConsole = echoToConsole;
         }
 
-        public void EchoTo(StringWriter sb) => Echo = sb;
+        public void EchoTo(StringBuilder sb) => Echo = sb;
 
         public override void WriteLine(string value)
         {
@@ -65,7 +65,7 @@ namespace StackExchange.Redis.Tests.Helpers
         {
             var text = Buffer.ToString();
             Output.WriteLine(text);
-            Echo?.WriteLine(text);
+            Echo?.AppendLine(text);
             if (ToConsole)
             {
                 Console.WriteLine(text);

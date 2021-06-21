@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -68,7 +69,7 @@ namespace StackExchange.Redis.Tests
             }
 
             // see what happens
-            using var log = new StringWriter();
+            var log = new StringBuilder();
             Writer.EchoTo(log);
 
             using (Create(log: Writer, tieBreaker: TieBreak))
