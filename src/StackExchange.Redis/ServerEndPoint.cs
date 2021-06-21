@@ -85,7 +85,6 @@ namespace StackExchange.Redis
         {
             async Task<string> IfConnectedAsync(LogProxy log, bool sendTracerIfConnected, bool autoConfigureIfConnected)
             {
-                log?.WriteLine($"{Format.ToString(this)}: OnConnectedAsync completed (already connected)");
                 if (autoConfigureIfConnected)
                 {
                     await AutoConfigureAsync(null, log);
@@ -94,6 +93,7 @@ namespace StackExchange.Redis
                 {
                     await SendTracer(log);
                 }
+                log?.WriteLine($"{Format.ToString(this)}: OnConnectedAsync completed (already connected)");
                 return "Already connected";
             }
 
