@@ -5,6 +5,9 @@
 - performance optimization for PING accuracy (#1714 via eduardobr)
 - improvement to reconnect logic (exponential backoff) (#1735 via deepakverma)
 - refresh replica endpoint list on failover (#1684 by laurauzcategui)
+- fix for ReconfigureAsync re-entrancy (caused connection issues) (#1772 by NickCraver)
+- fix for ReconfigureAsync Sentinel race resulting in NoConnectionAvailable when using DemandMaster (#1773 by NickCraver)
+- resolve race in AUTH and other connection reconfigurations (#1759 via TimLovellSmith and NickCraver)
 
 ## 2.2.4
 

@@ -40,7 +40,7 @@ namespace StackExchange.Redis
             try
             {
                 var bridge = physical.BridgeCouldBeNull;
-                log?.WriteLine($"Writing to {bridge}: {tail.CommandAndKey}");
+                log?.WriteLine($"{bridge.Name}: Writing: {tail.CommandAndKey}");
             }
             catch { }
             tail.WriteTo(physical);

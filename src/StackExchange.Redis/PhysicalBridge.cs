@@ -128,8 +128,6 @@ namespace StackExchange.Redis
 
         public override string ToString() => ConnectionType + "/" + Format.ToString(ServerEndPoint.EndPoint);
 
-        public void TryConnect(LogProxy log) => GetConnection(log);
-
         private WriteResult QueueOrFailMessage(Message message)
         {
             if (message.IsInternalCall && message.Command != RedisCommand.QUIT)
@@ -338,6 +336,7 @@ namespace StackExchange.Redis
             {
                 case ConnectionType.Interactive:
                     msg = ServerEndPoint.GetTracerMessage(false);
+                    msg.Flags |= CommandFlags.FireAndForget; // in this case, we're not awaiting the result
                     msg.SetSource(ResultProcessor.Tracer, null);
                     break;
                 case ConnectionType.Subscription:
@@ -379,6 +378,7 @@ namespace StackExchange.Redis
             if (physical == connection && !isDisposed && ChangeState(State.Connecting, State.ConnectedEstablishing))
             {
                 await ServerEndPoint.OnEstablishingAsync(connection, log).ForAwait();
+                log?.WriteLine($"{Format.ToString(ServerEndPoint)}: OnEstablishingAsync complete");
             }
             else
             {
@@ -397,7 +397,7 @@ namespace StackExchange.Redis
             {
                 tmp.RecordConnectionFailed(ConnectionFailureType.UnableToConnect);
             }
-            GetConnection(null);
+            TryConnect(null);
         }
 
         internal void OnConnectionFailed(PhysicalConnection connection, ConnectionFailureType failureType, Exception innerException)
@@ -432,10 +432,11 @@ namespace StackExchange.Redis
                         r.ForceExponentialBackoffReplicationCheck();
                     }
                 }
+                ServerEndPoint.OnDisconnected();
 
                 if (!isDisposed && Interlocked.Increment(ref failConnectCount) == 1)
                 {
-                    GetConnection(null); // try to connect immediately
+                    TryConnect(null); // try to connect immediately
                 }
             }
             else if (physical == null)
@@ -456,7 +457,7 @@ namespace StackExchange.Redis
                 next.SetExceptionAndComplete(ex, this);
             }
         }
-        internal void OnFullyEstablished(PhysicalConnection connection)
+        internal void OnFullyEstablished(PhysicalConnection connection, string source)
         {
             Trace("OnFullyEstablished");
             connection?.SetIdle();
@@ -465,7 +466,7 @@ namespace StackExchange.Redis
                 reportNextFailure = reconfigureNextFailure = true;
                 LastException = null;
                 Interlocked.Exchange(ref failConnectCount, 0);
-                ServerEndPoint.OnFullyEstablished(connection);
+                ServerEndPoint.OnFullyEstablished(connection, source);
 
                 // do we have pending system things to do?
                 bool createWorker = !_backlog.IsEmpty;
@@ -563,7 +564,7 @@ namespace StackExchange.Redis
                         {
                             Multiplexer.Trace("Resurrecting " + ToString());
                             Multiplexer.OnResurrecting(ServerEndPoint?.EndPoint, ConnectionType);
-                            GetConnection(null);
+                            TryConnect(null);
                         }
                         break;
                     default:
@@ -1136,7 +1137,7 @@ namespace StackExchange.Redis
             return result;
         }
 
-        private PhysicalConnection GetConnection(LogProxy log)
+        public PhysicalConnection TryConnect(LogProxy log)
         {
             if (state == (int)State.Disconnected)
             {
@@ -1144,14 +1145,14 @@ namespace StackExchange.Redis
                 {
                     if (!Multiplexer.IsDisposed)
                     {
-                        log?.WriteLine($"Connecting {Name}...");
+                        log?.WriteLine($"{Name}: Connecting...");
                         Multiplexer.Trace("Connecting...", Name);
                         if (ChangeState(State.Disconnected, State.Connecting))
                         {
                             Interlocked.Increment(ref socketCount);
                             Interlocked.Exchange(ref connectStartTicks, Environment.TickCount);
                             // separate creation and connection for case when connection completes synchronously
-                            // in that case PhysicalConnection will call back to PhysicalBridge, and most of  PhysicalBridge methods assumes that physical is not null;
+                            // in that case PhysicalConnection will call back to PhysicalBridge, and most PhysicalBridge methods assume that physical is not null;
                             physical = new PhysicalConnection(this);
 
                             physical.BeginConnectAsync(log).RedisFireAndForget();
@@ -1161,7 +1162,7 @@ namespace StackExchange.Redis
                 }
                 catch (Exception ex)
                 {
-                    log?.WriteLine($"Connect {Name} failed: {ex.Message}");
+                    log?.WriteLine($"{Name}: Connect failed: {ex.Message}");
                     Multiplexer.Trace("Connect failed: " + ex.Message, Name);
                     ChangeState(State.Disconnected);
                     OnInternalError(ex);
