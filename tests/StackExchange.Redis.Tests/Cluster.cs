@@ -581,7 +581,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void SimpleProfiling()
         {
-            using (var conn = Create())
+            using (var conn = Create(log: Writer))
             {
                 var profiler = new ProfilingSession();
                 var key = Me();
