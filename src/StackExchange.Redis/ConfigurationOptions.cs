@@ -222,7 +222,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Indicates how a message would be retried on connection restore, default is NoRetry
         /// </summary>
-        public OnConnectionRestore? CommandRetryOnConnectionRestore { get { return commandRetryOnConnectionRestore; } set { commandRetryOnConnectionRestore = value; } }
+        public OnConnectionRestore? CommandRetryOnConnectionRestore { get { return commandRetryOnConnectionRestore ?? OnConnectionRestore.NoRetry; } set { commandRetryOnConnectionRestore = value; } }
 
         /// <summary>
         /// Automatically encodes and decodes channels
