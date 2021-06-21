@@ -1,23 +1,24 @@
 image:
 - Visual Studio 2019
-- Ubuntu
 
 init:
   - git config --global core.autocrlf input
 
 install:
 - cmd: >-
+    choco install dotnet-sdk --version 5.0.100
+
     cd tests\RedisConfigs\3.0.503
 
     redis-server.exe --service-install --service-name "redis-6379" "..\Basic\master-6379.conf"
 
-    redis-server.exe --service-install --service-name "redis-6380" "..\Basic\slave-6380.conf"
+    redis-server.exe --service-install --service-name "redis-6380" "..\Basic\replica-6380.conf"
 
     redis-server.exe --service-install --service-name "redis-6381" "..\Basic\secure-6381.conf"
 
     redis-server.exe --service-install --service-name "redis-6382" "..\Failover\master-6382.conf"
 
-    redis-server.exe --service-install --service-name "redis-6383" "..\Failover\slave-6383.conf"
+    redis-server.exe --service-install --service-name "redis-6383" "..\Failover\replica-6383.conf"
 
     redis-server.exe --service-install --service-name "redis-7000" "..\Cluster\cluster-7000.conf" --dir "..\Cluster"
 
@@ -42,14 +43,6 @@ install:
     redis-server.exe --service-install --service-name "redis-26381" "..\Sentinel\sentinel-26381.conf" --sentinel
 
     cd ..\..\..
-- sh: >-
-    cd tests/RedisConfigs
-
-    chmod +x start-all.sh
-
-    ./start-all.sh
-
-    cd ../..
 - ps: >-
     if (Get-Command "Start-Service" -errorAction SilentlyContinue) {
       Start-Service redis-*
@@ -80,7 +73,7 @@ deploy:
 - provider: NuGet
   server: https://www.myget.org/F/stackoverflow/api/v2
   on:
-    branch: master
+    branch: main
   api_key:
     secure: P/UHxq2DEs0GI1SoDXDesHjRVsSVgdywz5vmsnhFQQY5aJgO3kP+QfhwfhXz19Rw
   symbol_server: https://www.myget.org/F/stackoverflow/symbols/api/v2/package

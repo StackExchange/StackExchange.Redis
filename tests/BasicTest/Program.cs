@@ -8,7 +8,6 @@ using BenchmarkDotNet.Diagnosers;
 using BenchmarkDotNet.Environments;
 using BenchmarkDotNet.Jobs;
 using BenchmarkDotNet.Running;
-using BenchmarkDotNet.Toolchains.InProcess;
 using BenchmarkDotNet.Validators;
 using StackExchange.Redis;
 
@@ -21,19 +20,19 @@ namespace BasicTest
     internal class CustomConfig : ManualConfig
     {
         protected virtual Job Configure(Job j)
-            => j.With(new GcMode { Force = true })
+            => j.WithGcMode(new GcMode { Force = true })
                 //.With(InProcessToolchain.Instance)
                 ;
 
         public CustomConfig()
         {
-            Add(MemoryDiagnoser.Default);
-            Add(StatisticColumn.OperationsPerSecond);
-            Add(JitOptimizationsValidator.FailOnError);
+            AddDiagnoser(MemoryDiagnoser.Default);
+            AddColumn(StatisticColumn.OperationsPerSecond);
+            AddValidator(JitOptimizationsValidator.FailOnError);
 
-            Add(Configure(Job.Default.With(ClrRuntime.Net472)));
-            Add(Configure(Job.Default.With(CoreRuntime.Core30)));
-            Add(Configure(Job.Default.With(CoreRuntime.Core31)));
+            AddJob(Configure(Job.Default.WithRuntime(ClrRuntime.Net472)));
+            AddJob(Configure(Job.Default.WithRuntime(CoreRuntime.Core31)));
+            AddJob(Configure(Job.Default.WithRuntime(CoreRuntime.Core50)));
         }
     }
     internal class SlowConfig : CustomConfig
@@ -42,7 +41,6 @@ namespace BasicTest
             => j.WithLaunchCount(1)
                 .WithWarmupCount(1)
                 .WithIterationCount(5);
-        public SlowConfig() { }
     }
     /// <summary>
     /// The tests

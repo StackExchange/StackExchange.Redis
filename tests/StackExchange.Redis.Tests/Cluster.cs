@@ -110,7 +110,7 @@ namespace StackExchange.Redis.Tests
                 }
 
                 Assert.Equal(TestConfig.Current.ClusterServerCount, endpoints.Length);
-                int masters = 0, slaves = 0;
+                int masters = 0, replicas = 0;
                 var failed = new List<EndPoint>();
                 foreach (var endpoint in endpoints)
                 {
@@ -131,7 +131,7 @@ namespace StackExchange.Redis.Tests
                     Log("server-type:" + endpoint);
                     Assert.Equal(ServerType.Cluster, server.ServerType);
 
-                    if (server.IsSlave) slaves++;
+                    if (server.IsReplica) replicas++;
                     else masters++;
                 }
                 if (failed.Count != 0)
@@ -144,7 +144,7 @@ namespace StackExchange.Redis.Tests
                     Assert.True(false, "not all servers connected");
                 }
 
-                Assert.Equal(TestConfig.Current.ClusterServerCount / 2, slaves);
+                Assert.Equal(TestConfig.Current.ClusterServerCount / 2, replicas);
                 Assert.Equal(TestConfig.Current.ClusterServerCount / 2, masters);
             }
         }
@@ -169,7 +169,7 @@ namespace StackExchange.Redis.Tests
             using (var conn = Create())
             {
                 var endpoints = conn.GetEndPoints();
-                var servers = endpoints.Select(e => conn.GetServer(e));
+                var servers = endpoints.Select(e => conn.GetServer(e)).ToList();
 
                 var key = Me();
                 const string value = "abc";
@@ -187,10 +187,9 @@ namespace StackExchange.Redis.Tests
                 string a = StringGet(conn.GetServer(rightMasterNode.EndPoint), key);
                 Assert.Equal(value, a); // right master
 
-                var node = config.Nodes.FirstOrDefault(x => !x.IsSlave && x.NodeId != rightMasterNode.NodeId);
+                var node = config.Nodes.FirstOrDefault(x => !x.IsReplica && x.NodeId != rightMasterNode.NodeId);
                 Assert.NotNull(node);
                 Log("Using Master: {0}", node.EndPoint, node.NodeId);
-                if (node != null)
                 {
                     string b = StringGet(conn.GetServer(node.EndPoint), key);
                     Assert.Equal(value, b); // wrong master, allow redirect
@@ -199,20 +198,18 @@ namespace StackExchange.Redis.Tests
                     Assert.StartsWith($"Key has MOVED to Endpoint {rightMasterNode.EndPoint} and hashslot {slot}", ex.Message);
                 }
 
-                node = config.Nodes.FirstOrDefault(x => x.IsSlave && x.ParentNodeId == rightMasterNode.NodeId);
+                node = config.Nodes.FirstOrDefault(x => x.IsReplica && x.ParentNodeId == rightMasterNode.NodeId);
                 Assert.NotNull(node);
-                if (node != null)
                 {
                     string d = StringGet(conn.GetServer(node.EndPoint), key);
-                    Assert.Equal(value, d); // right slave
+                    Assert.Equal(value, d); // right replica
                 }
 
-                node = config.Nodes.FirstOrDefault(x => x.IsSlave && x.ParentNodeId != rightMasterNode.NodeId);
+                node = config.Nodes.FirstOrDefault(x => x.IsReplica && x.ParentNodeId != rightMasterNode.NodeId);
                 Assert.NotNull(node);
-                if (node != null)
                 {
                     string e = StringGet(conn.GetServer(node.EndPoint), key);
-                    Assert.Equal(value, e); // wrong slave, allow redirect
+                    Assert.Equal(value, e); // wrong replica, allow redirect
 
                     var ex = Assert.Throws<RedisServerException>(() => StringGet(conn.GetServer(node.EndPoint), key, CommandFlags.NoRedirect));
                     Assert.StartsWith($"Key has MOVED to Endpoint {rightMasterNode.EndPoint} and hashslot {slot}", ex.Message);
@@ -257,9 +254,9 @@ namespace StackExchange.Redis.Tests
                     var tran = cluster.CreateTransaction();
                     tran.AddCondition(Condition.KeyNotExists(x));
                     tran.AddCondition(Condition.KeyNotExists(y));
-                    var setX = tran.StringSetAsync(x, "x-val");
-                    var setY = tran.StringSetAsync(y, "y-val");
-                    bool success = tran.Execute();
+                    _ = tran.StringSetAsync(x, "x-val");
+                    _ = tran.StringSetAsync(y, "y-val");
+                    tran.Execute();
 
                     Assert.True(false, "Expected single-slot rules to apply");
                     // the rest no longer applies while we are following single-slot rules
@@ -313,9 +310,9 @@ namespace StackExchange.Redis.Tests
                     var tran = cluster.CreateTransaction();
                     tran.AddCondition(Condition.KeyNotExists(x));
                     tran.AddCondition(Condition.KeyNotExists(y));
-                    var setX = tran.StringSetAsync(x, "x-val");
-                    var setY = tran.StringSetAsync(y, "y-val");
-                    bool success = tran.Execute();
+                    _ = tran.StringSetAsync(x, "x-val");
+                    _ = tran.StringSetAsync(y, "y-val");
+                    tran.Execute();
 
                     Assert.True(false, "Expected single-slot rules to apply");
                     // the rest no longer applies while we are following single-slot rules
@@ -389,8 +386,8 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create(allowAdmin: true))
             {
-                var cluster = conn.GetDatabase();
-                var server = conn.GetEndPoints().Select(x => conn.GetServer(x)).First(x => !x.IsSlave);
+                _ = conn.GetDatabase();
+                var server = conn.GetEndPoints().Select(x => conn.GetServer(x)).First(x => !x.IsReplica);
                 server.FlushAllDatabases();
                 try
                 {
@@ -504,10 +501,10 @@ namespace StackExchange.Redis.Tests
                 const int COUNT = 500;
                 int index = 0;
 
-                var servers = conn.GetEndPoints().Select(x => conn.GetServer(x));
+                var servers = conn.GetEndPoints().Select(x => conn.GetServer(x)).ToList();
                 foreach (var server in servers)
                 {
-                    if (!server.IsSlave)
+                    if (!server.IsReplica)
                     {
                         server.Ping();
                         server.FlushAllDatabases();
@@ -534,13 +531,13 @@ namespace StackExchange.Redis.Tests
                 cluster.WaitAll(actual);
                 for (int i = 0; i < COUNT; i++)
                 {
-                    Assert.Equal(expected[i], (string)actual[i].Result);
+                    Assert.Equal(expected[i], actual[i].Result);
                 }
 
                 int total = 0;
                 Parallel.ForEach(servers, server =>
                 {
-                    if (!server.IsSlave)
+                    if (!server.IsReplica)
                     {
                         int count = server.Keys(pageSize: 100).Count();
                         Log("{0} has {1} keys", server.EndPoint, count);
@@ -561,10 +558,10 @@ namespace StackExchange.Redis.Tests
 
         [Theory]
         [InlineData(CommandFlags.DemandMaster, false)]
-        [InlineData(CommandFlags.DemandSlave, true)]
+        [InlineData(CommandFlags.DemandReplica, true)]
         [InlineData(CommandFlags.PreferMaster, false)]
-        [InlineData(CommandFlags.PreferSlave, true)]
-        public void GetFromRightNodeBasedOnFlags(CommandFlags flags, bool isSlave)
+        [InlineData(CommandFlags.PreferReplica, true)]
+        public void GetFromRightNodeBasedOnFlags(CommandFlags flags, bool isReplica)
         {
             using (var muxer = Create(allowAdmin: true))
             {
@@ -574,7 +571,7 @@ namespace StackExchange.Redis.Tests
                     var key = Guid.NewGuid().ToString();
                     var endpoint = db.IdentifyEndpoint(key, flags);
                     var server = muxer.GetServer(endpoint);
-                    Assert.Equal(isSlave, server.IsSlave);
+                    Assert.Equal(isReplica, server.IsReplica);
                 }
             }
         }
@@ -596,10 +593,10 @@ namespace StackExchange.Redis.Tests
                 var val = db.StringGet(key);
                 Assert.Equal("world", val);
 
-                var msgs = profiler.FinishProfiling().Where(m => m.Command == "GET" || m.Command == "SET");
+                var msgs = profiler.FinishProfiling().Where(m => m.Command == "GET" || m.Command == "SET").ToList();
                 foreach (var msg in msgs)
                 {
-                    Log("Profiler Message: " + Environment.NewLine + msg.ToString());
+                    Log("Profiler Message: " + Environment.NewLine + msg);
                 }
                 Log("Checking GET...");
                 Assert.Contains(msgs, m => m.Command == "GET");
@@ -627,7 +624,7 @@ namespace StackExchange.Redis.Tests
 
         private static RedisKey[] InventKeys()
         {
-            RedisKey[] keys = new RedisKey[512];
+            RedisKey[] keys = new RedisKey[256];
             Random rand = new Random(12324);
             string InventString()
             {
@@ -656,13 +653,13 @@ namespace StackExchange.Redis.Tests
             var keys = InventKeys();
             using (var conn = Create())
             {
-                var grouped = keys.GroupBy(key => conn.GetHashSlot(key));
-                Assert.True(grouped.Count() > 1); // check not all a super-group
-                Assert.True(grouped.Count() < keys.Length); // check not all singleton groups
+                var grouped = keys.GroupBy(key => conn.GetHashSlot(key)).ToList();
+                Assert.True(grouped.Count > 1); // check not all a super-group
+                Assert.True(grouped.Count < keys.Length); // check not all singleton groups
                 Assert.Equal(keys.Length, grouped.Sum(x => x.Count())); // check they're all there
                 Assert.Contains(grouped, x => x.Count() > 1); // check at least one group with multiple items (redundant from above, but... meh)
 
-                Log($"{grouped.Count()} groups, min: {grouped.Min(x => x.Count())}, max: {grouped.Max(x => x.Count())}, avg: {grouped.Average(x => x.Count())}");
+                Log($"{grouped.Count} groups, min: {grouped.Min(x => x.Count())}, max: {grouped.Max(x => x.Count())}, avg: {grouped.Average(x => x.Count())}");
 
                 var db = conn.GetDatabase(0);
                 var all = grouped.SelectMany(grp => {
@@ -696,14 +693,14 @@ namespace StackExchange.Redis.Tests
                 var config = servers.First().ClusterConfiguration;
                 Assert.NotNull(config);
 
-                int slot = conn.HashSlot(Key);
+                //int slot = conn.HashSlot(Key);
                 var rightMasterNode = config.GetBySlot(Key);
                 Assert.NotNull(rightMasterNode);
 
                 string a = (string)conn.GetServer(rightMasterNode.EndPoint).Execute("GET", Key);
                 Assert.Equal(Value, a); // right master
 
-                var wrongMasterNode = config.Nodes.FirstOrDefault(x => !x.IsSlave && x.NodeId != rightMasterNode.NodeId);
+                var wrongMasterNode = config.Nodes.FirstOrDefault(x => !x.IsReplica && x.NodeId != rightMasterNode.NodeId);
                 Assert.NotNull(wrongMasterNode);
 
                 string b = (string)conn.GetServer(wrongMasterNode.EndPoint).Execute("GET", Key);
@@ -713,7 +710,7 @@ namespace StackExchange.Redis.Tests
 
                 // verify that things actually got recorded properly, and the retransmission profilings are connected as expected
                 {
-                    // expect 1 DEL, 1 SET, 1 GET (to right master), 1 GET (to wrong master) that was responded to by an ASK, and 1 GET (to right master or a slave of it)
+                    // expect 1 DEL, 1 SET, 1 GET (to right master), 1 GET (to wrong master) that was responded to by an ASK, and 1 GET (to right master or a replica of it)
                     Assert.Equal(5, msgs.Count);
                     Assert.Equal(1, msgs.Count(c => c.Command == "DEL" || c.Command == "UNLINK"));
                     Assert.Equal(1, msgs.Count(c => c.Command == "SET"));
@@ -722,16 +719,16 @@ namespace StackExchange.Redis.Tests
                     var toRightMasterNotRetransmission = msgs.Where(m => m.Command == "GET" && m.EndPoint.Equals(rightMasterNode.EndPoint) && m.RetransmissionOf == null);
                     Assert.Single(toRightMasterNotRetransmission);
 
-                    var toWrongMasterWithoutRetransmission = msgs.Where(m => m.Command == "GET" && m.EndPoint.Equals(wrongMasterNode.EndPoint) && m.RetransmissionOf == null);
+                    var toWrongMasterWithoutRetransmission = msgs.Where(m => m.Command == "GET" && m.EndPoint.Equals(wrongMasterNode.EndPoint) && m.RetransmissionOf == null).ToList();
                     Assert.Single(toWrongMasterWithoutRetransmission);
 
-                    var toRightMasterOrSlaveAsRetransmission = msgs.Where(m => m.Command == "GET" && (m.EndPoint.Equals(rightMasterNode.EndPoint) || rightMasterNode.Children.Any(c => m.EndPoint.Equals(c.EndPoint))) && m.RetransmissionOf != null);
-                    Assert.Single(toRightMasterOrSlaveAsRetransmission);
+                    var toRightMasterOrReplicaAsRetransmission = msgs.Where(m => m.Command == "GET" && (m.EndPoint.Equals(rightMasterNode.EndPoint) || rightMasterNode.Children.Any(c => m.EndPoint.Equals(c.EndPoint))) && m.RetransmissionOf != null).ToList();
+                    Assert.Single(toRightMasterOrReplicaAsRetransmission);
 
                     var originalWrongMaster = toWrongMasterWithoutRetransmission.Single();
-                    var retransmissionToRight = toRightMasterOrSlaveAsRetransmission.Single();
+                    var retransmissionToRight = toRightMasterOrReplicaAsRetransmission.Single();
 
-                    Assert.True(object.ReferenceEquals(originalWrongMaster, retransmissionToRight.RetransmissionOf));
+                    Assert.True(ReferenceEquals(originalWrongMaster, retransmissionToRight.RetransmissionOf));
                 }
 
                 foreach (var msg in msgs)

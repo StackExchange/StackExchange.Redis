@@ -1,4 +1,5 @@
 ﻿using System;
+using System.ComponentModel;
 
 namespace StackExchange.Redis
 {
@@ -21,12 +22,18 @@ namespace StackExchange.Redis
         /// </summary>
         Broadcast = 2,
         /// <summary>
-        /// Issue a SLAVEOF to all other known nodes, making this this master of all
+        /// Issue a REPLICAOF to all other known nodes, making this this master of all
         /// </summary>
+        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(ReplicateToOtherEndpoints) + " instead.")]
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         EnslaveSubordinates = 4,
+        /// <summary>
+        /// Issue a REPLICAOF to all other known nodes, making this this master of all
+        /// </summary>
+        ReplicateToOtherEndpoints = 4, // note ToString prefers *later* options
         /// <summary>
         /// All additional operations
         /// </summary>
-        All = SetTiebreaker | Broadcast | EnslaveSubordinates
+        All = SetTiebreaker | Broadcast | ReplicateToOtherEndpoints,
     }
 }

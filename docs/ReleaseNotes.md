@@ -1,5 +1,51 @@
 # Release Notes
 
+## Unreleased
+
+- performance optimization for PING accuracy (#1714 via eduardobr)
+- improvement to reconnect logic (exponential backoff) (#1735 via deepakverma)
+- refresh replica endpoint list on failover (#1684 by laurauzcategui)
+- fix for ReconfigureAsync re-entrancy (caused connection issues) (#1772 by NickCraver)
+- fix for ReconfigureAsync Sentinel race resulting in NoConnectionAvailable when using DemandMaster (#1773 by NickCraver)
+- resolve race in AUTH and other connection reconfigurations (#1759 via TimLovellSmith and NickCraver)
+
+## 2.2.4
+
+- fix ambiguous signature of the new `RPUSHX`/`LPUSHX` methods (#1620)
+
+## 2.2.3
+
+- add .NET 5 target
+- fix mutex race condition (#1585 via arsnyder16)
+- allow `CheckCertificateRevocation` to be controlled via the config string (#1591 via lwlwalker)
+- fix range end-value inversion (#1573 via tombatron)
+- add `ROLE` support (#1551 via zmj)
+- add varadic `RPUSHX`/`LPUSHX` support (#1557 via dmytrohridin)
+- fix server-selection strategy race condition (#1532 via deepakverma)
+- fix sentinel default port (#1525 via ejsmith)
+- fix `Int64` parse scenario (#1568 via arsnyder16)
+- force replication check during failover (via joroda)
+- documentation tweaks (multiple)
+- fix backlog contention issue (#1612, see also #1574 via devbv)
+
+## 2.1.58
+
+- fix: `[*]SCAN` - fix possible NRE scenario if the iterator is disposed with an incomplete operation in flight
+- fix: `[*]SCAN` - treat the cursor as an opaque value whenever possible, for compatibility with `redis-cluster-proxy`
+- add: `[*]SCAN` - include additional exception data in the case of faults
+
+## 2.1.55
+
+- identify assembly binding problem on .NET Framework; drops `System.IO.Pipelines` to 4.7.1, and identifies new `System.Buffers` binding failure on 4.7.2
+
+## 2.1.50
+
+- add: bind direct to sentinel-managed instances from a configuration string/object (#1431 via ejsmith)
+- add last-delivered-id to `StreamGroupInfo` (#1477 via AndyPook)
+- update naming of replication-related commands to reflect Redis 5 naming (#1488/#945)
+- fix: the `IServer` commands that are database-specific (`DBSIZE`, `FLUSHDB`, `KEYS`, `SCAN`) now respect the default database on the config (#1460)
+- library updates
+
 ## 2.1.39
 
 - fix: mutex around connection was not "fair"; in specific scenario could lead to out-of-order commands (#1440)

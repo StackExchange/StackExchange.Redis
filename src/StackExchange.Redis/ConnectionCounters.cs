@@ -39,7 +39,7 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// Indicates the total number of messages despatched to a non-preferred endpoint, for example sent to a master
-        /// when the caller stated a preference of slave
+        /// when the caller stated a preference of replica
         /// </summary>
         public long NonPreferredEndpointCount { get; internal set; }
 

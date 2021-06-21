@@ -19,10 +19,10 @@ namespace StackExchange.Redis
         private protected readonly int db;
         private protected readonly CommandFlags flags;
         private protected readonly int pageSize, initialOffset;
-        private protected readonly long initialCursor;
+        private protected readonly RedisValue initialCursor;
         private volatile IScanningCursor activeCursor;
 
-        private protected CursorEnumerable(RedisBase redis, ServerEndPoint server, int db, int pageSize, long cursor, int pageOffset, CommandFlags flags)
+        private protected CursorEnumerable(RedisBase redis, ServerEndPoint server, int db, int pageSize, in RedisValue cursor, int pageOffset, CommandFlags flags)
         {
             if (pageOffset < 0) throw new ArgumentOutOfRangeException(nameof(pageOffset));
             this.redis = redis;
@@ -49,11 +49,11 @@ namespace StackExchange.Redis
 
         internal readonly struct ScanResult
         {
-            public readonly long Cursor;
+            public readonly RedisValue Cursor;
             public readonly T[] ValuesOversized;
             public readonly int Count;
             public readonly bool IsPooled;
-            public ScanResult(long cursor, T[] valuesOversized, int count, bool isPooled)
+            public ScanResult(RedisValue cursor, T[] valuesOversized, int count, bool isPooled)
             {
                 Cursor = cursor;
                 ValuesOversized = valuesOversized;
@@ -62,21 +62,15 @@ namespace StackExchange.Redis
             }
         }
 
-        private protected abstract Message CreateMessage(long cursor);
+        private protected abstract Message CreateMessage(in RedisValue cursor);
 
         private protected abstract ResultProcessor<ScanResult> Processor { get; }
 
-        private protected virtual Task<ScanResult> GetNextPageAsync(IScanningCursor obj, long cursor, out Message message)
+        private protected virtual Task<ScanResult> GetNextPageAsync(IScanningCursor obj, RedisValue cursor, out Message message)
         {
             activeCursor = obj;
             message = CreateMessage(cursor);
             return redis.ExecuteAsync(message, Processor, server);
-        }
-
-        private protected TResult Wait<TResult>(Task<TResult> pending, Message message) {
-            if(!redis.TryWait(pending))
-                throw ExceptionFactory.Timeout(redis.multiplexer, null, message, server);
-            return pending.Result;
         }
 
         /// <summary>
@@ -84,7 +78,7 @@ namespace StackExchange.Redis
         /// </summary>
         public class Enumerator : IEnumerator<T>, IScanningCursor, IAsyncEnumerator<T>
         {
-            private CursorEnumerable<T> parent;
+            private readonly CursorEnumerable<T> parent;
             private readonly CancellationToken cancellationToken;
             internal Enumerator(CursorEnumerable<T> parent, CancellationToken cancellationToken)
             {
@@ -100,8 +94,8 @@ namespace StackExchange.Redis
                 [MethodImpl(MethodImplOptions.AggressiveInlining)]
                 get
                 {
-                    Debug.Assert(_pageIndex >= 0 & _pageIndex < _pageCount & _pageOversized.Length >= _pageCount);
-                    return _pageOversized[_pageIndex];
+                    Debug.Assert(_pageOffset >= 0 & _pageOffset < _pageCount & _pageOversized.Length >= _pageCount);
+                    return _pageOversized[_pageOffset];
                 }
             }
 
@@ -112,12 +106,11 @@ namespace StackExchange.Redis
             {
                 _state = State.Disposed;
                 SetComplete();
-                parent = null;
             }
 
             private void SetComplete()
             {
-                _pageIndex = _pageCount = 0;
+                _pageOffset = _pageCount = 0;
                 Recycle(ref _pageOversized, ref _isPooled);
                 switch (_state)
                 {
@@ -138,25 +131,24 @@ namespace StackExchange.Redis
             }
             
 
-            object IEnumerator.Current => _pageOversized[_pageIndex];
+            object IEnumerator.Current => _pageOversized[_pageOffset];
 
             private bool SimpleNext()
             {
-                if (_pageIndex + 1 < _pageCount)
+                if (_pageOffset + 1 < _pageCount)
                 {
-                    _pageIndex++;
+                    _pageOffset++;
                     return true;
                 }
                 return false;
             }
 
             private T[] _pageOversized;
-            private int _pageCount;
+            private int _pageCount, _pageOffset, _pageIndex = -1;
             private bool _isPooled;
             private Task<ScanResult> _pending;
             private Message _pendingMessage;
-            private int _pageIndex;
-            private long _currentCursor, _nextCursor;
+            private RedisValue _currentCursor, _nextCursor;
 
             private volatile State _state;
             private enum State : byte
@@ -171,7 +163,7 @@ namespace StackExchange.Redis
             {
                 _currentCursor = _nextCursor;
                 _nextCursor = result.Cursor;
-                _pageIndex = isInitial ? parent.initialOffset - 1 :  -1;
+                _pageOffset = isInitial ? parent.initialOffset - 1 :  -1;
                 Recycle(ref _pageOversized, ref _isPooled); // recycle any existing data
                 _pageOversized = result.ValuesOversized ?? Array.Empty<T>();
                 _isPooled = result.IsPooled;
@@ -197,7 +189,13 @@ namespace StackExchange.Redis
             {
                 var pending = SlowNextAsync();
                 if (pending.IsCompletedSuccessfully) return pending.Result;
-                return parent.Wait(pending.AsTask(), _pendingMessage);
+                return Wait(pending.AsTask(), _pendingMessage);
+            }
+
+            private protected TResult Wait<TResult>(Task<TResult> pending, Message message)
+            {
+                if (!parent.redis.TryWait(pending)) ThrowTimeout(message);
+                return pending.Result;
             }
 
             /// <summary>
@@ -238,13 +236,49 @@ namespace StackExchange.Redis
                 }
             }
 
+            [MethodImpl(MethodImplOptions.NoInlining)]
+            private void ThrowTimeout(Message message)
+            {
+                try
+                {
+                    throw ExceptionFactory.Timeout(parent.redis.multiplexer, null, message, parent.server);
+                }
+                catch (Exception ex)
+                {
+                    TryAppendExceptionState(ex);
+                    throw;
+                }
+            }
+
+            private void TryAppendExceptionState(Exception ex)
+            {
+                try
+                {
+                    var data = ex.Data;
+                    data["Redis-page-size"] = parent.pageSize;
+                    data["Redis-page-index"] = _pageIndex;
+                }
+                catch { }
+            }
+
             private async ValueTask<bool> AwaitedNextAsync(bool isInitial)
             {
                 Task<ScanResult> pending;
                 while ((pending = _pending) != null & _state == State.Running)
                 {
-                    ProcessReply(await pending.ForAwait(), isInitial);
+                    ScanResult scanResult;
+                    try
+                    {
+                        scanResult = await pending.ForAwait();
+                    }
+                    catch(Exception ex)
+                    {
+                        TryAppendExceptionState(ex);
+                        throw;
+                    }
+                    ProcessReply(scanResult, isInitial);
                     isInitial = false;
+                    _pageIndex++;
                     if (SimpleNext()) return true;
                 }
                 SetComplete();
@@ -267,7 +301,7 @@ namespace StackExchange.Redis
             {
                 if (_state == State.Disposed) throw new ObjectDisposedException(GetType().Name);
                 _nextCursor = _currentCursor = parent.initialCursor;
-                _pageIndex = parent.initialOffset; // don't -1 here; this makes it look "right" before incremented
+                _pageOffset = parent.initialOffset; // don't -1 here; this makes it look "right" before incremented
                 _state = State.Initial;
                 Recycle(ref _pageOversized, ref _isPooled);
                 _pageOversized = Array.Empty<T>();
@@ -277,16 +311,16 @@ namespace StackExchange.Redis
                 _pendingMessage = null;
             }
 
-            long IScanningCursor.Cursor => _currentCursor;
+            long IScanningCursor.Cursor => (long)_currentCursor; // this may fail on cluster-proxy; I'm OK with this for now
 
             int IScanningCursor.PageSize => parent.pageSize;
 
-            int IScanningCursor.PageOffset => _pageIndex;
+            int IScanningCursor.PageOffset => _pageOffset;
         }
 
-        long IScanningCursor.Cursor
+        long IScanningCursor.Cursor // this may fail on cluster-proxy; I'm OK with this for now
         {
-            get { var tmp = activeCursor; return tmp?.Cursor ?? initialCursor; }
+            get { var tmp = activeCursor; return tmp?.Cursor ?? (long)initialCursor; }
         }
 
         int IScanningCursor.PageSize => pageSize;
@@ -308,7 +342,7 @@ namespace StackExchange.Redis
                 _pending = pending;
             }
 
-            private protected override Task<ScanResult> GetNextPageAsync(IScanningCursor obj, long cursor, out Message message)
+            private protected override Task<ScanResult> GetNextPageAsync(IScanningCursor obj, RedisValue cursor, out Message message)
             {
                 message = null;
                 return AwaitedGetNextPageAsync();
@@ -319,7 +353,7 @@ namespace StackExchange.Redis
                 return new ScanResult(RedisBase.CursorUtils.Origin, arr, arr.Length, false);
             }
             private protected override ResultProcessor<ScanResult> Processor => null;
-            private protected override Message CreateMessage(long cursor) => null;
+            private protected override Message CreateMessage(in RedisValue cursor) => null;
         }
     }
 }

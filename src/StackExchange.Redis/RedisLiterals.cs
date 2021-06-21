@@ -20,6 +20,7 @@ namespace StackExchange.Redis
             PONG = "PONG",
             QUEUED = "QUEUED",
             READONLY = "READONLY ",
+            replica_read_only = "replica-read-only",
             slave_read_only = "slave-read-only",
             timeout = "timeout",
             wildcard = "*",
@@ -112,16 +113,28 @@ namespace StackExchange.Redis
             REMOVE = "REMOVE",
             //            SET = "SET",
 
+            // replication states
+            connect = "connect",
+            connected = "connected",
+            connecting = "connecting",
+            handshake = "handshake",
+            none = "none",
+            sync = "sync",
+
             MinusSymbol = "-",
             PlusSumbol = "+",
             Wildcard = "*",
 
             // misc (config, etc)
             databases = "databases",
+            master = "master",
             no = "no",
             normal = "normal",
             pubsub = "pubsub",
+            replica = "replica",
+            replica_read_only = "replica-read-only",
             replication = "replication",
+            sentinel = "sentinel",
             server = "server",
             slave = "slave",
             slave_read_only = "slave-read-only",

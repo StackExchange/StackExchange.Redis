@@ -9,6 +9,11 @@ using Xunit;
 
 namespace StackExchange.Redis.Tests
 {
+
+    [CollectionDefinition(nameof(MoqDependentCollection), DisableParallelization = true)]
+    public class MoqDependentCollection { }
+
+    [Collection(nameof(MoqDependentCollection))]
     public sealed class DatabaseWrapperTests
     {
         private readonly Mock<IDatabase> mock;
@@ -380,6 +385,14 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void ListLeftPush_3()
+        {
+            RedisValue[] values = new RedisValue[] { "value1", "value2" };
+            wrapper.ListLeftPush("key", values, When.Exists, CommandFlags.None);
+            mock.Verify(_ => _.ListLeftPush("prefix:key", values, When.Exists, CommandFlags.None));
+        }
+
+        [Fact]
         public void ListLength()
         {
             wrapper.ListLength("key", CommandFlags.None);
@@ -427,6 +440,14 @@ namespace StackExchange.Redis.Tests
             RedisValue[] values = new RedisValue[0];
             wrapper.ListRightPush("key", values, CommandFlags.None);
             mock.Verify(_ => _.ListRightPush("prefix:key", values, CommandFlags.None));
+        }
+
+        [Fact]
+        public void ListRightPush_3()
+        {
+            RedisValue[] values = new RedisValue[] { "value1", "value2" };
+            wrapper.ListRightPush("key", values, When.Exists, CommandFlags.None);
+            mock.Verify(_ => _.ListRightPush("prefix:key", values, When.Exists, CommandFlags.None));
         }
 
         [Fact]
@@ -918,7 +939,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamMessagesDelete()
         {
-            var messageIds = new RedisValue[0] { };
+            var messageIds = new RedisValue[] { };
             wrapper.StreamDelete("key", messageIds, CommandFlags.None);
             mock.Verify(_ => _.StreamDelete("prefix:key", messageIds, CommandFlags.None));
         }
@@ -961,7 +982,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamRead_1()
         {
-            var streamPositions = new StreamPosition[0] { };
+            var streamPositions = new StreamPosition[] { };
             wrapper.StreamRead(streamPositions, null, CommandFlags.None);
             mock.Verify(_ => _.StreamRead(streamPositions, null, CommandFlags.None));
         }
@@ -983,7 +1004,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamStreamReadGroup_2()
         {
-            var streamPositions = new StreamPosition[0] { };
+            var streamPositions = new StreamPosition[] { };
             wrapper.StreamReadGroup(streamPositions, "group", "consumer", 10, false, CommandFlags.None);
             mock.Verify(_ => _.StreamReadGroup(streamPositions, "group", "consumer", 10, false, CommandFlags.None));
         }

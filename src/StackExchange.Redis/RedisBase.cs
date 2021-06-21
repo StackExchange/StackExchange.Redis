@@ -102,9 +102,9 @@ namespace StackExchange.Redis
         {
             // do the best we can with available commands
             var map = multiplexer.CommandMap;
-            if(map.IsAvailable(RedisCommand.PING))
+            if (map.IsAvailable(RedisCommand.PING))
                 return ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.PING);
-            if(map.IsAvailable(RedisCommand.TIME))
+            if (map.IsAvailable(RedisCommand.TIME))
                 return ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.TIME);
             if (map.IsAvailable(RedisCommand.ECHO))
                 return ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.ECHO, RedisLiterals.PING);
@@ -115,8 +115,8 @@ namespace StackExchange.Redis
 
         internal static class CursorUtils
         {
+            internal const long Origin = 0;
             internal const int
-                Origin = 0,
                 DefaultRedisPageSize = 10,
                 DefaultLibraryPageSize = 250;
             internal static bool IsNil(in RedisValue pattern)

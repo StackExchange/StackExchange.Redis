@@ -33,10 +33,10 @@ namespace StackExchange.Redis.Tests
             {
                 var server = conn.GetServer(conn.GetEndPoints()[0]);
                 _ = server.LatencyReset();
-                var count = await server.LatencyResetAsync(new string[] { "command" });
+                var count = await server.LatencyResetAsync(new [] { "command" });
                 Assert.Equal(0, count);
 
-                count = await server.LatencyResetAsync(new string[] { "command", "fast-command" });
+                count = await server.LatencyResetAsync(new [] { "command", "fast-command" });
                 Assert.Equal(0, count);
             }
         }

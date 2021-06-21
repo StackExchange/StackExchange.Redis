@@ -40,7 +40,7 @@ namespace StackExchange.Redis
             try
             {
                 var bridge = physical.BridgeCouldBeNull;
-                log?.WriteLine($"Writing to {bridge}: {tail.CommandAndKey}");
+                log?.WriteLine($"{bridge.Name}: Writing: {tail.CommandAndKey}");
             }
             catch { }
             tail.WriteTo(physical);
@@ -76,15 +76,15 @@ namespace StackExchange.Redis
                                    NeedsAsyncTimeoutCheckFlag = (CommandFlags)1024;
 
         private const CommandFlags MaskMasterServerPreference = CommandFlags.DemandMaster
-                                                              | CommandFlags.DemandSlave
+                                                              | CommandFlags.DemandReplica
                                                               | CommandFlags.PreferMaster
-                                                              | CommandFlags.PreferSlave;
+                                                              | CommandFlags.PreferReplica;
 
         private const CommandFlags UserSelectableFlags = CommandFlags.None
                                                        | CommandFlags.DemandMaster
-                                                       | CommandFlags.DemandSlave
+                                                       | CommandFlags.DemandReplica
                                                        | CommandFlags.PreferMaster
-                                                       | CommandFlags.PreferSlave
+                                                       | CommandFlags.PreferReplica
 #pragma warning disable CS0618
                                                        | CommandFlags.HighPriority
 #pragma warning restore CS0618
@@ -97,8 +97,8 @@ namespace StackExchange.Redis
 
         // All for profiling purposes
         private ProfiledCommand performance;
-        internal DateTime createdDateTime;
-        internal long createdTimestamp;
+        internal DateTime CreatedDateTime;
+        internal long CreatedTimestamp;
 
         protected Message(int db, CommandFlags flags, RedisCommand command)
         {
@@ -128,24 +128,24 @@ namespace StackExchange.Redis
             Flags = flags & UserSelectableFlags;
             if (masterOnly) SetMasterOnly();
 
-            createdDateTime = DateTime.UtcNow;
-            createdTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
+            CreatedDateTime = DateTime.UtcNow;
+            CreatedTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
             Status = CommandStatus.WaitingToBeSent;
         }
 
         internal void SetMasterOnly()
         {
-            switch (GetMasterSlaveFlags(Flags))
+            switch (GetMasterReplicaFlags(Flags))
             {
-                case CommandFlags.DemandSlave:
+                case CommandFlags.DemandReplica:
                     throw ExceptionFactory.MasterOnly(false, command, null, null);
                 case CommandFlags.DemandMaster:
                     // already fine as-is
                     break;
                 case CommandFlags.PreferMaster:
-                case CommandFlags.PreferSlave:
+                case CommandFlags.PreferReplica:
                 default: // we will run this on the master, then
-                    Flags = SetMasterSlaveFlags(Flags, CommandFlags.DemandMaster);
+                    Flags = SetMasterReplicaFlags(Flags, CommandFlags.DemandMaster);
                     break;
             }
         }
@@ -165,8 +165,8 @@ namespace StackExchange.Redis
             oldPerformance.SetCompleted(null);
             performance = null;
 
-            createdDateTime = DateTime.UtcNow;
-            createdTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
+            CreatedDateTime = DateTime.UtcNow;
+            CreatedTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
             performance = ProfiledCommand.NewAttachedToSameContext(oldPerformance, resendTo, isMoved);
             performance.SetMessage(this);
             Status = CommandStatus.WaitingToBeSent;
@@ -197,6 +197,7 @@ namespace StackExchange.Redis
                     case RedisCommand.INFO:
                     case RedisCommand.KEYS:
                     case RedisCommand.MONITOR:
+                    case RedisCommand.REPLICAOF:
                     case RedisCommand.SAVE:
                     case RedisCommand.SHUTDOWN:
                     case RedisCommand.SLAVEOF:
@@ -435,7 +436,7 @@ namespace StackExchange.Redis
             // note that the constructor runs the switch statement above, so
             // this will alread be true for master-only commands, even if the
             // user specified PreferMaster etc
-            return GetMasterSlaveFlags(Flags) == CommandFlags.DemandMaster;
+            return GetMasterReplicaFlags(Flags) == CommandFlags.DemandMaster;
         }
 
         /// <summary>
@@ -538,7 +539,7 @@ namespace StackExchange.Redis
             return new CommandKeyValuesKeyMessage(db, flags, command, key0, values, key1);
         }
 
-        internal static CommandFlags GetMasterSlaveFlags(CommandFlags flags)
+        internal static CommandFlags GetMasterReplicaFlags(CommandFlags flags)
         {
             // for the purposes of the switch, we only care about two bits
             return flags & MaskMasterServerPreference;
@@ -572,6 +573,8 @@ namespace StackExchange.Redis
                 case RedisCommand.QUIT:
                 case RedisCommand.READONLY:
                 case RedisCommand.READWRITE:
+                case RedisCommand.REPLICAOF:
+                case RedisCommand.ROLE:
                 case RedisCommand.SAVE:
                 case RedisCommand.SCRIPT:
                 case RedisCommand.SHUTDOWN:
@@ -589,11 +592,11 @@ namespace StackExchange.Redis
             }
         }
 
-        internal static CommandFlags SetMasterSlaveFlags(CommandFlags everything, CommandFlags masterSlave)
+        internal static CommandFlags SetMasterReplicaFlags(CommandFlags everything, CommandFlags masterReplica)
         {
             // take away the two flags we don't want, and add back the ones we care about
-            return (everything & ~(CommandFlags.DemandMaster | CommandFlags.DemandSlave | CommandFlags.PreferMaster | CommandFlags.PreferSlave))
-                            | masterSlave;
+            return (everything & ~(CommandFlags.DemandMaster | CommandFlags.DemandReplica | CommandFlags.PreferMaster | CommandFlags.PreferReplica))
+                            | masterReplica;
         }
 
         internal void Cancel() => resultBox?.Cancel();
@@ -745,9 +748,9 @@ namespace StackExchange.Redis
             Flags = (Flags & ~MaskMasterServerPreference) | CommandFlags.PreferMaster;
         }
 
-        internal void SetPreferSlave()
+        internal void SetPreferReplica()
         {
-            Flags = (Flags & ~MaskMasterServerPreference) | CommandFlags.PreferSlave;
+            Flags = (Flags & ~MaskMasterServerPreference) | CommandFlags.PreferReplica;
         }
 
         internal void SetSource(ResultProcessor resultProcessor, IResultBox resultBox)
@@ -772,11 +775,7 @@ namespace StackExchange.Redis
             {
                 WriteImpl(physical);
             }
-            catch (RedisCommandException)
-            { // these have specific meaning; don't wrap
-                throw;
-            }
-            catch (Exception ex)
+            catch (Exception ex) when (!(ex is RedisCommandException)) // these have specific meaning; don't wrap
             {
                 physical?.OnInternalError(ex);
                 Fail(ConnectionFailureType.InternalFailure, ex, null);

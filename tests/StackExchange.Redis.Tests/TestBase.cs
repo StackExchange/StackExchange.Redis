@@ -35,6 +35,11 @@ namespace StackExchange.Redis.Tests
             ClearAmbientFailures();
         }
 
+        /// <summary> Useful to temporarily get extra worker threads for an otherwise synchronous test case which will 'block' the thread, on a synchronous API like Task.Wait() or Task.Result</summary>
+        /// <note> Must NOT be used for test cases which *goes async*, as then the inferred return type will become 'async void', and we will fail to observe the result of  the async part</note>
+        /// <remarks>See 'ConnectFailTimeout' class for example usage.</remarks>
+        protected Task RunBlockingSynchronousWithExtraThreadAsync(Action testScenario) => Task.Factory.StartNew(testScenario, CancellationToken.None, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+
         protected void LogNoTime(string message) => LogNoTime(Writer, message);
         internal static void LogNoTime(TextWriter output, string message)
         {
@@ -88,7 +93,7 @@ namespace StackExchange.Redis.Tests
 #if VERBOSE
         protected const int AsyncOpsQty = 100, SyncOpsQty = 10;
 #else
-        protected const int AsyncOpsQty = 10000, SyncOpsQty = 10000;
+        protected const int AsyncOpsQty = 2000, SyncOpsQty = 2000;
 #endif
 
         static TestBase()
@@ -199,7 +204,7 @@ namespace StackExchange.Redis.Tests
             foreach (var endpoint in endpoints)
             {
                 var server = muxer.GetServer(endpoint);
-                if (server.IsSlave || !server.IsConnected) continue;
+                if (server.IsReplica || !server.IsConnected) continue;
                 if (result != null) throw new InvalidOperationException("Requires exactly one master endpoint (found " + server.EndPoint + " and " + result.EndPoint + ")");
                 result = server;
             }
@@ -212,7 +217,7 @@ namespace StackExchange.Redis.Tests
             foreach (var endpoint in muxer.GetEndPoints())
             {
                 var server = muxer.GetServer(endpoint);
-                if (!server.IsSlave) return server;
+                if (!server.IsReplica) return server;
             }
             throw new InvalidOperationException("Requires a master endpoint (found none)");
         }
@@ -224,7 +229,7 @@ namespace StackExchange.Redis.Tests
             bool checkConnect = true, string failMessage = null,
             string channelPrefix = null, Proxy? proxy = null,
             string configuration = null, bool logTransactionData = true,
-            bool shared = true,
+            bool shared = true, int? defaultDatabase = null,
             [CallerMemberName] string caller = null)
         {
             if (Output == null)
@@ -233,11 +238,11 @@ namespace StackExchange.Redis.Tests
             }
 
             if (shared && _fixture != null && _fixture.IsEnabled && enabledCommands == null && disabledCommands == null && fail && channelPrefix == null && proxy == null
-                && configuration == null && password == null && tieBreaker == null && (allowAdmin == null || allowAdmin == true) && expectedFailCount == 0)
+                && configuration == null && password == null && tieBreaker == null && defaultDatabase == null && (allowAdmin == null || allowAdmin == true) && expectedFailCount == 0)
             {
                 configuration = GetConfiguration();
                 if (configuration == _fixture.Configuration)
-                {   // only if the 
+                {   // only if the
                     return _fixture.Connection;
                 }
             }
@@ -250,7 +255,7 @@ namespace StackExchange.Redis.Tests
                 checkConnect, failMessage,
                 channelPrefix, proxy,
                 configuration ?? GetConfiguration(),
-                logTransactionData, caller);
+                logTransactionData, defaultDatabase, caller);
             muxer.InternalError += OnInternalError;
             muxer.ConnectionFailed += OnConnectionFailed;
             return muxer;
@@ -264,6 +269,7 @@ namespace StackExchange.Redis.Tests
             bool checkConnect = true, string failMessage = null,
             string channelPrefix = null, Proxy? proxy = null,
             string configuration = null, bool logTransactionData = true,
+            int? defaultDatabase = null,
 
             [CallerMemberName] string caller = null)
         {
@@ -299,6 +305,7 @@ namespace StackExchange.Redis.Tests
                 if (keepAlive != null) config.KeepAlive = keepAlive.Value;
                 if (connectTimeout != null) config.ConnectTimeout = connectTimeout.Value;
                 if (proxy != null) config.Proxy = proxy.Value;
+                if (defaultDatabase != null) config.DefaultDatabase = defaultDatabase.Value;
                 var watch = Stopwatch.StartNew();
                 var task = ConnectionMultiplexer.ConnectAsync(config, log);
                 if (!task.Wait(config.ConnectTimeout >= (int.MaxValue / 2) ? int.MaxValue : config.ConnectTimeout * 2))
@@ -309,8 +316,7 @@ namespace StackExchange.Redis.Tests
                         {
                             GC.KeepAlive(x.Exception);
                         }
-                        catch
-                        { }
+                        catch { /* No boom */ }
                     }, TaskContinuationOptions.OnlyOnFaulted);
                     throw new TimeoutException("Connect timeout");
                 }
@@ -411,7 +417,9 @@ namespace StackExchange.Redis.Tests
                 for (int i = 0; i < threads; i++)
                 {
                     var thd = threadArr[i];
+#pragma warning disable SYSLIB0006 // yes, we know
                     if (thd.IsAlive) thd.Abort();
+#pragma warning restore SYSLIB0006 // yes, we know
                 }
                 throw new TimeoutException();
             }

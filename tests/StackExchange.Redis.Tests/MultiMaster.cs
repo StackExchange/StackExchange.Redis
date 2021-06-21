@@ -13,26 +13,26 @@ namespace StackExchange.Redis.Tests
         public MultiMaster(ITestOutputHelper output) : base (output) { }
 
         [Fact]
-        public void CannotFlushSlave()
+        public void CannotFlushReplica()
         {
             var ex = Assert.Throws<RedisCommandException>(() =>
             {
-                using (var conn = ConnectionMultiplexer.Connect(TestConfig.Current.SlaveServerAndPort + ",allowAdmin=true"))
+                using (var conn = ConnectionMultiplexer.Connect(TestConfig.Current.ReplicaServerAndPort + ",allowAdmin=true"))
                 {
                     var servers = conn.GetEndPoints().Select(e => conn.GetServer(e));
-                    var slave = servers.FirstOrDefault(x => x.IsSlave);
-                    Assert.NotNull(slave); // Slave not found, ruh roh
-                    slave.FlushDatabase();
+                    var replica = servers.FirstOrDefault(x => x.IsReplica);
+                    Assert.NotNull(replica); // replica not found, ruh roh
+                    replica.FlushDatabase();
                 }
             });
-            Assert.Equal("Command cannot be issued to a slave: FLUSHDB", ex.Message);
+            Assert.Equal("Command cannot be issued to a replica: FLUSHDB", ex.Message);
         }
 
         [Fact]
         public void TestMultiNoTieBreak()
         {
             using (var log = new StringWriter())
-            using (var conn = Create(log: log, tieBreaker: ""))
+            using (Create(log: log, tieBreaker: ""))
             {
                 Log(log.ToString());
                 Assert.Contains("Choosing master arbitrarily", log.ToString());
@@ -69,7 +69,7 @@ namespace StackExchange.Redis.Tests
 
             // see what happens
             using (var log = new StringWriter())
-            using (var conn = Create(log: log, tieBreaker: TieBreak))
+            using (Create(log: log, tieBreaker: TieBreak))
             {
                 string text = log.ToString();
                 Log(text);
@@ -81,13 +81,13 @@ namespace StackExchange.Redis.Tests
                 int nullCount = (a == null ? 1 : 0) + (b == null ? 1 : 0);
                 if ((a == b && nullCount == 0) || nullCount == 1)
                 {
-                    Assert.True(text.Contains("tie-break is unanimous"), "unanimous");
-                    Assert.False(text.Contains("Choosing master arbitrarily"), "arbitrarily");
+                    Assert.True(text.Contains("Election: Tie-breaker unanimous"), "unanimous");
+                    Assert.False(text.Contains("Election: Choosing master arbitrarily"), "arbitrarily");
                 }
                 else
                 {
-                    Assert.False(text.Contains("tie-break is unanimous"), "unanimous");
-                    Assert.True(text.Contains("Choosing master arbitrarily"), "arbitrarily");
+                    Assert.False(text.Contains("Election: Tie-breaker unanimous"), "unanimous");
+                    Assert.True(text.Contains("Election: Choosing master arbitrarily"), "arbitrarily");
                 }
             }
         }

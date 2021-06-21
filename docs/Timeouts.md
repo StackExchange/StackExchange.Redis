@@ -25,7 +25,7 @@ Asynchronous operations in StackExchange.Redis can come back in 3 different ways
 - From 2.0 onwards, StackExchange.Redis maintains a dedicated thread-pool that it uses for completing most `async` operations; the error message may include an indication of how many of these workers are currently available - if this is zero, it may suggest that your system is particularly busy with asynchronous operations.
 - .NET also has a global thread-pool; if the dedicated thread-pool is failing to keep up, additional work will be offered to the global thread-pool, so the message may include details of the global thread-pool.
 
-The StackExchange.Redis dedicated thread-pool has a fixed size suitable for many common scenarios, which is shared between multiple connection instances (this can be customized by explicitly providing a `SocketManager` when creating a `ConnectionMultiplexer`). In many scenarios when using 2.0 and above, the vast majority of asynchronous operations will be services by this dedicated pool. This pool exists to avoid contention, as we've frequently seen cases where the global thread-pool becomes jammed with threads that need redis results to unblock them.
+The StackExchange.Redis dedicated thread-pool has a fixed size suitable for many common scenarios, which is shared between multiple connection instances (this can be customized by explicitly providing a `SocketManager` when creating a `ConnectionMultiplexer`). In many scenarios when using 2.0 and above, the vast majority of asynchronous operations will be serviced by this dedicated pool. This pool exists to avoid contention, as we've frequently seen cases where the global thread-pool becomes jammed with threads that need redis results to unblock them.
 
 .NET itself provides new global thread pool worker threads or I/O completion threads on demand (without any throttling) until it reaches the "Minimum" setting for each type of thread. By default, the minimum number of threads is set to the number of processors on a system.
 
@@ -52,7 +52,7 @@ In 1.*, the information is similar but slightly different:
 
 It may seem contradictory that there are *less* numbers in 2.0 - this is because the 2.0 code has been redesigned not to require some additional steps.
 
-Note that StackExchange.Redis can hit timeouts if either the IOCP threadss or the worker threads (.NET global thread-pool, or the dedicated thread-pool) become saturated without the ability to grow.
+Note that StackExchange.Redis can hit timeouts if either the IOCP threads or the worker threads (.NET global thread-pool, or the dedicated thread-pool) become saturated without the ability to grow.
 
 Also note that the IOCP and WORKER threads will not be shown on .NET Core if using `netstandard` < 2.0.
 
@@ -63,7 +63,7 @@ Given the above information, in 1.* it's recommend to set the minimum configurat
 
 How to configure this setting:
 
- - In ASP.NET, use the ["minIoThreads" configuration setting](https://msdn.microsoft.com/en-us/library/7w2sway1(v=vs.71).aspx) under the `<processModel>` configuration element in `machine.config`. According to Microsoft, you can't change this value per site by editing your web.config (even when you could do it in the past), so the value that you choose here is the value that all your .NET sites will use. Please note that you don't need to add every property if you put autoConfig in false, just putting autoConfig="false" and overriding the value is enough:
+ - In ASP.NET, use the ["minIoThreads" configuration setting](https://msdn.microsoft.com/en-us/library/7w2sway1(v=vs.100).aspx) under the `<processModel>` configuration element in `machine.config`. According to Microsoft, you can't change this value per site by editing your web.config (even when you could do it in the past), so the value that you choose here is the value that all your .NET sites will use. Please note that you don't need to add every property if you put autoConfig in false, just putting autoConfig="false" and overriding the value is enough:
 
 ```xml
 <processModel autoConfig="false" minIoThreads="250" />
@@ -75,11 +75,11 @@ How to configure this setting:
 
 - In .Net Core, add Environment Variable COMPlus_ThreadPool_ForceMinWorkerThreads to overwrite default MinThreads setting, according to [Environment/Registry Configuration Knobs](https://github.com/dotnet/coreclr/blob/master/Documentation/project-docs/clr-configuration-knobs.md) - You can also use the same ThreadPool.SetMinThreads() Method as described above.
 
-Explanation for abbrivations appearing in exception messages
+Explanation for abbreviations appearing in exception messages
 ---
 By default Redis Timeout exception(s) includes useful information, which can help in uderstanding & diagnosing the timeouts. Some of the abbrivations are as follows:
 
-| Abbrivation   | Long Name | Meaning |
+| Abbreviation   | Long Name | Meaning |
 | ------------- | ---------------------- | ---------------------------- | 
 | inst    |  OpsSinceLastHeartbeat : {int}  | |  
 |qu | Queue-Awaiting-Write : {int}|There are x operations currently waiting in queue to write to the redis server.| 

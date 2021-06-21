@@ -93,8 +93,8 @@ namespace StackExchange.Redis.Profiling
             if (Message != null) throw new InvalidOperationException($"{nameof(SetMessage)} called more than once");
 
             Message = msg;
-            MessageCreatedDateTime = msg.createdDateTime;
-            MessageCreatedTimeStamp = msg.createdTimestamp;
+            MessageCreatedDateTime = msg.CreatedDateTime;
+            MessageCreatedTimeStamp = msg.CreatedTimestamp;
         }
 
         public void SetEnqueued() => SetTimestamp(ref EnqueuedTimeStamp);

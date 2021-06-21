@@ -1,4 +1,5 @@
 ﻿using System;
+using System.ComponentModel;
 using System.Linq;
 using System.Reflection;
 using System.Text;
@@ -33,7 +34,8 @@ namespace StackExchange.Redis
                                          v3_2_0 = new Version(3, 2, 0),
                                          v3_2_1 = new Version(3, 2, 1),
                                          v4_0_0 = new Version(4, 0, 0),
-                                         v4_9_1 = new Version(4, 9, 1); // 5.0 RC1 is version 4.9.1
+                                         v4_9_1 = new Version(4, 9, 1), // 5.0 RC1 is version 4.9.1; // 5.0 RC1 is version 4.9.1
+                                         v5_0_0 = new Version(5, 0, 0);
 
         private readonly Version version;
 
@@ -182,9 +184,16 @@ namespace StackExchange.Redis
         public bool ScriptingDatabaseSafe => Version >= v2_8_12;
 
         /// <summary>
-        /// Is PFCOUNT supported on slaves?
+        /// Is PFCOUNT supported on replicas?
         /// </summary>
-        public bool HyperLogLogCountSlaveSafe => Version >= v2_8_18;
+        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(HyperLogLogCountReplicaSafe) + " instead.")]
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
+        public bool HyperLogLogCountSlaveSafe => HyperLogLogCountReplicaSafe;
+
+        /// <summary>
+        /// Is PFCOUNT supported on replicas?
+        /// </summary>
+        public bool HyperLogLogCountReplicaSafe => Version >= v2_8_18;
 
         /// <summary>
         /// Are the GEO commands available?
@@ -210,6 +219,16 @@ namespace StackExchange.Redis
         /// Are the Touch command available?
         /// </summary>
         public bool KeyTouch => Version >= v3_2_1;
+
+        /// <summary>
+        /// Does the server prefer 'replica' terminology - 'REPLICAOF', etc?
+        /// </summary>
+        public bool ReplicaCommands => Version >= v5_0_0;
+
+        /// <summary>
+        /// Do list-push commands support multiple arguments?
+        /// </summary>
+        public bool PushMultiple => Version >= v4_0_0;
 
         /// <summary>
         /// Create a string representation of the available features

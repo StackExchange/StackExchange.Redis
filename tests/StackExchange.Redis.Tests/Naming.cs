@@ -39,20 +39,20 @@ namespace StackExchange.Redis.Tests
             Assert.NotNull(masterOnlyMethod);
             object[] args = new object[1];
 
-            List<object> masterSlave = new List<object>();
+            List<object> masterReplica = new List<object>();
             List<object> masterOnly = new List<object>();
             foreach (var val in Enum.GetValues(cmd))
             {
                 args[0] = val;
                 bool isMasterOnly = (bool)masterOnlyMethod.Invoke(null, args);
-                (isMasterOnly ? masterOnly : masterSlave).Add(val);
+                (isMasterOnly ? masterOnly : masterReplica).Add(val);
 
                 if (!isMasterOnly)
                 {
                     Log(val?.ToString());
                 }
             }
-            Log("master-only: {0}, vs master/slave: {1}", masterOnly.Count, masterSlave.Count);
+            Log("master-only: {0}, vs master/replica: {1}", masterOnly.Count, masterReplica.Count);
             Log("");
             Log("master-only:");
             foreach (var val in masterOnly)
@@ -60,8 +60,8 @@ namespace StackExchange.Redis.Tests
                 Log(val?.ToString());
             }
             Log("");
-            Log("master/slave:");
-            foreach (var val in masterSlave)
+            Log("master/replica:");
+            foreach (var val in masterReplica)
             {
                 Log(val?.ToString());
             }
@@ -149,24 +149,6 @@ namespace StackExchange.Redis.Tests
 
                 if (name.EndsWith("Async")) huntName = name.Substring(0, name.Length - 5);
                 else huntName = name + "Async";
-
-                Type huntType;
-                if (method.ReturnType == null || method.ReturnType == typeof(void))
-                {
-                    huntType = typeof(Task);
-                }
-                else if (method.ReturnType == typeof(Task))
-                {
-                    huntType = null;
-                }
-                else if (method.ReturnType.IsSubclassOf(typeof(Task)))
-                {
-                    huntType = method.ReturnType.GetGenericArguments()[0];
-                }
-                else
-                {
-                    huntType = typeof(Task<>).MakeGenericType(method.ReturnType);
-                }
                 var pFrom = method.GetParameters();
                 Type[] args = pFrom.Select(x => x.ParameterType).ToArray();
                 Log("Checking: {0}.{1}", from.Name, method.Name);

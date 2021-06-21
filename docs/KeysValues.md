@@ -1,7 +1,7 @@
 ﻿Keys, Values and Channels
 ===
 
-In dealing with redis, there is quite an important distinction between *keys* and *everything else*. A key is the unique name of a piece of data (which could be a String, a List, Hash, or any of the other [redis data types](http://redis.io/topics/data-types)) within a database. Keys are never interpreted as... well, anything: they are simply inert names. Further - when dealing with clustered or sharded systems, it is the key that defines the node (or nodes if there are slaves) that contain this data - so keys are crucial for routing commands.
+In dealing with redis, there is quite an important distinction between *keys* and *everything else*. A key is the unique name of a piece of data (which could be a String, a List, Hash, or any of the other [redis data types](http://redis.io/topics/data-types)) within a database. Keys are never interpreted as... well, anything: they are simply inert names. Further - when dealing with clustered or sharded systems, it is the key that defines the node (or nodes if there are replicas) that contain this data - so keys are crucial for routing commands.
 
 This contrasts with *values*; values are the *things that you store* against keys - either individually (for String data) or as groups. Values do not affect command routing <small>(caveat: except for [the `SORT` command](http://redis.io/commands/sort) when `BY` or `GET` is specified, but that is *really* complicated to explain)</small>. Likewise, values are often *interpreted* by redis for the purposes of an operation:
 

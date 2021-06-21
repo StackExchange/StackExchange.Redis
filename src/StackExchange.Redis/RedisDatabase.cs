@@ -519,7 +519,7 @@ namespace StackExchange.Redis
             var features = GetFeatures(key, flags, out ServerEndPoint server);
             var cmd = Message.Create(Database, flags, RedisCommand.PFCOUNT, key);
             // technically a write / master-only command until 2.8.18
-            if (server != null && !features.HyperLogLogCountSlaveSafe) cmd.SetMasterOnly();
+            if (server != null && !features.HyperLogLogCountReplicaSafe) cmd.SetMasterOnly();
             return ExecuteSync(cmd, ResultProcessor.Int64, server);
         }
 
@@ -532,7 +532,7 @@ namespace StackExchange.Redis
             {
                 var features = GetFeatures(keys[0], flags, out server);
                 // technically a write / master-only command until 2.8.18
-                if (server != null && !features.HyperLogLogCountSlaveSafe) cmd.SetMasterOnly();
+                if (server != null && !features.HyperLogLogCountReplicaSafe) cmd.SetMasterOnly();
             }
             return ExecuteSync(cmd, ResultProcessor.Int64, server);
         }
@@ -542,7 +542,7 @@ namespace StackExchange.Redis
             var features = GetFeatures(key, flags, out ServerEndPoint server);
             var cmd = Message.Create(Database, flags, RedisCommand.PFCOUNT, key);
             // technically a write / master-only command until 2.8.18
-            if (server != null && !features.HyperLogLogCountSlaveSafe) cmd.SetMasterOnly();
+            if (server != null && !features.HyperLogLogCountReplicaSafe) cmd.SetMasterOnly();
             return ExecuteAsync(cmd, ResultProcessor.Int64, server);
         }
 
@@ -555,7 +555,7 @@ namespace StackExchange.Redis
             {
                 var features = GetFeatures(keys[0], flags, out server);
                 // technically a write / master-only command until 2.8.18
-                if (server != null && !features.HyperLogLogCountSlaveSafe) cmd.SetMasterOnly();
+                if (server != null && !features.HyperLogLogCountReplicaSafe) cmd.SetMasterOnly();
             }
             return ExecuteAsync(cmd, ResultProcessor.Int64, server);
         }
@@ -935,6 +935,15 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
+        public long ListLeftPush(RedisKey key, RedisValue[] values, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        {
+            WhenAlwaysOrExists(when);
+            if (values == null) throw new ArgumentNullException(nameof(values));
+            var command = when == When.Always ? RedisCommand.LPUSH : RedisCommand.LPUSHX;
+            var msg = values.Length == 0 ? Message.Create(Database, flags, RedisCommand.LLEN, key) : Message.Create(Database, flags, command, key, values);
+            return ExecuteSync(msg, ResultProcessor.Int64);
+        }
+
         public long ListLeftPush(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None)
         {
             if (values == null) throw new ArgumentNullException(nameof(values));
@@ -946,6 +955,15 @@ namespace StackExchange.Redis
         {
             WhenAlwaysOrExists(when);
             var msg = Message.Create(Database, flags, when == When.Always ? RedisCommand.LPUSH : RedisCommand.LPUSHX, key, value);
+            return ExecuteAsync(msg, ResultProcessor.Int64);
+        }
+
+        public Task<long> ListLeftPushAsync(RedisKey key, RedisValue[] values, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        {
+            WhenAlwaysOrExists(when);
+            if (values == null) throw new ArgumentNullException(nameof(values));
+            var command = when == When.Always ? RedisCommand.LPUSH : RedisCommand.LPUSHX;
+            var msg = values.Length == 0 ? Message.Create(Database, flags, RedisCommand.LLEN, key) : Message.Create(Database, flags, command, key, values);
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
@@ -1023,6 +1041,15 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
+        public long ListRightPush(RedisKey key, RedisValue[] values, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        {
+            WhenAlwaysOrExists(when);
+            if (values == null) throw new ArgumentNullException(nameof(values));
+            var command = when == When.Always ? RedisCommand.RPUSH : RedisCommand.RPUSHX;
+            var msg = values.Length == 0 ? Message.Create(Database, flags, RedisCommand.LLEN, key) : Message.Create(Database, flags, command, key, values);
+            return ExecuteSync(msg, ResultProcessor.Int64);
+        }
+
         public long ListRightPush(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None)
         {
             if (values == null) throw new ArgumentNullException(nameof(values));
@@ -1034,6 +1061,15 @@ namespace StackExchange.Redis
         {
             WhenAlwaysOrExists(when);
             var msg = Message.Create(Database, flags, when == When.Always ? RedisCommand.RPUSH : RedisCommand.RPUSHX, key, value);
+            return ExecuteAsync(msg, ResultProcessor.Int64);
+        }
+
+        public Task<long> ListRightPushAsync(RedisKey key, RedisValue[] values, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        {
+            WhenAlwaysOrExists(when);
+            if (values == null) throw new ArgumentNullException(nameof(values));
+            var command = when == When.Always ? RedisCommand.RPUSH : RedisCommand.RPUSHX;
+            var msg = values.Length == 0 ? Message.Create(Database, flags, RedisCommand.LLEN, key) : Message.Create(Database, flags, command, key, values);
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
@@ -1152,11 +1188,10 @@ namespace StackExchange.Redis
             {
                 return ExecuteSync(msg, ResultProcessor.ScriptResult);
             }
-            catch (RedisServerException)
+            catch (RedisServerException) when (msg.IsScriptUnavailable)
             {
                 // could be a NOSCRIPT; for a sync call, we can re-issue that without problem
-                if (msg.IsScriptUnavailable) return ExecuteSync(msg, ResultProcessor.ScriptResult);
-                throw;
+                return ExecuteSync(msg, ResultProcessor.ScriptResult);
             }
         }
 
@@ -2931,11 +2966,11 @@ namespace StackExchange.Redis
             if (destination.IsNull) return Message.Create(Database, flags, RedisCommand.SORT, key, values.ToArray());
 
             // because we are using STORE, we need to push this to a master
-            if (Message.GetMasterSlaveFlags(flags) == CommandFlags.DemandSlave)
+            if (Message.GetMasterReplicaFlags(flags) == CommandFlags.DemandReplica)
             {
                 throw ExceptionFactory.MasterOnly(multiplexer.IncludeDetailInExceptions, RedisCommand.SORT, null, null);
             }
-            flags = Message.SetMasterSlaveFlags(flags, CommandFlags.DemandMaster);
+            flags = Message.SetMasterReplicaFlags(flags, CommandFlags.DemandMaster);
             values.Add(RedisLiterals.STORE);
             return Message.Create(Database, flags, RedisCommand.SORT, key, values.ToArray(), destination);
         }
@@ -2954,7 +2989,7 @@ namespace StackExchange.Redis
             List<RedisValue> values = null;
             if (weights != null && weights.Length != 0)
             {
-                (values ?? (values = new List<RedisValue>())).Add(RedisLiterals.WEIGHTS);
+                (values ??= new List<RedisValue>()).Add(RedisLiterals.WEIGHTS);
                 foreach (var weight in weights)
                     values.Add(weight);
             }
@@ -2962,11 +2997,11 @@ namespace StackExchange.Redis
             {
                 case Aggregate.Sum: break; // default
                 case Aggregate.Min:
-                    (values ?? (values = new List<RedisValue>())).Add(RedisLiterals.AGGREGATE);
+                    (values ??= new List<RedisValue>()).Add(RedisLiterals.AGGREGATE);
                     values.Add(RedisLiterals.MIN);
                     break;
                 case Aggregate.Max:
-                    (values ?? (values = new List<RedisValue>())).Add(RedisLiterals.AGGREGATE);
+                    (values ??= new List<RedisValue>()).Add(RedisLiterals.AGGREGATE);
                     values.Add(RedisLiterals.MAX);
                     break;
                 default:
@@ -3522,7 +3557,7 @@ namespace StackExchange.Redis
 
         private static void ReverseLimits(Order order, ref Exclude exclude, ref RedisValue start, ref RedisValue stop)
         {
-            bool reverseLimits = (order == Order.Ascending) == start.CompareTo(stop) > 0;
+            bool reverseLimits = (order == Order.Ascending) == (stop != default(RedisValue) && start.CompareTo(stop) > 0);
             if (reverseLimits)
             {
                 var tmp = start;
@@ -3578,7 +3613,7 @@ namespace StackExchange.Redis
             private readonly RedisValue pattern;
             private readonly RedisCommand command;
 
-            public ScanEnumerable(RedisDatabase database, ServerEndPoint server, RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags,
+            public ScanEnumerable(RedisDatabase database, ServerEndPoint server, RedisKey key, in RedisValue pattern, int pageSize, in RedisValue cursor, int pageOffset, CommandFlags flags,
                 RedisCommand command, ResultProcessor<ScanResult> processor)
                 : base(database, server, database.Database, pageSize, cursor, pageOffset, flags)
             {
@@ -3590,7 +3625,7 @@ namespace StackExchange.Redis
 
             private protected override ResultProcessor<CursorEnumerable<T>.ScanResult> Processor { get; }
 
-            private protected override Message CreateMessage(long cursor)
+            private protected override Message CreateMessage(in RedisValue cursor)
             {
                 if (CursorUtils.IsNil(pattern))
                 {

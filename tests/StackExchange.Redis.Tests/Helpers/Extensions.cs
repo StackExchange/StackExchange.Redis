@@ -12,18 +12,16 @@ namespace StackExchange.Redis.Tests.Helpers
         {
 #if NET462
             VersionInfo = "Compiled under .NET 4.6.2";
-#elif NETCOREAPP2_1
-            VersionInfo = "Compiled under .NETCoreApp2.1";
 #else
-            VersionInfo = "Compiled under <unknown framework>";
+            VersionInfo = $"Running under {RuntimeInformation.FrameworkDescription} ({Environment.Version})";
 #endif
             try
             {
-                VersionInfo += "\nRunning on: " + RuntimeInformation.OSDescription;
+                VersionInfo += "\n   Running on: " + RuntimeInformation.OSDescription;
             }
             catch (Exception)
             {
-                VersionInfo += "\nFailed to get OS version";
+                VersionInfo += "\n   Failed to get OS version";
             }
         }
 

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -33,14 +34,28 @@ namespace StackExchange.Redis
         bool IsConnected { get; }
 
         /// <summary>
-        /// Gets whether the connected server is a replica / slave
+        /// Gets whether the connected server is a replica
         /// </summary>
+        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(IsReplica) + " instead.")]
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         bool IsSlave { get; }
 
         /// <summary>
-        /// Explicitly opt in for slave writes on writable slaves
+        /// Gets whether the connected server is a replica
         /// </summary>
+        bool IsReplica { get; }
+
+        /// <summary>
+        /// Explicitly opt in for replica writes on writable replica
+        /// </summary>
+        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(AllowReplicaWrites) + " instead.")]
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         bool AllowSlaveWrites { get; set; }
+
+        /// <summary>
+        /// Explicitly opt in for replica writes on writable replica
+        /// </summary>
+        bool AllowReplicaWrites { get; set; }
 
         /// <summary>
         /// Gets the operating mode of the connected server
@@ -60,7 +75,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// The CLIENT KILL command closes a given client connection identified by ip:port.
         /// The ip:port should match a line returned by the CLIENT LIST command.
-        /// Due to the single-treaded nature of Redis, it is not possible to kill a client connection while it is executing a command.From the client point of view, the connection can never be closed in the middle of the execution of a command.However, the client will notice the connection has been closed only when the next command is sent (and results in network error).
+        /// Due to the single-threaded nature of Redis, it is not possible to kill a client connection while it is executing a command.From the client point of view, the connection can never be closed in the middle of the execution of a command.However, the client will notice the connection has been closed only when the next command is sent (and results in network error).
         /// </summary>
         /// <param name="endpoint">The endpoint of the client to kill.</param>
         /// <param name="flags">The command flags to use.</param>
@@ -70,7 +85,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// The CLIENT KILL command closes a given client connection identified by ip:port.
         /// The ip:port should match a line returned by the CLIENT LIST command.
-        /// Due to the single-treaded nature of Redis, it is not possible to kill a client connection while it is executing a command.From the client point of view, the connection can never be closed in the middle of the execution of a command.However, the client will notice the connection has been closed only when the next command is sent (and results in network error).
+        /// Due to the single-threaded nature of Redis, it is not possible to kill a client connection while it is executing a command.From the client point of view, the connection can never be closed in the middle of the execution of a command.However, the client will notice the connection has been closed only when the next command is sent (and results in network error).
         /// </summary>
         /// <param name="endpoint">The endpoint of the client to kill.</param>
         /// <param name="flags">The command flags to use.</param>
@@ -209,7 +224,7 @@ namespace StackExchange.Redis
         /// <param name="database">The database ID.</param>
         /// <param name="flags">The command flags to use.</param>
         /// <remarks>https://redis.io/commands/dbsize</remarks>
-        long DatabaseSize(int database = 0, CommandFlags flags = CommandFlags.None);
+        long DatabaseSize(int database = -1, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Return the number of keys in the database.
@@ -217,7 +232,7 @@ namespace StackExchange.Redis
         /// <param name="database">The database ID.</param>
         /// <param name="flags">The command flags to use.</param>
         /// <remarks>https://redis.io/commands/dbsize</remarks>
-        Task<long> DatabaseSizeAsync(int database = 0, CommandFlags flags = CommandFlags.None);
+        Task<long> DatabaseSizeAsync(int database = -1, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Return the same message passed in.
@@ -301,7 +316,7 @@ namespace StackExchange.Redis
         /// <param name="database">The database ID.</param>
         /// <param name="flags">The command flags to use.</param>
         /// <remarks>https://redis.io/commands/flushdb</remarks>
-        void FlushDatabase(int database = 0, CommandFlags flags = CommandFlags.None);
+        void FlushDatabase(int database = -1, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Delete all the keys of the database.
@@ -309,12 +324,13 @@ namespace StackExchange.Redis
         /// <param name="database">The database ID.</param>
         /// <param name="flags">The command flags to use.</param>
         /// <remarks>https://redis.io/commands/flushdb</remarks>
-        Task FlushDatabaseAsync(int database = 0, CommandFlags flags = CommandFlags.None);
+        Task FlushDatabaseAsync(int database = -1, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Get summary statistics associates with this server
         /// </summary>
         ServerCounters GetCounters();
+
         /// <summary>
         /// The INFO command returns information and statistics about the server in a format that is simple to parse by computers and easy to read by humans.
         /// </summary>
@@ -371,7 +387,7 @@ namespace StackExchange.Redis
         /// <remarks>Warning: consider KEYS as a command that should only be used in production environments with extreme care.</remarks>
         /// <remarks>https://redis.io/commands/keys</remarks>
         /// <remarks>https://redis.io/commands/scan</remarks>
-        IEnumerable<RedisKey> Keys(int database = 0, RedisValue pattern = default(RedisValue), int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None);
+        IEnumerable<RedisKey> Keys(int database = -1, RedisValue pattern = default(RedisValue), int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Returns all keys matching pattern; the KEYS or SCAN commands will be used based on the server capabilities; note: to resume an iteration via <i>cursor</i>, cast the original enumerable or enumerator to <i>IScanningCursor</i>.
@@ -385,7 +401,7 @@ namespace StackExchange.Redis
         /// <remarks>Warning: consider KEYS as a command that should only be used in production environments with extreme care.</remarks>
         /// <remarks>https://redis.io/commands/keys</remarks>
         /// <remarks>https://redis.io/commands/scan</remarks>
-        IAsyncEnumerable<RedisKey> KeysAsync(int database = 0, RedisValue pattern = default(RedisValue), int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None);
+        IAsyncEnumerable<RedisKey> KeysAsync(int database = -1, RedisValue pattern = default(RedisValue), int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Return the time of the last DB save executed with success. A client may check if a BGSAVE command succeeded reading the LASTSAVE value, then issuing a BGSAVE command and checking at regular intervals every N seconds if LASTSAVE changed.
@@ -407,6 +423,18 @@ namespace StackExchange.Redis
         /// <param name="options">The options to use for this topology change.</param>
         /// <param name="log">The log to write output to.</param>
         void MakeMaster(ReplicationChangeOptions options, TextWriter log = null);
+
+        /// <summary>
+        /// Returns the role info for the current server.
+        /// </summary>
+        /// <remarks>https://redis.io/commands/role</remarks>
+        Role Role(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Returns the role info for the current server.
+        /// </summary>
+        /// <remarks>https://redis.io/commands/role</remarks>
+        Task<Role> RoleAsync(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Explicitly request the database to persist the current state to disk
@@ -431,28 +459,28 @@ namespace StackExchange.Redis
         Task SaveAsync(SaveType type, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Inidicates whether the specified script is defined on the server
+        /// Indicates whether the specified script is defined on the server
         /// </summary>
         /// <param name="script">The text of the script to check for on the server.</param>
         /// <param name="flags">The command flags to use.</param>
         bool ScriptExists(string script, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Inidicates whether the specified script hash is defined on the server
+        /// Indicates whether the specified script hash is defined on the server
         /// </summary>
         /// <param name="sha1">The SHA1 of the script to check for on the server.</param>
         /// <param name="flags">The command flags to use.</param>
         bool ScriptExists(byte[] sha1, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Inidicates whether the specified script is defined on the server
+        /// Indicates whether the specified script is defined on the server
         /// </summary>
         /// <param name="script">The text of the script to check for on the server.</param>
         /// <param name="flags">The command flags to use.</param>
         Task<bool> ScriptExistsAsync(string script, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Inidicates whether the specified script hash is defined on the server
+        /// Indicates whether the specified script hash is defined on the server
         /// </summary>
         /// <param name="sha1">The SHA1 of the script to check for on the server.</param>
         /// <param name="flags">The command flags to use.</param>
@@ -507,20 +535,40 @@ namespace StackExchange.Redis
         void Shutdown(ShutdownMode shutdownMode = ShutdownMode.Default, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// The SLAVEOF command can change the replication settings of a slave on the fly. If a Redis server is already acting as slave, specifying a null master will turn off the replication, turning the Redis server into a MASTER. Specifying a non-null master will make the server a slave of another server listening at the specified hostname and port.
+        /// The REPLICAOF command can change the replication settings of a replica on the fly. If a Redis server is already acting as replica, specifying a null master will turn off the replication, turning the Redis server into a MASTER. Specifying a non-null master will make the server a replica of another server listening at the specified hostname and port.
         /// </summary>
-        /// <param name="master">Endpoint of the new master to slave to.</param>
+        /// <param name="master">Endpoint of the new master to replicate from.</param>
         /// <param name="flags">The command flags to use.</param>
-        /// <remarks>https://redis.io/commands/slaveof</remarks>
+        /// <remarks>https://redis.io/commands/replicaof</remarks>
+        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(ReplicaOf) + " instead.")]
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         void SlaveOf(EndPoint master, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// The SLAVEOF command can change the replication settings of a slave on the fly. If a Redis server is already acting as slave, specifying a null master will turn off the replication, turning the Redis server into a MASTER. Specifying a non-null master will make the server a slave of another server listening at the specified hostname and port.
+        /// The REPLICAOF command can change the replication settings of a replica on the fly. If a Redis server is already acting as replica, specifying a null master will turn off the replication, turning the Redis server into a MASTER. Specifying a non-null master will make the server a replica of another server listening at the specified hostname and port.
         /// </summary>
-        /// <param name="master">Endpoint of the new master to slave to.</param>
+        /// <param name="master">Endpoint of the new master to replicate from.</param>
         /// <param name="flags">The command flags to use.</param>
-        /// <remarks>https://redis.io/commands/slaveof</remarks>
+        /// <remarks>https://redis.io/commands/replicaof</remarks>
+        void ReplicaOf(EndPoint master, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// The REPLICAOF command can change the replication settings of a replica on the fly. If a Redis server is already acting as replica, specifying a null master will turn off the replication, turning the Redis server into a MASTER. Specifying a non-null master will make the server a replica of another server listening at the specified hostname and port.
+        /// </summary>
+        /// <param name="master">Endpoint of the new master to replicate from.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <remarks>https://redis.io/commands/replicaof</remarks>
+        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(ReplicaOfAsync) + " instead.")]
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         Task SlaveOfAsync(EndPoint master, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// The REPLICAOF command can change the replication settings of a replica on the fly. If a Redis server is already acting as replica, specifying a null master will turn off the replication, turning the Redis server into a MASTER. Specifying a non-null master will make the server a replica of another server listening at the specified hostname and port.
+        /// </summary>
+        /// <param name="master">Endpoint of the new master to replicate from.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <remarks>https://redis.io/commands/replicaof</remarks>
+        Task ReplicaOfAsync(EndPoint master, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// To read the slow log the SLOWLOG GET command is used, that returns every entry in the slow log. It is possible to return only the N most recent entries passing an additional argument to the command (for instance SLOWLOG GET 10).
@@ -589,7 +637,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Returns the number of subscribers (not counting clients subscribed to patterns) for the specified channel.
         /// </summary>
-        /// <param name="channel">The channel to get a subcriber count for.</param>
+        /// <param name="channel">The channel to get a subscriber count for.</param>
         /// <param name="flags">The command flags to use.</param>
         /// <remarks>https://redis.io/commands/pubsub</remarks>
         long SubscriptionSubscriberCount(RedisChannel channel, CommandFlags flags = CommandFlags.None);
@@ -597,7 +645,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Returns the number of subscribers (not counting clients subscribed to patterns) for the specified channel.
         /// </summary>
-        /// <param name="channel">The channel to get a subcriber count for.</param>
+        /// <param name="channel">The channel to get a subscriber count for.</param>
         /// <param name="flags">The command flags to use.</param>
         /// <remarks>https://redis.io/commands/pubsub</remarks>
         Task<long> SubscriptionSubscriberCountAsync(RedisChannel channel, CommandFlags flags = CommandFlags.None);
@@ -733,8 +781,8 @@ namespace StackExchange.Redis
         #region Sentinel
 
         /// <summary>
-        /// Returns the ip and port number of the master with that name. 
-        /// If a failover is in progress or terminated successfully for this master it returns the address and port of the promoted slave.
+        /// Returns the ip and port number of the master with that name.
+        /// If a failover is in progress or terminated successfully for this master it returns the address and port of the promoted replica.
         /// </summary>
         /// <param name="serviceName">The sentinel service name.</param>
         /// <param name="flags">The command flags to use.</param>
@@ -743,8 +791,8 @@ namespace StackExchange.Redis
         EndPoint SentinelGetMasterAddressByName(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Returns the ip and port number of the master with that name. 
-        /// If a failover is in progress or terminated successfully for this master it returns the address and port of the promoted slave.
+        /// Returns the ip and port number of the master with that name.
+        /// If a failover is in progress or terminated successfully for this master it returns the address and port of the promoted replica.
         /// </summary>
         /// <param name="serviceName">The sentinel service name.</param>
         /// <param name="flags">The command flags to use.</param>
@@ -757,7 +805,7 @@ namespace StackExchange.Redis
         /// for the given service name.
         /// </summary>
         /// <param name="serviceName">the sentinel service name</param>
-        /// <param name="flags"></param>
+        /// <param name="flags">The command flags to use.</param>
         /// <returns>a list of the sentinel ips and ports</returns>
         EndPoint[] SentinelGetSentinelAddresses(string serviceName, CommandFlags flags = CommandFlags.None);
 
@@ -766,9 +814,27 @@ namespace StackExchange.Redis
         /// for the given service name.
         /// </summary>
         /// <param name="serviceName">the sentinel service name</param>
-        /// <param name="flags"></param>
+        /// <param name="flags">The command flags to use.</param>
         /// <returns>a list of the sentinel ips and ports</returns>
         Task<EndPoint[]> SentinelGetSentinelAddressesAsync(string serviceName, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Returns the ip and port numbers of all known Sentinel replicas
+        /// for the given service name.
+        /// </summary>
+        /// <param name="serviceName">the sentinel service name</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>a list of the replica ips and ports</returns>
+        EndPoint[] SentinelGetReplicaAddresses(string serviceName, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Returns the ip and port numbers of all known Sentinel replicas
+        /// for the given service name.
+        /// </summary>
+        /// <param name="serviceName">the sentinel service name</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>a list of the replica ips and ports</returns>
+        Task<EndPoint[]> SentinelGetReplicaAddressesAsync(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Show the state and info of the specified master.
@@ -805,25 +871,47 @@ namespace StackExchange.Redis
         Task<KeyValuePair<string, string>[][]> SentinelMastersAsync(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Show a list of slaves for this master, and their state.
+        /// Show a list of replicas for this master, and their state.
         /// </summary>
         /// <param name="serviceName">The sentinel service name.</param>
         /// <param name="flags">The command flags to use.</param>
-        /// <returns>an array of slave state KeyValuePair arrays</returns>
+        /// <returns>an array of replica state KeyValuePair arrays</returns>
         /// <remarks>https://redis.io/topics/sentinel</remarks>
+        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(SentinelReplicas) + " instead.")]
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         KeyValuePair<string, string>[][] SentinelSlaves(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Show a list of slaves for this master, and their state.
+        /// Show a list of replicas for this master, and their state.
         /// </summary>
         /// <param name="serviceName">The sentinel service name.</param>
         /// <param name="flags">The command flags to use.</param>
-        /// <returns>an array of slave state KeyValuePair arrays</returns>
+        /// <returns>an array of replica state KeyValuePair arrays</returns>
         /// <remarks>https://redis.io/topics/sentinel</remarks>
+        KeyValuePair<string, string>[][] SentinelReplicas(string serviceName, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Show a list of replicas for this master, and their state.
+        /// </summary>
+        /// <param name="serviceName">The sentinel service name.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>an array of replica state KeyValuePair arrays</returns>
+        /// <remarks>https://redis.io/topics/sentinel</remarks>
+        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(SentinelReplicasAsync) + " instead.")]
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         Task<KeyValuePair<string, string>[][]> SentinelSlavesAsync(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Force a failover as if the master was not reachable, and without asking for agreement to other Sentinels 
+        /// Show a list of replicas for this master, and their state.
+        /// </summary>
+        /// <param name="serviceName">The sentinel service name.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>an array of replica state KeyValuePair arrays</returns>
+        /// <remarks>https://redis.io/topics/sentinel</remarks>
+        Task<KeyValuePair<string, string>[][]> SentinelReplicasAsync(string serviceName, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Force a failover as if the master was not reachable, and without asking for agreement to other Sentinels
         /// (however a new version of the configuration will be published so that the other Sentinels will update their configurations).
         /// </summary>
         /// <param name="serviceName">The sentinel service name.</param>
@@ -832,7 +920,7 @@ namespace StackExchange.Redis
         void SentinelFailover(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Force a failover as if the master was not reachable, and without asking for agreement to other Sentinels 
+        /// Force a failover as if the master was not reachable, and without asking for agreement to other Sentinels
         /// (however a new version of the configuration will be published so that the other Sentinels will update their configurations).
         /// </summary>
         /// <param name="serviceName">The sentinel service name.</param>

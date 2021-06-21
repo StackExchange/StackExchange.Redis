@@ -10,7 +10,7 @@ namespace StackExchange.Redis.Tests
     {
         public ConnectingFailDetection(ITestOutputHelper output) : base (output) { }
 
-        protected override string GetConfiguration() => TestConfig.Current.MasterServerAndPort + "," + TestConfig.Current.SlaveServerAndPort;
+        protected override string GetConfiguration() => TestConfig.Current.MasterServerAndPort + "," + TestConfig.Current.ReplicaServerAndPort;
 
 #if DEBUG
         [Fact]
@@ -110,7 +110,7 @@ namespace StackExchange.Redis.Tests
                 muxer.ConnectionFailed += delegate { Interlocked.Increment(ref failCount); };
                 muxer.ConnectionRestored += delegate { Interlocked.Increment(ref restoreCount); };
 
-                var db = muxer.GetDatabase();
+                muxer.GetDatabase();
                 Assert.Equal(0, Volatile.Read(ref failCount));
                 Assert.Equal(0, Volatile.Read(ref restoreCount));
 

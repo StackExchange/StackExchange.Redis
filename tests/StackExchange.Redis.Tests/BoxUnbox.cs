@@ -50,9 +50,9 @@ namespace StackExchange.Redis.Tests
             Assert.Equal(expected, actual);
         }
 
-        static readonly byte[] s_abc = Encoding.UTF8.GetBytes("abc");
+        private static readonly byte[] s_abc = Encoding.UTF8.GetBytes("abc");
         public static IEnumerable<object[]> RoundTripValues
-            => new object[][]
+            => new []
             {
                 new object[] { RedisValue.Null },
                 new object[] { RedisValue.EmptyString },
@@ -94,7 +94,7 @@ namespace StackExchange.Redis.Tests
             };
 
         public static IEnumerable<object[]> UnboxValues
-            => new object[][]
+            => new []
             {
                 new object[] { null, RedisValue.Null },
                 new object[] { "", RedisValue.EmptyString },
