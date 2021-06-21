@@ -7,7 +7,7 @@
 - refresh replica endpoint list on failover (#1684 by laurauzcategui)
 - fix for ReconfigureAsync re-entrancy (caused connection issues) (#1772 by NickCraver)
 - fix for ReconfigureAsync Sentinel race resulting in NoConnectionAvailable when using DemandMaster (#1773 by NickCraver)
-- resolve race in AUTH connection reconfigurations (#1759 via TimLovellSmith and NickCraver)
+- resolve race in AUTH and other connection reconfigurations (#1759 via TimLovellSmith and NickCraver)
 
 ## 2.2.4
 
