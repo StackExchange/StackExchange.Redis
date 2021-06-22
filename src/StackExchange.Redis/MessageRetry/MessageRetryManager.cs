@@ -48,7 +48,7 @@ namespace StackExchange.Redis
             lock (queue)
             {
                 int count = queue.Count;
-                if (count >= multiplexer.RawConfig.RetryQueueLengthOnConnectionRestore)
+                if (multiplexer.RawConfig.RetryQueueLengthOnConnectionRestore.HasValue && count >= multiplexer.RawConfig.RetryQueueLengthOnConnectionRestore)
                 {
                     return false;
                 }

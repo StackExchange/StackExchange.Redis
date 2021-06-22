@@ -450,9 +450,9 @@ namespace StackExchange.Redis
 #pragma warning restore RCS1128
 
         /// <summary>
-        /// Retry Queue length if retry is enabled
+        /// Retry Queue length if onconnectionrestore retry is enabled (no queue limit by default)
         /// </summary>
-        public int RetryQueueLengthOnConnectionRestore { get { return retryQueueLengthOnConnectionRestore.GetValueOrDefault(int.MaxValue); } set { retryQueueLengthOnConnectionRestore = value; } }
+        public int? RetryQueueLengthOnConnectionRestore { get { return retryQueueLengthOnConnectionRestore; } set { retryQueueLengthOnConnectionRestore = value; } }
 
         /// <summary>
         /// Parse the configuration from a comma-delimited configuration string
