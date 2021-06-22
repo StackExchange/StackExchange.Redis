@@ -1,6 +1,6 @@
 # Release Notes
 
-## Unreleased
+## 2.2.50
 
 - performance optimization for PING accuracy (#1714 via eduardobr)
 - improvement to reconnect logic (exponential backoff) (#1735 via deepakverma)

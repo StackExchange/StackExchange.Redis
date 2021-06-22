@@ -742,14 +742,6 @@ namespace StackExchange.Redis
                 var allTasks = Task.WhenAll(tasks).ObserveErrors();
                 bool all = await allTasks.TimeoutAfter(timeoutMs: remaining).ObserveErrors().ForAwait();
                 LogWithThreadPoolStats(log, all ? $"All {tasks.Length} {name} tasks completed cleanly" : $"Not all {name} tasks completed cleanly (from {caller}#{callerLineNumber}, timeout {timeoutMilliseconds}ms)", out _);
-                // If we failed, log the details...
-                if (!all)
-                {
-                    for (var i = 0; i < tasks.Length; i++)
-                    {
-                        log?.WriteLine($"  Task[{i}] Status: {tasks[i].Status}");
-                    }
-                }
                 return all;
             }
             catch
@@ -1748,7 +1740,19 @@ namespace StackExchange.Redis
                         var remaining = RawConfig.ConnectTimeout - checked((int)watch.ElapsedMilliseconds);
                         log?.WriteLine($"Allowing {available.Length} endpoint(s) {TimeSpan.FromMilliseconds(remaining)} to respond...");
                         Trace("Allowing endpoints " + TimeSpan.FromMilliseconds(remaining) + " to respond...");
-                        await WaitAllIgnoreErrorsAsync("available", available, remaining, log).ForAwait();
+                        var allConnected = await WaitAllIgnoreErrorsAsync("available", available, remaining, log).ForAwait();
+
+                        if (!allConnected)
+                        {
+                            // If we failed, log the details so we can debug why per connection
+                            for (var i = 0; i < servers.Length; i++)
+                            {
+                                var server = servers[i];
+                                var task = available[i];
+                                server.GetOutstandingCount(RedisCommand.PING, out int inst, out int qs, out long @in, out int qu, out bool aw, out long toRead, out long toWrite, out var bs, out var rs, out var ws);
+                                log?.WriteLine($"  Server[{i}] ({Format.ToString(server)}) Status: {task.Status} (inst: {inst}, qs: {qs}, in: {@in}, qu: {qu}, aw: {aw}, in-pipe: {toRead}, out-pipe: {toWrite}, bw: {bs}, rs: {rs}. ws: {ws})");
+                            }
+                        }
 
                         // Log current state after await
                         foreach (var server in servers)
@@ -1759,6 +1763,7 @@ namespace StackExchange.Redis
                         // After we've successfully connected (and authenticated), kickoff tie breakers if needed
                         if (useTieBreakers)
                         {
+                            log?.WriteLine($"Election: Gathering tie-breakers...");
                             for (int i = 0; i < available.Length; i++)
                             {
                                 var server = servers[i];
@@ -1884,7 +1889,7 @@ namespace StackExchange.Redis
                             ServerSelectionStrategy.ServerType = ServerType.Standalone;
                         }
 
-                        var preferred = await NominatePreferredMaster(log, servers, useTieBreakers, tieBreakers, masters).ObserveErrors().ForAwait();
+                        var preferred = await NominatePreferredMaster(log, servers, useTieBreakers, tieBreakers, masters, timeoutMs: RawConfig.ConnectTimeout - checked((int)watch.ElapsedMilliseconds)).ObserveErrors().ForAwait();
                         foreach (var master in masters)
                         {
                             if (master == preferred || master.IsReplica)
@@ -2014,14 +2019,14 @@ namespace StackExchange.Redis
         partial void OnTraceLog(LogProxy log, [CallerMemberName] string caller = null);
 #pragma warning restore IDE0060
 
-        private async Task<ServerEndPoint> NominatePreferredMaster(LogProxy log, ServerEndPoint[] servers, bool useTieBreakers, Task<string>[] tieBreakers, List<ServerEndPoint> masters)
+        private async Task<ServerEndPoint> NominatePreferredMaster(LogProxy log, ServerEndPoint[] servers, bool useTieBreakers, Task<string>[] tieBreakers, List<ServerEndPoint> masters, int timeoutMs)
         {
             Dictionary<string, int> uniques = null;
             if (useTieBreakers)
             {   // count the votes
                 uniques = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
                 log?.WriteLine("Waiting for tiebreakers...");
-                await WaitAllIgnoreErrorsAsync("tiebreaker", tieBreakers, 50, log).ForAwait();
+                await WaitAllIgnoreErrorsAsync("tiebreaker", tieBreakers, Math.Max(timeoutMs, 200), log).ForAwait();
                 for (int i = 0; i < tieBreakers.Length; i++)
                 {
                     var ep = servers[i].EndPoint;
