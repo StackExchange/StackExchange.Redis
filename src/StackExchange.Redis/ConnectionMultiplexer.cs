@@ -1837,18 +1837,17 @@ namespace StackExchange.Redis
                                         encounteredConnectedClusterServer = true;
                                         updatedClusterEndpointCollection = await GetEndpointsFromClusterNodes(server, log).ForAwait();
 
-                                        if (first && updatedClusterEndpointCollection?.Count > 0 && server.EndPoint != null)
+                                        if (first && updatedClusterEndpointCollection?.Count > 0 && server?.EndPoint != null)
                                         {
-                                            // close the initial cluster discovery connection as it's no longer needed
-                                            Task[] closeTask = new Task[2];
-                                            closeTask[0] = server.Close(ConnectionType.Interactive);
-                                            closeTask[1] = server.Close(ConnectionType.Subscription);
-                                            await Task.WhenAll(closeTask);
-
-                                            // if discovery endpoint is not in the list of endpoints close it
+                                            // if it's a discovery endpoint close it (i.e. endpoint is not in the list of ips returned by cluster nodes command)
                                             var endpointInClusterNodes = updatedClusterEndpointCollection.FirstOrDefault( endpoint => server.EndPoint.Equals(endpoint));
                                             if (endpointInClusterNodes == null)
                                             {
+                                                // close the initial cluster discovery connection as it's no longer needed
+                                                Task[] closeTask = new Task[2];
+                                                closeTask[0] = server.Close(ConnectionType.Interactive);
+                                                closeTask[1] = server.Close(ConnectionType.Subscription);
+                                                await Task.WhenAll(closeTask);
                                                 // server cleanup
                                                 lock (this.servers)
                                                 {
