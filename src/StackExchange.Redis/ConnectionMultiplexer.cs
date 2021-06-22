@@ -1837,7 +1837,7 @@ namespace StackExchange.Redis
                                         encounteredConnectedClusterServer = true;
                                         updatedClusterEndpointCollection = await GetEndpointsFromClusterNodes(server, log).ForAwait();
 
-                                        if (first && updatedClusterEndpointCollection?.Count > 0 && server?.EndPoint != null)
+                                        if (updatedClusterEndpointCollection?.Count > 0 && server?.EndPoint != null)
                                         {
                                             // if it's a discovery endpoint close it (i.e. endpoint is not in the list of ips returned by cluster nodes command)
                                             var endpointInClusterNodes = updatedClusterEndpointCollection.FirstOrDefault( endpoint => server.EndPoint.Equals(endpoint));
