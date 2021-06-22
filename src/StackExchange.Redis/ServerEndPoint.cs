@@ -725,9 +725,7 @@ namespace StackExchange.Redis
             {
                 message.SetSource(processor, null);
                 Multiplexer.Trace("Enqueue: " + message);
-#pragma warning disable CS0618
                 (bridge ?? GetBridge(message.Command)).TryWriteSync(message, isReplica);
-#pragma warning restore CS0618
             }
         }
 

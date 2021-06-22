@@ -2244,10 +2244,8 @@ namespace StackExchange.Redis
             => PrepareToPushMessageToBridge(message, processor, resultBox, ref server) ? server.TryWriteAsync(message) : new ValueTask<WriteResult>(WriteResult.NoConnectionAvailable);
 
         [Obsolete("prefer async")]
-#pragma warning disable CS0618
         private WriteResult TryPushMessageToBridgeSync<T>(Message message, ResultProcessor<T> processor, IResultBox<T> resultBox, ref ServerEndPoint server)
             => PrepareToPushMessageToBridge(message, processor, resultBox, ref server) ? server.TryWriteSync(message) : WriteResult.NoConnectionAvailable;
-#pragma warning restore CS0618
 
         /// <summary>
         /// See Object.ToString()

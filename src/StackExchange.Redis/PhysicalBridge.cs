@@ -165,10 +165,7 @@ namespace StackExchange.Redis
 
             var physical = this.physical;
             if (physical == null) return FailDueToNoConnection(message);
-
-#pragma warning disable CS0618
             var result = WriteMessageTakingWriteLockSync(physical, message);
-#pragma warning restore CS0618
             LogNonPreferred(message.Flags, isReplica);
             return result;
         }
@@ -722,9 +719,7 @@ namespace StackExchange.Redis
 
                 if (result == WriteResult.Success)
                 {
-#pragma warning disable CS0618
                     result = physical.FlushSync(false, TimeoutMilliseconds);
-#pragma warning restore CS0618
                 }
 
                 physical.SetIdle();
