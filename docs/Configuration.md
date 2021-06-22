@@ -65,6 +65,24 @@ Microsoft Azure Redis example with password
 var conn = ConnectionMultiplexer.Connect("contoso5.redis.cache.windows.net,ssl=true,password=...");
 ```
 
+Using Redis URI Scheme
+
+StackExchange.Redis also supports the [Redis URI Scheme](https://www.iana.org/assignments/uri-schemes/prov/redis). Here are some basic examples:
+```csharp
+// Connects to the default database 0 using the default port 6379
+var options1 = ConfigurationOptions.Parse("redis://localhost");
+
+// Connects to the database 4 using the port 6370 and configures the connection time out to 6 seconds
+var options2 = ConfigurationOptions.Parse("redis://localhost:6370/4?connectTimeout=6000");
+
+// This is a secured redis connection that connects to the database 4 using the port 6380 and configures the connection time out to 6 seconds.
+// It also enables the Ssl and uses TLS 1.2 and TLS 1.3 security protocols.
+var options3 = ConfigurationOptions.Parse("rediss://localhost/4?connectTimeout=6000");
+
+// And this is like the option3
+var options4 = ConfigurationOptions.Parse("redis://localhost:6380/4?connectTimeout=6000&ssl=true&sslProtocols=Tls12&sslProtocols=Tls13");
+```
+
 Configuration Options
 ---
 
