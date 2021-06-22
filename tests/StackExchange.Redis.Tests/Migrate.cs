@@ -17,8 +17,8 @@ namespace StackExchange.Redis.Tests
         {
             var fromConfig = new ConfigurationOptions { EndPoints = { { TestConfig.Current.SecureServer, TestConfig.Current.SecurePort } }, Password = TestConfig.Current.SecurePassword, AllowAdmin = true };
             var toConfig = new ConfigurationOptions { EndPoints = { { TestConfig.Current.MasterServer, TestConfig.Current.MasterPort } }, AllowAdmin = true };
-            using (var from = ConnectionMultiplexer.Connect(fromConfig))
-            using (var to = ConnectionMultiplexer.Connect(toConfig))
+            using (var from = ConnectionMultiplexer.Connect(fromConfig, Writer))
+            using (var to = ConnectionMultiplexer.Connect(toConfig, Writer))
             {
                 if (await IsWindows(from) || await IsWindows(to))
                     Skip.Inconclusive("'migrate' is unreliable on redis-64");
@@ -30,13 +30,15 @@ namespace StackExchange.Redis.Tests
                 toDb.KeyDelete(key, CommandFlags.FireAndForget);
                 fromDb.StringSet(key, "foo", flags: CommandFlags.FireAndForget);
                 var dest = to.GetEndPoints(true).Single();
+                Log("Migrating key...");
                 fromDb.KeyMigrate(key, dest, migrateOptions: MigrateOptions.Replace);
+                Log("Migration command complete");
 
                 // this is *meant* to be synchronous at the redis level, but
                 // we keep seeing it fail on the CI server where the key has *left* the origin, but
                 // has *not* yet arrived at the destination; adding a pause while we investigate with
                 // the redis folks
-                await UntilCondition(TimeSpan.FromSeconds(5), () => !fromDb.KeyExists(key) && toDb.KeyExists(key));
+                await UntilCondition(TimeSpan.FromSeconds(15), () => !fromDb.KeyExists(key) && toDb.KeyExists(key));
 
                 Assert.False(fromDb.KeyExists(key), "Exists at source");
                 Assert.True(toDb.KeyExists(key), "Exists at destination");
