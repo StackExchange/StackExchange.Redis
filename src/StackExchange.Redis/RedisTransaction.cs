@@ -456,7 +456,6 @@ namespace StackExchange.Redis
                 connection?.BridgeCouldBeNull?.Multiplexer?.OnTransactionLog($"got {result} for {message.CommandAndKey}");
                 if (message is TransactionMessage tran)
                 {
-                    var bridge = connection.BridgeCouldBeNull;
                     var wrapped = tran.InnerOperations;
                     switch (result.Type)
                     {

@@ -2778,6 +2778,7 @@ namespace StackExchange.Redis
             _ => ExceptionFactory.ConnectionFailure(IncludeDetailInExceptions, ConnectionFailureType.ProtocolFailure, "An unknown error occurred when writing the message", server),
         };
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "CA1816:Dispose methods should call SuppressFinalize", Justification = "Intentional observation")]
         internal static void ThrowFailed<T>(TaskCompletionSource<T> source, Exception unthrownException)
         {
             try
