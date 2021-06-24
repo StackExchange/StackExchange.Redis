@@ -340,11 +340,11 @@ namespace StackExchange.Redis
                         exMessage.Append(" (").Append(sc.ShutdownKind);
                         if (sc.SocketError != SocketError.Success)
                         {
-                            exMessage.Append("/").Append(sc.SocketError);
+                            exMessage.Append('/').Append(sc.SocketError);
                         }
                         if (sc.BytesRead == 0) exMessage.Append(", 0-read");
                         if (sc.BytesSent == 0) exMessage.Append(", 0-sent");
-                        exMessage.Append(", last-recv: ").Append(sc.LastReceived).Append(")");
+                        exMessage.Append(", last-recv: ").Append(sc.LastReceived).Append(')');
                     }
                     else if (pipe is IMeasuredDuplexPipe mdp)
                     {
@@ -365,8 +365,8 @@ namespace StackExchange.Redis
                     {
                         if (bridge != null)
                         {
-                            exMessage.Append(" on ").Append(Format.ToString(bridge.ServerEndPoint?.EndPoint)).Append("/").Append(connectionType)
-                                .Append(", ").Append(_writeStatus).Append("/").Append(_readStatus)
+                            exMessage.Append(" on ").Append(Format.ToString(bridge.ServerEndPoint?.EndPoint)).Append('/').Append(connectionType)
+                                .Append(", ").Append(_writeStatus).Append('/').Append(_readStatus)
                                 .Append(", last: ").Append(bridge.LastCommand);
 
                             data.Add(Tuple.Create("FailureType", failureType.ToString()));

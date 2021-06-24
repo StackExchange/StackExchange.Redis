@@ -192,17 +192,17 @@ namespace StackExchange.Redis
             }
             clone[ProfileLogSamples] = Interlocked.Read(ref operationCount);
             Array.Sort(clone);
-            sb.Append(" ").Append(clone[0]);
+            sb.Append(' ').Append(clone[0]);
             for (int i = 1; i < clone.Length; i++)
             {
                 if (clone[i] != clone[i - 1])
                 {
-                    sb.Append("+").Append(clone[i] - clone[i - 1]);
+                    sb.Append('+').Append(clone[i] - clone[i - 1]);
                 }
             }
             if (clone[0] != clone[ProfileLogSamples])
             {
-                sb.Append("=").Append(clone[ProfileLogSamples]);
+                sb.Append('=').Append(clone[ProfileLogSamples]);
             }
             double rate = (clone[ProfileLogSamples] - clone[0]) / ProfileLogSeconds;
             sb.Append(" (").Append(rate.ToString("N2")).Append(" ops/s; spans ").Append(ProfileLogSeconds).Append("s)");
