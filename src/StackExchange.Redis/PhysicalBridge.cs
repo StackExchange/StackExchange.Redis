@@ -279,7 +279,7 @@ namespace StackExchange.Redis
         }
 
         internal bool TryEnqueueBackgroundSubscriptionWrite(in PendingSubscriptionState state)
-            => isDisposed ? false : (_subscriptionBackgroundQueue ?? GetSubscriptionQueue()).Writer.TryWrite(state);
+            => !isDisposed && (_subscriptionBackgroundQueue ?? GetSubscriptionQueue()).Writer.TryWrite(state);
 
         internal void GetOutstandingCount(out int inst, out int qs, out long @in, out int qu, out bool aw, out long toRead, out long toWrite,
             out BacklogStatus bs, out PhysicalConnection.ReadStatus rs, out PhysicalConnection.WriteStatus ws)
@@ -641,10 +641,10 @@ namespace StackExchange.Redis
             {
                 physical.SetWriting();
                 var messageIsSent = false;
-                if (message is IMultiMessage)
+                if (message is IMultiMessage multiMessage)
                 {
                     SelectDatabaseInsideWriteLock(physical, message); // need to switch database *before* the transaction
-                    foreach (var subCommand in ((IMultiMessage)message).GetMessages(physical))
+                    foreach (var subCommand in multiMessage.GetMessages(physical))
                     {
                         result = WriteMessageToServerInsideWriteLock(physical, subCommand);
                         if (result != WriteResult.Success)
@@ -776,8 +776,7 @@ namespace StackExchange.Redis
             // Because peeking at the backlog, checking message and then dequeueing, is not thread-safe, we do have to use
             // a lock here, for mutual exclusion of backlog DEQUEUERS. Unfortunately.
             // But we reduce contention by only locking if we see something that looks timed out.
-            Message message;
-            while (_backlog.TryPeek(out message))
+            while (_backlog.TryPeek(out Message message))
             {
                 if (message.IsInternalCall) break; // don't stomp these (not that they should have the async timeout flag, but...)
                 if (!message.HasAsyncTimedOut(now, timeout, out var _)) break; // not a timeout - we can stop looking

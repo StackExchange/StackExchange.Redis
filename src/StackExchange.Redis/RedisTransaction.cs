@@ -87,7 +87,7 @@ namespace StackExchange.Redis
             // (there is no task for the inner command)
             lock (SyncLock)
             {
-                (_pending ?? (_pending = new List<QueuedMessage>())).Add(queued);
+                (_pending ??= new List<QueuedMessage>()).Add(queued);
 
                 switch (message.Command)
                 {

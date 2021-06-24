@@ -257,7 +257,7 @@ namespace StackExchange.Redis
                     }
                     else if (node.ParentNodeId == thisNode.NodeId)
                     {
-                        (replicas ?? (replicas = new List<ServerEndPoint>())).Add(Multiplexer.GetServerEndPoint(node.EndPoint));
+                        (replicas ??= new List<ServerEndPoint>()).Add(Multiplexer.GetServerEndPoint(node.EndPoint));
                     }
                 }
                 Master = master;
@@ -647,7 +647,7 @@ namespace StackExchange.Redis
         {
             if (ConfigCheckSeconds < Multiplexer.RawConfig.ConfigCheckSeconds)
             {
-                r = r ?? new Random();
+                r ??= new Random();
                 var newExponentialConfigCheck = ConfigCheckSeconds * 2;
                 var jitter = r.Next(ConfigCheckSeconds + 1, newExponentialConfigCheck);
                 ConfigCheckSeconds = Math.Min(jitter, Multiplexer.RawConfig.ConfigCheckSeconds);
