@@ -202,14 +202,12 @@ namespace StackExchange.Redis
         public PhysicalBridge GetBridge(ConnectionType type, bool create = true, LogProxy log = null)
         {
             if (isDisposed) return null;
-            switch (type)
+            return type switch
             {
-                case ConnectionType.Interactive:
-                    return interactive ?? (create ? interactive = CreateBridge(ConnectionType.Interactive, log) : null);
-                case ConnectionType.Subscription:
-                    return subscription ?? (create ? subscription = CreateBridge(ConnectionType.Subscription, log) : null);
-            }
-            return null;
+                ConnectionType.Interactive => interactive ?? (create ? interactive = CreateBridge(ConnectionType.Interactive, log) : null),
+                ConnectionType.Subscription => subscription ?? (create ? subscription = CreateBridge(ConnectionType.Subscription, log) : null),
+                _ => null,
+            };
         }
 
         public PhysicalBridge GetBridge(RedisCommand command, bool create = true)

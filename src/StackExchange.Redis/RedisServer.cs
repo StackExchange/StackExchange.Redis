@@ -426,22 +426,13 @@ namespace StackExchange.Redis
 
         public void Shutdown(ShutdownMode shutdownMode = ShutdownMode.Default, CommandFlags flags = CommandFlags.None)
         {
-            Message msg;
-            switch (shutdownMode)
+            Message msg = shutdownMode switch
             {
-                case ShutdownMode.Default:
-                    msg = Message.Create(-1, flags, RedisCommand.SHUTDOWN);
-                    break;
-                case ShutdownMode.Always:
-                    msg = Message.Create(-1, flags, RedisCommand.SHUTDOWN, RedisLiterals.SAVE);
-                    break;
-                case ShutdownMode.Never:
-                    msg = Message.Create(-1, flags, RedisCommand.SHUTDOWN, RedisLiterals.NOSAVE);
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(shutdownMode));
-            }
-
+                ShutdownMode.Default => Message.Create(-1, flags, RedisCommand.SHUTDOWN),
+                ShutdownMode.Always => Message.Create(-1, flags, RedisCommand.SHUTDOWN, RedisLiterals.SAVE),
+                ShutdownMode.Never => Message.Create(-1, flags, RedisCommand.SHUTDOWN, RedisLiterals.NOSAVE),
+                _ => throw new ArgumentOutOfRangeException(nameof(shutdownMode)),
+            };
             try
             {
                 ExecuteSync(msg, ResultProcessor.DemandOK);
@@ -681,31 +672,25 @@ namespace StackExchange.Redis
             }
         }
 
-        private Message GetSaveMessage(SaveType type, CommandFlags flags = CommandFlags.None)
+        private static Message GetSaveMessage(SaveType type, CommandFlags flags = CommandFlags.None) => type switch
         {
-            switch (type)
-            {
-                case SaveType.BackgroundRewriteAppendOnlyFile: return Message.Create(-1, flags, RedisCommand.BGREWRITEAOF);
-                case SaveType.BackgroundSave: return Message.Create(-1, flags, RedisCommand.BGSAVE);
+            SaveType.BackgroundRewriteAppendOnlyFile => Message.Create(-1, flags, RedisCommand.BGREWRITEAOF),
+            SaveType.BackgroundSave => Message.Create(-1, flags, RedisCommand.BGSAVE),
 #pragma warning disable 0618
-                case SaveType.ForegroundSave: return Message.Create(-1, flags, RedisCommand.SAVE);
+            SaveType.ForegroundSave => Message.Create(-1, flags, RedisCommand.SAVE),
 #pragma warning restore 0618
-                default: throw new ArgumentOutOfRangeException(nameof(type));
-            }
-        }
+            _ => throw new ArgumentOutOfRangeException(nameof(type)),
+        };
 
-        private ResultProcessor<bool> GetSaveResultProcessor(SaveType type)
+        private static ResultProcessor<bool> GetSaveResultProcessor(SaveType type) => type switch
         {
-            switch (type)
-            {
-                case SaveType.BackgroundRewriteAppendOnlyFile: return ResultProcessor.DemandOK;
-                case SaveType.BackgroundSave: return ResultProcessor.BackgroundSaveStarted;
+            SaveType.BackgroundRewriteAppendOnlyFile => ResultProcessor.DemandOK,
+            SaveType.BackgroundSave => ResultProcessor.BackgroundSaveStarted,
 #pragma warning disable 0618
-                case SaveType.ForegroundSave: return ResultProcessor.DemandOK;
+            SaveType.ForegroundSave => ResultProcessor.DemandOK,
 #pragma warning restore 0618
-                default: throw new ArgumentOutOfRangeException(nameof(type));
-            }
-        }
+            _ => throw new ArgumentOutOfRangeException(nameof(type)),
+        };
 
         private static class ScriptHash
         {

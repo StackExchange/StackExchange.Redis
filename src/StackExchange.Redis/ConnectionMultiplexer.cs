@@ -2770,20 +2770,13 @@ namespace StackExchange.Redis
             return tcs == null ? default(T) : await tcs.Task.ForAwait();
         }
 
-        internal Exception GetException(WriteResult result, Message message, ServerEndPoint server)
+        internal Exception GetException(WriteResult result, Message message, ServerEndPoint server) => result switch
         {
-            switch (result)
-            {
-                case WriteResult.Success: return null;
-                case WriteResult.NoConnectionAvailable:
-                    return ExceptionFactory.NoConnectionAvailable(this, message, server);
-                case WriteResult.TimeoutBeforeWrite:
-                    return ExceptionFactory.Timeout(this, "The timeout was reached before the message could be written to the output buffer, and it was not sent", message, server, result);
-                case WriteResult.WriteFailure:
-                default:
-                    return ExceptionFactory.ConnectionFailure(IncludeDetailInExceptions, ConnectionFailureType.ProtocolFailure, "An unknown error occurred when writing the message", server);
-            }
-        }
+            WriteResult.Success => null,
+            WriteResult.NoConnectionAvailable => ExceptionFactory.NoConnectionAvailable(this, message, server),
+            WriteResult.TimeoutBeforeWrite => ExceptionFactory.Timeout(this, "The timeout was reached before the message could be written to the output buffer, and it was not sent", message, server, result),
+            _ => ExceptionFactory.ConnectionFailure(IncludeDetailInExceptions, ConnectionFailureType.ProtocolFailure, "An unknown error occurred when writing the message", server),
+        };
 
         internal static void ThrowFailed<T>(TaskCompletionSource<T> source, Exception unthrownException)
         {

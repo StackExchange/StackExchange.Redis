@@ -250,13 +250,11 @@ namespace StackExchange.Redis
             get
             {
                 if (commandMap != null) return commandMap;
-                switch (Proxy)
+                return Proxy switch
                 {
-                    case Proxy.Twemproxy:
-                        return CommandMap.Twemproxy;
-                    default:
-                        return CommandMap.Default;
-                }
+                    Proxy.Twemproxy => CommandMap.Twemproxy,
+                    _ => CommandMap.Default,
+                };
             }
             set
             {
