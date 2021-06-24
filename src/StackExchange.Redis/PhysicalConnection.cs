@@ -1250,7 +1250,7 @@ namespace StackExchange.Redis
             return VolatileSocket?.Available ?? -1;
         }
 
-        private RemoteCertificateValidationCallback GetAmbientIssuerCertificateCallback()
+        private static RemoteCertificateValidationCallback GetAmbientIssuerCertificateCallback()
         {
             try
             {

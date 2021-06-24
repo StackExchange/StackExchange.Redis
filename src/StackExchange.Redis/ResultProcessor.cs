@@ -160,17 +160,17 @@ namespace StackExchange.Redis
             SetException(message, ex);
         }
 
-        public void ConnectionFail(Message message, ConnectionFailureType fail, string errorMessage)
+        public static void ConnectionFail(Message message, ConnectionFailureType fail, string errorMessage)
         {
             SetException(message, new RedisConnectionException(fail, errorMessage));
         }
 
-        public void ServerFail(Message message, string errorMessage)
+        public static void ServerFail(Message message, string errorMessage)
         {
             SetException(message, new RedisServerException(errorMessage));
         }
 
-        public void SetException(Message message, Exception ex)
+        public static void SetException(Message message, Exception ex)
         {
             var box = message?.ResultBox;
             box?.SetException(ex);
@@ -512,7 +512,7 @@ namespace StackExchange.Redis
 
         internal sealed class SortedSetEntryProcessor : ResultProcessor<SortedSetEntry?>
         {
-            public bool TryParse(in RawResult result, out SortedSetEntry? entry)
+            public static bool TryParse(in RawResult result, out SortedSetEntry? entry)
             {
                 switch (result.Type)
                 {
@@ -1968,7 +1968,7 @@ The coordinates as a two items x,y array (longitude,latitude).
         {
             // For command response formats see https://redis.io/topics/streams-intro.
 
-            protected StreamEntry ParseRedisStreamEntry(in RawResult item)
+            protected static StreamEntry ParseRedisStreamEntry(in RawResult item)
             {
                 if (item.IsNull || item.Type != ResultType.MultiBulk)
                 {
@@ -1990,10 +1990,10 @@ The coordinates as a two items x,y array (longitude,latitude).
                 }
 
                 return result.GetItems().ToArray(
-                    (in RawResult item, in StreamProcessorBase<T> obj) => obj.ParseRedisStreamEntry(item), this);
+                    (in RawResult item, in StreamProcessorBase<T> obj) => ParseRedisStreamEntry(item), this);
             }
 
-            protected NameValueEntry[] ParseStreamEntryValues(in RawResult result)
+            protected static NameValueEntry[] ParseStreamEntryValues(in RawResult result)
             {
                 // The XRANGE, XREVRANGE, XREAD commands return stream entries
                 // in the following format.  The name/value pairs are interleaved
@@ -2294,7 +2294,7 @@ The coordinates as a two items x,y array (longitude,latitude).
 
     internal abstract class ResultProcessor<T> : ResultProcessor
     {
-        protected void SetResult(Message message, T value)
+        protected static void SetResult(Message message, T value)
         {
             if (message == null) return;
             var box = message.ResultBox as IResultBox<T>;

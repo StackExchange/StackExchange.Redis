@@ -656,7 +656,7 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.DemandOK);
         }
 
-        private void FixFlags(Message message, ServerEndPoint server)
+        private static void FixFlags(Message message, ServerEndPoint server)
         {
             // since the server is specified explicitly, we don't want defaults
             // to make the "non-preferred-endpoint" counters look artificially

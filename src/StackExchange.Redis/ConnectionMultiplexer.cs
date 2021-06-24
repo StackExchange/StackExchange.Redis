@@ -709,7 +709,7 @@ namespace StackExchange.Redis
             return true;
         }
 
-        private async Task<bool> WaitAllIgnoreErrorsAsync(string name, Task[] tasks, int timeoutMilliseconds, LogProxy log, [CallerMemberName] string caller = null, [CallerLineNumber] int callerLineNumber = 0)
+        private static async Task<bool> WaitAllIgnoreErrorsAsync(string name, Task[] tasks, int timeoutMilliseconds, LogProxy log, [CallerMemberName] string caller = null, [CallerLineNumber] int callerLineNumber = 0)
         {
             if (tasks == null) throw new ArgumentNullException(nameof(tasks));
             if (tasks.Length == 0)
@@ -2010,7 +2010,7 @@ namespace StackExchange.Redis
         partial void OnTraceLog(LogProxy log, [CallerMemberName] string caller = null);
 #pragma warning restore IDE0060
 
-        private async Task<ServerEndPoint> NominatePreferredMaster(LogProxy log, ServerEndPoint[] servers, bool useTieBreakers, Task<string>[] tieBreakers, List<ServerEndPoint> masters)
+        private static async Task<ServerEndPoint> NominatePreferredMaster(LogProxy log, ServerEndPoint[] servers, bool useTieBreakers, Task<string>[] tieBreakers, List<ServerEndPoint> masters)
         {
             Dictionary<string, int> uniques = null;
             if (useTieBreakers)
@@ -2118,7 +2118,7 @@ namespace StackExchange.Redis
             return masters[0];
         }
 
-        private ServerEndPoint SelectServerByElection(ServerEndPoint[] servers, string endpoint, LogProxy log)
+        private static ServerEndPoint SelectServerByElection(ServerEndPoint[] servers, string endpoint, LogProxy log)
         {
             if (servers == null || string.IsNullOrWhiteSpace(endpoint)) return null;
             for (int i = 0; i < servers.Length; i++)

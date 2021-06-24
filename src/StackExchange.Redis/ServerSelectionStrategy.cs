@@ -57,7 +57,7 @@ namespace StackExchange.Redis
         }
 
         public ServerType ServerType { get; set; } = ServerType.Standalone;
-        internal int TotalSlots => RedisClusterSlotCount;
+        internal static int TotalSlots => RedisClusterSlotCount;
 
         /// <summary>
         /// Computes the hash-slot that would be used by the given key
@@ -187,7 +187,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal int CombineSlot(int oldSlot, int newSlot)
+        internal static int CombineSlot(int oldSlot, int newSlot)
         {
             if (oldSlot == MultipleSlots || newSlot == NoSlot) return oldSlot;
             if (oldSlot == NoSlot) return newSlot;
@@ -234,7 +234,7 @@ namespace StackExchange.Redis
             return multiplexer.AnyConnected(ServerType, (uint)Interlocked.Increment(ref anyStartOffset), command, flags);
         }
 
-        private ServerEndPoint FindMaster(ServerEndPoint endpoint, RedisCommand command)
+        private static ServerEndPoint FindMaster(ServerEndPoint endpoint, RedisCommand command)
         {
             int max = 5;
             do
@@ -246,7 +246,7 @@ namespace StackExchange.Redis
             return null;
         }
 
-        private ServerEndPoint FindReplica(ServerEndPoint endpoint, RedisCommand command, bool allowDisconnected = false)
+        private static ServerEndPoint FindReplica(ServerEndPoint endpoint, RedisCommand command, bool allowDisconnected = false)
         {
             if (endpoint.IsReplica && endpoint.IsSelectable(command, allowDisconnected)) return endpoint;
 

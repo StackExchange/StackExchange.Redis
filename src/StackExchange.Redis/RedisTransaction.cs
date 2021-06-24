@@ -225,13 +225,13 @@ namespace StackExchange.Redis
                 for (int i = 0; i < conditions.Length; i++)
                 {
                     int newSlot = conditions[i].Condition.GetHashSlot(serverSelectionStrategy);
-                    slot = serverSelectionStrategy.CombineSlot(slot, newSlot);
+                    slot = ServerSelectionStrategy.CombineSlot(slot, newSlot);
                     if (slot == ServerSelectionStrategy.MultipleSlots) return slot;
                 }
                 for (int i = 0; i < InnerOperations.Length; i++)
                 {
                     int newSlot = InnerOperations[i].Wrapped.GetHashSlot(serverSelectionStrategy);
-                    slot = serverSelectionStrategy.CombineSlot(slot, newSlot);
+                    slot = ServerSelectionStrategy.CombineSlot(slot, newSlot);
                     if (slot == ServerSelectionStrategy.MultipleSlots) return slot;
                 }
                 return slot;
