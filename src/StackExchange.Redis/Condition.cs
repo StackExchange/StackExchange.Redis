@@ -357,6 +357,7 @@ namespace StackExchange.Redis
                 return new ConditionMessage(condition, db, flags, command, key, value, value1);
             }
 
+            [System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0071:Simplify interpolation", Justification = "Allocations (string.Concat vs. string.Format)")]
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
                 connection?.BridgeCouldBeNull?.Multiplexer?.OnTransactionLog($"condition '{message.CommandAndKey}' got '{result.ToString()}'");

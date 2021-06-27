@@ -94,7 +94,7 @@ namespace NRediSearch.Aggregation
             return this;
         }
 
-        public AggregationRequest GroupBy(String field, params Reducer[] reducers)
+        public AggregationRequest GroupBy(string field, params Reducer[] reducers)
         {
             return GroupBy(new string[] { field }, reducers);
         }

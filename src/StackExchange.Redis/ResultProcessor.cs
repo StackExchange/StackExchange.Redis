@@ -1315,7 +1315,7 @@ namespace StackExchange.Redis
                 {
                     case ResultType.MultiBulk:
                         var typed = result.ToArray(
-                            (in RawResult item, in GeoRadiusOptions options) => Parse(item, options), this.options);
+                            (in RawResult item, in GeoRadiusOptions radiusOptions) => Parse(item, radiusOptions), options);
                         SetResult(message, typed);
                         return true;
                 }
@@ -2098,6 +2098,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                 return final;
             }
 
+            [System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0071:Simplify interpolation", Justification = "Allocations (string.Concat vs. string.Format)")]
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
                 bool happy;

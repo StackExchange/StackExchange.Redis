@@ -2011,9 +2011,7 @@ namespace StackExchange.Redis
             }
         }
 
-#pragma warning disable IDE0060
         partial void OnTraceLog(LogProxy log, [CallerMemberName] string caller = null);
-#pragma warning restore IDE0060
 
         private static async Task<ServerEndPoint> NominatePreferredMaster(LogProxy log, ServerEndPoint[] servers, bool useTieBreakers, Task<string>[] tieBreakers, List<ServerEndPoint> masters, int timeoutMs)
         {

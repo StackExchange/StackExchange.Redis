@@ -240,6 +240,7 @@ namespace StackExchange.Redis
             }
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0071:Simplify interpolation", Justification = "Allocations (string.Concat vs. string.Format)")]
         public void UpdateNodeRelations(ClusterConfiguration configuration)
         {
             var thisNode = configuration.Nodes.FirstOrDefault(x => x.EndPoint.Equals(EndPoint));

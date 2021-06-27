@@ -91,6 +91,7 @@ namespace NRediSearch
 
             public Suggestion Build() => Build(false);
 
+            [System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0071:Simplify interpolation", Justification = "Allocations (string.Concat vs. string.Format)")]
             internal Suggestion Build(bool fromServer)
             {
                 bool isStringMissing = _string == null;
