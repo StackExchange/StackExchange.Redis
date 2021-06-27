@@ -7,7 +7,10 @@ namespace StackExchange.Redis
     /// </summary>
     public readonly struct RedisValueWithExpiry
     {
-        internal RedisValueWithExpiry(RedisValue value, TimeSpan? expiry)
+        /// <summary>
+        /// Creates a <see cref="RedisValueWithExpiry"/> from a <see cref="RedisValue"/> and a <see cref="Nullable{TimeSpan}"/>
+        /// </summary>
+        public RedisValueWithExpiry(RedisValue value, TimeSpan? expiry)
         {
             Value = value;
             Expiry = expiry;

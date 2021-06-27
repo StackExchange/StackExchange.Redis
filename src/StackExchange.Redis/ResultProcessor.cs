@@ -183,7 +183,7 @@ namespace StackExchange.Redis
             {
                 try
                 {
-                    logging.Log?.WriteLine($"Response from {bridge} / {message.CommandAndKey}: {result}");
+                    logging.Log?.WriteLine($"Response from {bridge?.Name} / {message.CommandAndKey}: {result}");
                 }
                 catch { }
             }
@@ -329,6 +329,8 @@ namespace StackExchange.Redis
 
         public sealed class TimingProcessor : ResultProcessor<TimeSpan>
         {
+            private static readonly double TimestampToTicks = TimeSpan.TicksPerSecond / (double)Stopwatch.Frequency;
+
             public static TimerMessage CreateMessage(int db, CommandFlags flags, RedisCommand command, RedisValue value = default(RedisValue))
             {
                 return new TimerMessage(db, flags, command, value);
@@ -346,9 +348,9 @@ namespace StackExchange.Redis
                     TimeSpan duration;
                     if (message is TimerMessage timingMessage)
                     {
-                        var watch = timingMessage.Watch;
-                        watch.Stop();
-                        duration = watch.Elapsed;
+                        var timestampDelta = Stopwatch.GetTimestamp() - timingMessage.StartedWritingTimestamp;
+                        var ticks = (long)(TimestampToTicks * timestampDelta);
+                        duration = new TimeSpan(ticks);
                     }
                     else
                     {
@@ -361,17 +363,17 @@ namespace StackExchange.Redis
 
             internal sealed class TimerMessage : Message
             {
-                public readonly Stopwatch Watch;
+                public long StartedWritingTimestamp;
                 private readonly RedisValue value;
                 public TimerMessage(int db, CommandFlags flags, RedisCommand command, RedisValue value)
                     : base(db, flags, command)
                 {
-                    Watch = Stopwatch.StartNew();
                     this.value = value;
                 }
 
                 protected override void WriteImpl(PhysicalConnection physical)
                 {
+                    StartedWritingTimestamp = Stopwatch.GetTimestamp();
                     if (value.IsNull)
                     {
                         physical.WriteHeader(command, 0);
@@ -622,17 +624,20 @@ namespace StackExchange.Redis
             }
         }
 
-        private sealed class AutoConfigureProcessor : ResultProcessor<bool>
+        internal sealed class AutoConfigureProcessor : ResultProcessor<bool>
         {
+            private ConnectionMultiplexer.LogProxy Log { get; }
+            public AutoConfigureProcessor(ConnectionMultiplexer.LogProxy log = null) => Log = log;
+
             public override bool SetResult(PhysicalConnection connection, Message message, in RawResult result)
             {
                 if (result.IsError && result.StartsWith(CommonReplies.READONLY))
                 {
                     var bridge = connection.BridgeCouldBeNull;
-                    if(bridge != null)
+                    if (bridge != null)
                     {
                         var server = bridge.ServerEndPoint;
-                        server.Multiplexer.Trace("Auto-configured role: replica");
+                        Log?.WriteLine($"{Format.ToString(server)}: Auto-configured role: replica");
                         server.IsReplica = true;
                     }
                 }
@@ -670,12 +675,12 @@ namespace StackExchange.Redis
                                         {
                                             case "master":
                                                 server.IsReplica = false;
-                                                server.Multiplexer.Trace("Auto-configured role: master");
+                                                Log?.WriteLine($"{Format.ToString(server)}: Auto-configured (INFO) role: master");
                                                 break;
                                             case "replica":
                                             case "slave":
                                                 server.IsReplica = true;
-                                                server.Multiplexer.Trace("Auto-configured role: replica");
+                                                Log?.WriteLine($"{Format.ToString(server)}: Auto-configured (INFO) role: replica");
                                                 break;
                                         }
                                     }
@@ -692,7 +697,7 @@ namespace StackExchange.Redis
                                         if (Version.TryParse(val, out Version version))
                                         {
                                             server.Version = version;
-                                            server.Multiplexer.Trace("Auto-configured version: " + version);
+                                            Log?.WriteLine($"{Format.ToString(server)}: Auto-configured (INFO) version: " + version);
                                         }
                                     }
                                     else if ((val = Extract(line, "redis_mode:")) != null)
@@ -701,15 +706,15 @@ namespace StackExchange.Redis
                                         {
                                             case "standalone":
                                                 server.ServerType = ServerType.Standalone;
-                                                server.Multiplexer.Trace("Auto-configured server-type: standalone");
+                                                Log?.WriteLine($"{Format.ToString(server)}: Auto-configured (INFO) server-type: standalone");
                                                 break;
                                             case "cluster":
                                                 server.ServerType = ServerType.Cluster;
-                                                server.Multiplexer.Trace("Auto-configured server-type: cluster");
+                                                Log?.WriteLine($"{Format.ToString(server)}: Auto-configured (INFO) server-type: cluster");
                                                 break;
                                             case "sentinel":
                                                 server.ServerType = ServerType.Sentinel;
-                                                server.Multiplexer.Trace("Auto-configured server-type: sentinel");
+                                                Log?.WriteLine($"{Format.ToString(server)}: Auto-configured (INFO) server-type: sentinel");
                                                 break;
                                         }
                                     }
@@ -727,7 +732,7 @@ namespace StackExchange.Redis
                         else if (message?.Command == RedisCommand.SENTINEL)
                         {
                             server.ServerType = ServerType.Sentinel;
-                            server.Multiplexer.Trace("Auto-configured server-type: sentinel");
+                            Log?.WriteLine($"{Format.ToString(server)}: Auto-configured (SENTINEL) server-type: sentinel");
                         }
                         SetResult(message, true);
                         return true;
@@ -755,14 +760,14 @@ namespace StackExchange.Redis
                                         {
                                             targetSeconds = (timeoutSeconds * 3) / 4;
                                         }
-                                        server.Multiplexer.Trace("Auto-configured timeout: " + targetSeconds + "s");
+                                        Log?.WriteLine($"{Format.ToString(server)}: Auto-configured (CONFIG) timeout: " + targetSeconds + "s");
                                         server.WriteEverySeconds = targetSeconds;
                                     }
                                 }
                                 else if (key.IsEqual(CommonReplies.databases) && val.TryGetInt64(out i64))
                                 {
                                     int dbCount = checked((int)i64);
-                                    server.Multiplexer.Trace("Auto-configured databases: " + dbCount);
+                                    Log?.WriteLine($"{Format.ToString(server)}: Auto-configured (CONFIG) databases: " + dbCount);
                                     server.Databases = dbCount;
                                 }
                                 else if (key.IsEqual(CommonReplies.slave_read_only) || key.IsEqual(CommonReplies.replica_read_only))
@@ -770,12 +775,12 @@ namespace StackExchange.Redis
                                     if (val.IsEqual(CommonReplies.yes))
                                     {
                                         server.ReplicaReadOnly = true;
-                                        server.Multiplexer.Trace("Auto-configured read-only replica: true");
+                                        Log?.WriteLine($"{Format.ToString(server)}: Auto-configured (CONFIG) read-only replica: true");
                                     }
                                     else if (val.IsEqual(CommonReplies.no))
                                     {
                                         server.ReplicaReadOnly = false;
-                                        server.Multiplexer.Trace("Auto-configured read-only replica: false");
+                                        Log?.WriteLine($"{Format.ToString(server)}: Auto-configured (CONFIG) read-only replica: false");
                                     }
                                 }
                             }
@@ -783,7 +788,7 @@ namespace StackExchange.Redis
                         else if (message?.Command == RedisCommand.SENTINEL)
                         {
                             server.ServerType = ServerType.Sentinel;
-                            server.Multiplexer.Trace("Auto-configured server-type: sentinel");
+                            Log?.WriteLine($"{Format.ToString(server)}: Auto-configured (SENTINEL) server-type: sentinel");
                         }
                         SetResult(message, true);
                         return true;
@@ -2079,7 +2084,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                 {
                     if (result.StartsWith(CommonReplies.authFail_trimmed) || result.StartsWith(CommonReplies.NOAUTH))
                     {
-                        connection.RecordConnectionFailed(ConnectionFailureType.AuthenticationFailure, new Exception(result.ToString() + " Verify if the Redis password provided is correct."));
+                        connection.RecordConnectionFailed(ConnectionFailureType.AuthenticationFailure, new Exception(result.ToString() + " Verify if the Redis password provided is correct. Attempted command: " + message.Command));
                     }
                     else if (result.StartsWith(CommonReplies.loading))
                     {
@@ -2137,7 +2142,10 @@ The coordinates as a two items x,y array (longitude,latitude).
                 }
                 if (happy)
                 {
-                    if (establishConnection) connection.BridgeCouldBeNull?.OnFullyEstablished(connection);
+                    if (establishConnection)
+                    {
+                        connection.BridgeCouldBeNull?.OnFullyEstablished(connection, $"From command: {message.Command}");
+                    }
                     SetResult(message, happy);
                     return true;
                 }
@@ -2270,8 +2278,14 @@ The coordinates as a two items x,y array (longitude,latitude).
                         var returnArray = result.ToArray<KeyValuePair<string, string>[], StringPairInterleavedProcessor>(
                             (in RawResult rawInnerArray, in StringPairInterleavedProcessor proc) =>
                             {
-                                proc.TryParse(rawInnerArray, out KeyValuePair<string, string>[] kvpArray);
-                                return kvpArray;
+                                if (proc.TryParse(rawInnerArray, out KeyValuePair<string, string>[] kvpArray))
+                                {
+                                    return kvpArray;
+                                }
+                                else
+                                {
+                                    throw new ArgumentOutOfRangeException(nameof(rawInnerArray), $"Error processing {message.CommandAndKey}, could not decode array '{rawInnerArray}'");
+                                }
                             }, innerProcessor);
 
                         SetResult(message, returnArray);

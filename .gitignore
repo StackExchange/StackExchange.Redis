@@ -28,3 +28,4 @@ launchSettings.json
 *.vsp
 *.diagsession
 TestResults/
+BenchmarkDotNet.Artifacts/

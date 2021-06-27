@@ -1,5 +1,3 @@
-using System;
-
 namespace StackExchange.Redis
 {
     /// <summary>

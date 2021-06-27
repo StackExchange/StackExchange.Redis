@@ -30,7 +30,14 @@ jobs:
       working-directory: ./tests/RedisConfigs
       run: docker-compose -f docker-compose.yml up -d
     - name: StackExchange.Redis.Tests
-      run: dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj -c Release --logger GitHubActions /p:CI=true
+      run: dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj -c Release --logger trx --results-directory ./test-results/ /p:CI=true
+    - uses: dorny/test-reporter@v1
+      continue-on-error: true
+      if: success() || failure()
+      with:
+        name: StackExchange.Redis.Tests (Ubuntu) - Results
+        path: 'test-results/*.trx'
+        reporter: dotnet-trx
     - name: .NET Lib Pack
       run: dotnet pack src/StackExchange.Redis/StackExchange.Redis.csproj --no-build -c Release /p:Packing=true /p:PackageOutputPath=%CD%\.nupkgs /p:CI=true
 
@@ -56,7 +63,14 @@ jobs:
     - name: .NET Build
       run: dotnet build Build.csproj -c Release /p:CI=true
     - name: NRedisSearch.Tests
-      run: dotnet test tests/NRediSearch.Test/NRediSearch.Test.csproj -c Release --logger GitHubActions /p:CI=true
+      run: dotnet test tests/NRediSearch.Test/NRediSearch.Test.csproj -c Release --logger trx --results-directory ./test-results/ /p:CI=true
+    - uses: dorny/test-reporter@v1
+      continue-on-error: true
+      if: success() || failure()
+      with:
+        name: NRedisSearch.Tests - Results
+        path: 'test-results/*.trx'
+        reporter: dotnet-trx
     - name: .NET Lib Pack
       run: dotnet pack src/NRediSearch/NRediSearch.csproj --no-build -c Release /p:Packing=true /p:PackageOutputPath=%CD%\.nupkgs /p:CI=true
 
@@ -97,4 +111,11 @@ jobs:
         .\redis-server.exe --service-install --service-name "redis-26381" "..\Sentinel\sentinel-26381.conf" --sentinel
         Start-Service redis-*
     - name: StackExchange.Redis.Tests
-      run: dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj -c Release --logger GitHubActions /p:CI=true
+      run: dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj -c Release --logger trx --results-directory ./test-results/ /p:CI=true
+    - uses: dorny/test-reporter@v1
+      continue-on-error: true
+      if: success() || failure()
+      with:
+        name: StackExchange.Redis.Tests (Windows Server 2019) - Results
+        path: 'test-results/*.trx'
+        reporter: dotnet-trx      

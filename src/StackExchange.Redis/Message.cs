@@ -40,7 +40,7 @@ namespace StackExchange.Redis
             try
             {
                 var bridge = physical.BridgeCouldBeNull;
-                log?.WriteLine($"Writing to {bridge}: {tail.CommandAndKey}");
+                log?.WriteLine($"{bridge.Name}: Writing: {tail.CommandAndKey}");
             }
             catch { }
             tail.WriteTo(physical);
@@ -97,8 +97,8 @@ namespace StackExchange.Redis
 
         // All for profiling purposes
         private ProfiledCommand performance;
-        internal DateTime createdDateTime;
-        internal long createdTimestamp;
+        internal DateTime CreatedDateTime;
+        internal long CreatedTimestamp;
 
         protected Message(int db, CommandFlags flags, RedisCommand command)
         {
@@ -128,8 +128,8 @@ namespace StackExchange.Redis
             Flags = flags & UserSelectableFlags;
             if (masterOnly) SetMasterOnly();
 
-            createdDateTime = DateTime.UtcNow;
-            createdTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
+            CreatedDateTime = DateTime.UtcNow;
+            CreatedTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
             Status = CommandStatus.WaitingToBeSent;
         }
 
@@ -165,8 +165,8 @@ namespace StackExchange.Redis
             oldPerformance.SetCompleted();
             performance = null;
 
-            createdDateTime = DateTime.UtcNow;
-            createdTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
+            CreatedDateTime = DateTime.UtcNow;
+            CreatedTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
             performance = ProfiledCommand.NewAttachedToSameContext(oldPerformance, resendTo, isMoved);
             performance.SetMessage(this);
             Status = CommandStatus.WaitingToBeSent;
@@ -774,11 +774,7 @@ namespace StackExchange.Redis
             {
                 WriteImpl(physical);
             }
-            catch (RedisCommandException)
-            { // these have specific meaning; don't wrap
-                throw;
-            }
-            catch (Exception ex)
+            catch (Exception ex) when (!(ex is RedisCommandException)) // these have specific meaning; don't wrap
             {
                 physical?.OnInternalError(ex);
                 Fail(ConnectionFailureType.InternalFailure, ex, null);

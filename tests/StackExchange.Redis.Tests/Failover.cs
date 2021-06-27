@@ -7,11 +7,17 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
-    public class Failover : TestBase
+    public class Failover : TestBase, IAsyncLifetime
     {
         protected override string GetConfiguration() => GetMasterReplicaConfig().ToString();
 
         public Failover(ITestOutputHelper output) : base(output)
+        {
+        }
+
+        public Task DisposeAsync() => Task.CompletedTask;
+
+        public async Task InitializeAsync()
         {
             using (var mutex = Create())
             {
@@ -27,7 +33,7 @@ namespace StackExchange.Redis.Tests
                 {
                     Log(shouldBeReplica.EndPoint + " should be a replica, fixing...");
                     shouldBeReplica.ReplicaOf(shouldBeMaster.EndPoint);
-                    Thread.Sleep(2000);
+                    await Task.Delay(2000).ForAwait();
                 }
             }
         }
@@ -87,7 +93,7 @@ namespace StackExchange.Redis.Tests
                 long count = sender.PublishReconfigure();
                 GetServer(receiver).Ping();
                 GetServer(receiver).Ping();
-                await Task.Delay(100).ConfigureAwait(false);
+                await Task.Delay(1000).ConfigureAwait(false);
                 Assert.True(count == -1 || count >= 2, "subscribers");
                 Assert.True(Interlocked.CompareExchange(ref total, 0, 0) >= 1, "total (1st)");
 
@@ -97,7 +103,7 @@ namespace StackExchange.Redis.Tests
                 var server = GetServer(sender);
                 if (server.IsReplica) Skip.Inconclusive("didn't expect a replica");
                 server.MakeMaster(ReplicationChangeOptions.Broadcast);
-                await Task.Delay(100).ConfigureAwait(false);
+                await Task.Delay(1000).ConfigureAwait(false);
                 GetServer(receiver).Ping();
                 GetServer(receiver).Ping();
                 Assert.True(Interlocked.CompareExchange(ref total, 0, 0) >= 1, "total (2nd)");

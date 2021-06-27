@@ -98,7 +98,7 @@ namespace StackExchange.Redis
             Trace("Connecting...");
             _socket = SocketManager.CreateSocket(endpoint);
             bridge.Multiplexer.OnConnecting(endpoint, bridge.ConnectionType);
-            log?.WriteLine($"BeginConnect: {Format.ToString(endpoint)}");
+            log?.WriteLine($"{Format.ToString(endpoint)}: BeginConnectAsync");
 
             CancellationTokenSource timeoutSource = null;
             try
@@ -142,7 +142,7 @@ namespace StackExchange.Redis
                         }
                         else if (await ConnectedAsync(x, log, bridge.Multiplexer.SocketManager).ForAwait())
                         {
-                            log?.WriteLine("Starting read");
+                            log?.WriteLine($"{Format.ToString(endpoint)}: Starting read");
                             try
                             {
                                 StartReading();
@@ -162,7 +162,7 @@ namespace StackExchange.Redis
                     }
                     catch (ObjectDisposedException)
                     {
-                        log?.WriteLine("(socket shutdown)");
+                        log?.WriteLine($"{Format.ToString(endpoint)}: (socket shutdown)");
                         try { RecordConnectionFailed(ConnectionFailureType.UnableToConnect, isInitialConnect: true); }
                         catch (Exception inner)
                         {
@@ -180,13 +180,9 @@ namespace StackExchange.Redis
                     }
                 }
             }
-            catch (NotImplementedException ex)
+            catch (NotImplementedException ex) when (!(endpoint is IPEndPoint))
             {
-                if (!(endpoint is IPEndPoint))
-                {
-                    throw new InvalidOperationException("BeginConnect failed with NotImplementedException; consider using IP endpoints, or enable ResolveDns in the configuration", ex);
-                }
-                throw;
+                throw new InvalidOperationException("BeginConnect failed with NotImplementedException; consider using IP endpoints, or enable ResolveDns in the configuration", ex);
             }
             finally
             {
@@ -889,13 +885,9 @@ namespace StackExchange.Redis
                     // here lies the evil
                     flush.AsTask().Wait();
                 }
-                catch (AggregateException ex)
+                catch (AggregateException ex) when (ex.InnerExceptions.Any(e => e is TaskCanceledException))
                 {
-                    if (ex.InnerExceptions.Any(e => e is TaskCanceledException))
-                    {
-                        ThrowTimeout();
-                    }
-                    throw;
+                    ThrowTimeout();
                 }
                 finally
                 {
@@ -1354,7 +1346,7 @@ namespace StackExchange.Redis
 
                 _ioPipe = pipe;
 
-                log?.WriteLine($"Connected {bridge}");
+                log?.WriteLine($"{bridge?.Name}: Connected ");
 
                 await bridge.OnConnectedAsync(this, log).ForAwait();
                 return true;
