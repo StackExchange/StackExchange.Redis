@@ -1761,9 +1761,7 @@ namespace StackExchange.Redis
             if (!line.HasValue) return RawResult.Nil; // incomplete line
 
             int count = 0;
-#pragma warning disable IDE0059
             foreach (var _ in line.GetInlineTokenizer()) count++;
-#pragma warning restore IDE0059
             var block = arena.Allocate(count);
 
             var iter = block.GetEnumerator();
