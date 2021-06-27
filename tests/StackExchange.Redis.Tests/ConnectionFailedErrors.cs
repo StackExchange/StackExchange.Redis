@@ -174,7 +174,7 @@ namespace StackExchange.Redis.Tests
         {
             try
             {
-                using (var muxer = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true))
+                using (var muxer = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true, log: Writer))
                 {
                     await RunBlockingSynchronousWithExtraThreadAsync(innerScenario).ForAwait();
                     void innerScenario()
@@ -186,7 +186,9 @@ namespace StackExchange.Redis.Tests
 
                         server.SimulateConnectionFailure();
 
-                        Assert.Equal(ConnectionFailureType.SocketFailure, ((RedisConnectionException)muxer.GetServerSnapshot()[0].LastException).FailureType);
+                        var lastFailure = ((RedisConnectionException)muxer.GetServerSnapshot()[0].LastException).FailureType;
+                        // Depending on heartbat races, the last exception will be a socket failure or an internal (follow-up) failure
+                        Assert.Contains(lastFailure, new[] { ConnectionFailureType.SocketFailure, ConnectionFailureType.InternalFailure });
 
                         // should reconnect within 1 keepalive interval
                         muxer.AllowConnect = true;

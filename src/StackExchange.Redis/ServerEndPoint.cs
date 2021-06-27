@@ -85,25 +85,24 @@ namespace StackExchange.Redis
         {
             async Task<string> IfConnectedAsync(LogProxy log, bool sendTracerIfConnected, bool autoConfigureIfConnected)
             {
-                log?.WriteLine($"{Format.ToString(this)}: OnConnectedAsync completed (already connected start)");
+                log?.WriteLine($"{Format.ToString(this)}: OnConnectedAsync already connected start");
                 if (autoConfigureIfConnected)
                 {
-                    await AutoConfigureAsync(null, log);
+                    await AutoConfigureAsync(null, log).ForAwait();
                 }
                 if (sendTracerIfConnected)
                 {
-                    await SendTracer(log);
+                    await SendTracer(log).ForAwait();
                 }
-                log?.WriteLine($"{Format.ToString(this)}: OnConnectedAsync completed (already connected end)");
+                log?.WriteLine($"{Format.ToString(this)}: OnConnectedAsync already connected end");
                 return "Already connected";
             }
 
-            log?.WriteLine($"{Format.ToString(this)}: OnConnectedAsync init (State={interactive?.ConnectionState})");
-
             if (!IsConnected)
             {
+                log?.WriteLine($"{Format.ToString(this)}: OnConnectedAsync init (State={interactive?.ConnectionState})");
                 var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
-                tcs.Task.ContinueWith(t => log?.WriteLine($"{Format.ToString(this)}: OnConnectedAsync completed ({t.Result})"));
+                _ = tcs.Task.ContinueWith(t => log?.WriteLine($"{Format.ToString(this)}: OnConnectedAsync completed ({t.Result})"));
                 lock (_pendingConnectionMonitors)
                 {
                     _pendingConnectionMonitors.Add(tcs);

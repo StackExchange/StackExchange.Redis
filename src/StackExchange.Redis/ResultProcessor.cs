@@ -183,7 +183,7 @@ namespace StackExchange.Redis
             {
                 try
                 {
-                    logging.Log?.WriteLine($"Response from {bridge} / {message.CommandAndKey}: {result}");
+                    logging.Log?.WriteLine($"Response from {bridge?.Name} / {message.CommandAndKey}: {result}");
                 }
                 catch { }
             }
@@ -2278,8 +2278,14 @@ The coordinates as a two items x,y array (longitude,latitude).
                         var returnArray = result.ToArray<KeyValuePair<string, string>[], StringPairInterleavedProcessor>(
                             (in RawResult rawInnerArray, in StringPairInterleavedProcessor proc) =>
                             {
-                                proc.TryParse(rawInnerArray, out KeyValuePair<string, string>[] kvpArray);
-                                return kvpArray;
+                                if (proc.TryParse(rawInnerArray, out KeyValuePair<string, string>[] kvpArray))
+                                {
+                                    return kvpArray;
+                                }
+                                else
+                                {
+                                    throw new ArgumentOutOfRangeException(nameof(rawInnerArray), $"Error processing {message.CommandAndKey}, could not decode array '{rawInnerArray}'");
+                                }
                             }, innerProcessor);
 
                         SetResult(message, returnArray);

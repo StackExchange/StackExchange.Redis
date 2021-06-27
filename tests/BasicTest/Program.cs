@@ -31,7 +31,6 @@ namespace BasicTest
             AddValidator(JitOptimizationsValidator.FailOnError);
 
             AddJob(Configure(Job.Default.WithRuntime(ClrRuntime.Net472)));
-            AddJob(Configure(Job.Default.WithRuntime(CoreRuntime.Core31)));
             AddJob(Configure(Job.Default.WithRuntime(CoreRuntime.Core50)));
         }
     }
