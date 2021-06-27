@@ -801,7 +801,7 @@ return timeTaken
             Assert.False(ReferenceEquals(first, shouldBeNew));
         }
 
-        private static void PurgeLuaScriptOnFinalize(string script)
+        private static void PurgeLuaScriptOnFinalizeImpl(string script)
         {
             var first = LuaScript.Prepare(script);
             var fromCache = LuaScript.Prepare(script);
@@ -818,7 +818,7 @@ return timeTaken
 
             // This has to be a separate method to guarantee that the created LuaScript objects go out of scope,
             //   and are thus available to be GC'd
-            PurgeLuaScriptOnFinalize(Script);
+            PurgeLuaScriptOnFinalizeImpl(Script);
             CollectGarbage();
 
             Assert.Equal(0, LuaScript.GetCachedScriptCount());
