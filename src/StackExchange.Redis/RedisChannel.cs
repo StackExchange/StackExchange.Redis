@@ -28,14 +28,14 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="value">The name of the channel to create.</param>
         /// <param name="mode">The mode for name matching.</param>
-        public RedisChannel(byte[] value, PatternMode mode) : this(value, DeterminePatternBased(value, mode)) { }
+        public RedisChannel(byte[] value, PatternMode mode) : this(value, DeterminePatternBased(value, mode)) {}
 
         /// <summary>
         /// Create a new redis channel from a string, explicitly controlling the pattern mode
         /// </summary>
         /// <param name="value">The string name of the channel to create.</param>
         /// <param name="mode">The mode for name matching.</param>
-        public RedisChannel(string value, PatternMode mode) : this(value == null ? null : Encoding.UTF8.GetBytes(value), mode) { }
+        public RedisChannel(string value, PatternMode mode) : this(value == null ? null : Encoding.UTF8.GetBytes(value), mode) {}
 
         private RedisChannel(byte[] value, bool isPatternBased)
         {
@@ -258,7 +258,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="key">The channel to get a byte[] from.</param>
 #pragma warning disable RCS1231 // Make parameter ref read-only. - public API
-        public static implicit operator byte[](RedisChannel key) => key.Value;
+        public static implicit operator byte[] (RedisChannel key) => key.Value;
 #pragma warning restore RCS1231 // Make parameter ref read-only.
 
         /// <summary>
@@ -266,7 +266,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="key">The channel to get a string from.</param>
 #pragma warning disable RCS1231 // Make parameter ref read-only. - public API
-        public static implicit operator string(RedisChannel key)
+        public static implicit operator string (RedisChannel key)
 #pragma warning restore RCS1231 // Make parameter ref read-only.
         {
             var arr = key.Value;
