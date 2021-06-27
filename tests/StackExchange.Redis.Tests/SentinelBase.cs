@@ -109,10 +109,11 @@ namespace StackExchange.Redis.Tests
                 throw new RedisException($"Master was expected to be {expectedMaster}");
             Log($"Master is {master}");
 
-            var replicas = SentinelServerA.SentinelGetReplicaAddresses(ServiceName);
             var checkConn = Conn.GetSentinelMasterConnection(ServiceOptions);
 
             await WaitForRoleAsync(checkConn.GetServer(master), "master", duration.Value.Subtract(sw.Elapsed)).ForAwait();
+
+            var replicas = SentinelServerA.SentinelGetReplicaAddresses(ServiceName);
             if (replicas.Length > 0)
             {
                 await WaitForRoleAsync(checkConn.GetServer(replicas[0]), "slave", duration.Value.Subtract(sw.Elapsed)).ForAwait();
