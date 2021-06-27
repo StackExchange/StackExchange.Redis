@@ -67,6 +67,10 @@ csharp_style_inlined_variable_declaration = true:suggestion
 csharp_style_throw_expression = true:suggestion
 csharp_style_conditional_delegate_call = true:suggestion
 
+# Disable range operator suggestions
+csharp_style_prefer_range_operator = false:none
+csharp_style_prefer_index_operator = false:none
+
 # Newline settings
 csharp_new_line_before_open_brace = all
 csharp_new_line_before_else = true
