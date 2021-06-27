@@ -39,10 +39,14 @@ namespace StackExchange.Redis.Tests
 
             for (var i = 0; i < 150; i++)
             {
-                await Task.Delay(20).ForAwait();
-                if (Conn.IsConnected && Conn.GetSentinelMasterConnection(options, Writer).IsConnected)
+                await Task.Delay(100).ForAwait();
+                if (Conn.IsConnected)
                 {
-                    break;
+                    using var checkConn = Conn.GetSentinelMasterConnection(options, Writer);
+                    if (checkConn.IsConnected)
+                    {
+                        break;
+                    }
                 }
             }
             Assert.True(Conn.IsConnected);
@@ -62,22 +66,6 @@ namespace StackExchange.Redis.Tests
         {
             public bool Equals(string x, string y) => x == y || x?.Replace("0.0.0.0", "127.0.0.1") == y?.Replace("0.0.0.0", "127.0.0.1");
             public int GetHashCode(string obj) => obj.GetHashCode();
-        }
-
-        protected async Task DoFailoverAsync()
-        {
-            await WaitForReadyAsync();
-
-            // capture current replica
-            var replicas = SentinelServerA.SentinelGetReplicaAddresses(ServiceName);
-
-            Log("Starting failover...");
-            var sw = Stopwatch.StartNew();
-            SentinelServerA.SentinelFailover(ServiceName);
-
-            // wait until the replica becomes the master
-            await WaitForReadyAsync(expectedMaster: replicas[0]);
-            Log($"Time to failover: {sw.Elapsed}");
         }
 
         protected async Task WaitForReadyAsync(EndPoint expectedMaster = null, bool waitForReplication = false, TimeSpan? duration = null)
@@ -109,12 +97,15 @@ namespace StackExchange.Redis.Tests
                 throw new RedisException($"Master was expected to be {expectedMaster}");
             Log($"Master is {master}");
 
-            var replicas = SentinelServerA.SentinelGetReplicaAddresses(ServiceName);
-            var checkConn = Conn.GetSentinelMasterConnection(ServiceOptions);
+            using var checkConn = Conn.GetSentinelMasterConnection(ServiceOptions);
 
             await WaitForRoleAsync(checkConn.GetServer(master), "master", duration.Value.Subtract(sw.Elapsed)).ForAwait();
+
+            var replicas = SentinelServerA.SentinelGetReplicaAddresses(ServiceName);
             if (replicas.Length > 0)
             {
+                await Task.Delay(1000).ForAwait();
+                replicas = SentinelServerA.SentinelGetReplicaAddresses(ServiceName);
                 await WaitForRoleAsync(checkConn.GetServer(replicas[0]), "slave", duration.Value.Subtract(sw.Elapsed)).ForAwait();
             }
 
@@ -145,7 +136,7 @@ namespace StackExchange.Redis.Tests
                     // ignore
                 }
 
-                await Task.Delay(1000).ForAwait();
+                await Task.Delay(500).ForAwait();
             }
 
             throw new RedisException($"Timeout waiting for server ({server.EndPoint}) to have expected role (\"{role}\") assigned");
