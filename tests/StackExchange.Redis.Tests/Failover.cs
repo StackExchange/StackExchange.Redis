@@ -206,7 +206,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task SubscriptionsSurviveMasterSwitchAsync()
         {
-            void TopologyFail() => Skip.Inconclusive("Replication tolopogy change failed...and that's both inconsistent and not what we're testing.");
+            static void TopologyFail() => Skip.Inconclusive("Replication tolopogy change failed...and that's both inconsistent and not what we're testing.");
 
             if (RunningInCI)
             {

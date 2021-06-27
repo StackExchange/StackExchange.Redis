@@ -12,7 +12,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void Int32_Matrix()
         {
-            void Check(RedisValue known, RedisValue test)
+            static void Check(RedisValue known, RedisValue test)
             {
                 KeysAndValues.CheckSame(known, test);
                 if (known.IsNull)
@@ -51,7 +51,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void Int64_Matrix()
         {
-            void Check(RedisValue known, RedisValue test)
+            static void Check(RedisValue known, RedisValue test)
             {
                 KeysAndValues.CheckSame(known, test);
                 if (known.IsNull)
@@ -90,7 +90,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void Double_Matrix()
         {
-            void Check(RedisValue known, RedisValue test)
+            static void Check(RedisValue known, RedisValue test)
             {
                 KeysAndValues.CheckSame(known, test);
                 if (known.IsNull)
