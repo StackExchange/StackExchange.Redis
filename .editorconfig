@@ -48,8 +48,8 @@ dotnet_style_explicit_tuple_names = true:suggestion
 # Ignore silly if statements
 dotnet_style_prefer_conditional_expression_over_return = false:none
 
-# Don't warn on Roslynator
-dotnet_remove_unnecessary_suppression_exclusions = CA1009,CA1063,CA1416,CA1816,CA2202,CS0618,RCS1047,RCS1085,RCS1090,RCS1194,RCS1231
+# Don't warn on things that actually need suppressing
+dotnet_remove_unnecessary_suppression_exclusions = CA1009,CA1063,CA1416,CA1816,CA1822,CA2202,CS0618,IDE0060,RCS1047,RCS1085,RCS1090,RCS1194,RCS1231
 
 # CSharp code style settings:
 [*.cs]

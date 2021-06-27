@@ -2011,6 +2011,8 @@ namespace StackExchange.Redis
             }
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0060:Remove unused parameter", Justification = "Used - it's a partial")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Partial - may use instance data")]
         partial void OnTraceLog(LogProxy log, [CallerMemberName] string caller = null);
 
         private static async Task<ServerEndPoint> NominatePreferredMaster(LogProxy log, ServerEndPoint[] servers, bool useTieBreakers, Task<string>[] tieBreakers, List<ServerEndPoint> masters, int timeoutMs)
