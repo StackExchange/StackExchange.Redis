@@ -24,7 +24,7 @@ namespace NRediSearch.Test
                 .AddTextField("body", 1.0)
                 .AddNumericField("price");
 
-            bool result = false;
+            bool result;
             try
             {
                 result = client.CreateIndex(sc, new ConfiguredIndexOptions());

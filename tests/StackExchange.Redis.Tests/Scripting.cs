@@ -823,7 +823,7 @@ return timeTaken
 
             Assert.Equal(0, LuaScript.GetCachedScriptCount());
 
-            var shouldBeNew = LuaScript.Prepare(Script);
+            LuaScript.Prepare(Script);
             Assert.Equal(1, LuaScript.GetCachedScriptCount());
         }
 
