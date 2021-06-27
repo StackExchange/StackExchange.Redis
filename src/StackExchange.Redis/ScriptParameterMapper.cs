@@ -209,18 +209,12 @@ namespace StackExchange.Redis
         {
             if (!IsValidParameterHash(t, script, out _, out _)) throw new Exception("Shouldn't be possible");
 
-            Expression GetMember(Expression root, MemberInfo member)
+            static Expression GetMember(Expression root, MemberInfo member) => member.MemberType switch
             {
-                switch (member.MemberType)
-                {
-                    case MemberTypes.Property:
-                        return Expression.Property(root, (PropertyInfo)member);
-                    case MemberTypes.Field:
-                        return Expression.Field(root, (FieldInfo)member);
-                    default:
-                        throw new ArgumentException(nameof(member));
-                }
-            }
+                MemberTypes.Property => Expression.Property(root, (PropertyInfo)member),
+                MemberTypes.Field => Expression.Field(root, (FieldInfo)member),
+                _ => throw new ArgumentException(nameof(member)),
+            };
             var keys = new List<MemberInfo>();
             var args = new List<MemberInfo>();
 
