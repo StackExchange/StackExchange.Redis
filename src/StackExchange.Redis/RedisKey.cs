@@ -231,7 +231,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="x">The first <see cref="RedisKey"/> to add.</param>
         /// <param name="y">The second <see cref="RedisKey"/> to add.</param>
-        [Obsolete]
+        [Obsolete("Prefer WithPrefix")]
         public static RedisKey operator +(RedisKey x, RedisKey y)
         {
             return new RedisKey(ConcatenateBytes(x.KeyPrefix, x.KeyValue, y.KeyPrefix), y.KeyValue);

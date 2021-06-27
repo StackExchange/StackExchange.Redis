@@ -1276,7 +1276,7 @@ namespace NRediSearch
         {
             if (docIds.Length == 0)
             {
-                return new Document[] { };
+                return Array.Empty<Document>();
             }
 
             var args = new List<object>

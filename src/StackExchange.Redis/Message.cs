@@ -59,6 +59,7 @@ namespace StackExchange.Redis
         internal PhysicalConnection.WriteStatus ConnectionWriteState { get; private set; }
 #endif
         [Conditional("DEBUG")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "DEBUG uses instance data")]
         internal void SetBacklogState(int position, PhysicalConnection physical)
         {
 #if DEBUG

@@ -846,6 +846,7 @@ namespace StackExchange.Redis
             return WriteCrlf(span, offset);
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "DEBUG uses instance data")]
         private async ValueTask<WriteResult> FlushAsync_Awaited(PhysicalConnection connection, ValueTask<FlushResult> flush, bool throwOnFailure
 #if DEBUG
             , int startFlush, long flushBytes
@@ -871,6 +872,7 @@ namespace StackExchange.Redis
 
         CancellationTokenSource _reusableFlushSyncTokenSource;
         [Obsolete("this is an anti-pattern; work to reduce reliance on this is in progress")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0062:Make local function 'static'", Justification = "DEBUG uses instance data")]
         internal WriteResult FlushSync(bool throwOnFailure, int millisecondsTimeout)
         {
             var cts = _reusableFlushSyncTokenSource ??= new CancellationTokenSource();

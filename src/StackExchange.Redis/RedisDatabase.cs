@@ -351,7 +351,7 @@ namespace StackExchange.Redis
         public Task<RedisValue[]> HashGetAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None)
         {
             if (hashFields == null) throw new ArgumentNullException(nameof(hashFields));
-            if (hashFields.Length == 0) return CompletedTask<RedisValue[]>.FromResult(new RedisValue[0], asyncState);
+            if (hashFields.Length == 0) return CompletedTask<RedisValue[]>.FromResult(Array.Empty<RedisValue>(), asyncState);
             var msg = Message.Create(Database, flags, RedisCommand.HMGET, key, hashFields);
             return ExecuteAsync(msg, ResultProcessor.RedisValueArray);
         }
@@ -2711,7 +2711,7 @@ namespace StackExchange.Redis
             return tran;
         }
 
-        private RedisValue GetLexRange(RedisValue value, Exclude exclude, bool isStart)
+        private static RedisValue GetLexRange(RedisValue value, Exclude exclude, bool isStart)
         {
             if (value.IsNull)
             {
@@ -2831,7 +2831,7 @@ namespace StackExchange.Redis
             return Message.Create(Database, flags, RedisCommand.XREAD, values);
         }
 
-        private RedisValue GetRange(double value, Exclude exclude, bool isStart)
+        private static RedisValue GetRange(double value, Exclude exclude, bool isStart)
         {
             if (isStart)
             {
@@ -3510,7 +3510,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private RedisCommand SetOperationCommand(SetOperation operation, bool store) => operation switch
+        private static RedisCommand SetOperationCommand(SetOperation operation, bool store) => operation switch
         {
             SetOperation.Difference => store ? RedisCommand.SDIFFSTORE : RedisCommand.SDIFF,
             SetOperation.Intersect => store ? RedisCommand.SINTERSTORE : RedisCommand.SINTER,
