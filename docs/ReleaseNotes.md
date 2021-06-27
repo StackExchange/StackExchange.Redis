@@ -1,5 +1,9 @@
 # Release Notes
 
+## Unreleased
+
+- Sentinel potential memory leak fix in OnManagedConnectionFailed handler (#1710 via alexSatov)
+
 ## 2.2.50
 
 - performance optimization for PING accuracy (#1714 via eduardobr)
