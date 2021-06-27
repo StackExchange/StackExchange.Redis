@@ -82,6 +82,7 @@ namespace BasicTest
             mgr = null;
             db = null;
             connection = null;
+            GC.SuppressFinalize(this);
         }
 
         private const int COUNT = 50;
@@ -219,7 +220,11 @@ namespace BasicTest
         private readonly ConnectionMultiplexer mux;
         private readonly IDatabase db;
 
-        public void Dispose() => mux?.Dispose();
+        public void Dispose()
+        {
+            mux?.Dispose();
+            GC.SuppressFinalize(this);
+        }
         public Issue898()
         {
             mux = ConnectionMultiplexer.Connect("127.0.0.1:6379");
