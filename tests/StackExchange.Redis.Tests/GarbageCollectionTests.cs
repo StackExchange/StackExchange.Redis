@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
@@ -20,7 +19,7 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        [Fact(Skip = "needs investigation on netcoreapp3.1")]
+        [Fact]
         public async Task MuxerIsCollected()
         {
 #if DEBUG

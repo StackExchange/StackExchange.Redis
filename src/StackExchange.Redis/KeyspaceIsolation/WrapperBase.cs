@@ -1042,7 +1042,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
         protected Func<RedisKey, RedisKey> GetMapFunction()
         {
             // create as a delegate when first required, then re-use
-            return mapFunction ?? (mapFunction = new Func<RedisKey, RedisKey>(ToInner));
+            return mapFunction ??= new Func<RedisKey, RedisKey>(ToInner);
         }
     }
 }

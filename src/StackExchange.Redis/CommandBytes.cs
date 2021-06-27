@@ -136,7 +136,7 @@ namespace StackExchange.Redis
 
         public unsafe CommandBytes(in ReadOnlySequence<byte> value)
         {
-            if (value.Length > MaxLength) throw new ArgumentOutOfRangeException("Maximum command length exceeed");
+            if (value.Length > MaxLength) throw new ArgumentOutOfRangeException(nameof(value), "Maximum command length exceeed");
             int len = unchecked((int)value.Length);
             _0 = _1 = _2 = _3 = 0L;
             fixed (ulong* uPtr = &_0)

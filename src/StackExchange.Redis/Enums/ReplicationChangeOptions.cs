@@ -7,6 +7,7 @@ namespace StackExchange.Redis
     /// Additional operations to perform when making a server a master
     /// </summary>
     [Flags]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1069:Enums values should not be duplicated", Justification = "Compatibility")]
     public enum ReplicationChangeOptions
     {
         /// <summary>

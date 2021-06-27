@@ -7,6 +7,7 @@ namespace StackExchange.Redis
     /// Behaviour markers associated with a given command
     /// </summary>
     [Flags]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1069:Enums values should not be duplicated", Justification = "Compatibility")]
     public enum CommandFlags
     {
         /// <summary>

@@ -212,7 +212,6 @@ namespace BasicTest
             }
         }
     }
-#pragma warning disable CS1591
 
     [Config(typeof(SlowConfig))]
     public class Issue898 : IDisposable

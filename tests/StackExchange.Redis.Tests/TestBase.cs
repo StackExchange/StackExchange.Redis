@@ -417,9 +417,7 @@ namespace StackExchange.Redis.Tests
                 for (int i = 0; i < threads; i++)
                 {
                     var thd = threadArr[i];
-#pragma warning disable SYSLIB0006 // yes, we know
                     if (thd.IsAlive) thd.Abort();
-#pragma warning restore SYSLIB0006 // yes, we know
                 }
                 throw new TimeoutException();
             }

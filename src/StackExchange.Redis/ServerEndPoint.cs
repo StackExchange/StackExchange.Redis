@@ -201,14 +201,12 @@ namespace StackExchange.Redis
         public PhysicalBridge GetBridge(ConnectionType type, bool create = true, LogProxy log = null)
         {
             if (isDisposed) return null;
-            switch (type)
+            return type switch
             {
-                case ConnectionType.Interactive:
-                    return interactive ?? (create ? interactive = CreateBridge(ConnectionType.Interactive, log) : null);
-                case ConnectionType.Subscription:
-                    return subscription ?? (create ? subscription = CreateBridge(ConnectionType.Subscription, log) : null);
-            }
-            return null;
+                ConnectionType.Interactive => interactive ?? (create ? interactive = CreateBridge(ConnectionType.Interactive, log) : null),
+                ConnectionType.Subscription => subscription ?? (create ? subscription = CreateBridge(ConnectionType.Subscription, log) : null),
+                _ => null,
+            };
         }
 
         public PhysicalBridge GetBridge(RedisCommand command, bool create = true)
@@ -242,6 +240,7 @@ namespace StackExchange.Redis
             }
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0071:Simplify interpolation", Justification = "Allocations (string.Concat vs. string.Format)")]
         public void UpdateNodeRelations(ClusterConfiguration configuration)
         {
             var thisNode = configuration.Nodes.FirstOrDefault(x => x.EndPoint.Equals(EndPoint));
@@ -258,7 +257,7 @@ namespace StackExchange.Redis
                     }
                     else if (node.ParentNodeId == thisNode.NodeId)
                     {
-                        (replicas ?? (replicas = new List<ServerEndPoint>())).Add(Multiplexer.GetServerEndPoint(node.EndPoint));
+                        (replicas ??= new List<ServerEndPoint>()).Add(Multiplexer.GetServerEndPoint(node.EndPoint));
                     }
                 }
                 Master = master;
@@ -648,7 +647,7 @@ namespace StackExchange.Redis
         {
             if (ConfigCheckSeconds < Multiplexer.RawConfig.ConfigCheckSeconds)
             {
-                r = r ?? new Random();
+                r ??= new Random();
                 var newExponentialConfigCheck = ConfigCheckSeconds * 2;
                 var jitter = r.Next(ConfigCheckSeconds + 1, newExponentialConfigCheck);
                 ConfigCheckSeconds = Math.Min(jitter, Multiplexer.RawConfig.ConfigCheckSeconds);
@@ -724,9 +723,7 @@ namespace StackExchange.Redis
             {
                 message.SetSource(processor, null);
                 Multiplexer.Trace("Enqueue: " + message);
-#pragma warning disable CS0618
                 (bridge ?? GetBridge(message.Command)).TryWriteSync(message, isReplica);
-#pragma warning restore CS0618
             }
         }
 

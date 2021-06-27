@@ -15,7 +15,7 @@ namespace NRediSearch.QueryBuilder
         {
             if (!inclusive)
             {
-                sb.Append("(");
+                sb.Append('(');
             }
             sb.Append(n.AsRedisString(true));
         }
@@ -23,11 +23,11 @@ namespace NRediSearch.QueryBuilder
         public override string ToString()
         {
             StringBuilder sb = new StringBuilder();
-            sb.Append("[");
+            sb.Append('[');
             AppendNum(sb, from, inclusiveMin);
-            sb.Append(" ");
+            sb.Append(' ');
             AppendNum(sb, to, inclusiveMax);
-            sb.Append("]");
+            sb.Append(']');
             return sb.ToString();
         }
 

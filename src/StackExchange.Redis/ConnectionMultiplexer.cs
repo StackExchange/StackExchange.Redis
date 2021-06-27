@@ -709,7 +709,7 @@ namespace StackExchange.Redis
             return true;
         }
 
-        private async Task<bool> WaitAllIgnoreErrorsAsync(string name, Task[] tasks, int timeoutMilliseconds, LogProxy log, [CallerMemberName] string caller = null, [CallerLineNumber] int callerLineNumber = 0)
+        private static async Task<bool> WaitAllIgnoreErrorsAsync(string name, Task[] tasks, int timeoutMilliseconds, LogProxy log, [CallerMemberName] string caller = null, [CallerLineNumber] int callerLineNumber = 0)
         {
             if (tasks == null) throw new ArgumentNullException(nameof(tasks));
             if (tasks.Length == 0)
@@ -2011,11 +2011,11 @@ namespace StackExchange.Redis
             }
         }
 
-#pragma warning disable IDE0060
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0060:Remove unused parameter", Justification = "Used - it's a partial")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Partial - may use instance data")]
         partial void OnTraceLog(LogProxy log, [CallerMemberName] string caller = null);
-#pragma warning restore IDE0060
 
-        private async Task<ServerEndPoint> NominatePreferredMaster(LogProxy log, ServerEndPoint[] servers, bool useTieBreakers, Task<string>[] tieBreakers, List<ServerEndPoint> masters, int timeoutMs)
+        private static async Task<ServerEndPoint> NominatePreferredMaster(LogProxy log, ServerEndPoint[] servers, bool useTieBreakers, Task<string>[] tieBreakers, List<ServerEndPoint> masters, int timeoutMs)
         {
             Dictionary<string, int> uniques = null;
             if (useTieBreakers)
@@ -2123,7 +2123,7 @@ namespace StackExchange.Redis
             return masters[0];
         }
 
-        private ServerEndPoint SelectServerByElection(ServerEndPoint[] servers, string endpoint, LogProxy log)
+        private static ServerEndPoint SelectServerByElection(ServerEndPoint[] servers, string endpoint, LogProxy log)
         {
             if (servers == null || string.IsNullOrWhiteSpace(endpoint)) return null;
             for (int i = 0; i < servers.Length; i++)
@@ -2249,10 +2249,8 @@ namespace StackExchange.Redis
             => PrepareToPushMessageToBridge(message, processor, resultBox, ref server) ? server.TryWriteAsync(message) : new ValueTask<WriteResult>(WriteResult.NoConnectionAvailable);
 
         [Obsolete("prefer async")]
-#pragma warning disable CS0618
         private WriteResult TryPushMessageToBridgeSync<T>(Message message, ResultProcessor<T> processor, IResultBox<T> resultBox, ref ServerEndPoint server)
             => PrepareToPushMessageToBridge(message, processor, resultBox, ref server) ? server.TryWriteSync(message) : WriteResult.NoConnectionAvailable;
-#pragma warning restore CS0618
 
         /// <summary>
         /// See Object.ToString()
@@ -2780,21 +2778,15 @@ namespace StackExchange.Redis
             return tcs == null ? default(T) : await tcs.Task.ForAwait();
         }
 
-        internal Exception GetException(WriteResult result, Message message, ServerEndPoint server)
+        internal Exception GetException(WriteResult result, Message message, ServerEndPoint server) => result switch
         {
-            switch (result)
-            {
-                case WriteResult.Success: return null;
-                case WriteResult.NoConnectionAvailable:
-                    return ExceptionFactory.NoConnectionAvailable(this, message, server);
-                case WriteResult.TimeoutBeforeWrite:
-                    return ExceptionFactory.Timeout(this, "The timeout was reached before the message could be written to the output buffer, and it was not sent", message, server, result);
-                case WriteResult.WriteFailure:
-                default:
-                    return ExceptionFactory.ConnectionFailure(IncludeDetailInExceptions, ConnectionFailureType.ProtocolFailure, "An unknown error occurred when writing the message", server);
-            }
-        }
+            WriteResult.Success => null,
+            WriteResult.NoConnectionAvailable => ExceptionFactory.NoConnectionAvailable(this, message, server),
+            WriteResult.TimeoutBeforeWrite => ExceptionFactory.Timeout(this, "The timeout was reached before the message could be written to the output buffer, and it was not sent", message, server, result),
+            _ => ExceptionFactory.ConnectionFailure(IncludeDetailInExceptions, ConnectionFailureType.ProtocolFailure, "An unknown error occurred when writing the message", server),
+        };
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "CA1816:Dispose methods should call SuppressFinalize", Justification = "Intentional observation")]
         internal static void ThrowFailed<T>(TaskCompletionSource<T> source, Exception unthrownException)
         {
             try

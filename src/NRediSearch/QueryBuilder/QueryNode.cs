@@ -80,7 +80,7 @@ namespace NRediSearch.QueryBuilder
 
             if (ShouldUseParens(mode))
             {
-                sb.Append("(");
+                sb.Append('(');
             }
             var sj = new StringJoiner(sb, GetJoinString());
             foreach (var n in children)
@@ -89,7 +89,7 @@ namespace NRediSearch.QueryBuilder
             }
             if (ShouldUseParens(mode))
             {
-                sb.Append(")");
+                sb.Append(')');
             }
             return sb.ToString();
         }
