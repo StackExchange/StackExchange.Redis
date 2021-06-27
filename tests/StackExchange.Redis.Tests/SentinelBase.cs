@@ -76,7 +76,7 @@ namespace StackExchange.Redis.Tests
             {
                 while (sw.Elapsed < duration.Value)
                 {
-                    await Task.Delay(1000).ForAwait();
+                    await Task.Delay(200).ForAwait();
                     try
                     {
                         master = SentinelServerA.SentinelGetMasterAddressByName(ServiceName);
@@ -100,6 +100,8 @@ namespace StackExchange.Redis.Tests
             var replicas = SentinelServerA.SentinelGetReplicaAddresses(ServiceName);
             if (replicas.Length > 0)
             {
+                await Task.Delay(1000).ForAwait();
+                replicas = SentinelServerA.SentinelGetReplicaAddresses(ServiceName);
                 await WaitForRoleAsync(checkConn.GetServer(replicas[0]), "slave", duration.Value.Subtract(sw.Elapsed)).ForAwait();
             }
 
@@ -130,7 +132,7 @@ namespace StackExchange.Redis.Tests
                     // ignore
                 }
 
-                await Task.Delay(1000).ForAwait();
+                await Task.Delay(100).ForAwait();
             }
 
             throw new RedisException($"Timeout waiting for server ({server.EndPoint}) to have expected role (\"{role}\") assigned");
