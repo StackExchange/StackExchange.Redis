@@ -40,15 +40,13 @@ namespace StackExchange.Redis
 
         private static bool DeterminePatternBased(byte[] value, PatternMode mode)
         {
-            switch (mode)
+            return mode switch
             {
-                case PatternMode.Auto:
-                    return value != null && Array.IndexOf(value, (byte)'*') >= 0;
-                case PatternMode.Literal: return false;
-                case PatternMode.Pattern: return true;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(mode));
-            }
+                PatternMode.Auto => value != null && Array.IndexOf(value, (byte)'*') >= 0,
+                PatternMode.Literal => false,
+                PatternMode.Pattern => true,
+                _ => throw new ArgumentOutOfRangeException(nameof(mode)),
+            };
         }
 
         /// <summary>

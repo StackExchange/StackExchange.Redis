@@ -2853,13 +2853,13 @@ namespace StackExchange.Redis
         private Message GetSortedSetAddMessage(RedisKey key, RedisValue member, double score, When when, CommandFlags flags)
         {
             WhenAlwaysOrExistsOrNotExists(when);
-            switch (when)
+            return when switch
             {
-                case When.Always: return Message.Create(Database, flags, RedisCommand.ZADD, key, score, member);
-                case When.NotExists: return Message.Create(Database, flags, RedisCommand.ZADD, key, RedisLiterals.NX, score, member);
-                case When.Exists: return Message.Create(Database, flags, RedisCommand.ZADD, key, RedisLiterals.XX, score, member);
-                default: throw new ArgumentOutOfRangeException(nameof(when));
-            }
+                When.Always => Message.Create(Database, flags, RedisCommand.ZADD, key, score, member),
+                When.NotExists => Message.Create(Database, flags, RedisCommand.ZADD, key, RedisLiterals.NX, score, member),
+                When.Exists => Message.Create(Database, flags, RedisCommand.ZADD, key, RedisLiterals.XX, score, member),
+                _ => throw new ArgumentOutOfRangeException(nameof(when)),
+            };
         }
 
         private Message GetSortedSetAddMessage(RedisKey key, SortedSetEntry[] values, When when, CommandFlags flags)
@@ -2977,13 +2977,12 @@ namespace StackExchange.Redis
 
         private Message GetSortedSetCombineAndStoreCommandMessage(SetOperation operation, RedisKey destination, RedisKey[] keys, double[] weights, Aggregate aggregate, CommandFlags flags)
         {
-            RedisCommand command;
-            switch (operation)
+            var command = operation switch
             {
-                case SetOperation.Intersect: command = RedisCommand.ZINTERSTORE; break;
-                case SetOperation.Union: command = RedisCommand.ZUNIONSTORE; break;
-                default: throw new ArgumentOutOfRangeException(nameof(operation));
-            }
+                SetOperation.Intersect => RedisCommand.ZINTERSTORE,
+                SetOperation.Union => RedisCommand.ZUNIONSTORE,
+                _ => throw new ArgumentOutOfRangeException(nameof(operation)),
+            };
             if (keys == null) throw new ArgumentNullException(nameof(keys));
 
             List<RedisValue> values = null;
@@ -3484,13 +3483,13 @@ namespace StackExchange.Redis
                 }
             }
 
-            switch (when)
+            return when switch
             {
-                case When.Always: return Message.Create(Database, flags, RedisCommand.PSETEX, key, milliseconds, value);
-                case When.Exists: return Message.Create(Database, flags, RedisCommand.SET, key, value, RedisLiterals.PX, milliseconds, RedisLiterals.XX);
-                case When.NotExists: return Message.Create(Database, flags, RedisCommand.SET, key, value, RedisLiterals.PX, milliseconds, RedisLiterals.NX);
-            }
-            throw new NotSupportedException();
+                When.Always => Message.Create(Database, flags, RedisCommand.PSETEX, key, milliseconds, value),
+                When.Exists => Message.Create(Database, flags, RedisCommand.SET, key, value, RedisLiterals.PX, milliseconds, RedisLiterals.XX),
+                When.NotExists => Message.Create(Database, flags, RedisCommand.SET, key, value, RedisLiterals.PX, milliseconds, RedisLiterals.NX),
+                _ => throw new NotSupportedException(),
+            };
         }
 
         private Message IncrMessage(RedisKey key, long value, CommandFlags flags)
@@ -3511,16 +3510,13 @@ namespace StackExchange.Redis
             }
         }
 
-        private RedisCommand SetOperationCommand(SetOperation operation, bool store)
+        private RedisCommand SetOperationCommand(SetOperation operation, bool store) => operation switch
         {
-            switch (operation)
-            {
-                case SetOperation.Difference: return store ? RedisCommand.SDIFFSTORE : RedisCommand.SDIFF;
-                case SetOperation.Intersect: return store ? RedisCommand.SINTERSTORE : RedisCommand.SINTER;
-                case SetOperation.Union: return store ? RedisCommand.SUNIONSTORE : RedisCommand.SUNION;
-                default: throw new ArgumentOutOfRangeException(nameof(operation));
-            }
-        }
+            SetOperation.Difference => store ? RedisCommand.SDIFFSTORE : RedisCommand.SDIFF,
+            SetOperation.Intersect => store ? RedisCommand.SINTERSTORE : RedisCommand.SINTER,
+            SetOperation.Union => store ? RedisCommand.SUNIONSTORE : RedisCommand.SUNION,
+            _ => throw new ArgumentOutOfRangeException(nameof(operation)),
+        };
 
         private CursorEnumerable<T> TryScan<T>(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags, RedisCommand command, ResultProcessor<ScanEnumerable<T>.ScanResult> processor, out ServerEndPoint server)
         {
