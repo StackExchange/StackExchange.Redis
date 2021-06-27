@@ -88,7 +88,7 @@ namespace StackExchange.Redis
         public static RedisValue Unbox(object value)
         {
             var val = TryParse(value, out var valid);
-            if (!valid) throw new ArgumentException(nameof(value));
+            if (!valid) throw new ArgumentException("Could not parse value", nameof(value));
             return val;
         }
 

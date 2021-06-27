@@ -213,7 +213,7 @@ namespace StackExchange.Redis
             {
                 MemberTypes.Property => Expression.Property(root, (PropertyInfo)member),
                 MemberTypes.Field => Expression.Field(root, (FieldInfo)member),
-                _ => throw new ArgumentException(nameof(member)),
+                _ => throw new ArgumentException($"Member type '{member.MemberType}' isn't recognized", nameof(member)),
             };
             var keys = new List<MemberInfo>();
             var args = new List<MemberInfo>();

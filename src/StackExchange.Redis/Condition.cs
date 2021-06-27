@@ -427,7 +427,7 @@ namespace StackExchange.Redis
 
             public ExistsCondition(in RedisKey key, RedisType type, in RedisValue expectedValue, bool expectedResult)
             {
-                if (key.IsNull) throw new ArgumentException("key");
+                if (key.IsNull) throw new ArgumentNullException(nameof(key));
                 this.key = key;
                 this.type = type;
                 this.expectedValue = expectedValue;
@@ -444,7 +444,7 @@ namespace StackExchange.Redis
                         RedisType.Hash => RedisCommand.HEXISTS,
                         RedisType.Set => RedisCommand.SISMEMBER,
                         RedisType.SortedSet => RedisCommand.ZSCORE,
-                        _ => throw new ArgumentException(nameof(type)),
+                        _ => throw new ArgumentException($"Type {type} is not recognized", nameof(type)),
                     };
                 }
             }
@@ -507,7 +507,7 @@ namespace StackExchange.Redis
 
             public EqualsCondition(in RedisKey key, RedisType type, in RedisValue memberName, bool expectedEqual, in RedisValue expectedValue)
             {
-                if (key.IsNull) throw new ArgumentException("key");
+                if (key.IsNull) throw new ArgumentNullException(nameof(key));
                 this.key = key;
                 this.memberName = memberName;
                 this.expectedEqual = expectedEqual;
@@ -517,7 +517,7 @@ namespace StackExchange.Redis
                 {
                     RedisType.Hash => memberName.IsNull ? RedisCommand.GET : RedisCommand.HGET,
                     RedisType.SortedSet => RedisCommand.ZSCORE,
-                    _ => throw new ArgumentException(nameof(type)),
+                    _ => throw new ArgumentException($"Unknown type: {type}", nameof(type)),
                 };
             }
 
@@ -594,7 +594,7 @@ namespace StackExchange.Redis
             private readonly RedisKey key;
             public ListCondition(in RedisKey key, long index, bool expectedResult, in RedisValue? expectedValue)
             {
-                if (key.IsNull) throw new ArgumentException(nameof(key));
+                if (key.IsNull) throw new ArgumentNullException(nameof(key));
                 this.key = key;
                 this.index = index;
                 this.expectedResult = expectedResult;
@@ -664,7 +664,7 @@ namespace StackExchange.Redis
 
             public LengthCondition(in RedisKey key, RedisType type, int compareToResult, long expectedLength)
             {
-                if (key.IsNull) throw new ArgumentException(nameof(key));
+                if (key.IsNull) throw new ArgumentNullException(nameof(key));
                 this.key = key;
                 this.compareToResult = compareToResult;
                 this.expectedLength = expectedLength;
@@ -676,7 +676,7 @@ namespace StackExchange.Redis
                     RedisType.List => RedisCommand.LLEN,
                     RedisType.SortedSet => RedisCommand.ZCARD,
                     RedisType.String => RedisCommand.STRLEN,
-                    _ => throw new ArgumentException(nameof(type)),
+                    _ => throw new ArgumentException($"Type {type} isn't recognized", nameof(type)),
                 };
             }
 
@@ -742,7 +742,7 @@ namespace StackExchange.Redis
 
             public SortedSetRangeLengthCondition(in RedisKey key, RedisValue min, RedisValue max, int compareToResult, long expectedLength)
             {
-                if (key.IsNull) throw new ArgumentException(nameof(key));
+                if (key.IsNull) throw new ArgumentNullException(nameof(key));
                 this.key = key;
                 this.min = min;
                 this.max = max;
@@ -812,7 +812,7 @@ namespace StackExchange.Redis
             {
                 if (key.IsNull)
                 {
-                    throw new ArgumentException("key");
+                    throw new ArgumentNullException(nameof(key));
                 }
 
                 this.key = key;

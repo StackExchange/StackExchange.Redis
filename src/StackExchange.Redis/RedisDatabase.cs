@@ -746,7 +746,7 @@ namespace StackExchange.Redis
                 : base(db, flags, RedisCommand.MIGRATE, key)
             {
                 if (toServer == null) throw new ArgumentNullException(nameof(toServer));
-                if (!Format.TryGetHostPort(toServer, out string toHost, out int toPort)) throw new ArgumentException("toServer");
+                if (!Format.TryGetHostPort(toServer, out string toHost, out int toPort)) throw new ArgumentException($"Couldn't get host and port from {toServer}", nameof(toServer));
                 this.toHost = toHost;
                 this.toPort = toPort;
                 if (toDatabase < 0) throw new ArgumentOutOfRangeException(nameof(toDatabase));
