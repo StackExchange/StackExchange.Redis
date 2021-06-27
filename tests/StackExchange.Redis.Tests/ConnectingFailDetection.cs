@@ -110,7 +110,7 @@ namespace StackExchange.Redis.Tests
                 muxer.ConnectionFailed += delegate { Interlocked.Increment(ref failCount); };
                 muxer.ConnectionRestored += delegate { Interlocked.Increment(ref restoreCount); };
 
-                var db = muxer.GetDatabase();
+                muxer.GetDatabase();
                 Assert.Equal(0, Volatile.Read(ref failCount));
                 Assert.Equal(0, Volatile.Read(ref restoreCount));
 

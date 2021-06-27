@@ -5,6 +5,7 @@ using Xunit;
 
 namespace StackExchange.Redis.Tests
 {
+    [Collection(nameof(MoqDependentCollection))]
     public sealed class BatchWrapperTests
     {
         private readonly Mock<IBatch> mock;

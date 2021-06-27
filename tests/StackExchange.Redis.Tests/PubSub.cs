@@ -7,6 +7,7 @@ using System.Threading.Channels;
 using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
+// ReSharper disable AccessToModifiedClosure
 
 namespace StackExchange.Redis.Tests
 {
@@ -72,7 +73,7 @@ namespace StackExchange.Redis.Tests
                         }
                         else
                         {
-                            Log((string)channel);
+                            Log(channel);
                         }
                     }
                 }
@@ -127,7 +128,7 @@ namespace StackExchange.Redis.Tests
                 var pub = GetAnyMaster(muxer);
                 var sub = muxer.GetSubscriber();
 
-                RedisChannel key = Guid.NewGuid().ToString();
+                RedisChannel key = Me() + Guid.NewGuid();
                 HashSet<string> received = new HashSet<string>();
                 int secondHandler = 0;
                 await PingAsync(muxer, pub, sub).ForAwait();
@@ -380,7 +381,8 @@ namespace StackExchange.Redis.Tests
 
                 lock (syncLock)
                 {
-                    Task.Run(RunLoop);
+                    // Intentionally not awaited - running in parallel
+                    _ = Task.Run(RunLoop);
                     for (int i = 0; i < count; i++)
                     {
                         sub.Publish(channel, i.ToString());
@@ -408,7 +410,7 @@ namespace StackExchange.Redis.Tests
                 Log("Completion awaited.");
                 await Assert.ThrowsAsync<ChannelClosedException>(async delegate
                 {
-                    var final = await subChannel.ReadAsync().ForAwait();
+                    await subChannel.ReadAsync().ForAwait();
                 }).ForAwait();
                 Log("End of muxer.");
             }
@@ -477,7 +479,7 @@ namespace StackExchange.Redis.Tests
                 Assert.True(subChannel.Completion.IsCompleted);
                 await Assert.ThrowsAsync<ChannelClosedException>(async delegate
                 {
-                    var final = await subChannel.ReadAsync().ForAwait();
+                    await subChannel.ReadAsync().ForAwait();
                 }).ForAwait();
                 Log("End of muxer.");
             }
@@ -547,7 +549,7 @@ namespace StackExchange.Redis.Tests
                 Assert.True(subChannel.Completion.IsCompleted);
                 await Assert.ThrowsAsync<ChannelClosedException>(async delegate
                 {
-                    var final = await subChannel.ReadAsync().ForAwait();
+                    await subChannel.ReadAsync().ForAwait();
                 }).ForAwait();
                 Log("End of muxer.");
             }

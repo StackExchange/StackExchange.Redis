@@ -75,7 +75,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// The CLIENT KILL command closes a given client connection identified by ip:port.
         /// The ip:port should match a line returned by the CLIENT LIST command.
-        /// Due to the single-treaded nature of Redis, it is not possible to kill a client connection while it is executing a command.From the client point of view, the connection can never be closed in the middle of the execution of a command.However, the client will notice the connection has been closed only when the next command is sent (and results in network error).
+        /// Due to the single-threaded nature of Redis, it is not possible to kill a client connection while it is executing a command.From the client point of view, the connection can never be closed in the middle of the execution of a command.However, the client will notice the connection has been closed only when the next command is sent (and results in network error).
         /// </summary>
         /// <param name="endpoint">The endpoint of the client to kill.</param>
         /// <param name="flags">The command flags to use.</param>
@@ -85,7 +85,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// The CLIENT KILL command closes a given client connection identified by ip:port.
         /// The ip:port should match a line returned by the CLIENT LIST command.
-        /// Due to the single-treaded nature of Redis, it is not possible to kill a client connection while it is executing a command.From the client point of view, the connection can never be closed in the middle of the execution of a command.However, the client will notice the connection has been closed only when the next command is sent (and results in network error).
+        /// Due to the single-threaded nature of Redis, it is not possible to kill a client connection while it is executing a command.From the client point of view, the connection can never be closed in the middle of the execution of a command.However, the client will notice the connection has been closed only when the next command is sent (and results in network error).
         /// </summary>
         /// <param name="endpoint">The endpoint of the client to kill.</param>
         /// <param name="flags">The command flags to use.</param>
@@ -330,6 +330,7 @@ namespace StackExchange.Redis
         /// Get summary statistics associates with this server
         /// </summary>
         ServerCounters GetCounters();
+
         /// <summary>
         /// The INFO command returns information and statistics about the server in a format that is simple to parse by computers and easy to read by humans.
         /// </summary>
@@ -424,6 +425,18 @@ namespace StackExchange.Redis
         void MakeMaster(ReplicationChangeOptions options, TextWriter log = null);
 
         /// <summary>
+        /// Returns the role info for the current server.
+        /// </summary>
+        /// <remarks>https://redis.io/commands/role</remarks>
+        Role Role(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Returns the role info for the current server.
+        /// </summary>
+        /// <remarks>https://redis.io/commands/role</remarks>
+        Task<Role> RoleAsync(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Explicitly request the database to persist the current state to disk
         /// </summary>
         /// <param name="type">The method of the save (e.g. background or foreground).</param>
@@ -446,28 +459,28 @@ namespace StackExchange.Redis
         Task SaveAsync(SaveType type, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Inidicates whether the specified script is defined on the server
+        /// Indicates whether the specified script is defined on the server
         /// </summary>
         /// <param name="script">The text of the script to check for on the server.</param>
         /// <param name="flags">The command flags to use.</param>
         bool ScriptExists(string script, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Inidicates whether the specified script hash is defined on the server
+        /// Indicates whether the specified script hash is defined on the server
         /// </summary>
         /// <param name="sha1">The SHA1 of the script to check for on the server.</param>
         /// <param name="flags">The command flags to use.</param>
         bool ScriptExists(byte[] sha1, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Inidicates whether the specified script is defined on the server
+        /// Indicates whether the specified script is defined on the server
         /// </summary>
         /// <param name="script">The text of the script to check for on the server.</param>
         /// <param name="flags">The command flags to use.</param>
         Task<bool> ScriptExistsAsync(string script, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Inidicates whether the specified script hash is defined on the server
+        /// Indicates whether the specified script hash is defined on the server
         /// </summary>
         /// <param name="sha1">The SHA1 of the script to check for on the server.</param>
         /// <param name="flags">The command flags to use.</param>
@@ -624,7 +637,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Returns the number of subscribers (not counting clients subscribed to patterns) for the specified channel.
         /// </summary>
-        /// <param name="channel">The channel to get a subcriber count for.</param>
+        /// <param name="channel">The channel to get a subscriber count for.</param>
         /// <param name="flags">The command flags to use.</param>
         /// <remarks>https://redis.io/commands/pubsub</remarks>
         long SubscriptionSubscriberCount(RedisChannel channel, CommandFlags flags = CommandFlags.None);
@@ -632,7 +645,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Returns the number of subscribers (not counting clients subscribed to patterns) for the specified channel.
         /// </summary>
-        /// <param name="channel">The channel to get a subcriber count for.</param>
+        /// <param name="channel">The channel to get a subscriber count for.</param>
         /// <param name="flags">The command flags to use.</param>
         /// <remarks>https://redis.io/commands/pubsub</remarks>
         Task<long> SubscriptionSubscriberCountAsync(RedisChannel channel, CommandFlags flags = CommandFlags.None);
@@ -768,7 +781,7 @@ namespace StackExchange.Redis
         #region Sentinel
 
         /// <summary>
-        /// Returns the ip and port number of the master with that name. 
+        /// Returns the ip and port number of the master with that name.
         /// If a failover is in progress or terminated successfully for this master it returns the address and port of the promoted replica.
         /// </summary>
         /// <param name="serviceName">The sentinel service name.</param>
@@ -778,7 +791,7 @@ namespace StackExchange.Redis
         EndPoint SentinelGetMasterAddressByName(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Returns the ip and port number of the master with that name. 
+        /// Returns the ip and port number of the master with that name.
         /// If a failover is in progress or terminated successfully for this master it returns the address and port of the promoted replica.
         /// </summary>
         /// <param name="serviceName">The sentinel service name.</param>
@@ -898,7 +911,7 @@ namespace StackExchange.Redis
         Task<KeyValuePair<string, string>[][]> SentinelReplicasAsync(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Force a failover as if the master was not reachable, and without asking for agreement to other Sentinels 
+        /// Force a failover as if the master was not reachable, and without asking for agreement to other Sentinels
         /// (however a new version of the configuration will be published so that the other Sentinels will update their configurations).
         /// </summary>
         /// <param name="serviceName">The sentinel service name.</param>
@@ -907,7 +920,7 @@ namespace StackExchange.Redis
         void SentinelFailover(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Force a failover as if the master was not reachable, and without asking for agreement to other Sentinels 
+        /// Force a failover as if the master was not reachable, and without asking for agreement to other Sentinels
         /// (however a new version of the configuration will be published so that the other Sentinels will update their configurations).
         /// </summary>
         /// <param name="serviceName">The sentinel service name.</param>
@@ -1042,14 +1055,5 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="server">The server to simulate failure on.</param>
         public static void SimulateConnectionFailure(this IServer server) => (server as RedisServer)?.SimulateConnectionFailure();
-
-        public static string Role(this IServer server)
-        {
-            var result = (RedisResult[])server.Execute("ROLE");
-            if (result != null && result.Length > 0)
-                return result[0].ToString();
-
-            return null;
-        }
     }
 }

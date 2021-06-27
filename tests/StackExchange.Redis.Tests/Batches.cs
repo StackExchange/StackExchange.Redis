@@ -20,13 +20,12 @@ namespace StackExchange.Redis.Tests
                 var key = Me();
                 conn.KeyDeleteAsync(key);
                 conn.StringSetAsync(key, "batch-not-sent");
-                var tasks = new List<Task>();
                 var batch = conn.CreateBatch();
 
-                tasks.Add(batch.KeyDeleteAsync(key));
-                tasks.Add(batch.SetAddAsync(key, "a"));
-                tasks.Add(batch.SetAddAsync(key, "b"));
-                tasks.Add(batch.SetAddAsync(key, "c"));
+                batch.KeyDeleteAsync(key);
+                batch.SetAddAsync(key, "a");
+                batch.SetAddAsync(key, "b");
+                batch.SetAddAsync(key, "c");
 
                 Assert.Equal("batch-not-sent", conn.StringGet(key));
             }

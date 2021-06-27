@@ -373,7 +373,7 @@ namespace StackExchange.Redis
 
         internal bool TryGetInt64(out long value)
         {
-            if(IsNull || Payload.IsEmpty || Payload.Length > PhysicalConnection.MaxInt64TextLen)
+            if (IsNull || Payload.IsEmpty || Payload.Length > PhysicalConnection.MaxInt64TextLen)
             {
                 value = 0;
                 return false;

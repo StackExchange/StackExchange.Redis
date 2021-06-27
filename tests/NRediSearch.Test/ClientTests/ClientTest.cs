@@ -230,7 +230,7 @@ namespace NRediSearch.Test.ClientTests
             {
                 Assert.StartsWith("doc", d.Id);
                 Assert.True(d.Score != 1.0);
-                Assert.StartsWith("hello world", (string)d["title"]);
+                Assert.StartsWith("hello world", d["title"]);
             }
 
             q = new Query("hello").SetNoContent();
@@ -290,17 +290,29 @@ namespace NRediSearch.Test.ClientTests
         }
 
         [Fact]
-        public void TestAddHash()
+        public void TestIndexDefinition()
         {
             Client cl = GetClient();
-
             Schema sc = new Schema().AddTextField("title", 1.0);
-            Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions()));
+            ConfiguredIndexOptions options = new ConfiguredIndexOptions(
+                new IndexDefinition( prefixes: new string[]{cl.IndexName}));
+            Assert.True(cl.CreateIndex(sc, options));
+
             RedisKey hashKey = (string)cl.IndexName + ":foo";
             Db.KeyDelete(hashKey);
             Db.HashSet(hashKey, "title", "hello world");
 
-            Assert.True(cl.AddHash(hashKey, 1, false));
+            try
+            {
+#pragma warning disable 0618
+                Assert.True(cl.AddHash(hashKey, 1, false));
+#pragma warning restore 0618
+            }
+            catch (RedisServerException e)
+            {
+                Assert.StartsWith("ERR unknown command `FT.ADDHASH`", e.Message);
+                return; // Starting from RediSearch 2.0 this command is not supported anymore
+            }
             SearchResult res = cl.Search(new Query("hello world").SetVerbatim());
             Assert.Equal(1, res.TotalResults);
             Assert.Equal(hashKey, res.Documents[0].Id);
@@ -616,8 +628,8 @@ namespace NRediSearch.Test.ClientTests
             Suggestion suggestion = Suggestion.Builder.String("ANOTHER_WORD").Score(1).Build();
             Suggestion noMatch = Suggestion.Builder.String("_WORD MISSED").Score(1).Build();
 
-            Assert.True(cl.AddSuggestion(suggestion, false) > 0, $"{suggestion.ToString()} should of inserted at least 1");
-            Assert.True(cl.AddSuggestion(noMatch, false) > 0, $"{noMatch.ToString()} should of inserted at least 1");
+            Assert.True(cl.AddSuggestion(suggestion, false) > 0, $"{suggestion} should of inserted at least 1");
+            Assert.True(cl.AddSuggestion(noMatch, false) > 0, $"{noMatch} should of inserted at least 1");
 
             // test that with a partial part of that string will have the entire word returned SuggestionOptions.builder().build()
             Assert.Single(cl.GetSuggestions(suggestion.String.Substring(0, 3), SuggestionOptions.Builder.Fuzzy().Build()));
@@ -634,7 +646,7 @@ namespace NRediSearch.Test.ClientTests
             Client cl = GetClient();
 
             Suggestion suggestion = Suggestion.Builder.String("COUNT_ME TOO").Payload("PAYLOADS ROCK ").Score(0.2).Build();
-            Assert.True(cl.AddSuggestion(suggestion, false) > 0, $"{suggestion.ToString()} insert should of at least returned 1");
+            Assert.True(cl.AddSuggestion(suggestion, false) > 0, $"{suggestion} insert should of at least returned 1");
             Assert.True(cl.AddSuggestion(suggestion.ToBuilder().String("COUNT").Payload("My PAYLOAD is better").Build(), false) > 1, "Count single added should return more than 1");
             Assert.True(cl.AddSuggestion(suggestion.ToBuilder().String("COUNT_ANOTHER").Score(1).Payload(null).Build(), false) > 1, "Count single added should return more than 1");
 

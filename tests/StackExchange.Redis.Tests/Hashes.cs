@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Text;
 using System.Linq;
-using StackExchange.Redis;
 using Xunit;
 using Xunit.Abstractions;
 using System.Threading.Tasks;
@@ -21,17 +20,18 @@ namespace StackExchange.Redis.Tests
             {
                 var conn = muxer.GetDatabase();
                 var key = Me();
-                var t = conn.KeyDeleteAsync(key).ForAwait();
+                _ = conn.KeyDeleteAsync(key).ForAwait();
 
-                var aTasks = new Task<long>[1000];
-                var bTasks = new Task<long>[1000];
-                for (int i = 1; i < 1001; i++)
+                const int iterations = 100;
+                var aTasks = new Task<long>[iterations];
+                var bTasks = new Task<long>[iterations];
+                for (int i = 1; i < iterations + 1; i++)
                 {
                     aTasks[i - 1] = conn.HashIncrementAsync(key, "a", 1);
                     bTasks[i - 1] = conn.HashIncrementAsync(key, "b", -1);
                 }
                 await Task.WhenAll(bTasks).ForAwait();
-                for (int i = 1; i < 1001; i++)
+                for (int i = 1; i < iterations + 1; i++)
                 {
                     Assert.Equal(i, aTasks[i - 1].Result);
                     Assert.Equal(-i, bTasks[i - 1].Result);
@@ -55,7 +55,7 @@ namespace StackExchange.Redis.Tests
 
                 int count = 0;
                 // works for async
-                await foreach(var item in conn.HashScanAsync(key, pageSize: 20))
+                await foreach(var _ in conn.HashScanAsync(key, pageSize: 20))
                 {
                     count++;
                 }
@@ -63,7 +63,7 @@ namespace StackExchange.Redis.Tests
 
                 // and sync=>async (via cast)
                 count = 0;
-                await foreach (var item in (IAsyncEnumerable<HashEntry>)conn.HashScan(key, pageSize: 20))
+                await foreach (var _ in (IAsyncEnumerable<HashEntry>)conn.HashScan(key, pageSize: 20))
                 {
                     count++;
                 }
@@ -71,7 +71,7 @@ namespace StackExchange.Redis.Tests
 
                 // and sync (native)
                 count = 0;
-                foreach (var item in conn.HashScan(key, pageSize: 20))
+                foreach (var _ in conn.HashScan(key, pageSize: 20))
                 {
                     count++;
                 }
@@ -79,7 +79,7 @@ namespace StackExchange.Redis.Tests
 
                 // and async=>sync (via cast)
                 count = 0;
-                foreach (var item in (IEnumerable<HashEntry>)conn.HashScanAsync(key, pageSize: 20))
+                foreach (var _ in (IEnumerable<HashEntry>)conn.HashScanAsync(key, pageSize: 20))
                 {
                     count++;
                 }
@@ -150,7 +150,7 @@ namespace StackExchange.Redis.Tests
                 Skip.IfMissingFeature(muxer, nameof(RedisFeatures.IncrementFloat), r => r.IncrementFloat);
                 var conn = muxer.GetDatabase();
                 var key = Me();
-                var del = conn.KeyDeleteAsync(key).ForAwait();
+                _ = conn.KeyDeleteAsync(key).ForAwait();
                 var aTasks = new Task<double>[1000];
                 var bTasks = new Task<double>[1000];
                 for (int i = 1; i < 1001; i++)
@@ -185,7 +185,7 @@ namespace StackExchange.Redis.Tests
 
                     shouldMatch[guid] = value;
 
-                    var t = conn.HashIncrementAsync(key, guid.ToString(), value);
+                    _ = conn.HashIncrementAsync(key, guid.ToString(), value);
                 }
 
                 var inRedis = (await conn.HashGetAllAsync(key).ForAwait()).ToDictionary(
@@ -217,7 +217,7 @@ namespace StackExchange.Redis.Tests
 
                     shouldMatch[guid] = value;
 
-                    var t = conn.HashIncrementAsync(key, guid.ToString(), value);
+                    _ = conn.HashIncrementAsync(key, guid.ToString(), value);
                 }
 
                 foreach (var k in shouldMatch.Keys)
@@ -369,9 +369,9 @@ namespace StackExchange.Redis.Tests
                 var conn = outer.GetDatabase().CreateTransaction();
                 {
                     var hashkey = Me();
-                    var t = conn.HashSetAsync(hashkey, "key1", "val1");
-                    var t2 = conn.HashSetAsync(hashkey, "key2", "val2");
-                    var t3 = conn.HashSetAsync(hashkey, "key3", "val3");
+                    _ = conn.HashSetAsync(hashkey, "key1", "val1");
+                    _ = conn.HashSetAsync(hashkey, "key2", "val2");
+                    _ = conn.HashSetAsync(hashkey, "key3", "val3");
 
                     var s1 = conn.HashExistsAsync(hashkey, "key1");
                     var s2 = conn.HashExistsAsync(hashkey, "key2");
@@ -405,12 +405,12 @@ namespace StackExchange.Redis.Tests
             {
                 var conn = muxer.GetDatabase();
                 var hashkey = Me();
-                var del = conn.KeyDeleteAsync(hashkey).ForAwait();
+                _ = conn.KeyDeleteAsync(hashkey).ForAwait();
                 var ex0 = conn.HashExistsAsync(hashkey, "field").ForAwait();
-                var set = conn.HashSetAsync(hashkey, "field", "value").ForAwait();
+                _ = conn.HashSetAsync(hashkey, "field", "value").ForAwait();
                 var ex1 = conn.HashExistsAsync(hashkey, "field").ForAwait();
-                var del2= conn.HashDeleteAsync(hashkey, "field").ForAwait();
-                var ex2 = conn.HashExistsAsync(hashkey, "field").ForAwait();
+                _ = conn.HashDeleteAsync(hashkey, "field").ForAwait();
+                _ = conn.HashExistsAsync(hashkey, "field").ForAwait();
 
                 Assert.False(await ex0);
                 Assert.True(await ex1);
@@ -558,7 +558,7 @@ namespace StackExchange.Redis.Tests
 
                 var result0 = conn.HashGetAllAsync(hashkey);
 
-                var data = new HashEntry[] {
+                var data = new [] {
                     new HashEntry("foo", Encoding.UTF8.GetBytes("abc")),
                     new HashEntry("bar", Encoding.UTF8.GetBytes("def"))
                 };

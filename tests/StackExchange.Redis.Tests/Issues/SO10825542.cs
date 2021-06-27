@@ -19,9 +19,9 @@ namespace StackExchange.Redis.Tests.Issues
 
                 var con = muxer.GetDatabase();
                 // set the field value and expiration
-                var hsa = con.HashSetAsync(key, "field1", Encoding.UTF8.GetBytes("hello world"));
-                var kea = con.KeyExpireAsync(key, TimeSpan.FromSeconds(7200));
-                var hsa2 = con.HashSetAsync(key, "field2", "fooobar");
+                _ = con.HashSetAsync(key, "field1", Encoding.UTF8.GetBytes("hello world"));
+                _ = con.KeyExpireAsync(key, TimeSpan.FromSeconds(7200));
+                _ = con.HashSetAsync(key, "field2", "fooobar");
                 var result = await con.HashGetAllAsync(key).ForAwait();
 
                 Assert.Equal(2, result.Length);

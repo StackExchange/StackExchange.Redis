@@ -18,7 +18,7 @@ namespace StackExchange.Redis.Tests
                 db.KeyDelete(key, CommandFlags.FireAndForget);
 
                 db.SortedSetAdd(key,
-                    new SortedSetEntry[]
+                    new []
                 {
                     new SortedSetEntry("a", 0),
                     new SortedSetEntry("b", 0),
@@ -49,6 +49,10 @@ namespace StackExchange.Redis.Tests
 
                 set = db.SortedSetRangeByValue(key, "g", "aaa", Exclude.Start, Order.Descending, 1, 3);
                 Equate(set, set.Length, "e", "d", "c");
+
+                set = db.SortedSetRangeByValue(key, "e", default(RedisValue));
+                count = db.SortedSetLengthByValue(key, "e", default(RedisValue));
+                Equate(set, count, "e", "f", "g");
             }
         }
 
@@ -62,7 +66,7 @@ namespace StackExchange.Redis.Tests
                 db.KeyDelete(key, CommandFlags.FireAndForget);
 
                 db.SortedSetAdd(key,
-                    new SortedSetEntry[]
+                    new []
                 {
                     new SortedSetEntry("aaaa", 0),
                     new SortedSetEntry("b", 0),
@@ -71,7 +75,7 @@ namespace StackExchange.Redis.Tests
                     new SortedSetEntry("e", 0),
                 }, CommandFlags.FireAndForget);
                 db.SortedSetAdd(key,
-                    new SortedSetEntry[]
+                    new []
                 {
                     new SortedSetEntry("foo", 0),
                     new SortedSetEntry("zap", 0),
@@ -97,7 +101,7 @@ namespace StackExchange.Redis.Tests
             Assert.Equal(expected.Length, actual.Length);
             for (int i = 0; i < actual.Length; i++)
             {
-                Assert.Equal(expected[i], (string)actual[i]);
+                Assert.Equal(expected[i], actual[i]);
             }
         }
     }

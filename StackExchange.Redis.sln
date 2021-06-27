@@ -13,6 +13,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		Directory.Build.targets = Directory.Build.targets
 		global.json = global.json
 		NuGet.Config = NuGet.Config
+		README.md = README.md
 		docs\ReleaseNotes.md = docs\ReleaseNotes.md
 		Shared.ruleset = Shared.ruleset
 		version.json = version.json
@@ -31,6 +32,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "RedisConfigs", "RedisConfig
 		tests\RedisConfigs\start-basic.sh = tests\RedisConfigs\start-basic.sh
 		tests\RedisConfigs\start-cluster.cmd = tests\RedisConfigs\start-cluster.cmd
 		tests\RedisConfigs\start-sentinel.cmd = tests\RedisConfigs\start-sentinel.cmd
+		tests\RedisConfigs\wsl2.md = tests\RedisConfigs\wsl2.md
 	EndProjectSection
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "StackExchange.Redis", "src\StackExchange.Redis\StackExchange.Redis.csproj", "{EF84877F-59BE-41BE-9013-E765AF0BB72E}"
@@ -71,8 +73,8 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Basic", "Basic", "{38BDEEED-7BEB-4B1F-9CE0-256D63F9C502}"
 	ProjectSection(SolutionItems) = preProject
 		tests\RedisConfigs\Basic\master-6379.conf = tests\RedisConfigs\Basic\master-6379.conf
+		tests\RedisConfigs\Basic\replica-6380.conf = tests\RedisConfigs\Basic\replica-6380.conf
 		tests\RedisConfigs\Basic\secure-6381.conf = tests\RedisConfigs\Basic\secure-6381.conf
-		tests\RedisConfigs\Basic\slave-6380.conf = tests\RedisConfigs\Basic\slave-6380.conf
 	EndProjectSection
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BasicTestBaseline", "tests\BasicTestBaseline\BasicTestBaseline.csproj", "{8FDB623D-779B-4A84-BC6B-75106E41D8A4}"
@@ -82,7 +84,7 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Failover", "Failover", "{D082703F-1652-4C35-840D-7D377F6B9979}"
 	ProjectSection(SolutionItems) = preProject
 		tests\RedisConfigs\Failover\master-6382.conf = tests\RedisConfigs\Failover\master-6382.conf
-		tests\RedisConfigs\Failover\slave-6383.conf = tests\RedisConfigs\Failover\slave-6383.conf
+		tests\RedisConfigs\Failover\replica-6383.conf = tests\RedisConfigs\Failover\replica-6383.conf
 	EndProjectSection
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "StackExchange.Redis.Server", "toys\StackExchange.Redis.Server\StackExchange.Redis.Server.csproj", "{8375813E-FBAF-4DA3-A2C7-E4645B39B931}"
@@ -118,6 +120,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{153A10E4-E
 		docs\PubSubOrder.md = docs\PubSubOrder.md
 		docs\ReleaseNotes.md = docs\ReleaseNotes.md
 		docs\Scripting.md = docs\Scripting.md
+		docs\Server.md = docs\Server.md
 		docs\Testing.md = docs\Testing.md
 		docs\ThreadTheft.md = docs\ThreadTheft.md
 		docs\Timeouts.md = docs\Timeouts.md
@@ -132,6 +135,12 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Docker", "Docker", "{A9F81D
 	ProjectSection(SolutionItems) = preProject
 		tests\RedisConfigs\Docker\docker-entrypoint.sh = tests\RedisConfigs\Docker\docker-entrypoint.sh
 		tests\RedisConfigs\Docker\supervisord.conf = tests\RedisConfigs\Docker\supervisord.conf
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "RediSearch", "RediSearch", "{3FA2A7C6-DA16-4DEF-ACE0-34573A4AD430}"
+	ProjectSection(SolutionItems) = preProject
+		tests\RedisConfigs\RediSearch\redisearch-6385.conf = tests\RedisConfigs\RediSearch\redisearch-6385.conf
+		tests\RedisConfigs\RediSearch\redisearch.md = tests\RedisConfigs\RediSearch\redisearch.md
 	EndProjectSection
 EndProject
 Global
@@ -206,6 +215,7 @@ Global
 		{153A10E4-E668-41AD-9E0F-6785CE7EED66} = {3AD17044-6BFF-4750-9AC2-2CA466375F2A}
 		{D58114AE-4998-4647-AFCA-9353D20495AE} = {E25031D3-5C64-430D-B86F-697B66816FD8}
 		{A9F81DA3-DA82-423E-A5DD-B11C37548E06} = {96E891CD-2ED7-4293-A7AB-4C6F5D8D2B05}
+		{3FA2A7C6-DA16-4DEF-ACE0-34573A4AD430} = {96E891CD-2ED7-4293-A7AB-4C6F5D8D2B05}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {193AA352-6748-47C1-A5FC-C9AA6B5F000B}

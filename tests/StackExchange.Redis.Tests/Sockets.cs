@@ -14,7 +14,7 @@ namespace StackExchange.Redis.Tests
             const int count = 2000;
             for (var i = 0; i < count; i++)
             {
-                using (var conn = Create(clientName: "Test: " + i))
+                using (var _ = Create(clientName: "Test: " + i))
                 {
                     // Intentionally just creating and disposing to leak sockets here
                     // ...so we can figure out what's happening.

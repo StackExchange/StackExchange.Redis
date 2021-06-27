@@ -98,7 +98,7 @@ namespace StackExchange.Redis
             Trace("Connecting...");
             _socket = SocketManager.CreateSocket(endpoint);
             bridge.Multiplexer.OnConnecting(endpoint, bridge.ConnectionType);
-            log?.WriteLine($"BeginConnect: {Format.ToString(endpoint)}");
+            log?.WriteLine($"{Format.ToString(endpoint)}: BeginConnectAsync");
 
             CancellationTokenSource timeoutSource = null;
             try
@@ -142,7 +142,7 @@ namespace StackExchange.Redis
                         }
                         else if (await ConnectedAsync(x, log, bridge.Multiplexer.SocketManager).ForAwait())
                         {
-                            log?.WriteLine("Starting read");
+                            log?.WriteLine($"{Format.ToString(endpoint)}: Starting read");
                             try
                             {
                                 StartReading();
@@ -162,7 +162,7 @@ namespace StackExchange.Redis
                     }
                     catch (ObjectDisposedException)
                     {
-                        log?.WriteLine("(socket shutdown)");
+                        log?.WriteLine($"{Format.ToString(endpoint)}: (socket shutdown)");
                         try { RecordConnectionFailed(ConnectionFailureType.UnableToConnect, isInitialConnect: true); }
                         catch (Exception inner)
                         {
@@ -180,13 +180,9 @@ namespace StackExchange.Redis
                     }
                 }
             }
-            catch (NotImplementedException ex)
+            catch (NotImplementedException ex) when (!(endpoint is IPEndPoint))
             {
-                if (!(endpoint is IPEndPoint))
-                {
-                    throw new InvalidOperationException("BeginConnect failed with NotImplementedException; consider using IP endpoints, or enable ResolveDns in the configuration", ex);
-                }
-                throw;
+                throw new InvalidOperationException("BeginConnect failed with NotImplementedException; consider using IP endpoints, or enable ResolveDns in the configuration", ex);
             }
             finally
             {
@@ -269,6 +265,7 @@ namespace StackExchange.Redis
             }
             OnCloseEcho();
             _arena.Dispose();
+            _reusableFlushSyncTokenSource?.Dispose();
             GC.SuppressFinalize(this);
         }
 
@@ -872,14 +869,30 @@ namespace StackExchange.Redis
             }
         }
 
+        CancellationTokenSource _reusableFlushSyncTokenSource;
         [Obsolete("this is an anti-pattern; work to reduce reliance on this is in progress")]
         internal WriteResult FlushSync(bool throwOnFailure, int millisecondsTimeout)
         {
-            var flush = FlushAsync(throwOnFailure);
+            var cts = _reusableFlushSyncTokenSource ??= new CancellationTokenSource();
+            var flush = FlushAsync(throwOnFailure, cts.Token);
             if (!flush.IsCompletedSuccessfully)
             {
-                // here lies the evil
-                if (!flush.AsTask().Wait(millisecondsTimeout)) ThrowTimeout();
+                // only schedule cancellation if it doesn't complete synchronously; at this point, it is doomed
+                _reusableFlushSyncTokenSource = null;
+                cts.CancelAfter(TimeSpan.FromMilliseconds(millisecondsTimeout));
+                try
+                {
+                    // here lies the evil
+                    flush.AsTask().Wait();
+                }
+                catch (AggregateException ex) when (ex.InnerExceptions.Any(e => e is TaskCanceledException))
+                {
+                    ThrowTimeout();
+                }
+                finally
+                {
+                    cts.Dispose();
+                }
             }
             return flush.Result;
 
@@ -891,7 +904,7 @@ namespace StackExchange.Redis
                 throw new TimeoutException("timeout while synchronously flushing");
             }
         }
-        internal ValueTask<WriteResult> FlushAsync(bool throwOnFailure)
+        internal ValueTask<WriteResult> FlushAsync(bool throwOnFailure, CancellationToken cancellationToken = default)
         {
             var tmp = _ioPipe?.Output;
             if (tmp == null) return new ValueTask<WriteResult>(WriteResult.NoConnectionAvailable);
@@ -903,7 +916,7 @@ namespace StackExchange.Redis
                 long flushBytes = -1;
                 if (_ioPipe is SocketConnection sc) flushBytes = sc.GetCounters().BytesWaitingToBeSent;
 #endif
-                var flush = tmp.FlushAsync();
+                var flush = tmp.FlushAsync(cancellationToken);
                 if (!flush.IsCompletedSuccessfully) return FlushAsync_Awaited(this, flush, throwOnFailure
 #if DEBUG
                     , startFlush, flushBytes
@@ -1333,7 +1346,7 @@ namespace StackExchange.Redis
 
                 _ioPipe = pipe;
 
-                log?.WriteLine($"Connected {bridge}");
+                log?.WriteLine($"{bridge?.Name}: Connected ");
 
                 await bridge.OnConnectedAsync(this, log).ForAwait();
                 return true;

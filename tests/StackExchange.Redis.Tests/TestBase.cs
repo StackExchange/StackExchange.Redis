@@ -35,6 +35,11 @@ namespace StackExchange.Redis.Tests
             ClearAmbientFailures();
         }
 
+        /// <summary> Useful to temporarily get extra worker threads for an otherwise synchronous test case which will 'block' the thread, on a synchronous API like Task.Wait() or Task.Result</summary>
+        /// <note> Must NOT be used for test cases which *goes async*, as then the inferred return type will become 'async void', and we will fail to observe the result of  the async part</note>
+        /// <remarks>See 'ConnectFailTimeout' class for example usage.</remarks>
+        protected Task RunBlockingSynchronousWithExtraThreadAsync(Action testScenario) => Task.Factory.StartNew(testScenario, CancellationToken.None, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+
         protected void LogNoTime(string message) => LogNoTime(Writer, message);
         internal static void LogNoTime(TextWriter output, string message)
         {
@@ -88,7 +93,7 @@ namespace StackExchange.Redis.Tests
 #if VERBOSE
         protected const int AsyncOpsQty = 100, SyncOpsQty = 10;
 #else
-        protected const int AsyncOpsQty = 10000, SyncOpsQty = 10000;
+        protected const int AsyncOpsQty = 2000, SyncOpsQty = 2000;
 #endif
 
         static TestBase()
@@ -237,7 +242,7 @@ namespace StackExchange.Redis.Tests
             {
                 configuration = GetConfiguration();
                 if (configuration == _fixture.Configuration)
-                {   // only if the 
+                {   // only if the
                     return _fixture.Connection;
                 }
             }
@@ -311,8 +316,7 @@ namespace StackExchange.Redis.Tests
                         {
                             GC.KeepAlive(x.Exception);
                         }
-                        catch
-                        { }
+                        catch { /* No boom */ }
                     }, TaskContinuationOptions.OnlyOnFaulted);
                     throw new TimeoutException("Connect timeout");
                 }
@@ -413,7 +417,9 @@ namespace StackExchange.Redis.Tests
                 for (int i = 0; i < threads; i++)
                 {
                     var thd = threadArr[i];
+#pragma warning disable SYSLIB0006 // yes, we know
                     if (thd.IsAlive) thd.Abort();
+#pragma warning restore SYSLIB0006 // yes, we know
                 }
                 throw new TimeoutException();
             }

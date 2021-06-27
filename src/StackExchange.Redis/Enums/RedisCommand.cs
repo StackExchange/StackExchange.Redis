@@ -122,6 +122,7 @@
         RENAMENX,
         REPLICAOF,
         RESTORE,
+        ROLE,
         RPOP,
         RPOPLPUSH,
         RPUSH,

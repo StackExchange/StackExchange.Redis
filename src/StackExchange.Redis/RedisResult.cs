@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 
 namespace StackExchange.Redis
 {
@@ -448,7 +449,7 @@ namespace StackExchange.Redis
             internal override string[] AsStringArray() => throw new RedisServerException(value);
         }
 
-        private sealed class SingleRedisResult : RedisResult
+        private sealed class SingleRedisResult : RedisResult, IConvertible
         {
             private readonly RedisValue _value;
             public override ResultType Type { get; }
@@ -486,6 +487,90 @@ namespace StackExchange.Redis
             internal override RedisValue[] AsRedisValueArray() => new[] { AsRedisValue() };
             internal override string AsString() => (string)_value;
             internal override string[] AsStringArray() => new[] { AsString() };
+            TypeCode IConvertible.GetTypeCode() => TypeCode.Object;
+            bool IConvertible.ToBoolean(IFormatProvider provider) => AsBoolean();
+            char IConvertible.ToChar(IFormatProvider provider)
+            {
+                checked { return (char)AsInt32(); }
+            }
+            sbyte IConvertible.ToSByte(IFormatProvider provider)
+            {
+                checked { return (sbyte)AsInt32(); }
+            }
+            byte IConvertible.ToByte(IFormatProvider provider)
+            {
+                checked { return (byte)AsInt32(); }
+            }
+            short IConvertible.ToInt16(IFormatProvider provider)
+            {
+                checked { return (short)AsInt32(); }
+            }
+            ushort IConvertible.ToUInt16(IFormatProvider provider)
+            {
+                checked { return (ushort)AsInt32(); }
+            }
+            int IConvertible.ToInt32(IFormatProvider provider) => AsInt32();
+            uint IConvertible.ToUInt32(IFormatProvider provider)
+            {
+                checked { return (uint)AsInt64(); }
+            }
+            long IConvertible.ToInt64(IFormatProvider provider) => AsInt64();
+            ulong IConvertible.ToUInt64(IFormatProvider provider)
+            {
+                checked { return (ulong)AsInt64(); }
+            }
+            float IConvertible.ToSingle(IFormatProvider provider) => (float)AsDouble();
+            double IConvertible.ToDouble(IFormatProvider provider) => AsDouble();
+            decimal IConvertible.ToDecimal(IFormatProvider provider)
+            {
+                // we can do this safely *sometimes*
+                if (Type == ResultType.Integer) return AsInt64();
+                // but not always
+                ThrowNotSupported();
+                return default;
+            }
+            DateTime IConvertible.ToDateTime(IFormatProvider provider) { ThrowNotSupported(); return default; }
+            string IConvertible.ToString(IFormatProvider provider) => AsString();
+            object IConvertible.ToType(Type conversionType, IFormatProvider provider)
+            {
+                switch (System.Type.GetTypeCode(conversionType))
+                {
+                    case TypeCode.Boolean:
+                        return AsBoolean();
+                    case TypeCode.Char:
+                        checked { return (char)AsInt32(); }
+                    case TypeCode.SByte:
+                        checked { return (sbyte)AsInt32(); }
+                    case TypeCode.Byte:
+                        checked { return (byte)AsInt32(); }
+                    case TypeCode.Int16:
+                        checked { return (short)AsInt32(); }
+                    case TypeCode.UInt16:
+                        checked { return (ushort)AsInt32(); }
+                    case TypeCode.Int32:
+                        return AsInt32();
+                    case TypeCode.UInt32:
+                        checked { return (uint)AsInt64(); }
+                    case TypeCode.Int64:
+                        return AsInt64();
+                    case TypeCode.UInt64:
+                        checked { return (ulong)AsInt64(); }
+                    case TypeCode.Single:
+                        return (float)AsDouble();
+                    case TypeCode.Double:
+                        return AsDouble();
+                    case TypeCode.Decimal:
+                        if (Type == ResultType.Integer) return AsInt64();
+                        break;
+                    case TypeCode.String:
+                        return AsString();
+                }
+                ThrowNotSupported();
+                return default;
+            }
+
+            void ThrowNotSupported([CallerMemberName] string caller = null)
+                => throw new NotSupportedException($"{typeof(SingleRedisResult).FullName} does not support {nameof(IConvertible)}.{caller} with value '{AsString()}'");
         }
     }
 }

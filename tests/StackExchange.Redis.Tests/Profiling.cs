@@ -32,7 +32,7 @@ namespace StackExchange.Redis.Tests
                 var result = db.ScriptEvaluate(LuaScript.Prepare("return redis.call('get', @key)"), new { key = (RedisKey)key });
                 Assert.Equal("world", result.AsString());
                 var val = db.StringGet(key);
-                Assert.Equal("world", (string)val);
+                Assert.Equal("world", val);
                 var s = (string)db.Execute("ECHO", "fii");
                 Assert.Equal("fii", s);
 
@@ -261,7 +261,7 @@ namespace StackExchange.Redis.Tests
                     Assert.True(e.MoveNext());
                     var j = e.Current;
 
-                    Assert.True(object.ReferenceEquals(i, j));
+                    Assert.True(ReferenceEquals(i, j));
                 }
 
                 Assert.Equal(OuterLoop, res.Count(r => r.Command == "GET" && r.Db > 0));

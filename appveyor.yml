@@ -1,15 +1,13 @@
 image:
 - Visual Studio 2019
-- Ubuntu
 
 init:
   - git config --global core.autocrlf input
 
-services: 
-- docker 
-
 install:
 - cmd: >-
+    choco install dotnet-sdk --version 5.0.100
+
     cd tests\RedisConfigs\3.0.503
 
     redis-server.exe --service-install --service-name "redis-6379" "..\Basic\master-6379.conf"
@@ -45,18 +43,6 @@ install:
     redis-server.exe --service-install --service-name "redis-26381" "..\Sentinel\sentinel-26381.conf" --sentinel
 
     cd ..\..\..
-- sh: >-
-    sudo curl -L https://github.com/docker/compose/releases/download/1.26.0/docker-compose-`uname -s`-`uname -m` -o /usr/local/bin/docker-compose
-
-    sudo chmod +x /usr/local/bin/docker-compose
-
-    sudo ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose
-
-    cd tests/RedisConfigs
-
-    docker-compose up -d
-
-    cd ../..
 - ps: >-
     if (Get-Command "Start-Service" -errorAction SilentlyContinue) {
       Start-Service redis-*

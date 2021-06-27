@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Buffers.Text;
 using System.Globalization;
 using System.Net;
+using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Text;
 
@@ -78,17 +79,21 @@ namespace StackExchange.Redis
 
         internal static string ToString(EndPoint endpoint)
         {
-            if (endpoint is DnsEndPoint dns)
+            switch (endpoint)
             {
-                if (dns.Port == 0) return dns.Host;
-                return dns.Host + ":" + Format.ToString(dns.Port);
+                case DnsEndPoint dns:
+                    if (dns.Port == 0) return dns.Host;
+                    return dns.Host + ":" + Format.ToString(dns.Port);
+                case IPEndPoint ip:
+                    if (ip.Port == 0) return ip.Address.ToString();
+                    return ip.Address + ":" + Format.ToString(ip.Port);
+#if UNIX_SOCKET
+                case UnixDomainSocketEndPoint uds:
+                    return "!" + uds.ToString();
+#endif
+                default:
+                    return endpoint?.ToString() ?? "";
             }
-            if (endpoint is IPEndPoint ip)
-            {
-                if (ip.Port == 0) return ip.Address.ToString();
-                return ip.Address + ":" + Format.ToString(ip.Port);
-            }
-            return endpoint?.ToString() ?? "";
         }
 
         internal static string ToStringHostOnly(EndPoint endpoint)
@@ -229,10 +234,20 @@ namespace StackExchange.Redis
             // Link: https://github.com/aspnet/BasicMiddleware/blob/f320511b63da35571e890d53f3906c7761cd00a1/src/Microsoft.AspNetCore.HttpOverrides/Internal/IPEndPointParser.cs#L8
             // Copyright (c) .NET Foundation. All rights reserved.
             // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
-            string addressPart = null;
+            string addressPart;
             string portPart = null;
             if (string.IsNullOrEmpty(addressWithPort)) return null;
 
+            if (addressWithPort[0]=='!')
+            {
+                if (addressWithPort.Length == 1) return null;
+
+#if UNIX_SOCKET
+                return new UnixDomainSocketEndPoint(addressWithPort.Substring(1));
+#else
+                throw new PlatformNotSupportedException("Unix domain sockets require .NET Core 3 or above");
+#endif
+            }
             var lastColonIndex = addressWithPort.LastIndexOf(':');
             if (lastColonIndex > 0)
             {

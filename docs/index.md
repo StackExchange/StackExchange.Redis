@@ -30,6 +30,7 @@ PM> Install-Package StackExchange.Redis
 Documentation
 ---
 
+- [Server](Server) - running a redis server
 - [Basic Usage](Basics) - getting started and basic usage
 - [Configuration](Configuration) - options available when connecting to redis
 - [Pipelines and Multiplexers](PipelinesMultiplexers) - what is a multiplexer?

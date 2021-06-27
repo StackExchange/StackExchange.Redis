@@ -1,5 +1,4 @@
-﻿using System;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
@@ -19,7 +18,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create())
             {
-                RedisKey key = "MBOF";
+                RedisKey key = Me();
                 var conn = muxer.GetDatabase();
                 conn.Ping();
 
