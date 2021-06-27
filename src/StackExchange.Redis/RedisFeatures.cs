@@ -259,9 +259,20 @@ namespace StackExchange.Redis
         /// <summary>Returns the hash code for this instance.</summary>
         /// <returns>A 32-bit signed integer that is the hash code for this instance.</returns>
         public override int GetHashCode() => Version.GetHashCode();
+
         /// <summary>Indicates whether this instance and a specified object are equal.</summary>
         /// <returns>true if <paramref name="obj" /> and this instance are the same type and represent the same value; otherwise, false. </returns>
         /// <param name="obj">The object to compare with the current instance. </param>
         public override bool Equals(object obj) => obj is RedisFeatures f && f.Version == Version;
+
+        /// <summary>
+        /// Checks if 2 RedisFeatures are .Equal()
+        /// </summary>
+        public static bool operator ==(RedisFeatures left, RedisFeatures right) => left.Equals(right);
+
+        /// <summary>
+        /// Checks if 2 RedisFeatures are not .Equal()
+        /// </summary>
+        public static bool operator !=(RedisFeatures left, RedisFeatures right) => !(left == right);
     }
 }

@@ -48,6 +48,16 @@ namespace StackExchange.Redis
         /// The value that was broadcast
         /// </summary>
         public RedisValue Message { get; }
+
+        /// <summary>
+        /// Checks if 2 messages are .Equal()
+        /// </summary>
+        public static bool operator ==(ChannelMessage left, ChannelMessage right) => left.Equals(right);
+
+        /// <summary>
+        /// Checks if 2 messages are not .Equal()
+        /// </summary>
+        public static bool operator !=(ChannelMessage left, ChannelMessage right) => !(left == right);
     }
 
     /// <summary>
