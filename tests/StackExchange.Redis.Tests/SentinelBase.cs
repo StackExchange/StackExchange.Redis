@@ -39,10 +39,14 @@ namespace StackExchange.Redis.Tests
 
             for (var i = 0; i < 150; i++)
             {
-                await Task.Delay(20).ForAwait();
-                if (Conn.IsConnected && Conn.GetSentinelMasterConnection(options, Writer).IsConnected)
+                await Task.Delay(100).ForAwait();
+                if (Conn.IsConnected)
                 {
-                    break;
+                    using var checkConn = Conn.GetSentinelMasterConnection(options, Writer);
+                    if (checkConn.IsConnected)
+                    {
+                        break;
+                    }
                 }
             }
             Assert.True(Conn.IsConnected);
@@ -93,7 +97,7 @@ namespace StackExchange.Redis.Tests
                 throw new RedisException($"Master was expected to be {expectedMaster}");
             Log($"Master is {master}");
 
-            var checkConn = Conn.GetSentinelMasterConnection(ServiceOptions);
+            using var checkConn = Conn.GetSentinelMasterConnection(ServiceOptions);
 
             await WaitForRoleAsync(checkConn.GetServer(master), "master", duration.Value.Subtract(sw.Elapsed)).ForAwait();
 
