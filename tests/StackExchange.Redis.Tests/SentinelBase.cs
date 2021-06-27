@@ -80,7 +80,7 @@ namespace StackExchange.Redis.Tests
             {
                 while (sw.Elapsed < duration.Value)
                 {
-                    await Task.Delay(200).ForAwait();
+                    await Task.Delay(1000).ForAwait();
                     try
                     {
                         master = SentinelServerA.SentinelGetMasterAddressByName(ServiceName);
@@ -136,7 +136,7 @@ namespace StackExchange.Redis.Tests
                     // ignore
                 }
 
-                await Task.Delay(100).ForAwait();
+                await Task.Delay(500).ForAwait();
             }
 
             throw new RedisException($"Timeout waiting for server ({server.EndPoint}) to have expected role (\"{role}\") assigned");
