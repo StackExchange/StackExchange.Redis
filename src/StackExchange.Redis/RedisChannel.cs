@@ -38,16 +38,13 @@ namespace StackExchange.Redis
             IsPatternBased = isPatternBased;
         }
 
-        private static bool DeterminePatternBased(byte[] value, PatternMode mode)
+        private static bool DeterminePatternBased(byte[] value, PatternMode mode) => mode switch
         {
-            return mode switch
-            {
-                PatternMode.Auto => value != null && Array.IndexOf(value, (byte)'*') >= 0,
-                PatternMode.Literal => false,
-                PatternMode.Pattern => true,
-                _ => throw new ArgumentOutOfRangeException(nameof(mode)),
-            };
-        }
+            PatternMode.Auto => value != null && Array.IndexOf(value, (byte)'*') >= 0,
+            PatternMode.Literal => false,
+            PatternMode.Pattern => true,
+            _ => throw new ArgumentOutOfRangeException(nameof(mode)),
+        };
 
         /// <summary>
         /// Indicate whether two channel names are not equal
