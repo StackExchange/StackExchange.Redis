@@ -64,22 +64,6 @@ namespace StackExchange.Redis.Tests
             public int GetHashCode(string obj) => obj.GetHashCode();
         }
 
-        protected async Task DoFailoverAsync()
-        {
-            await WaitForReadyAsync();
-
-            // capture current replica
-            var replicas = SentinelServerA.SentinelGetReplicaAddresses(ServiceName);
-
-            Log("Starting failover...");
-            var sw = Stopwatch.StartNew();
-            SentinelServerA.SentinelFailover(ServiceName);
-
-            // wait until the replica becomes the master
-            await WaitForReadyAsync(expectedMaster: replicas[0]);
-            Log($"Time to failover: {sw.Elapsed}");
-        }
-
         protected async Task WaitForReadyAsync(EndPoint expectedMaster = null, bool waitForReplication = false, TimeSpan? duration = null)
         {
             duration ??= TimeSpan.FromSeconds(30);

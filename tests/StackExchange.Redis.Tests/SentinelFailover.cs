@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
@@ -45,13 +46,26 @@ namespace StackExchange.Redis.Tests
             var value = await db.StringGetAsync(key);
             Assert.Equal(expected, value);
 
+            Log("Waiting for first replication check...");
             // force read from replica, replication has some lag
             await WaitForReplicationAsync(servers.First()).ForAwait();
             value = await db.StringGetAsync(key, CommandFlags.DemandReplica);
             Assert.Equal(expected, value);
+ 
+            Log("Waiting for ready pre-failover...");
+            await WaitForReadyAsync();
 
-            // forces and verifies failover
-            await DoFailoverAsync();
+            // capture current replica
+            var replicas = SentinelServerA.SentinelGetReplicaAddresses(ServiceName);
+
+            Log("Starting failover...");
+            var sw = Stopwatch.StartNew();
+            SentinelServerA.SentinelFailover(ServiceName);
+
+            // wait until the replica becomes the master
+            Log("Waiting for ready post-failover...");
+            await WaitForReadyAsync(expectedMaster: replicas[0]);
+            Log($"Time to failover: {sw.Elapsed}");
 
             endpoints = conn.GetEndPoints();
             Assert.Equal(2, endpoints.Length);
@@ -70,6 +84,7 @@ namespace StackExchange.Redis.Tests
             value = await db.StringGetAsync(key);
             Assert.Equal(expected, value);
 
+            Log("Waiting for second replication check...");
             // force read from replica, replication has some lag
             await WaitForReplicationAsync(newMaster).ForAwait();
             value = await db.StringGetAsync(key, CommandFlags.DemandReplica);
