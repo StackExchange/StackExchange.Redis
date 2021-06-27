@@ -75,7 +75,7 @@ namespace StackExchange.Redis
                 {
                     ret.Append("ARGV[");
                     ret.Append(argIx + 1);
-                    ret.Append("]");
+                    ret.Append(']');
                 }
                 else
                 {
