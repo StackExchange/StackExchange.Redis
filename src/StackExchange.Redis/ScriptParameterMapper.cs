@@ -175,7 +175,7 @@ namespace StackExchange.Redis
                     return false;
                 }
 
-                var memberType = member is FieldInfo ? ((FieldInfo)member).FieldType : ((PropertyInfo)member).PropertyType;
+                var memberType = member is FieldInfo memberFieldInfo ? memberFieldInfo.FieldType : ((PropertyInfo)member).PropertyType;
                 if (!ConvertableTypes.Contains(memberType))
                 {
                     missingMember = null;
@@ -229,7 +229,7 @@ namespace StackExchange.Redis
                 var argName = script.Arguments[i];
                 var member = t.GetMember(argName).SingleOrDefault(m => m is PropertyInfo || m is FieldInfo);
 
-                var memberType = member is FieldInfo ? ((FieldInfo)member).FieldType : ((PropertyInfo)member).PropertyType;
+                var memberType = member is FieldInfo memberFieldInfo ? memberFieldInfo.FieldType : ((PropertyInfo)member).PropertyType;
 
                 if (memberType == typeof(RedisKey))
                 {
