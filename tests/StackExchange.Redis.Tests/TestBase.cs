@@ -361,10 +361,10 @@ namespace StackExchange.Redis.Tests
         }
 
         public static string Me([CallerFilePath] string filePath = null, [CallerMemberName] string caller = null) =>
-#if NET462
-            "net462-"
-#elif NETCOREAPP2_1
-            "netcoreapp2.1-"
+#if NET472
+            "net472-"
+#elif NETCOREAPP3_1
+            "netcoreapp3.1-"
 #else
             "unknown-"
 #endif

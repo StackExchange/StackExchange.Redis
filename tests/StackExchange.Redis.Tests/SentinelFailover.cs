@@ -20,6 +20,10 @@ namespace StackExchange.Redis.Tests
             conn.ConfigurationChanged += (s, e) => {
                 Log($"Configuration changed: {e.EndPoint}");
             };
+            var sub = conn.GetSubscriber();
+            sub.Subscribe("*", (channel, message) => {
+                Log($"Sub: {channel}, message:{message}");
+            });
 
             var db = conn.GetDatabase();
             await db.PingAsync();
