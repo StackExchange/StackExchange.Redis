@@ -187,9 +187,14 @@ namespace StackExchange.Redis
         /// <summary>
         /// Releases all resources associated with this instance
         /// </summary>
-        public void Dispose() => Dispose(true);
+        public void Dispose()
+        {
+            DisposeRefs();
+            GC.SuppressFinalize(this);
+            OnDispose();
+        }
 
-        private void Dispose(bool disposing)
+        private void DisposeRefs()
         {
             // note: the scheduler *can't* be collected by itself - there will
             // be threads, and those threads will be rooting the DedicatedThreadPool;
@@ -197,17 +202,12 @@ namespace StackExchange.Redis
             var tmp = SchedulerPool;
             Scheduler = PipeScheduler.ThreadPool;
             try { tmp?.Dispose(); } catch { }
-            if (disposing)
-            {
-                GC.SuppressFinalize(this);
-                OnDispose();
-            }
         }
 
         /// <summary>
         /// Releases *appropriate* resources associated with this instance
         /// </summary>
-        ~SocketManager() => Dispose(false);
+        ~SocketManager() => DisposeRefs();
 
         internal static Socket CreateSocket(EndPoint endpoint)
         {
