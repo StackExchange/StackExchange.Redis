@@ -273,6 +273,6 @@ namespace StackExchange.Redis
         /// <summary>
         /// Checks if 2 RedisFeatures are not .Equal()
         /// </summary>
-        public static bool operator !=(RedisFeatures left, RedisFeatures right) => !(left == right);
+        public static bool operator !=(RedisFeatures left, RedisFeatures right) => !left.Equals(right);
     }
 }
