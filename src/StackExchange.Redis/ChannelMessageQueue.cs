@@ -57,8 +57,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Checks if 2 messages are not .Equal()
         /// </summary>
-        public static bool operator !=(ChannelMessage left, ChannelMessage right) => !(left == right);
-    }
+        public static bool operator !=(ChannelMessage left, ChannelMessage right) => !left.Equals(right);
 
     /// <summary>
     /// Represents a message queue of ordered pub/sub notifications
