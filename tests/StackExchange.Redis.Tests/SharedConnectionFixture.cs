@@ -326,7 +326,8 @@ namespace StackExchange.Redis.Tests
                 }
                 //Assert.True(false, $"There were {privateFailCount} private ambient exceptions.");
             }
-            TestBase.Log(output, $"Service Counts: (Scheduler) Queue: {SocketManager.Shared?.SchedulerPool?.TotalServicedByQueue.ToString()}, Pool: {SocketManager.Shared?.SchedulerPool?.TotalServicedByPool.ToString()}");
+            var pool = SocketManager.Shared?.SchedulerPool;
+            TestBase.Log(output, $"Service Counts: (Scheduler) By Queue: {pool?.TotalServicedByQueue.ToString()}, By Pool: {pool?.TotalServicedByPool.ToString()}, Workers: {pool?.WorkerCount.ToString()}, Available: {pool?.AvailableCount.ToString()}");
         }
     }
 
