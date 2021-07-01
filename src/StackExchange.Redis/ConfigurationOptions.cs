@@ -222,7 +222,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Indicates how a message would be retried on connection restore, default is NoRetry
         /// </summary>
-        public CommandRetry? CommandRetry { get { return commandRetry; } set { commandRetry = value; } }
+        public CommandRetry? CommandRetry { get; set; }
 
         /// <summary>
         /// Automatically encodes and decodes channels
@@ -452,7 +452,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Retry Queue length if  retry is enabled (no queue limit by default)
         /// </summary>
-        public int? RetryQueueLength { get { return retryQueueLength; } set { retryQueueLength = value; } }
+        public int? RetryQueueLength { get; set; }
 
         /// <summary>
         /// Parse the configuration from a comma-delimited configuration string

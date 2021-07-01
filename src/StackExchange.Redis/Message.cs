@@ -658,7 +658,7 @@ namespace StackExchange.Redis
 
         private bool TryEnqueueForConnectionRestoreRetry(Exception exception, PhysicalBridge bridge, bool pushMessageToRetryManager = false)
         {
-            if (pushMessageToRetryManager)
+            if (pushMessageToRetryManager && bridge != null)
             {
                 try
                 {
