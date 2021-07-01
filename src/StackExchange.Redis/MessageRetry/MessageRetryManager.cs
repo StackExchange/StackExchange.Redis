@@ -45,6 +45,7 @@ namespace StackExchange.Redis
         internal bool PushMessageForRetry(Message message)
         {
             bool wasEmpty;
+            if (message.IsAdmin) return false;
             lock (queue)
             {
                 int count = queue.Count;
