@@ -109,8 +109,6 @@ namespace StackExchange.Redis
                     }
                     else
                     {
-                        // reset the noredirect flag in order for retry to follow moved exception
-                        message.Flags &= ~CommandFlags.NoRedirect;
                         var result = await server.TryWriteAsync(message).ForAwait();
                         if (result != WriteResult.Success)
                         {
