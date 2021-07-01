@@ -16,7 +16,7 @@ namespace StackExchange.Redis
     /// <summary>
     /// options for a message to be retried onconnection retry
     /// </summary>
-    public enum Retry
+    public enum CommandRetry
     {
 
         /// <summary>
@@ -81,9 +81,9 @@ namespace StackExchange.Redis
                 return tmp;
             }
 
-            internal static Retry Parse(string key, string value)
+            internal static CommandRetry Parse(string key, string value)
             {
-                if (!Enum.TryParse(value, true, out Retry tmp)) throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' requires a  value; the value '{value}' is not recognised.");
+                if (!Enum.TryParse(value, true, out CommandRetry tmp)) throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' requires a  value; the value '{value}' is not recognised.");
                 return tmp;
             }
 
@@ -174,7 +174,7 @@ namespace StackExchange.Redis
 
         private Version defaultVersion;
 
-        private Retry? commandRetry;
+        private CommandRetry? commandRetry;
 
         private int? keepAlive, asyncTimeout, syncTimeout, connectTimeout, responseTimeout, writeBuffer, connectRetry, configCheckSeconds, retryQueueLength;
 
@@ -222,7 +222,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Indicates how a message would be retried on connection restore, default is NoRetry
         /// </summary>
-        public Retry? CommandRetry { get { return commandRetry; } set { commandRetry = value; } }
+        public CommandRetry? CommandRetry { get { return commandRetry; } set { commandRetry = value; } }
 
         /// <summary>
         /// Automatically encodes and decodes channels

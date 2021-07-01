@@ -630,19 +630,19 @@ namespace StackExchange.Redis
             }
         }
 
-        internal void OverrideConnectionRestoreFlagIfNotSet(Retry? onConnectionRestore)
+        internal void OverrideConnectionRestoreFlagIfNotSet(CommandRetry? onConnectionRestore)
         {
             if (onConnectionRestore.HasValue && !IsOnConnectionRestoreFlagSet)
             {
                 switch (onConnectionRestore)
                 {
-                    case Retry.AlwaysRetry:
+                    case CommandRetry.AlwaysRetry:
                         Flags |= CommandFlags.AlwaysRetry;
                         break;
-                    case Retry.RetryIfNotYetSent:
+                    case CommandRetry.RetryIfNotYetSent:
                         Flags |= CommandFlags.RetryIfNotYetSent;
                         break;
-                    case Retry.NoRetry:
+                    case CommandRetry.NoRetry:
                     default:
                         Flags |= CommandFlags.NoRetry;
                         break;
