@@ -4,6 +4,7 @@
 
 - Sentinel potential memory leak fix in OnManagedConnectionFailed handler (#1710 via alexSatov)
 - fix issue where `GetOutstandingCount` could obscure underlying faults by faulting itself (#1792 via mgravell)
+- fix issue #1719 with backlog messages becoming reordered (#1779 via TimLovellSmith)
 
 ## 2.2.50
 
