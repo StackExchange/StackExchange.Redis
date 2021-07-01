@@ -229,8 +229,7 @@ namespace StackExchange.Redis
         public bool IsInternalCall => (Flags & InternalCallFlag) != 0;
         public bool IsOnConnectionRestoreRetryIfNotYetSent => (Flags & CommandFlags.RetryIfNotYetSent) != 0;
         public bool IsOnConnectionRestoreAlwaysRetry => (Flags & CommandFlags.AlwaysRetry) != 0;
-        public bool IsOnConnectionRestoreNoRetry => (Flags & CommandFlags.NoRetry) != 0;
-        private bool IsOnConnectionRestoreFlagSet => IsOnConnectionRestoreAlwaysRetry || IsOnConnectionRestoreRetryIfNotYetSent || IsOnConnectionRestoreNoRetry;
+
 
         public IResultBox ResultBox => resultBox;
 
@@ -630,23 +629,11 @@ namespace StackExchange.Redis
             }
         }
 
-        internal void OverrideConnectionRestoreFlagIfNotSet(CommandRetry? onConnectionRestore)
+        internal void OverrideConnectionRestoreFlagIfNotSet(CommandFlags? onConnectionRestore)
         {
-            if (onConnectionRestore.HasValue && !IsOnConnectionRestoreFlagSet)
+            if (onConnectionRestore.HasValue && (Flags & (CommandFlags.NoRetry | CommandFlags.AlwaysRetry | CommandFlags.RetryIfNotYetSent)) == 0)
             {
-                switch (onConnectionRestore)
-                {
-                    case CommandRetry.AlwaysRetry:
-                        Flags |= CommandFlags.AlwaysRetry;
-                        break;
-                    case CommandRetry.RetryIfNotYetSent:
-                        Flags |= CommandFlags.RetryIfNotYetSent;
-                        break;
-                    case CommandRetry.NoRetry:
-                    default:
-                        Flags |= CommandFlags.NoRetry;
-                        break;
-                }
+                Flags |= onConnectionRestore.Value;
             }
         }
 
