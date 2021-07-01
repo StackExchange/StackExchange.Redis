@@ -16,7 +16,7 @@ namespace StackExchange.Redis
     /// <summary>
     /// options for a message to be retried onconnection retry
     /// </summary>
-    public enum OnConnectionRestore
+    public enum Retry
     {
 
         /// <summary>
@@ -81,9 +81,9 @@ namespace StackExchange.Redis
                 return tmp;
             }
 
-            internal static OnConnectionRestore ParseOnConnectionRestore(string key, string value)
+            internal static Retry Parse(string key, string value)
             {
-                if (!Enum.TryParse(value, true, out OnConnectionRestore tmp)) throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' requires a OnConnectionRestore value; the value '{value}' is not recognised.");
+                if (!Enum.TryParse(value, true, out Retry tmp)) throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' requires a  value; the value '{value}' is not recognised.");
                 return tmp;
             }
 
@@ -120,8 +120,8 @@ namespace StackExchange.Redis
                 Version = "version",
                 WriteBuffer = "writeBuffer",
                 CheckCertificateRevocation = "checkCertificateRevocation",
-                CommandRetryOnConnectionRestore = "CommandRetryOnConnectionRestore",
-                RetryQueueLengthOnConnectionRestore = "RetryQueueLengthOnConnectionRestore";
+                CommandRetry = "CommandRetry",
+                RetryQueueLength = "RetryQueueLength";
 
 
             private static readonly Dictionary<string, string> normalizedOptions = new[]
@@ -152,8 +152,8 @@ namespace StackExchange.Redis
                 Version,
                 WriteBuffer,
                 CheckCertificateRevocation,
-                CommandRetryOnConnectionRestore,
-                RetryQueueLengthOnConnectionRestore,
+                CommandRetry,
+                RetryQueueLength,
             }.ToDictionary(x => x, StringComparer.OrdinalIgnoreCase);
 
             public static string TryNormalize(string value)
@@ -174,9 +174,9 @@ namespace StackExchange.Redis
 
         private Version defaultVersion;
 
-        private OnConnectionRestore? commandRetryOnConnectionRestore;
+        private Retry? commandRetry;
 
-        private int? keepAlive, asyncTimeout, syncTimeout, connectTimeout, responseTimeout, writeBuffer, connectRetry, configCheckSeconds, retryQueueLengthOnConnectionRestore;
+        private int? keepAlive, asyncTimeout, syncTimeout, connectTimeout, responseTimeout, writeBuffer, connectRetry, configCheckSeconds, retryQueueLength;
 
         private Proxy? proxy;
 
@@ -222,7 +222,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Indicates how a message would be retried on connection restore, default is NoRetry
         /// </summary>
-        public OnConnectionRestore? CommandRetryOnConnectionRestore { get { return commandRetryOnConnectionRestore; } set { commandRetryOnConnectionRestore = value; } }
+        public Retry? CommandRetry { get { return commandRetry; } set { commandRetry = value; } }
 
         /// <summary>
         /// Automatically encodes and decodes channels
@@ -450,9 +450,9 @@ namespace StackExchange.Redis
 #pragma warning restore RCS1128
 
         /// <summary>
-        /// Retry Queue length if onconnectionrestore retry is enabled (no queue limit by default)
+        /// Retry Queue length if  retry is enabled (no queue limit by default)
         /// </summary>
-        public int? RetryQueueLengthOnConnectionRestore { get { return retryQueueLengthOnConnectionRestore; } set { retryQueueLengthOnConnectionRestore = value; } }
+        public int? RetryQueueLength { get { return retryQueueLength; } set { retryQueueLength = value; } }
 
         /// <summary>
         /// Parse the configuration from a comma-delimited configuration string
@@ -519,8 +519,8 @@ namespace StackExchange.Redis
                 ReconnectRetryPolicy = reconnectRetryPolicy,
                 SslProtocols = SslProtocols,
                 checkCertificateRevocation = checkCertificateRevocation,
-                CommandRetryOnConnectionRestore = CommandRetryOnConnectionRestore,
-                RetryQueueLengthOnConnectionRestore = RetryQueueLengthOnConnectionRestore,
+                CommandRetry = CommandRetry,
+                RetryQueueLength = RetryQueueLength,
             };
             foreach (var item in EndPoints)
                 options.EndPoints.Add(item);
@@ -594,8 +594,8 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.ConfigCheckSeconds, configCheckSeconds);
             Append(sb, OptionKeys.ResponseTimeout, responseTimeout);
             Append(sb, OptionKeys.DefaultDatabase, DefaultDatabase);
-            Append(sb, OptionKeys.CommandRetryOnConnectionRestore, commandRetryOnConnectionRestore);
-            Append(sb, OptionKeys.RetryQueueLengthOnConnectionRestore, retryQueueLengthOnConnectionRestore);
+            Append(sb, OptionKeys.CommandRetry, commandRetry);
+            Append(sb, OptionKeys.RetryQueueLength, retryQueueLength);
             commandMap?.AppendDeltas(sb);
             return sb.ToString();
         }
@@ -673,7 +673,7 @@ namespace StackExchange.Redis
         private void Clear()
         {
             ClientName = ServiceName = User = Password = tieBreaker = sslHost = configChannel = null;
-            keepAlive = syncTimeout = asyncTimeout = connectTimeout = writeBuffer = connectRetry = configCheckSeconds = DefaultDatabase = retryQueueLengthOnConnectionRestore = null;
+            keepAlive = syncTimeout = asyncTimeout = connectTimeout = writeBuffer = connectRetry = configCheckSeconds = DefaultDatabase = retryQueueLength = null;
             allowAdmin = abortOnConnectFail = highPrioritySocketThreads = resolveDns = ssl = null;
             SslProtocols = null;
             defaultVersion = null;
@@ -684,7 +684,7 @@ namespace StackExchange.Redis
             CertificateValidation = null;
             ChannelPrefix = default(RedisChannel);
             SocketManager = null;
-            CommandRetryOnConnectionRestore = null;
+            CommandRetry = null;
         }
 
         object ICloneable.Clone() => Clone();
@@ -805,11 +805,11 @@ namespace StackExchange.Redis
                         case OptionKeys.SslProtocols:
                             SslProtocols = OptionKeys.ParseSslProtocols(key, value);
                             break;
-                        case OptionKeys.CommandRetryOnConnectionRestore:
-                            CommandRetryOnConnectionRestore = OptionKeys.ParseOnConnectionRestore(key, value);
+                        case OptionKeys.CommandRetry:
+                            CommandRetry = OptionKeys.Parse(key, value);
                             break;
-                        case OptionKeys.RetryQueueLengthOnConnectionRestore:
-                            RetryQueueLengthOnConnectionRestore = OptionKeys.ParseInt32(key, value, minValue: 0);
+                        case OptionKeys.RetryQueueLength:
+                            RetryQueueLength = OptionKeys.ParseInt32(key, value, minValue: 0);
                             break;
                         default:
                             if (!string.IsNullOrEmpty(key) && key[0] == '$')

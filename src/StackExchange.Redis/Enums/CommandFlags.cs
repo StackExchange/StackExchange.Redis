@@ -87,16 +87,16 @@ namespace StackExchange.Redis
         /// <summary>
         /// It's the default option and indicates command is never retried on connection restore
         /// </summary>
-        OnConnectionRestoreNoRetry = 2048,
+        NoRetry = 2048,
 
         /// <summary>
         /// Indicates that on connection failure this operation will be retried if it was not yet sent
         /// </summary>
-        OnConnectionRestoreRetryIfNotYetSent = 4096,
+        RetryIfNotYetSent = 4096,
 
         /// <summary>
         /// Indicates always retry command on connection restore 
         /// </summary>
-        OnConnectionRestoreAlwaysRetry = 8192
+        AlwaysRetry = 8192
     }
 }

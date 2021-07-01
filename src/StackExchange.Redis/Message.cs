@@ -93,9 +93,9 @@ namespace StackExchange.Redis
                                                        | CommandFlags.FireAndForget
                                                        | CommandFlags.NoRedirect
                                                        | CommandFlags.NoScriptCache
-                                                       | CommandFlags.OnConnectionRestoreAlwaysRetry
-                                                       | CommandFlags.OnConnectionRestoreNoRetry
-                                                       | CommandFlags.OnConnectionRestoreRetryIfNotYetSent;
+                                                       | CommandFlags.AlwaysRetry
+                                                       | CommandFlags.NoRetry
+                                                       | CommandFlags.RetryIfNotYetSent;
         private IResultBox resultBox;
 
         private ResultProcessor resultProcessor;
@@ -227,9 +227,9 @@ namespace StackExchange.Redis
 
         public bool IsFireAndForget => (Flags & CommandFlags.FireAndForget) != 0;
         public bool IsInternalCall => (Flags & InternalCallFlag) != 0;
-        public bool IsOnConnectionRestoreRetryIfNotYetSent => (Flags & CommandFlags.OnConnectionRestoreRetryIfNotYetSent) != 0;
-        public bool IsOnConnectionRestoreAlwaysRetry => (Flags & CommandFlags.OnConnectionRestoreAlwaysRetry) != 0;
-        public bool IsOnConnectionRestoreNoRetry => (Flags & CommandFlags.OnConnectionRestoreNoRetry) != 0;
+        public bool IsOnConnectionRestoreRetryIfNotYetSent => (Flags & CommandFlags.RetryIfNotYetSent) != 0;
+        public bool IsOnConnectionRestoreAlwaysRetry => (Flags & CommandFlags.AlwaysRetry) != 0;
+        public bool IsOnConnectionRestoreNoRetry => (Flags & CommandFlags.NoRetry) != 0;
         private bool IsOnConnectionRestoreFlagSet => IsOnConnectionRestoreAlwaysRetry || IsOnConnectionRestoreRetryIfNotYetSent || IsOnConnectionRestoreNoRetry;
 
         public IResultBox ResultBox => resultBox;
@@ -630,21 +630,21 @@ namespace StackExchange.Redis
             }
         }
 
-        internal void OverrideConnectionRestoreFlagIfNotSet(OnConnectionRestore? onConnectionRestore)
+        internal void OverrideConnectionRestoreFlagIfNotSet(Retry? onConnectionRestore)
         {
             if (onConnectionRestore.HasValue && !IsOnConnectionRestoreFlagSet)
             {
                 switch (onConnectionRestore)
                 {
-                    case OnConnectionRestore.AlwaysRetry:
-                        Flags |= CommandFlags.OnConnectionRestoreAlwaysRetry;
+                    case Retry.AlwaysRetry:
+                        Flags |= CommandFlags.AlwaysRetry;
                         break;
-                    case OnConnectionRestore.RetryIfNotYetSent:
-                        Flags |= CommandFlags.OnConnectionRestoreRetryIfNotYetSent;
+                    case Retry.RetryIfNotYetSent:
+                        Flags |= CommandFlags.RetryIfNotYetSent;
                         break;
-                    case OnConnectionRestore.NoRetry:
+                    case Retry.NoRetry:
                     default:
-                        Flags |= CommandFlags.OnConnectionRestoreNoRetry;
+                        Flags |= CommandFlags.NoRetry;
                         break;
                 }
             }
