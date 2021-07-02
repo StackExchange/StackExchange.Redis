@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using StackExchange.Redis.Profiling;
@@ -39,35 +40,24 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void ConnectUsesSingleSocket()
         {
-            using (var sw = new StringWriter())
+            for (int i = 0; i < 5; i++)
             {
-                try
+                using (var muxer = Create(failMessage: i + ": ", log: Writer))
                 {
-                    for (int i = 0; i < 5; i++)
+                    foreach (var ep in muxer.GetEndPoints())
                     {
-                        using (var muxer = Create(failMessage: i + ": ", log: sw))
-                        {
-                            foreach (var ep in muxer.GetEndPoints())
-                            {
-                                var srv = muxer.GetServer(ep);
-                                var counters = srv.GetCounters();
-                                Log($"{i}; interactive, {ep}, count: {counters.Interactive.SocketCount}");
-                                Log($"{i}; subscription, {ep}, count: {counters.Subscription.SocketCount}");
-                            }
-                            foreach (var ep in muxer.GetEndPoints())
-                            {
-                                var srv = muxer.GetServer(ep);
-                                var counters = srv.GetCounters();
-                                Assert.Equal(1, counters.Interactive.SocketCount);
-                                Assert.Equal(1, counters.Subscription.SocketCount);
-                            }
-                        }
+                        var srv = muxer.GetServer(ep);
+                        var counters = srv.GetCounters();
+                        Log($"{i}; interactive, {ep}, count: {counters.Interactive.SocketCount}");
+                        Log($"{i}; subscription, {ep}, count: {counters.Subscription.SocketCount}");
                     }
-                }
-                finally
-                {
-                    // Connection info goes at the end...
-                    Log(sw.ToString());
+                    foreach (var ep in muxer.GetEndPoints())
+                    {
+                        var srv = muxer.GetServer(ep);
+                        var counters = srv.GetCounters();
+                        Assert.Equal(1, counters.Interactive.SocketCount);
+                        Assert.Equal(1, counters.Subscription.SocketCount);
+                    }
                 }
             }
         }
@@ -96,17 +86,12 @@ namespace StackExchange.Redis.Tests
         public void Connect()
         {
             var expectedPorts = new HashSet<int>(Enumerable.Range(TestConfig.Current.ClusterStartPort, TestConfig.Current.ClusterServerCount));
-            using (var sw = new StringWriter())
-            using (var muxer = Create(log: sw))
+            using (var muxer = Create(log: Writer))
             {
                 var endpoints = muxer.GetEndPoints();
                 if (TestConfig.Current.ClusterServerCount != endpoints.Length)
                 {
                     PrintEndpoints(endpoints);
-                }
-                else
-                {
-                    Log(sw.ToString());
                 }
 
                 Assert.Equal(TestConfig.Current.ClusterServerCount, endpoints.Length);
@@ -461,8 +446,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void GetConfig()
         {
-            using (var sw = new StringWriter())
-            using (var muxer = Create(allowAdmin: true, log: sw))
+            using (var muxer = Create(allowAdmin: true, log: Writer))
             {
                 var endpoints = muxer.GetEndPoints();
                 var server = muxer.GetServer(endpoints[0]);
@@ -478,7 +462,6 @@ namespace StackExchange.Redis.Tests
                 {
                     Log(node.ToString());
                 }
-                Log(sw.ToString());
 
                 Assert.Equal(TestConfig.Current.ClusterServerCount, endpoints.Length);
                 Assert.Equal(TestConfig.Current.ClusterServerCount, nodes.Nodes.Count);

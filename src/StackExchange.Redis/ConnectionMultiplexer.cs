@@ -14,6 +14,7 @@ using System.Runtime.CompilerServices;
 using StackExchange.Redis.Profiling;
 using Pipelines.Sockets.Unofficial;
 using System.ComponentModel;
+using System.Runtime.InteropServices;
 
 namespace StackExchange.Redis
 {
@@ -852,6 +853,8 @@ namespace StackExchange.Redis
             {
                 try
                 {
+                    log?.WriteLine($"Connecting (async) on {RuntimeInformation.FrameworkDescription}");
+
                     muxer = CreateMultiplexer(configuration, logProxy, out connectHandler);
                     killMe = muxer;
                     Interlocked.Increment(ref muxer._connectAttemptCount);
@@ -965,7 +968,7 @@ namespace StackExchange.Redis
                 {
                     lock (SyncLock)
                     {
-                        _log?.WriteLine(message);
+                        _log?.WriteLine($"{DateTime.UtcNow:HH:mm:ss.ffff}: {message}");
                     }
                 }
             }
@@ -1141,6 +1144,8 @@ namespace StackExchange.Redis
             {
                 try
                 {
+                    log?.WriteLine($"Connecting (sync) on {RuntimeInformation.FrameworkDescription}");
+
                     muxer = CreateMultiplexer(configuration, logProxy, out connectHandler);
                     killMe = muxer;
                     Interlocked.Increment(ref muxer._connectAttemptCount);

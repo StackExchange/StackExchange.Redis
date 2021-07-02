@@ -119,7 +119,7 @@ namespace StackExchange.Redis.Tests
             Console.WriteLine("  GC LOH Mode: " + GCSettings.LargeObjectHeapCompactionMode);
             Console.WriteLine("  GC Latency Mode: " + GCSettings.LatencyMode);
         }
-        internal static string Time() => DateTime.UtcNow.ToString("HH:mm:ss.fff");
+        internal static string Time() => DateTime.UtcNow.ToString("HH:mm:ss.ffff");
         protected void OnConnectionFailed(object sender, ConnectionFailedEventArgs e)
         {
             Interlocked.Increment(ref privateFailCount);
