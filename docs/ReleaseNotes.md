@@ -1,6 +1,7 @@
 # Release Notes
 
 ## Unreleased
+- logging additions (.NET Version and timestamps) for better debugging (#1796 via philon-msft)
 
 ## 2.2.62
 
