@@ -965,7 +965,7 @@ namespace StackExchange.Redis
                 {
                     lock (SyncLock)
                     {
-                        _log?.WriteLine($"{DateTime.UtcNow.ToString("o")}: {message}");
+                        _log?.WriteLine($"{DateTime.UtcNow:HH:mm:ss.ffff}: {message}");
                     }
                 }
             }
