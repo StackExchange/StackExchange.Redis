@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Text;
 
 namespace StackExchange.Redis
@@ -8,8 +9,12 @@ namespace StackExchange.Redis
     /// </summary>
     public readonly struct RedisChannel : IEquatable<RedisChannel>
     {
+        private static readonly byte[] __keyBytes = Encoding.UTF8.GetBytes("__key");
+        private static readonly byte[] __KEYBytes = Encoding.UTF8.GetBytes("__KEY");
+
         internal readonly byte[] Value;
         internal readonly bool IsPatternBased;
+        internal readonly bool IsKeyspaceChannel;
 
         /// <summary>
         /// Indicates whether the channel-name is either null or a zero-length value
@@ -36,6 +41,15 @@ namespace StackExchange.Redis
         {
             Value = value;
             IsPatternBased = isPatternBased;
+            if (value != null && value.Length >= __keyBytes.Length)
+            {
+                var prefix = new ArraySegment<byte>(value, 0, 5);
+                IsKeyspaceChannel = prefix.SequenceEqual(__keyBytes) || prefix.SequenceEqual(__KEYBytes);
+            }
+            else
+            {
+                IsKeyspaceChannel = false;
+            }
         }
 
         private static bool DeterminePatternBased(byte[] value, PatternMode mode) => mode switch
