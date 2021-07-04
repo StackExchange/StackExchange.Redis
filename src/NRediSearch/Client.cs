@@ -55,9 +55,14 @@ namespace NRediSearch
             public enum IndexType
             {
                 /// <summary>
-                /// Used to indicates that the index should follow the keys of type Hash changes
+                /// Used to indicate that the index should follow the keys of type Hash changes
                 /// </summary>
-                Hash
+                Hash,
+                    
+                /// <summary>
+                /// Used to indicate that the index should follow the keys of type JSON changes
+                /// </summary>
+                JSON,
             }
 
             internal readonly IndexType _type = IndexType.Hash;
