@@ -163,7 +163,7 @@ namespace StackExchange.Redis
 
             var oldPerformance = performance;
 
-            oldPerformance.SetCompleted();
+            oldPerformance.SetCompleted(null);
             performance = null;
 
             CreatedDateTime = DateTime.UtcNow;
@@ -223,6 +223,7 @@ namespace StackExchange.Redis
 
         public bool IsFireAndForget => (Flags & CommandFlags.FireAndForget) != 0;
         public bool IsInternalCall => (Flags & InternalCallFlag) != 0;
+        public bool HasPerformance => performance != null;
 
         public IResultBox ResultBox => resultBox;
 
@@ -468,7 +469,7 @@ namespace StackExchange.Redis
             var currBox = Interlocked.Exchange(ref resultBox, null);
 
             // set the completion/performance data
-            performance?.SetCompleted();
+            performance?.SetCompleted(currBox);
 
             currBox?.ActivateContinuations();
         }
@@ -786,9 +787,11 @@ namespace StackExchange.Redis
             public override string CommandAndKey => Command + " " + Channel;
         }
 
-        internal abstract class CommandKeyBase : Message
+        internal abstract class CommandKeyBase : Message, IKeysMessage
         {
             protected readonly RedisKey Key;
+
+            public virtual RedisKey[] Keys => new RedisKey[] { Key };
 
             protected CommandKeyBase(int db, CommandFlags flags, RedisCommand command, in RedisKey key) : base(db, flags, command)
             {
@@ -816,9 +819,12 @@ namespace StackExchange.Redis
             public override int ArgCount => 1;
         }
 
-        private sealed class CommandChannelValueMessage : CommandChannelBase
+        private sealed class CommandChannelValueMessage : CommandChannelBase, IValuesMessage
         {
             private readonly RedisValue value;
+
+            public RedisValue[] Values => new RedisValue[] { value };
+
             public CommandChannelValueMessage(int db, CommandFlags flags, RedisCommand command, in RedisChannel channel, in RedisValue value) : base(db, flags, command, channel)
             {
                 value.AssertNotNull();
@@ -837,6 +843,9 @@ namespace StackExchange.Redis
         private sealed class CommandKeyKeyKeyMessage : CommandKeyBase
         {
             private readonly RedisKey key1, key2;
+
+            public override RedisKey[] Keys => new RedisKey[] { Key, key1, key2 };
+
             public CommandKeyKeyKeyMessage(int db, CommandFlags flags, RedisCommand command, in RedisKey key0, in RedisKey key1, in RedisKey key2) : base(db, flags, command, key0)
             {
                 key1.AssertNotNull();
@@ -865,6 +874,9 @@ namespace StackExchange.Redis
         private class CommandKeyKeyMessage : CommandKeyBase
         {
             protected readonly RedisKey key1;
+
+            public override RedisKey[] Keys => new RedisKey[] { Key, key1 };
+
             public CommandKeyKeyMessage(int db, CommandFlags flags, RedisCommand command, in RedisKey key0, in RedisKey key1) : base(db, flags, command, key0)
             {
                 key1.AssertNotNull();
@@ -888,36 +900,37 @@ namespace StackExchange.Redis
 
         private sealed class CommandKeyKeysMessage : CommandKeyBase
         {
-            private readonly RedisKey[] keys;
+            public override RedisKey[] Keys { get; }
+
             public CommandKeyKeysMessage(int db, CommandFlags flags, RedisCommand command, in RedisKey key, RedisKey[] keys) : base(db, flags, command, key)
             {
                 for (int i = 0; i < keys.Length; i++)
                 {
                     keys[i].AssertNotNull();
                 }
-                this.keys = keys;
+                Keys = keys;
             }
 
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
             {
                 var slot = serverSelectionStrategy.HashSlot(Key);
-                for (int i = 0; i < keys.Length; i++)
+                for (int i = 0; i < Keys.Length; i++)
                 {
-                    slot = serverSelectionStrategy.CombineSlot(slot, keys[i]);
+                    slot = serverSelectionStrategy.CombineSlot(slot, Keys[i]);
                 }
                 return slot;
             }
 
             protected override void WriteImpl(PhysicalConnection physical)
             {
-                physical.WriteHeader(command, keys.Length + 1);
+                physical.WriteHeader(command, Keys.Length + 1);
                 physical.Write(Key);
-                for (int i = 0; i < keys.Length; i++)
+                for (int i = 0; i < Keys.Length; i++)
                 {
-                    physical.Write(keys[i]);
+                    physical.Write(Keys[i]);
                 }
             }
-            public override int ArgCount => keys.Length + 1;
+            public override int ArgCount => Keys.Length + 1;
         }
 
         private sealed class CommandKeyKeyValueMessage : CommandKeyKeyMessage
@@ -952,60 +965,62 @@ namespace StackExchange.Redis
             public override int ArgCount => 1;
         }
 
-        private sealed class CommandValuesMessage : Message
+        private sealed class CommandValuesMessage : Message, IValuesMessage
         {
-            private readonly RedisValue[] values;
+            public RedisValue[] Values { get; }
+
             public CommandValuesMessage(int db, CommandFlags flags, RedisCommand command, RedisValue[] values) : base(db, flags, command)
             {
                 for (int i = 0; i < values.Length; i++)
                 {
                     values[i].AssertNotNull();
                 }
-                this.values = values;
+                Values = values;
             }
 
             protected override void WriteImpl(PhysicalConnection physical)
             {
-                physical.WriteHeader(command, values.Length);
-                for (int i = 0; i < values.Length; i++)
+                physical.WriteHeader(command, Values.Length);
+                for (int i = 0; i < Values.Length; i++)
                 {
-                    physical.WriteBulkString(values[i]);
+                    physical.WriteBulkString(Values[i]);
                 }
             }
-            public override int ArgCount => values.Length;
+            public override int ArgCount => Values.Length;
         }
 
-        private sealed class CommandKeysMessage : Message
+        private sealed class CommandKeysMessage : Message, IKeysMessage
         {
-            private readonly RedisKey[] keys;
+            public RedisKey[] Keys { get; }
+
             public CommandKeysMessage(int db, CommandFlags flags, RedisCommand command, RedisKey[] keys) : base(db, flags, command)
             {
                 for (int i = 0; i < keys.Length; i++)
                 {
                     keys[i].AssertNotNull();
                 }
-                this.keys = keys;
+                Keys = keys;
             }
 
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
             {
                 int slot = ServerSelectionStrategy.NoSlot;
-                for (int i = 0; i < keys.Length; i++)
+                for (int i = 0; i < Keys.Length; i++)
                 {
-                    slot = serverSelectionStrategy.CombineSlot(slot, keys[i]);
+                    slot = serverSelectionStrategy.CombineSlot(slot, Keys[i]);
                 }
                 return slot;
             }
 
             protected override void WriteImpl(PhysicalConnection physical)
             {
-                physical.WriteHeader(command, keys.Length);
-                for (int i = 0; i < keys.Length; i++)
+                physical.WriteHeader(command, Keys.Length);
+                for (int i = 0; i < Keys.Length; i++)
                 {
-                    physical.Write(keys[i]);
+                    physical.Write(Keys[i]);
                 }
             }
-            public override int ArgCount => keys.Length;
+            public override int ArgCount => Keys.Length;
         }
 
         private sealed class CommandKeyValueMessage : CommandKeyBase
@@ -1026,17 +1041,21 @@ namespace StackExchange.Redis
             public override int ArgCount => 2;
         }
 
-        private sealed class CommandKeyValuesKeyMessage : CommandKeyBase
+        private sealed class CommandKeyValuesKeyMessage : CommandKeyBase, IKeysMessage, IValuesMessage
         {
             private readonly RedisKey key1;
-            private readonly RedisValue[] values;
+
+            public override RedisKey[] Keys => new RedisKey[] { Key, key1 };
+
+            public RedisValue[] Values { get; }
+
             public CommandKeyValuesKeyMessage(int db, CommandFlags flags, RedisCommand command, in RedisKey key0, RedisValue[] values, in RedisKey key1) : base(db, flags, command, key0)
             {
                 for (int i = 0; i < values.Length; i++)
                 {
                     values[i].AssertNotNull();
                 }
-                this.values = values;
+                Values = values;
                 key1.AssertNotNull();
                 this.key1 = key1;
             }
@@ -1049,33 +1068,34 @@ namespace StackExchange.Redis
 
             protected override void WriteImpl(PhysicalConnection physical)
             {
-                physical.WriteHeader(Command, values.Length + 2);
+                physical.WriteHeader(Command, Values.Length + 2);
                 physical.Write(Key);
-                for (int i = 0; i < values.Length; i++) physical.WriteBulkString(values[i]);
+                for (int i = 0; i < Values.Length; i++) physical.WriteBulkString(Values[i]);
                 physical.Write(key1);
             }
-            public override int ArgCount => values.Length + 2;
+            public override int ArgCount => Values.Length + 2;
         }
 
-        private sealed class CommandKeyValuesMessage : CommandKeyBase
+        private sealed class CommandKeyValuesMessage : CommandKeyBase, IValuesMessage
         {
-            private readonly RedisValue[] values;
+            public RedisValue[] Values { get; }
+
             public CommandKeyValuesMessage(int db, CommandFlags flags, RedisCommand command, in RedisKey key, RedisValue[] values) : base(db, flags, command, key)
             {
                 for (int i = 0; i < values.Length; i++)
                 {
                     values[i].AssertNotNull();
                 }
-                this.values = values;
+                Values = values;
             }
 
             protected override void WriteImpl(PhysicalConnection physical)
             {
-                physical.WriteHeader(Command, values.Length + 1);
+                physical.WriteHeader(Command, Values.Length + 1);
                 physical.Write(Key);
-                for (int i = 0; i < values.Length; i++) physical.WriteBulkString(values[i]);
+                for (int i = 0; i < Values.Length; i++) physical.WriteBulkString(Values[i]);
             }
-            public override int ArgCount => values.Length + 1;
+            public override int ArgCount => Values.Length + 1;
         }
 
         private sealed class CommandKeyValueValueMessage : CommandKeyBase
@@ -1160,10 +1180,11 @@ namespace StackExchange.Redis
             public override int ArgCount => 0;
         }
 
-        private class CommandSlotValuesMessage : Message
+        private class CommandSlotValuesMessage : Message, IValuesMessage
         {
             private readonly int slot;
-            private readonly RedisValue[] values;
+
+            public RedisValue[] Values { get; }
 
             public CommandSlotValuesMessage(int db, int slot, CommandFlags flags, RedisCommand command, RedisValue[] values)
                 : base(db, flags, command)
@@ -1173,7 +1194,7 @@ namespace StackExchange.Redis
                 {
                     values[i].AssertNotNull();
                 }
-                this.values = values;
+                Values = values;
             }
 
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
@@ -1183,13 +1204,13 @@ namespace StackExchange.Redis
 
             protected override void WriteImpl(PhysicalConnection physical)
             {
-                physical.WriteHeader(command, values.Length);
-                for (int i = 0; i < values.Length; i++)
+                physical.WriteHeader(command, Values.Length);
+                for (int i = 0; i < Values.Length; i++)
                 {
-                    physical.WriteBulkString(values[i]);
+                    physical.WriteBulkString(Values[i]);
                 }
             }
-            public override int ArgCount => values.Length;
+            public override int ArgCount => Values.Length;
         }
 
         private sealed class CommandValueChannelMessage : CommandChannelBase

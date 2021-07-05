@@ -28,9 +28,34 @@ namespace StackExchange.Redis.Profiling
         string Command { get; }
 
         /// <summary>
+        /// The script to execute when EVAL command is issued.
+        /// </summary>
+        string Script { get; }
+
+        /// <summary>
+        /// The keys supplied on the command, if any.
+        /// </summary>
+        RedisKey[] Keys { get; }
+
+        /// <summary>
         /// The CommandFlags the command was submitted with.
         /// </summary>
         CommandFlags Flags { get; }
+
+        /// <summary>
+        /// The values returned by the command, if any.
+        /// </summary>
+        RedisValue[] Values { get; }
+
+        /// <summary>
+        /// Gets a value indicating whether or not the command faulted.
+        /// </summary>
+        bool IsFaulted { get; }
+
+        /// <summary>
+        /// Gets the exception that was thrown, if any.
+        /// </summary>
+        Exception Exception { get; }
 
         /// <summary>
         /// <para>
@@ -85,7 +110,7 @@ namespace StackExchange.Redis.Profiling
         /// <summary>
         /// If RetransmissionOf is not null, this property will be set to either Ask or Moved to indicate
         /// what sort of response triggered the retransmission.
-        /// 
+        ///
         /// This can be useful for determining the root cause of extra commands.
         /// </summary>
         RetransmissionReasonType? RetransmissionReason { get; }

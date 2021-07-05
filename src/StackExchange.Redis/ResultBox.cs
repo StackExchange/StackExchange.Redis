@@ -8,6 +8,7 @@ namespace StackExchange.Redis
     {
         bool IsAsync { get; }
         bool IsFaulted { get; }
+        Exception Exception { get; }
         void SetException(Exception ex);
         void ActivateContinuations();
         void Cancel();
@@ -24,6 +25,7 @@ namespace StackExchange.Redis
 
         bool IResultBox.IsAsync => false;
         bool IResultBox.IsFaulted => _exception != null;
+        Exception IResultBox.Exception => _exception;
         void IResultBox.SetException(Exception exception) => _exception = exception ?? CancelledException;
         void IResultBox.Cancel() => _exception = CancelledException;
 
@@ -94,6 +96,8 @@ namespace StackExchange.Redis
         bool IResultBox.IsAsync => true;
 
         bool IResultBox.IsFaulted => _exception != null;
+
+        Exception IResultBox.Exception => _exception;
 
         void IResultBox.Cancel() => _exception = SimpleResultBox.CancelledException;
 
