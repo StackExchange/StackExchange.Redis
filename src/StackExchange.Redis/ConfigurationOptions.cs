@@ -227,7 +227,7 @@ namespace StackExchange.Redis
             get { return commandRetry; }
             set
             {
-                if (value != CommandFlags.AlwaysRetry && value != CommandFlags.NoRetry && value != CommandFlags.RetryIfNotYetSent)
+                if (value != null && value != CommandFlags.AlwaysRetry && value != CommandFlags.NoRetry && value != CommandFlags.RetryIfNotYetSent)
                     throw new InvalidEnumArgumentException($"{nameof(CommandRetry)} can only be set to {nameof(CommandFlags.NoRetry)}, {nameof(CommandFlags.AlwaysRetry)} or {nameof(CommandFlags.RetryIfNotYetSent)}");
                 commandRetry = value;
             }
