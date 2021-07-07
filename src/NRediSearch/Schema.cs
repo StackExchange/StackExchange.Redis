@@ -49,29 +49,48 @@ namespace NRediSearch
                 if (Sortable) { args.Add("SORTABLE".Literal()); }
                 if (NoIndex) { args.Add("NOINDEX".Literal()); }
             }
+
+            public override string ToString() =>
+                $"Field{{name='{Name}', type={Type}, sortable={Sortable}, noindex={NoIndex}}}";
         }
 
         public class TextField : Field
         {
             public double Weight { get; }
             public bool NoStem { get; }
+            public string Phonetic { get; }
 
-            public TextField(string name, double weight = 1.0, bool sortable = false, bool noStem = false, bool noIndex = false) : base(name, FieldType.FullText, sortable, noIndex)
+            public TextField(string name, double weight = 1.0, bool sortable = false, bool noStem = false, bool noIndex = false, string phonetic = null) : base(name, FieldType.FullText, sortable, noIndex)
             {
                 Weight = weight;
                 NoStem = noStem;
+                Phonetic = phonetic;
             }
 
             internal override void SerializeRedisArgs(List<object> args)
             {
                 base.SerializeRedisArgs(args);
+
                 if (Weight != 1.0)
                 {
                     args.Add("WEIGHT".Literal());
                     args.Add(Weight);
                 }
-                if (NoStem) args.Add("NOSTEM".Literal());
+
+                if (NoStem)
+                {
+                    args.Add("NOSTEM".Literal());
+                }
+
+                if (Phonetic != null)
+                {
+                    args.Add("PHONETIC".Literal());
+                    args.Add(Phonetic);
+                }
             }
+
+            public override string ToString() =>
+                $"TextField{{name='{Name}', type={Type}, sortable={Sortable}, noindex={NoIndex}, weight={Weight}, nostem={NoStem}, phoenetic='{Phonetic}'}}";
         }
 
         public List<Field> Fields { get; } = new List<Field>();
@@ -147,7 +166,8 @@ namespace NRediSearch
         public class TagField : Field
         {
             public string Separator { get; }
-            internal TagField(string name, string separator = ",") : base(name, FieldType.Tag, false)
+
+            internal TagField(string name, string separator = ",", bool sortable = false) : base(name, FieldType.Tag, sortable)
             {
                 Separator = separator;
             }
@@ -161,6 +181,9 @@ namespace NRediSearch
                     args.Add(Separator);
                 }
             }
+
+            public override string ToString() =>
+                $"TagField{{name='{Name}', type={Type}, sortable={Sortable}, noindex={NoIndex}, separator='{Separator}'}}";
         }
 
         /// <summary>
@@ -174,5 +197,20 @@ namespace NRediSearch
             Fields.Add(new TagField(name, separator));
             return this;
         }
+
+        /// <summary>
+        /// Add a TAG field that can be sorted on.
+        /// </summary>
+        /// <param name="name">The field's name.</param>
+        /// <param name="seperator">The tag separator.</param>
+        /// <returns>The <see cref="Schema"/> object.</returns>
+        public Schema AddSortableTagField(string name, string seperator = ",")
+        {
+            Fields.Add(new TagField(name, seperator, true));
+            return this;
+        }
+
+        public override string ToString() =>
+            $"Schema{{fields=[{string.Join(",", Fields)}]}}";
     }
 }

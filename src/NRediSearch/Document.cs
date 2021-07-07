@@ -1,4 +1,4 @@
-﻿// .NET port of https://github.com/RedisLabs/JRediSearch/
+﻿  // .NET port of https://github.com/RedisLabs/JRediSearch/
 
 using System.Collections.Generic;
 using StackExchange.Redis;

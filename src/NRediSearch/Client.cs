@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using NRediSearch.Aggregation;
 using StackExchange.Redis;
@@ -340,6 +341,44 @@ namespace NRediSearch
         }
 
         /// <summary>
+        /// Search the index with a batch of queries. 
+        /// </summary>
+        /// <param name="queries">a <see cref="Query"/> object with the query string and optional parameters</param>
+        /// <returns>a collection of <see cref="SearchResult"/> objects with the results</returns>
+        public SearchResult[] SearchBatch(params Query[] queries)
+        {
+            var pipelinedQueryResults = new Task<SearchResult>[queries.Length];
+
+            for (var i = 0; i < queries.Length; i++)
+            {
+                pipelinedQueryResults[i] = SearchAsync(queries[i]);
+            }
+
+            Task.WaitAll(pipelinedQueryResults);
+
+            return pipelinedQueryResults.Select(qr => qr.Result).ToArray();
+        }
+
+        /// <summary>
+        /// Search the index with a batch of queries. 
+        /// </summary>
+        /// <param name="queries">a <see cref="Query"/> object with the query string and optional parameters</param>
+        /// <returns>a collection of <see cref="SearchResult"/> objects with the results</returns>
+        public async Task<SearchResult[]> SearchBatchAsync(params Query[] queries)
+        {
+            var pipelinedQueryResults = new Task<SearchResult>[queries.Length];
+
+            for (var i = 0; i < queries.Length; i++)
+            {
+                pipelinedQueryResults[i] = SearchAsync(queries[i]);
+            }
+
+            await Task.WhenAll(pipelinedQueryResults).ConfigureAwait(false);
+
+            return pipelinedQueryResults.Select(qr => qr.Result).ToArray();
+        }
+
+        /// <summary>
         /// Return Distinct Values in a TAG field
         /// </summary>
         /// <param name="fieldName">TAG field name</param>
@@ -364,9 +403,9 @@ namespace NRediSearch
         /// <param name="noSave">if set, we only index the document and do not save its contents. This allows fetching just doc ids</param>
         /// <param name="replace">if set, and the document already exists, we reindex and update it</param>
         /// <param name="payload">if set, we can save a payload in the index to be retrieved or evaluated by scoring functions on the server</param>
-        public bool AddDocument(string docId, Dictionary<string, RedisValue> fields, double score = 1.0, bool noSave = false, bool replace = false, byte[] payload = null)
+        public bool AddDocument(string docId, Dictionary<string, RedisValue> fields, double score = 1.0, bool noSave = false, bool replace = false, byte[] payload = null, string filter = null)
         {
-            var args = BuildAddDocumentArgs(docId, fields, score, noSave, replace, payload);
+            var args = BuildAddDocumentArgs(docId, fields, score, noSave, replace, payload, filter);
             return (string)DbSync.Execute("FT.ADD", args) == "OK";
         }
 
@@ -380,9 +419,9 @@ namespace NRediSearch
         /// <param name="replace">if set, and the document already exists, we reindex and update it</param>
         /// <param name="payload">if set, we can save a payload in the index to be retrieved or evaluated by scoring functions on the server</param>
         /// <returns>true if the operation succeeded, false otherwise</returns>
-        public async Task<bool> AddDocumentAsync(string docId, Dictionary<string, RedisValue> fields, double score = 1.0, bool noSave = false, bool replace = false, byte[] payload = null)
+        public async Task<bool> AddDocumentAsync(string docId, Dictionary<string, RedisValue> fields, double score = 1.0, bool noSave = false, bool replace = false, byte[] payload = null, string filter = null)
         {
-            var args = BuildAddDocumentArgs(docId, fields, score, noSave, replace, payload);
+            var args = BuildAddDocumentArgs(docId, fields, score, noSave, replace, payload, filter);
 
             try
             {
@@ -402,7 +441,7 @@ namespace NRediSearch
         /// <returns>true if the operation succeeded, false otherwise</returns>
         public bool AddDocument(Document doc, AddOptions options = null)
         {
-            var args = BuildAddDocumentArgs(doc.Id, doc._properties, doc.Score, options?.NoSave ?? false, options?.ReplacePolicy ?? AddOptions.ReplacementPolicy.None, doc.Payload, options?.Language);
+            var args = BuildAddDocumentArgs(doc.Id, doc._properties, doc.Score, options?.NoSave ?? false, options?.ReplacePolicy ?? AddOptions.ReplacementPolicy.None, doc.Payload, options?.Language, options?.Filter);
 
             try
             {
@@ -423,7 +462,7 @@ namespace NRediSearch
         /// <returns>true if the operation succeeded, false otherwise. Note that if the operation fails, an exception will be thrown</returns>
         public async Task<bool> AddDocumentAsync(Document doc, AddOptions options = null)
         {
-            var args = BuildAddDocumentArgs(doc.Id, doc._properties, doc.Score, options?.NoSave ?? false, options?.ReplacePolicy ?? AddOptions.ReplacementPolicy.None, doc.Payload, options?.Language);
+            var args = BuildAddDocumentArgs(doc.Id, doc._properties, doc.Score, options?.NoSave ?? false, options?.ReplacePolicy ?? AddOptions.ReplacementPolicy.None, doc.Payload, options?.Language, options?.Filter);
             return (string)await _db.ExecuteAsync("FT.ADD", args).ConfigureAwait(false) == "OK";
         }
 
@@ -479,9 +518,10 @@ namespace NRediSearch
             return result;
         }
 
-        private List<object> BuildAddDocumentArgs(string docId, Dictionary<string, RedisValue> fields, double score, bool noSave, bool replace, byte[] payload)
-            => BuildAddDocumentArgs(docId, fields, score, noSave, replace ? AddOptions.ReplacementPolicy.Full : AddOptions.ReplacementPolicy.None, payload, null);
-        private List<object> BuildAddDocumentArgs(string docId, Dictionary<string, RedisValue> fields, double score, bool noSave, AddOptions.ReplacementPolicy replacementPolicy, byte[] payload, string language)
+        private List<object> BuildAddDocumentArgs(string docId, Dictionary<string, RedisValue> fields, double score, bool noSave, bool replace, byte[] payload, string filter)
+            => BuildAddDocumentArgs(docId, fields, score, noSave, replace ? AddOptions.ReplacementPolicy.Full : AddOptions.ReplacementPolicy.None, payload, null, filter);
+
+        private List<object> BuildAddDocumentArgs(string docId, Dictionary<string, RedisValue> fields, double score, bool noSave, AddOptions.ReplacementPolicy replacementPolicy, byte[] payload, string language, string filter)
         {
             var args = new List<object> { _boxedIndexName, docId, score };
             if (noSave)
@@ -494,6 +534,12 @@ namespace NRediSearch
                 if (replacementPolicy == AddOptions.ReplacementPolicy.Partial)
                 {
                     args.Add("PARTIAL".Literal());
+                }
+
+                if (filter != null)
+                {
+                    args.Add("IF".Literal());
+                    args.Add(filter);
                 }
             }
             if (!string.IsNullOrWhiteSpace(language))
@@ -512,7 +558,15 @@ namespace NRediSearch
             foreach (var ent in fields)
             {
                 args.Add(ent.Key);
-                args.Add(ent.Value);
+
+                if (ent.Value == RedisValue.Null)
+                {
+                    throw new NullReferenceException($"Document attribute '{ent.Key}' is null. (Remove it, or set a value)");
+                }
+                else
+                {
+                    args.Add(ent.Value);
+                }
             }
             return args;
         }
@@ -524,8 +578,9 @@ namespace NRediSearch
         /// <param name="fields">The document fields.</param>
         /// <param name="score">The new score.</param>
         /// <param name="payload">The new payload.</param>
-        public bool ReplaceDocument(string docId, Dictionary<string, RedisValue> fields, double score = 1.0, byte[] payload = null)
-            => AddDocument(docId, fields, score, false, true, payload);
+        /// <param name="filter">replaces the document only if a boolean expression applies to the document</param>
+        public bool ReplaceDocument(string docId, Dictionary<string, RedisValue> fields, double score = 1.0, byte[] payload = null, string filter = null)
+            => AddDocument(docId, fields, score, false, true, payload, filter);
 
         /// <summary>
         /// Convenience method for calling AddDocumentAsync with replace=true.
@@ -534,8 +589,9 @@ namespace NRediSearch
         /// <param name="fields">The document fields.</param>
         /// <param name="score">The new score.</param>
         /// <param name="payload">The new payload.</param>
-        public Task<bool> ReplaceDocumentAsync(string docId, Dictionary<string, RedisValue> fields, double score = 1.0, byte[] payload = null)
-            => AddDocumentAsync(docId, fields, score, false, true, payload);
+        /// <param name="filter">replaces the document only if a boolean expression applies to the document</param>
+        public Task<bool> ReplaceDocumentAsync(string docId, Dictionary<string, RedisValue> fields, double score = 1.0, byte[] payload = null, string filter = null)
+            => AddDocumentAsync(docId, fields, score, false, true, payload, filter);
 
         /// <summary>
         /// Index a document already in redis as a HASH key.
@@ -758,13 +814,13 @@ namespace NRediSearch
         }
 
         /// <summary>
-        /// Get the size of an autoc-complete suggestion dictionary
+        /// Get the size of an auto-complete suggestion dictionary
         /// </summary>
         public long CountSuggestions()
             => (long)DbSync.Execute("FT.SUGLEN", _boxedIndexName);
 
         /// <summary>
-        /// Get the size of an autoc-complete suggestion dictionary
+        /// Get the size of an auto-complete suggestion dictionary
         /// </summary>
         public async Task<long> CountSuggestionsAsync()
             => (long)await _db.ExecuteAsync("FT.SUGLEN", _boxedIndexName).ConfigureAwait(false);
@@ -940,7 +996,7 @@ namespace NRediSearch
 
             var result = new string[suggestions.Length];
 
-            for(var i = 0; i < suggestions.Length; i++)
+            for (var i = 0; i < suggestions.Length; i++)
             {
                 result[i] = suggestions[i].String;
             }
@@ -1318,9 +1374,10 @@ namespace NRediSearch
         /// <param name="docId">The ID of the document.</param>
         /// <param name="fields">The fields and values to update.</param>
         /// <param name="score">The new score of the document.</param>
-        public bool UpdateDocument(string docId, Dictionary<string, RedisValue> fields, double score = 1.0)
+        /// <param name="filter">Updates the document only if a boolean expression applies to the document</param>
+        public bool UpdateDocument(string docId, Dictionary<string, RedisValue> fields, double score = 1.0, string filter = null)
         {
-            var args = BuildAddDocumentArgs(docId, fields, score, false, AddOptions.ReplacementPolicy.Partial, null, null);
+            var args = BuildAddDocumentArgs(docId, fields, score, false, AddOptions.ReplacementPolicy.Partial, null, null, filter);
             return (string)DbSync.Execute("FT.ADD", args) == "OK";
         }
 
@@ -1332,10 +1389,200 @@ namespace NRediSearch
         /// <param name="docId">The ID of the document.</param>
         /// <param name="fields">The fields and values to update.</param>
         /// <param name="score">The new score of the document.</param>
-        public async Task<bool> UpdateDocumentAsync(string docId, Dictionary<string, RedisValue> fields, double score = 1.0)
+        public async Task<bool> UpdateDocumentAsync(string docId, Dictionary<string, RedisValue> fields, double score = 1.0, string filter = null)
         {
-            var args = BuildAddDocumentArgs(docId, fields, score, false, AddOptions.ReplacementPolicy.Partial, null, null);
+            var args = BuildAddDocumentArgs(docId, fields, score, false, AddOptions.ReplacementPolicy.Partial, null, null, filter);
             return (string)await _db.ExecuteAsync("FT.ADD", args).ConfigureAwait(false) == "OK";
+        }
+
+        /// <summary>
+        /// Set a runtime configuration option.
+        /// </summary>
+        /// <param name="option">The option to set.</param>
+        /// <param name="value">The value for the option.</param>
+        public bool SetConfig(ConfigOption option, string value)
+        {
+            return (string)DbSync.Execute("FT.CONFIG", "SET".Literal(), option.Value, value) == "OK";
+        }
+
+        /// <summary>
+        /// Set a runtime configuration option.
+        /// </summary>
+        /// <param name="option">The option to set.</param>
+        /// <param name="value">The value for the option.</param>
+        public async Task<bool> SetConfigAsync(ConfigOption option, string value)
+        {
+            return (string)await _db.ExecuteAsync("FT.CONFIG", "SET".Literal(), option.Value, value).ConfigureAwait(false) == "OK";
+        }
+
+        /// <summary>
+        /// Get all configuration options. 
+        /// </summary>
+        public Dictionary<ConfigOption, string> GetAllConfig()
+        {
+            var rawConfiguration = (RedisResult[])DbSync.Execute("FT.CONFIG", "GET".Literal(), ConfigOption.ALL.Value);
+
+            return HandleGetAllConfigResult(rawConfiguration);
+        }
+
+        /// <summary>
+        /// Get all configuration options.
+        /// </summary>
+        public async Task<Dictionary<ConfigOption, string>> GetAllConfigAsync()
+        {
+            var rawConfiguration = (RedisResult[])await _db.ExecuteAsync("FT.CONFIG", "GET".Literal(), ConfigOption.ALL.Value).ConfigureAwait(false);
+
+            return HandleGetAllConfigResult(rawConfiguration);
+        }
+
+        /// <summary>
+        /// Get runtime configuration option value.
+        /// </summary>
+        /// <param name="option">The name of the configuration option.</param>
+        public string GetConfig(ConfigOption option)
+        {
+            var result = (RedisResult[])DbSync.Execute("FT.CONFIG", "GET".Literal(), option.Value);
+            return (string)((RedisResult[])result[0])[1];
+        }
+
+        /// <summary>
+        /// Get runtime configuration option value. 
+        /// </summary>
+        /// <param name="option">The name of the configuration option.</param>
+        public async Task<RedisValue> GetConfigAsync(ConfigOption option)
+        {
+            var result = (RedisResult[])await _db.ExecuteAsync("FT.CONFIG", "GET".Literal(), option.Value).ConfigureAwait(false);
+            return (string)((RedisResult[])result[0])[1];
+        }
+
+        /// <summary>
+        /// Add an alias to the current index. 
+        /// </summary>
+        /// <param name="name">Name of the alias.</param>
+        public bool AddAlias(string name)
+        {
+            return (string)DbSync.Execute("FT.ALIASADD", name, IndexName) == "OK";
+        }
+
+        /// <summary>
+        /// Add an alias to the current index.
+        /// </summary>
+        /// <param name="name">Name of the alias.</param>
+        public async Task<bool> AddAliasAsync(string name)
+        {
+            return (string)await _db.ExecuteAsync("FT.ALIASADD", name, IndexName).ConfigureAwait(false) == "OK";
+        }
+
+        /// <summary>
+        /// Update an alias on the current index.
+        /// </summary>
+        /// <param name="name">Name of the alias.</param>
+        public bool UpdateAlias(string name)
+        {
+            return (string)DbSync.Execute("FT.ALIASUPDATE", name, IndexName) == "OK";
+        }
+
+        /// <summary>
+        /// Update an alias on the current index.
+        /// </summary>
+        /// <param name="name">Name of the alias.</param>
+        public async Task<bool> UpdateAliasAsync(string name)
+        {
+            return (string)await _db.ExecuteAsync("FT.ALIASUPDATE", name, IndexName).ConfigureAwait(false) == "OK";
+        }
+
+        /// <summary>
+        /// Delete an alias on the current index.
+        /// </summary>
+        /// <param name="name">Name of the alias.</param>
+        public bool DeleteAlias(string name)
+        {
+            return (string)DbSync.Execute("FT.ALIASDEL", name) == "OK";
+        }
+
+        /// <summary>
+        /// Delete an alias on the current index.
+        /// </summary>
+        /// <param name="name">Name of the alias.</param>
+        public async Task<bool> DeleteAliasAsync(string name)
+        {
+            return (string)await _db.ExecuteAsync("FT.ALIASDEL", name).ConfigureAwait(false) == "OK";
+        }
+
+        /// <summary>
+        /// Create a new synonyms group.
+        /// </summary>
+        /// <param name="terms">Terms to add to the synonym group.</param>
+        /// <returns>ID of the synonym group.</returns>
+        public long AddSynonym(params string[] terms)
+        {
+            var args = new List<object> { _boxedIndexName };
+
+            args.AddRange(terms);
+
+            return (long)DbSync.Execute("FT.SYNADD", args);
+        }
+
+        /// <summary>
+        /// Create a new synonyms group.
+        /// </summary>
+        /// <param name="terms">Terms to add to the synonym group.</param>
+        /// <returns>ID of the synonym group.</returns>
+        public async Task<long> AddSynonymAsync(params string[] terms)
+        {
+            var args = new List<object> { _boxedIndexName };
+
+            args.AddRange(terms);
+
+            return (long)await _db.ExecuteAsync("FT.SYNADD", args).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Update an existing synonym group.
+        /// </summary>
+        /// <param name="groupId">ID of the synonym group.</param>
+        /// <param name="term">Additional terms to add.</param>
+        public bool UpdateSynonym(long groupId, params string[] terms)
+        {
+            var args = new List<object> { _boxedIndexName, groupId };
+
+            args.AddRange(terms);
+
+            return (string)DbSync.Execute("FT.SYNUPDATE", args) == "OK";
+        }
+
+        /// <summary>
+        /// Update an existing synonym group.
+        /// </summary>
+        /// <param name="groupId">ID of the synonym group.</param>
+        /// <param name="term">Additionals terms to add.</param>
+        public async Task<bool> UpdateSynonymAsync(long groupId, params string[] terms)
+        {
+            var args = new List<object> { _boxedIndexName, groupId };
+
+            args.AddRange(terms);
+
+            return (string)await _db.ExecuteAsync("FT.SYNUPDATE", args).ConfigureAwait(false) == "OK";
+        }
+
+        /// <summary>
+        /// Dumps the entire contents of a synonym group. 
+        /// </summary>
+        public Dictionary<string, long[]> DumpSynonym()
+        {
+            var rawResult = (RedisResult[])DbSync.Execute("FT.SYNDUMP", _boxedIndexName);
+
+            return HandleDumpSynonymResult(rawResult);
+        }
+
+        /// <summary>
+        /// Dumps the entire contents of a synonym group. 
+        /// </summary>
+        public async Task<Dictionary<string, long[]>> DumpSynonymAsync()
+        {
+            var rawResult = (RedisResult[])await _db.ExecuteAsync("FT.SYNDUMP", _boxedIndexName).ConfigureAwait(false);
+
+            return HandleDumpSynonymResult(rawResult);
         }
 
         private static Suggestion[] GetSuggestionsNoOptions(RedisResult[] results)
@@ -1400,6 +1647,39 @@ namespace NRediSearch
             }
 
             return suggestions;
+        }
+
+        private static Dictionary<ConfigOption, string> HandleGetAllConfigResult(RedisResult[] rawResult)
+        {
+            var result = new Dictionary<ConfigOption, string>();
+
+            for (var i = 0; i < rawResult.Length; i++)
+            {
+                var r = (RedisResult[])rawResult[i];
+                var option = ConfigOption.FromRedisResult(r[0]);
+
+                if (option != null)
+                {
+                    result.Add(option, (string)r[1]);
+                }
+            }
+
+            return result;
+        }
+
+        private static Dictionary<string , long[]> HandleDumpSynonymResult(RedisResult[] rawResult)
+        {
+            var result = new Dictionary<string, long[]>();
+
+            for (var i = 0; i < rawResult.Length; i += 2)
+            {
+                var term = (string)rawResult[i];
+                var ids = (long[])rawResult[i + 1];
+
+                result.Add(term, ids);
+            }
+
+            return result;
         }
     }
 }

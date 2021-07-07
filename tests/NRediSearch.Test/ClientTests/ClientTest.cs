@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Text;
 using StackExchange.Redis;
 using Xunit;
@@ -52,6 +53,44 @@ namespace NRediSearch.Test.ClientTests
             var ex = Assert.Throws<RedisServerException>(() => cl.Search(new Query("hello world")));
             Output.WriteLine("Exception: " + ex.Message);
             Assert.True(IsMissingIndexException(ex));
+        }
+
+        [Fact]
+        public void SearchBatch()
+        {
+            Client cl = GetClient();
+
+            Schema sc = new Schema().AddTextField("title", 1.0).AddTextField("body", 1.0);
+
+            Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions()));
+
+            var fields = new Dictionary<string, RedisValue>
+            {
+                {"title", "hello world" },
+                {"body", "lorem ipsum" }
+            };
+
+            for (var i = 0; i < 50; i++)
+            {
+                Assert.True(cl.AddDocument($"doc{i}", fields, (double)i / 100.0));
+            }
+
+            fields["title"] = "good night";
+
+            for (var i = 50; i < 100; i++)
+            {
+                Assert.True(cl.AddDocument($"doc{i}", fields, (double)i / 100.0));
+            }
+
+            SearchResult[] res = cl.SearchBatch(
+                new Query("hello world").Limit(0, 5).SetWithScores(),
+                new Query("good night").Limit(0, 5).SetWithScores()
+            );
+
+            Assert.Equal(2, res.Length);
+            Assert.Equal(50, res[0].TotalResults);
+            Assert.Equal(50, res[1].TotalResults);
+            Assert.Equal(5, res[0].Documents.Count);
         }
 
         [Fact]
@@ -319,6 +358,66 @@ namespace NRediSearch.Test.ClientTests
         }
 
         [Fact]
+        public void TestNullField()
+        {
+            Client cl = GetClient();
+            Schema sc = new Schema()
+                    .AddTextField("title", 1.0)
+                    .AddTextField("genre", 1.0)
+                    .AddTextField("plot", 1.0)
+                    .AddSortableNumericField("release_year")
+                    .AddTagField("tag")
+                    .AddGeoField("loc");
+
+            Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions()));
+
+            // create a document with a field set to null
+            var fields = new Dictionary<string, RedisValue>();
+            fields.Add("title", "another test with title ");
+            fields.Add("genre", "Comedy");
+            fields.Add("plot", "this is the plot for the test");
+            fields.Add("tag", "fun");
+            fields.Add("release_year", 2019);
+            fields.Add("loc", "-0.1,51.2");
+
+            cl.AddDocument("doc1", fields);
+            SearchResult res = cl.Search(new Query("title"));
+            Assert.Equal(1, res.TotalResults);
+
+            fields = new Dictionary<string, RedisValue>();
+            fields.Add("title", "another title another test");
+            fields.Add("genre", "Action");
+            fields.Add("plot", RedisValue.Null);
+            fields.Add("tag", RedisValue.Null);
+
+            var thrownException = Assert.Throws<NullReferenceException>(() =>
+            {
+                cl.AddDocument("doc2", fields);
+            });
+
+            Assert.Equal("Document attribute 'plot' is null. (Remove it, or set a value)", thrownException.Message);
+
+            res = cl.Search(new Query("title"));
+            Assert.Equal(1, res.TotalResults);
+
+            // Testing with numerical value
+            fields = new Dictionary<string, RedisValue>();
+            fields.Add("title", "another title another test");
+            fields.Add("genre", "Action");
+            fields.Add("release_year", RedisValue.Null);
+
+            thrownException = Assert.Throws<NullReferenceException>(() =>
+            {
+                cl.AddDocument("doc2", fields);
+            });
+
+            Assert.Equal("Document attribute 'release_year' is null. (Remove it, or set a value)", thrownException.Message);
+
+            res = cl.Search(new Query("title"));
+            Assert.Equal(1, res.TotalResults);
+        }
+
+        [Fact]
         public void TestDrop()
         {
             Client cl = GetClient();
@@ -410,6 +509,40 @@ namespace NRediSearch.Test.ClientTests
 
             res = cl.Search(new Query("@notStemmed:location"));
             Assert.Equal(0, res.TotalResults);
+        }
+
+        [Fact]
+        public void TestPhoneticMatch()
+        {
+            Client cl = GetClient();
+
+            Reset(cl);
+
+            Schema sc = new Schema()
+                .AddTextField("noPhonetic", 1.0)
+                .AddField(new TextField("withPhonetic", 1.0, false, false, false, "dm:en"));
+
+            Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions()));
+
+            var doc = new Dictionary<string, RedisValue>();
+            doc.Add("noPhonetic", "morfix");
+            doc.Add("withPhonetic", "morfix");
+
+            // Store it
+            Assert.True(cl.AddDocument("doc", doc));
+
+            // Query
+            SearchResult res = cl.Search(new Query("@withPhonetic:morphix=>{$phonetic:true}"));
+            Assert.Equal(1, res.TotalResults);
+
+            Assert.Throws<RedisServerException>(() =>
+            {
+                /*field does not support phonetics*/
+                cl.Search(new Query("@noPhonetic:morphix=>{$phonetic:true}"));
+            });
+
+            SearchResult res3 = cl.Search(new Query("@withPhonetic:morphix=>{$phonetic:false}"));
+            Assert.Equal(0, res3.TotalResults);
         }
 
         [Fact]
@@ -505,6 +638,51 @@ namespace NRediSearch.Test.ClientTests
 
             res = cl.Search(new Query("@f3:f3_val @f2:f2_val @f1:f1_val"));
             Assert.Equal(1, res.TotalResults);
+        }
+
+        [Fact]
+        public void TestReplaceIf()
+        {
+            Client cl = GetClient();
+
+            Schema sc = new Schema()
+                    .AddTextField("f1", 1.0)
+                    .AddTextField("f2", 1.0)
+                    .AddTextField("f3", 1.0);
+
+            Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions()));
+
+            var mm = new Dictionary<string, RedisValue>();
+            mm.Add("f1", "v1_val");
+            mm.Add("f2", "v2_val");
+
+            Assert.True(cl.AddDocument("doc1", mm));
+            Assert.True(cl.AddDocument("doc2", mm));
+
+            mm.Clear();
+            mm.Add("f3", "v3_val");
+
+            Assert.False(cl.UpdateDocument("doc1", mm, 1.0, "@f1=='vv1_val'"));
+            // Search for f3 value. No documents should not have it.
+            SearchResult res1 = cl.Search(new Query("@f3:f3_Val"));
+            Assert.Equal(0, res1.TotalResults);
+
+            Assert.True(cl.UpdateDocument("doc1", mm, 1.0, "@f2=='v2_val'"));
+            // Search for f3 value. All documents should have it.
+            SearchResult res2 = cl.Search(new Query(("@f3:v3_Val")));
+            Assert.Equal(1, res2.TotalResults);
+
+            Assert.False(cl.ReplaceDocument("doc2", mm, 1.0, filter: "@f1=='vv3_Val'"));
+
+            // Search for f3 value. Only one document should have it.
+            SearchResult res3 = cl.Search(new Query(("@f3:v3_Val")));
+            Assert.Equal(1, res3.TotalResults);
+
+            Assert.True(cl.ReplaceDocument("doc2", mm, 1.0, filter: "@f1=='v1_val'"));
+
+            // Search for f3 value. All documents should have it.
+            SearchResult res4 = cl.Search(new Query(("@f3:v3_Val")));
+            Assert.Equal(2, res4.TotalResults);
         }
 
         [Fact]
@@ -614,6 +792,9 @@ namespace NRediSearch.Test.ClientTests
         public void TestAddSuggestionGetSuggestionFuzzy()
         {
             Client cl = GetClient();
+
+            Db.KeyDelete(cl.IndexName);
+
             Suggestion suggestion = Suggestion.Builder.String("TOPIC OF WORDS").Score(1).Build();
             // test can add a suggestion string
             Assert.True(cl.AddSuggestion(suggestion, true) > 0, $"{suggestion} insert should of returned at least 1");
@@ -627,6 +808,9 @@ namespace NRediSearch.Test.ClientTests
         public void TestAddSuggestionGetSuggestion()
         {
             Client cl = GetClient();
+
+            Db.KeyDelete(cl.IndexName);
+
             Suggestion suggestion = Suggestion.Builder.String("ANOTHER_WORD").Score(1).Build();
             Suggestion noMatch = Suggestion.Builder.String("_WORD MISSED").Score(1).Build();
 
@@ -647,6 +831,8 @@ namespace NRediSearch.Test.ClientTests
         {
             Client cl = GetClient();
 
+            Db.KeyDelete(cl.IndexName);
+
             Suggestion suggestion = Suggestion.Builder.String("COUNT_ME TOO").Payload("PAYLOADS ROCK ").Score(0.2).Build();
             Assert.True(cl.AddSuggestion(suggestion, false) > 0, $"{suggestion} insert should of at least returned 1");
             Assert.True(cl.AddSuggestion(suggestion.ToBuilder().String("COUNT").Payload("My PAYLOAD is better").Build(), false) > 1, "Count single added should return more than 1");
@@ -665,6 +851,9 @@ namespace NRediSearch.Test.ClientTests
         public void TestAddSuggestionGetSuggestionPayload()
         {
             Client cl = GetClient();
+
+            Db.KeyDelete(cl.IndexName);
+
             cl.AddSuggestion(Suggestion.Builder.String("COUNT_ME TOO").Payload("PAYLOADS ROCK ").Build(), false);
             cl.AddSuggestion(Suggestion.Builder.String("COUNT").Payload("ANOTHER PAYLOAD ").Build(), false);
             cl.AddSuggestion(Suggestion.Builder.String("COUNTNO PAYLOAD OR COUNT").Build(), false);
@@ -678,6 +867,8 @@ namespace NRediSearch.Test.ClientTests
         public void TestGetSuggestionNoPayloadTwoOnly()
         {
             Client cl = GetClient();
+
+            Db.KeyDelete(cl.IndexName);
 
             cl.AddSuggestion(Suggestion.Builder.String("DIFF_WORD").Score(0.4).Payload("PAYLOADS ROCK ").Build(), false);
             cl.AddSuggestion(Suggestion.Builder.String("DIFF wording").Score(0.5).Payload("ANOTHER PAYLOAD ").Build(), false);
@@ -695,6 +886,8 @@ namespace NRediSearch.Test.ClientTests
         {
             Client cl = GetClient();
 
+            Db.KeyDelete(cl.IndexName);
+
             cl.AddSuggestion(Suggestion.Builder.String("DIFF_WORD").Score(0.4).Payload("PAYLOADS ROCK ").Build(), false);
             cl.AddSuggestion(Suggestion.Builder.String("DIFF wording").Score(0.5).Payload("ANOTHER PAYLOAD ").Build(), false);
             cl.AddSuggestion(Suggestion.Builder.String("DIFFERENT").Score(0.7).Payload("I am a payload").Build(), false);
@@ -711,6 +904,8 @@ namespace NRediSearch.Test.ClientTests
         {
             Client cl = GetClient();
 
+            Db.KeyDelete(cl.IndexName);
+
             cl.AddSuggestion(Suggestion.Builder.String("DIFF_WORD").Score(0.4).Payload("PAYLOADS ROCK ").Build(), true);
             var list = cl.GetSuggestions("DIF", SuggestionOptions.Builder.Max(2).With(WithOptions.Scores).Build());
             Assert.True(list[0].Score <= .2, "Actual score: " + list[0].Score);
@@ -721,10 +916,48 @@ namespace NRediSearch.Test.ClientTests
         {
             Client cl = GetClient();
 
+            Db.KeyDelete(cl.IndexName);
+
             cl.AddSuggestion(Suggestion.Builder.String("NO WORD").Score(0.4).Build(), false);
 
             var none = cl.GetSuggestions("DIF", SuggestionOptions.Builder.Max(3).With(WithOptions.Scores).Build());
             Assert.Empty(none);
+        }
+
+        [Fact]
+        public void TestAddSuggestionDeleteSuggestionLength()
+        {
+            Client cl = GetClient();
+
+            Db.KeyDelete(cl.IndexName);
+
+            cl.AddSuggestion(Suggestion.Builder.String("TOPIC OF WORDS").Score(1).Build(), true);
+            cl.AddSuggestion(Suggestion.Builder.String("ANOTHER ENTRY").Score(1).Build(), true);
+
+            Assert.True(cl.DeleteSuggestion("ANOTHER ENTRY"));
+            Assert.Equal(1, cl.CountSuggestions());
+
+            Assert.False(cl.DeleteSuggestion("ANOTHER ENTRY THAT IS NOT PRESENT"));
+            Assert.Equal(1, cl.CountSuggestions());
+        }
+
+        [Fact]
+        public void TestAddSuggtionGetSuggestionLength()
+        {
+            Client cl = GetClient();
+
+            Db.KeyDelete(cl.IndexName);
+
+            cl.DeleteSuggestion("TOPIC OF WORDS");
+            cl.DeleteSuggestion("ANOTHER ENTRY");
+            cl.DeleteSuggestion("FINAL ENTRY");
+
+            cl.AddSuggestion(Suggestion.Builder.String("TOPIC OF WORDS").Score(1).Build(), true);
+            cl.AddSuggestion(Suggestion.Builder.String("ANOTHER ENTRY").Score(1).Build(), true);
+            Assert.Equal(2, cl.CountSuggestions());
+
+            cl.AddSuggestion(Suggestion.Builder.String("FINAL ENTRY").Score(1).Build(), true);
+            Assert.Equal(3, cl.CountSuggestions());
         }
 
         [Fact]
@@ -891,6 +1124,120 @@ namespace NRediSearch.Test.ClientTests
             Assert.Equal("doc1", res.Documents[0].Id);
             Assert.Equal("value", res.Documents[0]["field1"]);
             Assert.Null((string)res.Documents[0]["value"]);
+        }
+
+        [Fact]
+        public void TestBlobField()
+        {
+            Client cl = GetClient();
+
+            Reset(cl);
+
+            Schema sc = new Schema().AddTextField("field1", 1.0);
+            Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions()));
+
+            byte[] blob = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 };
+
+            var doc = new Dictionary<string, RedisValue>();
+            doc.Add("field1", "value");
+            doc.Add("field2", blob);
+
+            // Store it
+            Assert.True(cl.AddDocument("doc1", doc));
+
+            // Query
+            SearchResult res = cl.Search(new Query("value"));
+
+            Assert.Equal(1, res.TotalResults);
+            Assert.Equal("doc1", res.Documents[0].Id);
+            Assert.Equal("value", res.Documents[0]["field1"]);
+            Assert.Equal(blob, (byte[])res.Documents[0]["field2"]);
+        }
+
+        [Fact]
+        public void TestConfig()
+        {
+            Client cl = GetClient();
+
+            Reset(cl);
+
+            Assert.True(cl.SetConfig(ConfigOption.TIMEOUT, "100"));
+
+            Dictionary<ConfigOption, string> configMap = cl.GetAllConfig();
+            Assert.Equal("100", configMap[ConfigOption.TIMEOUT]);
+            Assert.Equal("100", cl.GetConfig(ConfigOption.TIMEOUT));
+
+            cl.SetConfig(ConfigOption.ON_TIMEOUT, "fail");
+            Assert.Equal("fail", cl.GetConfig(ConfigOption.ON_TIMEOUT));
+
+            Assert.False(cl.SetConfig(ConfigOption.ON_TIMEOUT, "null"));
+        }
+
+        [Fact]
+        public void TestAlias()
+        {
+            Client cl = GetClient();
+
+            Reset(cl);
+
+            Schema sc = new Schema().AddTextField("field1", 1.0);
+            Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions()));
+            var doc = new Dictionary<string, RedisValue>();
+            doc.Add("field1", "value");
+            Assert.True(cl.AddDocument("doc1", doc));
+
+            Assert.True(cl.AddAlias("ALIAS1:TestAlias"));
+            Client alias1 = GetClient("ALIAS1", reset: false);
+            SearchResult res1 = alias1.Search(new Query("*").ReturnFields("field1"));
+            Assert.Equal(1, res1.TotalResults);
+            Assert.Equal("value", res1.Documents[0]["field1"]);
+
+            Assert.True(cl.UpdateAlias("ALIAS2:TestAlias"));
+            Client alias2 = GetClient("ALIAS2", reset: false);
+            SearchResult res2 = alias2.Search(new Query("*").ReturnFields("field1"));
+            Assert.Equal(1, res2.TotalResults);
+            Assert.Equal("value", res2.Documents[0]["field1"]);
+
+            Assert.Throws<RedisServerException>(() =>
+            {
+                // Should throw because the alias doesn't exist. 
+                cl.DeleteAlias("ALIAS3:TestAlias");
+            });
+
+            Assert.True(cl.DeleteAlias("ALIAS2:TestAlias"));
+
+            Assert.Throws<RedisServerException>(() =>
+            {
+                // Should throw because the alias doesn't exist.
+                cl.DeleteAlias("ALIAS2:TestAlias");
+            });
+        }
+
+        [Fact]
+        public void TestSyn()
+        {
+            Client cl = GetClient();
+            Reset(cl);
+
+            Schema sc = new Schema().AddTextField("name", 1.0).AddTextField("addr", 1.0);
+            Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions()));
+
+
+            long group1 = cl.AddSynonym("girl", "baby");
+            Assert.True(cl.UpdateSynonym(group1, "child"));
+
+            long group2 = cl.AddSynonym("child");
+
+            Assert.NotEqual(group1, group2);
+
+            Dictionary<string, long[]> dump = cl.DumpSynonym();
+
+            Dictionary<string, long[]> expected = new Dictionary<string, long[]>();
+            expected.Add("girl", new[] { group1 });
+            expected.Add("baby", new[] { group1 });
+            expected.Add("child", new[] { group1, group2 });
+
+            Assert.Equal(expected, dump);
         }
     }
 }

@@ -27,6 +27,7 @@ namespace NRediSearch
         public string Language { get; set; }
         public bool NoSave { get; set; }
         public ReplacementPolicy ReplacePolicy { get; set; }
+        public string Filter { get; set; }
 
         /// <summary>
         /// Create a new DocumentOptions object. Methods can later be chained via a builder-like pattern
@@ -57,9 +58,11 @@ namespace NRediSearch
         /// Indicate the behavior for the existing document.
         /// </summary>
         /// <param name="mode">One of the replacement modes.</param>
-        public AddOptions SetReplacementPolicy(ReplacementPolicy mode)
+        /// <param name="filter">Updates the document only if a boolean expression applies to the document</param>
+        public AddOptions SetReplacementPolicy(ReplacementPolicy mode, string filter = null)
         {
             ReplacePolicy = mode;
+            Filter = filter;
             return this;
         }
     }
