@@ -120,7 +120,7 @@ namespace StackExchange.Redis
                 Version = "version",
                 WriteBuffer = "writeBuffer",
                 CheckCertificateRevocation = "checkCertificateRevocation",
-                CommandRetry = "CommandRetry",
+                RetryPolicy = "RetryPolicy",
                 RetryQueueLength = "RetryQueueLength";
 
 
@@ -152,7 +152,7 @@ namespace StackExchange.Redis
                 Version,
                 WriteBuffer,
                 CheckCertificateRevocation,
-                CommandRetry,
+                RetryPolicy,
                 RetryQueueLength,
             }.ToDictionary(x => x, StringComparer.OrdinalIgnoreCase);
 
@@ -173,8 +173,6 @@ namespace StackExchange.Redis
         private CommandMap commandMap;
 
         private Version defaultVersion;
-
-        private CommandFlags? commandRetry;
 
         private int? keepAlive, asyncTimeout, syncTimeout, connectTimeout, responseTimeout, writeBuffer, connectRetry, configCheckSeconds, retryQueueLength;
 
@@ -388,6 +386,11 @@ namespace StackExchange.Redis
         /// The retry policy to be used for connection reconnects
         /// </summary>
         public IReconnectRetryPolicy ReconnectRetryPolicy { get { return reconnectRetryPolicy ??= new LinearRetry(ConnectTimeout); } set { reconnectRetryPolicy = value; } }
+
+        /// <summary>
+        /// The retry policy to be used for command retries during connection reconnects
+        /// </summary>
+        public IRetryPolicy RetryPolicy { get; set; }
 
         /// <summary>
         /// Indicates whether endpoints should be resolved via DNS before connecting.

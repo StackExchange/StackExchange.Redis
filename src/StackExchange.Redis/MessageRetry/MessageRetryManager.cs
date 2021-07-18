@@ -7,33 +7,11 @@ using StackExchange.Redis;
 
 namespace StackExchange.Redis
 {
-    /// <summary>
-    /// options for a message to be retried onconnection failure
-    /// </summary>
-    public enum OneConnectionRestoreRetryOption
-    {
-
-        /// <summary>
-        /// It's the default option and indicates command is never retried on connection restore
-        /// </summary>
-        NoRetry,
-
-        /// <summary>
-        /// Indicates that on connection failure this operation will be retried if it was not yet sent
-        /// </summary>
-        RetryIfNotYetSent,
-
-        /// <summary>
-        /// Indicates always retry command on connection restore 
-        /// </summary>
-        AlwaysRetry
-    }
-
     internal class MessageRetryManager : IDisposable
     {
         private readonly Queue<Message> queue = new Queue<Message>();
         private readonly ConnectionMultiplexer multiplexer;
-
+        
         internal MessageRetryManager(ConnectionMultiplexer mux)
         {
             this.multiplexer = mux;
@@ -44,6 +22,7 @@ namespace StackExchange.Redis
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal bool PushMessageForRetry(Message message)
         {
+            if (!multiplexer.RawConfig.RetryPolicy.ShouldRetry(message.Status == CommandStatus.Sent)) return false;
             bool wasEmpty;
             if (message.IsAdmin) return false;
             lock (queue)
