@@ -649,7 +649,7 @@ namespace StackExchange.Redis
             {
                 try
                 {
-                    return bridge.Multiplexer.messageRetryManager.PushMessageForRetry(this);
+                    return bridge.Multiplexer.TryMessageForRetry(this);
                 }
                 catch (Exception e)
                 {

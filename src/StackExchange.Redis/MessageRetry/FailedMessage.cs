@@ -14,22 +14,23 @@ namespace StackExchange.Redis
         /// <summary>
         /// status of the message
         /// </summary>
-        public CommandStatus Status { get; }
+        public CommandStatus Status => Message.Status;
 
         /// <summary>
         /// Command being executed. For example GET, INCR etc.
         /// </summary>
-        public string Command { get; }
+        public string Command => Message.Command.ToString();
+
+        internal Message Message { get; }
 
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="status"></param>
-        /// <param name="command"></param>
-        internal FailedMessage(CommandStatus status, RedisCommand command)
+        /// <param name="message"></param>
+        /// 
+        internal FailedMessage(Message message)
         {
-            this.Status = status;
-            this.Command = command.ToString();
+            Message = message;
         }
     }
 }

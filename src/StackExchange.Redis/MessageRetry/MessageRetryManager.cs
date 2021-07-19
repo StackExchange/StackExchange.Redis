@@ -20,20 +20,11 @@ namespace StackExchange.Redis
         internal int RetryQueueCount => queue.Count;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal bool PushMessageForRetry(Message message)
+        public bool RetryMessage(FailedMessage failedMessage)
         {
-            var retryPolicy = multiplexer.RawConfig.RetryPolicy;
-            var isMessageAlreadySent = message.Status == CommandStatus.Sent;
+            var message = failedMessage.Message;
 
-            // check for overriden retry flag
-            if ((message.Flags & CommandFlags.NoRetry) != 0) return false;
-            if ((message.Flags & CommandFlags.RetryIfNotYetSent) != 0 && message.Status == CommandStatus.Sent) return false;
-            if ((message.Flags & CommandFlags.AlwaysRetry) != 0) message.ResetStatusToWaitingToBeSent();
-
-            // check for retry policy
-            if (!multiplexer.RawConfig.RetryPolicy.ShouldRetry(new FailedMessage(message.Status, message.Command))) return false;
             bool wasEmpty;
-            if (message.IsAdmin) return false;
             lock (queue)
             {
                 int count = queue.Count;

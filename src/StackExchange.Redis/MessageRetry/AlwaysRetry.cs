@@ -17,7 +17,6 @@ namespace StackExchange.Redis
         /// <param name="failedMessage"></param>
         /// <returns></returns>
         public bool ShouldRetry(FailedMessage failedMessage) => true;
-
     }
 
 
@@ -35,6 +34,5 @@ namespace StackExchange.Redis
         {
             return !failedMessage.Command.Contains("INCR");
         }
-
     }
 }

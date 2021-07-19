@@ -2766,7 +2766,7 @@ namespace StackExchange.Redis
                     var ex = GetException(result, message, server);
                     if (ShouldRetryOnConnectionRestore(message, ex))
                     {
-                        if (!messageRetryManager.PushMessageForRetry(message))
+                        if (!TryMessageForRetry(message))
                             ThrowFailed(tcs, ex);
                     }
                     else
@@ -2778,6 +2778,22 @@ namespace StackExchange.Redis
             }
         }
 
+        internal bool TryMessageForRetry(Message message)
+        {
+            
+            // check for overriden retry flag
+            if ((message.Flags & CommandFlags.NoRetry) != 0) return false;
+            if ((message.Flags & CommandFlags.RetryIfNotYetSent) != 0 && message.Status == CommandStatus.Sent) return false;
+            if ((message.Flags & CommandFlags.AlwaysRetry) != 0) message.ResetStatusToWaitingToBeSent();
+
+            // check for retry policy
+            if (!RawConfig.RetryPolicy.ShouldRetry(new FailedMessage(message))) return false;
+
+            if (message.IsAdmin) return false;
+
+            return messageRetryManager.RetryMessage(new FailedMessage(message));
+        }
+
         private static async Task<T> ExecuteAsyncImpl_Awaited<T>(ConnectionMultiplexer @this, ValueTask<WriteResult> write, TaskCompletionSource<T> tcs, Message message, ServerEndPoint server)
         {
             var result = await write.ForAwait();
@@ -2786,7 +2802,7 @@ namespace StackExchange.Redis
                 var ex = @this.GetException(result, message, server);
                 if (@this.ShouldRetryOnConnectionRestore(message, ex))
                 {
-                    if(!@this.messageRetryManager.PushMessageForRetry(message))
+                    if(!@this.TryMessageForRetry(message))
                         ThrowFailed(tcs, ex);
                 }
                 else
@@ -2826,7 +2842,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal bool ShouldRetryOnConnectionRestore(Message message, Exception ex) => ex is RedisConnectionException && (message.IsOnConnectionRestoreAlwaysRetry || message.IsOnConnectionRestoreRetryIfNotYetSent);
+        internal bool ShouldRetryOnConnectionRestore(Message message, Exception ex) => ex is RedisConnectionException;
 
         internal T ExecuteSyncImpl<T>(Message message, ResultProcessor<T> processor, ServerEndPoint server)
         {
@@ -2859,7 +2875,7 @@ namespace StackExchange.Redis
                         var exResult = GetException(result, message, server);
                         if (ShouldRetryOnConnectionRestore(message, exResult))
                         {
-                            if(!messageRetryManager.PushMessageForRetry(message))
+                            if(!TryMessageForRetry(message))
                                 throw exResult;
                         }
                         else
