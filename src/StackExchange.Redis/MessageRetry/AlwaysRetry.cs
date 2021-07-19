@@ -14,9 +14,27 @@ namespace StackExchange.Redis
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="ismessageAlreadySent"></param>
+        /// <param name="failedMessage"></param>
         /// <returns></returns>
-        public bool ShouldRetry(bool ismessageAlreadySent) => true;
+        public bool ShouldRetry(FailedMessage failedMessage) => true;
+
+    }
+
+
+    /// <summary>
+    /// implements Retry policy to retry all command failed due to connection error
+    /// </summary>
+    public class AlwaysRetryExceptINCR : IRetryPolicy
+    {
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="failedMessage"></param>
+        /// <returns></returns>
+        public bool ShouldRetry(FailedMessage failedMessage)
+        {
+            return !failedMessage.Command.Contains("INCR");
+        }
 
     }
 }

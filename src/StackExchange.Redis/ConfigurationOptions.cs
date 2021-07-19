@@ -13,28 +13,6 @@ using static StackExchange.Redis.ConnectionMultiplexer;
 
 namespace StackExchange.Redis
 {
-    /// <summary>
-    /// options for a message to be retried onconnection retry
-    /// </summary>
-    public enum CommandRetry
-    {
-
-        /// <summary>
-        /// It's the default option and indicates command is never retried on connection restore
-        /// </summary>
-        NoRetry,
-
-        /// <summary>
-        /// Indicates that on connection failure this operation will be retried if it was not yet sent
-        /// </summary>
-        RetryIfNotYetSent,
-
-        /// <summary>
-        /// Indicates always retry command on connection restore 
-        /// </summary>
-        AlwaysRetry
-    }
-
 
     /// <summary>
     /// The options relevant to a set of redis connections
@@ -81,10 +59,19 @@ namespace StackExchange.Redis
                 return tmp;
             }
 
-            internal static CommandFlags Parse(string key, string value)
+            internal static IRetryPolicy ParseRetryPolicy(string key, string value)
             {
-                if (!Enum.TryParse(value, true, out CommandFlags tmp)) throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' requires a  value; the value '{value}' is not recognised.");
-                return tmp;
+                switch (value.ToLower())
+                {
+                    case "noretry":
+                        return null;
+                    case "alwaysretry":
+                        return new AlwaysRetry();
+                    case "retryifnotyetsent":
+                        return new RetryIfNotYetSent();
+                    default:
+                        throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' can be NoRetry, {nameof(AlwaysRetry)} or {nameof(RetryIfNotYetSent)} ; the value '{value}' is not recognised.");
+                }
             }
 
             internal static void Unknown(string key)
@@ -216,20 +203,6 @@ namespace StackExchange.Redis
          Browsable(false),
          EditorBrowsable(EditorBrowsableState.Never)]
         public bool UseSsl { get { return Ssl; } set { Ssl = value; } }
-
-        /// <summary>
-        /// Indicates how a message would be retried on connection restore, default is NoRetry
-        /// </summary>
-        public CommandFlags? CommandRetry
-        {
-            get { return commandRetry; }
-            set
-            {
-                if (value != null && value != CommandFlags.AlwaysRetry && value != CommandFlags.NoRetry && value != CommandFlags.RetryIfNotYetSent)
-                    throw new InvalidEnumArgumentException($"{nameof(CommandRetry)} can only be set to {nameof(CommandFlags.NoRetry)}, {nameof(CommandFlags.AlwaysRetry)} or {nameof(CommandFlags.RetryIfNotYetSent)}");
-                commandRetry = value;
-            }
-        }
 
         /// <summary>
         /// Automatically encodes and decodes channels
@@ -531,7 +504,7 @@ namespace StackExchange.Redis
                 ReconnectRetryPolicy = reconnectRetryPolicy,
                 SslProtocols = SslProtocols,
                 checkCertificateRevocation = checkCertificateRevocation,
-                CommandRetry = CommandRetry,
+                RetryPolicy = RetryPolicy,
                 RetryQueueLength = RetryQueueLength,
             };
             foreach (var item in EndPoints)
@@ -606,7 +579,7 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.ConfigCheckSeconds, configCheckSeconds);
             Append(sb, OptionKeys.ResponseTimeout, responseTimeout);
             Append(sb, OptionKeys.DefaultDatabase, DefaultDatabase);
-            Append(sb, OptionKeys.CommandRetry, CommandRetry);
+            Append(sb, OptionKeys.RetryPolicy, RetryPolicy);
             Append(sb, OptionKeys.RetryQueueLength, retryQueueLength);
             commandMap?.AppendDeltas(sb);
             return sb.ToString();
@@ -696,7 +669,7 @@ namespace StackExchange.Redis
             CertificateValidation = null;
             ChannelPrefix = default(RedisChannel);
             SocketManager = null;
-            CommandRetry = null;
+            RetryPolicy = null;
         }
 
         object ICloneable.Clone() => Clone();
@@ -817,8 +790,8 @@ namespace StackExchange.Redis
                         case OptionKeys.SslProtocols:
                             SslProtocols = OptionKeys.ParseSslProtocols(key, value);
                             break;
-                        case OptionKeys.CommandRetry:
-                            CommandRetry = OptionKeys.Parse(key, value);
+                        case OptionKeys.RetryPolicy:
+                            RetryPolicy = OptionKeys.ParseRetryPolicy(key, value);
                             break;
                         case OptionKeys.RetryQueueLength:
                             RetryQueueLength = OptionKeys.ParseInt32(key, value, minValue: 0);

@@ -15,8 +15,8 @@ namespace StackExchange.Redis
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="ismessageAlreadySent"></param>
+        /// <param name="failedMessage"></param>
         /// <returns></returns>
-        public bool ShouldRetry(bool ismessageAlreadySent) => !ismessageAlreadySent;
+        public bool ShouldRetry(FailedMessage failedMessage) => failedMessage.Status == CommandStatus.WaitingToBeSent;
     }
 }

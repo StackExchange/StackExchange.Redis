@@ -22,7 +22,16 @@ namespace StackExchange.Redis
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal bool PushMessageForRetry(Message message)
         {
-            if (!multiplexer.RawConfig.RetryPolicy.ShouldRetry(message.Status == CommandStatus.Sent)) return false;
+            var retryPolicy = multiplexer.RawConfig.RetryPolicy;
+            var isMessageAlreadySent = message.Status == CommandStatus.Sent;
+
+            // check for overriden retry flag
+            if ((message.Flags & CommandFlags.NoRetry) != 0) return false;
+            if ((message.Flags & CommandFlags.RetryIfNotYetSent) != 0 && message.Status == CommandStatus.Sent) return false;
+            if ((message.Flags & CommandFlags.AlwaysRetry) != 0) message.ResetStatusToWaitingToBeSent();
+
+            // check for retry policy
+            if (!multiplexer.RawConfig.RetryPolicy.ShouldRetry(new FailedMessage(message.Status, message.Command))) return false;
             bool wasEmpty;
             if (message.IsAdmin) return false;
             lock (queue)

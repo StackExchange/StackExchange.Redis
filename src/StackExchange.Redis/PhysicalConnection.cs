@@ -430,7 +430,7 @@ namespace StackExchange.Redis
                             bridge.Trace("Failing: " + next);
                             bridge.Multiplexer?.OnMessageFaulted(next, ex, origin);
                         }
-                        next.SetExceptionAndComplete(ex, bridge, next.IsOnConnectionRestoreAlwaysRetry);
+                        next.SetExceptionAndComplete(ex, bridge, onConnectionRestoreRetry: true);
                     }
                 }
             }

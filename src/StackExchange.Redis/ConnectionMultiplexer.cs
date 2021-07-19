@@ -2745,8 +2745,6 @@ namespace StackExchange.Redis
                 return CompletedTask<T>.Default(state);
             }
 
-            message.OverrideConnectionRestoreFlagIfNotSet(this.RawConfig.CommandRetry);
-
             TaskCompletionSource<T> tcs = null;
             IResultBox<T> source = null;
             if (!message.IsFireAndForget)
@@ -2838,8 +2836,6 @@ namespace StackExchange.Redis
             {
                 return default(T);
             }
-
-            message.OverrideConnectionRestoreFlagIfNotSet(this.RawConfig.CommandRetry);
 
             if (message.IsFireAndForget)
             {

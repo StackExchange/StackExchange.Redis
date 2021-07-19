@@ -453,7 +453,7 @@ namespace StackExchange.Redis
             while (_backlog.TryDequeue(out Message next))
             {
                 Multiplexer?.OnMessageFaulted(next, ex);
-                next.SetExceptionAndComplete(ex, this, next.IsOnConnectionRestoreAlwaysRetry || next.IsOnConnectionRestoreRetryIfNotYetSent);
+                next.SetExceptionAndComplete(ex, this, onConnectionRestoreRetry: true);
             }
         }
         internal void OnFullyEstablished(PhysicalConnection connection, string source)
@@ -1104,7 +1104,7 @@ namespace StackExchange.Redis
         private WriteResult HandleWriteException(Message message, Exception ex)
         {
             var inner = new RedisConnectionException(ConnectionFailureType.InternalFailure, "Failed to write", ex);
-            message.SetExceptionAndComplete(inner, this, message.IsOnConnectionRestoreAlwaysRetry);
+            message.SetExceptionAndComplete(inner, this, onConnectionRestoreRetry: true);
             return WriteResult.WriteFailure;
         }
 
