@@ -12,7 +12,7 @@ namespace NRediSearch
     public sealed class Query
     {
         /// <summary>
-        /// Filter represents a filtering rules in a query 
+        /// Filter represents a filtering rules in a query
         /// </summary>
         public abstract class Filter
         {
@@ -63,7 +63,7 @@ namespace NRediSearch
         }
 
         /// <summary>
-        /// GeoFilter encapsulates a radius filter on a geographical indexed fields 
+        /// GeoFilter encapsulates a radius filter on a geographical indexed fields
         /// </summary>
         public class GeoFilter : Filter
         {
@@ -89,6 +89,48 @@ namespace NRediSearch
             }
         }
 
+        public class FieldName {
+            private readonly string name;
+            private string attribute;
+
+            public FieldName(String name) {
+                this(name, null);
+            }
+
+            public FieldName(String name, String attribute) {
+                this.name = name;
+                this.attribute = attribute;
+            }
+
+            public int AddCommandArguments(Collection<String> args) {
+                args.add(name);
+                if (attribute == null) {
+                    return 1;
+                }
+
+                args.add("AS".Literal());
+                args.add(attribute);
+                return 3;
+            }
+
+            public static FieldName Of(String name) {
+                return new FieldName(name);
+            }
+
+            public FieldName As(String attribute) {
+                this.attribute = attribute;
+                return this;
+            }
+
+            public static FieldName[] convert(params String[] names) {
+            if (names == null) return null;
+            FieldName[] fields = new FieldName[names.length];
+            for (int i = 0; i < names.length; i++)
+                fields[i] = FieldName.of(names[i]);
+            return fields;
+            }
+        }
+
         internal readonly struct Paging
         {
             public int Offset { get; }
@@ -102,17 +144,17 @@ namespace NRediSearch
         }
 
         /// <summary>
-        /// The query's filter list. We only support AND operation on all those filters 
+        /// The query's filter list. We only support AND operation on all those filters
         /// </summary>
         internal readonly List<Filter> _filters = new List<Filter>();
 
         /// <summary>
-        /// The textual part of the query 
+        /// The textual part of the query
         /// </summary>
         public string QueryString { get; }
 
         /// <summary>
-        /// The sorting parameters 
+        /// The sorting parameters
         /// </summary>
         internal Paging _paging = new Paging(0, 10);
 
@@ -151,6 +193,7 @@ namespace NRediSearch
         internal string[] _fields = null;
         internal string[] _keys = null;
         internal string[] _returnFields = null;
+        internal FieldName[] _returnFieldsNames = null;
         /// <summary>
         /// Set the query payload to be evaluated by the scoring function
         /// </summary>
@@ -229,6 +272,18 @@ namespace NRediSearch
                 args.Add("RETURN".Literal());
                 args.Add(_returnFields.Length.Boxed());
                 args.AddRange(_returnFields);
+            }
+            else if (_returnFieldsNames?.Length > 0)
+            {
+                args.Add("RETURN".Literal());
+                int returnCountIndex = args.size();
+                int returnCount = 0;
+                args.add(null); // holding a place for setting the total count later.
+
+                foreach (FieldName fn in _returnFieldsNames) {
+                    returnCount += fn.AddCommandArguments(args);
+                }
+                args.Insert(returnCountIndex, returnCount);
             }
 
             if (SortBy != null)
@@ -329,17 +384,6 @@ namespace NRediSearch
                     args.Add(key);
                 }
             }
-
-            if (_returnFields != null && _returnFields.Length > 0)
-            {
-                args.Add("RETURN".Literal());
-                args.Add(_returnFields.Length.Boxed());
-
-                foreach (var returnField in _returnFields)
-                {
-                    args.Add(returnField);
-                }
-            }
         }
 
         /// <summary>
@@ -395,6 +439,20 @@ namespace NRediSearch
         public Query ReturnFields(params string[] fields)
         {
             _returnFields = fields;
+            _returnFieldsNames = null;
+            return this;
+        }
+
+        /// <summary>
+        /// Add a filed to the fields to return by the query
+        /// </summary>
+        /// <param name="field">field a list of TEXT fields in the schemas</param>
+        /// <param name="asName">Optional: as name to the returned filed</param>
+        /// <returns>the query object itself</returns>
+        public Query ReturnFields(params FieldName[] fields)
+        {
+            _returnFields = null;
+            _returnFieldsNames = fields;
             return this;
         }
 
