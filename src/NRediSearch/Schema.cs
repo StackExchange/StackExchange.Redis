@@ -25,13 +25,15 @@ namespace NRediSearch
             public FieldType Type { get; }
             public bool Sortable { get; }
             public bool NoIndex { get; }
+            public string As { get; }
 
-            internal Field(string name, FieldType type, bool sortable, bool noIndex = false)
+            internal Field(string name, FieldType type, bool sortable, bool noIndex = false, string asName = null)
             {
                 Name = name;
                 Type = type;
                 Sortable = sortable;
                 NoIndex = noIndex;
+                As = asName;
             }
 
             internal virtual void SerializeRedisArgs(List<object> args)
@@ -45,6 +47,10 @@ namespace NRediSearch
                     _ => throw new ArgumentOutOfRangeException(nameof(type)),
                 };
                 args.Add(Name);
+                if (As != null) {
+                    args.Add("AS".Literal());
+                    args.Add(As);
+                }
                 args.Add(GetForRedis(Type));
                 if (Sortable) { args.Add("SORTABLE".Literal()); }
                 if (NoIndex) { args.Add("NOINDEX".Literal()); }
@@ -56,7 +62,8 @@ namespace NRediSearch
             public double Weight { get; }
             public bool NoStem { get; }
 
-            public TextField(string name, double weight = 1.0, bool sortable = false, bool noStem = false, bool noIndex = false) : base(name, FieldType.FullText, sortable, noIndex)
+            public TextField(string name, double weight = 1.0, bool sortable = false, bool noStem = false, bool noIndex = false, string asName = null)
+            : base(name, FieldType.FullText, sortable, noIndex, asName)
             {
                 Weight = weight;
                 NoStem = noStem;
@@ -92,10 +99,11 @@ namespace NRediSearch
         /// </summary>
         /// <param name="name">The field's name.</param>
         /// <param name="weight">Its weight, a positive floating point number.</param>
+        /// <param name="asName"></param>
         /// <returns>The <see cref="Schema"/> object.</returns>
-        public Schema AddTextField(string name, double weight = 1.0)
+        public Schema AddTextField(string name, double weight = 1.0, string asName = null)
         {
-            Fields.Add(new TextField(name, weight));
+            Fields.Add(new TextField(name, weight, asName: asName));
             return this;
         }
 
@@ -104,10 +112,11 @@ namespace NRediSearch
         /// </summary>
         /// <param name="name">The field's name.</param>
         /// <param name="weight">Its weight, a positive floating point number.</param>
+        /// <param name="asName"></param>
         /// <returns>The <see cref="Schema"/> object.</returns>
-        public Schema AddSortableTextField(string name, double weight = 1.0)
+        public Schema AddSortableTextField(string name, double weight = 1.0, string asName = null)
         {
-            Fields.Add(new TextField(name, weight, true));
+            Fields.Add(new TextField(name, weight, true, asName: asName));
             return this;
         }
 
@@ -115,10 +124,11 @@ namespace NRediSearch
         /// Add a numeric field to the schema.
         /// </summary>
         /// <param name="name">The field's name.</param>
+        /// <param name="asName"></param>
         /// <returns>The <see cref="Schema"/> object.</returns>
-        public Schema AddGeoField(string name)
+        public Schema AddGeoField(string name, string asName = null)
         {
-            Fields.Add(new Field(name, FieldType.Geo, false));
+            Fields.Add(new Field(name, FieldType.Geo, false, asName: asName));
             return this;
         }
 
@@ -126,10 +136,11 @@ namespace NRediSearch
         /// Add a numeric field to the schema.
         /// </summary>
         /// <param name="name">The field's name.</param>
+        /// <param name="asName"></param>
         /// <returns>The <see cref="Schema"/> object.</returns>
-        public Schema AddNumericField(string name)
+        public Schema AddNumericField(string name, string asName = null)
         {
-            Fields.Add(new Field(name, FieldType.Numeric, false));
+            Fields.Add(new Field(name, FieldType.Numeric, false, asName: asName));
             return this;
         }
 
@@ -137,17 +148,18 @@ namespace NRediSearch
         /// Add a numeric field that can be sorted on.
         /// </summary>
         /// <param name="name">The field's name.</param>
+        /// <param name="asName"></param>
         /// <returns>The <see cref="Schema"/> object.</returns>
-        public Schema AddSortableNumericField(string name)
+        public Schema AddSortableNumericField(string name, string asName = null)
         {
-            Fields.Add(new Field(name, FieldType.Numeric, true));
+            Fields.Add(new Field(name, FieldType.Numeric, true, asName: asName));
             return this;
         }
 
         public class TagField : Field
         {
             public string Separator { get; }
-            internal TagField(string name, string separator = ",") : base(name, FieldType.Tag, false)
+            internal TagField(string name, string separator = ",", string asName = null) : base(name, FieldType.Tag, false, asName: asName)
             {
                 Separator = separator;
             }
@@ -168,10 +180,11 @@ namespace NRediSearch
         /// </summary>
         /// <param name="name">The field's name.</param>
         /// <param name="separator">The tag separator.</param>
+        /// <param name="asName"></param>
         /// <returns>The <see cref="Schema"/> object.</returns>
-        public Schema AddTagField(string name, string separator = ",")
+        public Schema AddTagField(string name, string separator = ",", string asName = null)
         {
-            Fields.Add(new TagField(name, separator));
+            Fields.Add(new TagField(name, separator, asName));
             return this;
         }
     }
