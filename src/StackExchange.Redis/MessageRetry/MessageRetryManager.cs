@@ -7,40 +7,39 @@ using StackExchange.Redis;
 
 namespace StackExchange.Redis
 {
-    internal class MessageRetryManager : IDisposable
+    /// <summary>
+    /// 
+    /// </summary>
+    public class MessageRetryManager : IDisposable
     {
-        private readonly Queue<Message> queue = new Queue<Message>();
-        private readonly ConnectionMultiplexer multiplexer;
-        
-        internal MessageRetryManager(ConnectionMultiplexer mux)
+        readonly Queue<FailedMessage> queue = new Queue<FailedMessage>();
+        int? maxRetryQueueLength;
+
+        internal MessageRetryManager(int? maxRetryQueueLength = null)
         {
-            this.multiplexer = mux;
+            this.maxRetryQueueLength = maxRetryQueueLength;
         }
 
         internal int RetryQueueCount => queue.Count;
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="message"></param>
+        /// <returns></returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool RetryMessage(FailedMessage failedMessage)
+        public bool RetryMessage(FailedMessage message)
         {
-            var message = failedMessage.Message;
-
             bool wasEmpty;
             lock (queue)
             {
                 int count = queue.Count;
-                if (multiplexer.RawConfig.RetryQueueLength.HasValue && count >= multiplexer.RawConfig.RetryQueueLength)
+                if (maxRetryQueueLength.HasValue && count >= maxRetryQueueLength)
                 {
                     return false;
                 }
                 wasEmpty = count == 0;
                 queue.Enqueue(message);
-
-                // if this message is a new message set the writetime
-                if (message.GetWriteTime() == 0)
-                {
-                    message.SetEnqueued(null);
-                }
-                message.ResetStatusToWaitingToBeSent();
             }
             if (wasEmpty) StartRetryQueueProcessor();
             return true;
@@ -59,20 +58,18 @@ namespace StackExchange.Redis
 
         private async Task ProcessRetryQueueAsync()
         {
-            Message message = null;
-            var timeout = multiplexer.AsyncTimeoutMilliseconds;
+            FailedMessage message = null;
+            var timeout = message.AsyncTimeoutMilliseconds;
             long messageProcessedCount = 0;
             while (true)
             {
                 message = null;
-
-                ServerEndPoint server = null;
+                
                 lock (queue)
                 {
                     if (queue.Count == 0) break; // all done
                     message = queue.Peek();
-                    server = multiplexer.SelectServer(message);
-                    if (server == null)
+                    if (!message.IsEndpointAvailable())
                     {
                         break;
                     }
@@ -81,7 +78,7 @@ namespace StackExchange.Redis
                 try
                 {
                     if (HasTimedOut(Environment.TickCount,
-                                    message.ResultBoxIsAsync ? multiplexer.AsyncTimeoutMilliseconds : multiplexer.TimeoutMilliseconds,
+                                    message.ResultBoxIsAsync ? message.AsyncTimeoutMilliseconds : message.TimeoutMilliseconds,
                                     message.GetWriteTime()))
                     {
                         var ex = GetTimeoutException(message);
@@ -89,12 +86,7 @@ namespace StackExchange.Redis
                     }
                     else
                     {
-                        var result = await server.TryWriteAsync(message).ForAwait();
-                        if (result != WriteResult.Success)
-                        {
-                            var ex = multiplexer.GetException(result, message, server);
-                            HandleException(message, ex);
-                        }
+                        await message.TryResendAsync();
                     }
                 }
                 catch (Exception ex)
@@ -104,9 +96,10 @@ namespace StackExchange.Redis
                 messageProcessedCount++;
             }
         }
-        
 
-        internal void HandleException(Message message, Exception ex)
+        private bool HasTimedOut(int tickCount, object p, int v) => throw new NotImplementedException();
+
+        internal void HandleException(FailedMessage message, Exception ex)
         {
             var inner = new RedisConnectionException(ConnectionFailureType.UnableToConnect, "Failed while retrying on connection restore", ex);
             message.SetExceptionAndComplete(inner, null, onConnectionRestoreRetry: false);
@@ -121,7 +114,7 @@ namespace StackExchange.Redis
                 {
                     var message = queue.Peek();
                     if (!HasTimedOut(now,
-                        message.ResultBoxIsAsync ? multiplexer.AsyncTimeoutMilliseconds : multiplexer.TimeoutMilliseconds,
+                        message.ResultBoxIsAsync ? message.AsyncTimeoutMilliseconds : message.TimeoutMilliseconds,
                         message.GetWriteTime()))
                     {
                         break; // not a timeout - we can stop looking
@@ -134,10 +127,10 @@ namespace StackExchange.Redis
         }
 
         // I am not using ExceptionFactory.Timeout as it can cause deadlock while trying to lock writtenawaiting response queue for GetHeadMessages
-        internal RedisTimeoutException GetTimeoutException(Message message)
+        internal RedisTimeoutException GetTimeoutException(FailedMessage message)
         {
             var sb = new StringBuilder();
-            sb.Append("Timeout while waiting for connectionrestore ").Append(message.Command).Append(" (").Append(Format.ToString(multiplexer.TimeoutMilliseconds)).Append("ms)");
+            sb.Append("Timeout while waiting for connectionrestore ").Append(message.Command).Append(" (").Append(Format.ToString(message.TimeoutMilliseconds)).Append("ms)");
             var ex = new RedisTimeoutException(sb.ToString(), message?.Status ?? CommandStatus.Unknown);
             return ex;
         }
@@ -150,6 +143,10 @@ namespace StackExchange.Redis
 
         private bool disposedValue = false;
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="disposing"></param>
         protected virtual void Dispose(bool disposing)
         {
             if (!disposedValue)
@@ -165,6 +162,9 @@ namespace StackExchange.Redis
             }
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
         public void Dispose()
         {
             Dispose(true);

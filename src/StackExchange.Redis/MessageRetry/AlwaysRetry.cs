@@ -11,12 +11,23 @@ namespace StackExchange.Redis
     /// </summary>
     public class AlwaysRetry : IRetryPolicy
     {
+        private readonly MessageRetryManager MessageRetryManager;
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="maxRetryQueueLength"></param>
+        public AlwaysRetry(int? maxRetryQueueLength = null)
+        {
+            MessageRetryManager = new MessageRetryManager(maxRetryQueueLength);
+        }
+
         /// <summary>
         /// 
         /// </summary>
         /// <param name="failedMessage"></param>
         /// <returns></returns>
-        public bool ShouldRetry(FailedMessage failedMessage) => true;
+        public bool ShouldRetry(FailedMessage failedMessage) => MessageRetryManager.RetryMessage(failedMessage);
     }
 
 

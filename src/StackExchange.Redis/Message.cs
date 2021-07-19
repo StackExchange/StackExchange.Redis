@@ -489,6 +489,8 @@ namespace StackExchange.Redis
             }
         }
 
+        public object AsyncTimeoutMilliseconds { get; internal set; }
+
         internal static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisKey key, RedisKey[] keys)
         {
             switch (keys.Length)

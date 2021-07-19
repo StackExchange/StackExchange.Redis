@@ -1290,7 +1290,6 @@ namespace StackExchange.Redis
                 ConfigurationChangedChannel = Encoding.UTF8.GetBytes(configChannel);
             }
             lastHeartbeatTicks = Environment.TickCount;
-            messageRetryManager = new MessageRetryManager(this);
         }
 
         partial void OnCreateReaderWriter(ConfigurationOptions configuration);
@@ -2786,12 +2785,19 @@ namespace StackExchange.Redis
             if ((message.Flags & CommandFlags.RetryIfNotYetSent) != 0 && message.Status == CommandStatus.Sent) return false;
             if ((message.Flags & CommandFlags.AlwaysRetry) != 0) message.ResetStatusToWaitingToBeSent();
 
-            // check for retry policy
-            if (!RawConfig.RetryPolicy.ShouldRetry(new FailedMessage(message))) return false;
-
             if (message.IsAdmin) return false;
 
-            return messageRetryManager.RetryMessage(new FailedMessage(message));
+            if(RawConfig.RetryPolicy.ShouldRetry(new FailedMessage(message, this)))
+            {
+                // if this message is a new message set the writetime
+                if (message.GetWriteTime() == 0)
+                {
+                    message.SetEnqueued(null);
+                }
+                message.ResetStatusToWaitingToBeSent();
+                return true;
+            }
+            return false;
         }
 
         private static async Task<T> ExecuteAsyncImpl_Awaited<T>(ConnectionMultiplexer @this, ValueTask<WriteResult> write, TaskCompletionSource<T> tcs, Message message, ServerEndPoint server)
