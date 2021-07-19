@@ -61,17 +61,24 @@ namespace StackExchange.Redis
             FailedMessage message = null;
             var timeout = message.AsyncTimeoutMilliseconds;
             long messageProcessedCount = 0;
+            bool shouldWait = false;
             while (true)
             {
                 message = null;
-                
+                if (shouldWait)
+                {
+                    await Task.Delay(1000);
+                }
+
+                shouldWait = false;
                 lock (queue)
                 {
                     if (queue.Count == 0) break; // all done
                     message = queue.Peek();
                     if (!message.IsEndpointAvailable())
                     {
-                        break;
+                        shouldWait = true;
+                        continue;
                     }
                     message = queue.Dequeue();
                 }

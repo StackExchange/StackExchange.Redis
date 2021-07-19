@@ -488,7 +488,6 @@ namespace StackExchange.Redis
             try
             {
                 CheckBacklogForTimeouts();
-                Multiplexer.messageRetryManager.CheckRetryQueueForTimeouts();
                 runThisTime = !isDisposed && Interlocked.CompareExchange(ref beating, 1, 0) == 0;
                 if (!runThisTime) return;
 

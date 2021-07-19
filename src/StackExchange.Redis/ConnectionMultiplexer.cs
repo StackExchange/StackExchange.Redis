@@ -135,8 +135,6 @@ namespace StackExchange.Redis
             return counters;
         }
 
-        internal readonly MessageRetryManager messageRetryManager;
-
         /// <summary>
         /// Gets the client-name that will be used on all new connections
         /// </summary>
