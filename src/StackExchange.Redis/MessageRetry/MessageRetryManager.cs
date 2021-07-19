@@ -10,12 +10,16 @@ namespace StackExchange.Redis
     /// <summary>
     /// 
     /// </summary>
-    public class MessageRetryManager : IDisposable
+    public class MessageRetryManager : IRetryManager, IDisposable
     {
         readonly Queue<FailedMessage> queue = new Queue<FailedMessage>();
         int? maxRetryQueueLength;
 
-        internal MessageRetryManager(int? maxRetryQueueLength = null)
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="maxRetryQueueLength"></param>
+        public MessageRetryManager(int? maxRetryQueueLength = null)
         {
             this.maxRetryQueueLength = maxRetryQueueLength;
         }
@@ -65,12 +69,10 @@ namespace StackExchange.Redis
             while (true)
             {
                 message = null;
-                if (shouldWait)
-                {
-                    await Task.Delay(1000);
-                }
-
+                CheckRetryQueueForTimeouts();
+                if (shouldWait) await Task.Delay(1000);
                 shouldWait = false;
+
                 lock (queue)
                 {
                     if (queue.Count == 0) break; // all done
@@ -84,17 +86,7 @@ namespace StackExchange.Redis
                 }
                 try
                 {
-                    if (HasTimedOut(Environment.TickCount,
-                                    message.ResultBoxIsAsync ? message.AsyncTimeoutMilliseconds : message.TimeoutMilliseconds,
-                                    message.GetWriteTime()))
-                    {
-                        var ex = GetTimeoutException(message);
-                        HandleException(message, ex);
-                    }
-                    else
-                    {
-                        await message.TryResendAsync();
-                    }
+                    await message.TryResendAsync();
                 }
                 catch (Exception ex)
                 {

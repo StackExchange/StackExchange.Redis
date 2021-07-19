@@ -70,7 +70,7 @@ namespace StackExchange.Redis
                     case "retryifnotyetsent":
                         return new RetryIfNotYetSent();
                     default:
-                        throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' can be NoRetry, {nameof(AlwaysRetry)} or {nameof(RetryIfNotYetSent)} ; the value '{value}' is not recognised.");
+                        throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' can be NoRetry, {nameof(AlwaysRetryQueue)} or {nameof(RetryIfNotYetSentQueue)} ; the value '{value}' is not recognised.");
                 }
             }
 

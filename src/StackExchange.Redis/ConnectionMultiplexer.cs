@@ -2785,7 +2785,7 @@ namespace StackExchange.Redis
 
             if (message.IsAdmin) return false;
 
-            if(RawConfig.RetryPolicy.ShouldRetry(new FailedMessage(message, this)))
+            if(RawConfig.RetryPolicy.MessageFailed(new FailedMessage(message, this)))
             {
                 // if this message is a new message set the writetime
                 if (message.GetWriteTime() == 0)
