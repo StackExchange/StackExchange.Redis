@@ -6,11 +6,10 @@ using System.Threading.Tasks;
 
 namespace StackExchange.Redis
 {
-
     /// <summary>
-    /// 
+    /// implements Retry policy to retry all command failed due to connection error
     /// </summary>
-    public class RetryIfNotYetSentQueue : IRetryPolicy
+    public class AlwaysRetry : IRetryPolicy
     {
         private readonly IRetryManager MessageRetryManager;
 
@@ -18,7 +17,7 @@ namespace StackExchange.Redis
         /// 
         /// </summary>
         /// <param name="maxQueueLength"></param>
-        public RetryIfNotYetSentQueue(int? maxQueueLength)
+        public AlwaysRetry(int? maxQueueLength = null)
         {
             MessageRetryManager = new MessageRetryManager(maxQueueLength);
         }
@@ -28,13 +27,6 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="failedMessage"></param>
         /// <returns></returns>
-        public bool TryHandleFailedMessage(FailedMessage failedMessage)
-        {
-            if(failedMessage.Status == CommandStatus.WaitingToBeSent)
-            {
-                return MessageRetryManager.RetryMessage(failedMessage);
-            }
-            return false;
-        }
+        public bool TryHandleFailedMessage(FailedMessage failedMessage) => MessageRetryManager.RetryMessage(failedMessage);
     }
 }
