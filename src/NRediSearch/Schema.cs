@@ -21,14 +21,21 @@ namespace NRediSearch
 
         public class Field
         {
+            public FieldName FieldName { get; }
             public string Name { get; }
             public FieldType Type { get; }
             public bool Sortable { get; }
             public bool NoIndex { get; }
 
             internal Field(string name, FieldType type, bool sortable, bool noIndex = false)
+            : this(FieldName.Of(name), type, sortable, noIndex)
             {
                 Name = name;
+            }
+
+            internal Field(FieldName name, FieldType type, bool sortable, bool noIndex = false)
+            {
+                FieldName = name;
                 Type = type;
                 Sortable = sortable;
                 NoIndex = noIndex;
@@ -44,7 +51,7 @@ namespace NRediSearch
                     FieldType.Tag => "TAG".Literal(),
                     _ => throw new ArgumentOutOfRangeException(nameof(type)),
                 };
-                args.Add(Name);
+                FieldName.AddCommandArguments(args);
                 args.Add(GetForRedis(Type));
                 if (Sortable) { args.Add("SORTABLE".Literal()); }
                 if (NoIndex) { args.Add("NOINDEX".Literal()); }
@@ -56,7 +63,15 @@ namespace NRediSearch
             public double Weight { get; }
             public bool NoStem { get; }
 
-            public TextField(string name, double weight = 1.0, bool sortable = false, bool noStem = false, bool noIndex = false) : base(name, FieldType.FullText, sortable, noIndex)
+            public TextField(string name, double weight = 1.0, bool sortable = false, bool noStem = false, bool noIndex = false)
+            : base(name, FieldType.FullText, sortable, noIndex)
+            {
+                Weight = weight;
+                NoStem = noStem;
+            }
+
+            public TextField(FieldName name, double weight = 1.0, bool sortable = false, bool noStem = false, bool noIndex = false)
+            : base(name, FieldType.FullText, sortable, noIndex)
             {
                 Weight = weight;
                 NoStem = noStem;
@@ -147,7 +162,13 @@ namespace NRediSearch
         public class TagField : Field
         {
             public string Separator { get; }
+
             internal TagField(string name, string separator = ",") : base(name, FieldType.Tag, false)
+            {
+                Separator = separator;
+            }
+
+            internal TagField(FieldName name, string separator = ",") : base(name, FieldType.Tag, false)
             {
                 Separator = separator;
             }
