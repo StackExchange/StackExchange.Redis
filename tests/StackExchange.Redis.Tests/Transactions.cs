@@ -1078,6 +1078,84 @@ namespace StackExchange.Redis.Tests
             }
         }
 
+        [Theory]
+        [InlineData("five", ComparisonType.Equal, 5L, false)]
+        [InlineData("four", ComparisonType.Equal, 4L, true)]
+        [InlineData("three", ComparisonType.Equal, 3L, false)]
+        [InlineData("", ComparisonType.Equal, 2L, false)]
+        [InlineData("", ComparisonType.Equal, 0L, true)]
+
+        [InlineData("five", ComparisonType.LessThan, 5L, true)]
+        [InlineData("four", ComparisonType.LessThan, 4L, false)]
+        [InlineData("three", ComparisonType.LessThan, 3L, false)]
+        [InlineData("", ComparisonType.LessThan, 2L, true)]
+        [InlineData("", ComparisonType.LessThan, 0L, false)]
+
+        [InlineData("five", ComparisonType.GreaterThan, 5L, false)]
+        [InlineData("four", ComparisonType.GreaterThan, 4L, false)]
+        [InlineData("three", ComparisonType.GreaterThan, 3L, true)]
+        [InlineData("", ComparisonType.GreaterThan, 2L, false)]
+        [InlineData("", ComparisonType.GreaterThan, 0L, false)]
+        public async Task BasicTranWithStreamLengthCondition(string value, ComparisonType type, long length, bool expectTranResult)
+        {
+            using (var muxer = Create())
+            {
+                RedisKey key = Me(), key2 = Me() + "2";
+                var db = muxer.GetDatabase();
+                db.KeyDelete(key, CommandFlags.FireAndForget);
+                db.KeyDelete(key2, CommandFlags.FireAndForget);
+
+                var expectSuccess = false;
+                Condition condition = null;
+                var valueLength = value?.Length ?? 0;
+                switch (type)
+                {
+                case ComparisonType.Equal:
+                    expectSuccess = valueLength == length;
+                    condition = Condition.StreamLengthEqual(key2, length);
+                    break;
+                case ComparisonType.GreaterThan:
+                    expectSuccess = valueLength > length;
+                    condition = Condition.StreamLengthGreaterThan(key2, length);
+                    break;
+                case ComparisonType.LessThan:
+                    expectSuccess = valueLength < length;
+                    condition = Condition.StreamLengthLessThan(key2, length);
+                    break;
+                }
+                RedisValue fieldName = "Test";
+                for (var i = 0; i < valueLength; i++)
+                {
+                    db.StreamAdd(key2, fieldName, i, flags: CommandFlags.FireAndForget);
+                }
+                Assert.False(db.KeyExists(key));
+                Assert.Equal(valueLength, db.StreamLength(key2));
+
+                var tran = db.CreateTransaction();
+                var cond = tran.AddCondition(condition);
+                var push = tran.StringSetAsync(key, "any value");
+                var exec = tran.ExecuteAsync();
+                var get = db.StringLength(key);
+
+                Assert.Equal(expectTranResult, await exec);
+
+                if (expectSuccess)
+                {
+                    Assert.True(await exec, "eq: exec");
+                    Assert.True(cond.WasSatisfied, "eq: was satisfied");
+                    Assert.True(await push); // eq: push
+                    Assert.Equal("any value".Length, get); // eq: get
+                }
+                else
+                {
+                    Assert.False(await exec, "neq: exec");
+                    Assert.False(cond.WasSatisfied, "neq: was satisfied");
+                    Assert.Equal(TaskStatus.Canceled, SafeStatus(push)); // neq: push
+                    Assert.Equal(0, get); // neq: get
+                }
+            }
+        }
+
         [Fact]
         public async Task BasicTran()
         {

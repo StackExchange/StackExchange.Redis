@@ -332,6 +332,27 @@ namespace StackExchange.Redis
         /// <param name="count">The number of members which sorted set must not have.</param>
         public static Condition SortedSetScoreNotExists(RedisKey key, RedisValue score, RedisValue count) => new SortedSetScoreCondition(key, score, false, count);
 
+        /// <summary>
+        /// Enforces that the given stream length is a certain value
+        /// </summary>
+        /// <param name="key">The key of the stream to check.</param>
+        /// <param name="length">The length the stream must have.</param>
+        public static Condition StreamLengthEqual(RedisKey key, long length) => new LengthCondition(key, RedisType.Stream, 0, length);
+
+        /// <summary>
+        /// Enforces that the given stream length is less than a certain value
+        /// </summary>
+        /// <param name="key">The key of the stream to check.</param>
+        /// <param name="length">The length the stream must be less than.</param>
+        public static Condition StreamLengthLessThan(RedisKey key, long length) => new LengthCondition(key, RedisType.Stream, 1, length);
+
+        /// <summary>
+        /// Enforces that the given stream length is greater than a certain value
+        /// </summary>
+        /// <param name="key">The key of the stream to check.</param>
+        /// <param name="length">The length the stream must be greater than.</param>
+        public static Condition StreamLengthGreaterThan(RedisKey key, long length) => new LengthCondition(key, RedisType.Stream, -1, length);
+
 #pragma warning restore RCS1231
 
         internal abstract void CheckCommands(CommandMap commandMap);
@@ -675,6 +696,7 @@ namespace StackExchange.Redis
                     RedisType.Set => RedisCommand.SCARD,
                     RedisType.List => RedisCommand.LLEN,
                     RedisType.SortedSet => RedisCommand.ZCARD,
+                    RedisType.Stream => RedisCommand.XLEN,
                     RedisType.String => RedisCommand.STRLEN,
                     _ => throw new ArgumentException($"Type {type} isn't recognized", nameof(type)),
                 };
