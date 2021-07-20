@@ -9,13 +9,13 @@ namespace StackExchange.Redis
     /// <summary>
     /// interface to implement retry manager
     /// </summary>
-    public interface IRetryManager
+    public interface IRetryStartergy
     {
         /// <summary>
         /// 
         /// </summary>
         /// <param name="failedMessage"></param>
         /// <returns></returns>
-        bool RetryMessage(FailedMessage failedMessage);
+        bool RetryMessage(FailedCommand failedMessage);
     }
 }

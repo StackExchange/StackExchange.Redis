@@ -10,21 +10,54 @@ namespace StackExchange.Redis
     /// <summary>
     /// 
     /// </summary>
-    public class MessageRetryManager : IRetryManager, IDisposable
-    {
-        readonly Queue<FailedMessage> queue = new Queue<FailedMessage>();
+    public class RetryImplementation : IRetryPolicy, IDisposable
+    { 
+        readonly Queue<FailedCommand> queue = new Queue<FailedCommand>();
         int? maxRetryQueueLength;
+        CommandFlags RetryOption;
+       /// <summary>
+       /// 
+       /// </summary>
+       /// <param name="flags"></param>
+       /// <param name="maxRetryQueueLength"></param>
+        protected RetryImplementation(CommandFlags flags, int? maxRetryQueueLength = null)
+        {
+            this.maxRetryQueueLength = maxRetryQueueLength;
+            RetryOption = flags;
+        }
+
+        internal int RetryQueueCount => queue.Count;
+
 
         /// <summary>
         /// 
         /// </summary>
+        /// <returns></returns>
+        public static IRetryPolicy RetryIfNotYetSent(int? maxRetryQueueLength = null) => new RetryImplementation(CommandFlags.RetryIfNotYetSent, maxRetryQueueLength);
+
+        /// <summary>
+        ///
+        /// 
+        /// </summary>
         /// <param name="maxRetryQueueLength"></param>
-        public MessageRetryManager(int? maxRetryQueueLength = null)
+        /// <returns></returns>
+        public static IRetryPolicy AlwaysRetry(int? maxRetryQueueLength = null) => new RetryImplementation(CommandFlags.AlwaysRetry, maxRetryQueueLength);
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="failedMessageHandler"></param>
+        /// <returns></returns>
+        public IRetryPolicy With(Func<FailedCommand, bool> failedMessageHandler)
         {
-            this.maxRetryQueueLength = maxRetryQueueLength;
+            FailedMessageHandler = failedMessageHandler;
+            return this;
         }
 
-        internal int RetryQueueCount => queue.Count;
+        /// <summary>
+        /// 
+        /// </summary>
+        private static Func<FailedCommand, bool> FailedMessageHandler;
 
         /// <summary>
         /// 
@@ -32,8 +65,11 @@ namespace StackExchange.Redis
         /// <param name="message"></param>
         /// <returns></returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool RetryMessage(FailedMessage message)
+        public bool TryHandleFailedMessage(FailedCommand message)
         {
+            if (FailedMessageHandler != null && !FailedMessageHandler(message)) return false;
+            if ((RetryOption & CommandFlags.RetryIfNotYetSent) == 0 && message.Status == CommandStatus.Sent) return false;
+
             bool wasEmpty;
             lock (queue)
             {
@@ -62,7 +98,7 @@ namespace StackExchange.Redis
 
         private async Task ProcessRetryQueueAsync()
         {
-            FailedMessage message = null;
+            FailedCommand message = null;
             var timeout = message.AsyncTimeoutMilliseconds;
             long messageProcessedCount = 0;
             bool shouldWait = false;
@@ -98,7 +134,7 @@ namespace StackExchange.Redis
 
         private bool HasTimedOut(int tickCount, object p, int v) => throw new NotImplementedException();
 
-        internal void HandleException(FailedMessage message, Exception ex)
+        internal void HandleException(FailedCommand message, Exception ex)
         {
             var inner = new RedisConnectionException(ConnectionFailureType.UnableToConnect, "Failed while retrying on connection restore", ex);
             message.SetExceptionAndComplete(inner, null, onConnectionRestoreRetry: false);
@@ -126,7 +162,7 @@ namespace StackExchange.Redis
         }
 
         // I am not using ExceptionFactory.Timeout as it can cause deadlock while trying to lock writtenawaiting response queue for GetHeadMessages
-        internal RedisTimeoutException GetTimeoutException(FailedMessage message)
+        internal RedisTimeoutException GetTimeoutException(FailedCommand message)
         {
             var sb = new StringBuilder();
             sb.Append("Timeout while waiting for connectionrestore ").Append(message.Command).Append(" (").Append(Format.ToString(message.TimeoutMilliseconds)).Append("ms)");

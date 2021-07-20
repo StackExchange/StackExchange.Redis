@@ -9,7 +9,7 @@ namespace StackExchange.Redis
     /// <summary>
     /// 
     /// </summary>
-    public class FailedMessage
+    public class FailedCommand
     {
         /// <summary>
         /// status of the message
@@ -44,7 +44,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="message"></param>
         /// <param name="multiplexer"></param>
-        internal FailedMessage(Message message, ConnectionMultiplexer multiplexer)
+        internal FailedCommand(Message message, ConnectionMultiplexer multiplexer)
         {
             Message = message;
             Multiplexer = multiplexer;
