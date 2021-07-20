@@ -473,6 +473,23 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
+        /// Apply settings to configure an instance of <see cref="ConfigurationOptions"/> for a specific scenario
+        /// </summary>
+        /// <param name="tuner">An action that will update the properties of this <see cref="ConfigurationOptions"/> instance</param>
+        /// <returns>This updated <see cref="ConfigurationOptions"/> instance</returns>
+        public ConfigurationOptions Apply(Action<ConfigurationOptions> tuner)
+        {
+            if (tuner == null)
+            {
+                throw new ArgumentException(nameof(tuner));
+            }
+
+            tuner.Invoke(this);
+
+            return this;
+        }
+
+        /// <summary>
         /// Resolve the default port for any endpoints that did not have a port explicitly specified
         /// </summary>
         public void SetDefaultPorts()

@@ -844,6 +844,27 @@ namespace StackExchange.Redis
             return ConnectAsync(ConfigurationOptions.Parse(configuration), log);
         }
 
+        /// <summary>
+        /// Create a new ConnectionMultiplexer instance
+        /// </summary>
+        /// <param name="configuration">The string configuration to use for this multiplexer.</param>
+        /// <param name="configurationTuner">Method to apply a set of configuration options</param>
+        /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
+        public static Task<ConnectionMultiplexer> ConnectAsync(string configuration, Action<ConfigurationOptions> configurationTuner, TextWriter log = null)
+        {
+            if (configurationTuner == null)
+            {
+                throw new ArgumentException(nameof(configurationTuner));
+            }
+
+            SocketConnection.AssertDependencies();
+
+            var options = ConfigurationOptions.Parse(configuration);
+            configurationTuner.Invoke(options);
+
+            return ConnectAsync(options, log);
+        }
+
         private static async Task<ConnectionMultiplexer> ConnectImplAsync(ConfigurationOptions configuration, TextWriter log = null)
         {
             IDisposable killMe = null;
@@ -1016,6 +1037,25 @@ namespace StackExchange.Redis
         public static ConnectionMultiplexer Connect(string configuration, TextWriter log = null)
         {
             return Connect(ConfigurationOptions.Parse(configuration), log);
+        }
+
+        /// <summary>
+        /// Create a new ConnectionMultiplexer instance
+        /// </summary>
+        /// <param name="configuration">The string configuration to use for this multiplexer.</param>
+        /// <param name="configurationTuner">Method to apply a set of configuration options</param>
+        /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
+        public static ConnectionMultiplexer Connect(string configuration, Action<ConfigurationOptions> configurationTuner, TextWriter log = null)
+        {
+            if (configurationTuner == null)
+            {
+                throw new ArgumentException(nameof(configurationTuner));
+            }
+
+            var configurationOptions = ConfigurationOptions.Parse(configuration);
+            configurationTuner.Invoke(configurationOptions);
+
+            return Connect(configurationOptions, log);
         }
 
         /// <summary>
