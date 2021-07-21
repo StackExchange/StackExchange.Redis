@@ -136,6 +136,8 @@ namespace StackExchange.Redis
             return counters;
         }
 
+        internal readonly MessageRetryManager messageRetryManager;
+
         /// <summary>
         /// Gets the client-name that will be used on all new connections
         /// </summary>
@@ -544,6 +546,7 @@ namespace StackExchange.Redis
                 }
             }
         }
+
 
         /// <summary>
         /// Raised whenever a physical connection fails
@@ -1292,6 +1295,7 @@ namespace StackExchange.Redis
                 ConfigurationChangedChannel = Encoding.UTF8.GetBytes(configChannel);
             }
             lastHeartbeatTicks = Environment.TickCount;
+            messageRetryManager = new MessageRetryManager(this);
         }
 
         partial void OnCreateReaderWriter(ConfigurationOptions configuration);
@@ -2747,6 +2751,8 @@ namespace StackExchange.Redis
                 return CompletedTask<T>.Default(state);
             }
 
+            message.OverrideConnectionRestoreFlagIfNotSet(this.RawConfig.CommandRetry);
+
             TaskCompletionSource<T> tcs = null;
             IResultBox<T> source = null;
             if (!message.IsFireAndForget)
@@ -2766,7 +2772,15 @@ namespace StackExchange.Redis
                 if (result != WriteResult.Success)
                 {
                     var ex = GetException(result, message, server);
-                    ThrowFailed(tcs, ex);
+                    if (ShouldRetryOnConnectionRestore(message, ex))
+                    {
+                        if (!messageRetryManager.PushMessageForRetry(message))
+                            ThrowFailed(tcs, ex);
+                    }
+                    else
+                    {
+                        ThrowFailed(tcs, ex);
+                    }
                 }
                 return tcs.Task;
             }
@@ -2778,7 +2792,15 @@ namespace StackExchange.Redis
             if (result != WriteResult.Success)
             {
                 var ex = @this.GetException(result, message, server);
-                ThrowFailed(tcs, ex);
+                if (@this.ShouldRetryOnConnectionRestore(message, ex))
+                {
+                    if(!@this.messageRetryManager.PushMessageForRetry(message))
+                        ThrowFailed(tcs, ex);
+                }
+                else
+                {
+                    ThrowFailed(tcs, ex);
+                }
             }
             return tcs == null ? default(T) : await tcs.Task.ForAwait();
         }
@@ -2806,6 +2828,8 @@ namespace StackExchange.Redis
             }
         }
 
+        internal bool ShouldRetryOnConnectionRestore(Message message, Exception ex) => ex is RedisConnectionException && (message.IsOnConnectionRestoreAlwaysRetry || message.IsOnConnectionRestoreRetryIfNotYetSent);
+
         internal T ExecuteSyncImpl<T>(Message message, ResultProcessor<T> processor, ServerEndPoint server)
         {
             if (_isDisposed) throw new ObjectDisposedException(ToString());
@@ -2814,6 +2838,8 @@ namespace StackExchange.Redis
             {
                 return default(T);
             }
+
+            message.OverrideConnectionRestoreFlagIfNotSet(this.RawConfig.CommandRetry);
 
             if (message.IsFireAndForget)
             {
@@ -2834,7 +2860,16 @@ namespace StackExchange.Redis
 #pragma warning restore CS0618
                     if (result != WriteResult.Success)
                     {
-                        throw GetException(result, message, server);
+                        var exResult = GetException(result, message, server);
+                        if (ShouldRetryOnConnectionRestore(message, exResult))
+                        {
+                            if(!messageRetryManager.PushMessageForRetry(message))
+                                throw exResult;
+                        }
+                        else
+                        {
+                            throw exResult;
+                        }
                     }
 
                     if (Monitor.Wait(source, TimeoutMilliseconds))

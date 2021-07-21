@@ -450,7 +450,7 @@ namespace StackExchange.Redis
             while (_backlog.TryDequeue(out Message next))
             {
                 Multiplexer?.OnMessageFaulted(next, ex);
-                next.SetExceptionAndComplete(ex, this);
+                next.SetExceptionAndComplete(ex, this, next.IsOnConnectionRestoreAlwaysRetry || next.IsOnConnectionRestoreRetryIfNotYetSent);
             }
         }
         internal void OnFullyEstablished(PhysicalConnection connection, string source)
@@ -467,7 +467,7 @@ namespace StackExchange.Redis
                 // do we have pending system things to do?
                 bool createWorker = !_backlog.IsEmpty;
                 if (createWorker) StartBacklogProcessor();
-
+                
                 if (ConnectionType == ConnectionType.Interactive) ServerEndPoint.CheckInfoReplication();
             }
             else
@@ -485,7 +485,7 @@ namespace StackExchange.Redis
             try
             {
                 CheckBacklogForTimeouts();
-
+                Multiplexer.messageRetryManager.CheckRetryQueueForTimeouts();
                 runThisTime = !isDisposed && Interlocked.CompareExchange(ref beating, 1, 0) == 0;
                 if (!runThisTime) return;
 
@@ -805,7 +805,7 @@ namespace StackExchange.Redis
                 // Tell the message it has failed
                 // Note: Attempting to *avoid* reentrancy/deadlock issues by not holding the lock while completing messages.
                 var ex = Multiplexer.GetException(WriteResult.TimeoutBeforeWrite, message, ServerEndPoint);
-                message.SetExceptionAndComplete(ex, this);
+                message.SetExceptionAndComplete(ex, this, onConnectionRestoreRetry: false);
             }
         }
         internal enum BacklogStatus : byte
@@ -884,7 +884,7 @@ namespace StackExchange.Redis
                             if (maxFlush >= 0) ex.Data["Redis-MaxFlush"] = maxFlush.ToString() + "ms, " + (physical?.MaxFlushBytes ?? -1).ToString();
                             if (_maxLockDuration >= 0) ex.Data["Redis-MaxLockDuration"] = _maxLockDuration;
 #endif
-                            message.SetExceptionAndComplete(ex, this);
+                            message.SetExceptionAndComplete(ex, this, onConnectionRestoreRetry: false);
                         }
                         else
                         {
@@ -1113,7 +1113,7 @@ namespace StackExchange.Redis
         private WriteResult HandleWriteException(Message message, Exception ex)
         {
             var inner = new RedisConnectionException(ConnectionFailureType.InternalFailure, "Failed to write", ex);
-            message.SetExceptionAndComplete(inner, this);
+            message.SetExceptionAndComplete(inner, this, message.IsOnConnectionRestoreAlwaysRetry);
             return WriteResult.WriteFailure;
         }
 

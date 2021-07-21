@@ -54,6 +54,8 @@ namespace StackExchange.Redis
     {
         public readonly int Db;
 
+        internal void ResetStatusToWaitingToBeSent() => Status = CommandStatus.WaitingToBeSent;
+
 #if DEBUG
         internal int QueuePosition { get; private set; }
         internal PhysicalConnection.WriteStatus ConnectionWriteState { get; private set; }
@@ -91,7 +93,10 @@ namespace StackExchange.Redis
 #pragma warning restore CS0618
                                                        | CommandFlags.FireAndForget
                                                        | CommandFlags.NoRedirect
-                                                       | CommandFlags.NoScriptCache;
+                                                       | CommandFlags.NoScriptCache
+                                                       | CommandFlags.AlwaysRetry
+                                                       | CommandFlags.NoRetry
+                                                       | CommandFlags.RetryIfNotYetSent;
         private IResultBox resultBox;
 
         private ResultProcessor resultProcessor;
@@ -223,6 +228,9 @@ namespace StackExchange.Redis
 
         public bool IsFireAndForget => (Flags & CommandFlags.FireAndForget) != 0;
         public bool IsInternalCall => (Flags & InternalCallFlag) != 0;
+        public bool IsOnConnectionRestoreRetryIfNotYetSent => (Flags & CommandFlags.RetryIfNotYetSent) != 0;
+        public bool IsOnConnectionRestoreAlwaysRetry => (Flags & CommandFlags.AlwaysRetry) != 0;
+
 
         public IResultBox ResultBox => resultBox;
 
@@ -613,14 +621,46 @@ namespace StackExchange.Redis
             }
         }
 
+        internal void OverrideConnectionRestoreFlagIfNotSet(CommandFlags? onConnectionRestore)
+        {
+            if (onConnectionRestore.HasValue && (Flags & (CommandFlags.NoRetry | CommandFlags.AlwaysRetry | CommandFlags.RetryIfNotYetSent)) == 0)
+            {
+                Flags |= onConnectionRestore.Value;
+            }
+        }
+
         internal void Fail(ConnectionFailureType failure, Exception innerException, string annotation)
         {
             PhysicalConnection.IdentifyFailureType(innerException, ref failure);
             resultProcessor?.ConnectionFail(this, failure, innerException, annotation);
         }
 
-        internal virtual void SetExceptionAndComplete(Exception exception, PhysicalBridge bridge)
+        private bool TryEnqueueForConnectionRestoreRetry(Exception exception, PhysicalBridge bridge, bool pushMessageToRetryManager = false)
         {
+            if (pushMessageToRetryManager && bridge != null)
+            {
+                try
+                {
+                    return bridge.Multiplexer.messageRetryManager.PushMessageForRetry(this);
+                }
+                catch (Exception e)
+                {
+                    exception.Data.Add("OnConnectionRestoreRetryManagerError", e.ToString());
+                }
+            }
+            return false;
+        }
+
+        internal virtual void SetExceptionAndComplete(Exception exception, PhysicalBridge bridge, bool onConnectionRestoreRetry)
+        {
+            if (TryEnqueueForConnectionRestoreRetry(exception, bridge,
+                onConnectionRestoreRetry &&
+                exception is RedisConnectionException &&
+                bridge != null))
+            {
+                return;
+            }
+
             resultBox?.SetException(exception);
             Complete();
         }
@@ -696,11 +736,9 @@ namespace StackExchange.Redis
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal void SetWriteTime()
         {
-            if ((Flags & NeedsAsyncTimeoutCheckFlag) != 0)
-            {
-                _writeTickCount = Environment.TickCount; // note this might be reset if we resend a message, cluster-moved etc; I'm OK with that
-            }
+            _writeTickCount = Environment.TickCount; // note this might be reset if we resend a message, cluster-moved etc; I'm OK with that
         }
+
         private int _writeTickCount;
         public int GetWriteTime() => Volatile.Read(ref _writeTickCount);
 
