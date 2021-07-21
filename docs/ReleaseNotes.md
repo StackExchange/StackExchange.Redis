@@ -2,6 +2,7 @@
 
 ## Unreleased
 - logging additions (.NET Version and timestamps) for better debugging (#1796 via philon-msft)
+- add: `Condition` API (transactions) now supports `StreamLengthEqual` and variants (#1807 via AlphaGremlin)
 
 ## 2.2.62
 
