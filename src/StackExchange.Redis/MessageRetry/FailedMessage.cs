@@ -17,6 +17,25 @@ namespace StackExchange.Redis
         public CommandStatus Status => Message.Status;
 
         /// <summary>
+        /// 
+        /// </summary>
+        public bool HasTimedOut => HasTimedOutInternal(Environment.TickCount,
+                        Message.ResultBoxIsAsync ? Message.AsyncTimeoutMilliseconds : Message.TimeoutMilliseconds,
+                        Message.GetWriteTime());
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="now"></param>
+        /// <param name="timeoutMilliseconds"></param>
+        /// <param name="writeTickCount"></param>
+        /// <returns></returns>
+        private bool HasTimedOutInternal(int now, int timeoutMilliseconds, int writeTickCount)
+        {
+            int millisecondsTaken = unchecked(now - writeTickCount);
+            return millisecondsTaken >= timeoutMilliseconds;
+        }
+
+        /// <summary>
         /// Command being executed. For example GET, INCR etc.
         /// </summary>
         public string Command => Message.Command.ToString();

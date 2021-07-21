@@ -132,8 +132,6 @@ namespace StackExchange.Redis
             }
         }
 
-        private bool HasTimedOut(int tickCount, object p, int v) => throw new NotImplementedException();
-
         internal void HandleException(FailedCommand message, Exception ex)
         {
             var inner = new RedisConnectionException(ConnectionFailureType.UnableToConnect, "Failed while retrying on connection restore", ex);
@@ -148,9 +146,7 @@ namespace StackExchange.Redis
                 while (queue.Count != 0)
                 {
                     var message = queue.Peek();
-                    if (!HasTimedOut(now,
-                        message.ResultBoxIsAsync ? message.AsyncTimeoutMilliseconds : message.TimeoutMilliseconds,
-                        message.GetWriteTime()))
+                    if (!message.HasTimedOut)
                     {
                         break; // not a timeout - we can stop looking
                     }
@@ -170,11 +166,7 @@ namespace StackExchange.Redis
             return ex;
         }
 
-        private bool HasTimedOut(int now, int timeoutMilliseconds, int writeTickCount)
-        {
-            int millisecondsTaken = unchecked(now - writeTickCount);
-            return millisecondsTaken >= timeoutMilliseconds;
-        }
+        
 
         private bool disposedValue = false;
 
