@@ -20,7 +20,7 @@ namespace StackExchange.Redis
         /// 
         /// </summary>
         internal bool HasTimedOut => HasTimedOutInternal(Environment.TickCount,
-                        Message.ResultBoxIsAsync ? Message.AsyncTimeoutMilliseconds : Message.TimeoutMilliseconds,
+                        Message.ResultBoxIsAsync ? Multiplexer.AsyncTimeoutMilliseconds : Multiplexer.TimeoutMilliseconds,
                         Message.GetWriteTime());
         /// <summary>
         /// 
@@ -43,15 +43,14 @@ namespace StackExchange.Redis
         internal Message Message { get; }
         internal ConnectionMultiplexer Multiplexer { get; }
 
-        /// <summary>
-        /// 
-        /// </summary>
-        internal object AsyncTimeoutMilliseconds { get; internal set; }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        internal object TimeoutMilliseconds { get; internal set; }
+        // I am not using ExceptionFactory.Timeout as it can cause deadlock while trying to lock writtenawaiting response queue for GetHeadMessages
+        internal RedisTimeoutException GetTimeoutException()
+        {
+            var sb = new StringBuilder();
+            sb.Append("Timeout while waiting for connectionrestore ").Append(Command).Append(" (").Append(Format.ToString(Multiplexer.TimeoutMilliseconds)).Append("ms)");
+            var ex = new RedisTimeoutException(sb.ToString(), Status);
+            return ex;
+        }
 
         /// <summary>
         /// 

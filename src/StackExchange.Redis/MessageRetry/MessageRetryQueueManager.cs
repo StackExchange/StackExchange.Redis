@@ -14,16 +14,14 @@ namespace StackExchange.Redis
     { 
         readonly Queue<FailedCommand> queue = new Queue<FailedCommand>();
         int? maxRetryQueueLength;
-        CommandFlags RetryOption;
+
        /// <summary>
        /// 
        /// </summary>
-       /// <param name="flags"></param>
        /// <param name="maxRetryQueueLength"></param>
-        protected CommandRetryQueueManager(CommandFlags flags, int? maxRetryQueueLength = null)
+        internal CommandRetryQueueManager(int? maxRetryQueueLength = null)
         {
             this.maxRetryQueueLength = maxRetryQueueLength;
-            RetryOption = flags;
         }
 
         internal int RetryQueueCount => queue.Count;
@@ -31,19 +29,11 @@ namespace StackExchange.Redis
         /// <summary>
         /// 
         /// </summary>
-        private static Func<FailedCommand, bool> FailedMessageHandler;
-
-        /// <summary>
-        /// 
-        /// </summary>
         /// <param name="message"></param>
         /// <returns></returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool TryHandleFailedCommand(FailedCommand message)
+        internal bool TryHandleFailedCommand(FailedCommand message)
         {
-            if (FailedMessageHandler != null && !FailedMessageHandler(message)) return false;
-            if ((RetryOption & CommandFlags.RetryIfNotYetSent) == 0 && message.Status == CommandStatus.Sent) return false;
-
             bool wasEmpty;
             lock (queue)
             {
@@ -73,7 +63,6 @@ namespace StackExchange.Redis
         private async Task ProcessRetryQueueAsync()
         {
             FailedCommand message = null;
-            var timeout = message.AsyncTimeoutMilliseconds;
             long messageProcessedCount = 0;
             bool shouldWait = false;
             while (true)
@@ -125,22 +114,11 @@ namespace StackExchange.Redis
                         break; // not a timeout - we can stop looking
                     }
                     queue.Dequeue();
-                    RedisTimeoutException ex = GetTimeoutException(message);
+                    RedisTimeoutException ex = message.GetTimeoutException();
                     HandleException(message, ex);
                 }
             }
         }
-
-        // I am not using ExceptionFactory.Timeout as it can cause deadlock while trying to lock writtenawaiting response queue for GetHeadMessages
-        internal RedisTimeoutException GetTimeoutException(FailedCommand message)
-        {
-            var sb = new StringBuilder();
-            sb.Append("Timeout while waiting for connectionrestore ").Append(message.Command).Append(" (").Append(Format.ToString(message.TimeoutMilliseconds)).Append("ms)");
-            var ex = new RedisTimeoutException(sb.ToString(), message?.Status ?? CommandStatus.Unknown);
-            return ex;
-        }
-
-        
 
         private bool disposedValue = false;
 

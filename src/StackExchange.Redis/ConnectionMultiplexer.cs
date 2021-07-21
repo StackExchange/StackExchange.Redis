@@ -1259,7 +1259,7 @@ namespace StackExchange.Redis
         }
 
         internal readonly CommandMap CommandMap;
-
+        internal readonly CommandRetryQueueManager commandRetryQueueManager;
         private ConnectionMultiplexer(ConfigurationOptions configuration)
         {
             IncludeDetailInExceptions = true;
@@ -1288,6 +1288,7 @@ namespace StackExchange.Redis
                 ConfigurationChangedChannel = Encoding.UTF8.GetBytes(configChannel);
             }
             lastHeartbeatTicks = Environment.TickCount;
+            commandRetryQueueManager = new CommandRetryQueueManager(RawConfig.RetryQueueLength);
         }
 
         partial void OnCreateReaderWriter(ConfigurationOptions configuration);
@@ -2785,15 +2786,19 @@ namespace StackExchange.Redis
 
             if (message.IsAdmin) return false;
 
-            if(RawConfig.RetryPolicy?.TryHandleFailedMessage(new FailedCommand(message, this)) == true)
+            if (RawConfig.RetryPolicy != null)
             {
-                // if this message is a new message set the writetime
-                if (message.GetWriteTime() == 0)
+                var failedCommand = new FailedCommand(message, this);
+                if (RawConfig.RetryPolicy.ShouldRetry(failedCommand) && commandRetryQueueManager.TryHandleFailedCommand(failedCommand))
                 {
-                    message.SetEnqueued(null);
+                    // if this message is a new message set the writetime
+                    if (message.GetWriteTime() == 0)
+                    {
+                        message.SetEnqueued(null);
+                    }
+                    message.ResetStatusToWaitingToBeSent();
+                    return true;
                 }
-                message.ResetStatusToWaitingToBeSent();
-                return true;
             }
             return false;
         }

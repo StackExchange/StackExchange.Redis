@@ -66,9 +66,9 @@ namespace StackExchange.Redis
                     case "noretry":
                         return null;
                     case "alwaysretry":
-                        return CommandRetryQueueManager.AlwaysRetry();
+                        return Policy.AlwaysRetry;
                     case "retryifnotyetsent":
-                        return CommandRetryQueueManager.RetryIfNotYetSent();
+                        return Policy.RetryIfNotYetSent;
                     default:
                         throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' can be NoRetry, AlwaysRetry or RetryIfNotYetSent ; the value '{value}' is not recognised.");
                 }
