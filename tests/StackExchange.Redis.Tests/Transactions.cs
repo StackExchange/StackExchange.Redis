@@ -1100,6 +1100,8 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create())
             {
+                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.Streams), r => r.Streams);
+
                 RedisKey key = Me(), key2 = Me() + "2";
                 var db = muxer.GetDatabase();
                 db.KeyDelete(key, CommandFlags.FireAndForget);
