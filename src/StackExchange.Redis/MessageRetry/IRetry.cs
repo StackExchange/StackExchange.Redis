@@ -16,6 +16,6 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="failedMessage"></param>
         /// <returns></returns>
-        public bool TryHandleFailedMessage(FailedCommand failedMessage);
+        public bool ShouldRetry(FailedCommand failedMessage);
     }
 }

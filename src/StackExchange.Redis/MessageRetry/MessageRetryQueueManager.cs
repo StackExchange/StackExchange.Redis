@@ -10,7 +10,7 @@ namespace StackExchange.Redis
     /// <summary>
     /// 
     /// </summary>
-    public class RetryImplementation : IRetryPolicy, IDisposable
+    internal class CommandRetryQueueManager : IDisposable
     { 
         readonly Queue<FailedCommand> queue = new Queue<FailedCommand>();
         int? maxRetryQueueLength;
@@ -20,39 +20,13 @@ namespace StackExchange.Redis
        /// </summary>
        /// <param name="flags"></param>
        /// <param name="maxRetryQueueLength"></param>
-        protected RetryImplementation(CommandFlags flags, int? maxRetryQueueLength = null)
+        protected CommandRetryQueueManager(CommandFlags flags, int? maxRetryQueueLength = null)
         {
             this.maxRetryQueueLength = maxRetryQueueLength;
             RetryOption = flags;
         }
 
         internal int RetryQueueCount => queue.Count;
-
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <returns></returns>
-        public static IRetryPolicy RetryIfNotYetSent(int? maxRetryQueueLength = null) => new RetryImplementation(CommandFlags.RetryIfNotYetSent, maxRetryQueueLength);
-
-        /// <summary>
-        ///
-        /// 
-        /// </summary>
-        /// <param name="maxRetryQueueLength"></param>
-        /// <returns></returns>
-        public static IRetryPolicy AlwaysRetry(int? maxRetryQueueLength = null) => new RetryImplementation(CommandFlags.AlwaysRetry, maxRetryQueueLength);
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="failedMessageHandler"></param>
-        /// <returns></returns>
-        public IRetryPolicy With(Func<FailedCommand, bool> failedMessageHandler)
-        {
-            FailedMessageHandler = failedMessageHandler;
-            return this;
-        }
 
         /// <summary>
         /// 
@@ -65,7 +39,7 @@ namespace StackExchange.Redis
         /// <param name="message"></param>
         /// <returns></returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool TryHandleFailedMessage(FailedCommand message)
+        public bool TryHandleFailedCommand(FailedCommand message)
         {
             if (FailedMessageHandler != null && !FailedMessageHandler(message)) return false;
             if ((RetryOption & CommandFlags.RetryIfNotYetSent) == 0 && message.Status == CommandStatus.Sent) return false;

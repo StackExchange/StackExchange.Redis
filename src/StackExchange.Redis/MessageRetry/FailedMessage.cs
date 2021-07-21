@@ -19,7 +19,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// 
         /// </summary>
-        public bool HasTimedOut => HasTimedOutInternal(Environment.TickCount,
+        internal bool HasTimedOut => HasTimedOutInternal(Environment.TickCount,
                         Message.ResultBoxIsAsync ? Message.AsyncTimeoutMilliseconds : Message.TimeoutMilliseconds,
                         Message.GetWriteTime());
         /// <summary>
@@ -46,17 +46,12 @@ namespace StackExchange.Redis
         /// <summary>
         /// 
         /// </summary>
-        public bool ResultBoxIsAsync { get; internal set; }
+        internal object AsyncTimeoutMilliseconds { get; internal set; }
 
         /// <summary>
         /// 
         /// </summary>
-        public object AsyncTimeoutMilliseconds { get; internal set; }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        public object TimeoutMilliseconds { get; internal set; }
+        internal object TimeoutMilliseconds { get; internal set; }
 
         /// <summary>
         /// 
