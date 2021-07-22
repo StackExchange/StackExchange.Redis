@@ -37,7 +37,13 @@ namespace NRediSearch
             {
                 for (int i = 0; i < fields.Length; i += 2)
                 {
-                    ret[(string)fields[i]] = fields[i + 1];
+                    string fieldName = (string)fields[i];
+                    if (fieldName == "$") {
+                        ret["json"] = fields[i + 1];
+                    }
+                    else {
+                        ret[fieldName] = fields[i + 1];
+                    }
                 }
             }
             return ret;

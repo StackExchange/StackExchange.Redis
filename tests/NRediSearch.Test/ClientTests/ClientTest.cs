@@ -1,4 +1,6 @@
-﻿using System.Collections.Generic;
+﻿using System.Reflection.Metadata;
+using System.Net.NetworkInformation;
+using System.Collections.Generic;
 using System.Text;
 using StackExchange.Redis;
 using Xunit;
@@ -891,6 +893,24 @@ namespace NRediSearch.Test.ClientTests
             Assert.Equal("doc1", res.Documents[0].Id);
             Assert.Equal("value", res.Documents[0]["field1"]);
             Assert.Null((string)res.Documents[0]["value"]);
+        }
+
+        [Fact]
+        public void TestJsonIndex()
+        {
+            Client cl = GetClient();
+            IndexDefinition defenition = new IndexDefinition(prefixes: new string[] {"king:"} ,type: IndexDefinition.IndexType.Json);
+            Schema sc = new Schema().AddTextField("$.name");
+            Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions(defenition)));
+
+            Db.Execute("JSON.SET", "king:1", ".", "{\"name\": \"henry\"}");
+            Db.Execute("JSON.SET", "king:2", ".", "{\"name\": \"james\"}");
+
+            // Query
+            SearchResult res = cl.Search(new Query("henry"));
+            Assert.Equal(1, res.TotalResults);
+            Assert.Equal("king:1", res.Documents[0].Id);
+            Assert.Equal("{\"name\":\"henry\"}", res.Documents[0]["json"]);
         }
     }
 }
