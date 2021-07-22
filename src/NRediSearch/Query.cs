@@ -234,9 +234,9 @@ namespace NRediSearch
             else if (_returnFieldsNames?.Length > 0)
             {
                 args.Add("RETURN".Literal());
-                int returnCountIndex = args.size();
+                int returnCountIndex = args.Count;
                 int returnCount = 0;
-                args.add(null); // holding a place for setting the total count later.
+                args.Add(null); // holding a place for setting the total count later.
 
                 foreach (FieldName fn in _returnFieldsNames) {
                     returnCount += fn.AddCommandArguments(args);
