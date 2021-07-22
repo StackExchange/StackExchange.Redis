@@ -896,6 +896,61 @@ namespace NRediSearch.Test.ClientTests
         }
 
         [Fact]
+        public void TestWithFieldNames()
+        {
+            Client cl = GetClient();
+            IndexDefinition defenition = new IndexDefinition(prefixes: new string[] {"student:", "pupil:"});
+            Schema sc = new Schema().AddTextField(FieldName.Of("first").As("given")).AddTextField(FieldName.Of("last"));
+            Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions(defenition)));
+
+            var docsIds = new string[] {"student:111", "pupil:222", "student:333", "teacher:333"};
+            var docsData = new Dictionary<string, RedisValue>[] {
+                new Dictionary<string, RedisValue> {
+                    { "first", "Joen" },
+                    { "last", "Ko" },
+                    { "age", "20" }
+                },
+                new Dictionary<string, RedisValue> {
+                    { "first", "Joe" },
+                    { "last", "Dod" },
+                    { "age", "18" }
+                },
+                new Dictionary<string, RedisValue> {
+                    { "first", "El" },
+                    { "last", "Mark" },
+                    { "age", "17" }
+                },
+                new Dictionary<string, RedisValue> {
+                    { "first", "Pat" },
+                    { "last", "Rod" },
+                    { "age", "20" }
+                }
+            };
+
+            for (int i = 0; i < docsIds.Length; i++) {
+                Assert.True(cl.AddDocument(docsIds[i], docsData[i]));
+            }
+
+            // Query
+            SearchResult noFilters = cl.Search(new Query("*"));
+            Assert.Equal(3, noFilters.TotalResults);
+            Assert.Equal("student:111", noFilters.Documents[0].Id);
+            Assert.Equal("pupil:222", noFilters.Documents[1].Id);
+            Assert.Equal("student:333", noFilters.Documents[2].Id);
+
+            SearchResult asOriginal = cl.Search(new Query("@first:Jo*"));
+            Assert.Equal(0, asOriginal.TotalResults);
+
+            SearchResult asAttribute = cl.Search(new Query("@given:Jo*"));
+            Assert.Equal(2, asAttribute.TotalResults);
+            Assert.Equal("student:111", noFilters.Documents[0].Id);
+            Assert.Equal("pupil:222", noFilters.Documents[1].Id);
+
+            SearchResult nonAttribute = cl.Search(new Query("@last:Rod"));
+            Assert.Equal(0, nonAttribute.TotalResults);
+        }
+
+        [Fact]
         public void TestJsonIndex()
         {
             Client cl = GetClient();
