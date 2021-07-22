@@ -1259,7 +1259,13 @@ namespace StackExchange.Redis
         }
 
         internal readonly CommandMap CommandMap;
-        internal readonly CommandRetryQueueManager commandRetryQueueManager;
+        internal readonly CommandRetryQueueManager RetryQueueManager;
+
+        /// <summary>
+        /// returns the current length of the retry queue
+        /// </summary>
+        public int RetryQueueLength => RetryQueueManager.RetryQueueLength;
+
         private ConnectionMultiplexer(ConfigurationOptions configuration)
         {
             IncludeDetailInExceptions = true;
@@ -1288,7 +1294,7 @@ namespace StackExchange.Redis
                 ConfigurationChangedChannel = Encoding.UTF8.GetBytes(configChannel);
             }
             lastHeartbeatTicks = Environment.TickCount;
-            commandRetryQueueManager = new CommandRetryQueueManager(RawConfig.RetryQueueLength);
+            RetryQueueManager = new CommandRetryQueueManager(RawConfig.RetryQueueLength);
         }
 
         partial void OnCreateReaderWriter(ConfigurationOptions configuration);
@@ -2764,7 +2770,7 @@ namespace StackExchange.Redis
                     var ex = GetException(result, message, server);
                     if (ShouldRetryOnConnectionRestore(message, ex))
                     {
-                        if (!TryMessageForRetry(message))
+                        if (!TryMessageForRetry(message, ex))
                             ThrowFailed(tcs, ex);
                     }
                     else
@@ -2776,7 +2782,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal bool TryMessageForRetry(Message message)
+        internal bool TryMessageForRetry(Message message, Exception ex)
         {
             
             // check for overriden retry flag
@@ -2788,8 +2794,8 @@ namespace StackExchange.Redis
 
             if (RawConfig.RetryPolicy != null)
             {
-                var failedCommand = new FailedCommand(message, this);
-                if (RawConfig.RetryPolicy.ShouldRetry(failedCommand) && commandRetryQueueManager.TryHandleFailedCommand(failedCommand))
+                var failedCommand = new FailedCommand(message, ex, this);
+                if (RawConfig.RetryPolicy.ShouldRetry(failedCommand) && RetryQueueManager.TryHandleFailedCommand(failedCommand))
                 {
                     // if this message is a new message set the writetime
                     if (message.GetWriteTime() == 0)
@@ -2811,7 +2817,7 @@ namespace StackExchange.Redis
                 var ex = @this.GetException(result, message, server);
                 if (@this.ShouldRetryOnConnectionRestore(message, ex))
                 {
-                    if(!@this.TryMessageForRetry(message))
+                    if(!@this.TryMessageForRetry(message, ex))
                         ThrowFailed(tcs, ex);
                 }
                 else
@@ -2884,7 +2890,7 @@ namespace StackExchange.Redis
                         var exResult = GetException(result, message, server);
                         if (ShouldRetryOnConnectionRestore(message, exResult))
                         {
-                            if(!TryMessageForRetry(message))
+                            if(!TryMessageForRetry(message, exResult))
                                 throw exResult;
                         }
                         else

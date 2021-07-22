@@ -19,6 +19,10 @@ namespace StackExchange.Redis
         /// <summary>
         /// 
         /// </summary>
+        public Exception Exception {get; internal set;}
+        /// <summary>
+        /// 
+        /// </summary>
         internal bool HasTimedOut => HasTimedOutInternal(Environment.TickCount,
                         Message.ResultBoxIsAsync ? Multiplexer.AsyncTimeoutMilliseconds : Multiplexer.TimeoutMilliseconds,
                         Message.GetWriteTime());
@@ -57,16 +61,17 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="message"></param>
         /// <param name="multiplexer"></param>
-        internal FailedCommand(Message message, ConnectionMultiplexer multiplexer)
+        internal FailedCommand(Message message, Exception ex, ConnectionMultiplexer multiplexer)
         {
             Message = message;
             Multiplexer = multiplexer;
+            Exception = ex;
         }
 
         internal int GetWriteTime() => Message.GetWriteTime();
         internal void ResetStatusToWaitingToBeSent() => Message.ResetStatusToWaitingToBeSent();
         internal bool IsEndpointAvailable() => Multiplexer.SelectServer(Message) != null;
-        internal void SetExceptionAndComplete(RedisConnectionException inner, object p, bool onConnectionRestoreRetry) => throw new NotImplementedException();
+        internal void SetExceptionAndComplete(RedisConnectionException inner, PhysicalBridge bridge) => Message.SetExceptionAndComplete(inner, bridge, false);
         internal async Task TryResendAsync()
         {
             var server = Multiplexer.SelectServer(Message);
@@ -87,6 +92,13 @@ namespace StackExchange.Redis
             var inner = new RedisConnectionException(ConnectionFailureType.UnableToConnect, "Failed while retrying on connection restore", ex);
             message.SetExceptionAndComplete(inner, null, onConnectionRestoreRetry: false);
         }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        public override string ToString() => $"{Command} failed with {Exception}";
+        
     }
 
 }

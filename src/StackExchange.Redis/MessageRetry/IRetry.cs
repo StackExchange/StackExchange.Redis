@@ -12,7 +12,7 @@ namespace StackExchange.Redis
     public interface IRetryPolicy
     {
         /// <summary>
-        /// 
+        /// Called when a message failed due to connection error
         /// </summary>
         /// <param name="failedMessage"></param>
         /// <returns></returns>

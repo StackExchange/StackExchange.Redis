@@ -24,7 +24,7 @@ namespace StackExchange.Redis
             this.maxRetryQueueLength = maxRetryQueueLength;
         }
 
-        internal int RetryQueueCount => queue.Count;
+        public int RetryQueueLength => queue.Count;
 
         /// <summary>
         /// 
@@ -64,41 +64,50 @@ namespace StackExchange.Redis
         {
             FailedCommand message = null;
             long messageProcessedCount = 0;
-            bool shouldWait = false;
-            while (true)
+            try
             {
-                message = null;
-                CheckRetryQueueForTimeouts();
-                if (shouldWait) await Task.Delay(1000);
-                shouldWait = false;
-
-                lock (queue)
+                while (true)
                 {
-                    if (queue.Count == 0) break; // all done
-                    message = queue.Peek();
-                    if (!message.IsEndpointAvailable())
+                    message = null;
+                    lock (queue)
                     {
-                        shouldWait = true;
-                        continue;
+                        if (queue.Count == 0) break; // all done
+                        message = queue.Peek();
+                        if (!message.IsEndpointAvailable())
+                        {
+                            break;
+                        }
+                        message = queue.Dequeue();
                     }
-                    message = queue.Dequeue();
+                    try
+                    {
+                        if (message.HasTimedOut)
+                        {
+                            RedisTimeoutException ex = message.GetTimeoutException();
+                            HandleException(message, ex);
+                        }
+                        else
+                        {
+                            await message.TryResendAsync();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        HandleException(message, ex);
+                    }
+                    messageProcessedCount++;
                 }
-                try
-                {
-                    await message.TryResendAsync();
-                }
-                catch (Exception ex)
-                {
-                    HandleException(message, ex);
-                }
-                messageProcessedCount++;
+            }
+            catch(Exception ex)
+            {
+                DrainQueue(ex);
             }
         }
 
         internal void HandleException(FailedCommand message, Exception ex)
         {
             var inner = new RedisConnectionException(ConnectionFailureType.UnableToConnect, "Failed while retrying on connection restore", ex);
-            message.SetExceptionAndComplete(inner, null, onConnectionRestoreRetry: false);
+            message.SetExceptionAndComplete(inner, null);
         }
 
         internal void CheckRetryQueueForTimeouts() // check the head of the backlog queue, consuming anything that looks dead
@@ -120,6 +129,19 @@ namespace StackExchange.Redis
             }
         }
 
+        private void DrainQueue(Exception ex)
+        {
+            FailedCommand command;
+            lock (queue)
+            {
+                while (queue.Count != 0)
+                {
+                    command = queue.Dequeue();
+                    HandleException(command, ex);
+                }
+            }
+        }
+
         private bool disposedValue = false;
 
         /// <summary>
@@ -132,10 +154,7 @@ namespace StackExchange.Redis
             {
                 if (disposing)
                 {
-                    lock (queue)
-                    {
-                        queue.Clear();
-                    }
+                    DrainQueue(new Exception("RetryQueue disposed"));
                 }
                 disposedValue = true;
             }

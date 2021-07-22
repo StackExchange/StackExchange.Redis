@@ -651,7 +651,7 @@ namespace StackExchange.Redis
             {
                 try
                 {
-                    return bridge.Multiplexer.TryMessageForRetry(this);
+                    return bridge.Multiplexer.TryMessageForRetry(this, exception);
                 }
                 catch (Exception e)
                 {

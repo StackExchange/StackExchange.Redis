@@ -470,7 +470,9 @@ namespace StackExchange.Redis
                 // do we have pending system things to do?
                 bool createWorker = !_backlog.IsEmpty;
                 if (createWorker) StartBacklogProcessor();
-                
+
+                Multiplexer.RetryQueueManager.StartRetryQueueProcessor();
+
                 if (ConnectionType == ConnectionType.Interactive) ServerEndPoint.CheckInfoReplication();
             }
             else
@@ -487,6 +489,7 @@ namespace StackExchange.Redis
             bool runThisTime = false;
             try
             {
+                Multiplexer.RetryQueueManager.CheckRetryQueueForTimeouts();
                 CheckBacklogForTimeouts();
                 runThisTime = !isDisposed && Interlocked.CompareExchange(ref beating, 1, 0) == 0;
                 if (!runThisTime) return;
