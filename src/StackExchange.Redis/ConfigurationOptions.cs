@@ -66,9 +66,9 @@ namespace StackExchange.Redis
                     case "noretry":
                         return null;
                     case "alwaysretry":
-                        return Policy.AlwaysRetry;
+                        return Policy.AlwaysRetry();
                     case "retryifnotyetsent":
-                        return Policy.RetryIfNotYetSent;
+                        return Policy.RetryIfNotYetSent();
                     default:
                         throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' can be NoRetry, AlwaysRetry or RetryIfNotYetSent ; the value '{value}' is not recognised.");
                 }
@@ -435,9 +435,9 @@ namespace StackExchange.Redis
 #pragma warning restore RCS1128
 
         /// <summary>
-        /// Retry Queue length if  retry is enabled (no queue limit by default)
+        /// If retry policy is specified, Retry Queue max length, by default there's no queue limit 
         /// </summary>
-        public int? RetryQueueLength { get; set; }
+        public int? RetryQueueMaxLength { get; set; }
 
         /// <summary>
         /// Parse the configuration from a comma-delimited configuration string
@@ -505,7 +505,7 @@ namespace StackExchange.Redis
                 SslProtocols = SslProtocols,
                 checkCertificateRevocation = checkCertificateRevocation,
                 RetryPolicy = RetryPolicy,
-                RetryQueueLength = RetryQueueLength,
+                RetryQueueMaxLength = RetryQueueMaxLength,
             };
             foreach (var item in EndPoints)
                 options.EndPoints.Add(item);
@@ -794,7 +794,7 @@ namespace StackExchange.Redis
                             RetryPolicy = OptionKeys.ParseRetryPolicy(key, value);
                             break;
                         case OptionKeys.RetryQueueLength:
-                            RetryQueueLength = OptionKeys.ParseInt32(key, value, minValue: 0);
+                            RetryQueueMaxLength = OptionKeys.ParseInt32(key, value, minValue: 0);
                             break;
                         default:
                             if (!string.IsNullOrEmpty(key) && key[0] == '$')

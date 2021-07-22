@@ -60,6 +60,7 @@ namespace StackExchange.Redis
         /// 
         /// </summary>
         /// <param name="message"></param>
+        /// <param name="ex"></param>
         /// <param name="multiplexer"></param>
         internal FailedCommand(Message message, Exception ex, ConnectionMultiplexer multiplexer)
         {

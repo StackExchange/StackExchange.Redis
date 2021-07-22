@@ -1294,7 +1294,7 @@ namespace StackExchange.Redis
                 ConfigurationChangedChannel = Encoding.UTF8.GetBytes(configChannel);
             }
             lastHeartbeatTicks = Environment.TickCount;
-            RetryQueueManager = new CommandRetryQueueManager(RawConfig.RetryQueueLength);
+            RetryQueueManager = new CommandRetryQueueManager(RawConfig.RetryQueueMaxLength);
         }
 
         partial void OnCreateReaderWriter(ConfigurationOptions configuration);
