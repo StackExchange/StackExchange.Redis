@@ -236,11 +236,10 @@ namespace NRediSearch
                 args.Add("RETURN".Literal());
                 int returnCountIndex = args.Count;
                 int returnCount = 0;
-                args.Add(null); // holding a place for setting the total count later.
-
                 foreach (FieldName fn in _returnFieldsNames) {
                     returnCount += fn.AddCommandArguments(args);
                 }
+                
                 args.Insert(returnCountIndex, returnCount);
             }
 

@@ -951,6 +951,28 @@ namespace NRediSearch.Test.ClientTests
         }
 
         [Fact]
+        public void TestReturnWithFieldNames(){
+            Client cl = GetClient();
+            Schema sc = new Schema().AddTextField("a").AddTextField("b").AddTextField("c");
+            Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions()));
+
+            var doc = new Dictionary<string, RedisValue>
+            {
+                { "a", "value1" },
+                { "b", "value2" },
+                { "c", "value3" }
+            };
+            Assert.True(cl.AddDocument("doc", doc));
+
+            // Query
+            SearchResult res = cl.Search(new Query("*").ReturnFields(FieldName.Of("b").As("d"), FieldName.Of("a")));
+            Assert.Equal(1, res.TotalResults);
+            Assert.Equal("doc", res.Documents[0].Id);
+            Assert.Equal("value1", res.Documents[0]["a"]);
+            Assert.Equal("value2", res.Documents[0]["d"]);
+        }
+
+        [Fact]
         public void TestJsonIndex()
         {
             Client cl = GetClient();
