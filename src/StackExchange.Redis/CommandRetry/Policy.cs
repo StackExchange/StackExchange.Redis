@@ -41,23 +41,23 @@ namespace StackExchange.Redis
     public class PolicyRetry : IRetryBuilder
     {
         Func<Exception, bool> handler;
+        GenericPolicy policy;
         /// <summary>
         /// 
-        /// </summary>
-        /// <param name="func"></param>
-        public PolicyRetry(Func<Exception, bool> func)
+
+        public PolicyRetry()
         {
-            handler = func;
+            policy = new GenericPolicy();
         }
         /// <summary>
         /// 
         /// </summary>
-        public IRetryPolicy AlwaysRetry() => new GenericPolicy(failedCommand => true, handler);
+        public IRetryPolicy AlwaysRetry() =>  policy.Set(failedCommand => true, handler);
 
         /// <summary>
         /// 
         /// </summary>
-        public IRetryPolicy RetryIfNotYetSent() => new GenericPolicy(failedCommand => failedCommand.Status == CommandStatus.WaitingToBeSent, handler);
+        public IRetryPolicy RetryIfNotYetSent() => policy.Set(failedCommand => failedCommand.Status == CommandStatus.WaitingToBeSent, handler);
 
         /// <summary>
         /// 
@@ -65,23 +65,38 @@ namespace StackExchange.Redis
         /// <param name="onRetry"></param>
         /// <returns></returns>
         public IRetryPolicy AlwaysRetry(Action<FailedCommand> onRetry)
-            => new GenericPolicy(failedCommand => { onRetry(failedCommand); return true; }, handler);
+            => policy.Set(failedCommand => { onRetry(failedCommand); return true; }, handler);
 
         /// <summary>
         /// 
         /// </summary>
         public IRetryPolicy RetryIfNotYetSent(Action<FailedCommand> onRetry)
-            => new GenericPolicy(failedCommand =>
+            => policy.Set(failedCommand =>
             {
                 onRetry(failedCommand);
                 return failedCommand.Status == CommandStatus.WaitingToBeSent;
             }, handler);
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="handleResult"></param>
+        /// <returns></returns>
+        public IRetryBuilder HandleResult(Func<FailedCommand, bool> handleResult)
+        {
+            policy.Set(handleResult);
+            return this;
+        }
+        
     }
+
+
     /// <summary>
     /// 
     /// </summary>
     public interface IRetryBuilder
     {
+
         /// <summary>
         /// 
         /// </summary>
@@ -100,6 +115,13 @@ namespace StackExchange.Redis
         /// <param name="onRetry"></param>
         /// <returns></returns>
         public IRetryPolicy AlwaysRetry(Action<FailedCommand> onRetry);
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="handleResult"></param>
+        /// <returns></returns>
+        public IRetryBuilder HandleResult(Func<FailedCommand, bool> handleResult);
     }
 }
 

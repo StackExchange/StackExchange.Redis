@@ -13,13 +13,12 @@ namespace StackExchange.Redis
     {
         Func<FailedCommand, bool> func;
         Func<Exception, bool> exceptionHandler;
+        Func<FailedCommand, bool> handleResult;
         /// <summary>
         /// 
         /// </summary>
-        public GenericPolicy(Func<FailedCommand, bool> func, Func<Exception, bool> exceptionHandler)
+        public GenericPolicy()
         {
-            this.func = func;
-            this.exceptionHandler = exceptionHandler;
         }
 
         /// <summary>
@@ -34,6 +33,17 @@ namespace StackExchange.Redis
             return false;
         }
 
+        internal IRetryPolicy Set(Func<FailedCommand, bool> p, Func<Exception, bool> handler)
+        {
+            this.func = p;
+            this.exceptionHandler = handler;
+            return this;
+        }
 
+        internal IRetryPolicy Set(Func<FailedCommand, bool> handleResult)
+        {
+            this.handleResult = handleResult;
+            return this;
+        }
     }
 }
