@@ -81,19 +81,23 @@ namespace StackExchange.Redis
                     }
                     try
                     {
-                        if (message.HasTimedOut)
+                        if (message.HasTimedOut())
                         {
                             RedisTimeoutException ex = message.GetTimeoutException();
-                            HandleException(message, ex);
+                            message.SetExceptionAndComplete(ex);
                         }
                         else
                         {
-                            await message.TryResendAsync();
+                            if(!await message.TryResendAsync())
+                            {
+                                // this should never happen but just to be safe if connection got dropped again
+                                message.SetExceptionAndComplete();
+                            }
                         }
                     }
                     catch (Exception ex)
                     {
-                        HandleException(message, ex);
+                        message.SetExceptionAndComplete(ex);
                     }
                     messageProcessedCount++;
                 }
@@ -104,12 +108,6 @@ namespace StackExchange.Redis
             }
         }
 
-        internal void HandleException(FailedCommand message, Exception ex)
-        {
-            var inner = new RedisConnectionException(ConnectionFailureType.UnableToConnect, "Failed while retrying on connection restore", ex);
-            message.SetExceptionAndComplete(inner, null);
-        }
-
         internal void CheckRetryQueueForTimeouts() // check the head of the backlog queue, consuming anything that looks dead
         {
             lock (queue)
@@ -118,7 +116,7 @@ namespace StackExchange.Redis
                 while (queue.Count != 0)
                 {
                     var message = queue.Peek();
-                    if (!message.HasTimedOut)
+                    if (!message.HasTimedOut())
                     {
                         break; // not a timeout - we can stop looking
                     }
