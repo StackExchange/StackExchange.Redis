@@ -95,6 +95,11 @@ namespace StackExchange.Redis
             set => IgnoreConnect = value;
         }
 
+        int IInternalConnectionMultiplexer.AsyncTimeoutMilliseconds
+        {
+            get => AsyncTimeoutMilliseconds;
+        }
+
         /// <summary>
         /// For debugging: when not enabled, servers cannot connect
         /// </summary>
@@ -2188,6 +2193,8 @@ namespace StackExchange.Redis
 
         private IDisposable pulse;
 
+        ServerEndPoint IInternalConnectionMultiplexer.SelectServer(Message message) => SelectServer(message);
+
         internal ServerEndPoint SelectServer(Message message)
         {
             if (message == null) return null;
@@ -2794,7 +2801,7 @@ namespace StackExchange.Redis
 
             if (RawConfig.RetryPolicy != null)
             {
-                var failedCommand = new FailedCommand(message, ex, this);
+                var failedCommand = new FailedCommand(message, this, ex);
                 if (RawConfig.RetryPolicy.ShouldRetry(failedCommand) && RetryQueueManager.TryHandleFailedCommand(failedCommand))
                 {
                     // if this message is a new message set the writetime
@@ -2827,6 +2834,9 @@ namespace StackExchange.Redis
             }
             return tcs == null ? default(T) : await tcs.Task.ForAwait();
         }
+
+        Exception IInternalConnectionMultiplexer.GetException(WriteResult result, Message message, ServerEndPoint server)
+            => GetException(result, message, server);
 
         internal Exception GetException(WriteResult result, Message message, ServerEndPoint server)
         {

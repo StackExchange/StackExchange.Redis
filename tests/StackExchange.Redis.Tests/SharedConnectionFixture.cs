@@ -73,6 +73,8 @@ namespace StackExchange.Redis.Tests
             public bool IncludeDetailInExceptions { get => _inner.IncludeDetailInExceptions; set => _inner.IncludeDetailInExceptions = value; }
             public int StormLogThreshold { get => _inner.StormLogThreshold; set => _inner.StormLogThreshold = value; }
 
+            int IInternalConnectionMultiplexer.AsyncTimeoutMilliseconds => throw new NotImplementedException();
+
             public event EventHandler<RedisErrorEventArgs> ErrorMessage
             {
                 add
@@ -288,6 +290,9 @@ namespace StackExchange.Redis.Tests
 
             public void ExportConfiguration(Stream destination, ExportOptions options = ExportOptions.All)
                 => _inner.ExportConfiguration(destination, options);
+            ServerEndPoint IInternalConnectionMultiplexer.SelectServer(Message message) => _inner.SelectServer(message);
+            Exception IInternalConnectionMultiplexer.GetException(WriteResult result, Message message, ServerEndPoint server)
+                => _inner.GetException(result, message, server);
         }
 
         public void Dispose() => _actualConnection.Dispose();

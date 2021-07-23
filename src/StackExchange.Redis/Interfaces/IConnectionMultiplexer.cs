@@ -12,7 +12,13 @@ namespace StackExchange.Redis
 
         bool IgnoreConnect { get; set; }
 
+        internal int AsyncTimeoutMilliseconds { get; }
+
         ReadOnlySpan<ServerEndPoint> GetServerSnapshot();
+
+        ServerEndPoint SelectServer(Message message);
+
+        Exception GetException(WriteResult result, Message message, ServerEndPoint server);
     }
 
     /// <summary>

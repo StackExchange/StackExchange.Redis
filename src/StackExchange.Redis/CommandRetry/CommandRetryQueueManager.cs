@@ -122,7 +122,7 @@ namespace StackExchange.Redis
                     }
                     queue.Dequeue();
                     RedisTimeoutException ex = message.GetTimeoutException();
-                    HandleException(message, ex);
+                    message.SetExceptionAndComplete(ex);
                 }
             }
         }
@@ -135,7 +135,7 @@ namespace StackExchange.Redis
                 while (queue.Count != 0)
                 {
                     command = queue.Dequeue();
-                    HandleException(command, ex);
+                    command.SetExceptionAndComplete(ex);
                 }
             }
         }

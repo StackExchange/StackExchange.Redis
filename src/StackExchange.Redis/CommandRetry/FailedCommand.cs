@@ -33,8 +33,8 @@ namespace StackExchange.Redis
         /// </summary>
         public string Command => Message.Command.ToString();
 
-        internal Message Message { get; }
-        internal ConnectionMultiplexer Multiplexer { get; }
+        private Message Message { get; }
+        private IInternalConnectionMultiplexer Multiplexer { get; }
 
         // I am not using ExceptionFactory.Timeout as it can cause deadlock while trying to lock writtenawaiting response queue for GetHeadMessages
         internal RedisTimeoutException GetTimeoutException()
@@ -45,13 +45,8 @@ namespace StackExchange.Redis
             return ex;
         }
 
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="message"></param>
-        /// <param name="ex"></param>
-        /// <param name="multiplexer"></param>
-        internal FailedCommand(Message message, Exception ex, ConnectionMultiplexer multiplexer)
+        
+        internal FailedCommand(Message message, IInternalConnectionMultiplexer multiplexer, Exception ex)
         {
             Message = message;
             Multiplexer = multiplexer;
@@ -72,7 +67,7 @@ namespace StackExchange.Redis
                 if (result != WriteResult.Success)
                 {
                     var ex = Multiplexer.GetException(result, Message, server);
-                    SetExceptionAndComplete(Message, ex);
+                    SetExceptionAndComplete(ex);
                 }
                 return true;
             }
