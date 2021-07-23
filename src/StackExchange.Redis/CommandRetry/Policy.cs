@@ -17,7 +17,7 @@ namespace StackExchange.Redis
         /// <typeparam name="T"></typeparam>
         /// <param name="action"></param>
         /// <returns></returns>
-        public static IRetryBuilder Handle<T>(Func<FailedCommand, bool> action)
+        public static IRetryBuilder Handle<T>(Func<FailedCommand, bool> action) where T:RedisException
         => new PolicyRetry(exception =>
         {
             return exception is T;
@@ -28,7 +28,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <typeparam name="T"></typeparam>
         /// <returns></returns>
-        public static IRetryBuilder Handle<T>()
+        public static IRetryBuilder Handle<T>() where T:RedisException
        => new PolicyRetry(exception =>
        {
            return exception is T;
@@ -42,11 +42,15 @@ namespace StackExchange.Redis
     {
         Func<Exception, bool> handler;
         GenericPolicy policy;
+         
+
         /// <summary>
         /// 
-
-        public PolicyRetry()
+        /// </summary>
+        /// <param name="handler"></param>
+        public PolicyRetry(Func<Exception, bool> handler)
         {
+            this.handler = handler;
             policy = new GenericPolicy();
         }
         /// <summary>

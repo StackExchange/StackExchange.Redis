@@ -665,7 +665,6 @@ namespace StackExchange.Redis
         {
             if (TryEnqueueForConnectionRestoreRetry(exception, bridge,
                 onConnectionRestoreRetry &&
-                exception is RedisConnectionException &&
                 bridge != null))
             {
                 return;
