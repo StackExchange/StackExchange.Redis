@@ -12,12 +12,14 @@ namespace StackExchange.Redis
     public class GenericPolicy : IRetryPolicy
     {
         Func<FailedCommand, bool> func;
+        Func<Exception, bool> exceptionHandler;
         /// <summary>
         /// 
         /// </summary>
-        public GenericPolicy(Func<FailedCommand, bool> func)
+        public GenericPolicy(Func<FailedCommand, bool> func, Func<Exception, bool> exceptionHandler)
         {
             this.func = func;
+            this.exceptionHandler = exceptionHandler;
         }
 
         /// <summary>
@@ -25,7 +27,13 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="failedMessage"></param>
         /// <returns></returns>
-        public bool ShouldRetry(FailedCommand failedMessage) => func(failedMessage);
+        public bool ShouldRetry(FailedCommand failedMessage)
+        {
+            if (exceptionHandler(failedMessage.Exception))
+                return func(failedMessage);
+            return false;
+        }
+
 
     }
 }
