@@ -1,5 +1,4 @@
 ﻿using System.Reflection.Metadata;
-using System.Net.NetworkInformation;
 using System.Collections.Generic;
 using System.Text;
 using StackExchange.Redis;
