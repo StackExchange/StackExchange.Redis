@@ -473,19 +473,13 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Apply settings to configure an instance of <see cref="ConfigurationOptions"/> for a specific scenario
+        /// Apply settings to configure this instance of <see cref="ConfigurationOptions"/>, e.g. for a specific scenario.
         /// </summary>
-        /// <param name="tuner">An action that will update the properties of this <see cref="ConfigurationOptions"/> instance</param>
-        /// <returns>This updated <see cref="ConfigurationOptions"/> instance</returns>
-        public ConfigurationOptions Apply(Action<ConfigurationOptions> tuner)
+        /// <param name="configure">An action that will update the properties of this <see cref="ConfigurationOptions"/> instance.</param>
+        /// <returns>This <see cref="ConfigurationOptions"/> instance, with any changes <paramref name="configure"/> made.</returns>
+        public ConfigurationOptions Apply(Action<ConfigurationOptions> configure)
         {
-            if (tuner == null)
-            {
-                throw new ArgumentException(nameof(tuner));
-            }
-
-            tuner.Invoke(this);
-
+            configure?.Invoke(this);
             return this;
         }
 
