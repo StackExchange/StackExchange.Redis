@@ -491,5 +491,35 @@ namespace StackExchange.Redis.Tests
             Assert.StartsWith("Keyword 'flibble' is not supported.", ex.Message); // param name gets concatenated sometimes
             Assert.Equal("flibble", ex.ParamName);
         }
+
+
+        [Fact]
+        public void NullApply()
+        {
+            var options = ConfigurationOptions.Parse("127.0.0.1,name=FooApply");
+            Assert.Equal("FooApply", options.ClientName);
+
+            // Doesn't go boom
+            var result = options.Apply(null);
+            Assert.Equal("FooApply", options.ClientName);
+            Assert.Equal(result, options);
+        }
+
+        [Fact]
+        public void Apply()
+        {
+            var options = ConfigurationOptions.Parse("127.0.0.1,name=FooApply");
+            Assert.Equal("FooApply", options.ClientName);
+
+            var randomName = Guid.NewGuid().ToString();
+            var result = options.Apply(options =>
+            {
+                options.ClientName = randomName;
+            });
+
+            Assert.Equal(randomName, options.ClientName);
+            Assert.Equal(randomName, result.ClientName);
+            Assert.Equal(result, options);
+        }
     }
 }
