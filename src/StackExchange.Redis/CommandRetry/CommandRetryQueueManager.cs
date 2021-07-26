@@ -12,9 +12,9 @@ namespace StackExchange.Redis
     /// </summary>
     internal class CommandRetryQueueManager : IDisposable
     { 
-        readonly Queue<FailedCommand> queue = new Queue<FailedCommand>();
+        readonly Queue<IInternalFailedCommand> queue = new Queue<IInternalFailedCommand>();
         int? maxRetryQueueLength;
-
+        long commandRetryFailedCount;
        /// <summary>
        /// 
        /// </summary>
@@ -32,7 +32,7 @@ namespace StackExchange.Redis
         /// <param name="message"></param>
         /// <returns></returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal bool TryHandleFailedCommand(FailedCommand message)
+        internal bool TryHandleFailedCommand(IInternalFailedCommand message)
         {
             bool wasEmpty;
             lock (queue)
@@ -62,8 +62,7 @@ namespace StackExchange.Redis
 
         private async Task ProcessRetryQueueAsync()
         {
-            FailedCommand message = null;
-            long messageProcessedCount = 0;
+            IInternalFailedCommand message = null;
             try
             {
                 while (true)
@@ -98,8 +97,8 @@ namespace StackExchange.Redis
                     catch (Exception ex)
                     {
                         message.SetExceptionAndComplete(ex);
+                        commandRetryFailedCount++;
                     }
-                    messageProcessedCount++;
                 }
             }
             catch(Exception ex)
@@ -129,7 +128,7 @@ namespace StackExchange.Redis
 
         private void DrainQueue(Exception ex)
         {
-            FailedCommand command;
+            IInternalFailedCommand command;
             lock (queue)
             {
                 while (queue.Count != 0)

@@ -227,9 +227,6 @@ namespace StackExchange.Redis
 
         public bool IsFireAndForget => (Flags & CommandFlags.FireAndForget) != 0;
         public bool IsInternalCall => (Flags & InternalCallFlag) != 0;
-        public bool IsOnConnectionRestoreRetryIfNotYetSent => (Flags & CommandFlags.RetryIfNotYetSent) != 0;
-        public bool IsOnConnectionRestoreAlwaysRetry => (Flags & CommandFlags.AlwaysRetry) != 0;
-
 
         public IResultBox ResultBox => resultBox;
 

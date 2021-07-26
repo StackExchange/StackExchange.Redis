@@ -9,7 +9,7 @@ namespace StackExchange.Redis
     /// <summary>
     /// 
     /// </summary>
-    public class FailedCommand
+    public sealed class FailedCommand : IInternalFailedCommand
     {
         /// <summary>
         /// status of the message
@@ -21,7 +21,7 @@ namespace StackExchange.Redis
         /// </summary>
         public Exception Exception {get; internal set;}
         
-        internal bool HasTimedOut()
+        bool IInternalFailedCommand.HasTimedOut()
         {
             var timeoutMilliseconds = Message.ResultBoxIsAsync ? Multiplexer.AsyncTimeoutMilliseconds : Multiplexer.TimeoutMilliseconds;
             int millisecondsTaken = unchecked(Environment.TickCount - Message.GetWriteTime());
@@ -37,7 +37,7 @@ namespace StackExchange.Redis
         private IInternalConnectionMultiplexer Multiplexer { get; }
 
         // I am not using ExceptionFactory.Timeout as it can cause deadlock while trying to lock writtenawaiting response queue for GetHeadMessages
-        internal RedisTimeoutException GetTimeoutException()
+        RedisTimeoutException IInternalFailedCommand.GetTimeoutException()
         {
             var sb = new StringBuilder();
             sb.Append("Timeout while waiting for connectionrestore ").Append(Command).Append(" (").Append(Format.ToString(Multiplexer.TimeoutMilliseconds)).Append("ms)");
@@ -55,9 +55,9 @@ namespace StackExchange.Redis
 
         internal int GetWriteTime() => Message.GetWriteTime();
         internal void ResetStatusToWaitingToBeSent() => Message.ResetStatusToWaitingToBeSent();
-        internal bool IsEndpointAvailable() => Multiplexer.SelectServer(Message) != null;
+        bool IInternalFailedCommand.IsEndpointAvailable() => Multiplexer.SelectServer(Message) != null;
 
-        internal async Task<bool> TryResendAsync()
+        async Task<bool> IInternalFailedCommand.TryResendAsync()
         {
             var server = Multiplexer.SelectServer(Message);
             if (server != null)
@@ -67,14 +67,14 @@ namespace StackExchange.Redis
                 if (result != WriteResult.Success)
                 {
                     var ex = Multiplexer.GetException(result, Message, server);
-                    SetExceptionAndComplete(ex);
+                    ((IInternalFailedCommand)this).SetExceptionAndComplete(ex);
                 }
                 return true;
             }
             return false;
         }
 
-        internal void SetExceptionAndComplete(Exception ex = null)
+        void IInternalFailedCommand.SetExceptionAndComplete(Exception ex)
         {
             var inner = new RedisConnectionException(ConnectionFailureType.UnableToConnect, "Failed while retrying on connection restore", ex);
             Message.SetExceptionAndComplete(inner, null, onConnectionRestoreRetry: false);
