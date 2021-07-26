@@ -14,14 +14,12 @@ namespace StackExchange.Redis
     { 
         readonly Queue<IInternalFailedCommand> queue = new Queue<IInternalFailedCommand>();
         int? maxRetryQueueLength;
-        long commandRetryFailedCount;
-       /// <summary>
-       /// 
-       /// </summary>
-       /// <param name="maxRetryQueueLength"></param>
-        internal CommandRetryQueueManager(int? maxRetryQueueLength = null)
+        bool runRetryLoopAsync;
+
+        internal CommandRetryQueueManager(int? maxRetryQueueLength = null, bool runRetryLoopAsync = true)
         {
             this.maxRetryQueueLength = maxRetryQueueLength;
+            this.runRetryLoopAsync = runRetryLoopAsync;
         }
 
         public int RetryQueueLength => queue.Count;
@@ -57,53 +55,72 @@ namespace StackExchange.Redis
             {
                 startProcessor = queue.Count > 0;
             }
-            if (startProcessor) Task.Run(ProcessRetryQueueAsync);
+            if (startProcessor)
+            {
+                if (runRetryLoopAsync)
+                {
+                    var task = Task.Run(ProcessRetryQueueAsync);
+                    if (task.IsFaulted)
+                        throw task.Exception;
+                }
+                else
+                {
+                    ProcessRetryQueueAsync().Wait();
+                }
+            }
         }
 
         private async Task ProcessRetryQueueAsync()
         {
             IInternalFailedCommand message = null;
-            try
+            while (true)
             {
-                while (true)
+                message = null;
+                Exception failedEndpointex = null;
+                lock (queue)
                 {
-                    message = null;
-                    lock (queue)
+                    if (queue.Count == 0) break; // all done
+                    message = queue.Peek();
+                    try
                     {
-                        if (queue.Count == 0) break; // all done
-                        message = queue.Peek();
                         if (!message.IsEndpointAvailable())
                         {
                             break;
                         }
-                        message = queue.Dequeue();
-                    }
-                    try
-                    {
-                        if (message.HasTimedOut())
-                        {
-                            RedisTimeoutException ex = message.GetTimeoutException();
-                            message.SetExceptionAndComplete(ex);
-                        }
-                        else
-                        {
-                            if(!await message.TryResendAsync())
-                            {
-                                // this should never happen but just to be safe if connection got dropped again
-                                message.SetExceptionAndComplete();
-                            }
-                        }
                     }
                     catch (Exception ex)
                     {
+                        failedEndpointex = ex;
+                    }
+                    message = queue.Dequeue();
+                }
+
+                if (failedEndpointex != null)
+                {
+                    message.SetExceptionAndComplete(failedEndpointex);
+                    continue;
+                }
+
+                try
+                {
+                    if (message.HasTimedOut())
+                    {
+                        RedisTimeoutException ex = message.GetTimeoutException();
                         message.SetExceptionAndComplete(ex);
-                        commandRetryFailedCount++;
+                    }
+                    else
+                    {
+                        if (!await message.TryResendAsync())
+                        {
+                            // this should never happen but just to be safe if connection got dropped again
+                            message.SetExceptionAndComplete();
+                        }
                     }
                 }
-            }
-            catch(Exception ex)
-            {
-                DrainQueue(ex);
+                catch (Exception ex)
+                {
+                    message.SetExceptionAndComplete(ex);
+                }
             }
         }
 
