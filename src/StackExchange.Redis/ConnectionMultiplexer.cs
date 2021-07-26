@@ -834,14 +834,35 @@ namespace StackExchange.Redis
         internal bool IsDisposed => _isDisposed;
 
         /// <summary>
-        /// Create a new ConnectionMultiplexer instance
+        /// Create a new ConnectionMultiplexer instance.
         /// </summary>
         /// <param name="configuration">The string configuration to use for this multiplexer.</param>
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
-        public static Task<ConnectionMultiplexer> ConnectAsync(string configuration, TextWriter log = null)
+        public static Task<ConnectionMultiplexer> ConnectAsync(string configuration, TextWriter log = null) =>
+            ConnectAsync(ConfigurationOptions.Parse(configuration), log);
+
+        /// <summary>
+        /// Create a new ConnectionMultiplexer instance.
+        /// </summary>
+        /// <param name="configuration">The string configuration to use for this multiplexer.</param>
+        /// <param name="configure">Action to further modify the parsed configuration options.</param>
+        /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
+        public static Task<ConnectionMultiplexer> ConnectAsync(string configuration, Action<ConfigurationOptions> configure, TextWriter log = null) =>
+            ConnectAsync(ConfigurationOptions.Parse(configuration).Apply(configure), log);
+
+        /// <summary>
+        /// Create a new ConnectionMultiplexer instance.
+        /// </summary>
+        /// <param name="configuration">The configuration options to use for this multiplexer.</param>
+        /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
+        public static Task<ConnectionMultiplexer> ConnectAsync(ConfigurationOptions configuration, TextWriter log = null)
         {
             SocketConnection.AssertDependencies();
-            return ConnectAsync(ConfigurationOptions.Parse(configuration), log);
+
+            if (IsSentinel(configuration))
+                return SentinelMasterConnectAsync(configuration, log);
+
+            return ConnectImplAsync(PrepareConfig(configuration), log);
         }
 
         private static async Task<ConnectionMultiplexer> ConnectImplAsync(ConfigurationOptions configuration, TextWriter log = null)
@@ -879,21 +900,6 @@ namespace StackExchange.Redis
                     if (killMe != null) try { killMe.Dispose(); } catch { }
                 }
             }
-        }
-
-        /// <summary>
-        /// Create a new ConnectionMultiplexer instance
-        /// </summary>
-        /// <param name="configuration">The configuration options to use for this multiplexer.</param>
-        /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
-        public static Task<ConnectionMultiplexer> ConnectAsync(ConfigurationOptions configuration, TextWriter log = null)
-        {
-            SocketConnection.AssertDependencies();
-
-            if (IsSentinel(configuration))
-                return SentinelMasterConnectAsync(configuration, log);
-
-            return ConnectImplAsync(PrepareConfig(configuration), log);
         }
 
         private static bool IsSentinel(ConfigurationOptions configuration)
@@ -1009,17 +1015,24 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Create a new ConnectionMultiplexer instance
+        /// Create a new ConnectionMultiplexer instance.
         /// </summary>
         /// <param name="configuration">The string configuration to use for this multiplexer.</param>
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
-        public static ConnectionMultiplexer Connect(string configuration, TextWriter log = null)
-        {
-            return Connect(ConfigurationOptions.Parse(configuration), log);
-        }
+        public static ConnectionMultiplexer Connect(string configuration, TextWriter log = null) =>
+            Connect(ConfigurationOptions.Parse(configuration), log);
 
         /// <summary>
-        /// Create a new ConnectionMultiplexer instance
+        /// Create a new ConnectionMultiplexer instance.
+        /// </summary>
+        /// <param name="configuration">The string configuration to use for this multiplexer.</param>
+        /// <param name="configure">Action to further modify the parsed configuration options.</param>
+        /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
+        public static ConnectionMultiplexer Connect(string configuration, Action<ConfigurationOptions> configure, TextWriter log = null) =>
+            Connect(ConfigurationOptions.Parse(configuration).Apply(configure), log);
+
+        /// <summary>
+        /// Create a new ConnectionMultiplexer instance.
         /// </summary>
         /// <param name="configuration">The configuration options to use for this multiplexer.</param>
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>

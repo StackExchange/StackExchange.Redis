@@ -473,6 +473,17 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
+        /// Apply settings to configure this instance of <see cref="ConfigurationOptions"/>, e.g. for a specific scenario.
+        /// </summary>
+        /// <param name="configure">An action that will update the properties of this <see cref="ConfigurationOptions"/> instance.</param>
+        /// <returns>This <see cref="ConfigurationOptions"/> instance, with any changes <paramref name="configure"/> made.</returns>
+        public ConfigurationOptions Apply(Action<ConfigurationOptions> configure)
+        {
+            configure?.Invoke(this);
+            return this;
+        }
+
+        /// <summary>
         /// Resolve the default port for any endpoints that did not have a port explicitly specified
         /// </summary>
         public void SetDefaultPorts()
