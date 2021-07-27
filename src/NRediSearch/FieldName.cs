@@ -36,11 +36,12 @@ namespace NRediSearch
         }
 
         public static FieldName[] convert(params string[] names) {
-        if (names == null) return null;
-        FieldName[] fields = new FieldName[names.Length];
-        for (int i = 0; i < names.Length; i++)
-            fields[i] = FieldName.Of(names[i]);
-        return fields;
+            if (names == null) return null;
+            FieldName[] fields = new FieldName[names.Length];
+            for (int i = 0; i < names.Length; i++)
+                fields[i] = FieldName.Of(names[i]);
+            
+            return fields;
         }
     }
 }
