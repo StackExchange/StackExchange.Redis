@@ -2791,18 +2791,16 @@ namespace StackExchange.Redis
 
         internal bool TryMessageForRetry(Message message, Exception ex)
         {
-            
-            // check for overriden retry flag
-            if ((message.Flags & CommandFlags.NoRetry) != 0) return false;
-            if ((message.Flags & CommandFlags.RetryIfNotYetSent) != 0 && message.Status == CommandStatus.Sent) return false;
-            if ((message.Flags & CommandFlags.AlwaysRetry) != 0) message.ResetStatusToWaitingToBeSent();
-
-            if (message.IsAdmin) return false;
-
-            if (RawConfig.RetryPolicy != null)
+            if (RawConfig.RetryPolicy != null && !message.IsAdmin)
             {
+                // check for overriden retry flag
+                if ((message.Flags & CommandFlags.NoRetry) != 0) return false;
+                if ((message.Flags & CommandFlags.RetryIfNotYetSent) != 0 && message.Status == CommandStatus.Sent) return false;
+                if ((message.Flags & CommandFlags.AlwaysRetry) != 0) message.ResetStatusToWaitingToBeSent();
+
                 var failedCommand = new FailedCommand(message, this, ex);
-                if (RawConfig.RetryPolicy.ShouldRetry(failedCommand) && RetryQueueManager.TryHandleFailedCommand(failedCommand))
+                var shouldRetry = message.IsInternalCall ? true : RawConfig.RetryPolicy.ShouldRetry(failedCommand);
+                if (shouldRetry && RetryQueueManager.TryHandleFailedCommand(failedCommand))
                 {
                     // if this message is a new message set the writetime
                     if (message.GetWriteTime() == 0)

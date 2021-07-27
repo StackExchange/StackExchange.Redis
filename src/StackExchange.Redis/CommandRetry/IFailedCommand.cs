@@ -25,7 +25,6 @@ namespace StackExchange.Redis
         /// 
         /// </summary>
         public string Command { get; }
-
     }
 
     internal interface IInternalFailedCommand : IFailedCommand

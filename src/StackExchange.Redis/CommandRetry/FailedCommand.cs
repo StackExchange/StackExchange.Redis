@@ -20,6 +20,7 @@ namespace StackExchange.Redis
         /// 
         /// </summary>
         public Exception Exception {get; internal set;}
+       
         
         bool IInternalFailedCommand.HasTimedOut()
         {
