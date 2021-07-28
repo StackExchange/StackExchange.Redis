@@ -1,13 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net;
-using System.Text;
+﻿using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Moq;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests.CommandRetry
 {
@@ -88,6 +82,7 @@ namespace StackExchange.Redis.Tests.CommandRetry
                 }
             }
         }
+
 
         private void KillClient(IInternalConnectionMultiplexer adminMuxer, IInternalConnectionMultiplexer clientmuxer)
         {

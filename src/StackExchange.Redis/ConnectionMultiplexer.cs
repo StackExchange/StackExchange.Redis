@@ -2789,15 +2789,13 @@ namespace StackExchange.Redis
             }
         }
 
+
         internal bool TryMessageForRetry(Message message, Exception ex)
         {
             if (RawConfig.RetryPolicy != null && !message.IsAdmin)
             {
-                // check for overriden retry flag
-                if ((message.Flags & CommandFlags.NoRetry) != 0) return false;
-                if ((message.Flags & CommandFlags.RetryIfNotYetSent) != 0 && message.Status == CommandStatus.Sent) return false;
-                if ((message.Flags & CommandFlags.AlwaysRetry) != 0) message.ResetStatusToWaitingToBeSent();
 
+                if (!message.ShouldRetry()) return false;
                 var failedCommand = new FailedCommand(message, this, ex);
                 var shouldRetry = message.IsInternalCall ? true : RawConfig.RetryPolicy.ShouldRetry(failedCommand);
                 if (shouldRetry&& RetryQueueManager.TryHandleFailedCommand(failedCommand))

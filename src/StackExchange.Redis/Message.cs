@@ -681,6 +681,18 @@ namespace StackExchange.Redis
             return false;
         }
 
+
+        /// <summary>
+        /// returns true if message should be retried based on command flag
+        /// </summary>
+        /// <returns></returns>
+        internal bool ShouldRetry()
+        {
+            if ((Flags & CommandFlags.NoRetry) != 0) return false;
+            if ((Flags & CommandFlags.RetryIfNotYetSent) != 0 && Status == CommandStatus.Sent) return false;
+            return true;
+        }
+
         internal void SetEnqueued(PhysicalConnection connection)
         {
 #if DEBUG
