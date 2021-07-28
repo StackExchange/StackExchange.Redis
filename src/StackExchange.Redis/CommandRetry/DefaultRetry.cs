@@ -9,7 +9,7 @@ namespace StackExchange.Redis
     /// <summary>
     /// 
     /// </summary>
-    public class AlwaysRetryOnConnectionException : IRetryPolicy
+    public class AlwaysRetryOnConnectionException : ICommandRetryPolicy
     {
         /// <summary>
         /// 
@@ -22,7 +22,7 @@ namespace StackExchange.Redis
     /// <summary>
     /// 
     /// </summary>
-    public class RetryIfNotSentOnConnectionException : IRetryPolicy
+    public class RetryIfNotSentOnConnectionException : ICommandRetryPolicy
     {
         /// <summary>
         /// 
@@ -38,13 +38,13 @@ namespace StackExchange.Redis
     /// <summary>
     /// 
     /// </summary>
-    public class RetryPolicy
+    public class CommandRetryPolicy
     {
         /// <summary>
         /// 
         /// </summary>
         /// <returns></returns>
-        public IRetryPolicy AlwaysRetryOnConnectionException()
+        public ICommandRetryPolicy AlwaysRetryOnConnectionException()
         {
             return new AlwaysRetryOnConnectionException();
         }
@@ -53,7 +53,7 @@ namespace StackExchange.Redis
         /// 
         /// </summary>
         /// <returns></returns>
-        public IRetryPolicy RetryIfNotSentOnConnectionException()
+        public ICommandRetryPolicy RetryIfNotSentOnConnectionException()
         {
             return new RetryIfNotSentOnConnectionException();
         }

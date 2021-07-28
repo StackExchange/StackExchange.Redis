@@ -6,28 +6,35 @@ using Xunit.Abstractions;
 namespace StackExchange.Redis.Tests.CommandRetry
 {
     [Collection(SharedConnectionFixture.Key)]
-    public class CommandRetryQueueManagerTests : TestBase
+    public class MessageRetryQueueTests : TestBase
     {
-        public CommandRetryQueueManagerTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
+        public MessageRetryQueueTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
+
+        private void GetMock(out Moq.Mock<IMessageRetryHelper> mockmessageRetryHelper, out MessageRetryQueue messageRetryQueue, out Message message)
+        {
+            message = Message.Create(0, CommandFlags.None, RedisCommand.SET);
+            var mux = new SharedConnectionFixture().Connection;
+            mockmessageRetryHelper = new Mock<IMessageRetryHelper>();
+            messageRetryQueue = new MessageRetryQueue(mockmessageRetryHelper.Object, runRetryLoopAsync: false);
+        }
 
         [Fact]
         public void ValidateMaxQueueLengthFails()
         {
-            CommandRetryQueueManager commandRetryQueueManager = new CommandRetryQueueManager(maxRetryQueueLength: 0);
             var message = Message.Create(0, CommandFlags.None, RedisCommand.SET);
             var mux = new SharedConnectionFixture().Connection;
-            var messageFailedException = new Exception();
+            var mockmessageRetryHelper = new Mock<IMessageRetryHelper>();
+            var messageRetryQueue = new MessageRetryQueue(mockmessageRetryHelper.Object, maxRetryQueueLength:1, runRetryLoopAsync: false);
 
-            var isEnqueuedWithZeroMaxLength = commandRetryQueueManager.TryHandleFailedCommand(new FailedCommand(message, mux, messageFailedException));
-            var mockfailedCommand = new Mock<IInternalFailedCommand>();
-            commandRetryQueueManager.TryHandleFailedCommand(mockfailedCommand.Object);
+            var isEnqueuedWithZeroMaxLength = messageRetryQueue.TryHandleFailedCommand(message);
+            messageRetryQueue.TryHandleFailedCommand(message);
             Assert.False(isEnqueuedWithZeroMaxLength);
         }
 
         [Fact]
         public async void RetryMessageSucceeds()
         {
-            using (var muxer = Create(allowAdmin:true,retryPolicy: RetryPolicy.Handle<RedisException>().AlwaysRetry()))
+            using (var muxer = Create(allowAdmin:true,retryPolicy: new CommandRetryPolicy().AlwaysRetryOnConnectionException()))
             {
                 var conn = muxer.GetDatabase();
                 var duration = await conn.PingAsync().ForAwait();
@@ -39,86 +46,71 @@ namespace StackExchange.Redis.Tests.CommandRetry
         [Fact]
         public void TryHandleFailedMessageSucceedsOnEndPointAvailable()
         {
-            CommandRetryQueueManager commandRetryQueueManager = new CommandRetryQueueManager(runRetryLoopAsync:false);
-            var message = Message.Create(0, CommandFlags.None, RedisCommand.SET);
-            var mux = new SharedConnectionFixture().Connection;
-            var mockfailedCommand = new Mock<IInternalFailedCommand>();
-            mockfailedCommand.Setup(failedCommand => failedCommand.IsEndpointAvailable()).Returns(true);
+            GetMock(out var messageRetryHelper, out var messageRetryQueue, out var message);
+            messageRetryHelper.Setup(failedCommand => failedCommand.IsEndpointAvailable(message)).Returns(true);
 
-            commandRetryQueueManager.TryHandleFailedCommand(mockfailedCommand.Object);
+            messageRetryQueue.TryHandleFailedCommand(message);
 
-            Assert.True(commandRetryQueueManager.RetryQueueLength == 0);
-            mockfailedCommand.Verify(failedCommand => failedCommand.TryResendAsync(), Times.Once);
+            Assert.True(messageRetryQueue.RetryQueueLength == 0);
+            messageRetryHelper.Verify(failedCommand => failedCommand.TryResendAsync(message), Times.Once);
         }
 
         [Fact]
         public void TryHandleFailedMessageWaitOnEndPointUnAvailable()
         {
-            CommandRetryQueueManager commandRetryQueueManager = new CommandRetryQueueManager(runRetryLoopAsync: false);
-            var message = Message.Create(0, CommandFlags.None, RedisCommand.SET);
-            var mux = new SharedConnectionFixture().Connection;
-            var mockfailedCommand = new Mock<IInternalFailedCommand>();
-            mockfailedCommand.Setup(mockfailedCommand => mockfailedCommand.IsEndpointAvailable()).Returns(false);
+            GetMock(out var messageRetryHelper, out var messageRetryQueue, out var message);
+            messageRetryHelper.Setup(mockfailedCommand => mockfailedCommand.IsEndpointAvailable(message)).Returns(false);
 
+            messageRetryQueue.TryHandleFailedCommand(message);
 
-            commandRetryQueueManager.TryHandleFailedCommand(mockfailedCommand.Object);
-
-            Assert.True(commandRetryQueueManager.RetryQueueLength == 1);
-            mockfailedCommand.Verify(failedCommand => failedCommand.TryResendAsync(), Times.Never);
+            Assert.True(messageRetryQueue.RetryQueueLength == 1);
+            messageRetryHelper.Verify(failedCommand => failedCommand.TryResendAsync(message), Times.Never);
         }
 
         [Fact]
         public void TryHandleFailedMessageTimedoutEndPointAvailable()
         {
-            CommandRetryQueueManager commandRetryQueueManager = new CommandRetryQueueManager(runRetryLoopAsync: false);
-            var message = Message.Create(0, CommandFlags.None, RedisCommand.SET);
-            var mux = new SharedConnectionFixture().Connection;
-            var mockfailedCommand = new Mock<IInternalFailedCommand>();
+            GetMock(out var messageRetryHelper, out var messageRetryQueue, out var message);
+
             var timeout = new RedisTimeoutException("timedout", CommandStatus.Unknown);
-            mockfailedCommand.Setup(mockfailedCommand => mockfailedCommand.IsEndpointAvailable()).Returns(true);
-            mockfailedCommand.Setup(failedCommand => failedCommand.HasTimedOut()).Returns(true);
-            mockfailedCommand.Setup(failedCommand => failedCommand.GetTimeoutException()).Returns(timeout);
+            messageRetryHelper.Setup(mockfailedCommand => mockfailedCommand.IsEndpointAvailable(message)).Returns(true);
+            messageRetryHelper.Setup(failedCommand => failedCommand.HasTimedOut(message)).Returns(true);
+            messageRetryHelper.Setup(failedCommand => failedCommand.GetTimeoutException(message)).Returns(timeout);
 
 
-            commandRetryQueueManager.TryHandleFailedCommand(mockfailedCommand.Object);
+            messageRetryQueue.TryHandleFailedCommand(message);
 
-            Assert.True(commandRetryQueueManager.RetryQueueLength == 0);
-            mockfailedCommand.Verify(failedCommand => failedCommand.TryResendAsync(), Times.Never);
-            mockfailedCommand.Verify(failedCommand => failedCommand.SetExceptionAndComplete(timeout), Times.Once);
+            Assert.True(messageRetryQueue.RetryQueueLength == 0);
+            messageRetryHelper.Verify(failedCommand => failedCommand.TryResendAsync(message), Times.Never);
+            messageRetryHelper.Verify(failedCommand => failedCommand.SetExceptionAndComplete(message,timeout), Times.Once);
         }
 
         [Fact]
         public void TryHandleFailedMessageGetEndpointThrows()
         {
-            CommandRetryQueueManager commandRetryQueueManager = new CommandRetryQueueManager(runRetryLoopAsync: false);
-            var message = Message.Create(0, CommandFlags.None, RedisCommand.SET);
-            var mux = new SharedConnectionFixture().Connection;
-            var mockfailedCommand = new Mock<IInternalFailedCommand>();
+            GetMock(out var messageRetryHelper, out var messageRetryQueue, out var message);
             var ex = new Exception("failedendpoint");
-            mockfailedCommand.Setup(mockfailedCommand => mockfailedCommand.IsEndpointAvailable()).Throws(ex);
+            messageRetryHelper.Setup(mockfailedCommand => mockfailedCommand.IsEndpointAvailable(message)).Throws(ex);
 
-            commandRetryQueueManager.TryHandleFailedCommand(mockfailedCommand.Object);
+            messageRetryQueue.TryHandleFailedCommand(message);
 
-            Assert.True(commandRetryQueueManager.RetryQueueLength == 0);
-            mockfailedCommand.Verify(failedCommand => failedCommand.TryResendAsync(), Times.Never);
-            mockfailedCommand.Verify(failedCommand => failedCommand.SetExceptionAndComplete(ex), Times.Once);
+            Assert.True(messageRetryQueue.RetryQueueLength == 0);
+            messageRetryHelper.Verify(failedCommand => failedCommand.TryResendAsync(message), Times.Never);
+            messageRetryHelper.Verify(failedCommand => failedCommand.SetExceptionAndComplete(message,ex), Times.Once);
         }
 
         [Fact]
         public void TryHandleFailedMessageDrainsQueue()
         {
-            CommandRetryQueueManager commandRetryQueueManager = new CommandRetryQueueManager(runRetryLoopAsync: false);
-            var message = Message.Create(0, CommandFlags.None, RedisCommand.SET);
-            var mux = new SharedConnectionFixture().Connection;
-            var mockfailedCommand = new Mock<IInternalFailedCommand>();
-            mockfailedCommand.Setup(mockfailedCommand => mockfailedCommand.IsEndpointAvailable()).Returns(false);
+            GetMock(out var messageRetryHelper, out var messageRetryQueue, out var message);
+            messageRetryHelper.Setup(mockfailedCommand => mockfailedCommand.IsEndpointAvailable(message)).Returns(false);
 
-            commandRetryQueueManager.TryHandleFailedCommand(mockfailedCommand.Object);
-            commandRetryQueueManager.Dispose();
+            messageRetryQueue.TryHandleFailedCommand(message);
+            messageRetryQueue.Dispose();
 
-            Assert.True(commandRetryQueueManager.RetryQueueLength == 0);
-            mockfailedCommand.Verify(failedCommand => failedCommand.TryResendAsync(), Times.Never);
-            mockfailedCommand.Verify(failedCommand => failedCommand.SetExceptionAndComplete(It.IsAny<Exception>()), Times.Once);
+            Assert.True(messageRetryQueue.RetryQueueLength == 0);
+            messageRetryHelper.Verify(failedCommand => failedCommand.TryResendAsync(message), Times.Never);
+            messageRetryHelper.Verify(failedCommand => failedCommand.SetExceptionAndComplete(message, It.IsAny<Exception>()), Times.Once);
         }
 
         [Theory]
@@ -126,37 +118,31 @@ namespace StackExchange.Redis.Tests.CommandRetry
         [InlineData(false, 1)]
         public void CheckRetryForTimeoutTimesout(bool hasTimedout, int queueLength)
         {
-            CommandRetryQueueManager commandRetryQueueManager = new CommandRetryQueueManager(runRetryLoopAsync: false);
-            var message = Message.Create(0, CommandFlags.None, RedisCommand.SET);
-            var mux = new SharedConnectionFixture().Connection;
-            var mockfailedCommand = new Mock<IInternalFailedCommand>();
-            mockfailedCommand.Setup(mockfailedCommand => mockfailedCommand.IsEndpointAvailable()).Returns(false);
-            mockfailedCommand.Setup(mockfailedCommand => mockfailedCommand.HasTimedOut()).Returns(hasTimedout);
+            GetMock(out var messageRetryHelper, out var messageRetryQueue, out var message);
+            messageRetryHelper.Setup(mockfailedCommand => mockfailedCommand.IsEndpointAvailable(message)).Returns(false);
+            messageRetryHelper.Setup(mockfailedCommand => mockfailedCommand.HasTimedOut(message)).Returns(hasTimedout);
 
-            commandRetryQueueManager.TryHandleFailedCommand(mockfailedCommand.Object);
-            commandRetryQueueManager.CheckRetryQueueForTimeouts();
+            messageRetryQueue.TryHandleFailedCommand(message);
+            messageRetryQueue.CheckRetryQueueForTimeouts();
 
-            Assert.Equal(queueLength, commandRetryQueueManager.RetryQueueLength);
-            mockfailedCommand.Verify(failedCommand => failedCommand.TryResendAsync(), Times.Never);
-            mockfailedCommand.Verify(failedCommand => failedCommand.SetExceptionAndComplete(It.IsAny<Exception>()), Times.Exactly(hasTimedout ? 1 : 0));
+            Assert.Equal(queueLength, messageRetryQueue.RetryQueueLength);
+            messageRetryHelper.Verify(failedCommand => failedCommand.TryResendAsync(message), Times.Never);
+            messageRetryHelper.Verify(failedCommand => failedCommand.SetExceptionAndComplete(message,It.IsAny<Exception>()), Times.Exactly(hasTimedout ? 1 : 0));
         }
 
         [Fact]
         public void TryHandleFailedMessageTimeoutThrow()
         {
-            CommandRetryQueueManager commandRetryQueueManager = new CommandRetryQueueManager(runRetryLoopAsync: false);
-            var message = Message.Create(0, CommandFlags.None, RedisCommand.SET);
-            var mux = new SharedConnectionFixture().Connection;
-            var mockfailedCommand = new Mock<IInternalFailedCommand>();
+            GetMock(out var messageRetryHelper, out var messageRetryQueue, out var message);
             var ex = new Exception();
-            mockfailedCommand.Setup(mockfailedCommand => mockfailedCommand.IsEndpointAvailable()).Returns(true);
-            mockfailedCommand.Setup(mockfailedCommand => mockfailedCommand.HasTimedOut()).Throws(ex);
+            messageRetryHelper.Setup(mockfailedCommand => mockfailedCommand.IsEndpointAvailable(message)).Returns(true);
+            messageRetryHelper.Setup(mockfailedCommand => mockfailedCommand.HasTimedOut(message)).Throws(ex);
 
-            commandRetryQueueManager.TryHandleFailedCommand(mockfailedCommand.Object);
+            messageRetryQueue.TryHandleFailedCommand(message);
 
-            Assert.True(commandRetryQueueManager.RetryQueueLength == 0);
-            mockfailedCommand.Verify(failedCommand => failedCommand.TryResendAsync(), Times.Never);
-            mockfailedCommand.Verify(failedCommand => failedCommand.SetExceptionAndComplete(It.IsAny<Exception>()), Times.Once);
+            Assert.True(messageRetryQueue.RetryQueueLength == 0);
+            messageRetryHelper.Verify(failedCommand => failedCommand.TryResendAsync(message), Times.Never);
+            messageRetryHelper.Verify(failedCommand => failedCommand.SetExceptionAndComplete(message, It.IsAny<Exception>()), Times.Once);
         }
     }
 }

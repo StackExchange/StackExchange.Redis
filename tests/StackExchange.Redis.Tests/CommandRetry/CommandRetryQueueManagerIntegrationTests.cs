@@ -5,7 +5,7 @@ using Xunit;
 
 namespace StackExchange.Redis.Tests.CommandRetry
 {
-    public class CommandRetryQueueManagerIntegrationTests
+    public class MessageRetryQueueIntegrationTests
     {
 
         [Theory]
@@ -21,8 +21,8 @@ namespace StackExchange.Redis.Tests.CommandRetry
             {
                 ConfigurationOptions configClient = new ConfigurationOptions();
                 configClient.EndPoints.Add("127.0.0.1");
-                configClient.RetryPolicy = null;
-                if(retryPolicySet) configClient.RetryPolicy = RetryPolicy.Handle<RedisConnectionException>().AlwaysRetry();
+                configClient.CommandRetryPolicy = null;
+                if (retryPolicySet) configClient.CommandRetryPolicy = new CommandRetryPolicy().AlwaysRetryOnConnectionException();
                 using (var clientmuxer = ConnectionMultiplexer.Connect(configClient))
                 {
                     var conn = clientmuxer.GetDatabase();

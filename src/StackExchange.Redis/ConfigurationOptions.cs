@@ -59,16 +59,16 @@ namespace StackExchange.Redis
                 return tmp;
             }
 
-            internal static IRetryPolicy ParseRetryPolicy(string key, string value)
+            internal static ICommandRetryPolicy ParseCommandRetryPolicy(string key, string value)
             {
                 switch (value.ToLower())
                 {
                     case "noretry":
                         return null;
                     case "alwaysretry":
-                        return Redis.RetryPolicy.Handle<RedisConnectionException>().AlwaysRetry();
+                        return new CommandRetryPolicy().AlwaysRetryOnConnectionException();
                     case "retryifnotyetsent":
-                        return Redis.RetryPolicy.Handle<RedisConnectionException>().RetryIfNotYetSent();
+                        return new CommandRetryPolicy().RetryIfNotSentOnConnectionException();
                     default:
                         throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' can be NoRetry, AlwaysRetry or RetryIfNotYetSent ; the value '{value}' is not recognised.");
                 }
@@ -107,7 +107,7 @@ namespace StackExchange.Redis
                 Version = "version",
                 WriteBuffer = "writeBuffer",
                 CheckCertificateRevocation = "checkCertificateRevocation",
-                RetryPolicy = "RetryPolicy",
+                CommandRetryPolicy = "CommandRetryPolicy",
                 RetryQueueLength = "RetryQueueLength";
 
 
@@ -139,7 +139,7 @@ namespace StackExchange.Redis
                 Version,
                 WriteBuffer,
                 CheckCertificateRevocation,
-                RetryPolicy,
+                CommandRetryPolicy,
                 RetryQueueLength,
             }.ToDictionary(x => x, StringComparer.OrdinalIgnoreCase);
 
@@ -363,7 +363,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// The retry policy to be used for command retries during connection reconnects
         /// </summary>
-        public IRetryPolicy RetryPolicy { get; set; }
+        public ICommandRetryPolicy CommandRetryPolicy { get; set; }
 
         /// <summary>
         /// Indicates whether endpoints should be resolved via DNS before connecting.
@@ -504,7 +504,7 @@ namespace StackExchange.Redis
                 ReconnectRetryPolicy = reconnectRetryPolicy,
                 SslProtocols = SslProtocols,
                 checkCertificateRevocation = checkCertificateRevocation,
-                RetryPolicy = RetryPolicy,
+                CommandRetryPolicy = CommandRetryPolicy,
                 RetryQueueMaxLength = RetryQueueMaxLength,
             };
             foreach (var item in EndPoints)
@@ -579,7 +579,7 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.ConfigCheckSeconds, configCheckSeconds);
             Append(sb, OptionKeys.ResponseTimeout, responseTimeout);
             Append(sb, OptionKeys.DefaultDatabase, DefaultDatabase);
-            Append(sb, OptionKeys.RetryPolicy, RetryPolicy);
+            Append(sb, OptionKeys.CommandRetryPolicy, CommandRetryPolicy);
             Append(sb, OptionKeys.RetryQueueLength, retryQueueLength);
             commandMap?.AppendDeltas(sb);
             return sb.ToString();
@@ -669,7 +669,7 @@ namespace StackExchange.Redis
             CertificateValidation = null;
             ChannelPrefix = default(RedisChannel);
             SocketManager = null;
-            RetryPolicy = null;
+            CommandRetryPolicy = null;
         }
 
         object ICloneable.Clone() => Clone();
@@ -790,8 +790,8 @@ namespace StackExchange.Redis
                         case OptionKeys.SslProtocols:
                             SslProtocols = OptionKeys.ParseSslProtocols(key, value);
                             break;
-                        case OptionKeys.RetryPolicy:
-                            RetryPolicy = OptionKeys.ParseRetryPolicy(key, value);
+                        case OptionKeys.CommandRetryPolicy:
+                            CommandRetryPolicy = OptionKeys.ParseCommandRetryPolicy(key, value);
                             break;
                         case OptionKeys.RetryQueueLength:
                             RetryQueueMaxLength = OptionKeys.ParseInt32(key, value, minValue: 0);

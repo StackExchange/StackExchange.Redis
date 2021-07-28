@@ -1264,7 +1264,7 @@ namespace StackExchange.Redis
         }
 
         internal readonly CommandMap CommandMap;
-        internal readonly CommandRetryQueueManager RetryQueueManager;
+        internal readonly MessageRetryQueue RetryQueueManager;
 
         /// <summary>
         /// returns the current length of the retry queue
@@ -1299,7 +1299,7 @@ namespace StackExchange.Redis
                 ConfigurationChangedChannel = Encoding.UTF8.GetBytes(configChannel);
             }
             lastHeartbeatTicks = Environment.TickCount;
-            RetryQueueManager = new CommandRetryQueueManager(RawConfig.RetryQueueMaxLength);
+            RetryQueueManager = new MessageRetryQueue(new MessageRetryHelper(this), RawConfig.RetryQueueMaxLength);
         }
 
         partial void OnCreateReaderWriter(ConfigurationOptions configuration);
@@ -2792,13 +2792,12 @@ namespace StackExchange.Redis
 
         internal bool TryMessageForRetry(Message message, Exception ex)
         {
-            if (RawConfig.RetryPolicy != null && !message.IsAdmin)
+            if (RawConfig.CommandRetryPolicy != null && !message.IsAdmin)
             {
 
                 if (!message.ShouldRetry()) return false;
-                var failedCommand = new FailedCommand(message, this, ex);
-                var shouldRetry = message.IsInternalCall ? true : RawConfig.RetryPolicy.ShouldRetryOnConnectionException(failedCommand.Status);
-                if (shouldRetry&& RetryQueueManager.TryHandleFailedCommand(failedCommand))
+                var shouldRetry = message.IsInternalCall ? true : RawConfig.CommandRetryPolicy.ShouldRetryOnConnectionException(message.Status);
+                if (shouldRetry&& RetryQueueManager.TryHandleFailedCommand(message))
                 {
                     // if this message is a new message set the writetime
                     if (message.GetWriteTime() == 0)
