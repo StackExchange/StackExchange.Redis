@@ -14,12 +14,9 @@ namespace StackExchange.Redis
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="failedMessage"></param>
+        /// <param name="commandStatus"></param>
         /// <returns></returns>
-        public bool ShouldRetryOnConnectionException(FailedCommand failedMessage)
-        {
-            return true;
-        }
+        public bool ShouldRetryOnConnectionException(CommandStatus commandStatus) => true;
     }
 
     /// <summary>
@@ -30,11 +27,11 @@ namespace StackExchange.Redis
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="failedMessage"></param>
+        /// <param name="commandStatus"></param>
         /// <returns></returns>
-        public bool ShouldRetryOnConnectionException(FailedCommand failedMessage)
+        public bool ShouldRetryOnConnectionException(CommandStatus commandStatus)
         {
-            return failedMessage.Status == CommandStatus.WaitingToBeSent;
+            return commandStatus == CommandStatus.WaitingToBeSent;
         }
     }
 

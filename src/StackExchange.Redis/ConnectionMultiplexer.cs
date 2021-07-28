@@ -2797,7 +2797,7 @@ namespace StackExchange.Redis
 
                 if (!message.ShouldRetry()) return false;
                 var failedCommand = new FailedCommand(message, this, ex);
-                var shouldRetry = message.IsInternalCall ? true : RawConfig.RetryPolicy.ShouldRetryOnConnectionException(failedCommand);
+                var shouldRetry = message.IsInternalCall ? true : RawConfig.RetryPolicy.ShouldRetryOnConnectionException(failedCommand.Status);
                 if (shouldRetry&& RetryQueueManager.TryHandleFailedCommand(failedCommand))
                 {
                     // if this message is a new message set the writetime

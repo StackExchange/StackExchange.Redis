@@ -14,8 +14,8 @@ namespace StackExchange.Redis
         /// <summary>
         /// Called when a message failed due to connection error
         /// </summary>
-        /// <param name="failedMessage"></param>
+        /// <param name="commandStatus">current state of the command</param>
         /// <returns></returns>
-        public bool ShouldRetryOnConnectionException(FailedCommand failedMessage);
+        public bool ShouldRetryOnConnectionException(CommandStatus commandStatus);
     }
 }
