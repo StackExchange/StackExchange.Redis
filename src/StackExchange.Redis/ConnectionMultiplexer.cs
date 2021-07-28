@@ -2800,7 +2800,7 @@ namespace StackExchange.Redis
 
                 var failedCommand = new FailedCommand(message, this, ex);
                 var shouldRetry = message.IsInternalCall ? true : RawConfig.RetryPolicy.ShouldRetry(failedCommand);
-                if (shouldRetry && RetryQueueManager.TryHandleFailedCommand(failedCommand))
+                if (shouldRetry&& RetryQueueManager.TryHandleFailedCommand(failedCommand))
                 {
                     // if this message is a new message set the writetime
                     if (message.GetWriteTime() == 0)

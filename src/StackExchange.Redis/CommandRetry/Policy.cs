@@ -9,7 +9,7 @@ namespace StackExchange.Redis
     /// <summary>
     /// 
     /// </summary>
-    public static class Policy
+    public static class RetryPolicy
     {
         /// <summary>
         /// 
@@ -17,11 +17,22 @@ namespace StackExchange.Redis
         /// <typeparam name="T"></typeparam>
         /// <param name="action"></param>
         /// <returns></returns>
-        public static IRetryBuilder Handle<T>(Func<FailedCommand, bool> action) where T:RedisException
+        public static IRetryBuilder Handle<T>(Func <Exception, bool> action) where T:RedisException
         => new PolicyRetry(exception =>
         {
             return exception is T;
         });
+
+      
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        public static IRetryBuilder HandleConnectionException()
+        {
+            return Handle<RedisConnectionException>();
+        }
 
         /// <summary>
         /// 
@@ -42,8 +53,18 @@ namespace StackExchange.Redis
     {
         Func<Exception, bool> handler;
         GenericPolicy policy;
-         
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="action"></param>
+        /// <returns></returns>
+        public static IRetryBuilder HandleFailedCommand<T>(Func<FailedCommand, bool> action) where T : RedisException
+       => new PolicyRetry(exception =>
+       {
+           return exception is T;
+       });
         /// <summary>
         /// 
         /// </summary>
@@ -80,18 +101,33 @@ namespace StackExchange.Redis
                 onRetry(failedCommand);
                 return failedCommand.Status == CommandStatus.WaitingToBeSent;
             }, handler);
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="beforeRetry"></param>
+        /// <returns></returns>
+        public IRetryPolicy AlwaysRetry(Action<FailedCommand, int> beforeRetry) => throw new NotImplementedException();
 
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="handleResult"></param>
+        /// <param name="onRetry"></param>
         /// <returns></returns>
-        public IRetryBuilder HandleResult(Func<FailedCommand, bool> handleResult)
-        {
-            policy.Set(handleResult);
-            return this;
-        }
-        
+        public IRetryPolicy Retry(Action<FailedCommand> onRetry) => throw new NotImplementedException();
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="action"></param>
+        /// <returns></returns>
+        public IRetryBuilder HandleFailedCommand(Func<FailedCommand, bool> action) => throw new NotImplementedException();
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="action"></param>
+        /// <returns></returns>
+        public IRetryBuilder HandleFailedCommand(Func<FailedCommand, int, bool> action) => throw new NotImplementedException();
     }
 
 
@@ -113,19 +149,34 @@ namespace StackExchange.Redis
         /// <returns></returns>
         public IRetryPolicy RetryIfNotYetSent();
 
+      /// <summary>
+      /// 
+      /// </summary>
+      /// <param name="beforeRetry"></param>
+      /// <returns></returns>
+        public IRetryPolicy AlwaysRetry(Action<FailedCommand, int> beforeRetry);
+
         /// <summary>
         /// 
         /// </summary>
         /// <param name="onRetry"></param>
         /// <returns></returns>
-        public IRetryPolicy AlwaysRetry(Action<FailedCommand> onRetry);
+        public IRetryPolicy Retry(Action<FailedCommand> onRetry);
 
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="handleResult"></param>
+        /// <param name="action"></param>
         /// <returns></returns>
-        public IRetryBuilder HandleResult(Func<FailedCommand, bool> handleResult);
+        public IRetryBuilder HandleFailedCommand(Func<FailedCommand, bool> action);
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="action"></param>
+        /// <returns></returns>
+        public IRetryBuilder HandleFailedCommand(Func<FailedCommand, int, bool> action);
+
     }
 }
 
