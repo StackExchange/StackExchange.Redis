@@ -19,7 +19,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// 
         /// </summary>
-        public Exception Exception {get; internal set;}
+        internal Exception Exception {get; internal set;}
        
         
         bool IInternalFailedCommand.HasTimedOut()
@@ -32,7 +32,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Command being executed. For example GET, INCR etc.
         /// </summary>
-        public string Command => Message.Command.ToString();
+        internal string Command => Message.Command.ToString();
 
         private Message Message { get; }
         private IInternalConnectionMultiplexer Multiplexer { get; }

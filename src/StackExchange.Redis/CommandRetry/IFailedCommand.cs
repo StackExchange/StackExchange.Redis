@@ -15,16 +15,6 @@ namespace StackExchange.Redis
         /// 
         /// </summary>
         CommandStatus Status { get; }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        public Exception Exception { get;}
-
-        /// <summary>
-        /// 
-        /// </summary>
-        public string Command { get; }
     }
 
     internal interface IInternalFailedCommand : IFailedCommand
