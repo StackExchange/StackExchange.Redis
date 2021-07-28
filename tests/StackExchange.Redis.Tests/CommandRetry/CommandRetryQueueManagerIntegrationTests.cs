@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Moq;
 using Xunit;
@@ -16,8 +17,9 @@ namespace StackExchange.Redis.Tests.CommandRetry
         [Theory]
         [InlineData(true)]
         [InlineData(false)]
-        public async Task RetryAsyncMessageSucceedsOnTransientConnectionReset(bool retryPolicySet)
+        public async Task RetryAsyncMessageIntegration(bool retryPolicySet)
         {
+            string keyname = "testretrypolicy";
             ConfigurationOptions configAdmin = new ConfigurationOptions();
             configAdmin.EndPoints.Add("127.0.0.1");
             configAdmin.AllowAdmin = true;
@@ -31,18 +33,22 @@ namespace StackExchange.Redis.Tests.CommandRetry
                 {
                     var conn = clientmuxer.GetDatabase();
                     bool stop = false;
+                    long count = 0;
                     var runLoad = Task.Run(async () =>
                     {
                         try
                         {
-                            while (!stop)
+                            int paralleltasks = 200;
+                            while (true)
                             {
-                                Task[] tasks = new Task[100];
-                                for (int i = 0; i < 100; i++)
+                                Task[] tasks = new Task[paralleltasks];
+                                for (int i = 0; i < paralleltasks; i++)
                                 {
-                                    tasks[i] = conn.StringSetAsync("test", "test");
+                                    tasks[i] = conn.StringSetBitAsync(keyname, count, true);
+                                    Interlocked.Increment(ref count);
                                 }
                                 await Task.WhenAll(tasks);
+                                if (stop) break;
                             }
                         }
                         catch
@@ -53,14 +59,32 @@ namespace StackExchange.Redis.Tests.CommandRetry
                     });
 
 
-                    //connection blip
-                    // making sure client name is set
+                    // let the load warmup atleast n times before connection blip
+                    await Task.Delay(2000);
+
+                    // connection blip
                     KillClient(adminMuxer, clientmuxer);
+
+                    // let the load run atleast n times during connection blip
                     await Task.Delay(10000);
+
                     stop = true;
 
-                    // Assert all commands completed successfully
-                    Assert.Equal(retryPolicySet, await runLoad);
+                    // wait for load to stop
+                    var isLoadSucceed = await runLoad;
+
+
+                    // Assert load completed based on policy
+                    Assert.Equal(retryPolicySet, isLoadSucceed);
+
+                    // Assert for retrypolicy data was set correctly after retry
+                    if (retryPolicySet)
+                    {
+                        Assert.Equal(Interlocked.Read(ref count), await conn.StringBitCountAsync(keyname));
+                    }
+
+                    // cleanup
+                    await adminMuxer.GetDatabase().KeyDeleteAsync(keyname);
                 }
             }
         }
