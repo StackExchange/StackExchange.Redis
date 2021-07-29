@@ -2775,15 +2775,8 @@ namespace StackExchange.Redis
                 if (result != WriteResult.Success)
                 {
                     var ex = GetException(result, message, server);
-                    if (ShouldRetryOnConnectionRestore(message, ex))
-                    {
-                        if (!TryMessageForRetry(message, ex))
-                            ThrowFailed(tcs, ex);
-                    }
-                    else
-                    {
+                    if (!TryMessageForRetry(message, ex))
                         ThrowFailed(tcs, ex);
-                    }
                 }
                 return tcs.Task;
             }
@@ -2794,7 +2787,7 @@ namespace StackExchange.Redis
         {
             if (RawConfig.CommandRetryPolicy != null && !message.IsAdmin)
             {
-
+                if (!(ex is RedisConnectionException)) return false;
                 if (!message.ShouldRetry()) return false;
                 var shouldRetry = message.IsInternalCall ? true : RawConfig.CommandRetryPolicy.ShouldRetryOnConnectionException(message.Status);
                 if (shouldRetry&& RetryQueueManager.TryHandleFailedCommand(message))
@@ -2817,15 +2810,8 @@ namespace StackExchange.Redis
             if (result != WriteResult.Success)
             {
                 var ex = @this.GetException(result, message, server);
-                if (@this.ShouldRetryOnConnectionRestore(message, ex))
-                {
-                    if(!@this.TryMessageForRetry(message, ex))
-                        ThrowFailed(tcs, ex);
-                }
-                else
-                {
+                if (!@this.TryMessageForRetry(message, ex))
                     ThrowFailed(tcs, ex);
-                }
             }
             return tcs == null ? default(T) : await tcs.Task.ForAwait();
         }
@@ -2862,8 +2848,6 @@ namespace StackExchange.Redis
             }
         }
 
-        internal bool ShouldRetryOnConnectionRestore(Message message, Exception ex) => ex is RedisConnectionException;
-
         internal T ExecuteSyncImpl<T>(Message message, ResultProcessor<T> processor, ServerEndPoint server)
         {
             if (_isDisposed) throw new ObjectDisposedException(ToString());
@@ -2893,15 +2877,8 @@ namespace StackExchange.Redis
                     if (result != WriteResult.Success)
                     {
                         var exResult = GetException(result, message, server);
-                        if (ShouldRetryOnConnectionRestore(message, exResult))
-                        {
-                            if(!TryMessageForRetry(message, exResult))
-                                throw exResult;
-                        }
-                        else
-                        {
+                        if (!TryMessageForRetry(message, exResult))
                             throw exResult;
-                        }
                     }
 
                     if (Monitor.Wait(source, TimeoutMilliseconds))

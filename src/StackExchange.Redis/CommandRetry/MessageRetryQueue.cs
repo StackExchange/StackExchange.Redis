@@ -7,9 +7,7 @@ using StackExchange.Redis;
 
 namespace StackExchange.Redis
 {
-    /// <summary>
-    /// 
-    /// </summary>
+
     internal class MessageRetryQueue : IDisposable
     { 
         readonly Queue<Message> queue = new Queue<Message>();
@@ -26,11 +24,6 @@ namespace StackExchange.Redis
 
         public int RetryQueueLength => queue.Count;
 
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="message"></param>
-        /// <returns></returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal bool TryHandleFailedCommand(Message message)
         {
@@ -162,10 +155,6 @@ namespace StackExchange.Redis
 
         private bool disposedValue = false;
 
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="disposing"></param>
         protected virtual void Dispose(bool disposing)
         {
             if (!disposedValue)
@@ -178,9 +167,6 @@ namespace StackExchange.Redis
             }
         }
 
-        /// <summary>
-        /// 
-        /// </summary>
         public void Dispose()
         {
             Dispose(true);

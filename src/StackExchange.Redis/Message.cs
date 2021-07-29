@@ -628,14 +628,6 @@ namespace StackExchange.Redis
             }
         }
 
-        internal void OverrideConnectionRestoreFlagIfNotSet(CommandFlags? onConnectionRestore)
-        {
-            if (onConnectionRestore.HasValue && (Flags & (CommandFlags.NoRetry | CommandFlags.AlwaysRetry | CommandFlags.RetryIfNotYetSent)) == 0)
-            {
-                Flags |= onConnectionRestore.Value;
-            }
-        }
-
         internal void Fail(ConnectionFailureType failure, Exception innerException, string annotation)
         {
             PhysicalConnection.IdentifyFailureType(innerException, ref failure);
