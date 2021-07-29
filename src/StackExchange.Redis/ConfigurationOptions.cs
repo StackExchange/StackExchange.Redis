@@ -13,6 +13,7 @@ using static StackExchange.Redis.ConnectionMultiplexer;
 
 namespace StackExchange.Redis
 {
+
     /// <summary>
     /// The options relevant to a set of redis connections
     /// </summary>
@@ -58,6 +59,21 @@ namespace StackExchange.Redis
                 return tmp;
             }
 
+            internal static ICommandRetryPolicy ParseCommandRetryPolicy(string key, string value)
+            {
+                switch (value.ToLower())
+                {
+                    case "noretry":
+                        return null;
+                    case "alwaysretry":
+                        return new CommandRetryPolicy().AlwaysRetryOnConnectionException();
+                    case "retryifnotyetsent":
+                        return new CommandRetryPolicy().RetryIfNotSentOnConnectionException();
+                    default:
+                        throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' can be NoRetry, AlwaysRetry or RetryIfNotYetSent ; the value '{value}' is not recognised.");
+                }
+            }
+
             internal static void Unknown(string key)
             {
                 throw new ArgumentException($"Keyword '{key}' is not supported.", key);
@@ -90,7 +106,9 @@ namespace StackExchange.Redis
                 TieBreaker = "tiebreaker",
                 Version = "version",
                 WriteBuffer = "writeBuffer",
-                CheckCertificateRevocation = "checkCertificateRevocation";
+                CheckCertificateRevocation = "checkCertificateRevocation",
+                CommandRetryPolicy = "CommandRetryPolicy",
+                RetryQueueLength = "RetryQueueLength";
 
 
             private static readonly Dictionary<string, string> normalizedOptions = new[]
@@ -120,7 +138,9 @@ namespace StackExchange.Redis
                 TieBreaker,
                 Version,
                 WriteBuffer,
-                CheckCertificateRevocation
+                CheckCertificateRevocation,
+                CommandRetryPolicy,
+                RetryQueueLength,
             }.ToDictionary(x => x, StringComparer.OrdinalIgnoreCase);
 
             public static string TryNormalize(string value)
@@ -141,7 +161,7 @@ namespace StackExchange.Redis
 
         private Version defaultVersion;
 
-        private int? keepAlive, asyncTimeout, syncTimeout, connectTimeout, responseTimeout, writeBuffer, connectRetry, configCheckSeconds;
+        private int? keepAlive, asyncTimeout, syncTimeout, connectTimeout, responseTimeout, writeBuffer, connectRetry, configCheckSeconds, retryQueueLength;
 
         private Proxy? proxy;
 
@@ -341,6 +361,11 @@ namespace StackExchange.Redis
         public IReconnectRetryPolicy ReconnectRetryPolicy { get { return reconnectRetryPolicy ??= new LinearRetry(ConnectTimeout); } set { reconnectRetryPolicy = value; } }
 
         /// <summary>
+        /// The retry policy to be used for command retries during connection reconnects
+        /// </summary>
+        public ICommandRetryPolicy CommandRetryPolicy { get; set; }
+
+        /// <summary>
         /// Indicates whether endpoints should be resolved via DNS before connecting.
         /// If enabled the ConnectionMultiplexer will not re-resolve DNS
         /// when attempting to re-connect after a connection failure.
@@ -410,6 +435,11 @@ namespace StackExchange.Redis
 #pragma warning restore RCS1128
 
         /// <summary>
+        /// If retry policy is specified, Retry Queue max length, by default there's no queue limit 
+        /// </summary>
+        public int? RetryQueueMaxLength { get; set; }
+
+        /// <summary>
         /// Parse the configuration from a comma-delimited configuration string
         /// </summary>
         /// <param name="configuration">The configuration string to parse.</param>
@@ -474,6 +504,8 @@ namespace StackExchange.Redis
                 ReconnectRetryPolicy = reconnectRetryPolicy,
                 SslProtocols = SslProtocols,
                 checkCertificateRevocation = checkCertificateRevocation,
+                CommandRetryPolicy = CommandRetryPolicy,
+                RetryQueueMaxLength = RetryQueueMaxLength,
             };
             foreach (var item in EndPoints)
                 options.EndPoints.Add(item);
@@ -547,6 +579,8 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.ConfigCheckSeconds, configCheckSeconds);
             Append(sb, OptionKeys.ResponseTimeout, responseTimeout);
             Append(sb, OptionKeys.DefaultDatabase, DefaultDatabase);
+            Append(sb, OptionKeys.CommandRetryPolicy, CommandRetryPolicy);
+            Append(sb, OptionKeys.RetryQueueLength, retryQueueLength);
             commandMap?.AppendDeltas(sb);
             return sb.ToString();
         }
@@ -624,7 +658,7 @@ namespace StackExchange.Redis
         private void Clear()
         {
             ClientName = ServiceName = User = Password = tieBreaker = sslHost = configChannel = null;
-            keepAlive = syncTimeout = asyncTimeout = connectTimeout = writeBuffer = connectRetry = configCheckSeconds = DefaultDatabase = null;
+            keepAlive = syncTimeout = asyncTimeout = connectTimeout = writeBuffer = connectRetry = configCheckSeconds = DefaultDatabase = retryQueueLength = null;
             allowAdmin = abortOnConnectFail = highPrioritySocketThreads = resolveDns = ssl = null;
             SslProtocols = null;
             defaultVersion = null;
@@ -635,6 +669,7 @@ namespace StackExchange.Redis
             CertificateValidation = null;
             ChannelPrefix = default(RedisChannel);
             SocketManager = null;
+            CommandRetryPolicy = null;
         }
 
         object ICloneable.Clone() => Clone();
@@ -754,6 +789,12 @@ namespace StackExchange.Redis
                             break;
                         case OptionKeys.SslProtocols:
                             SslProtocols = OptionKeys.ParseSslProtocols(key, value);
+                            break;
+                        case OptionKeys.CommandRetryPolicy:
+                            CommandRetryPolicy = OptionKeys.ParseCommandRetryPolicy(key, value);
+                            break;
+                        case OptionKeys.RetryQueueLength:
+                            RetryQueueMaxLength = OptionKeys.ParseInt32(key, value, minValue: 0);
                             break;
                         default:
                             if (!string.IsNullOrEmpty(key) && key[0] == '$')

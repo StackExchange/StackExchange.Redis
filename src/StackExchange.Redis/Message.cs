@@ -54,6 +54,8 @@ namespace StackExchange.Redis
     {
         public readonly int Db;
 
+        internal void ResetStatusToWaitingToBeSent() => Status = CommandStatus.WaitingToBeSent;
+
 #if DEBUG
         internal int QueuePosition { get; private set; }
         internal PhysicalConnection.WriteStatus ConnectionWriteState { get; private set; }
@@ -90,7 +92,10 @@ namespace StackExchange.Redis
 #pragma warning restore CS0618
                                                        | CommandFlags.FireAndForget
                                                        | CommandFlags.NoRedirect
-                                                       | CommandFlags.NoScriptCache;
+                                                       | CommandFlags.NoScriptCache
+                                                       | CommandFlags.AlwaysRetry
+                                                       | CommandFlags.NoRetry
+                                                       | CommandFlags.RetryIfNotYetSent;
         private IResultBox resultBox;
 
         private ResultProcessor resultProcessor;
@@ -481,6 +486,8 @@ namespace StackExchange.Redis
             }
         }
 
+        public object AsyncTimeoutMilliseconds { get; internal set; }
+
         internal static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisKey key, RedisKey[] keys)
         {
             switch (keys.Length)
@@ -627,8 +634,32 @@ namespace StackExchange.Redis
             resultProcessor?.ConnectionFail(this, failure, innerException, annotation);
         }
 
-        internal virtual void SetExceptionAndComplete(Exception exception, PhysicalBridge bridge)
+        private bool TryEnqueueForConnectionRestoreRetry(Exception exception, PhysicalBridge bridge, bool pushMessageToRetryManager = false)
         {
+            if (pushMessageToRetryManager && bridge != null)
+            {
+                try
+                {
+                    return bridge.Multiplexer.TryMessageForRetry(this, exception);
+                }
+                catch (Exception e)
+                {
+                    exception.Data.Add("OnConnectionRestoreRetryManagerError", e.ToString());
+                }
+            }
+            return false;
+        }
+
+        internal virtual void SetExceptionAndComplete(Exception exception, PhysicalBridge bridge, bool onConnectionRestoreRetry)
+        {
+            if (TryEnqueueForConnectionRestoreRetry(exception, bridge,
+                onConnectionRestoreRetry &&
+               exception is RedisConnectionException &&
+               bridge != null))
+            {
+                return;
+            }
+
             resultBox?.SetException(exception);
             Complete();
         }
@@ -641,6 +672,18 @@ namespace StackExchange.Redis
                 return true;
             }
             return false;
+        }
+
+
+        /// <summary>
+        /// returns true if message should be retried based on command flag
+        /// </summary>
+        /// <returns></returns>
+        internal bool ShouldRetry()
+        {
+            if ((Flags & CommandFlags.NoRetry) != 0) return false;
+            if ((Flags & CommandFlags.RetryIfNotYetSent) != 0 && Status == CommandStatus.Sent) return false;
+            return true;
         }
 
         internal void SetEnqueued(PhysicalConnection connection)
@@ -704,11 +747,9 @@ namespace StackExchange.Redis
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal void SetWriteTime()
         {
-            if ((Flags & NeedsAsyncTimeoutCheckFlag) != 0)
-            {
-                _writeTickCount = Environment.TickCount; // note this might be reset if we resend a message, cluster-moved etc; I'm OK with that
-            }
+            _writeTickCount = Environment.TickCount; // note this might be reset if we resend a message, cluster-moved etc; I'm OK with that
         }
+
         private int _writeTickCount;
         public int GetWriteTime() => Volatile.Read(ref _writeTickCount);
 

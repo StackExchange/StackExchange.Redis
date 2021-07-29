@@ -329,7 +329,7 @@ namespace StackExchange.Redis.Tests
         {
             var masterConfigs = SentinelServerA.SentinelMasters();
             Assert.Single(masterConfigs);
-            Assert.True(masterConfigs[0].ToDictionary().ContainsKey("name"));
+            Assert.True(masterConfigs[0].ToDictionary().ContainsKey("name"), "replicaConfigs contains 'name'");
             Assert.Equal(ServiceName, masterConfigs[0].ToDictionary()["name"]);
             Assert.StartsWith("master", masterConfigs[0].ToDictionary()["flags"]);
             foreach (var config in masterConfigs)
@@ -346,7 +346,7 @@ namespace StackExchange.Redis.Tests
         {
             var masterConfigs = await SentinelServerA.SentinelMastersAsync().ForAwait();
             Assert.Single(masterConfigs);
-            Assert.True(masterConfigs[0].ToDictionary().ContainsKey("name"));
+            Assert.True(masterConfigs[0].ToDictionary().ContainsKey("name"), "replicaConfigs contains 'name'");
             Assert.Equal(ServiceName, masterConfigs[0].ToDictionary()["name"]);
             Assert.StartsWith("master", masterConfigs[0].ToDictionary()["flags"]);
             foreach (var config in masterConfigs)
@@ -362,8 +362,8 @@ namespace StackExchange.Redis.Tests
         public void SentinelReplicasTest()
         {
             var replicaConfigs = SentinelServerA.SentinelReplicas(ServiceName);
-            Assert.True(replicaConfigs.Length > 0);
-            Assert.True(replicaConfigs[0].ToDictionary().ContainsKey("name"));
+            Assert.True(replicaConfigs.Length > 0, "Has replicaConfigs");
+            Assert.True(replicaConfigs[0].ToDictionary().ContainsKey("name"), "replicaConfigs contains 'name'");
             Assert.StartsWith("slave", replicaConfigs[0].ToDictionary()["flags"]);
 
             foreach (var config in replicaConfigs)
@@ -379,8 +379,8 @@ namespace StackExchange.Redis.Tests
         public async Task SentinelReplicasAsyncTest()
         {
             var replicaConfigs = await SentinelServerA.SentinelReplicasAsync(ServiceName).ForAwait();
-            Assert.True(replicaConfigs.Length > 0);
-            Assert.True(replicaConfigs[0].ToDictionary().ContainsKey("name"));
+            Assert.True(replicaConfigs.Length > 0, "Has replicaConfigs");
+            Assert.True(replicaConfigs[0].ToDictionary().ContainsKey("name"), "replicaConfigs contains 'name'");
             Assert.StartsWith("slave", replicaConfigs[0].ToDictionary()["flags"]);
             foreach (var config in replicaConfigs)
             {
