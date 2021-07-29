@@ -24,7 +24,7 @@ namespace StackExchange.Redis.Tests.CommandRetry
             var message = Message.Create(0, CommandFlags.None, RedisCommand.SET);
             var mux = new SharedConnectionFixture().Connection;
             var mockmessageRetryHelper = new Mock<IMessageRetryHelper>();
-            var messageRetryQueue = new MessageRetryQueue(mockmessageRetryHelper.Object, maxRetryQueueLength:1, runRetryLoopAsync: false);
+            var messageRetryQueue = new MessageRetryQueue(mockmessageRetryHelper.Object, maxRetryQueueLength:0, runRetryLoopAsync: false);
 
             var isEnqueuedWithZeroMaxLength = messageRetryQueue.TryHandleFailedCommand(message);
             messageRetryQueue.TryHandleFailedCommand(message);

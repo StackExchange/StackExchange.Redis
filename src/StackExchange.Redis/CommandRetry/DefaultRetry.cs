@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// 
+    /// Command Policy to have all commands being retried for connection exception
     /// </summary>
     public class AlwaysRetryOnConnectionException : ICommandRetryPolicy
     {
@@ -20,7 +20,7 @@ namespace StackExchange.Redis
     }
 
     /// <summary>
-    /// 
+    /// Command Policy to have only commands that are not yet sent being retried for connection exception
     /// </summary>
     public class RetryIfNotSentOnConnectionException : ICommandRetryPolicy
     {
@@ -36,12 +36,12 @@ namespace StackExchange.Redis
     }
 
     /// <summary>
-    /// 
+    /// Command Policy to choose which commands will be retried on a connection exception
     /// </summary>
     public class CommandRetryPolicy
     {
         /// <summary>
-        /// 
+        /// Command Policy to have all commands being retried for connection exception
         /// </summary>
         /// <returns></returns>
         public ICommandRetryPolicy AlwaysRetryOnConnectionException()
@@ -50,7 +50,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// 
+        /// Command Policy to have only commands that are not yet sent being retried for connection exception
         /// </summary>
         /// <returns></returns>
         public ICommandRetryPolicy RetryIfNotSentOnConnectionException()
