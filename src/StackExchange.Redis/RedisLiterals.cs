@@ -141,16 +141,13 @@ namespace StackExchange.Redis
             timeout = "timeout",
             yes = "yes";
 
-        internal static RedisValue Get(Bitwise operation)
+        internal static RedisValue Get(Bitwise operation) => operation switch
         {
-            switch (operation)
-            {
-                case Bitwise.And: return AND;
-                case Bitwise.Or: return OR;
-                case Bitwise.Xor: return XOR;
-                case Bitwise.Not: return NOT;
-                default: throw new ArgumentOutOfRangeException(nameof(operation));
-            }
-        }
+            Bitwise.And => AND,
+            Bitwise.Or => OR,
+            Bitwise.Xor => XOR,
+            Bitwise.Not => NOT,
+            _ => throw new ArgumentOutOfRangeException(nameof(operation)),
+        };
     }
 }

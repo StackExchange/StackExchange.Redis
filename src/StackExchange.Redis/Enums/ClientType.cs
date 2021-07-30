@@ -6,6 +6,7 @@ namespace StackExchange.Redis
     /// <summary>
     /// The class of the connection
     /// </summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1069:Enums values should not be duplicated", Justification = "Compatibility")]
     public enum ClientType
     {
         /// <summary>

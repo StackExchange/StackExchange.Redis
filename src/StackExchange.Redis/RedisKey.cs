@@ -137,8 +137,8 @@ namespace StackExchange.Redis
                 if (keyValue0 == keyValue1) return true; // ref equal
                 if (keyValue0 == null || keyValue1 == null) return false; // null vs non-null
 
-                if (keyValue0 is string && keyValue1 is string) return ((string)keyValue0) == ((string)keyValue1);
-                if (keyValue0 is byte[] && keyValue1 is byte[]) return RedisValue.Equals((byte[])keyValue0, (byte[])keyValue1);
+                if (keyValue0 is string keyString1 && keyValue1 is string keyString2) return keyString1 == keyString2;
+                if (keyValue0 is byte[] keyBytes1 && keyValue1 is byte[] keyBytes2) return RedisValue.Equals(keyBytes1, keyBytes2);
             }
 
             return RedisValue.Equals(ConcatenateBytes(keyPrefix0, keyValue0, null), ConcatenateBytes(keyPrefix1, keyValue1, null));
@@ -162,7 +162,7 @@ namespace StackExchange.Redis
 
         internal RedisValue AsRedisValue()
         {
-            if (KeyPrefix == null && KeyValue is string) return (string)KeyValue;
+            if (KeyPrefix == null && KeyValue is string keyString) return keyString;
             return (byte[])this;
         }
 
@@ -207,7 +207,7 @@ namespace StackExchange.Redis
             {
                 if (key.KeyValue == null) return null;
 
-                if (key.KeyValue is string) return (string)key.KeyValue;
+                if (key.KeyValue is string keyString) return keyString;
 
                 arr = (byte[])key.KeyValue;
             }
@@ -231,7 +231,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="x">The first <see cref="RedisKey"/> to add.</param>
         /// <param name="y">The second <see cref="RedisKey"/> to add.</param>
-        [Obsolete]
+        [Obsolete("Prefer WithPrefix")]
         public static RedisKey operator +(RedisKey x, RedisKey y)
         {
             return new RedisKey(ConcatenateBytes(x.KeyPrefix, x.KeyValue, y.KeyPrefix), y.KeyValue);
@@ -260,8 +260,8 @@ namespace StackExchange.Redis
             }
 
             int aLen = a?.Length ?? 0,
-                bLen = b == null ? 0 : (b is string
-                ? Encoding.UTF8.GetByteCount((string)b)
+                bLen = b == null ? 0 : (b is string bString
+                ? Encoding.UTF8.GetByteCount(bString)
                 : ((byte[])b).Length),
                 cLen = c?.Length ?? 0;
 

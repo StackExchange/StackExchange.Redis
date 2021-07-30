@@ -103,20 +103,13 @@ namespace StackExchange.Redis.Tests
             // note we get a ping from GetCounters
         }
 
-        private IConnectionMultiplexer Create(TestMode mode)
+        private IConnectionMultiplexer Create(TestMode mode) => mode switch
         {
-            switch (mode)
-            {
-                case TestMode.MultiExec:
-                    return Create();
-                case TestMode.NoMultiExec:
-                    return Create(disabledCommands: new[] { "multi", "exec" });
-                case TestMode.Twemproxy:
-                    return Create(proxy: Proxy.Twemproxy);
-                default:
-                    throw new NotSupportedException(mode.ToString());
-            }
-        }
+            TestMode.MultiExec => Create(),
+            TestMode.NoMultiExec => Create(disabledCommands: new[] { "multi", "exec" }),
+            TestMode.Twemproxy => Create(proxy: Proxy.Twemproxy),
+            _ => throw new NotSupportedException(mode.ToString()),
+        };
 
         [Theory, MemberData(nameof(TestModes))]
         public async Task TakeLockAndExtend(TestMode mode)

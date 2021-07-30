@@ -332,6 +332,27 @@ namespace StackExchange.Redis
         /// <param name="count">The number of members which sorted set must not have.</param>
         public static Condition SortedSetScoreNotExists(RedisKey key, RedisValue score, RedisValue count) => new SortedSetScoreCondition(key, score, false, count);
 
+        /// <summary>
+        /// Enforces that the given stream length is a certain value
+        /// </summary>
+        /// <param name="key">The key of the stream to check.</param>
+        /// <param name="length">The length the stream must have.</param>
+        public static Condition StreamLengthEqual(RedisKey key, long length) => new LengthCondition(key, RedisType.Stream, 0, length);
+
+        /// <summary>
+        /// Enforces that the given stream length is less than a certain value
+        /// </summary>
+        /// <param name="key">The key of the stream to check.</param>
+        /// <param name="length">The length the stream must be less than.</param>
+        public static Condition StreamLengthLessThan(RedisKey key, long length) => new LengthCondition(key, RedisType.Stream, 1, length);
+
+        /// <summary>
+        /// Enforces that the given stream length is greater than a certain value
+        /// </summary>
+        /// <param name="key">The key of the stream to check.</param>
+        /// <param name="length">The length the stream must be greater than.</param>
+        public static Condition StreamLengthGreaterThan(RedisKey key, long length) => new LengthCondition(key, RedisType.Stream, -1, length);
+
 #pragma warning restore RCS1231
 
         internal abstract void CheckCommands(CommandMap commandMap);
@@ -357,6 +378,7 @@ namespace StackExchange.Redis
                 return new ConditionMessage(condition, db, flags, command, key, value, value1);
             }
 
+            [System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0071:Simplify interpolation", Justification = "Allocations (string.Concat vs. string.Format)")]
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
                 connection?.BridgeCouldBeNull?.Multiplexer?.OnTransactionLog($"condition '{message.CommandAndKey}' got '{result.ToString()}'");
@@ -426,7 +448,7 @@ namespace StackExchange.Redis
 
             public ExistsCondition(in RedisKey key, RedisType type, in RedisValue expectedValue, bool expectedResult)
             {
-                if (key.IsNull) throw new ArgumentException("key");
+                if (key.IsNull) throw new ArgumentNullException(nameof(key));
                 this.key = key;
                 this.type = type;
                 this.expectedValue = expectedValue;
@@ -438,23 +460,13 @@ namespace StackExchange.Redis
                 }
                 else
                 {
-                    switch (type)
+                    cmd = type switch
                     {
-                        case RedisType.Hash:
-                            cmd = RedisCommand.HEXISTS;
-                            break;
-
-                        case RedisType.Set:
-                            cmd = RedisCommand.SISMEMBER;
-                            break;
-
-                        case RedisType.SortedSet:
-                            cmd = RedisCommand.ZSCORE;
-                            break;
-
-                        default:
-                            throw new ArgumentException(nameof(type));
-                    }
+                        RedisType.Hash => RedisCommand.HEXISTS,
+                        RedisType.Set => RedisCommand.SISMEMBER,
+                        RedisType.SortedSet => RedisCommand.ZSCORE,
+                        _ => throw new ArgumentException($"Type {type} is not recognized", nameof(type)),
+                    };
                 }
             }
 
@@ -516,25 +528,18 @@ namespace StackExchange.Redis
 
             public EqualsCondition(in RedisKey key, RedisType type, in RedisValue memberName, bool expectedEqual, in RedisValue expectedValue)
             {
-                if (key.IsNull) throw new ArgumentException("key");
+                if (key.IsNull) throw new ArgumentNullException(nameof(key));
                 this.key = key;
                 this.memberName = memberName;
                 this.expectedEqual = expectedEqual;
                 this.expectedValue = expectedValue;
                 this.type = type;
-                switch (type)
+                cmd = type switch
                 {
-                    case RedisType.Hash:
-                        cmd = memberName.IsNull ? RedisCommand.GET : RedisCommand.HGET;
-                        break;
-
-                    case RedisType.SortedSet:
-                        cmd = RedisCommand.ZSCORE;
-                        break;
-
-                    default:
-                        throw new ArgumentException(nameof(type));
-                }
+                    RedisType.Hash => memberName.IsNull ? RedisCommand.GET : RedisCommand.HGET,
+                    RedisType.SortedSet => RedisCommand.ZSCORE,
+                    _ => throw new ArgumentException($"Unknown type: {type}", nameof(type)),
+                };
             }
 
             public override string ToString()
@@ -610,7 +615,7 @@ namespace StackExchange.Redis
             private readonly RedisKey key;
             public ListCondition(in RedisKey key, long index, bool expectedResult, in RedisValue? expectedValue)
             {
-                if (key.IsNull) throw new ArgumentException(nameof(key));
+                if (key.IsNull) throw new ArgumentNullException(nameof(key));
                 this.key = key;
                 this.index = index;
                 this.expectedResult = expectedResult;
@@ -680,36 +685,21 @@ namespace StackExchange.Redis
 
             public LengthCondition(in RedisKey key, RedisType type, int compareToResult, long expectedLength)
             {
-                if (key.IsNull) throw new ArgumentException(nameof(key));
+                if (key.IsNull) throw new ArgumentNullException(nameof(key));
                 this.key = key;
                 this.compareToResult = compareToResult;
                 this.expectedLength = expectedLength;
                 this.type = type;
-                switch (type)
+                cmd = type switch
                 {
-                    case RedisType.Hash:
-                        cmd = RedisCommand.HLEN;
-                        break;
-
-                    case RedisType.Set:
-                        cmd = RedisCommand.SCARD;
-                        break;
-
-                    case RedisType.List:
-                        cmd = RedisCommand.LLEN;
-                        break;
-
-                    case RedisType.SortedSet:
-                        cmd = RedisCommand.ZCARD;
-                        break;
-
-                    case RedisType.String:
-                        cmd = RedisCommand.STRLEN;
-                        break;
-
-                    default:
-                        throw new ArgumentException(nameof(type));
-                }
+                    RedisType.Hash => RedisCommand.HLEN,
+                    RedisType.Set => RedisCommand.SCARD,
+                    RedisType.List => RedisCommand.LLEN,
+                    RedisType.SortedSet => RedisCommand.ZCARD,
+                    RedisType.Stream => RedisCommand.XLEN,
+                    RedisType.String => RedisCommand.STRLEN,
+                    _ => throw new ArgumentException($"Type {type} isn't recognized", nameof(type)),
+                };
             }
 
             public override string ToString()
@@ -774,7 +764,7 @@ namespace StackExchange.Redis
 
             public SortedSetRangeLengthCondition(in RedisKey key, RedisValue min, RedisValue max, int compareToResult, long expectedLength)
             {
-                if (key.IsNull) throw new ArgumentException(nameof(key));
+                if (key.IsNull) throw new ArgumentNullException(nameof(key));
                 this.key = key;
                 this.min = min;
                 this.max = max;
@@ -844,7 +834,7 @@ namespace StackExchange.Redis
             {
                 if (key.IsNull)
                 {
-                    throw new ArgumentException("key");
+                    throw new ArgumentNullException(nameof(key));
                 }
 
                 this.key = key;

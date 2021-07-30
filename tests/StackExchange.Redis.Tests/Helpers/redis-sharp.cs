@@ -501,18 +501,14 @@ namespace RedisSharp
         {
             if (key == null)
                 throw new ArgumentNullException(nameof(key));
-            switch (SendExpectString("TYPE {0}\r\n", key))
+            return SendExpectString("TYPE {0}\r\n", key) switch
             {
-                case "none":
-                    return KeyType.None;
-                case "string":
-                    return KeyType.String;
-                case "set":
-                    return KeyType.Set;
-                case "list":
-                    return KeyType.List;
-            }
-            throw new ResponseException("Invalid value");
+                "none" => KeyType.None,
+                "string" => KeyType.String,
+                "set" => KeyType.Set,
+                "list" => KeyType.List,
+                _ => throw new ResponseException("Invalid value"),
+            };
         }
 
         public string RandomKey()

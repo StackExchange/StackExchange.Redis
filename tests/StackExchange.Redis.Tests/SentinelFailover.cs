@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
@@ -19,6 +20,10 @@ namespace StackExchange.Redis.Tests
             conn.ConfigurationChanged += (s, e) => {
                 Log($"Configuration changed: {e.EndPoint}");
             };
+            var sub = conn.GetSubscriber();
+            sub.Subscribe("*", (channel, message) => {
+                Log($"Sub: {channel}, message:{message}");
+            });
 
             var db = conn.GetDatabase();
             await db.PingAsync();
@@ -45,13 +50,35 @@ namespace StackExchange.Redis.Tests
             var value = await db.StringGetAsync(key);
             Assert.Equal(expected, value);
 
+            Log("Waiting for first replication check...");
             // force read from replica, replication has some lag
             await WaitForReplicationAsync(servers.First()).ForAwait();
             value = await db.StringGetAsync(key, CommandFlags.DemandReplica);
             Assert.Equal(expected, value);
+ 
+            Log("Waiting for ready pre-failover...");
+            await WaitForReadyAsync();
 
-            // forces and verifies failover
-            await DoFailoverAsync();
+            // capture current replica
+            var replicas = SentinelServerA.SentinelGetReplicaAddresses(ServiceName);
+
+            Log("Starting failover...");
+            var sw = Stopwatch.StartNew();
+            SentinelServerA.SentinelFailover(ServiceName);
+
+            // There's no point in doing much for 10 seconds - this is a built-in delay of how Sentinel works.
+            // The actual completion invoking the replication of the former master is handled via
+            // https://github.com/redis/redis/blob/f233c4c59d24828c77eb1118f837eaee14695f7f/src/sentinel.c#L4799-L4808
+            // ...which is invoked by INFO polls every 10 seconds (https://github.com/redis/redis/blob/f233c4c59d24828c77eb1118f837eaee14695f7f/src/sentinel.c#L81)
+            // ...which is calling https://github.com/redis/redis/blob/f233c4c59d24828c77eb1118f837eaee14695f7f/src/sentinel.c#L2666
+            // However, the quicker iteration on INFO during an o_down does not apply here: https://github.com/redis/redis/blob/f233c4c59d24828c77eb1118f837eaee14695f7f/src/sentinel.c#L3089-L3104
+            // So...we're waiting 10 seconds, no matter what. Might as well just idle to be more stable.
+            await Task.Delay(TimeSpan.FromSeconds(10));
+
+            // wait until the replica becomes the master
+            Log("Waiting for ready post-failover...");
+            await WaitForReadyAsync(expectedMaster: replicas[0]);
+            Log($"Time to failover: {sw.Elapsed}");
 
             endpoints = conn.GetEndPoints();
             Assert.Equal(2, endpoints.Length);
@@ -70,6 +97,7 @@ namespace StackExchange.Redis.Tests
             value = await db.StringGetAsync(key);
             Assert.Equal(expected, value);
 
+            Log("Waiting for second replication check...");
             // force read from replica, replication has some lag
             await WaitForReplicationAsync(newMaster).ForAwait();
             value = await db.StringGetAsync(key, CommandFlags.DemandReplica);

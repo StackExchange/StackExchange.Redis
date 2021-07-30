@@ -21,11 +21,11 @@ namespace NRediSearch.QueryBuilder
         public override string ToString()
         {
             return new StringBuilder("[")
-                    .Append(_lon.AsRedisString(true)).Append(" ")
-                    .Append(_lat.AsRedisString(true)).Append(" ")
-                    .Append(_radius.AsRedisString(true)).Append(" ")
+                    .Append(_lon.AsRedisString(true)).Append(' ')
+                    .Append(_lat.AsRedisString(true)).Append(' ')
+                    .Append(_radius.AsRedisString(true)).Append(' ')
                     .Append(_unit.AsRedisString())
-                    .Append("]").ToString();
+                    .Append(']').ToString();
         }
 
         public override bool IsCombinable() => false;

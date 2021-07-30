@@ -130,7 +130,7 @@ namespace StackExchange.Redis
                     {
                         if (Enum.TryParse(command, true, out RedisCommand parsed))
                         {
-                            (exclusions ?? (exclusions = new HashSet<RedisCommand>())).Add(parsed);
+                            (exclusions ??= new HashSet<RedisCommand>()).Add(parsed);
                         }
                     }
                 }

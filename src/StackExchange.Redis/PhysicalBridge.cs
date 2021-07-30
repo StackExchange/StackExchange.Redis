@@ -165,10 +165,7 @@ namespace StackExchange.Redis
 
             var physical = this.physical;
             if (physical == null) return FailDueToNoConnection(message);
-
-#pragma warning disable CS0618
             var result = WriteMessageTakingWriteLockSync(physical, message);
-#pragma warning restore CS0618
             LogNonPreferred(message.Flags, isReplica);
             return result;
         }
@@ -195,17 +192,17 @@ namespace StackExchange.Redis
             }
             clone[ProfileLogSamples] = Interlocked.Read(ref operationCount);
             Array.Sort(clone);
-            sb.Append(" ").Append(clone[0]);
+            sb.Append(' ').Append(clone[0]);
             for (int i = 1; i < clone.Length; i++)
             {
                 if (clone[i] != clone[i - 1])
                 {
-                    sb.Append("+").Append(clone[i] - clone[i - 1]);
+                    sb.Append('+').Append(clone[i] - clone[i - 1]);
                 }
             }
             if (clone[0] != clone[ProfileLogSamples])
             {
-                sb.Append("=").Append(clone[ProfileLogSamples]);
+                sb.Append('=').Append(clone[ProfileLogSamples]);
             }
             double rate = (clone[ProfileLogSamples] - clone[0]) / ProfileLogSeconds;
             sb.Append(" (").Append(rate.ToString("N2")).Append(" ops/s; spans ").Append(ProfileLogSeconds).Append("s)");
@@ -282,7 +279,7 @@ namespace StackExchange.Redis
         }
 
         internal bool TryEnqueueBackgroundSubscriptionWrite(in PendingSubscriptionState state)
-            => isDisposed ? false : (_subscriptionBackgroundQueue ?? GetSubscriptionQueue()).Writer.TryWrite(state);
+            => !isDisposed && (_subscriptionBackgroundQueue ?? GetSubscriptionQueue()).Writer.TryWrite(state);
 
         internal void GetOutstandingCount(out int inst, out int qs, out long @in, out int qu, out bool aw, out long toRead, out long toWrite,
             out BacklogStatus bs, out PhysicalConnection.ReadStatus rs, out PhysicalConnection.WriteStatus ws)
@@ -586,9 +583,7 @@ namespace StackExchange.Redis
 
         internal void RemovePhysical(PhysicalConnection connection)
         {
-#pragma warning disable 0420
             Interlocked.CompareExchange(ref physical, null, connection);
-#pragma warning restore 0420
         }
 
         [Conditional("VERBOSE")]
@@ -648,10 +643,10 @@ namespace StackExchange.Redis
             {
                 physical.SetWriting();
                 var messageIsSent = false;
-                if (message is IMultiMessage)
+                if (message is IMultiMessage multiMessage)
                 {
                     SelectDatabaseInsideWriteLock(physical, message); // need to switch database *before* the transaction
-                    foreach (var subCommand in ((IMultiMessage)message).GetMessages(physical))
+                    foreach (var subCommand in multiMessage.GetMessages(physical))
                     {
                         result = WriteMessageToServerInsideWriteLock(physical, subCommand);
                         if (result != WriteResult.Success)
@@ -703,6 +698,14 @@ namespace StackExchange.Redis
             Trace("Writing: " + message);
             message.SetEnqueued(physical); // this also records the read/write stats at this point
 
+            // AVOID REORDERING MESSAGES
+            // Prefer to add it to the backlog if this thread can see that there might already be a message backlog.
+            // We do this before attempting to take the writelock, because we won't actually write, we'll just let the backlog get processed in due course
+            if (PushToBacklog(message, onlyIfExists: true))
+            {
+                return WriteResult.Success; // queued counts as success
+            }
+
             LockToken token = default;
             try
             {
@@ -724,9 +727,7 @@ namespace StackExchange.Redis
 
                 if (result == WriteResult.Success)
                 {
-#pragma warning disable CS0618
                     result = physical.FlushSync(false, TimeoutMilliseconds);
-#pragma warning restore CS0618
                 }
 
                 physical.SetIdle();
@@ -785,8 +786,7 @@ namespace StackExchange.Redis
             // Because peeking at the backlog, checking message and then dequeueing, is not thread-safe, we do have to use
             // a lock here, for mutual exclusion of backlog DEQUEUERS. Unfortunately.
             // But we reduce contention by only locking if we see something that looks timed out.
-            Message message;
-            while (_backlog.TryPeek(out message))
+            while (_backlog.TryPeek(out Message message))
             {
                 if (message.IsInternalCall) break; // don't stomp these (not that they should have the async timeout flag, but...)
                 if (!message.HasAsyncTimedOut(now, timeout, out var _)) break; // not a timeout - we can stop looking
@@ -980,11 +980,20 @@ namespace StackExchange.Redis
             Trace("Writing: " + message);
             message.SetEnqueued(physical); // this also records the read/write stats at this point
 
+            // AVOID REORDERING MESSAGES
+            // Prefer to add it to the backlog if this thread can see that there might already be a message backlog.
+            // We do this before attempting to take the writelock, because we won't actually write, we'll just let the backlog get processed in due course
+            if (PushToBacklog(message, onlyIfExists: true))
+            {
+                return new ValueTask<WriteResult>(WriteResult.Success); // queued counts as success
+            }
+
             bool releaseLock = true; // fine to default to true, as it doesn't matter until token is a "success"
             int lockTaken = 0;
             LockToken token = default;
             try
             {
+
                 // try to acquire it synchronously
                 // note: timeout is specified in mutex-constructor
                 token = _singleWriterMutex.TryWait(options: WaitOptions.NoDelay);
@@ -1116,9 +1125,7 @@ namespace StackExchange.Redis
 
         private State ChangeState(State newState)
         {
-#pragma warning disable 0420
             var oldState = (State)Interlocked.Exchange(ref state, (int)newState);
-#pragma warning restore 0420
             if (oldState != newState)
             {
                 Multiplexer.Trace(ConnectionType + " state changed from " + oldState + " to " + newState);
@@ -1128,9 +1135,7 @@ namespace StackExchange.Redis
 
         private bool ChangeState(State oldState, State newState)
         {
-#pragma warning disable 0420
             bool result = Interlocked.CompareExchange(ref state, (int)newState, (int)oldState) == (int)oldState;
-#pragma warning restore 0420
             if (result)
             {
                 Multiplexer.Trace(ConnectionType + " state changed from " + oldState + " to " + newState);

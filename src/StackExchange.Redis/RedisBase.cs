@@ -61,7 +61,7 @@ namespace StackExchange.Redis
             return new RedisFeatures(version);
         }
 
-        protected void WhenAlwaysOrExists(When when)
+        protected static void WhenAlwaysOrExists(When when)
         {
             switch (when)
             {
@@ -73,7 +73,7 @@ namespace StackExchange.Redis
             }
         }
 
-        protected void WhenAlwaysOrExistsOrNotExists(When when)
+        protected static void WhenAlwaysOrExistsOrNotExists(When when)
         {
             switch (when)
             {
@@ -86,7 +86,7 @@ namespace StackExchange.Redis
             }
         }
 
-        protected void WhenAlwaysOrNotExists(When when)
+        protected static void WhenAlwaysOrNotExists(When when)
         {
             switch (when)
             {

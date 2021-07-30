@@ -40,7 +40,7 @@ namespace NRediSearch.QueryBuilder
             StringBuilder sb = new StringBuilder(FormatField());
             if (_values.Length > 1 || mode == ParenMode.Always)
             {
-                sb.Append("(");
+                sb.Append('(');
             }
             var sj = new StringJoiner(sb, _joinString);
             foreach (var v in _values)
@@ -49,7 +49,7 @@ namespace NRediSearch.QueryBuilder
             }
             if (_values.Length > 1 || mode == ParenMode.Always)
             {
-                sb.Append(")");
+                sb.Append(')');
             }
             return sb.ToString();
         }
@@ -64,7 +64,7 @@ namespace NRediSearch.QueryBuilder
             var sb = new StringBuilder();
             if (useParen)
             {
-                sb.Append("(");
+                sb.Append('(');
             }
             var sj = new StringJoiner(sb, _joinString);
             foreach (var v in _values)
@@ -73,7 +73,7 @@ namespace NRediSearch.QueryBuilder
             }
             if (useParen)
             {
-                sb.Append(")");
+                sb.Append(')');
             }
             return sb.ToString();
         }

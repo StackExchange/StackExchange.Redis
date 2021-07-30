@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 
 namespace StackExchange.Redis
 {
@@ -38,7 +38,7 @@ namespace StackExchange.Redis
         {
             var exponential = (int)Math.Min(maxDeltaBackOffMilliseconds, deltaBackOffMilliseconds * Math.Pow(1.1, currentRetryCount));
             int random;
-            r = r ?? new Random();
+            r ??= new Random();
             random = r.Next((int)deltaBackOffMilliseconds, exponential);
             return timeElapsedMillisecondsSinceLastRetry >= random;
             //exponential backoff with deltaBackOff of 5000ms

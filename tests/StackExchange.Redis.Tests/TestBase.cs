@@ -119,7 +119,7 @@ namespace StackExchange.Redis.Tests
             Console.WriteLine("  GC LOH Mode: " + GCSettings.LargeObjectHeapCompactionMode);
             Console.WriteLine("  GC Latency Mode: " + GCSettings.LatencyMode);
         }
-        internal static string Time() => DateTime.UtcNow.ToString("HH:mm:ss.fff");
+        internal static string Time() => DateTime.UtcNow.ToString("HH:mm:ss.ffff");
         protected void OnConnectionFailed(object sender, ConnectionFailedEventArgs e)
         {
             Interlocked.Increment(ref privateFailCount);
@@ -362,10 +362,10 @@ namespace StackExchange.Redis.Tests
         }
 
         public static string Me([CallerFilePath] string filePath = null, [CallerMemberName] string caller = null) =>
-#if NET462
-            "net462-"
-#elif NETCOREAPP2_1
-            "netcoreapp2.1-"
+#if NET472
+            "net472-"
+#elif NETCOREAPP3_1
+            "netcoreapp3.1-"
 #else
             "unknown-"
 #endif
@@ -418,9 +418,7 @@ namespace StackExchange.Redis.Tests
                 for (int i = 0; i < threads; i++)
                 {
                     var thd = threadArr[i];
-#pragma warning disable SYSLIB0006 // yes, we know
                     if (thd.IsAlive) thd.Abort();
-#pragma warning restore SYSLIB0006 // yes, we know
                 }
                 throw new TimeoutException();
             }

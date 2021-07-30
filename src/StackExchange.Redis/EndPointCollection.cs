@@ -41,7 +41,7 @@ namespace StackExchange.Redis
         public void Add(string hostAndPort)
         {
             var endpoint = Format.TryParseEndPoint(hostAndPort);
-            if (endpoint == null) throw new ArgumentException();
+            if (endpoint == null) throw new ArgumentException($"Could not parse host and port from '{hostAndPort}'", nameof(hostAndPort));
             Add(endpoint);
         }
 

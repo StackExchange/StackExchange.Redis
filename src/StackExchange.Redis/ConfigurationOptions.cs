@@ -270,13 +270,11 @@ namespace StackExchange.Redis
             get
             {
                 if (commandMap != null) return commandMap;
-                switch (Proxy)
+                return Proxy switch
                 {
-                    case Proxy.Twemproxy:
-                        return CommandMap.Twemproxy;
-                    default:
-                        return CommandMap.Default;
-                }
+                    Proxy.Twemproxy => CommandMap.Twemproxy,
+                    _ => CommandMap.Default,
+                };
             }
             set
             {
@@ -326,9 +324,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Specifies the time in seconds at which connections should be pinged to ensure validity
         /// </summary>
-#pragma warning disable RCS1128
         public int KeepAlive { get { return keepAlive.GetValueOrDefault(-1); } set { keepAlive = value; } }
-#pragma warning restore RCS1128 // Use coalesce expression.
 
         /// <summary>
         /// The user to use to authenticate with the server.
@@ -408,9 +404,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Specifies the time in milliseconds that the system should allow for synchronous operations (defaults to 5 seconds)
         /// </summary>
-#pragma warning disable RCS1128
         public int SyncTimeout { get { return syncTimeout.GetValueOrDefault(5000); } set { syncTimeout = value; } }
-#pragma warning restore RCS1128
 
         /// <summary>
         /// Tie-breaker used to choose between masters (must match the endpoint exactly)
@@ -430,9 +424,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Check configuration every n seconds (every minute by default)
         /// </summary>
-#pragma warning disable RCS1128
         public int ConfigCheckSeconds { get { return configCheckSeconds.GetValueOrDefault(60); } set { configCheckSeconds = value; } }
-#pragma warning restore RCS1128
 
         /// <summary>
         /// If retry policy is specified, Retry Queue max length, by default there's no queue limit 
@@ -510,6 +502,17 @@ namespace StackExchange.Redis
             foreach (var item in EndPoints)
                 options.EndPoints.Add(item);
             return options;
+        }
+
+        /// <summary>
+        /// Apply settings to configure this instance of <see cref="ConfigurationOptions"/>, e.g. for a specific scenario.
+        /// </summary>
+        /// <param name="configure">An action that will update the properties of this <see cref="ConfigurationOptions"/> instance.</param>
+        /// <returns>This <see cref="ConfigurationOptions"/> instance, with any changes <paramref name="configure"/> made.</returns>
+        public ConfigurationOptions Apply(Action<ConfigurationOptions> configure)
+        {
+            configure?.Invoke(this);
+            return this;
         }
 
         /// <summary>

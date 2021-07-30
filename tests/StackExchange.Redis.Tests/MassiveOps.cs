@@ -39,7 +39,7 @@ namespace StackExchange.Redis.Tests
                 RedisKey key = Me();
                 var conn = muxer.GetDatabase();
                 await conn.PingAsync().ForAwait();
-                void nonTrivial(Task _)
+                static void nonTrivial(Task _)
                 {
                     Thread.SpinWait(5);
                 }

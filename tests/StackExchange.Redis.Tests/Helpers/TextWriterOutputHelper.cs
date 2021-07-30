@@ -24,8 +24,12 @@ namespace StackExchange.Redis.Tests.Helpers
         {
             try
             {
-                base.Write(TestBase.Time());
-                base.Write(": ");
+                // Prevent double timestamps
+                if (value.Length < "HH:mm:ss.ffff:".Length || value["HH:mm:ss.ffff:".Length - 1] != ':')
+                {
+                    base.Write(TestBase.Time());
+                    base.Write(": ");
+                }
                 base.WriteLine(value);
             }
             catch (Exception ex)
