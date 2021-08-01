@@ -32,7 +32,7 @@ namespace NRediSearch
             /// <summary>
             /// The default indexing options - use term offsets, keep fields flags, keep term frequencies
             /// </summary>
-            Default = UseTermOffsets | KeepFieldFlags | KeepTermFrequencies,
+            Default = SkipInitialScan | NoHighligh | MaxTextFields | UseTermOffsets | KeepFieldFlags | KeepTermFrequencies,
             /// <summary>
             /// If set, we keep an index of the top entries per term, allowing extremely fast single word queries
             /// regardless of index size, at the cost of more memory
@@ -47,7 +47,20 @@ namespace NRediSearch
             /// If set, we keep an index of the top entries per term, allowing extremely fast single word queries
             /// regardless of index size, at the cost of more memory
             /// </summary>
-            KeepTermFrequencies = 16
+            KeepTermFrequencies = 16,
+            /// <summary>
+            /// If set, we do not scan and index.
+            /// </summary>
+            SkipInitialScan = 32,
+            /// <summary>
+            /// Disable highlighting support. If set, we do not store corresponding byte offsets for term positions.
+            /// Also implied by UseTermOffsets.
+            /// </summary>
+            NoHighligh = 64,
+            /// <summary>
+            /// Increases maximum number of text fields (default is 32 fields)
+            /// </summary>
+            MaxTextFields = 128
         }
 
         public sealed class IndexDefinition
@@ -61,7 +74,7 @@ namespace NRediSearch
             }
 
             internal readonly IndexType _type = IndexType.Hash;
-            internal readonly bool _async; 
+            internal readonly bool _async;
             internal readonly string[] _prefixes;
             internal readonly string _filter;
             internal readonly string _languageField;
@@ -71,7 +84,7 @@ namespace NRediSearch
             internal readonly string _payloadField;
 
             public IndexDefinition(bool async = false, string[] prefixes = null,
-            string filter = null, string languageField = null, string language = null, 
+            string filter = null, string languageField = null, string language = null,
             string scoreFiled = null, double score = 1.0, string payloadField = null)
             {
                 _async = async;
@@ -92,36 +105,36 @@ namespace NRediSearch
                 {
                     args.Add("ASYNC".Literal());
                 }
-                if (_prefixes?.Length > 0) 
+                if (_prefixes?.Length > 0)
                 {
                     args.Add("PREFIX".Literal());
                     args.Add(_prefixes.Length.ToString());
                     args.AddRange(_prefixes);
                 }
-                if (_filter != null) 
+                if (_filter != null)
                 {
                     args.Add("FILTER".Literal());
                     args.Add(_filter);
-                }                
+                }
                 if (_languageField != null) {
                     args.Add("LANGUAGE_FIELD".Literal());
-                    args.Add(_languageField);      
-                }                
+                    args.Add(_languageField);
+                }
                 if (_language != null) {
                     args.Add("LANGUAGE".Literal());
-                    args.Add(_language);      
-                }                
+                    args.Add(_language);
+                }
                 if (_scoreFiled != null) {
                     args.Add("SCORE_FIELD".Literal());
-                    args.Add(_scoreFiled);      
-                }                
+                    args.Add(_scoreFiled);
+                }
                 if (_score != 1.0) {
                     args.Add("SCORE".Literal());
-                    args.Add(_score.ToString());      
+                    args.Add(_score.ToString());
                 }
                 if (_payloadField != null) {
                     args.Add("PAYLOAD_FIELD".Literal());
-                    args.Add(_payloadField);      
+                    args.Add(_payloadField);
                 }
             }
 
@@ -142,7 +155,7 @@ namespace NRediSearch
                 _options = options;
             }
 
-            public ConfiguredIndexOptions(IndexDefinition definition, IndexOptions options = IndexOptions.Default) 
+            public ConfiguredIndexOptions(IndexDefinition definition, IndexOptions options = IndexOptions.Default)
             : this(options)
             {
                 _definition = definition;
@@ -167,6 +180,34 @@ namespace NRediSearch
                 return this;
             }
 
+            public ConfiguredIndexOptions SetNoHighligh()
+            {
+                _options &= ~IndexOptions.NoHighligh;
+
+                return this;
+            }
+
+            public ConfiguredIndexOptions SetSkipInitialScan()
+            {
+                _options &= ~IndexOptions.SkipInitialScan;
+
+                return this;
+            }
+
+            public ConfiguredIndexOptions SetMaxTextFields()
+            {
+                _options &= ~IndexOptions.MaxTextFields;
+
+                return this;
+            }
+
+            public ConfiguredIndexOptions SetUseTermOffsets()
+            {
+                _options &= ~IndexOptions.UseTermOffsets;
+
+                return this;
+            }
+
             internal void SerializeRedisArgs(List<object> args)
             {
                 SerializeRedisArgs(_options, args, _definition);
@@ -181,9 +222,17 @@ namespace NRediSearch
             internal static void SerializeRedisArgs(IndexOptions options, List<object> args, IndexDefinition definition)
             {
                 definition?.SerializeRedisArgs(args);
+                if ((options & IndexOptions.MaxTextFields) == 0)
+                {
+                    args.Add("MAXTEXTFIELDS".Literal());
+                }
                 if ((options & IndexOptions.UseTermOffsets) == 0)
                 {
                     args.Add("NOOFFSETS".Literal());
+                }
+                if ((options & IndexOptions.NoHighligh) == 0)
+                {
+                    args.Add("NOHL".Literal());
                 }
                 if ((options & IndexOptions.KeepFieldFlags) == 0)
                 {
@@ -197,6 +246,10 @@ namespace NRediSearch
                 {
                     args.Add("STOPWORDS".Literal());
                     args.Add(0.Boxed());
+                }
+                if ((options & IndexOptions.SkipInitialScan) == 0)
+                {
+                    args.Add("SKIPINITIALSCAN".Literal());
                 }
             }
         }
@@ -687,7 +740,7 @@ namespace NRediSearch
         }
 
         /// <summary>
-        /// Delete multiple documents from an index. 
+        /// Delete multiple documents from an index.
         /// </summary>
         /// <param name="deleteDocuments">if <code>true</code> also deletes the actual document ifs it is in the index</param>
         /// <param name="docIds">the document ids to delete</param>
@@ -705,7 +758,7 @@ namespace NRediSearch
         }
 
         /// <summary>
-        /// Delete multiple documents from an index. 
+        /// Delete multiple documents from an index.
         /// </summary>
         /// <param name="deleteDocuments">if <code>true</code> also deletes the actual document ifs it is in the index</param>
         /// <param name="docIds">the document ids to delete</param>

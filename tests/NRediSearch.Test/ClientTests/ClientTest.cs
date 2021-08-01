@@ -150,6 +150,45 @@ namespace NRediSearch.Test.ClientTests
         }
 
         [Fact]
+        public void TestSkipInitialIndex()
+        {
+            Db.HashSet("doc1", "foo", "bar");
+            var query = new Query("@foo:bar");
+            var sc = new Schema().AddTextField("foo");
+
+            var client1 = new Client("idx1", Db);
+            Assert.True(client1.CreateIndex(sc, new ConfiguredIndexOptions()));
+            Assert.Equal(1, client1.Search(query).TotalResults);
+
+            var client2 = new Client("idx2", Db);
+            Assert.True(client2.CreateIndex(sc, new ConfiguredIndexOptions().SetSkipInitialScan()));
+            Assert.Equal(0, client2.Search(query).TotalResults);
+        }
+
+        [Fact]
+        public void TestSummarizationDisabled()
+        {
+            Client cl = GetClient();
+
+            Schema sc = new Schema().AddTextField("body");
+
+            Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions().SetUseTermOffsets()));
+            var fields = new Dictionary<string, RedisValue>
+            {
+                { "body", "hello world" }
+            };
+            Assert.True(cl.AddDocument("doc1", fields));
+
+            var ex = Assert.Throws<RedisServerException>(() => cl.Search(new Query("hello").SummarizeFields("body")));
+            Assert.Equal("Cannot use highlight/summarize because NOOFSETS was specified at index level", ex.Message);
+
+            cl = GetClient();
+            Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions().SetNoHighligh()));
+            Assert.True(cl.AddDocument("doc2", fields));
+            Assert.Throws<RedisServerException>(() => cl.Search(new Query("hello").SummarizeFields("body")));
+        }
+
+        [Fact]
         public void TestGeoFilter()
         {
             Client cl = GetClient();
