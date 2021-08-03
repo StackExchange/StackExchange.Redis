@@ -137,7 +137,6 @@ namespace NRediSearch
                     args.Add(_payloadField);
                 }
             }
-
         }
 
         public sealed class ConfiguredIndexOptions
@@ -149,6 +148,7 @@ namespace NRediSearch
             private IndexOptions _options;
             private readonly IndexDefinition _definition;
             private string[] _stopwords;
+            private long _temporary;
 
             public ConfiguredIndexOptions(IndexOptions options = IndexOptions.Default)
             {
@@ -162,7 +162,7 @@ namespace NRediSearch
             }
 
             /// <summary>
-            /// Set a custom stopword list.
+            /// Set a custom stopword list. These words will be ignored during indexing and search time.
             /// </summary>
             /// <param name="stopwords">The new stopwords to use.</param>
             public ConfiguredIndexOptions SetStopwords(params string[] stopwords)
@@ -173,6 +173,9 @@ namespace NRediSearch
                 return this;
             }
 
+            /// <summary>
+            /// Disable the stopwords list
+            /// </summary>
             public ConfiguredIndexOptions SetNoStopwords()
             {
                 _options |= IndexOptions.DisableStopWords;
@@ -208,8 +211,24 @@ namespace NRediSearch
                 return this;
             }
 
+            /// <summary>
+            /// Set a lightweight temporary index which will expire after the specified period of inactivity.
+            /// The internal idle timer is reset whenever the index is searched or added to.
+            /// </summary>
+            /// <param name="time">The time to expire in seconds.</param>
+            public ConfiguredIndexOptions SetTemporaryTime(long time)
+            {
+                _temporary = time;
+                return this;
+            }
+
             internal void SerializeRedisArgs(List<object> args)
             {
+                if (_temporary != 0)
+                {
+                    args.Add("TEMPORARY".Literal());
+                    args.Add(_temporary);
+                }
                 SerializeRedisArgs(_options, args, _definition);
                 if (_stopwords?.Length > 0)
                 {
