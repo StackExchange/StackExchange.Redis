@@ -1,4 +1,6 @@
-﻿using System.Collections.Generic;
+﻿using System.Threading;
+using System.ComponentModel.Design;
+using System.Collections.Generic;
 using System.Text;
 using StackExchange.Redis;
 using Xunit;
@@ -147,6 +149,28 @@ namespace NRediSearch.Test.ClientTests
             Assert.Equal(1, cl.Search(new Query("hello world")).TotalResults);
             Assert.Equal(1, cl.Search(new Query("foo bar")).TotalResults);
             Assert.Equal(1, cl.Search(new Query("to be or not to be")).TotalResults);
+        }
+
+        [Fact]
+        public void TestExpire()
+        {
+            var cl = new Client("idx", Db);
+            Schema sc = new Schema().AddTextField("title");
+
+            Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions().SetTemporaryTime(4)));
+            long ttl = (long) Db.Execute("FT.DEBUG", "TTL", "idx");
+            while (ttl > 2) {
+                ttl = (long) Db.Execute("FT.DEBUG", "TTL", "idx");
+                Thread.Sleep(1);
+            }
+
+            var fields = new Dictionary<string, RedisValue>
+            {
+                { "title", "hello world foo bar to be or not to be" }
+            };
+            Assert.True(cl.AddDocument("doc1", fields));
+            ttl = (long) Db.Execute("FT.DEBUG", "TTL", "idx");
+            Assert.True(ttl > 2);
         }
 
         [Fact]

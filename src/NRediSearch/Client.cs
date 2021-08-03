@@ -156,6 +156,7 @@ namespace NRediSearch
             public ConfiguredIndexOptions SetTemporaryTime(long time)
             {
                 _temporary = time;
+                return this;
             }
 
             /// <summary>
@@ -182,7 +183,7 @@ namespace NRediSearch
 
             internal void SerializeRedisArgs(List<object> args)
             {
-                if (_temporary != null)
+                if (_temporary != 0)
                 {
                     args.Add("TEMPORARY".Literal());
                     args.Add(_temporary);
