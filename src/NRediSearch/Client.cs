@@ -61,7 +61,7 @@ namespace NRediSearch
             }
 
             internal readonly IndexType _type = IndexType.Hash;
-            internal readonly bool _async; 
+            internal readonly bool _async;
             internal readonly string[] _prefixes;
             internal readonly string _filter;
             internal readonly string _languageField;
@@ -71,7 +71,7 @@ namespace NRediSearch
             internal readonly string _payloadField;
 
             public IndexDefinition(bool async = false, string[] prefixes = null,
-            string filter = null, string languageField = null, string language = null, 
+            string filter = null, string languageField = null, string language = null,
             string scoreFiled = null, double score = 1.0, string payloadField = null)
             {
                 _async = async;
@@ -92,39 +92,38 @@ namespace NRediSearch
                 {
                     args.Add("ASYNC".Literal());
                 }
-                if (_prefixes?.Length > 0) 
+                if (_prefixes?.Length > 0)
                 {
                     args.Add("PREFIX".Literal());
                     args.Add(_prefixes.Length.ToString());
                     args.AddRange(_prefixes);
                 }
-                if (_filter != null) 
+                if (_filter != null)
                 {
                     args.Add("FILTER".Literal());
                     args.Add(_filter);
-                }                
+                }
                 if (_languageField != null) {
                     args.Add("LANGUAGE_FIELD".Literal());
-                    args.Add(_languageField);      
-                }                
+                    args.Add(_languageField);
+                }
                 if (_language != null) {
                     args.Add("LANGUAGE".Literal());
-                    args.Add(_language);      
-                }                
+                    args.Add(_language);
+                }
                 if (_scoreFiled != null) {
                     args.Add("SCORE_FIELD".Literal());
-                    args.Add(_scoreFiled);      
-                }                
+                    args.Add(_scoreFiled);
+                }
                 if (_score != 1.0) {
                     args.Add("SCORE".Literal());
-                    args.Add(_score.ToString());      
+                    args.Add(_score.ToString());
                 }
                 if (_payloadField != null) {
                     args.Add("PAYLOAD_FIELD".Literal());
-                    args.Add(_payloadField);      
+                    args.Add(_payloadField);
                 }
             }
-
         }
 
         public sealed class ConfiguredIndexOptions
@@ -136,20 +135,31 @@ namespace NRediSearch
             private IndexOptions _options;
             private readonly IndexDefinition _definition;
             private string[] _stopwords;
+            private long _temporary;
 
             public ConfiguredIndexOptions(IndexOptions options = IndexOptions.Default)
             {
                 _options = options;
             }
 
-            public ConfiguredIndexOptions(IndexDefinition definition, IndexOptions options = IndexOptions.Default) 
+            public ConfiguredIndexOptions(IndexDefinition definition, IndexOptions options = IndexOptions.Default)
             : this(options)
             {
                 _definition = definition;
             }
 
             /// <summary>
-            /// Set a custom stopword list.
+            /// Set a lightweight temporary index which will expire after the specified period of inactivity.
+            /// The internal idle timer is reset whenever the index is searched or added to.
+            /// </summary>
+            /// <param name="time">The time to expire in seconds.</param>
+            public ConfiguredIndexOptions SetTemporaryTime(long time)
+            {
+                _temporary = time;
+            }
+
+            /// <summary>
+            /// Set a custom stopword list. These words will be ignored during indexing and search time.
             /// </summary>
             /// <param name="stopwords">The new stopwords to use.</param>
             public ConfiguredIndexOptions SetStopwords(params string[] stopwords)
@@ -160,6 +170,9 @@ namespace NRediSearch
                 return this;
             }
 
+            /// <summary>
+            /// Disable the stopwords list
+            /// </summary>
             public ConfiguredIndexOptions SetNoStopwords()
             {
                 _options |= IndexOptions.DisableStopWords;
@@ -169,6 +182,11 @@ namespace NRediSearch
 
             internal void SerializeRedisArgs(List<object> args)
             {
+                if (_temporary != null)
+                {
+                    args.Add("TEMPORARY".Literal());
+                    args.Add(_temporary);
+                }
                 SerializeRedisArgs(_options, args, _definition);
                 if (_stopwords?.Length > 0)
                 {
@@ -687,7 +705,7 @@ namespace NRediSearch
         }
 
         /// <summary>
-        /// Delete multiple documents from an index. 
+        /// Delete multiple documents from an index.
         /// </summary>
         /// <param name="deleteDocuments">if <code>true</code> also deletes the actual document ifs it is in the index</param>
         /// <param name="docIds">the document ids to delete</param>
@@ -705,7 +723,7 @@ namespace NRediSearch
         }
 
         /// <summary>
-        /// Delete multiple documents from an index. 
+        /// Delete multiple documents from an index.
         /// </summary>
         /// <param name="deleteDocuments">if <code>true</code> also deletes the actual document ifs it is in the index</param>
         /// <param name="docIds">the document ids to delete</param>
