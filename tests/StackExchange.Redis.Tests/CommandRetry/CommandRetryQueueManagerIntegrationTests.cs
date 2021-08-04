@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
@@ -21,8 +22,8 @@ namespace StackExchange.Redis.Tests.CommandRetry
             {
                 ConfigurationOptions configClient = new ConfigurationOptions();
                 configClient.EndPoints.Add("127.0.0.1");
-                configClient.CommandRetryPolicy = null;
-                if (retryPolicySet) configClient.CommandRetryPolicy = new CommandRetryPolicy().AlwaysRetryOnConnectionException();
+                configClient.RetryCommandsOnReconnect = null;
+                if (retryPolicySet) configClient.RetryCommandsOnReconnect = RetryOnReconnect.Always;
                 using (var clientmuxer = ConnectionMultiplexer.Connect(configClient))
                 {
                     var conn = clientmuxer.GetDatabase();
