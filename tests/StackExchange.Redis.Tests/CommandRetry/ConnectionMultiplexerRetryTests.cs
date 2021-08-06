@@ -7,7 +7,7 @@ namespace StackExchange.Redis.Tests.CommandRetry
         [Theory]
         [InlineData(CommandFlags.AlwaysRetry, true)]
         [InlineData(CommandFlags.NoRetry, false)]
-        [InlineData(CommandFlags.RetryIfNotYetSent, true)]
+        [InlineData(CommandFlags.RetryIfNotSent, true)]
         public void ValidateOverrideFlag(CommandFlags flag, bool shouldRetry)
         {
             var message = Message.Create(0, flag, RedisCommand.GET);
@@ -19,7 +19,7 @@ namespace StackExchange.Redis.Tests.CommandRetry
         [InlineData(false, true)]
         public void ValidateRetryIfNotSentOverrideFlag(bool alreadySent, bool shouldRetry)
         {
-            var message = Message.Create(0, CommandFlags.RetryIfNotYetSent, RedisCommand.GET);
+            var message = Message.Create(0, CommandFlags.RetryIfNotSent, RedisCommand.GET);
             if (alreadySent)
             {
                 message.SetRequestSent();

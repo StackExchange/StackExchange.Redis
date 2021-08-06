@@ -24,7 +24,7 @@ namespace StackExchange.Redis.Tests.CommandRetry
             var message = Message.Create(0, CommandFlags.None, RedisCommand.SET);
             var mux = new SharedConnectionFixture().Connection;
             var mockmessageRetryHelper = new Mock<IMessageRetryHelper>();
-            var messageRetryQueue = new MessageRetryQueue(mockmessageRetryHelper.Object, maxRetryQueueLength:0, runRetryLoopAsync: false);
+            var messageRetryQueue = new MessageRetryQueue(mockmessageRetryHelper.Object, maxRetryQueueLength: 0, runRetryLoopAsync: false);
 
             var isEnqueuedWithZeroMaxLength = messageRetryQueue.TryHandleFailedCommand(message);
             messageRetryQueue.TryHandleFailedCommand(message);
@@ -34,7 +34,7 @@ namespace StackExchange.Redis.Tests.CommandRetry
         [Fact]
         public async void RetryMessageSucceeds()
         {
-            using (var muxer = Create(allowAdmin:true,retryPolicy: new CommandRetryPolicy().AlwaysRetryOnConnectionException()))
+            using (var muxer = Create(allowAdmin: true, retryPolicy: RetryOnReconnect.Always))
             {
                 var conn = muxer.GetDatabase();
                 var duration = await conn.PingAsync().ForAwait();
@@ -82,7 +82,7 @@ namespace StackExchange.Redis.Tests.CommandRetry
 
             Assert.True(messageRetryQueue.RetryQueueLength == 0);
             messageRetryHelper.Verify(failedCommand => failedCommand.TryResendAsync(message), Times.Never);
-            messageRetryHelper.Verify(failedCommand => failedCommand.SetExceptionAndComplete(message,timeout), Times.Once);
+            messageRetryHelper.Verify(failedCommand => failedCommand.SetExceptionAndComplete(message, timeout), Times.Once);
         }
 
         [Fact]
@@ -96,7 +96,7 @@ namespace StackExchange.Redis.Tests.CommandRetry
 
             Assert.True(messageRetryQueue.RetryQueueLength == 0);
             messageRetryHelper.Verify(failedCommand => failedCommand.TryResendAsync(message), Times.Never);
-            messageRetryHelper.Verify(failedCommand => failedCommand.SetExceptionAndComplete(message,ex), Times.Once);
+            messageRetryHelper.Verify(failedCommand => failedCommand.SetExceptionAndComplete(message, ex), Times.Once);
         }
 
         [Fact]
@@ -127,7 +127,7 @@ namespace StackExchange.Redis.Tests.CommandRetry
 
             Assert.Equal(queueLength, messageRetryQueue.RetryQueueLength);
             messageRetryHelper.Verify(failedCommand => failedCommand.TryResendAsync(message), Times.Never);
-            messageRetryHelper.Verify(failedCommand => failedCommand.SetExceptionAndComplete(message,It.IsAny<Exception>()), Times.Exactly(hasTimedout ? 1 : 0));
+            messageRetryHelper.Verify(failedCommand => failedCommand.SetExceptionAndComplete(message, It.IsAny<Exception>()), Times.Exactly(hasTimedout ? 1 : 0));
         }
 
         [Fact]

@@ -2804,22 +2804,30 @@ namespace StackExchange.Redis
 
         internal bool TryMessageForRetry(Message message, Exception ex)
         {
-            if (RawConfig.CommandRetryPolicy != null && !message.IsAdmin)
+            if (message.IsAdmin || !message.ShouldRetry())
             {
-                if (!(ex is RedisConnectionException)) return false;
-                if (!message.ShouldRetry()) return false;
-                var shouldRetry = message.IsInternalCall ? true : RawConfig.CommandRetryPolicy.ShouldRetryOnConnectionException(message.Status);
-                if (shouldRetry&& RetryQueueManager.TryHandleFailedCommand(message))
-                {
-                    // if this message is a new message set the writetime
-                    if (message.GetWriteTime() == 0)
-                    {
-                        message.SetEnqueued(null);
-                    }
-                    message.ResetStatusToWaitingToBeSent();
-                    return true;
-                }
+                return false;
             }
+
+            bool shouldRetry = false;
+            if (RawConfig.RetryCommandsOnReconnect != null && ex is RedisConnectionException)
+            {
+                shouldRetry = message.IsInternalCall || RawConfig.RetryCommandsOnReconnect.ShouldRetry(message.Status);
+            }
+
+            if (shouldRetry && RetryQueueManager.TryHandleFailedCommand(message))
+            {
+                // if this message is a new message set the writetime
+                if (message.GetWriteTime() == 0)
+                {
+                    message.SetEnqueued(null);
+                }
+
+                message.ResetStatusToWaitingToBeSent();
+
+                return true;
+            }
+
             return false;
         }
 

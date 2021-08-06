@@ -96,7 +96,7 @@ namespace StackExchange.Redis
                                                        | CommandFlags.NoScriptCache
                                                        | CommandFlags.AlwaysRetry
                                                        | CommandFlags.NoRetry
-                                                       | CommandFlags.RetryIfNotYetSent;
+                                                       | CommandFlags.RetryIfNotSent;
         private IResultBox resultBox;
 
         private ResultProcessor resultProcessor;
@@ -667,13 +667,13 @@ namespace StackExchange.Redis
 
 
         /// <summary>
-        /// returns true if message should be retried based on command flag
+        /// Determines whether the message should be retried
         /// </summary>
-        /// <returns></returns>
+        /// <returns>True if the message should be retried based on the command flag, otherwise false</returns>
         internal bool ShouldRetry()
         {
             if ((Flags & CommandFlags.NoRetry) != 0) return false;
-            if ((Flags & CommandFlags.RetryIfNotYetSent) != 0 && Status == CommandStatus.Sent) return false;
+            if ((Flags & CommandFlags.RetryIfNotSent) != 0 && Status == CommandStatus.Sent) return false;
             return true;
         }
 
