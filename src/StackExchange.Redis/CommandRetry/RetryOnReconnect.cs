@@ -19,18 +19,14 @@ namespace StackExchange.Redis
         /// </summary>
         /// <returns>An instance of a retry policy that retries all commands</returns>
         public static IRetryOnReconnectPolicy Always
-        {
-            get => new RetryOnReconnect(commandStatus => true);
-        }
+            => new RetryOnReconnect(commandStatus => true);
 
         /// <summary>
         /// Retry only commands which fail before being sent to the server
         /// </summary>
         /// <returns>An instance of a policy that retries only unsent commands</returns>
         public static IRetryOnReconnectPolicy IfNotSent
-        {
-            get => new RetryOnReconnect(commandStatus => commandStatus == CommandStatus.WaitingToBeSent);
-        }
+            => new RetryOnReconnect(commandStatus => commandStatus == CommandStatus.WaitingToBeSent);
 
         /// <summary>
         /// Determines whether to retry a command upon restoration of a lost connection
