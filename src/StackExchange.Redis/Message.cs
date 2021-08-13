@@ -625,30 +625,22 @@ namespace StackExchange.Redis
             resultProcessor?.ConnectionFail(this, failure, innerException, annotation);
         }
 
-        private bool TryEnqueueForConnectionRestoreRetry(Exception exception, PhysicalBridge bridge, bool pushMessageToRetryManager = false)
+        internal virtual void SetExceptionAndComplete(Exception exception, PhysicalBridge bridge, bool onConnectionRestoreRetry)
         {
-            if (pushMessageToRetryManager && bridge != null)
+            if (onConnectionRestoreRetry &&
+               exception is RedisConnectionException &&
+               bridge != null)
             {
+                bool? retrySuccess = false;
                 try
                 {
-                    return bridge.Multiplexer.TryMessageForRetry(this, exception);
+                    retrySuccess = bridge.Multiplexer.RawConfig.RetryCommandsOnReconnect?.TryMessageForRetry(this, exception);
                 }
                 catch (Exception e)
                 {
                     exception.Data.Add("OnConnectionRestoreRetryManagerError", e.ToString());
                 }
-            }
-            return false;
-        }
-
-        internal virtual void SetExceptionAndComplete(Exception exception, PhysicalBridge bridge, bool onConnectionRestoreRetry)
-        {
-            if (TryEnqueueForConnectionRestoreRetry(exception, bridge,
-                onConnectionRestoreRetry &&
-               exception is RedisConnectionException &&
-               bridge != null))
-            {
-                return;
+                if (retrySuccess.HasValue && retrySuccess.Value) return;
             }
 
             resultBox?.SetException(exception);
@@ -665,17 +657,6 @@ namespace StackExchange.Redis
             return false;
         }
 
-
-        /// <summary>
-        /// Determines whether the message should be retried
-        /// </summary>
-        /// <returns>True if the message should be retried based on the command flag, otherwise false</returns>
-        internal bool ShouldRetry()
-        {
-            if ((Flags & CommandFlags.NoRetry) != 0) return false;
-            if ((Flags & CommandFlags.RetryIfNotSent) != 0 && Status == CommandStatus.Sent) return false;
-            return true;
-        }
 
         internal void SetEnqueued(PhysicalConnection connection)
         {

@@ -9,9 +9,47 @@ namespace StackExchange.Redis
     {
         private readonly Func<CommandStatus, bool> _shouldRetry;
 
+
         internal RetryOnReconnect(Func<CommandStatus, bool> shouldRetry)
         {
             _shouldRetry = shouldRetry;
+        }
+
+        internal bool IsMessageRetriable(Message message , Exception ex)
+        {
+            return ((message.Flags & CommandFlags.AlwaysRetry) != 0 ||
+                   (message.Flags & CommandFlags.NoRetry) == 0
+                    && ((message.Flags & CommandFlags.RetryIfNotSent) != 0 && message.Status != CommandStatus.Sent))
+                    && !message.IsAdmin && !message.IsInternalCall && ex is RedisException && ShouldRetry(message.Status);
+        }
+
+        bool IRetryOnReconnectPolicy.TryMessageForRetry(Message message, Exception ex)
+        {
+            if (!IsMessageRetriable(message, ex))
+            {
+                return false;
+            }
+
+            if (((IRetryOnReconnectPolicy)this).RetryQueueManager.TryHandleFailedCommand(message))
+            {
+                // if this message is a new message set the writetime
+                if (message.GetWriteTime() == 0)
+                {
+                    message.SetEnqueued(null);
+                }
+
+                message.ResetStatusToWaitingToBeSent();
+
+                return true;
+            }
+
+            return false;
+        }
+
+        void IRetryOnReconnectPolicy.Init(ConnectionMultiplexer mux)
+        {
+            var messageRetryHelper = new MessageRetryHelper(mux);
+            ((IRetryOnReconnectPolicy)this).RetryQueueManager = new MessageRetryQueue(messageRetryHelper);
         }
 
         /// <summary>
@@ -27,6 +65,14 @@ namespace StackExchange.Redis
         /// <returns>An instance of a policy that retries only unsent commands</returns>
         public static IRetryOnReconnectPolicy IfNotSent
             => new RetryOnReconnect(commandStatus => commandStatus == CommandStatus.WaitingToBeSent);
+
+        /// <summary>
+        /// returns the current length of the retry queue
+        /// </summary>
+        public int RetryQueueCurrentLength => ((IRetryOnReconnectPolicy)this).RetryQueueManager.CurrentRetryQueueLength;
+
+        MessageRetryQueue IRetryOnReconnectPolicy.RetryQueueManager { get; set; }
+
 
         /// <summary>
         /// Determines whether to retry a command upon restoration of a lost connection

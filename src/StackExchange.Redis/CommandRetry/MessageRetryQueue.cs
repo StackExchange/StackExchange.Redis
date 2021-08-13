@@ -20,7 +20,7 @@ namespace StackExchange.Redis
             _messageRetryHelper = messageRetryHelper;
         }
 
-        public int RetryQueueLength => _queue.Count;
+        public int CurrentRetryQueueLength => _queue.Count;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal bool TryHandleFailedCommand(Message message)
