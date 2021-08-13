@@ -468,7 +468,7 @@ namespace StackExchange.Redis
                 bool createWorker = !_backlog.IsEmpty;
                 if (createWorker) StartBacklogProcessor();
 
-                Multiplexer.RetryQueueManager.StartRetryQueueProcessor();
+                Multiplexer.RawConfig.RetryCommandsOnReconnect?.RetryQueueManager.StartRetryQueueProcessor();
 
                 if (ConnectionType == ConnectionType.Interactive) ServerEndPoint.CheckInfoReplication();
             }
@@ -486,7 +486,7 @@ namespace StackExchange.Redis
             bool runThisTime = false;
             try
             {
-                Multiplexer.RetryQueueManager.CheckRetryQueueForTimeouts();
+                Multiplexer.RawConfig.RetryCommandsOnReconnect?.RetryQueueManager.CheckRetryQueueForTimeouts();
                 CheckBacklogForTimeouts();
                 runThisTime = !isDisposed && Interlocked.CompareExchange(ref beating, 1, 0) == 0;
                 if (!runThisTime) return;

@@ -939,7 +939,7 @@ namespace StackExchange.Redis
             }
 
             config.SetDefaultPorts();
-
+            if (config.RetryCommandsOnReconnect == null) throw new Exception("cloning null");
             return config;
         }
 
@@ -1050,7 +1050,7 @@ namespace StackExchange.Redis
             {
                 return SentinelMasterConnect(configuration, log);
             }
-
+            if (configuration.RetryCommandsOnReconnect == null) throw new Exception("connect null");
             return ConnectImpl(PrepareConfig(configuration), log);
         }
 
@@ -1282,12 +1282,6 @@ namespace StackExchange.Redis
         }
 
         internal readonly CommandMap CommandMap;
-        internal readonly MessageRetryQueue RetryQueueManager;
-
-        /// <summary>
-        /// returns the current length of the retry queue
-        /// </summary>
-        public int RetryQueueLength => RetryQueueManager.RetryQueueLength;
 
         private ConnectionMultiplexer(ConfigurationOptions configuration)
         {
@@ -1317,7 +1311,8 @@ namespace StackExchange.Redis
                 ConfigurationChangedChannel = Encoding.UTF8.GetBytes(configChannel);
             }
             lastHeartbeatTicks = Environment.TickCount;
-            RetryQueueManager = new MessageRetryQueue(new MessageRetryHelper(this), RawConfig.RetryQueueMaxLength);
+            if (RawConfig.RetryCommandsOnReconnect == null) throw new Exception("should not be null");
+            RawConfig.RetryCommandsOnReconnect?.Init(this);
         }
 
         partial void OnCreateReaderWriter(ConfigurationOptions configuration);
@@ -2794,42 +2789,13 @@ namespace StackExchange.Redis
                 if (result != WriteResult.Success)
                 {
                     var ex = GetException(result, message, server);
-                    if (!TryMessageForRetry(message, ex))
+                    if (RawConfig.RetryCommandsOnReconnect != null && !RawConfig.RetryCommandsOnReconnect.TryMessageForRetry(message, ex))
                         ThrowFailed(tcs, ex);
                 }
                 return tcs.Task;
             }
         }
-
-
-        internal bool TryMessageForRetry(Message message, Exception ex)
-        {
-            if (message.IsAdmin || !message.ShouldRetry())
-            {
-                return false;
-            }
-
-            bool shouldRetry = false;
-            if (RawConfig.RetryCommandsOnReconnect != null && ex is RedisConnectionException)
-            {
-                shouldRetry = message.IsInternalCall || RawConfig.RetryCommandsOnReconnect.ShouldRetry(message.Status);
-            }
-
-            if (shouldRetry && RetryQueueManager.TryHandleFailedCommand(message))
-            {
-                // if this message is a new message set the writetime
-                if (message.GetWriteTime() == 0)
-                {
-                    message.SetEnqueued(null);
-                }
-
-                message.ResetStatusToWaitingToBeSent();
-
-                return true;
-            }
-
-            return false;
-        }
+        
 
         private static async Task<T> ExecuteAsyncImpl_Awaited<T>(ConnectionMultiplexer @this, ValueTask<WriteResult> write, TaskCompletionSource<T> tcs, Message message, ServerEndPoint server)
         {
@@ -2837,7 +2803,7 @@ namespace StackExchange.Redis
             if (result != WriteResult.Success)
             {
                 var ex = @this.GetException(result, message, server);
-                if (!@this.TryMessageForRetry(message, ex))
+                if (@this.RawConfig.RetryCommandsOnReconnect != null && !@this.RawConfig.RetryCommandsOnReconnect.TryMessageForRetry(message, ex))
                     ThrowFailed(tcs, ex);
             }
             return tcs == null ? default(T) : await tcs.Task.ForAwait();
@@ -2898,7 +2864,7 @@ namespace StackExchange.Redis
                     if (result != WriteResult.Success)
                     {
                         var exResult = GetException(result, message, server);
-                        if (!TryMessageForRetry(message, exResult))
+                        if (RawConfig.RetryCommandsOnReconnect != null && !RawConfig.RetryCommandsOnReconnect.TryMessageForRetry(message, exResult))
                             throw exResult;
                     }
 
@@ -2911,10 +2877,7 @@ namespace StackExchange.Redis
                         Trace("Timeout performing " + message);
                         Interlocked.Increment(ref syncTimeouts);
                         var timeoutEx = ExceptionFactory.Timeout(this, null, message, server);
-                        if (!TryMessageForRetry(message, timeoutEx))
-                        {
-                            throw ExceptionFactory.Timeout(this, null, message, server);
-                        }
+                        throw ExceptionFactory.Timeout(this, null, message, server);
                         // very important not to return "source" to the pool here
                     }
                 }

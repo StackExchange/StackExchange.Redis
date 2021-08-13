@@ -18,6 +18,8 @@ namespace StackExchange.Redis.Tests.CommandRetry
             configAdmin.EndPoints.Add("127.0.0.1");
             configAdmin.AbortOnConnectFail = false;
             configAdmin.AllowAdmin = true;
+            configAdmin.RetryCommandsOnReconnect = retryPolicySet ? RetryOnReconnect.Always : null;
+
             ConfigurationOptions configClient = new ConfigurationOptions();
             configClient.EndPoints.Add("127.0.0.1");
             configAdmin.AbortOnConnectFail = false;
