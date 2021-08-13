@@ -939,7 +939,6 @@ namespace StackExchange.Redis
             }
 
             config.SetDefaultPorts();
-            if (config.RetryCommandsOnReconnect == null) throw new Exception("cloning null");
             return config;
         }
 
@@ -1050,7 +1049,6 @@ namespace StackExchange.Redis
             {
                 return SentinelMasterConnect(configuration, log);
             }
-            if (configuration.RetryCommandsOnReconnect == null) throw new Exception("connect null");
             return ConnectImpl(PrepareConfig(configuration), log);
         }
 
@@ -1311,7 +1309,6 @@ namespace StackExchange.Redis
                 ConfigurationChangedChannel = Encoding.UTF8.GetBytes(configChannel);
             }
             lastHeartbeatTicks = Environment.TickCount;
-            if (RawConfig.RetryCommandsOnReconnect == null) throw new Exception("should not be null");
             RawConfig.RetryCommandsOnReconnect?.Init(this);
         }
 
