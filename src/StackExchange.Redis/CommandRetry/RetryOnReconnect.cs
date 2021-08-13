@@ -17,10 +17,14 @@ namespace StackExchange.Redis
 
         internal bool IsMessageRetriable(Message message , Exception ex)
         {
-            return ((message.Flags & CommandFlags.AlwaysRetry) != 0 ||
-                   (message.Flags & CommandFlags.NoRetry) == 0
-                    && ((message.Flags & CommandFlags.RetryIfNotSent) != 0 && message.Status != CommandStatus.Sent))
-                    && !message.IsAdmin && !message.IsInternalCall && ex is RedisException && ShouldRetry(message.Status);
+            if ((message.Flags & CommandFlags.NoRetry) != 0
+                    || ((message.Flags & CommandFlags.RetryIfNotSent) != 0 && message.Status == CommandStatus.Sent))
+                return false;
+
+            if (message.IsAdmin || message.IsInternalCall || !(ex is RedisException) || !ShouldRetry(message.Status))
+                return false;
+
+            return true;
         }
 
         bool IRetryOnReconnectPolicy.TryMessageForRetry(Message message, Exception ex)
