@@ -1,42 +1,40 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
-using System.Text;
 using System.Threading.Tasks;
-using StackExchange.Redis;
 
 namespace StackExchange.Redis
 {
 
     internal class MessageRetryQueue : IDisposable
-    { 
-        readonly Queue<Message> queue = new Queue<Message>();
-        readonly IMessageRetryHelper messageRetryHelper;
-        int? maxRetryQueueLength;
-        bool runRetryLoopAsync;
+    {
+        private readonly Queue<Message> _queue = new Queue<Message>();
+        private readonly IMessageRetryHelper _messageRetryHelper;
+        private readonly int? _maxRetryQueueLength;
+        private readonly bool _runRetryLoopAsync;
 
         internal MessageRetryQueue(IMessageRetryHelper messageRetryHelper, int? maxRetryQueueLength = null, bool runRetryLoopAsync = true)
         {
-            this.maxRetryQueueLength = maxRetryQueueLength;
-            this.runRetryLoopAsync = runRetryLoopAsync;
-            this.messageRetryHelper = messageRetryHelper;
+            _maxRetryQueueLength = maxRetryQueueLength;
+            _runRetryLoopAsync = runRetryLoopAsync;
+            _messageRetryHelper = messageRetryHelper;
         }
 
-        public int RetryQueueLength => queue.Count;
+        public int RetryQueueLength => _queue.Count;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal bool TryHandleFailedCommand(Message message)
         {
             bool wasEmpty;
-            lock (queue)
+            lock (_queue)
             {
-                int count = queue.Count;
-                if (maxRetryQueueLength.HasValue && count >= maxRetryQueueLength)
+                int count = _queue.Count;
+                if (_maxRetryQueueLength.HasValue && count >= _maxRetryQueueLength)
                 {
                     return false;
                 }
                 wasEmpty = count == 0;
-                queue.Enqueue(message);
+                _queue.Enqueue(message);
             }
             if (wasEmpty) StartRetryQueueProcessor();
             return true;
@@ -46,13 +44,13 @@ namespace StackExchange.Redis
         internal void StartRetryQueueProcessor()
         {
             bool startProcessor = false;
-            lock (queue)
+            lock (_queue)
             {
-                startProcessor = queue.Count > 0;
+                startProcessor = _queue.Count > 0;
             }
             if (startProcessor)
             {
-                if (runRetryLoopAsync)
+                if (_runRetryLoopAsync)
                 {
                     var task = Task.Run(ProcessRetryQueueAsync);
                     if (task.IsFaulted)
@@ -67,75 +65,73 @@ namespace StackExchange.Redis
 
         private async Task ProcessRetryQueueAsync()
         {
-            Message message = null;
             while (true)
             {
-                message = null;
-                Exception failedEndpointex = null;
-                lock (queue)
+                Message message = null;
+                Exception failedEndpointException = null;
+
+                lock (_queue)
                 {
-                    if (queue.Count == 0) break; // all done
-                    message = queue.Peek();
+                    if (_queue.Count == 0) break; // all done
+                    message = _queue.Peek();
                     try
                     {
-                        if (!messageRetryHelper.IsEndpointAvailable(message))
+                        if (!_messageRetryHelper.IsEndpointAvailable(message))
                         {
                             break;
                         }
                     }
                     catch (Exception ex)
                     {
-                        failedEndpointex = ex;
+                        failedEndpointException = ex;
                     }
-                    message = queue.Dequeue();
+                    message = _queue.Dequeue();
                 }
 
-                if (failedEndpointex != null)
+                if (failedEndpointException != null)
                 {
-                    messageRetryHelper.SetExceptionAndComplete(message, failedEndpointex);
+                    _messageRetryHelper.SetExceptionAndComplete(message, failedEndpointException);
                     continue;
                 }
 
                 try
                 {
-                    if (messageRetryHelper.HasTimedOut(message))
+                    if (_messageRetryHelper.HasTimedOut(message))
                     {
-                        RedisTimeoutException ex = messageRetryHelper.GetTimeoutException(message);
-                        messageRetryHelper.SetExceptionAndComplete(message,ex);
+                        var ex = _messageRetryHelper.GetTimeoutException(message);
+                        _messageRetryHelper.SetExceptionAndComplete(message, ex);
                     }
                     else
                     {
-                        if (!await messageRetryHelper.TryResendAsync(message))
+                        if (!await _messageRetryHelper.TryResendAsync(message))
                         {
                             // this should never happen but just to be safe if connection got dropped again
-                            messageRetryHelper.SetExceptionAndComplete(message);
+                            _messageRetryHelper.SetExceptionAndComplete(message);
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    messageRetryHelper.SetExceptionAndComplete(message, ex);
+                    _messageRetryHelper.SetExceptionAndComplete(message, ex);
                 }
             }
         }
 
-        
-
         internal void CheckRetryQueueForTimeouts() // check the head of the backlog queue, consuming anything that looks dead
         {
-            lock (queue)
+            lock (_queue)
             {
                 var now = Environment.TickCount;
-                while (queue.Count != 0)
+                while (_queue.Count != 0)
                 {
-                    var message = queue.Peek();
-                    if (!messageRetryHelper.HasTimedOut(message))
+                    var message = _queue.Peek();
+                    if (!_messageRetryHelper.HasTimedOut(message))
                     {
                         break; // not a timeout - we can stop looking
                     }
-                    queue.Dequeue();
-                    RedisTimeoutException ex = messageRetryHelper.GetTimeoutException(message);
-                    messageRetryHelper.SetExceptionAndComplete(message,ex);
+                    _queue.Dequeue();
+                    RedisTimeoutException ex = _messageRetryHelper.GetTimeoutException(message);
+                    _messageRetryHelper.SetExceptionAndComplete(message, ex);
                 }
             }
         }
@@ -143,27 +139,28 @@ namespace StackExchange.Redis
         private void DrainQueue(Exception ex)
         {
             Message message;
-            lock (queue)
+            lock (_queue)
             {
-                while (queue.Count != 0)
+                while (_queue.Count != 0)
                 {
-                    message = queue.Dequeue();
-                    messageRetryHelper.SetExceptionAndComplete(message, ex);
+                    message = _queue.Dequeue();
+                    _messageRetryHelper.SetExceptionAndComplete(message, ex);
                 }
             }
         }
 
-        private bool disposedValue = false;
+        private bool _disposedValue = false;
 
         protected virtual void Dispose(bool disposing)
         {
-            if (!disposedValue)
+            if (!_disposedValue)
             {
+                _disposedValue = true;
+
                 if (disposing)
                 {
-                    DrainQueue(new Exception("RetryQueue disposed"));
+                    DrainQueue(new Exception($"{nameof(MessageRetryQueue)} disposed"));
                 }
-                disposedValue = true;
             }
         }
 

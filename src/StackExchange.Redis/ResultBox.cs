@@ -116,6 +116,8 @@ namespace StackExchange.Redis
             else
                 ActivateContinuationsImpl();
         }
+
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "CA1816:Dispose methods should call SuppressFinalize", Justification = "Intentional observation")]
         private void ActivateContinuationsImpl()
         {
             var val = _value;

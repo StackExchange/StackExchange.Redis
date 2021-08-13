@@ -14,6 +14,7 @@ using System.Runtime.CompilerServices;
 using StackExchange.Redis.Profiling;
 using Pipelines.Sockets.Unofficial;
 using System.ComponentModel;
+using System.Runtime.InteropServices;
 
 namespace StackExchange.Redis
 {
@@ -715,7 +716,7 @@ namespace StackExchange.Redis
             return true;
         }
 
-        private async Task<bool> WaitAllIgnoreErrorsAsync(string name, Task[] tasks, int timeoutMilliseconds, LogProxy log, [CallerMemberName] string caller = null, [CallerLineNumber] int callerLineNumber = 0)
+        private static async Task<bool> WaitAllIgnoreErrorsAsync(string name, Task[] tasks, int timeoutMilliseconds, LogProxy log, [CallerMemberName] string caller = null, [CallerLineNumber] int callerLineNumber = 0)
         {
             if (tasks == null) throw new ArgumentNullException(nameof(tasks));
             if (tasks.Length == 0)
@@ -839,14 +840,35 @@ namespace StackExchange.Redis
         internal bool IsDisposed => _isDisposed;
 
         /// <summary>
-        /// Create a new ConnectionMultiplexer instance
+        /// Create a new ConnectionMultiplexer instance.
         /// </summary>
         /// <param name="configuration">The string configuration to use for this multiplexer.</param>
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
-        public static Task<ConnectionMultiplexer> ConnectAsync(string configuration, TextWriter log = null)
+        public static Task<ConnectionMultiplexer> ConnectAsync(string configuration, TextWriter log = null) =>
+            ConnectAsync(ConfigurationOptions.Parse(configuration), log);
+
+        /// <summary>
+        /// Create a new ConnectionMultiplexer instance.
+        /// </summary>
+        /// <param name="configuration">The string configuration to use for this multiplexer.</param>
+        /// <param name="configure">Action to further modify the parsed configuration options.</param>
+        /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
+        public static Task<ConnectionMultiplexer> ConnectAsync(string configuration, Action<ConfigurationOptions> configure, TextWriter log = null) =>
+            ConnectAsync(ConfigurationOptions.Parse(configuration).Apply(configure), log);
+
+        /// <summary>
+        /// Create a new ConnectionMultiplexer instance.
+        /// </summary>
+        /// <param name="configuration">The configuration options to use for this multiplexer.</param>
+        /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
+        public static Task<ConnectionMultiplexer> ConnectAsync(ConfigurationOptions configuration, TextWriter log = null)
         {
             SocketConnection.AssertDependencies();
-            return ConnectAsync(ConfigurationOptions.Parse(configuration), log);
+
+            if (IsSentinel(configuration))
+                return SentinelMasterConnectAsync(configuration, log);
+
+            return ConnectImplAsync(PrepareConfig(configuration), log);
         }
 
         private static async Task<ConnectionMultiplexer> ConnectImplAsync(ConfigurationOptions configuration, TextWriter log = null)
@@ -858,6 +880,8 @@ namespace StackExchange.Redis
             {
                 try
                 {
+                    log?.WriteLine($"Connecting (async) on {RuntimeInformation.FrameworkDescription}");
+
                     muxer = CreateMultiplexer(configuration, logProxy, out connectHandler);
                     killMe = muxer;
                     Interlocked.Increment(ref muxer._connectAttemptCount);
@@ -882,21 +906,6 @@ namespace StackExchange.Redis
                     if (killMe != null) try { killMe.Dispose(); } catch { }
                 }
             }
-        }
-
-        /// <summary>
-        /// Create a new ConnectionMultiplexer instance
-        /// </summary>
-        /// <param name="configuration">The configuration options to use for this multiplexer.</param>
-        /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
-        public static Task<ConnectionMultiplexer> ConnectAsync(ConfigurationOptions configuration, TextWriter log = null)
-        {
-            SocketConnection.AssertDependencies();
-
-            if (IsSentinel(configuration))
-                return SentinelMasterConnectAsync(configuration, log);
-
-            return ConnectImplAsync(PrepareConfig(configuration), log);
         }
 
         private static bool IsSentinel(ConfigurationOptions configuration)
@@ -971,7 +980,7 @@ namespace StackExchange.Redis
                 {
                     lock (SyncLock)
                     {
-                        _log?.WriteLine(message);
+                        _log?.WriteLine($"{DateTime.UtcNow:HH:mm:ss.ffff}: {message}");
                     }
                 }
             }
@@ -1012,17 +1021,24 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Create a new ConnectionMultiplexer instance
+        /// Create a new ConnectionMultiplexer instance.
         /// </summary>
         /// <param name="configuration">The string configuration to use for this multiplexer.</param>
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
-        public static ConnectionMultiplexer Connect(string configuration, TextWriter log = null)
-        {
-            return Connect(ConfigurationOptions.Parse(configuration), log);
-        }
+        public static ConnectionMultiplexer Connect(string configuration, TextWriter log = null) =>
+            Connect(ConfigurationOptions.Parse(configuration), log);
 
         /// <summary>
-        /// Create a new ConnectionMultiplexer instance
+        /// Create a new ConnectionMultiplexer instance.
+        /// </summary>
+        /// <param name="configuration">The string configuration to use for this multiplexer.</param>
+        /// <param name="configure">Action to further modify the parsed configuration options.</param>
+        /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
+        public static ConnectionMultiplexer Connect(string configuration, Action<ConfigurationOptions> configure, TextWriter log = null) =>
+            Connect(ConfigurationOptions.Parse(configuration).Apply(configure), log);
+
+        /// <summary>
+        /// Create a new ConnectionMultiplexer instance.
         /// </summary>
         /// <param name="configuration">The configuration options to use for this multiplexer.</param>
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
@@ -1147,6 +1163,8 @@ namespace StackExchange.Redis
             {
                 try
                 {
+                    log?.WriteLine($"Connecting (sync) on {RuntimeInformation.FrameworkDescription}");
+
                     muxer = CreateMultiplexer(configuration, logProxy, out connectHandler);
                     killMe = muxer;
                     Interlocked.Increment(ref muxer._connectAttemptCount);
@@ -2024,11 +2042,11 @@ namespace StackExchange.Redis
             }
         }
 
-#pragma warning disable IDE0060
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0060:Remove unused parameter", Justification = "Used - it's a partial")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Partial - may use instance data")]
         partial void OnTraceLog(LogProxy log, [CallerMemberName] string caller = null);
-#pragma warning restore IDE0060
 
-        private async Task<ServerEndPoint> NominatePreferredMaster(LogProxy log, ServerEndPoint[] servers, bool useTieBreakers, Task<string>[] tieBreakers, List<ServerEndPoint> masters, int timeoutMs)
+        private static async Task<ServerEndPoint> NominatePreferredMaster(LogProxy log, ServerEndPoint[] servers, bool useTieBreakers, Task<string>[] tieBreakers, List<ServerEndPoint> masters, int timeoutMs)
         {
             Dictionary<string, int> uniques = null;
             if (useTieBreakers)
@@ -2136,7 +2154,7 @@ namespace StackExchange.Redis
             return masters[0];
         }
 
-        private ServerEndPoint SelectServerByElection(ServerEndPoint[] servers, string endpoint, LogProxy log)
+        private static ServerEndPoint SelectServerByElection(ServerEndPoint[] servers, string endpoint, LogProxy log)
         {
             if (servers == null || string.IsNullOrWhiteSpace(endpoint)) return null;
             for (int i = 0; i < servers.Length; i++)
@@ -2264,10 +2282,8 @@ namespace StackExchange.Redis
             => PrepareToPushMessageToBridge(message, processor, resultBox, ref server) ? server.TryWriteAsync(message) : new ValueTask<WriteResult>(WriteResult.NoConnectionAvailable);
 
         [Obsolete("prefer async")]
-#pragma warning disable CS0618
         private WriteResult TryPushMessageToBridgeSync<T>(Message message, ResultProcessor<T> processor, IResultBox<T> resultBox, ref ServerEndPoint server)
             => PrepareToPushMessageToBridge(message, processor, resultBox, ref server) ? server.TryWriteSync(message) : WriteResult.NoConnectionAvailable;
-#pragma warning restore CS0618
 
         /// <summary>
         /// See Object.ToString()
@@ -2492,11 +2508,9 @@ namespace StackExchange.Redis
         {
             ConnectionMultiplexer connection = (ConnectionMultiplexer)sender;
 
-            if (connection.sentinelMasterReconnectTimer != null)
-            {
-                connection.sentinelMasterReconnectTimer.Dispose();
-                connection.sentinelMasterReconnectTimer = null;
-            }
+            var oldTimer = Interlocked.Exchange(ref connection.sentinelMasterReconnectTimer, null);
+            oldTimer?.Dispose();
+
             try
             {
 
@@ -2539,7 +2553,7 @@ namespace StackExchange.Redis
             // or if we miss the published master change
             if (connection.sentinelMasterReconnectTimer == null)
             {
-                connection.sentinelMasterReconnectTimer = new Timer((_) =>
+                connection.sentinelMasterReconnectTimer = new Timer(_ =>
                 {
                     try
                     {
@@ -2548,9 +2562,12 @@ namespace StackExchange.Redis
                     }
                     catch (Exception)
                     {
-
                     }
-                }, null, TimeSpan.FromSeconds(0), TimeSpan.FromSeconds(1));
+                    finally
+                    {
+                        connection.sentinelMasterReconnectTimer?.Change(TimeSpan.FromSeconds(1), Timeout.InfiniteTimeSpan);
+                    }
+                }, null, TimeSpan.Zero, Timeout.InfiniteTimeSpan);
             }
         }
 
@@ -2745,6 +2762,8 @@ namespace StackExchange.Redis
             GC.SuppressFinalize(this);
             Close(!_isDisposed);
             sentinelConnection?.Dispose();
+            var oldTimer = Interlocked.Exchange(ref sentinelMasterReconnectTimer, null);
+            oldTimer?.Dispose();
         }
 
         internal Task<T> ExecuteAsyncImpl<T>(Message message, ResultProcessor<T> processor, object state, ServerEndPoint server)
@@ -2785,22 +2804,30 @@ namespace StackExchange.Redis
 
         internal bool TryMessageForRetry(Message message, Exception ex)
         {
-            if (RawConfig.CommandRetryPolicy != null && !message.IsAdmin)
+            if (message.IsAdmin || !message.ShouldRetry())
             {
-                if (!(ex is RedisConnectionException)) return false;
-                if (!message.ShouldRetry()) return false;
-                var shouldRetry = message.IsInternalCall ? true : RawConfig.CommandRetryPolicy.ShouldRetryOnConnectionException(message.Status);
-                if (shouldRetry&& RetryQueueManager.TryHandleFailedCommand(message))
-                {
-                    // if this message is a new message set the writetime
-                    if (message.GetWriteTime() == 0)
-                    {
-                        message.SetEnqueued(null);
-                    }
-                    message.ResetStatusToWaitingToBeSent();
-                    return true;
-                }
+                return false;
             }
+
+            bool shouldRetry = false;
+            if (RawConfig.RetryCommandsOnReconnect != null && ex is RedisConnectionException)
+            {
+                shouldRetry = message.IsInternalCall || RawConfig.RetryCommandsOnReconnect.ShouldRetry(message.Status);
+            }
+
+            if (shouldRetry && RetryQueueManager.TryHandleFailedCommand(message))
+            {
+                // if this message is a new message set the writetime
+                if (message.GetWriteTime() == 0)
+                {
+                    message.SetEnqueued(null);
+                }
+
+                message.ResetStatusToWaitingToBeSent();
+
+                return true;
+            }
+
             return false;
         }
 
@@ -2819,21 +2846,15 @@ namespace StackExchange.Redis
         Exception IInternalConnectionMultiplexer.GetException(WriteResult result, Message message, ServerEndPoint server)
             => GetException(result, message, server);
 
-        internal Exception GetException(WriteResult result, Message message, ServerEndPoint server)
+        internal Exception GetException(WriteResult result, Message message, ServerEndPoint server) => result switch
         {
-            switch (result)
-            {
-                case WriteResult.Success: return null;
-                case WriteResult.NoConnectionAvailable:
-                    return ExceptionFactory.NoConnectionAvailable(this, message, server);
-                case WriteResult.TimeoutBeforeWrite:
-                    return ExceptionFactory.Timeout(this, "The timeout was reached before the message could be written to the output buffer, and it was not sent", message, server, result);
-                case WriteResult.WriteFailure:
-                default:
-                    return ExceptionFactory.ConnectionFailure(IncludeDetailInExceptions, ConnectionFailureType.ProtocolFailure, "An unknown error occurred when writing the message", server);
-            }
-        }
+            WriteResult.Success => null,
+            WriteResult.NoConnectionAvailable => ExceptionFactory.NoConnectionAvailable(this, message, server),
+            WriteResult.TimeoutBeforeWrite => ExceptionFactory.Timeout(this, "The timeout was reached before the message could be written to the output buffer, and it was not sent", message, server, result),
+            _ => ExceptionFactory.ConnectionFailure(IncludeDetailInExceptions, ConnectionFailureType.ProtocolFailure, "An unknown error occurred when writing the message", server),
+        };
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "CA1816:Dispose methods should call SuppressFinalize", Justification = "Intentional observation")]
         internal static void ThrowFailed<T>(TaskCompletionSource<T> source, Exception unthrownException)
         {
             try

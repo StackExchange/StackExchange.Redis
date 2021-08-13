@@ -255,12 +255,12 @@ namespace StackExchange.Redis
         internal bool GetBoolean()
         {
             if (Payload.Length != 1) throw new InvalidCastException();
-            switch (Payload.First.Span[0])
+            return Payload.First.Span[0] switch
             {
-                case (byte)'1': return true;
-                case (byte)'0': return false;
-                default: throw new InvalidCastException();
-            }
+                (byte)'1' => true,
+                (byte)'0' => false,
+                _ => throw new InvalidCastException(),
+            };
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

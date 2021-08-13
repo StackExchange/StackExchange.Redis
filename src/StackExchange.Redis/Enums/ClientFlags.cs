@@ -18,6 +18,7 @@ namespace StackExchange.Redis
     /// N: no specific flag set
     /// </summary>
     [Flags]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1069:Enums values should not be duplicated", Justification = "Compatibility")]
     public enum ClientFlags : long
     {
         /// <summary>

@@ -32,7 +32,7 @@ namespace StackExchange.Redis.Server
 
         private static Dictionary<CommandBytes, RespCommand> BuildCommands(RespServer server)
         {
-            RedisCommandAttribute CheckSignatureAndGetAttribute(MethodInfo method)
+            static RedisCommandAttribute CheckSignatureAndGetAttribute(MethodInfo method)
             {
                 if (method.ReturnType != typeof(TypedRedisValue)) return null;
                 var p = method.GetParameters();
@@ -307,7 +307,7 @@ namespace StackExchange.Redis.Server
 
         public static async ValueTask WriteResponseAsync(RedisClient client, PipeWriter output, TypedRedisValue value)
         {
-            void WritePrefix(PipeWriter ooutput, char pprefix)
+            static void WritePrefix(PipeWriter ooutput, char pprefix)
             {
                 var span = ooutput.GetSpan(1);
                 span[0] = (byte)pprefix;
@@ -385,7 +385,7 @@ namespace StackExchange.Redis.Server
 
         public ValueTask<bool> TryProcessRequestAsync(ref ReadOnlySequence<byte> buffer, RedisClient client, PipeWriter output)
         {
-            async ValueTask<bool> Awaited(ValueTask wwrite, TypedRedisValue rresponse)
+            static async ValueTask<bool> Awaited(ValueTask wwrite, TypedRedisValue rresponse)
             {
                 await wwrite;
                 rresponse.Recycle();

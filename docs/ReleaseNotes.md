@@ -1,5 +1,15 @@
 # Release Notes
 
+## Unreleased
+- logging additions (.NET Version and timestamps) for better debugging (#1796 via philon-msft)
+- add: `Condition` API (transactions) now supports `StreamLengthEqual` and variants (#1807 via AlphaGremlin)
+
+## 2.2.62
+
+- Sentinel potential memory leak fix in OnManagedConnectionFailed handler (#1710 via alexSatov)
+- fix issue where `GetOutstandingCount` could obscure underlying faults by faulting itself (#1792 via mgravell)
+- fix issue #1719 with backlog messages becoming reordered (#1779 via TimLovellSmith)
+
 ## 2.2.50
 
 - performance optimization for PING accuracy (#1714 via eduardobr)

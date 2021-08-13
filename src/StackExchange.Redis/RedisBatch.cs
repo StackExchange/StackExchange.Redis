@@ -82,7 +82,7 @@ namespace StackExchange.Redis
             }
 
             // store it
-            (pending ?? (pending = new List<Message>())).Add(message);
+            (pending ??= new List<Message>()).Add(message);
             return task;
         }
 
@@ -91,7 +91,7 @@ namespace StackExchange.Redis
             throw new NotSupportedException("ExecuteSync cannot be used inside a batch");
         }
 
-        private void FailNoServer(List<Message> messages)
+        private static void FailNoServer(List<Message> messages)
         {
             if (messages == null) return;
             foreach(var msg in messages)

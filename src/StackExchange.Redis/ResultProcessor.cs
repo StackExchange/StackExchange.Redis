@@ -147,6 +147,7 @@ namespace StackExchange.Redis
         public static readonly HashEntryArrayProcessor
             HashEntryArray = new HashEntryArrayProcessor();
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Conditionally run on instance")]
         public void ConnectionFail(Message message, ConnectionFailureType fail, Exception innerException, string annotation)
         {
             PhysicalConnection.IdentifyFailureType(innerException, ref fail);
@@ -160,17 +161,17 @@ namespace StackExchange.Redis
             SetException(message, ex);
         }
 
-        public void ConnectionFail(Message message, ConnectionFailureType fail, string errorMessage)
+        public static void ConnectionFail(Message message, ConnectionFailureType fail, string errorMessage)
         {
             SetException(message, new RedisConnectionException(fail, errorMessage));
         }
 
-        public void ServerFail(Message message, string errorMessage)
+        public static void ServerFail(Message message, string errorMessage)
         {
             SetException(message, new RedisServerException(errorMessage));
         }
 
-        public void SetException(Message message, Exception ex)
+        public static void SetException(Message message, Exception ex)
         {
             var box = message?.ResultBox;
             box?.SetException(ex);
@@ -512,7 +513,7 @@ namespace StackExchange.Redis
 
         internal sealed class SortedSetEntryProcessor : ResultProcessor<SortedSetEntry?>
         {
-            public bool TryParse(in RawResult result, out SortedSetEntry? entry)
+            public static bool TryParse(in RawResult result, out SortedSetEntry? entry)
             {
                 switch (result.Type)
                 {
@@ -1315,7 +1316,7 @@ namespace StackExchange.Redis
                 {
                     case ResultType.MultiBulk:
                         var typed = result.ToArray(
-                            (in RawResult item, in GeoRadiusOptions options) => Parse(item, options), this.options);
+                            (in RawResult item, in GeoRadiusOptions radiusOptions) => Parse(item, radiusOptions), options);
                         SetResult(message, typed);
                         return true;
                 }
@@ -1968,7 +1969,7 @@ The coordinates as a two items x,y array (longitude,latitude).
         {
             // For command response formats see https://redis.io/topics/streams-intro.
 
-            protected StreamEntry ParseRedisStreamEntry(in RawResult item)
+            protected static StreamEntry ParseRedisStreamEntry(in RawResult item)
             {
                 if (item.IsNull || item.Type != ResultType.MultiBulk)
                 {
@@ -1990,10 +1991,10 @@ The coordinates as a two items x,y array (longitude,latitude).
                 }
 
                 return result.GetItems().ToArray(
-                    (in RawResult item, in StreamProcessorBase<T> obj) => obj.ParseRedisStreamEntry(item), this);
+                    (in RawResult item, in StreamProcessorBase<T> obj) => ParseRedisStreamEntry(item), this);
             }
 
-            protected NameValueEntry[] ParseStreamEntryValues(in RawResult result)
+            protected static NameValueEntry[] ParseStreamEntryValues(in RawResult result)
             {
                 // The XRANGE, XREVRANGE, XREAD commands return stream entries
                 // in the following format.  The name/value pairs are interleaved
@@ -2098,6 +2099,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                 return final;
             }
 
+            [System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0071:Simplify interpolation", Justification = "Allocations (string.Concat vs. string.Format)")]
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
                 bool happy;
@@ -2278,8 +2280,14 @@ The coordinates as a two items x,y array (longitude,latitude).
                         var returnArray = result.ToArray<KeyValuePair<string, string>[], StringPairInterleavedProcessor>(
                             (in RawResult rawInnerArray, in StringPairInterleavedProcessor proc) =>
                             {
-                                proc.TryParse(rawInnerArray, out KeyValuePair<string, string>[] kvpArray);
-                                return kvpArray;
+                                if (proc.TryParse(rawInnerArray, out KeyValuePair<string, string>[] kvpArray))
+                                {
+                                    return kvpArray;
+                                }
+                                else
+                                {
+                                    throw new ArgumentOutOfRangeException(nameof(rawInnerArray), $"Error processing {message.CommandAndKey}, could not decode array '{rawInnerArray}'");
+                                }
                             }, innerProcessor);
 
                         SetResult(message, returnArray);
@@ -2294,7 +2302,7 @@ The coordinates as a two items x,y array (longitude,latitude).
 
     internal abstract class ResultProcessor<T> : ResultProcessor
     {
-        protected void SetResult(Message message, T value)
+        protected static void SetResult(Message message, T value)
         {
             if (message == null) return;
             var box = message.ResultBox as IResultBox<T>;

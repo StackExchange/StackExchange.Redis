@@ -36,8 +36,9 @@ Any object that exposes field or property members with the same name as @-prefix
  - RedisKey
  - RedisValue
 
+StackExchange.Redis handles Lua script caching internally. It automatically transmits the Lua script to redis on the first call to 'ScriptEvaluate'. For further calls of the same script only the hash with [`EVALSHA`](http://redis.io/commands/evalsha) is used.
 
-To avoid retransmitting the Lua script to redis each time it is evaluated, `LuaScript` objects can be converted into `LoadedLuaScript`s via `LuaScript.Load(IServer)`.
+For more control of the Lua script transmission to redis, `LuaScript` objects can be converted into `LoadedLuaScript`s via `LuaScript.Load(IServer)`.
 `LoadedLuaScripts` are evaluated with the [`EVALSHA`](http://redis.io/commands/evalsha), and referred to by hash.
 
 An example use of `LoadedLuaScript`:

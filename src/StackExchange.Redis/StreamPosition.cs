@@ -42,14 +42,14 @@ namespace StackExchange.Redis
         {
             if (value == NewMessages)
             {
-                switch (command)
+                return command switch
                 {
-                    case RedisCommand.XREAD: throw new InvalidOperationException("StreamPosition.NewMessages cannot be used with StreamRead.");
-                    case RedisCommand.XREADGROUP: return StreamConstants.UndeliveredMessages;
-                    case RedisCommand.XGROUP: return StreamConstants.NewMessages;
-                    default: // new is only valid for the above
-                        throw new ArgumentException($"Unsupported command in StreamPosition.Resolve: {command}.", nameof(command));
-                }
+                    RedisCommand.XREAD => throw new InvalidOperationException("StreamPosition.NewMessages cannot be used with StreamRead."),
+                    RedisCommand.XREADGROUP => StreamConstants.UndeliveredMessages,
+                    RedisCommand.XGROUP => StreamConstants.NewMessages,
+                    // new is only valid for the above
+                    _ => throw new ArgumentException($"Unsupported command in StreamPosition.Resolve: {command}.", nameof(command)),
+                };
             } else if (value == StreamPosition.Beginning)
             {
                 switch(command)

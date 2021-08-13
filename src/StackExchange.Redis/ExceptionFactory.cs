@@ -270,7 +270,7 @@ namespace StackExchange.Redis
 
             sb.Append(" (Please take a look at this article for some common client-side issues that can cause timeouts: ");
             sb.Append(timeoutHelpLink);
-            sb.Append(")");
+            sb.Append(')');
 
             var ex = new RedisTimeoutException(sb.ToString(), message?.Status ?? CommandStatus.Unknown)
             {
@@ -397,7 +397,7 @@ namespace StackExchange.Redis
                 if (muxer.AuthSuspect) sb.Append(" There was an authentication failure; check that passwords (or client certificates) are configured correctly.");
                 else if (muxer.RawConfig.AbortOnConnectFail) sb.Append(" Error connecting right now. To allow this multiplexer to continue retrying until it's able to connect, use abortConnect=false in your connection string or AbortOnConnectFail=false; in your code.");
             }
-            if (!string.IsNullOrWhiteSpace(failureMessage)) sb.Append(" ").Append(failureMessage.Trim());
+            if (!string.IsNullOrWhiteSpace(failureMessage)) sb.Append(' ').Append(failureMessage.Trim());
 
             return new RedisConnectionException(ConnectionFailureType.UnableToConnect, sb.ToString());
         }

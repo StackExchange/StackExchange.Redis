@@ -119,7 +119,7 @@ namespace StackExchange.Redis.Tests
             Console.WriteLine("  GC LOH Mode: " + GCSettings.LargeObjectHeapCompactionMode);
             Console.WriteLine("  GC Latency Mode: " + GCSettings.LatencyMode);
         }
-        internal static string Time() => DateTime.UtcNow.ToString("HH:mm:ss.fff");
+        internal static string Time() => DateTime.UtcNow.ToString("HH:mm:ss.ffff");
         protected void OnConnectionFailed(object sender, ConnectionFailedEventArgs e)
         {
             Interlocked.Increment(ref privateFailCount);
@@ -229,7 +229,7 @@ namespace StackExchange.Redis.Tests
             bool checkConnect = true, string failMessage = null,
             string channelPrefix = null, Proxy? proxy = null,
             string configuration = null, bool logTransactionData = true,
-            bool shared = true, int? defaultDatabase = null, ICommandRetryPolicy retryPolicy = null,
+            bool shared = true, int? defaultDatabase = null, IRetryOnReconnectPolicy retryPolicy = null,
             [CallerMemberName] string caller = null)
         {
             if (Output == null)
@@ -270,7 +270,7 @@ namespace StackExchange.Redis.Tests
             string channelPrefix = null, Proxy? proxy = null,
             string configuration = null, bool logTransactionData = true,
             int? defaultDatabase = null,
-            ICommandRetryPolicy retryPolicy = null,
+            IRetryOnReconnectPolicy retryPolicy = null,
             [CallerMemberName] string caller = null)
         {
             StringWriter localLog = null;
@@ -306,7 +306,7 @@ namespace StackExchange.Redis.Tests
                 if (connectTimeout != null) config.ConnectTimeout = connectTimeout.Value;
                 if (proxy != null) config.Proxy = proxy.Value;
                 if (defaultDatabase != null) config.DefaultDatabase = defaultDatabase.Value;
-                if (retryPolicy != null) config.CommandRetryPolicy = retryPolicy;
+                if (retryPolicy != null) config.RetryCommandsOnReconnect = retryPolicy;
                 var watch = Stopwatch.StartNew();
                 var task = ConnectionMultiplexer.ConnectAsync(config, log);
                 if (!task.Wait(config.ConnectTimeout >= (int.MaxValue / 2) ? int.MaxValue : config.ConnectTimeout * 2))
@@ -362,10 +362,10 @@ namespace StackExchange.Redis.Tests
         }
 
         public static string Me([CallerFilePath] string filePath = null, [CallerMemberName] string caller = null) =>
-#if NET462
-            "net462-"
-#elif NETCOREAPP2_1
-            "netcoreapp2.1-"
+#if NET472
+            "net472-"
+#elif NETCOREAPP3_1
+            "netcoreapp3.1-"
 #else
             "unknown-"
 #endif
@@ -418,9 +418,7 @@ namespace StackExchange.Redis.Tests
                 for (int i = 0; i < threads; i++)
                 {
                     var thd = threadArr[i];
-#pragma warning disable SYSLIB0006 // yes, we know
                     if (thd.IsAlive) thd.Abort();
-#pragma warning restore SYSLIB0006 // yes, we know
                 }
                 throw new TimeoutException();
             }

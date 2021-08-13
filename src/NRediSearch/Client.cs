@@ -134,7 +134,7 @@ namespace NRediSearch
             public static IndexOptions Default => new IndexOptions();
 
             private IndexOptions _options;
-            private IndexDefinition _definition;
+            private readonly IndexDefinition _definition;
             private string[] _stopwords;
 
             public ConfiguredIndexOptions(IndexOptions options = IndexOptions.Default)
@@ -1276,7 +1276,7 @@ namespace NRediSearch
         {
             if (docIds.Length == 0)
             {
-                return new Document[] { };
+                return Array.Empty<Document>();
             }
 
             var args = new List<object>

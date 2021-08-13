@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
-using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Security;
@@ -59,18 +58,18 @@ namespace StackExchange.Redis
                 return tmp;
             }
 
-            internal static ICommandRetryPolicy ParseCommandRetryPolicy(string key, string value)
+            internal static IRetryOnReconnectPolicy ParseRetryCommandsOnReconnect(string key, string value)
             {
                 switch (value.ToLower())
                 {
                     case "noretry":
                         return null;
                     case "alwaysretry":
-                        return new CommandRetryPolicy().AlwaysRetryOnConnectionException();
-                    case "retryifnotyetsent":
-                        return new CommandRetryPolicy().RetryIfNotSentOnConnectionException();
+                        return RetryOnReconnect.Always;
+                    case "retryifnotsent":
+                        return RetryOnReconnect.IfNotSent;
                     default:
-                        throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' can be NoRetry, AlwaysRetry or RetryIfNotYetSent ; the value '{value}' is not recognised.");
+                        throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' can be NoRetry, AlwaysRetry or RetryIfNotSent; the value '{value}' is not recognised.");
                 }
             }
 
@@ -107,7 +106,7 @@ namespace StackExchange.Redis
                 Version = "version",
                 WriteBuffer = "writeBuffer",
                 CheckCertificateRevocation = "checkCertificateRevocation",
-                CommandRetryPolicy = "CommandRetryPolicy",
+                RetryCommandsOnReconnect = "RetryCommandsOnReconnect",
                 RetryQueueLength = "RetryQueueLength";
 
 
@@ -139,7 +138,7 @@ namespace StackExchange.Redis
                 Version,
                 WriteBuffer,
                 CheckCertificateRevocation,
-                CommandRetryPolicy,
+                RetryCommandsOnReconnect,
                 RetryQueueLength,
             }.ToDictionary(x => x, StringComparer.OrdinalIgnoreCase);
 
@@ -270,13 +269,11 @@ namespace StackExchange.Redis
             get
             {
                 if (commandMap != null) return commandMap;
-                switch (Proxy)
+                return Proxy switch
                 {
-                    case Proxy.Twemproxy:
-                        return CommandMap.Twemproxy;
-                    default:
-                        return CommandMap.Default;
-                }
+                    Proxy.Twemproxy => CommandMap.Twemproxy,
+                    _ => CommandMap.Default,
+                };
             }
             set
             {
@@ -326,9 +323,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Specifies the time in seconds at which connections should be pinged to ensure validity
         /// </summary>
-#pragma warning disable RCS1128
         public int KeepAlive { get { return keepAlive.GetValueOrDefault(-1); } set { keepAlive = value; } }
-#pragma warning restore RCS1128 // Use coalesce expression.
 
         /// <summary>
         /// The user to use to authenticate with the server.
@@ -363,7 +358,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// The retry policy to be used for command retries during connection reconnects
         /// </summary>
-        public ICommandRetryPolicy CommandRetryPolicy { get; set; }
+        public IRetryOnReconnectPolicy RetryCommandsOnReconnect { get; set; }
 
         /// <summary>
         /// Indicates whether endpoints should be resolved via DNS before connecting.
@@ -408,9 +403,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Specifies the time in milliseconds that the system should allow for synchronous operations (defaults to 5 seconds)
         /// </summary>
-#pragma warning disable RCS1128
         public int SyncTimeout { get { return syncTimeout.GetValueOrDefault(5000); } set { syncTimeout = value; } }
-#pragma warning restore RCS1128
 
         /// <summary>
         /// Tie-breaker used to choose between masters (must match the endpoint exactly)
@@ -430,9 +423,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Check configuration every n seconds (every minute by default)
         /// </summary>
-#pragma warning disable RCS1128
         public int ConfigCheckSeconds { get { return configCheckSeconds.GetValueOrDefault(60); } set { configCheckSeconds = value; } }
-#pragma warning restore RCS1128
 
         /// <summary>
         /// If retry policy is specified, Retry Queue max length, by default there's no queue limit 
@@ -504,12 +495,23 @@ namespace StackExchange.Redis
                 ReconnectRetryPolicy = reconnectRetryPolicy,
                 SslProtocols = SslProtocols,
                 checkCertificateRevocation = checkCertificateRevocation,
-                CommandRetryPolicy = CommandRetryPolicy,
+                RetryCommandsOnReconnect = RetryCommandsOnReconnect,
                 RetryQueueMaxLength = RetryQueueMaxLength,
             };
             foreach (var item in EndPoints)
                 options.EndPoints.Add(item);
             return options;
+        }
+
+        /// <summary>
+        /// Apply settings to configure this instance of <see cref="ConfigurationOptions"/>, e.g. for a specific scenario.
+        /// </summary>
+        /// <param name="configure">An action that will update the properties of this <see cref="ConfigurationOptions"/> instance.</param>
+        /// <returns>This <see cref="ConfigurationOptions"/> instance, with any changes <paramref name="configure"/> made.</returns>
+        public ConfigurationOptions Apply(Action<ConfigurationOptions> configure)
+        {
+            configure?.Invoke(this);
+            return this;
         }
 
         /// <summary>
@@ -579,7 +581,7 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.ConfigCheckSeconds, configCheckSeconds);
             Append(sb, OptionKeys.ResponseTimeout, responseTimeout);
             Append(sb, OptionKeys.DefaultDatabase, DefaultDatabase);
-            Append(sb, OptionKeys.CommandRetryPolicy, CommandRetryPolicy);
+            Append(sb, OptionKeys.RetryCommandsOnReconnect, RetryCommandsOnReconnect);
             Append(sb, OptionKeys.RetryQueueLength, retryQueueLength);
             commandMap?.AppendDeltas(sb);
             return sb.ToString();
@@ -669,7 +671,7 @@ namespace StackExchange.Redis
             CertificateValidation = null;
             ChannelPrefix = default(RedisChannel);
             SocketManager = null;
-            CommandRetryPolicy = null;
+            RetryCommandsOnReconnect = null;
         }
 
         object ICloneable.Clone() => Clone();
@@ -790,8 +792,8 @@ namespace StackExchange.Redis
                         case OptionKeys.SslProtocols:
                             SslProtocols = OptionKeys.ParseSslProtocols(key, value);
                             break;
-                        case OptionKeys.CommandRetryPolicy:
-                            CommandRetryPolicy = OptionKeys.ParseCommandRetryPolicy(key, value);
+                        case OptionKeys.RetryCommandsOnReconnect:
+                            RetryCommandsOnReconnect = OptionKeys.ParseRetryCommandsOnReconnect(key, value);
                             break;
                         case OptionKeys.RetryQueueLength:
                             RetryQueueMaxLength = OptionKeys.ParseInt32(key, value, minValue: 0);

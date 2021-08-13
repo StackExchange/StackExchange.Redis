@@ -61,6 +61,7 @@ namespace StackExchange.Redis
         internal PhysicalConnection.WriteStatus ConnectionWriteState { get; private set; }
 #endif
         [Conditional("DEBUG")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "DEBUG uses instance data")]
         internal void SetBacklogState(int position, PhysicalConnection physical)
         {
 #if DEBUG
@@ -95,7 +96,7 @@ namespace StackExchange.Redis
                                                        | CommandFlags.NoScriptCache
                                                        | CommandFlags.AlwaysRetry
                                                        | CommandFlags.NoRetry
-                                                       | CommandFlags.RetryIfNotYetSent;
+                                                       | CommandFlags.RetryIfNotSent;
         private IResultBox resultBox;
 
         private ResultProcessor resultProcessor;
@@ -487,56 +488,46 @@ namespace StackExchange.Redis
         }
 
         public object AsyncTimeoutMilliseconds { get; internal set; }
-
-        internal static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisKey key, RedisKey[] keys)
+        internal static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisKey key, RedisKey[] keys) => keys.Length switch
         {
-            switch (keys.Length)
-            {
-                case 0: return new CommandKeyMessage(db, flags, command, key);
-                case 1: return new CommandKeyKeyMessage(db, flags, command, key, keys[0]);
-                case 2: return new CommandKeyKeyKeyMessage(db, flags, command, key, keys[0], keys[1]);
-                default: return new CommandKeyKeysMessage(db, flags, command, key, keys);
-            }
-        }
+            0 => new CommandKeyMessage(db, flags, command, key),
+            1 => new CommandKeyKeyMessage(db, flags, command, key, keys[0]),
+            2 => new CommandKeyKeyKeyMessage(db, flags, command, key, keys[0], keys[1]),
+            _ => new CommandKeyKeysMessage(db, flags, command, key, keys),
+        };
 
-        internal static Message Create(int db, CommandFlags flags, RedisCommand command, IList<RedisKey> keys)
+        internal static Message Create(int db, CommandFlags flags, RedisCommand command, IList<RedisKey> keys) => keys.Count switch
         {
-            switch (keys.Count)
-            {
-                case 0: return new CommandMessage(db, flags, command);
-                case 1: return new CommandKeyMessage(db, flags, command, keys[0]);
-                case 2: return new CommandKeyKeyMessage(db, flags, command, keys[0], keys[1]);
-                case 3: return new CommandKeyKeyKeyMessage(db, flags, command, keys[0], keys[1], keys[2]);
-                default: return new CommandKeysMessage(db, flags, command, (keys as RedisKey[]) ?? keys.ToArray());
-            }
-        }
+            0 => new CommandMessage(db, flags, command),
+            1 => new CommandKeyMessage(db, flags, command, keys[0]),
+            2 => new CommandKeyKeyMessage(db, flags, command, keys[0], keys[1]),
+            3 => new CommandKeyKeyKeyMessage(db, flags, command, keys[0], keys[1], keys[2]),
+            _ => new CommandKeysMessage(db, flags, command, (keys as RedisKey[]) ?? keys.ToArray()),
+        };
 
-        internal static Message Create(int db, CommandFlags flags, RedisCommand command, IList<RedisValue> values)
+        internal static Message Create(int db, CommandFlags flags, RedisCommand command, IList<RedisValue> values) => values.Count switch
         {
-            switch (values.Count)
-            {
-                case 0: return new CommandMessage(db, flags, command);
-                case 1: return new CommandValueMessage(db, flags, command, values[0]);
-                case 2: return new CommandValueValueMessage(db, flags, command, values[0], values[1]);
-                case 3: return new CommandValueValueValueMessage(db, flags, command, values[0], values[1], values[2]);
-                // no 4; not worth adding
-                case 5: return new CommandValueValueValueValueValueMessage(db, flags, command, values[0], values[1], values[2], values[3], values[4]);
-                default: return new CommandValuesMessage(db, flags, command, (values as RedisValue[]) ?? values.ToArray());
-            }
-        }
+            0 => new CommandMessage(db, flags, command),
+            1 => new CommandValueMessage(db, flags, command, values[0]),
+            2 => new CommandValueValueMessage(db, flags, command, values[0], values[1]),
+            3 => new CommandValueValueValueMessage(db, flags, command, values[0], values[1], values[2]),
+            // no 4; not worth adding
+            5 => new CommandValueValueValueValueValueMessage(db, flags, command, values[0], values[1], values[2], values[3], values[4]),
+            _ => new CommandValuesMessage(db, flags, command, (values as RedisValue[]) ?? values.ToArray()),
+        };
 
         internal static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisKey key, RedisValue[] values)
         {
             if (values == null) throw new ArgumentNullException(nameof(values));
-            switch (values.Length)
+            return values.Length switch
             {
-                case 0: return new CommandKeyMessage(db, flags, command, key);
-                case 1: return new CommandKeyValueMessage(db, flags, command, key, values[0]);
-                case 2: return new CommandKeyValueValueMessage(db, flags, command, key, values[0], values[1]);
-                case 3: return new CommandKeyValueValueValueMessage(db, flags, command, key, values[0], values[1], values[2]);
-                case 4: return new CommandKeyValueValueValueValueMessage(db, flags, command, key, values[0], values[1], values[2], values[3]);
-                default: return new CommandKeyValuesMessage(db, flags, command, key, values);
-            }
+                0 => new CommandKeyMessage(db, flags, command, key),
+                1 => new CommandKeyValueMessage(db, flags, command, key, values[0]),
+                2 => new CommandKeyValueValueMessage(db, flags, command, key, values[0], values[1]),
+                3 => new CommandKeyValueValueValueMessage(db, flags, command, key, values[0], values[1], values[2]),
+                4 => new CommandKeyValueValueValueValueMessage(db, flags, command, key, values[0], values[1], values[2], values[3]),
+                _ => new CommandKeyValuesMessage(db, flags, command, key, values),
+            };
         }
 
         internal static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisKey key0, RedisValue[] values, in RedisKey key1)
@@ -676,13 +667,13 @@ namespace StackExchange.Redis
 
 
         /// <summary>
-        /// returns true if message should be retried based on command flag
+        /// Determines whether the message should be retried
         /// </summary>
-        /// <returns></returns>
+        /// <returns>True if the message should be retried based on the command flag, otherwise false</returns>
         internal bool ShouldRetry()
         {
             if ((Flags & CommandFlags.NoRetry) != 0) return false;
-            if ((Flags & CommandFlags.RetryIfNotYetSent) != 0 && Status == CommandStatus.Sent) return false;
+            if ((Flags & CommandFlags.RetryIfNotSent) != 0 && Status == CommandStatus.Sent) return false;
             return true;
         }
 

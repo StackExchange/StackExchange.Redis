@@ -8,7 +8,6 @@ namespace StackExchange.Redis
     {
         public const int NoSlot = -1, MultipleSlots = -2;
         private const int RedisClusterSlotCount = 16384;
-#pragma warning disable IDE1006 // Naming Styles
         private static readonly ushort[] s_crc16tab = new ushort[]
         {
             0x0000,0x1021,0x2042,0x3063,0x4084,0x50a5,0x60c6,0x70e7,
@@ -44,7 +43,6 @@ namespace StackExchange.Redis
             0xef1f,0xff3e,0xcf5d,0xdf7c,0xaf9b,0xbfba,0x8fd9,0x9ff8,
             0x6e17,0x7e36,0x4e55,0x5e74,0x2e93,0x3eb2,0x0ed1,0x1ef0
         };
-#pragma warning restore IDE1006 // Naming Styles
 
         private readonly ConnectionMultiplexer multiplexer;
         private int anyStartOffset;
@@ -57,7 +55,7 @@ namespace StackExchange.Redis
         }
 
         public ServerType ServerType { get; set; } = ServerType.Standalone;
-        internal int TotalSlots => RedisClusterSlotCount;
+        internal static int TotalSlots => RedisClusterSlotCount;
 
         /// <summary>
         /// Computes the hash-slot that would be used by the given key
@@ -187,7 +185,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal int CombineSlot(int oldSlot, int newSlot)
+        internal static int CombineSlot(int oldSlot, int newSlot)
         {
             if (oldSlot == MultipleSlots || newSlot == NoSlot) return oldSlot;
             if (oldSlot == NoSlot) return newSlot;
@@ -234,7 +232,7 @@ namespace StackExchange.Redis
             return multiplexer.AnyConnected(ServerType, (uint)Interlocked.Increment(ref anyStartOffset), command, flags);
         }
 
-        private ServerEndPoint FindMaster(ServerEndPoint endpoint, RedisCommand command)
+        private static ServerEndPoint FindMaster(ServerEndPoint endpoint, RedisCommand command)
         {
             int max = 5;
             do
@@ -246,7 +244,7 @@ namespace StackExchange.Redis
             return null;
         }
 
-        private ServerEndPoint FindReplica(ServerEndPoint endpoint, RedisCommand command, bool allowDisconnected = false)
+        private static ServerEndPoint FindReplica(ServerEndPoint endpoint, RedisCommand command, bool allowDisconnected = false)
         {
             if (endpoint.IsReplica && endpoint.IsSelectable(command, allowDisconnected)) return endpoint;
 

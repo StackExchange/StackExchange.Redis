@@ -32,10 +32,10 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void TestMultiNoTieBreak()
         {
-            using (var log = new StringWriter())
-            using (Create(log: log, tieBreaker: ""))
+            var log = new StringBuilder();
+            Writer.EchoTo(log);
+            using (Create(log: Writer, tieBreaker: ""))
             {
-                Log(log.ToString());
                 Assert.Contains("Choosing master arbitrarily", log.ToString());
             }
         }
