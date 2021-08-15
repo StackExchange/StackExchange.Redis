@@ -2786,8 +2786,17 @@ namespace StackExchange.Redis
                 if (result != WriteResult.Success)
                 {
                     var ex = GetException(result, message, server);
-                    if (RawConfig.RetryCommandsOnReconnect != null && !RawConfig.RetryCommandsOnReconnect.TryMessageForRetry(message, ex))
+                    if (RawConfig.RetryCommandsOnReconnect == null)
+                    {
                         ThrowFailed(tcs, ex);
+                    }
+                    else
+                    {
+                        if (!RawConfig.RetryCommandsOnReconnect.TryMessageForRetry(message, ex))
+                        {
+                            ThrowFailed(tcs, ex);
+                        }
+                    }
                 }
                 return tcs.Task;
             }
@@ -2800,8 +2809,17 @@ namespace StackExchange.Redis
             if (result != WriteResult.Success)
             {
                 var ex = @this.GetException(result, message, server);
-                if (@this.RawConfig.RetryCommandsOnReconnect != null && !@this.RawConfig.RetryCommandsOnReconnect.TryMessageForRetry(message, ex))
+                if (@this.RawConfig.RetryCommandsOnReconnect == null)
+                {
                     ThrowFailed(tcs, ex);
+                }
+                else
+                {
+                    if (!@this.RawConfig.RetryCommandsOnReconnect.TryMessageForRetry(message, ex))
+                    {
+                        ThrowFailed(tcs, ex);
+                    }
+                }
             }
             return tcs == null ? default(T) : await tcs.Task.ForAwait();
         }
@@ -2861,8 +2879,17 @@ namespace StackExchange.Redis
                     if (result != WriteResult.Success)
                     {
                         var exResult = GetException(result, message, server);
-                        if (RawConfig.RetryCommandsOnReconnect != null && !RawConfig.RetryCommandsOnReconnect.TryMessageForRetry(message, exResult))
+                        if (RawConfig.RetryCommandsOnReconnect == null)
+                        {
                             throw exResult;
+                        }
+                        else
+                        {
+                            if (!RawConfig.RetryCommandsOnReconnect.TryMessageForRetry(message, exResult))
+                            {
+                                throw exResult;
+                            }
+                        }
                     }
 
                     if (Monitor.Wait(source, TimeoutMilliseconds))
