@@ -1249,7 +1249,15 @@ namespace StackExchange.Redis
                 return counters.BytesAvailableOnSocket;
             }
             readCount = writeCount = -1;
-            return VolatileSocket?.Available ?? -1;
+            try
+            {
+                return VolatileSocket?.Available ?? -1;
+            }
+            catch
+            {
+                // If this fails, we're likely in a race disposal situation and do not want to blow sky high here.
+                return -1;
+            }
         }
 
         private static RemoteCertificateValidationCallback GetAmbientIssuerCertificateCallback()
