@@ -67,13 +67,18 @@ namespace NRediSearch
             internal readonly string _filter;
             internal readonly string _languageField;
             internal readonly string _language;
-            internal readonly string _scoreFiled;
+            internal readonly string _scoreField;
             internal readonly double _score;
             internal readonly string _payloadField;
 
+            public IndexDefinition(bool async, string[] prefixes,
+                string filter, string languageField, string language,
+                string scoreFiled, double score, string payloadField)
+                : this(async, prefixes, filter, languageField, language, scoreFiled, score, payloadField, IndexType.Hash)
+            { }
             public IndexDefinition(bool async = false, string[] prefixes = null,
             string filter = null, string languageField = null, string language = null,
-            string scoreFiled = null, double score = 1.0, string payloadField = null, IndexType type = IndexType.Hash)
+            string scoreField = null, double score = 1.0, string payloadField = null, IndexType type = IndexType.Hash)
             {
                 _type = type;
                 _async = async;
@@ -81,7 +86,7 @@ namespace NRediSearch
                 _filter = filter;
                 _languageField = languageField;
                 _language = language;
-                _scoreFiled = scoreFiled;
+                _scoreField = scoreField;
                 _score = score;
                 _payloadField = payloadField;
             }
@@ -113,9 +118,9 @@ namespace NRediSearch
                     args.Add("LANGUAGE".Literal());
                     args.Add(_language);
                 }
-                if (_scoreFiled != null) {
+                if (_scoreField != null) {
                     args.Add("SCORE_FIELD".Literal());
-                    args.Add(_scoreFiled);
+                    args.Add(_scoreField);
                 }
                 if (_score != 1.0) {
                     args.Add("SCORE".Literal());
