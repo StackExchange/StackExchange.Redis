@@ -71,6 +71,7 @@ namespace NRediSearch
             internal readonly double _score;
             internal readonly string _payloadField;
 
+            // this .ctor is left here to avoid MME in existing code (i.e. back-compat)
             public IndexDefinition(bool async, string[] prefixes,
                 string filter, string languageField, string language,
                 string scoreFiled, double score, string payloadField)
