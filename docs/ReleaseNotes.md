@@ -5,6 +5,7 @@
 - fix potential errors getting socket bytes (#1836 via NickCraver)
 - logging additions (.NET Version and timestamps) for better debugging (#1796 via philon-msft)
 - add: `Condition` API (transactions) now supports `StreamLengthEqual` and variants (#1807 via AlphaGremlin)
+- add `StringGetDelete`/`StringGetDeleteAsync` API for Redis `GETDEL` command(#1840 via WeihanLi) 
 
 ## 2.2.62
 
