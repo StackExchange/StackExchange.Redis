@@ -34,7 +34,7 @@ namespace StackExchange.Redis.Tests.CommandRetry
         [Fact]
         public async void RetryMessageSucceeds()
         {
-            using (var muxer = Create(allowAdmin: true, retryPolicy: RetryOnReconnect.Always))
+            using (var muxer = Create(allowAdmin: true, retryPolicy: DefaultCommandRetryPolicy.Always))
             {
                 var conn = muxer.GetDatabase();
                 var duration = await conn.PingAsync().ForAwait();

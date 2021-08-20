@@ -5,7 +5,6 @@ using System.Threading.Tasks;
 
 namespace StackExchange.Redis
 {
-
     internal class MessageRetryQueue : IDisposable
     {
         private readonly Queue<Message> _queue = new Queue<Message>();
@@ -164,9 +163,6 @@ namespace StackExchange.Redis
             }
         }
 
-        public void Dispose()
-        {
-            Dispose(true);
-        }
+        public void Dispose() => Dispose(true);
     }
 }

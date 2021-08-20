@@ -18,12 +18,12 @@ namespace StackExchange.Redis.Tests.CommandRetry
             configAdmin.EndPoints.Add("127.0.0.1");
             configAdmin.AbortOnConnectFail = false;
             configAdmin.AllowAdmin = true;
-            configAdmin.RetryCommandsOnReconnect = retryPolicySet ? RetryOnReconnect.Always : null;
+            configAdmin.CommandRetryPolicy = retryPolicySet ? DefaultCommandRetryPolicy.Always : null;
 
             ConfigurationOptions configClient = new ConfigurationOptions();
             configClient.EndPoints.Add("127.0.0.1");
             configAdmin.AbortOnConnectFail = false;
-            configClient.RetryCommandsOnReconnect = retryPolicySet ? RetryOnReconnect.Always : null;
+            configClient.CommandRetryPolicy = retryPolicySet ? DefaultCommandRetryPolicy.Always : null;
 
             using (var adminMuxer = ConnectionMultiplexer.Connect(configAdmin))
             using (var clientmuxer = ConnectionMultiplexer.Connect(configClient))

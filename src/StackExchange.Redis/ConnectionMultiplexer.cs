@@ -1309,7 +1309,7 @@ namespace StackExchange.Redis
                 ConfigurationChangedChannel = Encoding.UTF8.GetBytes(configChannel);
             }
             lastHeartbeatTicks = Environment.TickCount;
-            RawConfig.RetryCommandsOnReconnect?.Init(this);
+            RawConfig.CommandRetryPolicy?.Init(this);
         }
 
         partial void OnCreateReaderWriter(ConfigurationOptions configuration);
@@ -2786,13 +2786,13 @@ namespace StackExchange.Redis
                 if (result != WriteResult.Success)
                 {
                     var ex = GetException(result, message, server);
-                    if (RawConfig.RetryCommandsOnReconnect == null)
+                    if (RawConfig.CommandRetryPolicy == null)
                     {
                         ThrowFailed(tcs, ex);
                     }
                     else
                     {
-                        if (!RawConfig.RetryCommandsOnReconnect.TryMessageForRetry(message, ex))
+                        if (!RawConfig.CommandRetryPolicy.TryQueue(message, ex))
                         {
                             ThrowFailed(tcs, ex);
                         }
@@ -2802,23 +2802,19 @@ namespace StackExchange.Redis
             }
         }
         
-
-        private static async Task<T> ExecuteAsyncImpl_Awaited<T>(ConnectionMultiplexer @this, ValueTask<WriteResult> write, TaskCompletionSource<T> tcs, Message message, ServerEndPoint server)
+        private static async Task<T> ExecuteAsyncImpl_Awaited<T>(ConnectionMultiplexer muxer, ValueTask<WriteResult> write, TaskCompletionSource<T> tcs, Message message, ServerEndPoint server)
         {
             var result = await write.ForAwait();
             if (result != WriteResult.Success)
             {
-                var ex = @this.GetException(result, message, server);
-                if (@this.RawConfig.RetryCommandsOnReconnect == null)
+                var ex = muxer.GetException(result, message, server);
+                if (muxer.RawConfig.CommandRetryPolicy?.TryQueue(message, ex) == true)
                 {
-                    ThrowFailed(tcs, ex);
+                    // We have a policy and it queued the command to retry later - don't throw here
                 }
                 else
                 {
-                    if (!@this.RawConfig.RetryCommandsOnReconnect.TryMessageForRetry(message, ex))
-                    {
-                        ThrowFailed(tcs, ex);
-                    }
+                    ThrowFailed(tcs, ex);
                 }
             }
             return tcs == null ? default(T) : await tcs.Task.ForAwait();
@@ -2879,13 +2875,13 @@ namespace StackExchange.Redis
                     if (result != WriteResult.Success)
                     {
                         var exResult = GetException(result, message, server);
-                        if (RawConfig.RetryCommandsOnReconnect == null)
+                        if (RawConfig.CommandRetryPolicy == null)
                         {
                             throw exResult;
                         }
                         else
                         {
-                            if (!RawConfig.RetryCommandsOnReconnect.TryMessageForRetry(message, exResult))
+                            if (!RawConfig.CommandRetryPolicy.TryQueue(message, exResult))
                             {
                                 throw exResult;
                             }

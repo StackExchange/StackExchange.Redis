@@ -1,6 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -8,7 +6,7 @@ namespace StackExchange.Redis
 {
     internal class MessageRetryHelper : IMessageRetryHelper
     {
-        readonly IInternalConnectionMultiplexer multiplexer;
+        private readonly IInternalConnectionMultiplexer multiplexer;
 
         public MessageRetryHelper(IInternalConnectionMultiplexer multiplexer)
         {
@@ -22,7 +20,14 @@ namespace StackExchange.Redis
             return millisecondsTaken >= timeoutMilliseconds;
         }
 
-        // I am not using ExceptionFactory.Timeout as it can cause deadlock while trying to lock writtenawaiting response queue for GetHeadMessages
+        /// <summary>
+        /// Gets the timeout exception for a message.
+        /// </summary>
+        /// <param name="message">The messae to get a message for</param>
+        /// <returns></returns>
+        /// <remarks>
+        /// Not using ExceptionFactory.Timeout as it can cause deadlock while trying to lock writtenawaiting response queue for GetHeadMessages.
+        /// </remarks>
         public RedisTimeoutException GetTimeoutException(Message message)
         {
             var sb = new StringBuilder();
@@ -33,6 +38,11 @@ namespace StackExchange.Redis
 
         public bool IsEndpointAvailable(Message message) => multiplexer.SelectServer(message) != null;
 
+        /// <summary>
+        /// Tries to re-issue a <see cref="Message"/>.
+        /// </summary>
+        /// <param name="message">The message to re-send.</param>
+        /// <returns>Whether the write was successful.</returns>
         public async Task<bool> TryResendAsync(Message message)
         {
             var server = multiplexer.SelectServer(message);
@@ -55,6 +65,5 @@ namespace StackExchange.Redis
             var inner = new RedisConnectionException(ConnectionFailureType.UnableToConnect, "Failed while retrying on connection restore", ex);
             message.SetExceptionAndComplete(inner, null, onConnectionRestoreRetry: false);
         }
-
     }
 }
