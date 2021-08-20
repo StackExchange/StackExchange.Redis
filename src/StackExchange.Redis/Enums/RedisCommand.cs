@@ -49,9 +49,9 @@
 
         GET,
         GETBIT,
+        GETDEL,
         GETRANGE,
         GETSET,
-        GETDEL,
 
         HDEL,
         HEXISTS,
