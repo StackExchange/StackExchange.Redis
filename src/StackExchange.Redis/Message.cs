@@ -360,6 +360,7 @@ namespace StackExchange.Redis
                 case RedisCommand.FLUSHALL:
                 case RedisCommand.FLUSHDB:
                 case RedisCommand.GETSET:
+                case RedisCommand.GETDEL:
                 case RedisCommand.HDEL:
                 case RedisCommand.HINCRBY:
                 case RedisCommand.HINCRBYFLOAT:

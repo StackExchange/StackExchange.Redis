@@ -1910,6 +1910,15 @@ namespace StackExchange.Redis
         Task<RedisValue> StringGetSetAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Get the value of key and delete the key. If the key does not exist the special value nil is returned. An error is returned if the value stored at key is not a string, because GET only handles string values.
+        /// </summary>
+        /// <param name="key">The key of the string.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The value of key, or nil when key does not exist.</returns>
+        /// <remarks>https://redis.io/commands/getdelete</remarks>
+        Task<RedisValue> StringGetDeleteAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Get the value of key. If the key does not exist the special value nil is returned. An error is returned if the value stored at key is not a string, because GET only handles string values.
         /// </summary>
         /// <param name="key">The key of the string.</param>

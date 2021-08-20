@@ -1038,6 +1038,13 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void StringGetDeleteAsync()
+        {
+            wrapper.StringGetDeleteAsync("key", CommandFlags.None);
+            mock.Verify(_ => _.StringGetDeleteAsync("prefix:key", CommandFlags.None));
+        }
+
+        [Fact]
         public void StringGetWithExpiryAsync()
         {
             wrapper.StringGetWithExpiryAsync("key", CommandFlags.None);

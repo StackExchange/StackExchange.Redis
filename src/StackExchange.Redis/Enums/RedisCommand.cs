@@ -51,6 +51,7 @@
         GETBIT,
         GETRANGE,
         GETSET,
+        GETDEL,
 
         HDEL,
         HEXISTS,
