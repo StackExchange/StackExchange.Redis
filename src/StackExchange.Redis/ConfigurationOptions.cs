@@ -58,12 +58,12 @@ namespace StackExchange.Redis
                 return tmp;
             }
 
-            internal static ICommandRetryPolicy ParseRetryCommandsOnReconnect(string key, string value) =>
+            internal static Func<ConnectionMultiplexer, CommandRetryPolicy> ParseRetryCommandsOnReconnect(string key, string value) =>
                 value.ToLower() switch
                 {
                     "noretry" => null,
-                    "alwaysretry" => DefaultCommandRetryPolicy.Always,
-                    "retryifnotsent" => DefaultCommandRetryPolicy.IfNotSent,
+                    "alwaysretry" => CommandRetryPolicy.Always,
+                    "retryifnotsent" => CommandRetryPolicy.IfNotSent,
                     _ => throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' can be NoRetry, AlwaysRetry or RetryIfNotSent; the value '{value}' is not recognised."),
                 };
 
@@ -352,7 +352,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// The retry policy to be used for command retries.
         /// </summary>
-        public ICommandRetryPolicy CommandRetryPolicy { get; set; }
+        public Func<ConnectionMultiplexer, CommandRetryPolicy> CommandRetryPolicyGenerator { get; set; }
 
         /// <summary>
         /// Indicates whether endpoints should be resolved via DNS before connecting.
@@ -489,7 +489,7 @@ namespace StackExchange.Redis
                 ReconnectRetryPolicy = reconnectRetryPolicy,
                 SslProtocols = SslProtocols,
                 checkCertificateRevocation = checkCertificateRevocation,
-                CommandRetryPolicy = CommandRetryPolicy,
+                CommandRetryPolicyGenerator = CommandRetryPolicyGenerator,
                 RetryQueueMaxLength = RetryQueueMaxLength,
             };
             foreach (var item in EndPoints)
@@ -575,7 +575,7 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.ConfigCheckSeconds, configCheckSeconds);
             Append(sb, OptionKeys.ResponseTimeout, responseTimeout);
             Append(sb, OptionKeys.DefaultDatabase, DefaultDatabase);
-            Append(sb, OptionKeys.RetryCommandsOnReconnect, CommandRetryPolicy);
+            Append(sb, OptionKeys.RetryCommandsOnReconnect, CommandRetryPolicyGenerator);
             Append(sb, OptionKeys.RetryQueueLength, retryQueueLength);
             commandMap?.AppendDeltas(sb);
             return sb.ToString();
@@ -665,7 +665,7 @@ namespace StackExchange.Redis
             CertificateValidation = null;
             ChannelPrefix = default(RedisChannel);
             SocketManager = null;
-            CommandRetryPolicy = null;
+            CommandRetryPolicyGenerator = null;
         }
 
         object ICloneable.Clone() => Clone();
@@ -787,7 +787,7 @@ namespace StackExchange.Redis
                             SslProtocols = OptionKeys.ParseSslProtocols(key, value);
                             break;
                         case OptionKeys.RetryCommandsOnReconnect:
-                            CommandRetryPolicy = OptionKeys.ParseRetryCommandsOnReconnect(key, value);
+                            CommandRetryPolicyGenerator = OptionKeys.ParseRetryCommandsOnReconnect(key, value);
                             break;
                         case OptionKeys.RetryQueueLength:
                             RetryQueueMaxLength = OptionKeys.ParseInt32(key, value, minValue: 0);

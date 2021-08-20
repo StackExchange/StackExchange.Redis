@@ -229,7 +229,8 @@ namespace StackExchange.Redis.Tests
             bool checkConnect = true, string failMessage = null,
             string channelPrefix = null, Proxy? proxy = null,
             string configuration = null, bool logTransactionData = true,
-            bool shared = true, int? defaultDatabase = null, ICommandRetryPolicy retryPolicy = null,
+            bool shared = true, int? defaultDatabase = null,
+            Func<ConnectionMultiplexer, CommandRetryPolicy> retryPolicy = null,
             [CallerMemberName] string caller = null)
         {
             if (Output == null)
@@ -270,7 +271,7 @@ namespace StackExchange.Redis.Tests
             string channelPrefix = null, Proxy? proxy = null,
             string configuration = null, bool logTransactionData = true,
             int? defaultDatabase = null,
-            ICommandRetryPolicy retryPolicy = null,
+            Func<ConnectionMultiplexer, CommandRetryPolicy> retryPolicy = null,
             [CallerMemberName] string caller = null)
         {
             StringWriter localLog = null;
@@ -306,7 +307,7 @@ namespace StackExchange.Redis.Tests
                 if (connectTimeout != null) config.ConnectTimeout = connectTimeout.Value;
                 if (proxy != null) config.Proxy = proxy.Value;
                 if (defaultDatabase != null) config.DefaultDatabase = defaultDatabase.Value;
-                if (retryPolicy != null) config.CommandRetryPolicy = retryPolicy;
+                if (retryPolicy != null) config.CommandRetryPolicyGenerator = retryPolicy;
                 var watch = Stopwatch.StartNew();
                 var task = ConnectionMultiplexer.ConnectAsync(config, log);
                 if (!task.Wait(config.ConnectTimeout >= (int.MaxValue / 2) ? int.MaxValue : config.ConnectTimeout * 2))

@@ -5,14 +5,21 @@ namespace StackExchange.Redis
     /// <summary>
     /// Command retry policy to determine which commands will be retried after a lost connection is retored
     /// </summary>
-    public class DefaultCommandRetryPolicy : ICommandRetryPolicy
+    public class DefaultCommandRetryPolicy : CommandRetryPolicy
     {
         private MessageRetryQueue RetryQueue { get; set; }
         private readonly Func<CommandStatus, bool> _shouldRetry;
 
-        internal DefaultCommandRetryPolicy(Func<CommandStatus, bool> shouldRetry)
+        /// <summary>
+        /// Creates a <see cref="DefaultCommandRetryPolicy"/> for the given <see cref="ConnectionMultiplexer"/>.
+        /// </summary>
+        /// <param name="muxer">The <see cref="ConnectionMultiplexer"/> to handle retries for.</param>
+        /// <param name="shouldRetry">Whether a command should be retried.</param>
+        internal DefaultCommandRetryPolicy(ConnectionMultiplexer muxer, Func<CommandStatus, bool> shouldRetry) : base(muxer)
         {
             _shouldRetry = shouldRetry;
+            var messageRetryHelper = new MessageRetryHelper(muxer);
+            RetryQueue = new MessageRetryQueue(messageRetryHelper);
         }
 
         /// <summary>
@@ -34,13 +41,7 @@ namespace StackExchange.Redis
             return true;
         }
 
-        void ICommandRetryPolicy.Init(ConnectionMultiplexer mux)
-        {
-            var messageRetryHelper = new MessageRetryHelper(mux);
-            RetryQueue = new MessageRetryQueue(messageRetryHelper);
-        }
-
-        bool ICommandRetryPolicy.TryQueue(Message message, Exception ex)
+        internal override bool TryQueue(Message message, Exception ex)
         {
             if (!IsMessageRetriable(message, ex))
             {
@@ -66,38 +67,24 @@ namespace StackExchange.Redis
         /// <summary>
         /// Called on heartbeat, evaluating if anything in queue has timed out and need pruning.
         /// </summary>
-        public void OnHeartbeat() => RetryQueue?.CheckRetryQueueForTimeouts();
+        public override void OnHeartbeat() => RetryQueue?.CheckRetryQueueForTimeouts();
 
         /// <summary>
         /// Called on a multiplexer reconnect, to start sending anything in the queue.
         /// </summary>
-        public void OnReconnect() => RetryQueue?.StartRetryQueueProcessor();
-
-        /// <summary>
-        /// Retry all commands.
-        /// </summary>
-        /// <returns>An instance of a retry policy that retries all commands.</returns>
-        public static ICommandRetryPolicy Always
-            => new DefaultCommandRetryPolicy(commandStatus => true);
-
-        /// <summary>
-        /// Retry only commands which fail before being sent to the server.
-        /// </summary>
-        /// <returns>An instance of a policy that retries only unsent commands.</returns>
-        public static ICommandRetryPolicy IfNotSent
-            => new DefaultCommandRetryPolicy(commandStatus => commandStatus == CommandStatus.WaitingToBeSent);
+        public override void OnReconnect() => RetryQueue?.StartRetryQueueProcessor();
 
         /// <summary>
         /// Gets the current length of the retry queue.
         /// </summary>
-        public int CurrentQueueLength => RetryQueue.CurrentRetryQueueLength;
+        public override int CurrentQueueLength => RetryQueue.CurrentRetryQueueLength;
 
         /// <summary>
         /// Determines whether to retry a command upon restoration of a lost connection.
         /// </summary>
         /// <param name="commandStatus">Status of the command.</param>
         /// <returns>True to retry the command, otherwise false.</returns>
-        public bool ShouldRetry(CommandStatus commandStatus)
+        public override bool ShouldRetry(CommandStatus commandStatus)
             => _shouldRetry.Invoke(commandStatus);
     }
 }

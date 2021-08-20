@@ -634,7 +634,7 @@ namespace StackExchange.Redis
                 bool? retrySuccess = false;
                 try
                 {
-                    retrySuccess = bridge.Multiplexer.RawConfig.CommandRetryPolicy?.TryQueue(this, exception);
+                    retrySuccess = bridge.Multiplexer.CommandRetryPolicy?.TryQueue(this, exception);
                 }
                 catch (Exception e)
                 {

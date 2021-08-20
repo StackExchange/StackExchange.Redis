@@ -1309,7 +1309,7 @@ namespace StackExchange.Redis
                 ConfigurationChangedChannel = Encoding.UTF8.GetBytes(configChannel);
             }
             lastHeartbeatTicks = Environment.TickCount;
-            RawConfig.CommandRetryPolicy?.Init(this);
+            CommandRetryPolicy = RawConfig.CommandRetryPolicyGenerator?.Invoke(this);
         }
 
         partial void OnCreateReaderWriter(ConfigurationOptions configuration);
@@ -1856,7 +1856,7 @@ namespace StackExchange.Redis
                                         case ServerType.Cluster:
                                             server.ClearUnselectable(UnselectableFlags.ServerType);
                                             if (server.IsReplica)
-                                            { 
+                                            {
                                                 server.ClearUnselectable(UnselectableFlags.RedundantMaster);
                                             }
                                             else
@@ -2014,7 +2014,7 @@ namespace StackExchange.Redis
                     {
                         serverEndpoint.UpdateNodeRelations(clusterConfig);
                     }
-                    
+
                 }
                 return clusterEndpoints;
             }
@@ -2329,6 +2329,8 @@ namespace StackExchange.Redis
         }
 
         internal ConfigurationOptions RawConfig { get; }
+
+        internal CommandRetryPolicy CommandRetryPolicy { get; }
 
         internal ServerSelectionStrategy ServerSelectionStrategy { get; }
 
@@ -2786,16 +2788,13 @@ namespace StackExchange.Redis
                 if (result != WriteResult.Success)
                 {
                     var ex = GetException(result, message, server);
-                    if (RawConfig.CommandRetryPolicy == null)
+                    if (CommandRetryPolicy?.TryQueue(message, ex) == true)
                     {
-                        ThrowFailed(tcs, ex);
+                        // If we successfully queued for retry, do not go boom here
                     }
                     else
                     {
-                        if (!RawConfig.CommandRetryPolicy.TryQueue(message, ex))
-                        {
-                            ThrowFailed(tcs, ex);
-                        }
+                        ThrowFailed(tcs, ex);
                     }
                 }
                 return tcs.Task;
@@ -2808,7 +2807,7 @@ namespace StackExchange.Redis
             if (result != WriteResult.Success)
             {
                 var ex = muxer.GetException(result, message, server);
-                if (muxer.RawConfig.CommandRetryPolicy?.TryQueue(message, ex) == true)
+                if (muxer.CommandRetryPolicy?.TryQueue(message, ex) == true)
                 {
                     // We have a policy and it queued the command to retry later - don't throw here
                 }
@@ -2875,16 +2874,13 @@ namespace StackExchange.Redis
                     if (result != WriteResult.Success)
                     {
                         var exResult = GetException(result, message, server);
-                        if (RawConfig.CommandRetryPolicy == null)
+                        if (CommandRetryPolicy?.TryQueue(message, exResult) == true)
                         {
-                            throw exResult;
+                            // Queued to retry, continue on
                         }
                         else
                         {
-                            if (!RawConfig.CommandRetryPolicy.TryQueue(message, exResult))
-                            {
-                                throw exResult;
-                            }
+                            throw exResult;
                         }
                     }
 
