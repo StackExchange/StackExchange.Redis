@@ -130,6 +130,17 @@ namespace NRediSearch.Test
             Assert.Equal(2, query._returnFields.Length);
         }
 
+
+        [Fact]
+        public void ReturnFieldNames()
+        {
+            var query = GetQuery();
+
+            Assert.Null(query._returnFieldsNames);
+            Assert.Same(query, query.ReturnFields(FieldName.Of("foo").As("bar"), FieldName.Of("foofoo")));
+            Assert.Equal(2, query._returnFieldsNames.Length);
+        }
+
         [Fact]
         public void HighlightFields()
         {

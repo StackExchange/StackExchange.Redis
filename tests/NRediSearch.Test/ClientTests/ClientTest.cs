@@ -1,4 +1,5 @@
-﻿using System.Threading;
+using System.Threading;
+using System.Reflection.Metadata;
 using System.Collections.Generic;
 using System.Text;
 using StackExchange.Redis;
@@ -953,6 +954,101 @@ namespace NRediSearch.Test.ClientTests
             Assert.Equal("doc1", res.Documents[0].Id);
             Assert.Equal("value", res.Documents[0]["field1"]);
             Assert.Null((string)res.Documents[0]["value"]);
+        }
+
+        [Fact]
+        public void TestWithFieldNames()
+        {
+            Client cl = GetClient();
+            IndexDefinition defenition = new IndexDefinition(prefixes: new string[] {"student:", "pupil:"});
+            Schema sc = new Schema().AddTextField(FieldName.Of("first").As("given")).AddTextField(FieldName.Of("last"));
+            Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions(defenition)));
+
+            var docsIds = new string[] {"student:111", "pupil:222", "student:333", "teacher:333"};
+            var docsData = new Dictionary<string, RedisValue>[] {
+                new Dictionary<string, RedisValue> {
+                    { "first", "Joen" },
+                    { "last", "Ko" },
+                    { "age", "20" }
+                },
+                new Dictionary<string, RedisValue> {
+                    { "first", "Joe" },
+                    { "last", "Dod" },
+                    { "age", "18" }
+                },
+                new Dictionary<string, RedisValue> {
+                    { "first", "El" },
+                    { "last", "Mark" },
+                    { "age", "17" }
+                },
+                new Dictionary<string, RedisValue> {
+                    { "first", "Pat" },
+                    { "last", "Rod" },
+                    { "age", "20" }
+                }
+            };
+
+            for (int i = 0; i < docsIds.Length; i++) {
+                Assert.True(cl.AddDocument(docsIds[i], docsData[i]));
+            }
+
+            // Query
+            SearchResult noFilters = cl.Search(new Query("*"));
+            Assert.Equal(3, noFilters.TotalResults);
+            Assert.Equal("student:111", noFilters.Documents[0].Id);
+            Assert.Equal("pupil:222", noFilters.Documents[1].Id);
+            Assert.Equal("student:333", noFilters.Documents[2].Id);
+
+            SearchResult asOriginal = cl.Search(new Query("@first:Jo*"));
+            Assert.Equal(0, asOriginal.TotalResults);
+
+            SearchResult asAttribute = cl.Search(new Query("@given:Jo*"));
+            Assert.Equal(2, asAttribute.TotalResults);
+            Assert.Equal("student:111", noFilters.Documents[0].Id);
+            Assert.Equal("pupil:222", noFilters.Documents[1].Id);
+
+            SearchResult nonAttribute = cl.Search(new Query("@last:Rod"));
+            Assert.Equal(0, nonAttribute.TotalResults);
+        }
+
+        [Fact]
+        public void TestReturnWithFieldNames(){
+            Client cl = GetClient();
+            Schema sc = new Schema().AddTextField("a").AddTextField("b").AddTextField("c");
+            Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions()));
+
+            var doc = new Dictionary<string, RedisValue>
+            {
+                { "a", "value1" },
+                { "b", "value2" },
+                { "c", "value3" }
+            };
+            Assert.True(cl.AddDocument("doc", doc));
+
+            // Query
+            SearchResult res = cl.Search(new Query("*").ReturnFields(FieldName.Of("b").As("d"), FieldName.Of("a")));
+            Assert.Equal(1, res.TotalResults);
+            Assert.Equal("doc", res.Documents[0].Id);
+            Assert.Equal("value1", res.Documents[0]["a"]);
+            Assert.Equal("value2", res.Documents[0]["d"]);
+        }
+
+        [Fact]
+        public void TestJsonIndex()
+        {
+            Client cl = GetClient();
+            IndexDefinition defenition = new IndexDefinition(prefixes: new string[] {"king:"} ,type: IndexDefinition.IndexType.Json);
+            Schema sc = new Schema().AddTextField("$.name");
+            Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions(defenition)));
+
+            Db.Execute("JSON.SET", "king:1", ".", "{\"name\": \"henry\"}");
+            Db.Execute("JSON.SET", "king:2", ".", "{\"name\": \"james\"}");
+
+            // Query
+            SearchResult res = cl.Search(new Query("henry"));
+            Assert.Equal(1, res.TotalResults);
+            Assert.Equal("king:1", res.Documents[0].Id);
+            Assert.Equal("{\"name\":\"henry\"}", res.Documents[0]["json"]);
         }
     }
 }
