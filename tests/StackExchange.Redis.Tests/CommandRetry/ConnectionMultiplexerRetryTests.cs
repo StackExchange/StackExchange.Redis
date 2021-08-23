@@ -18,7 +18,7 @@ namespace StackExchange.Redis.Tests.CommandRetry
             var message = Message.Create(0, flag, RedisCommand.GET);
             message.ResetStatusToWaitingToBeSent();
             DefaultCommandRetryPolicy retryOnReconnect = new DefaultCommandRetryPolicy(muxer as ConnectionMultiplexer, c => true);
-            Assert.Equal(shouldRetry, retryOnReconnect.IsMessageRetriable(message, new RedisConnectionException(ConnectionFailureType.SocketClosed, "test")));
+            Assert.Equal(shouldRetry, retryOnReconnect.CanRetry(message, new RedisConnectionException(ConnectionFailureType.SocketClosed, "test")));
         }
 
         [Theory]
@@ -31,7 +31,7 @@ namespace StackExchange.Redis.Tests.CommandRetry
             var message = Message.Create(0, flag, RedisCommand.FLUSHDB);
             message.ResetStatusToWaitingToBeSent();
             DefaultCommandRetryPolicy retryOnReconnect = new DefaultCommandRetryPolicy(muxer as ConnectionMultiplexer, c => true);
-            Assert.Equal(shouldRetry, retryOnReconnect.IsMessageRetriable(message, new RedisConnectionException(ConnectionFailureType.SocketClosed, "test")));
+            Assert.Equal(shouldRetry, retryOnReconnect.CanRetry(message, new RedisConnectionException(ConnectionFailureType.SocketClosed, "test")));
         }
 
         [Theory]
@@ -50,7 +50,7 @@ namespace StackExchange.Redis.Tests.CommandRetry
                 message.ResetStatusToWaitingToBeSent();
             }
             DefaultCommandRetryPolicy retryOnReconnect = new DefaultCommandRetryPolicy(muxer as ConnectionMultiplexer, c => true);
-            Assert.Equal(shouldRetry, retryOnReconnect.IsMessageRetriable(message, new RedisConnectionException(ConnectionFailureType.SocketClosed, "test")));
+            Assert.Equal(shouldRetry, retryOnReconnect.CanRetry(message, new RedisConnectionException(ConnectionFailureType.SocketClosed, "test")));
         }
 
     }
