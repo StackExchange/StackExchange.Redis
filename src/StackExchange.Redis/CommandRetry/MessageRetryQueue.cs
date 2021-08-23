@@ -120,7 +120,6 @@ namespace StackExchange.Redis
         {
             lock (_queue)
             {
-                var now = Environment.TickCount;
                 while (_queue.Count != 0)
                 {
                     var message = _queue.Peek();
