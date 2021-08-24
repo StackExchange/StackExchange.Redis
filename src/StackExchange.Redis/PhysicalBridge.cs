@@ -765,10 +765,11 @@ namespace StackExchange.Redis
         {
             if (Interlocked.CompareExchange(ref _backlogProcessorIsRunning, 1, 0) == 0)
             {
-                
+
 #if DEBUG
                 _backlogProcessorRequestedTime = Environment.TickCount;
 #endif
+                _backlogStatus = BacklogStatus.Activating;
                 Task.Run(ProcessBacklogAsync);
             }
         }
@@ -811,6 +812,7 @@ namespace StackExchange.Redis
         internal enum BacklogStatus : byte
         {
             Inactive,
+            Activating,
             Starting,
             Started,
             CheckingForWork,
