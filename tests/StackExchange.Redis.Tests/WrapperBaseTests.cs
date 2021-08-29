@@ -331,6 +331,13 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void ListLeftPopAsync_1()
+        {
+            wrapper.ListLeftPopAsync("key", 123, CommandFlags.None);
+            mock.Verify(_ => _.ListLeftPopAsync("prefix:key", 123, CommandFlags.None));
+        }
+
+        [Fact]
         public void ListLeftPushAsync_1()
         {
             wrapper.ListLeftPushAsync("key", "value", When.Exists, CommandFlags.None);
@@ -379,6 +386,13 @@ namespace StackExchange.Redis.Tests
         {
             wrapper.ListRightPopAsync("key", CommandFlags.None);
             mock.Verify(_ => _.ListRightPopAsync("prefix:key", CommandFlags.None));
+        }
+
+        [Fact]
+        public void ListRightPopAsync_1()
+        {
+            wrapper.ListRightPopAsync("key", 123, CommandFlags.None);
+            mock.Verify(_ => _.ListRightPopAsync("prefix:key", 123, CommandFlags.None));
         }
 
         [Fact]

@@ -301,6 +301,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.ListLeftPop(ToInner(key), flags);
         }
 
+        public RedisValue[] ListLeftPop(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.ListLeftPop(ToInner(key), count, flags);
+        }
+
         public long ListLeftPush(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None)
         {
             return Inner.ListLeftPush(ToInner(key), values, flags);
@@ -334,6 +339,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public RedisValue ListRightPop(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             return Inner.ListRightPop(ToInner(key), flags);
+        }
+
+        public RedisValue[] ListRightPop(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.ListRightPop(ToInner(key), count, flags);
         }
 
         public RedisValue ListRightPopLeftPush(RedisKey source, RedisKey destination, CommandFlags flags = CommandFlags.None)
