@@ -17,7 +17,17 @@ namespace StackExchange.Redis.Profiling
 
         public string Command => Message is RedisDatabase.ExecuteMessage em ? em.Command.ToString() : Message.Command.ToString();
 
+        public string Script => Message is RedisDatabase.ScriptEvalMessage sem ? sem.Script : null;
+
+        public RedisKey[] Keys => Message is IKeysMessage km ? km.Keys : null;
+
         public CommandFlags Flags => Message.Flags;
+
+        public RedisValue[] Values => Message is IValuesMessage vm ? vm.Values : null;
+
+        public bool IsFaulted => ResultBox?.IsFaulted == true;
+
+        public Exception Exception => ResultBox?.Exception;
 
         public DateTime CommandCreated => MessageCreatedDateTime;
 
@@ -46,6 +56,7 @@ namespace StackExchange.Redis.Profiling
         public ProfiledCommand NextElement { get; set; }
 
         private Message Message;
+        private IResultBox ResultBox;
         private readonly ServerEndPoint Server;
         private readonly ProfiledCommand OriginalProfiling;
 
@@ -99,7 +110,7 @@ namespace StackExchange.Redis.Profiling
             Interlocked.CompareExchange(ref field, now, 0);
         }
 
-        public void SetCompleted()
+        public void SetCompleted(IResultBox resultBox)
         {
             // this method can be called multiple times, depending on how the task completed (async vs not)
             //   so we actually have to guard against it.
@@ -112,6 +123,7 @@ namespace StackExchange.Redis.Profiling
             {
                 // fake a response if we completed prematurely (timeout, broken connection, etc)
                 Interlocked.CompareExchange(ref ResponseReceivedTimeStamp, now, 0);
+                ResultBox = resultBox;
                 PushToWhenFinished?.Add(this);
             }
         }

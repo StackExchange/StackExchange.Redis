@@ -1933,7 +1933,7 @@ namespace StackExchange.Redis
                 key,
                 groupName,
                 position,
-                true, 
+                true,
                 flags);
         }
 
@@ -2251,7 +2251,7 @@ namespace StackExchange.Redis
                 false,
                 flags);
         }
-        
+
         public Task<StreamEntry[]> StreamReadGroupAsync(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position = null, int? count = null, bool noAck = false, CommandFlags flags = CommandFlags.None)
         {
             var actualPosition = position ?? StreamPosition.NewMessages;
@@ -2815,7 +2815,7 @@ namespace StackExchange.Redis
              * [7] = id1
              * [8] = id2
              * [9] = id3
-             * 
+             *
              * */
 
             var pairCount = streamPositions.Length;
@@ -3756,13 +3756,16 @@ namespace StackExchange.Redis
             public override int ArgCount => _args.Count;
         }
 
-        private sealed class ScriptEvalMessage : Message, IMultiMessage
+        internal sealed class ScriptEvalMessage : Message, IMultiMessage, IKeysMessage, IValuesMessage
         {
-            private readonly RedisKey[] keys;
-            private readonly string script;
-            private readonly RedisValue[] values;
             private byte[] asciiHash;
             private readonly byte[] hexHash;
+
+            public string Script { get; }
+
+            public RedisKey[] Keys { get; }
+
+            public RedisValue[] Values { get; }
 
             public ScriptEvalMessage(int db, CommandFlags flags, string script, RedisKey[] keys, RedisValue[] values)
                 : this(db, flags, ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA : RedisCommand.EVAL, script, null, keys, values)
@@ -3780,40 +3783,40 @@ namespace StackExchange.Redis
             private ScriptEvalMessage(int db, CommandFlags flags, RedisCommand command, string script, byte[] hexHash, RedisKey[] keys, RedisValue[] values)
                 : base(db, flags, command)
             {
-                this.script = script;
+                Script = script;
                 this.hexHash = hexHash;
 
                 if (keys == null) keys = Array.Empty<RedisKey>();
                 if (values == null) values = Array.Empty<RedisValue>();
                 for (int i = 0; i < keys.Length; i++)
                     keys[i].AssertNotNull();
-                this.keys = keys;
+                Keys = keys;
                 for (int i = 0; i < values.Length; i++)
                     values[i].AssertNotNull();
-                this.values = values;
+                Values = values;
             }
 
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
             {
                 int slot = ServerSelectionStrategy.NoSlot;
-                for (int i = 0; i < keys.Length; i++)
-                    slot = serverSelectionStrategy.CombineSlot(slot, keys[i]);
+                for (int i = 0; i < Keys.Length; i++)
+                    slot = serverSelectionStrategy.CombineSlot(slot, Keys[i]);
                 return slot;
             }
 
             public IEnumerable<Message> GetMessages(PhysicalConnection connection)
             {
                 PhysicalBridge bridge;
-                if (script != null && (bridge = connection.BridgeCouldBeNull) != null
+                if (Script != null && (bridge = connection.BridgeCouldBeNull) != null
                     && bridge.Multiplexer.CommandMap.IsAvailable(RedisCommand.SCRIPT)
                     && (Flags & CommandFlags.NoScriptCache) == 0)
                 {
                     // a script was provided (rather than a hash); check it is known and supported
-                    asciiHash = bridge.ServerEndPoint.GetScriptHash(script, command);
+                    asciiHash = bridge.ServerEndPoint.GetScriptHash(Script, command);
 
                     if (asciiHash == null)
                     {
-                        var msg = new ScriptLoadMessage(Flags, script);
+                        var msg = new ScriptLoadMessage(Flags, Script);
                         msg.SetInternalCall();
                         msg.SetSource(ResultProcessor.ScriptLoad, null);
                         yield return msg;
@@ -3826,26 +3829,26 @@ namespace StackExchange.Redis
             {
                 if (hexHash != null)
                 {
-                    physical.WriteHeader(RedisCommand.EVALSHA, 2 + keys.Length + values.Length);
+                    physical.WriteHeader(RedisCommand.EVALSHA, 2 + Keys.Length + Values.Length);
                     physical.WriteSha1AsHex(hexHash);
                 }
                 else if (asciiHash != null)
                 {
-                    physical.WriteHeader(RedisCommand.EVALSHA, 2 + keys.Length + values.Length);
+                    physical.WriteHeader(RedisCommand.EVALSHA, 2 + Keys.Length + Values.Length);
                     physical.WriteBulkString((RedisValue)asciiHash);
                 }
                 else
                 {
-                    physical.WriteHeader(RedisCommand.EVAL, 2 + keys.Length + values.Length);
-                    physical.WriteBulkString((RedisValue)script);
+                    physical.WriteHeader(RedisCommand.EVAL, 2 + Keys.Length + Values.Length);
+                    physical.WriteBulkString((RedisValue)Script);
                 }
-                physical.WriteBulkString(keys.Length);
-                for (int i = 0; i < keys.Length; i++)
-                    physical.Write(keys[i]);
-                for (int i = 0; i < values.Length; i++)
-                    physical.WriteBulkString(values[i]);
+                physical.WriteBulkString(Keys.Length);
+                for (int i = 0; i < Keys.Length; i++)
+                    physical.Write(Keys[i]);
+                for (int i = 0; i < Values.Length; i++)
+                    physical.WriteBulkString(Values[i]);
             }
-            public override int ArgCount => 2 + keys.Length + values.Length;
+            public override int ArgCount => 2 + Keys.Length + Values.Length;
         }
 
         private sealed class SetScanResultProcessor : ScanResultProcessor<RedisValue>
@@ -3867,40 +3870,42 @@ namespace StackExchange.Redis
             }
         }
 
-        private sealed class SortedSetCombineAndStoreCommandMessage : Message.CommandKeyBase // ZINTERSTORE and ZUNIONSTORE have a very unusual signature
+        private sealed class SortedSetCombineAndStoreCommandMessage : Message.CommandKeyBase, IKeysMessage, IValuesMessage // ZINTERSTORE and ZUNIONSTORE have a very unusual signature
         {
-            private readonly RedisKey[] keys;
-            private readonly RedisValue[] values;
+            public override RedisKey[] Keys { get; }
+
+            public RedisValue[] Values { get; }
+
             public SortedSetCombineAndStoreCommandMessage(int db, CommandFlags flags, RedisCommand command, RedisKey destination, RedisKey[] keys, RedisValue[] values)
                 : base(db, flags, command, destination)
             {
                 for (int i = 0; i < keys.Length; i++)
                     keys[i].AssertNotNull();
-                this.keys = keys;
+                Keys = keys;
                 for (int i = 0; i < values.Length; i++)
                     values[i].AssertNotNull();
-                this.values = values;
+                Values = values;
             }
 
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
             {
                 int slot = base.GetHashSlot(serverSelectionStrategy);
-                for (int i = 0; i < keys.Length; i++)
-                    slot = serverSelectionStrategy.CombineSlot(slot, keys[i]);
+                for (int i = 0; i < Keys.Length; i++)
+                    slot = serverSelectionStrategy.CombineSlot(slot, Keys[i]);
                 return slot;
             }
 
             protected override void WriteImpl(PhysicalConnection physical)
             {
-                physical.WriteHeader(Command, 2 + keys.Length + values.Length);
+                physical.WriteHeader(Command, 2 + Keys.Length + Values.Length);
                 physical.Write(Key);
-                physical.WriteBulkString(keys.Length);
-                for (int i = 0; i < keys.Length; i++)
-                    physical.Write(keys[i]);
-                for (int i = 0; i < values.Length; i++)
-                    physical.WriteBulkString(values[i]);
+                physical.WriteBulkString(Keys.Length);
+                for (int i = 0; i < Keys.Length; i++)
+                    physical.Write(Keys[i]);
+                for (int i = 0; i < Values.Length; i++)
+                    physical.WriteBulkString(Values[i]);
             }
-            public override int ArgCount => 2 + keys.Length + values.Length;
+            public override int ArgCount => 2 + Keys.Length + Values.Length;
         }
 
         private sealed class SortedSetScanResultProcessor : ScanResultProcessor<SortedSetEntry>
