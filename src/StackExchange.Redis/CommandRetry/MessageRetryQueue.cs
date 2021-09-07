@@ -35,7 +35,10 @@ namespace StackExchange.Redis
                 wasEmpty = count == 0;
                 _queue.Enqueue(message);
             }
-            if (wasEmpty) StartRetryQueueProcessor();
+            if (wasEmpty)
+            {
+                StartRetryQueueProcessor();
+            }
             return true;
         }
 
@@ -47,18 +50,20 @@ namespace StackExchange.Redis
             {
                 startProcessor = _queue.Count > 0;
             }
-            if (startProcessor)
+            if (!startProcessor)
             {
-                if (_runRetryLoopAsync)
-                {
-                    var task = Task.Run(ProcessRetryQueueAsync);
-                    if (task.IsFaulted)
-                        throw task.Exception;
-                }
-                else
-                {
-                    ProcessRetryQueueAsync().Wait();
-                }
+                return;
+            }
+
+            if (_runRetryLoopAsync)
+            {
+                var task = Task.Run(ProcessRetryQueueAsync);
+                if (task.IsFaulted)
+                    throw task.Exception;
+            }
+            else
+            {
+                ProcessRetryQueueAsync().Wait();
             }
         }
 
