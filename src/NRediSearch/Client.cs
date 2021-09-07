@@ -55,31 +55,39 @@ namespace NRediSearch
             public enum IndexType
             {
                 /// <summary>
-                /// Used to indicates that the index should follow the keys of type Hash changes
+                /// Used to indicate that the index should follow the keys of type Hash changes
                 /// </summary>
-                Hash
+                Hash,
+                Json
             }
 
-            internal readonly IndexType _type = IndexType.Hash;
-            internal readonly bool _async; 
+            internal readonly IndexType _type;
+            internal readonly bool _async;
             internal readonly string[] _prefixes;
             internal readonly string _filter;
             internal readonly string _languageField;
             internal readonly string _language;
-            internal readonly string _scoreFiled;
+            internal readonly string _scoreField;
             internal readonly double _score;
             internal readonly string _payloadField;
 
+            // this .ctor is left here to avoid MME in existing code (i.e. back-compat)
+            public IndexDefinition(bool async, string[] prefixes,
+                string filter, string languageField, string language,
+                string scoreFiled, double score, string payloadField)
+                : this(async, prefixes, filter, languageField, language, scoreFiled, score, payloadField, IndexType.Hash)
+            { }
             public IndexDefinition(bool async = false, string[] prefixes = null,
-            string filter = null, string languageField = null, string language = null, 
-            string scoreFiled = null, double score = 1.0, string payloadField = null)
+            string filter = null, string languageField = null, string language = null,
+            string scoreField = null, double score = 1.0, string payloadField = null, IndexType type = IndexType.Hash)
             {
+                _type = type;
                 _async = async;
                 _prefixes = prefixes;
                 _filter = filter;
                 _languageField = languageField;
                 _language = language;
-                _scoreFiled = scoreFiled;
+                _scoreField = scoreField;
                 _score = score;
                 _payloadField = payloadField;
             }
@@ -92,36 +100,36 @@ namespace NRediSearch
                 {
                     args.Add("ASYNC".Literal());
                 }
-                if (_prefixes?.Length > 0) 
+                if (_prefixes?.Length > 0)
                 {
                     args.Add("PREFIX".Literal());
                     args.Add(_prefixes.Length.ToString());
                     args.AddRange(_prefixes);
                 }
-                if (_filter != null) 
+                if (_filter != null)
                 {
                     args.Add("FILTER".Literal());
                     args.Add(_filter);
-                }                
+                }
                 if (_languageField != null) {
                     args.Add("LANGUAGE_FIELD".Literal());
-                    args.Add(_languageField);      
-                }                
+                    args.Add(_languageField);
+                }
                 if (_language != null) {
                     args.Add("LANGUAGE".Literal());
-                    args.Add(_language);      
-                }                
-                if (_scoreFiled != null) {
+                    args.Add(_language);
+                }
+                if (_scoreField != null) {
                     args.Add("SCORE_FIELD".Literal());
-                    args.Add(_scoreFiled);      
-                }                
+                    args.Add(_scoreField);
+                }
                 if (_score != 1.0) {
                     args.Add("SCORE".Literal());
-                    args.Add(_score.ToString());      
+                    args.Add(_score.ToString());
                 }
                 if (_payloadField != null) {
                     args.Add("PAYLOAD_FIELD".Literal());
-                    args.Add(_payloadField);      
+                    args.Add(_payloadField);
                 }
             }
 
@@ -142,7 +150,7 @@ namespace NRediSearch
                 _options = options;
             }
 
-            public ConfiguredIndexOptions(IndexDefinition definition, IndexOptions options = IndexOptions.Default) 
+            public ConfiguredIndexOptions(IndexDefinition definition, IndexOptions options = IndexOptions.Default)
             : this(options)
             {
                 _definition = definition;
@@ -687,7 +695,7 @@ namespace NRediSearch
         }
 
         /// <summary>
-        /// Delete multiple documents from an index. 
+        /// Delete multiple documents from an index.
         /// </summary>
         /// <param name="deleteDocuments">if <code>true</code> also deletes the actual document ifs it is in the index</param>
         /// <param name="docIds">the document ids to delete</param>
@@ -705,7 +713,7 @@ namespace NRediSearch
         }
 
         /// <summary>
-        /// Delete multiple documents from an index. 
+        /// Delete multiple documents from an index.
         /// </summary>
         /// <param name="deleteDocuments">if <code>true</code> also deletes the actual document ifs it is in the index</param>
         /// <param name="docIds">the document ids to delete</param>
