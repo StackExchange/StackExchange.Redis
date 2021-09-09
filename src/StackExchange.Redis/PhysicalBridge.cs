@@ -765,11 +765,22 @@ namespace StackExchange.Redis
         {
             if (Interlocked.CompareExchange(ref _backlogProcessorIsRunning, 1, 0) == 0)
             {
-                
+
 #if DEBUG
                 _backlogProcessorRequestedTime = Environment.TickCount;
 #endif
-                Task.Run(ProcessBacklogAsync);
+                _backlogStatus = BacklogStatus.Activating;
+
+                // start the backlog processor; this is a bit unorthadox, as you would *expect* this to just
+                // be Task.Run; that would work fine when healthy, but when we're falling on our face, it is
+                // easy to get into a thread-pool-starvation "spiral of death" if we rely on the thread-pool
+                // to unblock the thread-pool when there could be sync-over-async callers. Note that in reality,
+                // the initial "enough" of the back-log processor is typically sync, which means that the thread
+                // we start is actually useful, despite thinking "but that will just go async and back to the pool"
+                var thread = new Thread(s => ((PhysicalBridge)s).ProcessBacklogAsync().RedisFireAndForget());
+                thread.IsBackground = true; // don't keep process alive (also: act like the thread-pool used to)
+                thread.Name = "redisbacklog"; // help anyone looking at thread-dumps
+                thread.Start(this);
             }
         }
 #if DEBUG
@@ -811,6 +822,7 @@ namespace StackExchange.Redis
         internal enum BacklogStatus : byte
         {
             Inactive,
+            Activating,
             Starting,
             Started,
             CheckingForWork,
