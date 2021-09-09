@@ -6,6 +6,7 @@
 - logging additions (.NET Version and timestamps) for better debugging (#1796 via philon-msft)
 - add: `Condition` API (transactions) now supports `StreamLengthEqual` and variants (#1807 via AlphaGremlin)
 - Add support for count argument to `ListLeftPop`, `ListLeftPopAsync`, `ListRightPop`, and `ListRightPopAsync` (#1850 via jjfmarket)
+- fix potential task/thread exhaustion from the backlog processor (#1854 via mgravell)
 
 ## 2.2.62
 
