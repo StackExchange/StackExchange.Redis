@@ -2223,7 +2223,6 @@ namespace StackExchange.Redis
             if (server == null)
             {   // infer a server automatically
                 server = SelectServer(message);
-                // Set CommandFlag that a server was auto-chosen here
             }
             else // a server was specified; do we trust their choice, though?
             {
