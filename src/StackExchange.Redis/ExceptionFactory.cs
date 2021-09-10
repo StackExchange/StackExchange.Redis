@@ -332,6 +332,14 @@ namespace StackExchange.Redis
                 if (toRead >= 0) Add(data, sb, "Inbound-Pipe-Bytes", "in-pipe", toRead.ToString());
                 if (toWrite >= 0) Add(data, sb, "Outbound-Pipe-Bytes", "out-pipe", toWrite.ToString());
 
+                var retryPolicy = multiplexer.CommandRetryPolicy;
+                if (retryPolicy != null)
+                {
+                    Add(data, sb, "RetryPolicy-Queue-Length", "rp-ql", retryPolicy.CurrentQueueLength.ToString());
+                    Add(data, sb, "RetryPolicy-Processing", "rp-p", retryPolicy.CurrentlyProcessing ? "1" : "0");
+                    Add(data, sb, "RetryPolicy-Status", "rp-s", retryPolicy.StatusDescription);
+                }
+
                 if (multiplexer.StormLogThreshold >= 0 && qs >= multiplexer.StormLogThreshold && Interlocked.CompareExchange(ref multiplexer.haveStormLog, 1, 0) == 0)
                 {
                     var log = server.GetStormLog(message.Command);
@@ -342,6 +350,12 @@ namespace StackExchange.Redis
             }
             Add(data, sb, "Multiplexer-Connects", "mc", $"{multiplexer._connectAttemptCount}/{multiplexer._connectCompletedCount}/{multiplexer._connectionCloseCount}");
             Add(data, sb, "Manager", "mgr", multiplexer.SocketManager?.GetState());
+
+            // If we can, add some thread pool stats to help debugging
+#if NETCOREAPP3_1_OR_GREATER
+            Add(data, sb, "ThreadPool-Work-Item-Pending", "tp-wip", ThreadPool.PendingWorkItemCount.ToString());
+            Add(data, sb, "ThreadPool-Thread-Count", "tp-tc", ThreadPool.ThreadCount.ToString());
+#endif
 
             Add(data, sb, "Client-Name", "clientName", multiplexer.ClientName);
             if (message != null)

@@ -1,7 +1,7 @@
 ﻿namespace StackExchange.Redis
 {
     /// <summary>
-    /// track status of a command while communicating with Redis
+    /// Track status of a command while communicating with Redis
     /// </summary>
     public enum CommandStatus
     {

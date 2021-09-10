@@ -19,6 +19,8 @@ namespace StackExchange.Redis
         ServerEndPoint SelectServer(Message message);
 
         Exception GetException(WriteResult result, Message message, ServerEndPoint server);
+
+        bool RetryQueueIfEligible(Message message, CommandFailureReason reason, Exception exception);
     }
 
     /// <summary>

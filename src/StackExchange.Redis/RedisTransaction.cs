@@ -197,17 +197,17 @@ namespace StackExchange.Redis
                 this.conditions = (conditions == null || conditions.Count == 0) ? Array.Empty<ConditionResult>(): conditions.ToArray();
             }
 
-            internal override void SetExceptionAndComplete(Exception exception, PhysicalBridge bridge, bool onConnectionRestoreRetry = false)
+            internal override void SetExceptionAndComplete(Exception exception, PhysicalBridge bridge, CommandFailureReason reason)
             {
                 var inner = InnerOperations;
                 if (inner != null)
                 {
                     for(int i = 0; i < inner.Length;i++)
                     {
-                        inner[i]?.Wrapped?.SetExceptionAndComplete(exception, bridge, onConnectionRestoreRetry);
+                        inner[i]?.Wrapped?.SetExceptionAndComplete(exception, bridge, reason);
                     }
                 }
-                base.SetExceptionAndComplete(exception, bridge, onConnectionRestoreRetry);
+                base.SetExceptionAndComplete(exception, bridge, reason);
             }
 
             public bool IsAborted => command != RedisCommand.EXEC;
