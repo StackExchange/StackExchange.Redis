@@ -49,8 +49,6 @@ namespace StackExchange.Redis.Tests.CommandRetry
             messageRetryHelper.Setup(failedCommand => failedCommand.IsEndpointAvailable(message)).Returns(true);
 
             messageRetryQueue.TryHandleFailedCommand(message);
-
-            Assert.Equal(1, messageRetryQueue.CurrentRetryQueueLength);
             await messageRetryQueue.ProcessRetryQueueAsync();
             Assert.Equal(0, messageRetryQueue.CurrentRetryQueueLength);
 
@@ -81,7 +79,6 @@ namespace StackExchange.Redis.Tests.CommandRetry
 
             messageRetryQueue.TryHandleFailedCommand(message);
 
-            Assert.Equal(1, messageRetryQueue.CurrentRetryQueueLength);
             messageRetryQueue.CheckRetryQueueForTimeouts();
             Assert.Equal(0, messageRetryQueue.CurrentRetryQueueLength);
 
@@ -144,7 +141,6 @@ namespace StackExchange.Redis.Tests.CommandRetry
 
             messageRetryQueue.TryHandleFailedCommand(message);
 
-            Assert.Equal(1, messageRetryQueue.CurrentRetryQueueLength);
             await messageRetryQueue.ProcessRetryQueueAsync();
             Assert.Equal(0, messageRetryQueue.CurrentRetryQueueLength);
 
