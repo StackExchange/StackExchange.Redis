@@ -430,7 +430,7 @@ namespace StackExchange.Redis
                             bridge.Trace("Failing: " + next);
                             bridge.Multiplexer?.OnMessageFaulted(next, ex, origin);
                         }
-                        next.SetExceptionAndComplete(ex, bridge, onConnectionRestoreRetry: true);
+                        next.SetExceptionAndComplete(ex, bridge, CommandFailureReason.ConnectionFailure);
                     }
                 }
             }
@@ -612,7 +612,7 @@ namespace StackExchange.Redis
                                 ? $"Timeout awaiting response (outbound={sentDelta >> 10}KiB, inbound={receivedDelta >> 10}KiB, {elapsed}ms elapsed, timeout is {timeout}ms)"
                                 : $"Timeout awaiting response ({elapsed}ms elapsed, timeout is {timeout}ms)", msg, server);
                             bridge.Multiplexer?.OnMessageFaulted(msg, timeoutEx);
-                            msg.SetExceptionAndComplete(timeoutEx, bridge, onConnectionRestoreRetry: false); // tell the message that it is doomed
+                            msg.SetExceptionAndComplete(timeoutEx, bridge, CommandFailureReason.Timeout); // tell the message that it is doomed
                             bridge.Multiplexer.OnAsyncTimeout();
                         }
                         // note: it is important that we **do not** remove the message unless we're tearing down the socket; that

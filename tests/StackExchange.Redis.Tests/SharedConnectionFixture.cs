@@ -293,6 +293,9 @@ namespace StackExchange.Redis.Tests
             ServerEndPoint IInternalConnectionMultiplexer.SelectServer(Message message) => _inner.SelectServer(message);
             Exception IInternalConnectionMultiplexer.GetException(WriteResult result, Message message, ServerEndPoint server)
                 => _inner.GetException(result, message, server);
+
+            bool IInternalConnectionMultiplexer.RetryQueueIfEligible(Message message, CommandFailureReason reason, Exception exception)
+                => _inner.RetryQueueIfEligible(message, reason, exception);
         }
 
         public void Dispose() => _actualConnection.Dispose();

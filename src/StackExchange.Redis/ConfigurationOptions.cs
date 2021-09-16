@@ -58,13 +58,13 @@ namespace StackExchange.Redis
                 return tmp;
             }
 
-            internal static Func<ConnectionMultiplexer, CommandRetryPolicy> ParseRetryCommandsOnReconnect(string key, string value) =>
+            internal static Func<ConnectionMultiplexer, CommandRetryPolicy> ParseCommandRetryPolicy(string key, string value) =>
                 value.ToLower() switch
                 {
-                    "noretry" => null,
-                    "alwaysretry" => CommandRetryPolicy.Always,
-                    "retryifnotsent" => CommandRetryPolicy.IfNotSent,
-                    _ => throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' can be NoRetry, AlwaysRetry or RetryIfNotSent; the value '{value}' is not recognised."),
+                    "never" => Redis.CommandRetryPolicy.Never,
+                    "always" => Redis.CommandRetryPolicy.Always,
+                    "ifnotsent" => Redis.CommandRetryPolicy.IfNotSent,
+                    _ => throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' can be empty, None, Always or IfNotSent; the value '{value}' is not recognized."),
                 };
 
             internal static void Unknown(string key)
@@ -100,8 +100,8 @@ namespace StackExchange.Redis
                 Version = "version",
                 WriteBuffer = "writeBuffer",
                 CheckCertificateRevocation = "checkCertificateRevocation",
-                RetryCommandsOnReconnect = "retryCommandsOnReconnect",
-                RetryQueueLength = "retryQueueLength";
+                CommandRetryPolicy = "commandRetryPolicy",
+                CommandRetryQueueLength = "commandRetryQueueLength";
 
 
             private static readonly Dictionary<string, string> normalizedOptions = new[]
@@ -132,8 +132,8 @@ namespace StackExchange.Redis
                 Version,
                 WriteBuffer,
                 CheckCertificateRevocation,
-                RetryCommandsOnReconnect,
-                RetryQueueLength,
+                CommandRetryPolicy,
+                CommandRetryQueueLength,
             }.ToDictionary(x => x, StringComparer.OrdinalIgnoreCase);
 
             public static string TryNormalize(string value)
@@ -350,9 +350,9 @@ namespace StackExchange.Redis
         public IReconnectRetryPolicy ReconnectRetryPolicy { get { return reconnectRetryPolicy ??= new LinearRetry(ConnectTimeout); } set { reconnectRetryPolicy = value; } }
 
         /// <summary>
-        /// The retry policy to be used for command retries.
+        /// The retry policy to be used for command retries. By default, unsent commands will be retried.
         /// </summary>
-        public Func<ConnectionMultiplexer, CommandRetryPolicy> CommandRetryPolicyGenerator { get; set; }
+        public Func<ConnectionMultiplexer, CommandRetryPolicy> CommandRetryPolicyGenerator { get; set; } = CommandRetryPolicy.Default;
 
         /// <summary>
         /// Indicates whether endpoints should be resolved via DNS before connecting.
@@ -422,7 +422,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// If retry policy is specified, Retry Queue max length, by default there's no queue limit 
         /// </summary>
-        public int? RetryQueueMaxLength { get; set; }
+        public int? CommandRetryQueueMaxLength { get; set; }
 
         /// <summary>
         /// Parse the configuration from a comma-delimited configuration string
@@ -490,7 +490,7 @@ namespace StackExchange.Redis
                 SslProtocols = SslProtocols,
                 checkCertificateRevocation = checkCertificateRevocation,
                 CommandRetryPolicyGenerator = CommandRetryPolicyGenerator,
-                RetryQueueMaxLength = RetryQueueMaxLength,
+                CommandRetryQueueMaxLength = CommandRetryQueueMaxLength,
             };
             foreach (var item in EndPoints)
                 options.EndPoints.Add(item);
@@ -575,8 +575,10 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.ConfigCheckSeconds, configCheckSeconds);
             Append(sb, OptionKeys.ResponseTimeout, responseTimeout);
             Append(sb, OptionKeys.DefaultDatabase, DefaultDatabase);
-            Append(sb, OptionKeys.RetryCommandsOnReconnect, CommandRetryPolicyGenerator);
-            Append(sb, OptionKeys.RetryQueueLength, retryQueueLength);
+            // TODO: How should we handle this? The analog is SocketManager which is left out, but it'd be nice to have this
+            //   if it's one of the built-in ones at least?
+            //Append(sb, OptionKeys.CommandRetryPolicy, CommandRetryPolicyGenerator);
+            Append(sb, OptionKeys.CommandRetryQueueLength, retryQueueLength);
             commandMap?.AppendDeltas(sb);
             return sb.ToString();
         }
@@ -665,7 +667,7 @@ namespace StackExchange.Redis
             CertificateValidation = null;
             ChannelPrefix = default(RedisChannel);
             SocketManager = null;
-            CommandRetryPolicyGenerator = null;
+            CommandRetryPolicyGenerator = CommandRetryPolicy.Default;
         }
 
         object ICloneable.Clone() => Clone();
@@ -786,11 +788,11 @@ namespace StackExchange.Redis
                         case OptionKeys.SslProtocols:
                             SslProtocols = OptionKeys.ParseSslProtocols(key, value);
                             break;
-                        case OptionKeys.RetryCommandsOnReconnect:
-                            CommandRetryPolicyGenerator = OptionKeys.ParseRetryCommandsOnReconnect(key, value);
+                        case OptionKeys.CommandRetryPolicy:
+                            CommandRetryPolicyGenerator = OptionKeys.ParseCommandRetryPolicy(key, value);
                             break;
-                        case OptionKeys.RetryQueueLength:
-                            RetryQueueMaxLength = OptionKeys.ParseInt32(key, value, minValue: 0);
+                        case OptionKeys.CommandRetryQueueLength:
+                            CommandRetryQueueMaxLength = OptionKeys.ParseInt32(key, value, minValue: 0);
                             break;
                         default:
                             if (!string.IsNullOrEmpty(key) && key[0] == '$')

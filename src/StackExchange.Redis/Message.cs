@@ -105,6 +105,7 @@ namespace StackExchange.Redis
         private ProfiledCommand performance;
         internal DateTime CreatedDateTime;
         internal long CreatedTimestamp;
+        internal ServerEndPoint SpecificServer;
 
         protected Message(int db, CommandFlags flags, RedisCommand command)
         {
@@ -625,22 +626,24 @@ namespace StackExchange.Redis
             resultProcessor?.ConnectionFail(this, failure, innerException, annotation);
         }
 
-        internal virtual void SetExceptionAndComplete(Exception exception, PhysicalBridge bridge, bool onConnectionRestoreRetry)
+        internal virtual void SetExceptionAndComplete(Exception exception, PhysicalBridge bridge, CommandFailureReason reason)
         {
-            if (onConnectionRestoreRetry &&
-               exception is RedisConnectionException &&
-               bridge != null)
+            if ((reason == CommandFailureReason.WriteFailure || reason == CommandFailureReason.ConnectionFailure)
+                && exception is RedisConnectionException
+                && bridge != null)
             {
-                bool? retrySuccess = false;
                 try
                 {
-                    retrySuccess = bridge.Multiplexer.CommandRetryPolicy?.TryQueue(this, exception);
+                    if (bridge.Multiplexer.RetryQueueIfEligible(this, reason, exception))
+                    {
+                        // We're retrying - ABANDON SHIP
+                        return;
+                    }
                 }
                 catch (Exception e)
                 {
                     exception.Data.Add("OnConnectionRestoreRetryManagerError", e.ToString());
                 }
-                if (retrySuccess.HasValue && retrySuccess.Value) return;
             }
 
             resultBox?.SetException(exception);
@@ -656,7 +659,6 @@ namespace StackExchange.Redis
             }
             return false;
         }
-
 
         internal void SetEnqueued(PhysicalConnection connection)
         {

@@ -159,6 +159,40 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void CanParseCommandRetryPolicy()
+        {
+            // By default, we should retry if not sent
+            var defaultConfig = ConfigurationOptions.Parse("127.0.0.1:6379");
+            Assert.Equal(CommandRetryPolicy.Default, defaultConfig.CommandRetryPolicyGenerator);
+            Assert.Equal(CommandRetryPolicy.IfNotSent, defaultConfig.CommandRetryPolicyGenerator);
+            Assert.Null(defaultConfig.CommandRetryQueueMaxLength);
+
+            var clonedDefaultConfig = defaultConfig.Clone();
+            Assert.Equal(CommandRetryPolicy.Default, clonedDefaultConfig.CommandRetryPolicyGenerator);
+
+            var alwaysConfig = ConfigurationOptions.Parse("127.0.0.1:6379,commandRetryPolicy=Always,commandRetryQueueLength=12000");
+            Assert.Equal(CommandRetryPolicy.Always, alwaysConfig.CommandRetryPolicyGenerator);
+            Assert.Equal(12000, alwaysConfig.CommandRetryQueueMaxLength);
+
+            var alwaysConfigClone = alwaysConfig.Clone();
+            Assert.Equal(CommandRetryPolicy.Always, alwaysConfigClone.CommandRetryPolicyGenerator);
+            Assert.Equal(12000, alwaysConfig.CommandRetryQueueMaxLength);
+
+            var customPolicyOptions = ConfigurationOptions.Parse("127.0.0.1:6379");
+            // Good luck deubbing this one, ops team.
+            Func<ConnectionMultiplexer, CommandRetryPolicy> customPolicyGen = muxer => new DefaultCommandRetryPolicy(muxer, commandStatus => Environment.TickCount % 2 == 0);
+            customPolicyOptions.CommandRetryPolicyGenerator = customPolicyGen;
+            Assert.Equal(customPolicyGen, customPolicyOptions.CommandRetryPolicyGenerator);
+
+            // Ensure clones carry correctly
+            var customClone = customPolicyOptions.Clone();
+            Assert.Equal(customPolicyGen, customClone.CommandRetryPolicyGenerator);
+
+            var ex = Assert.Throws<ArgumentOutOfRangeException>(() => ConfigurationOptions.Parse("127.0.0.1:6379,commandRetryPolicy=blah"));
+            Assert.StartsWith("Keyword 'commandRetryPolicy' can be empty, None, Always or IfNotSent; the value 'blah' is not recognized.", ex.Message);
+        }
+
+        [Fact]
         public void TalkToNonsenseServer()
         {
             var config = new ConfigurationOptions

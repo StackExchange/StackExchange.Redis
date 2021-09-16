@@ -450,7 +450,7 @@ namespace StackExchange.Redis
             while (_backlog.TryDequeue(out Message next))
             {
                 Multiplexer?.OnMessageFaulted(next, ex);
-                next.SetExceptionAndComplete(ex, this, onConnectionRestoreRetry: true);
+                next.SetExceptionAndComplete(ex, this, CommandFailureReason.ConnectionFailure);
             }
         }
         internal void OnFullyEstablished(PhysicalConnection connection, string source)
@@ -818,7 +818,7 @@ namespace StackExchange.Redis
                 // Tell the message it has failed
                 // Note: Attempting to *avoid* reentrancy/deadlock issues by not holding the lock while completing messages.
                 var ex = Multiplexer.GetException(WriteResult.TimeoutBeforeWrite, message, ServerEndPoint);
-                message.SetExceptionAndComplete(ex, this, onConnectionRestoreRetry: false);
+                message.SetExceptionAndComplete(ex, this, CommandFailureReason.Timeout);
             }
         }
         internal enum BacklogStatus : byte
@@ -898,7 +898,7 @@ namespace StackExchange.Redis
                             if (maxFlush >= 0) ex.Data["Redis-MaxFlush"] = maxFlush.ToString() + "ms, " + (physical?.MaxFlushBytes ?? -1).ToString();
                             if (_maxLockDuration >= 0) ex.Data["Redis-MaxLockDuration"] = _maxLockDuration;
 #endif
-                            message.SetExceptionAndComplete(ex, this, onConnectionRestoreRetry: false);
+                            message.SetExceptionAndComplete(ex, this, CommandFailureReason.Timeout);
                         }
                         else
                         {
@@ -1127,7 +1127,7 @@ namespace StackExchange.Redis
         private WriteResult HandleWriteException(Message message, Exception ex)
         {
             var inner = new RedisConnectionException(ConnectionFailureType.InternalFailure, "Failed to write", ex);
-            message.SetExceptionAndComplete(inner, this, onConnectionRestoreRetry: true);
+            message.SetExceptionAndComplete(inner, this, CommandFailureReason.WriteFailure);
             return WriteResult.WriteFailure;
         }
 

@@ -45,7 +45,9 @@ namespace StackExchange.Redis
         /// <returns>Whether the write was successful.</returns>
         public async Task<bool> TryResendAsync(Message message)
         {
-            var server = multiplexer.SelectServer(message);
+            // Use a specific server if one was specified originally, otherwise auto-select
+            // This is important for things like REPLICAOF we really don't want going to another location
+            var server = message.SpecificServer ?? multiplexer.SelectServer(message);
             if (server != null)
             {
                 var result = await server.TryWriteAsync(message).ForAwait();
@@ -62,8 +64,8 @@ namespace StackExchange.Redis
 
         public void SetExceptionAndComplete(Message message, Exception ex = null)
         {
-            var inner = new RedisConnectionException(ConnectionFailureType.UnableToConnect, "Failed while retrying on connection restore", ex);
-            message.SetExceptionAndComplete(inner, null, onConnectionRestoreRetry: false);
+            var inner = new RedisConnectionException(ConnectionFailureType.UnableToConnect, "Failed while retrying on connection restore: " + ex.Message, ex);
+            message.SetExceptionAndComplete(inner, null, CommandFailureReason.RetryFailure);
         }
     }
 }

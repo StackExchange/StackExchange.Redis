@@ -2240,6 +2240,9 @@ namespace StackExchange.Redis
                         }
                         break;
                 }
+
+                // If we were given a specific server, remember it for retry purposes
+                message.SpecificServer = server;
                 if (!server.IsConnected)
                 {
                     // well, that's no use!
@@ -2329,8 +2332,6 @@ namespace StackExchange.Redis
         }
 
         internal ConfigurationOptions RawConfig { get; }
-
-        internal CommandRetryPolicy CommandRetryPolicy { get; }
 
         internal ServerSelectionStrategy ServerSelectionStrategy { get; }
 
@@ -2788,11 +2789,7 @@ namespace StackExchange.Redis
                 if (result != WriteResult.Success)
                 {
                     var ex = GetException(result, message, server);
-                    if (CommandRetryPolicy?.TryQueue(message, ex) == true)
-                    {
-                        // If we successfully queued for retry, do not go boom here
-                    }
-                    else
+                    if (!RetryQueueIfEligible(message, CommandFailureReason.WriteFailure, ex) == true)
                     {
                         ThrowFailed(tcs, ex);
                     }
@@ -2807,11 +2804,7 @@ namespace StackExchange.Redis
             if (result != WriteResult.Success)
             {
                 var ex = muxer.GetException(result, message, server);
-                if (muxer.CommandRetryPolicy?.TryQueue(message, ex) == true)
-                {
-                    // We have a policy and it queued the command to retry later - don't throw here
-                }
-                else
+                if (!muxer.RetryQueueIfEligible(message, CommandFailureReason.WriteFailure, ex) == true)
                 {
                     ThrowFailed(tcs, ex);
                 }
@@ -2874,11 +2867,7 @@ namespace StackExchange.Redis
                     if (result != WriteResult.Success)
                     {
                         var exResult = GetException(result, message, server);
-                        if (CommandRetryPolicy?.TryQueue(message, exResult) == true)
-                        {
-                            // Queued to retry, continue on
-                        }
-                        else
+                        if (!RetryQueueIfEligible(message, CommandFailureReason.WriteFailure, exResult) == true)
                         {
                             throw exResult;
                         }
@@ -2892,7 +2881,6 @@ namespace StackExchange.Redis
                     {
                         Trace("Timeout performing " + message);
                         Interlocked.Increment(ref syncTimeouts);
-                        var timeoutEx = ExceptionFactory.Timeout(this, null, message, server);
                         throw ExceptionFactory.Timeout(this, null, message, server);
                         // very important not to return "source" to the pool here
                     }

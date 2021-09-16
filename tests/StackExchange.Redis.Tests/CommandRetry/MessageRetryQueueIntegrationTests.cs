@@ -8,7 +8,6 @@ namespace StackExchange.Redis.Tests.CommandRetry
 {
     public class MessageRetryQueueIntegrationTests
     {
-
         [Theory]
         [InlineData(true)]
         [InlineData(false)]
@@ -18,12 +17,12 @@ namespace StackExchange.Redis.Tests.CommandRetry
             configAdmin.EndPoints.Add("127.0.0.1");
             configAdmin.AbortOnConnectFail = false;
             configAdmin.AllowAdmin = true;
-            configAdmin.CommandRetryPolicyGenerator = retryPolicySet ? DefaultCommandRetryPolicy.Always : null;
+            configAdmin.CommandRetryPolicyGenerator = retryPolicySet ? CommandRetryPolicy.Always : null;
 
             ConfigurationOptions configClient = new ConfigurationOptions();
             configClient.EndPoints.Add("127.0.0.1");
             configAdmin.AbortOnConnectFail = false;
-            configClient.CommandRetryPolicyGenerator = retryPolicySet ? DefaultCommandRetryPolicy.Always : null;
+            configClient.CommandRetryPolicyGenerator = retryPolicySet ? CommandRetryPolicy.Always : null;
 
             using (var adminMuxer = ConnectionMultiplexer.Connect(configAdmin))
             using (var clientmuxer = ConnectionMultiplexer.Connect(configClient))
