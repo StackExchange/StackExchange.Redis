@@ -1,4 +1,4 @@
-using System.Threading;
+﻿using System.Threading;
 using System.Reflection.Metadata;
 using System.Collections.Generic;
 using System.Text;
@@ -8,12 +8,27 @@ using Xunit.Abstractions;
 using static NRediSearch.Client;
 using static NRediSearch.Schema;
 using static NRediSearch.SuggestionOptions;
+using System;
+using NSubstitute.Core;
 
 namespace NRediSearch.Test.ClientTests
 {
     public class ClientTest : RediSearchTestBase
     {
         public ClientTest(ITestOutputHelper output) : base(output) { }
+
+        private long getModuleSearchVersio() {
+            Client cl = GetClient();
+            var modules = (RedisResult[])Db.Execute("MODULE", "LIST");
+            long version = 0;
+            foreach (var module in modules) {
+                var result = (RedisResult[])module;
+                if (result[1].ToString() == ("search")) {
+                    version = (long)result[3];
+                }
+            }
+            return version;
+        }
 
         [Fact]
         public void Search()
@@ -959,6 +974,10 @@ namespace NRediSearch.Test.ClientTests
         [Fact]
         public void TestWithFieldNames()
         {
+            if (getModuleSearchVersio() <= 20200) {
+                return;
+            }
+
             Client cl = GetClient();
             IndexDefinition defenition = new IndexDefinition(prefixes: new string[] {"student:", "pupil:"});
             Schema sc = new Schema().AddTextField(FieldName.Of("first").As("given")).AddTextField(FieldName.Of("last"));
@@ -1012,7 +1031,12 @@ namespace NRediSearch.Test.ClientTests
         }
 
         [Fact]
-        public void TestReturnWithFieldNames(){
+        public void TestReturnWithFieldNames()
+        {
+            if (getModuleSearchVersio() <= 20200) {
+                return;
+            }
+
             Client cl = GetClient();
             Schema sc = new Schema().AddTextField("a").AddTextField("b").AddTextField("c");
             Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions()));
@@ -1036,6 +1060,10 @@ namespace NRediSearch.Test.ClientTests
         [Fact]
         public void TestJsonIndex()
         {
+            if (getModuleSearchVersio() <= 20200) {
+                return;
+            }
+
             Client cl = GetClient();
             IndexDefinition defenition = new IndexDefinition(prefixes: new string[] {"king:"} ,type: IndexDefinition.IndexType.Json);
             Schema sc = new Schema().AddTextField("$.name");
