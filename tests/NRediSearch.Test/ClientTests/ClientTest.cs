@@ -820,6 +820,52 @@ namespace NRediSearch.Test.ClientTests
         }
 
         [Fact]
+        public void TestGetSortableTagField()
+        {
+            Client cl = GetClient();
+            Schema sc = new Schema()
+                    .AddTextField("title", 1.0)
+                    .AddSortableTagField("category", ";");
+
+            Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions()));
+            Assert.True(cl.AddDocument("foo", new Dictionary<string, RedisValue>
+            {
+                { "title", "hello world" },
+                { "category", "red" }
+            }));
+            Assert.True(cl.AddDocument("bar", new Dictionary<string, RedisValue>
+            {
+                { "title", "hello world" },
+                { "category", "blue" }
+            }));
+            Assert.True(cl.AddDocument("baz", new Dictionary<string, RedisValue>
+            {
+                { "title", "hello world" },
+                { "category", "green;yellow" }
+            }));
+            Assert.True(cl.AddDocument("qux", new Dictionary<string, RedisValue>
+            {
+                { "title", "hello world" },
+                { "category", "orange,purple" }
+            }));
+
+            var res = cl.Search(new Query("*") { SortBy = "category", SortAscending = false });
+            Assert.Equal("red", res.Documents[0]["category"]);            
+            Assert.Equal("orange,purple", res.Documents[1]["category"]);
+            Assert.Equal("green;yellow", res.Documents[2]["category"]);
+            Assert.Equal("blue", res.Documents[3]["category"]);
+
+            Assert.Equal(1, cl.Search(new Query("@category:{red}")).TotalResults);
+            Assert.Equal(1, cl.Search(new Query("@category:{blue}")).TotalResults);
+            Assert.Equal(1, cl.Search(new Query("hello @category:{red}")).TotalResults);
+            Assert.Equal(1, cl.Search(new Query("hello @category:{blue}")).TotalResults);
+            Assert.Equal(1, cl.Search(new Query("hello @category:{yellow}")).TotalResults);
+            Assert.Equal(0, cl.Search(new Query("@category:{purple}")).TotalResults);
+            Assert.Equal(1, cl.Search(new Query("@category:{orange\\,purple}")).TotalResults);
+            Assert.Equal(4, cl.Search(new Query("hello")).TotalResults);
+        }
+
+        [Fact]
         public void TestMultiDocuments()
         {
             Client cl = GetClient();

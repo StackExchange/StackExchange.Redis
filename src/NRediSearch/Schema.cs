@@ -220,12 +220,12 @@ namespace NRediSearch
         {
             public string Separator { get; }
 
-            internal TagField(string name, string separator = ",") : base(name, FieldType.Tag, false)
+            internal TagField(string name, string separator = ",", bool sortable = false) : base(name, FieldType.Tag, sortable)
             {
                 Separator = separator;
             }
 
-            internal TagField(FieldName name, string separator = ",") : base(name, FieldType.Tag, false)
+            internal TagField(FieldName name, string separator = ",", bool sortable = false) : base(name, FieldType.Tag, sortable)
             {
                 Separator = separator;
             }
@@ -235,8 +235,10 @@ namespace NRediSearch
                 base.SerializeRedisArgs(args);
                 if (Separator != ",")
                 {
+                    if (Sortable) args.Remove("SORTABLE");
                     args.Add("SEPARATOR".Literal());
                     args.Add(Separator);
+                    if (Sortable) args.Add("SORTABLE".Literal());
                 }
             }
         }
@@ -262,6 +264,30 @@ namespace NRediSearch
         public Schema AddTagField(FieldName name, string separator = ",")
         {
             Fields.Add(new TagField(name, separator));
+            return this;
+        }
+
+        /// <summary>
+        /// Add a sortable TAG field.
+        /// </summary>
+        /// <param name="name">The field's name.</param>
+        /// <param name="separator">The tag separator.</param>
+        /// <returns>The <see cref="Schema"/> object.</returns>
+        public Schema AddSortableTagField(string name, string separator = ",")
+        {
+            Fields.Add(new TagField(name, separator, sortable: true));
+            return this;
+        }
+
+        /// <summary>
+        /// Add a sortable TAG field.
+        /// </summary>
+        /// <param name="name">The field's name.</param>
+        /// <param name="separator">The tag separator.</param>
+        /// <returns>The <see cref="Schema"/> object.</returns>
+        public Schema AddSortableTagField(FieldName name, string separator = ",")
+        {
+            Fields.Add(new TagField(name, separator, sortable: true));
             return this;
         }
     }
