@@ -26,19 +26,21 @@ namespace NRediSearch
             public FieldType Type { get; }
             public bool Sortable { get; }
             public bool NoIndex { get; }
+            public bool Unf { get; }
 
-            internal Field(string name, FieldType type, bool sortable, bool noIndex = false)
-            : this(FieldName.Of(name), type, sortable, noIndex)
+            internal Field(string name, FieldType type, bool sortable, bool noIndex = false, bool unf = false)
+            : this(FieldName.Of(name), type, sortable, noIndex, unf)
             {
                 Name = name;
             }
 
-            internal Field(FieldName name, FieldType type, bool sortable, bool noIndex = false)
+            internal Field(FieldName name, FieldType type, bool sortable, bool noIndex = false, bool unf = false)
             {
                 FieldName = name;
                 Type = type;
                 Sortable = sortable;
                 NoIndex = noIndex;
+                Unf = unf;
             }
 
             internal virtual void SerializeRedisArgs(List<object> args)
@@ -55,6 +57,7 @@ namespace NRediSearch
                 args.Add(GetForRedis(Type));
                 if (Sortable) { args.Add("SORTABLE".Literal()); }
                 if (NoIndex) { args.Add("NOINDEX".Literal()); }
+                if (Unf) args.Add("UNF".Literal());
             }
         }
 
@@ -62,22 +65,19 @@ namespace NRediSearch
         {
             public double Weight { get; }
             public bool NoStem { get; }
-            public bool Unf { get; }
 
             public TextField(string name, double weight = 1.0, bool sortable = false, bool noStem = false, bool noIndex = false, bool unf = false)
-            : base(name, FieldType.FullText, sortable, noIndex)
+            : base(name, FieldType.FullText, sortable, noIndex, unf)
             {
                 Weight = weight;
                 NoStem = noStem;
-                Unf = unf;
             }
 
             public TextField(FieldName name, double weight = 1.0, bool sortable = false, bool noStem = false, bool noIndex = false, bool unf = false)
-            : base(name, FieldType.FullText, sortable, noIndex)
+            : base(name, FieldType.FullText, sortable, noIndex, unf)
             {
                 Weight = weight;
                 NoStem = noStem;
-                Unf = unf;
             }
 
             internal override void SerializeRedisArgs(List<object> args)
@@ -89,7 +89,6 @@ namespace NRediSearch
                     args.Add(Weight);
                 }
                 if (NoStem) args.Add("NOSTEM".Literal());
-                if (Unf) args.Add("UNF".Literal());
             }
         }
 
@@ -223,18 +222,17 @@ namespace NRediSearch
         public class TagField : Field
         {
             public string Separator { get; }
-            public bool Unf { get; }
 
-            internal TagField(string name, string separator = ",", bool sortable = false, bool unf = false) : base(name, FieldType.Tag, sortable)
+            internal TagField(string name, string separator = ",", bool sortable = false, bool unf = false)
+            : base(name, FieldType.Tag, sortable, unf: unf)
             {
                 Separator = separator;
-                Unf = unf;
             }
 
-            internal TagField(FieldName name, string separator = ",", bool sortable = false, bool unf = false) : base(name, FieldType.Tag, sortable)
+            internal TagField(FieldName name, string separator = ",", bool sortable = false, bool unf = false)
+            : base(name, FieldType.Tag, sortable, unf: unf)
             {
                 Separator = separator;
-                Unf = unf;
             }
 
             internal override void SerializeRedisArgs(List<object> args)
@@ -245,9 +243,8 @@ namespace NRediSearch
                     if (Sortable) args.Remove("SORTABLE");
                     args.Add("SEPARATOR".Literal());
                     args.Add(Separator);
+                    if (Sortable) args.Add("SORTABLE".Literal());
                 }
-                if (Sortable) args.Add("SORTABLE".Literal());
-                if (Unf) args.Add("UNF".Literal());
             }
         }
 

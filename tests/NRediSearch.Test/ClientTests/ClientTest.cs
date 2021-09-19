@@ -872,7 +872,7 @@ namespace NRediSearch.Test.ClientTests
             // Add version check
 
             Client cl = GetClient();
-            sc = new Schema().AddSortableTextField("txt").AddSortableTextField("txt_unf", unf: true).
+            Schema sc = new Schema().AddSortableTextField("txt").AddSortableTextField("txt_unf", unf: true).
                               AddSortableTagField("tag").AddSortableTagField("tag_unf", unf: true);
             Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions()));
             Db.Execute("HSET", "doc1", "txt", "FOO", "txt_unf", "FOO", "tag", "FOO", "tag_unf", "FOO");
