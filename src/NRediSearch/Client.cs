@@ -32,7 +32,7 @@ namespace NRediSearch
             /// <summary>
             /// The default indexing options - use term offsets, keep fields flags, keep term frequencies
             /// </summary>
-            Default = UseTermOffsets | KeepFieldFlags | KeepTermFrequencies,
+            Default = KeepFieldFlags | KeepTermFrequencies,
             /// <summary>
             /// If set, we keep an index of the top entries per term, allowing extremely fast single word queries
             /// regardless of index size, at the cost of more memory
@@ -214,7 +214,7 @@ namespace NRediSearch
 
             public ConfiguredIndexOptions SetUseTermOffsets()
             {
-                _options &= ~IndexOptions.UseTermOffsets;
+                _options |= IndexOptions.UseTermOffsets;
 
                 return this;
             }
@@ -249,11 +249,11 @@ namespace NRediSearch
             internal static void SerializeRedisArgs(IndexOptions options, List<object> args, IndexDefinition definition)
             {
                 definition?.SerializeRedisArgs(args);
-                if ((options & IndexOptions.MaxTextFields) == 0)
+                if ((options & IndexOptions.MaxTextFields) == IndexOptions.MaxTextFields)
                 {
                     args.Add("MAXTEXTFIELDS".Literal());
                 }
-                if ((options & IndexOptions.UseTermOffsets) == 0)
+                if ((options & IndexOptions.UseTermOffsets) == IndexOptions.UseTermOffsets)
                 {
                     args.Add("NOOFFSETS".Literal());
                 }
