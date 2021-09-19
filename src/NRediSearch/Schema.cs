@@ -62,19 +62,22 @@ namespace NRediSearch
         {
             public double Weight { get; }
             public bool NoStem { get; }
+            public bool Unf { get; }
 
-            public TextField(string name, double weight = 1.0, bool sortable = false, bool noStem = false, bool noIndex = false)
+            public TextField(string name, double weight = 1.0, bool sortable = false, bool noStem = false, bool noIndex = false, bool unf = false)
             : base(name, FieldType.FullText, sortable, noIndex)
             {
                 Weight = weight;
                 NoStem = noStem;
+                Unf = unf;
             }
 
-            public TextField(FieldName name, double weight = 1.0, bool sortable = false, bool noStem = false, bool noIndex = false)
+            public TextField(FieldName name, double weight = 1.0, bool sortable = false, bool noStem = false, bool noIndex = false, bool unf = false)
             : base(name, FieldType.FullText, sortable, noIndex)
             {
                 Weight = weight;
                 NoStem = noStem;
+                Unf = unf;
             }
 
             internal override void SerializeRedisArgs(List<object> args)
@@ -86,6 +89,7 @@ namespace NRediSearch
                     args.Add(Weight);
                 }
                 if (NoStem) args.Add("NOSTEM".Literal());
+                if (Unf) args.Add("UNF".Literal());
             }
         }
 
@@ -132,9 +136,9 @@ namespace NRediSearch
         /// <param name="name">The field's name.</param>
         /// <param name="weight">Its weight, a positive floating point number.</param>
         /// <returns>The <see cref="Schema"/> object.</returns>
-        public Schema AddSortableTextField(string name, double weight = 1.0)
+        public Schema AddSortableTextField(string name, double weight = 1.0, bool unf = false)
         {
-            Fields.Add(new TextField(name, weight, true));
+            Fields.Add(new TextField(name, weight, true, unf: unf));
             return this;
         }
 
@@ -144,9 +148,9 @@ namespace NRediSearch
         /// <param name="name">The field's name.</param>
         /// <param name="weight">Its weight, a positive floating point number.</param>
         /// <returns>The <see cref="Schema"/> object.</returns>
-        public Schema AddSortableTextField(FieldName name, double weight = 1.0)
+        public Schema AddSortableTextField(FieldName name, double weight = 1.0, bool unf = false)
         {
-            Fields.Add(new TextField(name, weight, true));
+            Fields.Add(new TextField(name, weight, true, unf: unf));
             return this;
         }
 
@@ -219,15 +223,18 @@ namespace NRediSearch
         public class TagField : Field
         {
             public string Separator { get; }
+            public bool Unf { get; }
 
-            internal TagField(string name, string separator = ",", bool sortable = false) : base(name, FieldType.Tag, sortable)
+            internal TagField(string name, string separator = ",", bool sortable = false, bool unf = false) : base(name, FieldType.Tag, sortable)
             {
                 Separator = separator;
+                Unf = unf;
             }
 
-            internal TagField(FieldName name, string separator = ",", bool sortable = false) : base(name, FieldType.Tag, sortable)
+            internal TagField(FieldName name, string separator = ",", bool sortable = false, bool unf = false) : base(name, FieldType.Tag, sortable)
             {
                 Separator = separator;
+                Unf = unf;
             }
 
             internal override void SerializeRedisArgs(List<object> args)
@@ -238,8 +245,9 @@ namespace NRediSearch
                     if (Sortable) args.Remove("SORTABLE");
                     args.Add("SEPARATOR".Literal());
                     args.Add(Separator);
-                    if (Sortable) args.Add("SORTABLE".Literal());
                 }
+                if (Sortable) args.Add("SORTABLE".Literal());
+                if (Unf) args.Add("UNF".Literal());
             }
         }
 
@@ -273,9 +281,9 @@ namespace NRediSearch
         /// <param name="name">The field's name.</param>
         /// <param name="separator">The tag separator.</param>
         /// <returns>The <see cref="Schema"/> object.</returns>
-        public Schema AddSortableTagField(string name, string separator = ",")
+        public Schema AddSortableTagField(string name, string separator = ",", bool unf = false)
         {
-            Fields.Add(new TagField(name, separator, sortable: true));
+            Fields.Add(new TagField(name, separator, sortable: true, unf: unf));
             return this;
         }
 
@@ -285,9 +293,9 @@ namespace NRediSearch
         /// <param name="name">The field's name.</param>
         /// <param name="separator">The tag separator.</param>
         /// <returns>The <see cref="Schema"/> object.</returns>
-        public Schema AddSortableTagField(FieldName name, string separator = ",")
+        public Schema AddSortableTagField(FieldName name, string separator = ",", bool unf = false)
         {
-            Fields.Add(new TagField(name, separator, sortable: true));
+            Fields.Add(new TagField(name, separator, sortable: true, unf: unf));
             return this;
         }
     }

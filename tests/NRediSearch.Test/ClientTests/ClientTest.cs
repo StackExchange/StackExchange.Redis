@@ -4,9 +4,11 @@ using System.Text;
 using StackExchange.Redis;
 using Xunit;
 using Xunit.Abstractions;
+using NRediSearch.Aggregation;
 using static NRediSearch.Client;
 using static NRediSearch.Schema;
 using static NRediSearch.SuggestionOptions;
+
 
 namespace NRediSearch.Test.ClientTests
 {
@@ -850,7 +852,7 @@ namespace NRediSearch.Test.ClientTests
             }));
 
             var res = cl.Search(new Query("*") { SortBy = "category", SortAscending = false });
-            Assert.Equal("red", res.Documents[0]["category"]);            
+            Assert.Equal("red", res.Documents[0]["category"]);
             Assert.Equal("orange,purple", res.Documents[1]["category"]);
             Assert.Equal("green;yellow", res.Documents[2]["category"]);
             Assert.Equal("blue", res.Documents[3]["category"]);
@@ -866,10 +868,33 @@ namespace NRediSearch.Test.ClientTests
         }
 
         [Fact]
+        public void TestGetTagFieldUnf() {
+            // Add version check
+
+            Client cl = GetClient();
+            sc = new Schema().AddSortableTextField("txt").AddSortableTextField("txt_unf", unf: true).
+                              AddSortableTagField("tag").AddSortableTagField("tag_unf", unf: true);
+            Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions()));
+            Db.Execute("HSET", "doc1", "txt", "FOO", "txt_unf", "FOO", "tag", "FOO", "tag_unf", "FOO");
+
+            AggregationBuilder r = new AggregationBuilder()
+                    .GroupBy(new List<string> {"@txt", "@txt_unf", "@tag", "@tag_unf"}, new List<Aggregation.Reducers.Reducer> {});
+
+            AggregationResult res = cl.Aggregate(r);
+            var results = res.GetResults()[0];
+            Assert.NotNull(results);
+            Assert.Equal(4, results.Count);
+            Assert.Equal("foo", results["txt"]);
+            Assert.Equal("FOO", results["txt_unf"]);
+            Assert.Equal("foo", results["tag"]);
+            Assert.Equal("FOO", results["tag_unf"]);
+        }
+
+        [Fact]
         public void TestMultiDocuments()
         {
             Client cl = GetClient();
-            Schema sc = new Schema().AddTextField("title", 1.0).AddTextField("body", 1.0);
+            Schema sc = new Schema().AddTextField("title").AddTextField("body");
 
             Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions()));
 
