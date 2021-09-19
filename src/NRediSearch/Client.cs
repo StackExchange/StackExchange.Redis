@@ -32,7 +32,7 @@ namespace NRediSearch
             /// <summary>
             /// The default indexing options - use term offsets, keep fields flags, keep term frequencies
             /// </summary>
-            Default = SkipInitialScan | NoHighligh | MaxTextFields | UseTermOffsets | KeepFieldFlags | KeepTermFrequencies,
+            Default = UseTermOffsets | KeepFieldFlags | KeepTermFrequencies,
             /// <summary>
             /// If set, we keep an index of the top entries per term, allowing extremely fast single word queries
             /// regardless of index size, at the cost of more memory
@@ -193,21 +193,21 @@ namespace NRediSearch
 
             public ConfiguredIndexOptions SetNoHighligh()
             {
-                _options &= ~IndexOptions.NoHighligh;
+                _options |= IndexOptions.NoHighligh;
 
                 return this;
             }
 
             public ConfiguredIndexOptions SetSkipInitialScan()
             {
-                _options &= ~IndexOptions.SkipInitialScan;
+                _options |= IndexOptions.SkipInitialScan;
 
                 return this;
             }
 
             public ConfiguredIndexOptions SetMaxTextFields()
             {
-                _options &= ~IndexOptions.MaxTextFields;
+                _options |= IndexOptions.MaxTextFields;
 
                 return this;
             }
@@ -257,7 +257,7 @@ namespace NRediSearch
                 {
                     args.Add("NOOFFSETS".Literal());
                 }
-                if ((options & IndexOptions.NoHighligh) == 0)
+                if ((options & IndexOptions.NoHighligh) == IndexOptions.NoHighligh)
                 {
                     args.Add("NOHL".Literal());
                 }
@@ -274,7 +274,7 @@ namespace NRediSearch
                     args.Add("STOPWORDS".Literal());
                     args.Add(0.Boxed());
                 }
-                if ((options & IndexOptions.SkipInitialScan) == 0)
+                if ((options & IndexOptions.SkipInitialScan) == IndexOptions.SkipInitialScan)
                 {
                     args.Add("SKIPINITIALSCAN".Literal());
                 }
