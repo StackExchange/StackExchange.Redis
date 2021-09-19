@@ -244,9 +244,11 @@ namespace NRediSearch
                 if (Separator != ",")
                 {
                     if (Sortable) args.Remove("SORTABLE");
+                    if (Unf) args.Remove("UNF");
                     args.Add("SEPARATOR".Literal());
                     args.Add(Separator);
                     if (Sortable) args.Add("SORTABLE".Literal());
+                    if (Unf) args.Add("UNF".Literal());
                 }
             }
         }
