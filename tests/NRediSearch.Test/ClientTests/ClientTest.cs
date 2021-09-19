@@ -1,5 +1,4 @@
 ﻿using System.Threading;
-using System.Reflection.Metadata;
 using System.Collections.Generic;
 using System.Text;
 using StackExchange.Redis;
@@ -8,8 +7,7 @@ using Xunit.Abstractions;
 using static NRediSearch.Client;
 using static NRediSearch.Schema;
 using static NRediSearch.SuggestionOptions;
-using System;
-using NSubstitute.Core;
+
 
 namespace NRediSearch.Test.ClientTests
 {
