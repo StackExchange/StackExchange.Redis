@@ -40,6 +40,9 @@ namespace NRediSearch
                 Type = type;
                 Sortable = sortable;
                 NoIndex = noIndex;
+                if (unf && !sortable){
+                    throw new ArgumentException("UNF can't be applied on a non-sortable field.");
+                }
                 Unf = unf;
             }
 
@@ -56,8 +59,8 @@ namespace NRediSearch
                 FieldName.AddCommandArguments(args);
                 args.Add(GetForRedis(Type));
                 if (Sortable) { args.Add("SORTABLE".Literal()); }
-                if (NoIndex) { args.Add("NOINDEX".Literal()); }
                 if (Unf) args.Add("UNF".Literal());
+                if (NoIndex) { args.Add("NOINDEX".Literal()); }
             }
         }
 
