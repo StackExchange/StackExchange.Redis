@@ -1,6 +1,7 @@
 ﻿using System.Reflection.Metadata;
 using System.Collections.Generic;
 using System.Text;
+using System;
 using StackExchange.Redis;
 using Xunit;
 using Xunit.Abstractions;
@@ -872,6 +873,15 @@ namespace NRediSearch.Test.ClientTests
             // Add version check
 
             Client cl = GetClient();
+
+            // Check that UNF can't be given to non-sortable filed
+            try {
+                var temp = new Schema().AddField(new TextField("non-sortable-unf", 1.0, sortable: false, unf: true));
+                Assert.True(false);
+            } catch (ArgumentException) {
+                Assert.True(true);
+            }
+
             Schema sc = new Schema().AddSortableTextField("txt").AddSortableTextField("txt_unf", unf: true).
                               AddSortableTagField("tag").AddSortableTagField("tag_unf", unf: true);
             Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions()));
