@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
-using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Security;
@@ -90,8 +89,8 @@ namespace StackExchange.Redis
                 TieBreaker = "tiebreaker",
                 Version = "version",
                 WriteBuffer = "writeBuffer",
-                CheckCertificateRevocation = "checkCertificateRevocation";
-
+                CheckCertificateRevocation = "checkCertificateRevocation",
+                SubscribeAzureRedisEvents = "subscribeAzureRedisEvents";
 
             private static readonly Dictionary<string, string> normalizedOptions = new[]
             {
@@ -133,7 +132,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private bool? allowAdmin, abortOnConnectFail, highPrioritySocketThreads, resolveDns, ssl, checkCertificateRevocation;
+        private bool? allowAdmin, abortOnConnectFail, highPrioritySocketThreads, resolveDns, ssl, checkCertificateRevocation, subscribeAzureRedisEvents;
 
         private string tieBreaker, sslHost, configChannel;
 
@@ -402,6 +401,11 @@ namespace StackExchange.Redis
         public int ConfigCheckSeconds { get { return configCheckSeconds.GetValueOrDefault(60); } set { configCheckSeconds = value; } }
 
         /// <summary>
+        /// Subscribe to the AzureRedisEvents pubsub channel
+        /// </summary>
+        public bool SubscribeAzureRedisEvents { get { return subscribeAzureRedisEvents.GetValueOrDefault(false); } set { subscribeAzureRedisEvents = value; } }
+
+        /// <summary>
         /// Parse the configuration from a comma-delimited configuration string
         /// </summary>
         /// <param name="configuration">The configuration string to parse.</param>
@@ -466,6 +470,7 @@ namespace StackExchange.Redis
                 ReconnectRetryPolicy = reconnectRetryPolicy,
                 SslProtocols = SslProtocols,
                 checkCertificateRevocation = checkCertificateRevocation,
+                subscribeAzureRedisEvents = subscribeAzureRedisEvents
             };
             foreach (var item in EndPoints)
                 options.EndPoints.Add(item);
@@ -550,6 +555,7 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.ConfigCheckSeconds, configCheckSeconds);
             Append(sb, OptionKeys.ResponseTimeout, responseTimeout);
             Append(sb, OptionKeys.DefaultDatabase, DefaultDatabase);
+            Append(sb, OptionKeys.SubscribeAzureRedisEvents, subscribeAzureRedisEvents);
             commandMap?.AppendDeltas(sb);
             return sb.ToString();
         }
@@ -628,7 +634,7 @@ namespace StackExchange.Redis
         {
             ClientName = ServiceName = User = Password = tieBreaker = sslHost = configChannel = null;
             keepAlive = syncTimeout = asyncTimeout = connectTimeout = writeBuffer = connectRetry = configCheckSeconds = DefaultDatabase = null;
-            allowAdmin = abortOnConnectFail = highPrioritySocketThreads = resolveDns = ssl = null;
+            allowAdmin = abortOnConnectFail = highPrioritySocketThreads = resolveDns = ssl = subscribeAzureRedisEvents = null;
             SslProtocols = null;
             defaultVersion = null;
             EndPoints.Clear();
@@ -758,6 +764,9 @@ namespace StackExchange.Redis
                         case OptionKeys.SslProtocols:
                             SslProtocols = OptionKeys.ParseSslProtocols(key, value);
                             break;
+                        case OptionKeys.SubscribeAzureRedisEvents:
+                            SubscribeAzureRedisEvents = OptionKeys.ParseBoolean(key, value);
+                            break;
                         default:
                             if (!string.IsNullOrEmpty(key) && key[0] == '$')
                             {
@@ -824,6 +833,26 @@ namespace StackExchange.Redis
             }
 
             return null;
+        }
+
+        internal bool IsAzureSLBEndPoint()
+        {
+            if (IsAzureEndpoint() && EndPoints.Count == 1)
+            {
+                var endpoint = EndPoints[0];
+                int port = 0;
+                if (endpoint is DnsEndPoint)
+                {
+                    port = ((DnsEndPoint)endpoint).Port;
+                }
+                else if (endpoint is IPEndPoint)
+                {
+                    port = ((IPEndPoint)endpoint).Port;
+                }
+                if (port == 6379 || port == 6380)
+                    return true;
+            }
+            return false;
         }
     }
 }
