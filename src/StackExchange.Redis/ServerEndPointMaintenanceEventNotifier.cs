@@ -2,11 +2,11 @@
 
 namespace StackExchange.Redis
 {
-    internal class ServerEndPointMaintenanceMultiplexerEventNotifier : IObserver<AzureMaintenanceEvent>
+    internal class ServerEndPointMaintenanceEventNotifier : IObserver<AzureMaintenanceEvent>
     {
         private readonly ConnectionMultiplexer multiplexer;
 
-        internal ServerEndPointMaintenanceMultiplexerEventNotifier(ConnectionMultiplexer multiplexer)
+        internal ServerEndPointMaintenanceEventNotifier(ConnectionMultiplexer multiplexer)
         {
             this.multiplexer = multiplexer;
         }
@@ -23,6 +23,7 @@ namespace StackExchange.Redis
 
         public void OnNext(AzureMaintenanceEvent value)
         {
+            Console.Out.WriteLine("Event came in, about to invoke user function.");
             multiplexer.InvokeServerMaintenanceEvent(value);
 
             // TODO(ansoedal): Use constants

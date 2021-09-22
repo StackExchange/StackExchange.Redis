@@ -138,6 +138,7 @@ namespace StackExchange.Redis
 
         internal readonly ServerEndPointMaintenanceNotifier serverEndPointMaintenanceNotifier;
         private readonly IDisposable _maintenanceNotificationSubscription_Multiplexer;
+        private readonly IDisposable _maintenanceNotificationSubscription_TopologyRefresher;
 
         /// <summary>
         /// Gets the client-name that will be used on all new connections
@@ -1014,7 +1015,7 @@ namespace StackExchange.Redis
         }
         private static ConnectionMultiplexer CreateMultiplexer(ConfigurationOptions configuration, LogProxy log, out EventHandler<ConnectionFailedEventArgs> connectHandler)
         {
-            var muxer = new ConnectionMultiplexer(configuration);
+            var muxer = new ConnectionMultiplexer(configuration, log);
             connectHandler = null;
             if (log != null)
             {
@@ -1315,7 +1316,7 @@ namespace StackExchange.Redis
 
         internal readonly CommandMap CommandMap;
 
-        private ConnectionMultiplexer(ConfigurationOptions configuration)
+        private ConnectionMultiplexer(ConfigurationOptions configuration, LogProxy logProxy)
         {
             IncludeDetailInExceptions = true;
             IncludePerformanceCountersInExceptions = false;
@@ -1343,8 +1344,13 @@ namespace StackExchange.Redis
                 ConfigurationChangedChannel = Encoding.UTF8.GetBytes(configChannel);
             }
             lastHeartbeatTicks = Environment.TickCount;
-            serverEndPointMaintenanceNotifier = new ServerEndPointMaintenanceNotifier(this);
-            _maintenanceNotificationSubscription_Multiplexer = serverEndPointMaintenanceNotifier.Subscribe(new ServerEndPointMaintenanceMultiplexerEventNotifier(this)); // todo: wrap in switch
+
+            if (configuration.SubscribeAzureRedisEvents)
+            {
+                serverEndPointMaintenanceNotifier = new ServerEndPointMaintenanceNotifier(this);
+                _maintenanceNotificationSubscription_Multiplexer = serverEndPointMaintenanceNotifier.Subscribe(new ServerEndPointMaintenanceEventNotifier(this));
+                _maintenanceNotificationSubscription_TopologyRefresher = serverEndPointMaintenanceNotifier.Subscribe(new ServerEndPointMaintenanceTopologyRefresher(this, logProxy: logProxy));
+            }
         }
 
         partial void OnCreateReaderWriter(ConfigurationOptions configuration);
@@ -2794,6 +2800,7 @@ namespace StackExchange.Redis
             var oldTimer = Interlocked.Exchange(ref sentinelMasterReconnectTimer, null);
             oldTimer?.Dispose();
             _maintenanceNotificationSubscription_Multiplexer?.Dispose();
+            _maintenanceNotificationSubscription_TopologyRefresher?.Dispose();
         }
 
         internal Task<T> ExecuteAsyncImpl<T>(Message message, ResultProcessor<T> processor, object state, ServerEndPoint server)
