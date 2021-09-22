@@ -24,6 +24,13 @@ namespace StackExchange.Redis
         public void OnNext(AzureMaintenanceEvent value)
         {
             multiplexer.InvokeServerMaintenanceEvent(value);
+
+            // TODO(ansoedal): Use constants
+            if (StringComparer.OrdinalIgnoreCase.Equals(value.NotificationType, "NodeMaintenanceEnded") || StringComparer.OrdinalIgnoreCase.Equals(value.NotificationType, "NodeMaintenanceFailover"))
+            {
+                // Need to get all the params for reconfigure async
+                //multiplexer.ReconfigureAsync().Wait();
+            }
         }
     }
 }

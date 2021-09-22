@@ -136,10 +136,7 @@ namespace StackExchange.Redis
             return counters;
         }
 
-        // internal readonly MessageRetryManager messageRetryManager; // TODO(ansoedal): need this?
         internal readonly ServerEndPointMaintenanceNotifier serverEndPointMaintenanceNotifier;
-        internal readonly ServerEndPointMaintenanceTracker serverEndPointMaintenanceTracker;
-        private readonly IDisposable _maintenanceNotificationSubscription_RetryManager;
         private readonly IDisposable _maintenanceNotificationSubscription_Multiplexer;
 
         /// <summary>
@@ -916,9 +913,9 @@ namespace StackExchange.Redis
                         {
                             await muxer.serverEndPointMaintenanceNotifier.StartListeningToMaintenanceNotification(logProxy).ForAwait();
                         }
-                        catch (Exception)
+                        catch (Exception ex)
                         {
-                            // TODO(ansoedal): Log ex?
+                            log?.WriteLine($"Encountered exception: {ex}");
                         }
                     }
                     return muxer;
@@ -1223,9 +1220,9 @@ namespace StackExchange.Redis
                         {
                             muxer.serverEndPointMaintenanceNotifier.StartListeningToMaintenanceNotification(logProxy).Wait();
                         }
-                        catch (Exception)
+                        catch (Exception ex)
                         {
-                            // TODO(ansoedal): Do something? Log here?
+                            log?.WriteLine($"Encountered exception: {ex}");
                         }
                     }
                     return muxer;
@@ -1347,9 +1344,7 @@ namespace StackExchange.Redis
             }
             lastHeartbeatTicks = Environment.TickCount;
             serverEndPointMaintenanceNotifier = new ServerEndPointMaintenanceNotifier(this);
-            serverEndPointMaintenanceTracker = new ServerEndPointMaintenanceTracker(this);
-            _maintenanceNotificationSubscription_RetryManager = serverEndPointMaintenanceNotifier.Subscribe(serverEndPointMaintenanceTracker);
-            _maintenanceNotificationSubscription_Multiplexer = serverEndPointMaintenanceNotifier.Subscribe(new ServerEndPointMaintenanceMultiplexerEventNotifier(this));
+            _maintenanceNotificationSubscription_Multiplexer = serverEndPointMaintenanceNotifier.Subscribe(new ServerEndPointMaintenanceMultiplexerEventNotifier(this)); // todo: wrap in switch
         }
 
         partial void OnCreateReaderWriter(ConfigurationOptions configuration);
@@ -2798,7 +2793,6 @@ namespace StackExchange.Redis
             sentinelConnection?.Dispose();
             var oldTimer = Interlocked.Exchange(ref sentinelMasterReconnectTimer, null);
             oldTimer?.Dispose();
-            _maintenanceNotificationSubscription_RetryManager?.Dispose();
             _maintenanceNotificationSubscription_Multiplexer?.Dispose();
         }
 

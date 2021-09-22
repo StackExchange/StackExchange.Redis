@@ -119,10 +119,7 @@ namespace StackExchange.Redis
                     }
                 }
             }
-            catch (Exception)
-            {
-                // TODO(ansoedal): What to do here?
-            }
+            catch { }
         }
 
         /// <summary>
