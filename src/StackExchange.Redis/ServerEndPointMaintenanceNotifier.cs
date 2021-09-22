@@ -28,21 +28,20 @@ namespace StackExchange.Redis
         internal async Task StartListeningToMaintenanceNotification(LogProxy logProxy)
         {
             var sub = multiplexer.GetSubscriber();
-            if (sub != null)
-            {
-                await sub.SubscribeAsync("AzureRedisEvents", (channel, message) =>
-                {
-                    var newMessage = new AzureMaintenanceEvent(message, multiplexer.RawConfig.IsAzureSLBEndPoint() && multiplexer.ServerSelectionStrategy.ServerType != ServerType.Cluster);
-                    foreach (var observer in observers)
-                    {
-                        observer.OnNext(newMessage);
-                    }
-                }).ForAwait();
-            }
-            else
+            if (sub == null)
             {
                 logProxy?.WriteLine("Failed to GetSubscriber for AzureRedisEvents");
+                return;
             }
+
+            await sub.SubscribeAsync("AzureRedisEvents", (channel, message) =>
+            {
+                var newMessage = new AzureMaintenanceEvent(message, multiplexer.RawConfig.IsAzureSLBEndPoint() && multiplexer.ServerSelectionStrategy.ServerType != ServerType.Cluster);
+                foreach (var observer in observers)
+                {
+                    observer.OnNext(newMessage);
+                }
+            }).ForAwait();
         }
     }
 
@@ -156,5 +155,18 @@ namespace StackExchange.Redis
         /// non-ssl port
         /// </summary>
         public readonly int NonSSLPort;
+
+        /// <summary>
+        /// Returns a string representing the maintenance event with all of its properties
+        /// </summary>
+        public override string ToString()
+        {
+            return $"{nameof(NotificationType)}|{NotificationType}|" +
+                $"{nameof(StartTimeUtc)}|{StartTimeUtc:s}|" +
+                $"{nameof(IsReplica)}|{IsReplica}|" +
+                $"{nameof(IpAddress)}|{IpAddress}|" +
+                $"{nameof(SSLPort)}|{SSLPort}|" +
+                $"{nameof(NonSSLPort)}|{NonSSLPort}";
+        }
     }
 }

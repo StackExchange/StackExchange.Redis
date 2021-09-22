@@ -28,11 +28,10 @@ namespace StackExchange.Redis
         {
             Console.Out.WriteLine("Event came in.");
 
-            // TODO(ansoedal): Use constants
             if (StringComparer.OrdinalIgnoreCase.Equals(value.NotificationType, "NodeMaintenanceEnded") || StringComparer.OrdinalIgnoreCase.Equals(value.NotificationType, "NodeMaintenanceFailover"))
             {
                 Console.Out.WriteLine("Event came in, about to refresh topology.");
-                multiplexer.ReconfigureAsync(first: false, reconfigureAll: true, log: logProxy, blame: null, cause: "server maintenance", publishReconfigure: true).Wait();
+                multiplexer.ReconfigureAsync(first: false, reconfigureAll: true, log: logProxy, blame: null, cause: "server maintenance").Wait();
             }
         }
     }
