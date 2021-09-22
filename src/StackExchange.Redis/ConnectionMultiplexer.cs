@@ -1356,18 +1356,14 @@ namespace StackExchange.Redis
         partial void OnCreateReaderWriter(ConfigurationOptions configuration);
 
         internal const int MillisecondsPerHeartbeat = 1000;
-
         private sealed class TimerToken
         {
             public TimerToken(ConnectionMultiplexer muxer)
             {
                 _ref = new WeakReference(muxer);
             }
-
             private Timer _timer;
-
             public void SetTimer(Timer timer) => _timer = timer;
-
             private readonly WeakReference _ref;
 
             private static readonly TimerCallback Heartbeat = state =>
