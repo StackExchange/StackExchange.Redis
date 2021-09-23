@@ -18,7 +18,6 @@ namespace StackExchange.Redis
 
         public IDisposable Subscribe(IObserver<AzureMaintenanceEvent> observer)
         {
-            Console.Out.WriteLine("Subscribing to become an observer.");
             if (!observers.Contains(observer))
             {
                 observers.Add(observer);
@@ -66,7 +65,6 @@ namespace StackExchange.Redis
 
         public void Dispose()
         {
-            Console.WriteLine("Observer was disposed correctly.");
             _observers.Remove(_observer);
         }
     }
