@@ -136,9 +136,9 @@ namespace StackExchange.Redis
             return counters;
         }
 
-        internal readonly ServerEndPointMaintenanceNotifier serverEndPointMaintenanceNotifier;
-        private readonly IDisposable _maintenanceNotificationSubscription_Multiplexer;
-        private readonly IDisposable _maintenanceNotificationSubscription_TopologyRefresher;
+        internal readonly MaintenanceNotificationListener maintenanceNotificationListener;
+        private readonly IDisposable _maintenanceEventTrigger;
+        private readonly IDisposable _reconfigureAfterMaintenance;
 
         /// <summary>
         /// Gets the client-name that will be used on all new connections
@@ -910,14 +910,7 @@ namespace StackExchange.Redis
 
                     if (configuration.SubscribeAzureRedisEvents)
                     {
-                        try
-                        {
-                            await muxer.serverEndPointMaintenanceNotifier.StartListeningToMaintenanceNotification(logProxy).ForAwait();
-                        }
-                        catch (Exception ex)
-                        {
-                            log?.WriteLine($"Encountered exception: {ex}");
-                        }
+                        await muxer.maintenanceNotificationListener.StartListening(logProxy).ForAwait();
                     }
                     return muxer;
                 }
@@ -1217,14 +1210,7 @@ namespace StackExchange.Redis
 
                     if (configuration.SubscribeAzureRedisEvents)
                     {
-                        try
-                        {
-                            muxer.serverEndPointMaintenanceNotifier.StartListeningToMaintenanceNotification(logProxy).Wait();
-                        }
-                        catch (Exception ex)
-                        {
-                            log?.WriteLine($"Encountered exception: {ex}");
-                        }
+                        muxer.maintenanceNotificationListener.StartListening(logProxy).Wait();
                     }
                     return muxer;
                 }
@@ -1347,9 +1333,9 @@ namespace StackExchange.Redis
 
             if (configuration.SubscribeAzureRedisEvents)
             {
-                serverEndPointMaintenanceNotifier = new ServerEndPointMaintenanceNotifier(this);
-                _maintenanceNotificationSubscription_Multiplexer = serverEndPointMaintenanceNotifier.Subscribe(new ServerEndPointMaintenanceEventNotifier(this));
-                _maintenanceNotificationSubscription_TopologyRefresher = serverEndPointMaintenanceNotifier.Subscribe(new ServerEndPointMaintenanceTopologyRefresher(this, logProxy: logProxy));
+                maintenanceNotificationListener = new MaintenanceNotificationListener(this);
+                _maintenanceEventTrigger = maintenanceNotificationListener.Subscribe(new MaintenanceEventTrigger(this));
+                _reconfigureAfterMaintenance = maintenanceNotificationListener.Subscribe(new ReconfigureAfterMaintenance(this, logProxy: logProxy));
             }
         }
 
@@ -2795,8 +2781,8 @@ namespace StackExchange.Redis
             sentinelConnection?.Dispose();
             var oldTimer = Interlocked.Exchange(ref sentinelMasterReconnectTimer, null);
             oldTimer?.Dispose();
-            _maintenanceNotificationSubscription_Multiplexer?.Dispose();
-            _maintenanceNotificationSubscription_TopologyRefresher?.Dispose();
+            _maintenanceEventTrigger?.Dispose();
+            _reconfigureAfterMaintenance?.Dispose();
         }
 
         internal Task<T> ExecuteAsyncImpl<T>(Message message, ResultProcessor<T> processor, object state, ServerEndPoint server)

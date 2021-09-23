@@ -6,18 +6,19 @@ using static StackExchange.Redis.ConnectionMultiplexer;
 
 namespace StackExchange.Redis
 {
-    internal class ServerEndPointMaintenanceNotifier : IObservable<AzureMaintenanceEvent>
+    internal class MaintenanceNotificationListener : IObservable<AzureMaintenanceEvent>
     {
         private readonly ConnectionMultiplexer multiplexer;
         private List<IObserver<AzureMaintenanceEvent>> observers = new List<IObserver<AzureMaintenanceEvent>>();
 
-        internal ServerEndPointMaintenanceNotifier(ConnectionMultiplexer multiplexer)
+        internal MaintenanceNotificationListener(ConnectionMultiplexer multiplexer)
         {
             this.multiplexer = multiplexer;
         }
 
         public IDisposable Subscribe(IObserver<AzureMaintenanceEvent> observer)
         {
+            Console.Out.WriteLine("Subscribing to become an observer.");
             if (!observers.Contains(observer))
             {
                 observers.Add(observer);
@@ -25,23 +26,30 @@ namespace StackExchange.Redis
             return new Unsubscriber<AzureMaintenanceEvent>(observers, observer);
         }
 
-        internal async Task StartListeningToMaintenanceNotification(LogProxy logProxy)
+        internal async Task StartListening(LogProxy logProxy)
         {
-            var sub = multiplexer.GetSubscriber();
-            if (sub == null)
+            try
             {
-                logProxy?.WriteLine("Failed to GetSubscriber for AzureRedisEvents");
-                return;
-            }
-
-            await sub.SubscribeAsync("AzureRedisEvents", (channel, message) =>
-            {
-                var newMessage = new AzureMaintenanceEvent(message, multiplexer.RawConfig.IsAzureSLBEndPoint() && multiplexer.ServerSelectionStrategy.ServerType != ServerType.Cluster);
-                foreach (var observer in observers)
+                var sub = multiplexer.GetSubscriber();
+                if (sub == null)
                 {
-                    observer.OnNext(newMessage);
+                    logProxy?.WriteLine("Failed to GetSubscriber for AzureRedisEvents");
+                    return;
                 }
-            }).ForAwait();
+
+                await sub.SubscribeAsync("AzureRedisEvents", (channel, message) =>
+                {
+                    var newMessage = new AzureMaintenanceEvent(message);
+                    foreach (var observer in observers)
+                    {
+                        observer?.OnNext(newMessage);
+                    }
+                }).ForAwait();
+            }
+            catch (Exception e)
+            {
+                logProxy?.WriteLine($"Encountered exception: {e}");
+            }
         }
     }
 
@@ -58,8 +66,8 @@ namespace StackExchange.Redis
 
         public void Dispose()
         {
-            if (_observers.Contains(_observer))
-                _observers.Remove(_observer);
+            Console.WriteLine("Observer was disposed correctly.");
+            _observers.Remove(_observer);
         }
     }
 
@@ -68,7 +76,7 @@ namespace StackExchange.Redis
     /// </summary>
     public class AzureMaintenanceEvent
     {
-        internal AzureMaintenanceEvent(string message, bool isConnectedToAzureSLBEndPoint)
+        internal AzureMaintenanceEvent(string message)
         {
             RawMessage = message;
             try
@@ -104,12 +112,12 @@ namespace StackExchange.Redis
 
                             case "sslport":
                                 Int32.TryParse(value, out var port);
-                                SSLPort = isConnectedToAzureSLBEndPoint ? 6380 : port;
+                                SSLPort = port;
                                 break;
 
                             case "nonsslport":
                                 Int32.TryParse(value, out var nonsslport);
-                                NonSSLPort = isConnectedToAzureSLBEndPoint ? 6379 : nonsslport;
+                                NonSSLPort = nonsslport;
                                 break;
 
                             default:

@@ -3,26 +3,22 @@ using static StackExchange.Redis.ConnectionMultiplexer;
 
 namespace StackExchange.Redis
 {
-    internal class ServerEndPointMaintenanceTopologyRefresher : IObserver<AzureMaintenanceEvent>
+    internal class ReconfigureAfterMaintenance : IObserver<AzureMaintenanceEvent>
     {
         private readonly ConnectionMultiplexer multiplexer;
         private readonly LogProxy logProxy;
 
-        internal ServerEndPointMaintenanceTopologyRefresher(ConnectionMultiplexer multiplexer, LogProxy logProxy)
+        internal ReconfigureAfterMaintenance(ConnectionMultiplexer multiplexer, LogProxy logProxy)
         {
             this.multiplexer = multiplexer;
             this.logProxy = logProxy;
         }
 
         public void OnCompleted()
-        {
-            return;
-        }
+        { }
 
         public void OnError(Exception error)
-        {
-            return;
-        }
+        { }
 
         public void OnNext(AzureMaintenanceEvent value)
         {

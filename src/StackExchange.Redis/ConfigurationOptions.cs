@@ -834,25 +834,5 @@ namespace StackExchange.Redis
 
             return null;
         }
-
-        internal bool IsAzureSLBEndPoint()
-        {
-            if (IsAzureEndpoint() && EndPoints.Count == 1)
-            {
-                var endpoint = EndPoints[0];
-                int port = 0;
-                if (endpoint is DnsEndPoint)
-                {
-                    port = ((DnsEndPoint)endpoint).Port;
-                }
-                else if (endpoint is IPEndPoint)
-                {
-                    port = ((IPEndPoint)endpoint).Port;
-                }
-                if (port == 6379 || port == 6380)
-                    return true;
-            }
-            return false;
-        }
     }
 }

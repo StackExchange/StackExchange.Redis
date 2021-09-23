@@ -12,30 +12,29 @@ namespace StackExchange.Redis.Tests
         }
 
         [Theory]
-        [InlineData("NotificationType|NodeMaintenanceStarting|StartTimeInUTC|2021-03-02T23:26:57|IsReplica|False|IPAddress||SSLPort|15001|NonSSLPort|13001", false)]
-        [InlineData("NotificationType|NodeMaintenanceStarting|StartTimeInUTC|2021-03-02T23:26:57|IsReplica|False|IPAddress||SSLPort|15001|NonSSLPort|13001", true)]
-        [InlineData("NotificationType|NodeMaintenanceFailover|StartTimeInUTC||IsReplica|False|IPAddress||SSLPort|15001|NonSSLPort|13001", true)]
-        [InlineData("NotificationType|", false)]
-        [InlineData("NotificationType|NodeMaintenanceStarting1", false)]
-        [InlineData("1|2|3", false)]
-        [InlineData("StartTimeInUTC|", false)]
-        [InlineData("IsReplica|", true)]
-        [InlineData("SSLPort|", true)]
-        [InlineData("NonSSLPort |", true)]
-        [InlineData("StartTimeInUTC|thisisthestart", false)]
-        [InlineData("NotificationType|NodeMaintenanceStarting|StartTimeInUTC|2021-03-02T23:26:57|IsReplica|j|IPAddress||SSLPort|char|NonSSLPort|char", false)]
-        [InlineData("NotificationType|NodeMaintenanceStarting|somejunkkey|somejunkvalue|StartTimeInUTC|2021-03-02T23:26:57|IsReplica|False|IPAddress||SSLPort|15999|NonSSLPort|139991", false)]
-        [InlineData(null, false)]
-        public void TestAzureMaintenanceEventStrings(string message, bool isconnectedSLB)
+        [InlineData("NotificationType|NodeMaintenanceStarting|StartTimeInUTC|2021-03-02T23:26:57|IsReplica|False|IPAddress||SSLPort|15001|NonSSLPort|13001")]
+        [InlineData("NotificationType|NodeMaintenanceFailover|StartTimeInUTC||IsReplica|False|IPAddress||SSLPort|15001|NonSSLPort|13001")]
+        [InlineData("NotificationType|")]
+        [InlineData("NotificationType|NodeMaintenanceStarting1")]
+        [InlineData("1|2|3")]
+        [InlineData("StartTimeInUTC|")]
+        [InlineData("IsReplica|")]
+        [InlineData("SSLPort|")]
+        [InlineData("NonSSLPort |")]
+        [InlineData("StartTimeInUTC|thisisthestart")]
+        [InlineData("NotificationType|NodeMaintenanceStarting|StartTimeInUTC|2021-03-02T23:26:57|IsReplica|j|IPAddress||SSLPort|char|NonSSLPort|char")]
+        [InlineData("NotificationType|NodeMaintenanceStarting|somejunkkey|somejunkvalue|StartTimeInUTC|2021-03-02T23:26:57|IsReplica|False|IPAddress||SSLPort|15999|NonSSLPort|139991")]
+        [InlineData(null)]
+        public void TestAzureMaintenanceEventStrings(string message)
         {
-            var azureMaintenance = new AzureMaintenanceEvent(message, isconnectedSLB);
-            Assert.True(ValidateAzureMaintenanceEvent(azureMaintenance, message, isconnectedSLB));
+            var azureMaintenance = new AzureMaintenanceEvent(message);
+            Assert.True(ValidateAzureMaintenanceEvent(azureMaintenance, message));
         }
 
         [Fact]
         public void TestAzureMaintenanceEventStringsIgnoreCase()
         {
-            var azureMaintenance = new AzureMaintenanceEvent("NotiFicationType|NodeMaintenanceStarTing|StarttimeinUTc|2021-03-02T23:26:57|Isreplica|false|Ipaddress|127.0.0.1|sslPort|12345|NonSSlPort|6789", false);
+            var azureMaintenance = new AzureMaintenanceEvent("NotiFicationType|NodeMaintenanceStarTing|StarttimeinUTc|2021-03-02T23:26:57|Isreplica|false|Ipaddress|127.0.0.1|sslPort|12345|NonSSlPort|6789");
             Assert.Equal("NodeMaintenanceStarTing", azureMaintenance.NotificationType);
             Assert.Equal(DateTime.Parse("2021-03-02T23:26:57"), azureMaintenance.StartTimeUtc);
             Assert.False(azureMaintenance.IsReplica);
@@ -44,7 +43,7 @@ namespace StackExchange.Redis.Tests
             Assert.Equal(6789, azureMaintenance.NonSSLPort);
         }
 
-        private bool ValidateAzureMaintenanceEvent(AzureMaintenanceEvent azureMaintenanceEvent, string message, bool isSLB)
+        private bool ValidateAzureMaintenanceEvent(AzureMaintenanceEvent azureMaintenanceEvent, string message)
         {
             if (azureMaintenanceEvent.RawMessage != message) return false;
             var info = message?.Split('|');
@@ -82,14 +81,14 @@ namespace StackExchange.Redis.Tests
 
                         case "SSLPort":
                             Int32.TryParse(value, out var port);
-                            var sslPort = isSLB ? 6380 : port;
+                            var sslPort = port;
                             if (azureMaintenanceEvent.SSLPort != sslPort)
                                 return false;
                             break;
 
                         case "NonSSLPort":
                             Int32.TryParse(value, out var port2);
-                            var nonSSLPort = isSLB ? 6379 : port2;
+                            var nonSSLPort = port2;
                             if (azureMaintenanceEvent.NonSSLPort != nonSSLPort)
                                 return false;
                             break;
