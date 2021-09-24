@@ -1,74 +1,10 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Net;
 using System.Threading.Tasks;
 using static StackExchange.Redis.ConnectionMultiplexer;
 
 namespace StackExchange.Redis
 {
-    internal class MaintenanceNotificationListener : IObservable<AzureMaintenanceEvent>
-    {
-        private readonly ConnectionMultiplexer multiplexer;
-        private List<IObserver<AzureMaintenanceEvent>> observers = new List<IObserver<AzureMaintenanceEvent>>();
-
-        internal MaintenanceNotificationListener(ConnectionMultiplexer multiplexer)
-        {
-            this.multiplexer = multiplexer;
-        }
-
-        public IDisposable Subscribe(IObserver<AzureMaintenanceEvent> observer)
-        {
-            if (!observers.Contains(observer))
-            {
-                observers.Add(observer);
-            }
-            return new Unsubscriber<AzureMaintenanceEvent>(observers, observer);
-        }
-
-        internal async Task StartListening(LogProxy logProxy)
-        {
-            try
-            {
-                var sub = multiplexer.GetSubscriber();
-                if (sub == null)
-                {
-                    logProxy?.WriteLine("Failed to GetSubscriber for AzureRedisEvents");
-                    return;
-                }
-
-                await sub.SubscribeAsync("AzureRedisEvents", (channel, message) =>
-                {
-                    var newMessage = new AzureMaintenanceEvent(message);
-                    foreach (var observer in observers)
-                    {
-                        observer?.OnNext(newMessage);
-                    }
-                }).ForAwait();
-            }
-            catch (Exception e)
-            {
-                logProxy?.WriteLine($"Encountered exception: {e}");
-            }
-        }
-    }
-
-    internal class Unsubscriber<ServerEndPointMaintenanceEvent> : IDisposable
-    {
-        private List<IObserver<ServerEndPointMaintenanceEvent>> _observers;
-        private IObserver<ServerEndPointMaintenanceEvent> _observer;
-
-        internal Unsubscriber(List<IObserver<ServerEndPointMaintenanceEvent>> observers, IObserver<ServerEndPointMaintenanceEvent> observer)
-        {
-            this._observers = observers;
-            this._observer = observer;
-        }
-
-        public void Dispose()
-        {
-            _observers.Remove(_observer);
-        }
-    }
-
     /// <summary>
     /// Azure node maintenance event details
     /// </summary>
@@ -127,6 +63,34 @@ namespace StackExchange.Redis
             catch { }
         }
 
+        internal async static Task AddListenerAsync(ConnectionMultiplexer multiplexer, LogProxy logProxy)
+        {
+            try
+            {
+                var sub = multiplexer.GetSubscriber();
+                if (sub == null)
+                {
+                    logProxy?.WriteLine("Failed to GetSubscriber for AzureRedisEvents");
+                    return;
+                }
+
+                await sub.SubscribeAsync("AzureRedisEvents", (channel, message) =>
+                {
+                    var newMessage = new AzureMaintenanceEvent(message);
+                    multiplexer.InvokeServerMaintenanceEvent(newMessage);
+
+                    if (StringComparer.OrdinalIgnoreCase.Equals(newMessage.NotificationType, "NodeMaintenanceEnded") || StringComparer.OrdinalIgnoreCase.Equals(newMessage.NotificationType, "NodeMaintenanceFailover"))
+                    {
+                        multiplexer.ReconfigureAsync(first: false, reconfigureAll: true, log: logProxy, blame: null, cause: "server maintenance").Wait();
+                    }
+                }).ForAwait();
+            }
+            catch (Exception e)
+            {
+                logProxy?.WriteLine($"Encountered exception: {e}");
+            }
+        }
+
         /// <summary>
         /// Raw message received from the server
         /// </summary>
@@ -174,5 +138,6 @@ namespace StackExchange.Redis
                 $"{nameof(SSLPort)}|{SSLPort}|" +
                 $"{nameof(NonSSLPort)}|{NonSSLPort}";
         }
+
     }
 }

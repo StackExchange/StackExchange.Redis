@@ -136,10 +136,6 @@ namespace StackExchange.Redis
             return counters;
         }
 
-        internal readonly MaintenanceNotificationListener maintenanceNotificationListener;
-        private readonly IDisposable _maintenanceEventTrigger;
-        private readonly IDisposable _reconfigureAfterMaintenance;
-
         /// <summary>
         /// Gets the client-name that will be used on all new connections
         /// </summary>
@@ -907,7 +903,7 @@ namespace StackExchange.Redis
                         // Initialize the Sentinel handlers
                         muxer.InitializeSentinel(logProxy);
                     }
-                    await muxer.maintenanceNotificationListener.StartListening(logProxy).ForAwait();
+                    await AzureMaintenanceEvent.AddListenerAsync(muxer, logProxy).ForAwait();
                     return muxer;
                 }
                 finally
@@ -1203,7 +1199,7 @@ namespace StackExchange.Redis
                         // Initialize the Sentinel handlers
                         muxer.InitializeSentinel(logProxy);
                     }
-                    muxer.maintenanceNotificationListener.StartListening(logProxy).Wait();
+                    AzureMaintenanceEvent.AddListenerAsync(muxer, logProxy).Wait();
                     return muxer;
                 }
                 finally
@@ -1322,9 +1318,6 @@ namespace StackExchange.Redis
                 ConfigurationChangedChannel = Encoding.UTF8.GetBytes(configChannel);
             }
             lastHeartbeatTicks = Environment.TickCount;
-            maintenanceNotificationListener = new MaintenanceNotificationListener(this);
-            _maintenanceEventTrigger = maintenanceNotificationListener.Subscribe(new MaintenanceEventTrigger(this));
-            _reconfigureAfterMaintenance = maintenanceNotificationListener.Subscribe(new ReconfigureAfterMaintenance(this, logProxy: logProxy));
         }
 
         partial void OnCreateReaderWriter(ConfigurationOptions configuration);
@@ -2769,8 +2762,6 @@ namespace StackExchange.Redis
             sentinelConnection?.Dispose();
             var oldTimer = Interlocked.Exchange(ref sentinelMasterReconnectTimer, null);
             oldTimer?.Dispose();
-            _maintenanceEventTrigger?.Dispose();
-            _reconfigureAfterMaintenance?.Dispose();
         }
 
         internal Task<T> ExecuteAsyncImpl<T>(Message message, ResultProcessor<T> processor, object state, ServerEndPoint server)
