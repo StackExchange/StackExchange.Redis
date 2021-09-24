@@ -907,11 +907,7 @@ namespace StackExchange.Redis
                         // Initialize the Sentinel handlers
                         muxer.InitializeSentinel(logProxy);
                     }
-
-                    if (configuration.SubscribeAzureRedisEvents)
-                    {
-                        await muxer.maintenanceNotificationListener.StartListening(logProxy).ForAwait();
-                    }
+                    await muxer.maintenanceNotificationListener.StartListening(logProxy).ForAwait();
                     return muxer;
                 }
                 finally
@@ -1207,11 +1203,7 @@ namespace StackExchange.Redis
                         // Initialize the Sentinel handlers
                         muxer.InitializeSentinel(logProxy);
                     }
-
-                    if (configuration.SubscribeAzureRedisEvents)
-                    {
-                        muxer.maintenanceNotificationListener.StartListening(logProxy).Wait();
-                    }
+                    muxer.maintenanceNotificationListener.StartListening(logProxy).Wait();
                     return muxer;
                 }
                 finally
@@ -1330,13 +1322,9 @@ namespace StackExchange.Redis
                 ConfigurationChangedChannel = Encoding.UTF8.GetBytes(configChannel);
             }
             lastHeartbeatTicks = Environment.TickCount;
-
-            if (configuration.SubscribeAzureRedisEvents)
-            {
-                maintenanceNotificationListener = new MaintenanceNotificationListener(this);
-                _maintenanceEventTrigger = maintenanceNotificationListener.Subscribe(new MaintenanceEventTrigger(this));
-                _reconfigureAfterMaintenance = maintenanceNotificationListener.Subscribe(new ReconfigureAfterMaintenance(this, logProxy: logProxy));
-            }
+            maintenanceNotificationListener = new MaintenanceNotificationListener(this);
+            _maintenanceEventTrigger = maintenanceNotificationListener.Subscribe(new MaintenanceEventTrigger(this));
+            _reconfigureAfterMaintenance = maintenanceNotificationListener.Subscribe(new ReconfigureAfterMaintenance(this, logProxy: logProxy));
         }
 
         partial void OnCreateReaderWriter(ConfigurationOptions configuration);

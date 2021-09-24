@@ -89,8 +89,7 @@ namespace StackExchange.Redis
                 TieBreaker = "tiebreaker",
                 Version = "version",
                 WriteBuffer = "writeBuffer",
-                CheckCertificateRevocation = "checkCertificateRevocation",
-                SubscribeAzureRedisEvents = "subscribeAzureRedisEvents";
+                CheckCertificateRevocation = "checkCertificateRevocation";
 
             private static readonly Dictionary<string, string> normalizedOptions = new[]
             {
@@ -132,7 +131,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private bool? allowAdmin, abortOnConnectFail, highPrioritySocketThreads, resolveDns, ssl, checkCertificateRevocation, subscribeAzureRedisEvents;
+        private bool? allowAdmin, abortOnConnectFail, highPrioritySocketThreads, resolveDns, ssl, checkCertificateRevocation;
 
         private string tieBreaker, sslHost, configChannel;
 
@@ -401,11 +400,6 @@ namespace StackExchange.Redis
         public int ConfigCheckSeconds { get { return configCheckSeconds.GetValueOrDefault(60); } set { configCheckSeconds = value; } }
 
         /// <summary>
-        /// Subscribe to the AzureRedisEvents pubsub channel
-        /// </summary>
-        public bool SubscribeAzureRedisEvents { get { return subscribeAzureRedisEvents.GetValueOrDefault(false); } set { subscribeAzureRedisEvents = value; } }
-
-        /// <summary>
         /// Parse the configuration from a comma-delimited configuration string
         /// </summary>
         /// <param name="configuration">The configuration string to parse.</param>
@@ -469,8 +463,7 @@ namespace StackExchange.Redis
                 DefaultDatabase = DefaultDatabase,
                 ReconnectRetryPolicy = reconnectRetryPolicy,
                 SslProtocols = SslProtocols,
-                checkCertificateRevocation = checkCertificateRevocation,
-                subscribeAzureRedisEvents = subscribeAzureRedisEvents
+                checkCertificateRevocation = checkCertificateRevocation
             };
             foreach (var item in EndPoints)
                 options.EndPoints.Add(item);
@@ -555,7 +548,6 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.ConfigCheckSeconds, configCheckSeconds);
             Append(sb, OptionKeys.ResponseTimeout, responseTimeout);
             Append(sb, OptionKeys.DefaultDatabase, DefaultDatabase);
-            Append(sb, OptionKeys.SubscribeAzureRedisEvents, subscribeAzureRedisEvents);
             commandMap?.AppendDeltas(sb);
             return sb.ToString();
         }
@@ -634,7 +626,7 @@ namespace StackExchange.Redis
         {
             ClientName = ServiceName = User = Password = tieBreaker = sslHost = configChannel = null;
             keepAlive = syncTimeout = asyncTimeout = connectTimeout = writeBuffer = connectRetry = configCheckSeconds = DefaultDatabase = null;
-            allowAdmin = abortOnConnectFail = highPrioritySocketThreads = resolveDns = ssl = subscribeAzureRedisEvents = null;
+            allowAdmin = abortOnConnectFail = highPrioritySocketThreads = resolveDns = ssl = null;
             SslProtocols = null;
             defaultVersion = null;
             EndPoints.Clear();
@@ -763,9 +755,6 @@ namespace StackExchange.Redis
                             break;
                         case OptionKeys.SslProtocols:
                             SslProtocols = OptionKeys.ParseSslProtocols(key, value);
-                            break;
-                        case OptionKeys.SubscribeAzureRedisEvents:
-                            SubscribeAzureRedisEvents = OptionKeys.ParseBoolean(key, value);
                             break;
                         default:
                             if (!string.IsNullOrEmpty(key) && key[0] == '$')
