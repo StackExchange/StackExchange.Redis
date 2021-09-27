@@ -39,23 +39,11 @@ namespace StackExchange.Redis.Tests
             var azureMaintenance = new AzureMaintenanceEvent(message);
 
             Assert.Equal(expectedEventType, azureMaintenance.NotificationType);
-            Assert.Equal(expectedStartTimeUtc, azureMaintenance.StartTimeUtc);
+            Assert.Equal(expectedStartTimeUtc, azureMaintenance.StartTimeInUTC);
             Assert.Equal(expectedIsReplica, azureMaintenance.IsReplica);
             Assert.Equal(expectedIPAddress, azureMaintenance.IpAddress);
             Assert.Equal(expectedSSLPort, azureMaintenance.SSLPort);
             Assert.Equal(expectedNonSSLPort, azureMaintenance.NonSSLPort);
-        }
-
-        [Fact]
-        public void TestAzureMaintenanceEventStringsIgnoreCase()
-        {
-            var azureMaintenance = new AzureMaintenanceEvent("NotiFicationType|NodeMaintenanceStarTing|StarttimeinUTc|2021-03-02T23:26:57|Isreplica|false|Ipaddress|127.0.0.1|sslPort|12345|NonSSlPort|6789");
-            Assert.Equal("NodeMaintenanceStarTing", azureMaintenance.NotificationType);
-            Assert.Equal(DateTime.Parse("2021-03-02T23:26:57"), azureMaintenance.StartTimeUtc);
-            Assert.False(azureMaintenance.IsReplica);
-            Assert.Equal("127.0.0.1", azureMaintenance.IpAddress.ToString());
-            Assert.Equal(12345, azureMaintenance.SSLPort);
-            Assert.Equal(6789, azureMaintenance.NonSSLPort);
         }
     }
 }

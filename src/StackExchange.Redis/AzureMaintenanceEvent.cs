@@ -10,57 +10,68 @@ namespace StackExchange.Redis
     /// </summary>
     public class AzureMaintenanceEvent
     {
-        internal AzureMaintenanceEvent(string message)
+        private const string PubSubChannelName = "AzureRedisEvents";
+
+        internal AzureMaintenanceEvent(string azureEvent)
         {
-            RawMessage = message;
+            if (azureEvent == null)
+            {
+                return;
+            }
+
+            // The message consists of key-value pairs delimted by pipes. For example, a message might look like:
+            // NotificationType|NodeMaintenanceStarting|StartTimeUtc|2021-09-23T12:34:19|IsReplica|False|IpAddress|13.67.42.199|SSLPort|15001|NonSSLPort|13001
+            var message = new ReadOnlySpan<char>(azureEvent.ToCharArray());
             try
             {
-                var info = message?.Split('|');
-                for (int i = 0; i < info?.Length / 2; i++)
+                while (message.Length > 0)
                 {
-                    string key = null, value = null;
-                    if (2 * i < info.Length) { key = info[2 * i].Trim(); }
-                    if (2 * i + 1 < info.Length) { value = info[2 * i + 1].Trim(); }
-                    if (!string.IsNullOrEmpty(key) && !string.IsNullOrEmpty(value))
+                    if (message[0] == '|')
                     {
-                        switch (key.ToLowerInvariant())
+                        message = message.Slice(1);
+                        continue;
+                    }
+
+                    // Grab the next pair
+                    var key = message.Slice(0, message.IndexOf('|'));
+                    message = message.Slice(key.Length + 1);
+
+                    var valueEnd = message.IndexOf('|');
+                    var value = valueEnd > -1 ? message.Slice(0, valueEnd) : message;
+                    message = message.Slice(value.Length);
+
+                    if (key.Length > 0 && value.Length > 0)
+                    {
+                        switch (key)
                         {
-                            case "notificationtype":
-                                NotificationType = value;
+                            case var _ when key.SequenceEqual(nameof(NotificationType).ToCharArray()):
+                                NotificationType = value.ToString();
                                 break;
-
-                            case "starttimeinutc":
-                                if (DateTime.TryParse(value, out DateTime startTime))
-                                {
-                                    StartTimeUtc = DateTime.SpecifyKind(startTime, DateTimeKind.Utc);
-                                }
+                            case var _ when key.SequenceEqual(nameof(StartTimeInUTC).ToCharArray()) && DateTime.TryParse(value.ToString(), out DateTime startTime):
+                                StartTimeInUTC = DateTime.SpecifyKind(startTime, DateTimeKind.Utc);
                                 break;
-
-                            case "isreplica":
-                                bool.TryParse(value, out IsReplica);
+                            case var _ when key.SequenceEqual(nameof(IsReplica).ToCharArray()) && bool.TryParse(value.ToString(), out var isReplica):
+                                IsReplica = isReplica;
                                 break;
-
-                            case "ipaddress":
-                                IPAddress.TryParse(value, out IpAddress);
+                            case var _ when key.SequenceEqual(nameof(IPAddress).ToCharArray()) && IPAddress.TryParse(value.ToString(), out var ipAddress):
+                                IpAddress = ipAddress;
                                 break;
-
-                            case "sslport":
-                                Int32.TryParse(value, out var port);
+                            case var _ when key.SequenceEqual(nameof(SSLPort).ToCharArray()) && Int32.TryParse(value.ToString(), out var port):
                                 SSLPort = port;
                                 break;
-
-                            case "nonsslport":
-                                Int32.TryParse(value, out var nonsslport);
+                            case var _ when key.SequenceEqual(nameof(NonSSLPort).ToCharArray()) && Int32.TryParse(value.ToString(), out var nonsslport):
                                 NonSSLPort = nonsslport;
                                 break;
-
                             default:
                                 break;
                         }
                     }
                 }
             }
-            catch { }
+            catch
+            {
+                // TODO: Append to rolling debug log when it's present
+            }
         }
 
         internal async static Task AddListenerAsync(ConnectionMultiplexer multiplexer, LogProxy logProxy)
@@ -79,7 +90,7 @@ namespace StackExchange.Redis
                     var newMessage = new AzureMaintenanceEvent(message);
                     multiplexer.InvokeServerMaintenanceEvent(newMessage);
 
-                    if (StringComparer.OrdinalIgnoreCase.Equals(newMessage.NotificationType, "NodeMaintenanceEnded") || StringComparer.OrdinalIgnoreCase.Equals(newMessage.NotificationType, "NodeMaintenanceFailover"))
+                    if (newMessage.NotificationType.Equals("NodeMaintenanceEnded") || newMessage.NotificationType.Equals("NodeMaintenanceFailover"))
                     {
                         multiplexer.ReconfigureAsync(first: false, reconfigureAll: true, log: logProxy, blame: null, cause: $"Azure Event: {newMessage.NotificationType}").Wait();
                     }
@@ -104,7 +115,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// indicates the start time of the event
         /// </summary>
-        public readonly DateTime? StartTimeUtc;
+        public readonly DateTime? StartTimeInUTC;
 
         /// <summary>
         /// indicates if the event is for a replica node
@@ -132,12 +143,11 @@ namespace StackExchange.Redis
         public override string ToString()
         {
             return $"{nameof(NotificationType)}|{NotificationType}|" +
-                $"{nameof(StartTimeUtc)}|{StartTimeUtc:s}|" +
+                $"{nameof(StartTimeInUTC)}|{StartTimeInUTC:s}|" +
                 $"{nameof(IsReplica)}|{IsReplica}|" +
                 $"{nameof(IpAddress)}|{IpAddress}|" +
                 $"{nameof(SSLPort)}|{SSLPort}|" +
                 $"{nameof(NonSSLPort)}|{NonSSLPort}";
         }
-
     }
 }
