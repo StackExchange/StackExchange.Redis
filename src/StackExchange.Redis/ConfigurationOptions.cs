@@ -792,21 +792,21 @@ namespace StackExchange.Redis
 
         internal bool IsAzureEndpoint()
         {
+            List<string> azureRedisHosts = new List<string> {
+                ".redis.cache.windows.net",
+                ".redis.cache.chinacloudapi.cn",
+                ".redis.cache.usgovcloudapi.net",
+                ".redis.cache.cloudapi.de",
+                ".redisenterprise.cache.azure.net"
+            };
+
             foreach (var ep in EndPoints)
             {
                 if (ep is DnsEndPoint dnsEp)
                 {
-                    int firstDot = dnsEp.Host.IndexOf('.');
-                    if (firstDot >= 0)
+                    if (azureRedisHosts.Any(s => dnsEp.Host.ToLowerInvariant().EndsWith(s)))
                     {
-                        switch (dnsEp.Host.Substring(firstDot).ToLowerInvariant())
-                        {
-                            case ".redis.cache.windows.net":
-                            case ".redis.cache.chinacloudapi.cn":
-                            case ".redis.cache.usgovcloudapi.net":
-                            case ".redis.cache.cloudapi.de":
-                                return true;
-                        }
+                        return true;
                     }
                 }
             }
