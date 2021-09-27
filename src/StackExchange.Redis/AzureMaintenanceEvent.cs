@@ -74,14 +74,14 @@ namespace StackExchange.Redis
                     return;
                 }
 
-                await sub.SubscribeAsync("AzureRedisEvents", (channel, message) =>
+                await sub.SubscribeAsync(PubSubChannelName, (channel, message) =>
                 {
                     var newMessage = new AzureMaintenanceEvent(message);
                     multiplexer.InvokeServerMaintenanceEvent(newMessage);
 
                     if (StringComparer.OrdinalIgnoreCase.Equals(newMessage.NotificationType, "NodeMaintenanceEnded") || StringComparer.OrdinalIgnoreCase.Equals(newMessage.NotificationType, "NodeMaintenanceFailover"))
                     {
-                        multiplexer.ReconfigureAsync(first: false, reconfigureAll: true, log: logProxy, blame: null, cause: "server maintenance").Wait();
+                        multiplexer.ReconfigureAsync(first: false, reconfigureAll: true, log: logProxy, blame: null, cause: $"Azure Event: {newMessage.NotificationType}").Wait();
                     }
                 }).ForAwait();
             }

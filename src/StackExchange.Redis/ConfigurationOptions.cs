@@ -790,7 +790,7 @@ namespace StackExchange.Redis
         // Microsoft Azure team wants abortConnect=false by default
         private bool GetDefaultAbortOnConnectFailSetting() => !IsAzureEndpoint();
 
-        private bool IsAzureEndpoint()
+        internal bool IsAzureEndpoint()
         {
             foreach (var ep in EndPoints)
             {

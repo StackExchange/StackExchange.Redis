@@ -903,7 +903,11 @@ namespace StackExchange.Redis
                         // Initialize the Sentinel handlers
                         muxer.InitializeSentinel(logProxy);
                     }
-                    await AzureMaintenanceEvent.AddListenerAsync(muxer, logProxy).ForAwait();
+
+                    if (configuration.IsAzureEndpoint())
+                    {
+                        await AzureMaintenanceEvent.AddListenerAsync(muxer, logProxy).ForAwait();
+                    }
                     return muxer;
                 }
                 finally
@@ -1000,7 +1004,7 @@ namespace StackExchange.Redis
         }
         private static ConnectionMultiplexer CreateMultiplexer(ConfigurationOptions configuration, LogProxy log, out EventHandler<ConnectionFailedEventArgs> connectHandler)
         {
-            var muxer = new ConnectionMultiplexer(configuration, log);
+            var muxer = new ConnectionMultiplexer(configuration);
             connectHandler = null;
             if (log != null)
             {
@@ -1199,7 +1203,10 @@ namespace StackExchange.Redis
                         // Initialize the Sentinel handlers
                         muxer.InitializeSentinel(logProxy);
                     }
-                    AzureMaintenanceEvent.AddListenerAsync(muxer, logProxy).Wait();
+                    if (configuration.IsAzureEndpoint())
+                    {
+                        AzureMaintenanceEvent.AddListenerAsync(muxer, logProxy).Wait(muxer.SyncConnectTimeout(true));
+                    }
                     return muxer;
                 }
                 finally
@@ -1290,7 +1297,7 @@ namespace StackExchange.Redis
 
         internal readonly CommandMap CommandMap;
 
-        private ConnectionMultiplexer(ConfigurationOptions configuration, LogProxy logProxy)
+        private ConnectionMultiplexer(ConfigurationOptions configuration)
         {
             IncludeDetailInExceptions = true;
             IncludePerformanceCountersInExceptions = false;
