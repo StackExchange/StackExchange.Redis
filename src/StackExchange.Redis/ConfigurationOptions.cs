@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Security;
@@ -90,6 +91,7 @@ namespace StackExchange.Redis
                 Version = "version",
                 WriteBuffer = "writeBuffer",
                 CheckCertificateRevocation = "checkCertificateRevocation";
+
 
             private static readonly Dictionary<string, string> normalizedOptions = new[]
             {
@@ -463,7 +465,7 @@ namespace StackExchange.Redis
                 DefaultDatabase = DefaultDatabase,
                 ReconnectRetryPolicy = reconnectRetryPolicy,
                 SslProtocols = SslProtocols,
-                checkCertificateRevocation = checkCertificateRevocation
+                checkCertificateRevocation = checkCertificateRevocation,
             };
             foreach (var item in EndPoints)
                 options.EndPoints.Add(item);
