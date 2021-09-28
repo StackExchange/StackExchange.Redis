@@ -6,7 +6,7 @@ using static StackExchange.Redis.ConnectionMultiplexer;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// Azure node maintenance event details
+    /// Azure node maintenance event. For more information, please see: https://github.com/Azure/AzureCacheForRedis/blob/main/AzureRedisEvents.md
     /// </summary>
     public class AzureMaintenanceEvent
     {
