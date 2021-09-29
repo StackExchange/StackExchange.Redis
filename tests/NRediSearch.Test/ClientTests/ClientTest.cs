@@ -198,7 +198,7 @@ namespace NRediSearch.Test.ClientTests
             Assert.Equal("Cannot use highlight/summarize because NOOFSETS was specified at index level", ex.Message);
 
             cl = GetClient();
-            Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions().SetNoHighligh()));
+            Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions().SetNoHighlight()));
             Assert.True(cl.AddDocument("doc2", fields));
             Assert.Throws<RedisServerException>(() => cl.Search(new Query("hello").SummarizeFields("body")));
         }

@@ -56,7 +56,7 @@ namespace NRediSearch
             /// Disable highlighting support. If set, we do not store corresponding byte offsets for term positions.
             /// Also implied by UseTermOffsets.
             /// </summary>
-            NoHighligh = 64,
+            NoHighlight = 64,
             /// <summary>
             /// Increases maximum number of text fields (default is 32 fields)
             /// </summary>
@@ -191,9 +191,9 @@ namespace NRediSearch
                 return this;
             }
 
-            public ConfiguredIndexOptions SetNoHighligh()
+            public ConfiguredIndexOptions SetNoHighlight()
             {
-                _options |= IndexOptions.NoHighligh;
+                _options |= IndexOptions.NoHighlight;
 
                 return this;
             }
@@ -257,7 +257,7 @@ namespace NRediSearch
                 {
                     args.Add("NOOFFSETS".Literal());
                 }
-                if ((options & IndexOptions.NoHighligh) == IndexOptions.NoHighligh)
+                if ((options & IndexOptions.NoHighlight) == IndexOptions.NoHighlight)
                 {
                     args.Add("NOHL".Literal());
                 }
