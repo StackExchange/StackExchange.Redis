@@ -804,9 +804,12 @@ namespace StackExchange.Redis
             {
                 if (ep is DnsEndPoint dnsEp)
                 {
-                    if (azureRedisHosts.Any(s => dnsEp.Host.ToLowerInvariant().EndsWith(s)))
+                    foreach (var host in azureRedisHosts)
                     {
-                        return true;
+                        if (dnsEp.Host.ToLowerInvariant().EndsWith(host))
+                        {
+                            return true;
+                        }
                     }
                 }
             }
