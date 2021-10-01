@@ -875,14 +875,14 @@ namespace NRediSearch.Test.ClientTests
 
             // Check that UNF can't be given to non-sortable filed
             try {
-                var temp = new Schema().AddField(new TextField("non-sortable-unf", 1.0, sortable: false, unf: true));
+                var temp = new Schema().AddField(new TextField("non-sortable-unf", 1.0, sortable: false, unNormalizedForm: true));
                 Assert.True(false);
             } catch (ArgumentException) {
                 Assert.True(true);
             }
 
             Schema sc = new Schema().AddSortableTextField("txt").AddSortableTextField("txt_unf", unf: true).
-                              AddSortableTagField("tag").AddSortableTagField("tag_unf", unf: true);
+                              AddSortableTagField("tag").AddSortableTagField("tag_unf", unNormalizedForm: true);
             Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions()));
             Db.Execute("HSET", "doc1", "txt", "FOO", "txt_unf", "FOO", "tag", "FOO", "tag_unf", "FOO");
 
