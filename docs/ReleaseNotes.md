@@ -6,6 +6,7 @@
 - logging additions (.NET Version and timestamps) for better debugging (#1796 via philon-msft)
 - add: `Condition` API (transactions) now supports `StreamLengthEqual` and variants (#1807 via AlphaGremlin)
 - fix potential task/thread exhaustion from the backlog processor (#1854 via mgravell)
+- add support for listening to Azure Maintenance Events (#1865 via amsoedal)
 
 ## 2.2.62
 
