@@ -39,9 +39,9 @@ namespace StackExchange.Redis.Tests
             var azureMaintenance = new AzureMaintenanceEvent(message);
 
             Assert.Equal(expectedEventType, azureMaintenance.NotificationType);
-            Assert.Equal(expectedStartTimeUtc, azureMaintenance.StartTimeInUTC);
+            Assert.Equal(expectedStartTimeUtc, azureMaintenance.StartTimeUtc);
             Assert.Equal(expectedIsReplica, azureMaintenance.IsReplica);
-            Assert.Equal(expectedIPAddress, azureMaintenance.IpAddress);
+            Assert.Equal(expectedIPAddress, azureMaintenance.IPAddress);
             Assert.Equal(expectedSSLPort, azureMaintenance.SSLPort);
             Assert.Equal(expectedNonSSLPort, azureMaintenance.NonSSLPort);
         }

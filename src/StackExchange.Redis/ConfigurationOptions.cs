@@ -806,7 +806,7 @@ namespace StackExchange.Redis
                 {
                     foreach (var host in azureRedisHosts)
                     {
-                        if (dnsEp.Host.ToLowerInvariant().EndsWith(host))
+                        if (dnsEp.Host.EndsWith(host, StringComparison.InvariantCultureIgnoreCase))
                         {
                             return true;
                         }

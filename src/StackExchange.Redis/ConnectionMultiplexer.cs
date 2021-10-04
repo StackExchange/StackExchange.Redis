@@ -598,9 +598,7 @@ namespace StackExchange.Redis
         }
 
         internal void InvokeServerMaintenanceEvent(AzureMaintenanceEvent e)
-        {
-            AzureServerMaintenanceEvent?.Invoke(this, e);
-        }
+            => AzureServerMaintenanceEvent?.Invoke(this, e);
 
         internal bool TryResend(int hashSlot, Message message, EndPoint endpoint, bool isMoved)
         {

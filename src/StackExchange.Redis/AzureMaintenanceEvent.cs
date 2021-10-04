@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Net;
 using System.Threading.Tasks;
+using System.Buffers.Text;
 using static StackExchange.Redis.ConnectionMultiplexer;
+using System.Globalization;
 
 namespace StackExchange.Redis
 {
@@ -21,7 +23,7 @@ namespace StackExchange.Redis
 
             // The message consists of key-value pairs delimted by pipes. For example, a message might look like:
             // NotificationType|NodeMaintenanceStarting|StartTimeUtc|2021-09-23T12:34:19|IsReplica|False|IpAddress|13.67.42.199|SSLPort|15001|NonSSLPort|13001
-            var message = new ReadOnlySpan<char>(azureEvent.ToCharArray());
+            var message = azureEvent.AsSpan();
             try
             {
                 while (message.Length > 0)
@@ -33,7 +35,20 @@ namespace StackExchange.Redis
                     }
 
                     // Grab the next pair
-                    var key = message.Slice(0, message.IndexOf('|'));
+                    var nextDelimiter = message.IndexOf('|');
+                    if (nextDelimiter < 0)
+                    {
+                        // The rest of the message is not a key-value pair and is therefore malformed. Stop processing it.
+                        break;
+                    }
+
+                    if (nextDelimiter == message.Length - 1)
+                    {
+                        // The message is missing the value for this key-value pair. It is malformed so we stop processing it.
+                        break;
+                    }
+
+                    var key = message.Slice(0, nextDelimiter);
                     message = message.Slice(key.Length + 1);
 
                     var valueEnd = message.IndexOf('|');
@@ -42,29 +57,55 @@ namespace StackExchange.Redis
 
                     if (key.Length > 0 && value.Length > 0)
                     {
+#if NETSTANDARD2_1_OR_GREATER || NETCOREAPP3_0_OR_GREATER
                         switch (key)
                         {
-                            case var _ when key.SequenceEqual(nameof(NotificationType).ToCharArray()):
+                            case var _ when key.SequenceEqual(nameof(NotificationType).AsSpan()):
                                 NotificationType = value.ToString();
                                 break;
-                            case var _ when key.SequenceEqual(nameof(StartTimeInUTC).ToCharArray()) && DateTime.TryParse(value.ToString(), out DateTime startTime):
-                                StartTimeInUTC = DateTime.SpecifyKind(startTime, DateTimeKind.Utc);
+                            case var _ when key.SequenceEqual("StartTimeInUTC".AsSpan()) && DateTime.TryParseExact(value, "s", CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out DateTime startTime):
+                                StartTimeUtc = DateTime.SpecifyKind(startTime, DateTimeKind.Utc);
                                 break;
-                            case var _ when key.SequenceEqual(nameof(IsReplica).ToCharArray()) && bool.TryParse(value.ToString(), out var isReplica):
+                            case var _ when key.SequenceEqual(nameof(IsReplica).AsSpan()) && bool.TryParse(value, out var isReplica):
                                 IsReplica = isReplica;
                                 break;
-                            case var _ when key.SequenceEqual(nameof(IPAddress).ToCharArray()) && IPAddress.TryParse(value.ToString(), out var ipAddress):
-                                IpAddress = ipAddress;
+                            case var _ when key.SequenceEqual(nameof(IPAddress).AsSpan()) && IPAddress.TryParse(value, out var ipAddress):
+                                IPAddress = ipAddress;
                                 break;
-                            case var _ when key.SequenceEqual(nameof(SSLPort).ToCharArray()) && Int32.TryParse(value.ToString(), out var port):
+                            case var _ when key.SequenceEqual(nameof(SSLPort).AsSpan()) && Int32.TryParse(value, out var port):
                                 SSLPort = port;
                                 break;
-                            case var _ when key.SequenceEqual(nameof(NonSSLPort).ToCharArray()) && Int32.TryParse(value.ToString(), out var nonsslport):
+                            case var _ when key.SequenceEqual(nameof(NonSSLPort).AsSpan()) && Int32.TryParse(value, out var nonsslport):
                                 NonSSLPort = nonsslport;
                                 break;
                             default:
                                 break;
                         }
+#else
+                        switch (key)
+                        {
+                            case var _ when key.SequenceEqual(nameof(NotificationType).AsSpan()):
+                                NotificationType = value.ToString();
+                                break;
+                            case var _ when key.SequenceEqual("StartTimeInUTC".AsSpan()) && DateTime.TryParseExact(value.ToString(), "s", CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out DateTime startTime):
+                                StartTimeUtc = DateTime.SpecifyKind(startTime, DateTimeKind.Utc);
+                                break;
+                            case var _ when key.SequenceEqual(nameof(IsReplica).AsSpan()) && bool.TryParse(value.ToString(), out var isReplica):
+                                IsReplica = isReplica;
+                                break;
+                            case var _ when key.SequenceEqual(nameof(IPAddress).AsSpan()) && IPAddress.TryParse(value.ToString(), out var ipAddress):
+                                IPAddress = ipAddress;
+                                break;
+                            case var _ when key.SequenceEqual(nameof(SSLPort).AsSpan()) && Int32.TryParse(value.ToString(), out var port):
+                                SSLPort = port;
+                                break;
+                            case var _ when key.SequenceEqual(nameof(NonSSLPort).AsSpan()) && Int32.TryParse(value.ToString(), out var nonsslport):
+                                NonSSLPort = nonsslport;
+                                break;
+                            default:
+                                break;
+                        }
+#endif
                     }
                 }
             }
@@ -105,49 +146,42 @@ namespace StackExchange.Redis
         /// <summary>
         /// Raw message received from the server
         /// </summary>
-        public readonly string RawMessage;
+        public string RawMessage { get; }
 
         /// <summary>
         /// indicates the event type
         /// </summary>
-        public readonly string NotificationType;
+        public string NotificationType { get; }
 
         /// <summary>
         /// indicates the start time of the event
         /// </summary>
-        public readonly DateTime? StartTimeInUTC;
+        public DateTime? StartTimeUtc { get; }
 
         /// <summary>
         /// indicates if the event is for a replica node
         /// </summary>
-        public readonly bool IsReplica;
+        public bool IsReplica { get; }
 
         /// <summary>
         /// IPAddress of the node event is intended for
         /// </summary>
-        public readonly IPAddress IpAddress;
+        public IPAddress IPAddress { get; }
 
         /// <summary>
         /// ssl port
         /// </summary>
-        public readonly int SSLPort;
+        public int SSLPort { get; }
 
         /// <summary>
         /// non-ssl port
         /// </summary>
-        public readonly int NonSSLPort;
+        public int NonSSLPort { get; }
 
         /// <summary>
         /// Returns a string representing the maintenance event with all of its properties
         /// </summary>
         public override string ToString()
-        {
-            return $"{nameof(NotificationType)}|{NotificationType}|" +
-                $"{nameof(StartTimeInUTC)}|{StartTimeInUTC:s}|" +
-                $"{nameof(IsReplica)}|{IsReplica}|" +
-                $"{nameof(IpAddress)}|{IpAddress}|" +
-                $"{nameof(SSLPort)}|{SSLPort}|" +
-                $"{nameof(NonSSLPort)}|{NonSSLPort}";
-        }
+            => RawMessage;
     }
 }
