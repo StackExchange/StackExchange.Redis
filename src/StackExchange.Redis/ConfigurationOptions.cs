@@ -790,22 +790,25 @@ namespace StackExchange.Redis
         // Microsoft Azure team wants abortConnect=false by default
         private bool GetDefaultAbortOnConnectFailSetting() => !IsAzureEndpoint();
 
-        private bool IsAzureEndpoint()
+        internal bool IsAzureEndpoint()
         {
+            List<string> azureRedisHosts = new List<string> {
+                ".redis.cache.windows.net",
+                ".redis.cache.chinacloudapi.cn",
+                ".redis.cache.usgovcloudapi.net",
+                ".redis.cache.cloudapi.de",
+                ".redisenterprise.cache.azure.net"
+            };
+
             foreach (var ep in EndPoints)
             {
                 if (ep is DnsEndPoint dnsEp)
                 {
-                    int firstDot = dnsEp.Host.IndexOf('.');
-                    if (firstDot >= 0)
+                    foreach (var host in azureRedisHosts)
                     {
-                        switch (dnsEp.Host.Substring(firstDot).ToLowerInvariant())
+                        if (dnsEp.Host.EndsWith(host, StringComparison.InvariantCultureIgnoreCase))
                         {
-                            case ".redis.cache.windows.net":
-                            case ".redis.cache.chinacloudapi.cn":
-                            case ".redis.cache.usgovcloudapi.net":
-                            case ".redis.cache.cloudapi.de":
-                                return true;
+                            return true;
                         }
                     }
                 }

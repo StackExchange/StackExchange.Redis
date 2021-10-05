@@ -1,20 +1,20 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Net;
+using System.Reflection;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Reflection;
-using System.IO.Compression;
-using System.Runtime.CompilerServices;
-using StackExchange.Redis.Profiling;
 using Pipelines.Sockets.Unofficial;
-using System.ComponentModel;
-using System.Runtime.InteropServices;
+using StackExchange.Redis.Profiling;
 
 namespace StackExchange.Redis
 {
@@ -142,6 +142,7 @@ namespace StackExchange.Redis
         public string ClientName => RawConfig.ClientName ?? GetDefaultClientName();
 
         private static string defaultClientName;
+
         private static string GetDefaultClientName()
         {
             return defaultClientName ??= TryGetAzureRoleInstanceIdNoThrow()
@@ -572,6 +573,11 @@ namespace StackExchange.Redis
         public event EventHandler<EndPointEventArgs> ConfigurationChangedBroadcast;
 
         /// <summary>
+        /// Raised when server indicates a maintenance event is going to happen;
+        /// </summary>
+        public event EventHandler<AzureMaintenanceEvent> AzureServerMaintenanceEvent;
+
+        /// <summary>
         /// Gets the synchronous timeout associated with the connections
         /// </summary>
         public int TimeoutMilliseconds { get; }
@@ -590,6 +596,9 @@ namespace StackExchange.Redis
 
             return _serverSnapshot.GetEndPoints();
         }
+
+        internal void InvokeServerMaintenanceEvent(AzureMaintenanceEvent e)
+            => AzureServerMaintenanceEvent?.Invoke(this, e);
 
         internal bool TryResend(int hashSlot, Message message, EndPoint endpoint, bool isMoved)
         {
@@ -892,6 +901,11 @@ namespace StackExchange.Redis
                         // Initialize the Sentinel handlers
                         muxer.InitializeSentinel(logProxy);
                     }
+
+                    if (configuration.IsAzureEndpoint())
+                    {
+                        await AzureMaintenanceEvent.AddListenerAsync(muxer, logProxy).ForAwait();
+                    }
                     return muxer;
                 }
                 finally
@@ -1186,6 +1200,10 @@ namespace StackExchange.Redis
                     {
                         // Initialize the Sentinel handlers
                         muxer.InitializeSentinel(logProxy);
+                    }
+                    if (configuration.IsAzureEndpoint())
+                    {
+                        AzureMaintenanceEvent.AddListenerAsync(muxer, logProxy).Wait(muxer.SyncConnectTimeout(true));
                     }
                     return muxer;
                 }
@@ -2863,7 +2881,7 @@ namespace StackExchange.Redis
                     }
                 }
                 // snapshot these so that we can recycle the box
-                var  val = source.GetResult(out var ex, canRecycle: true); // now that we aren't locking it...
+                var val = source.GetResult(out var ex, canRecycle: true); // now that we aren't locking it...
                 if (ex != null) throw ex;
                 Trace(message + " received " + val);
                 return val;
