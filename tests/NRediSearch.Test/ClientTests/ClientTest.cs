@@ -1,18 +1,34 @@
-﻿using System.Reflection.Metadata;
+﻿using System.Threading;
 using System.Collections.Generic;
 using System.Text;
+using System;
 using StackExchange.Redis;
 using Xunit;
 using Xunit.Abstractions;
+using NRediSearch.Aggregation;
 using static NRediSearch.Client;
 using static NRediSearch.Schema;
 using static NRediSearch.SuggestionOptions;
+
 
 namespace NRediSearch.Test.ClientTests
 {
     public class ClientTest : RediSearchTestBase
     {
         public ClientTest(ITestOutputHelper output) : base(output) { }
+
+        private long getModuleSearchVersion() {
+            Client cl = GetClient();
+            var modules = (RedisResult[])Db.Execute("MODULE", "LIST");
+            long version = 0;
+            foreach (var module in modules) {
+                var result = (RedisResult[])module;
+                if (result[1].ToString() == ("search")) {
+                    version = (long)result[3];
+                }
+            }
+            return version;
+        }
 
         [Fact]
         public void Search()
@@ -148,6 +164,67 @@ namespace NRediSearch.Test.ClientTests
             Assert.Equal(1, cl.Search(new Query("hello world")).TotalResults);
             Assert.Equal(1, cl.Search(new Query("foo bar")).TotalResults);
             Assert.Equal(1, cl.Search(new Query("to be or not to be")).TotalResults);
+        }
+
+        [Fact]
+        public void TestSkipInitialIndex()
+        {
+            Db.HashSet("doc1", "foo", "bar");
+            var query = new Query("@foo:bar");
+            var sc = new Schema().AddTextField("foo");
+
+            var client1 = new Client("idx1", Db);
+            Assert.True(client1.CreateIndex(sc, new ConfiguredIndexOptions()));
+            Assert.Equal(1, client1.Search(query).TotalResults);
+
+            var client2 = new Client("idx2", Db);
+            Assert.True(client2.CreateIndex(sc, new ConfiguredIndexOptions().SetSkipInitialScan()));
+            Assert.Equal(0, client2.Search(query).TotalResults);
+        }
+
+        [Fact]
+        public void TestSummarizationDisabled()
+        {
+            Client cl = GetClient();
+
+            Schema sc = new Schema().AddTextField("body");
+
+            Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions().SetUseTermOffsets()));
+            var fields = new Dictionary<string, RedisValue>
+            {
+                { "body", "hello world" }
+            };
+            Assert.True(cl.AddDocument("doc1", fields));
+
+            var ex = Assert.Throws<RedisServerException>(() => cl.Search(new Query("hello").SummarizeFields("body")));
+            Assert.Equal("Cannot use highlight/summarize because NOOFSETS was specified at index level", ex.Message);
+
+            cl = GetClient();
+            Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions().SetNoHighlight()));
+            Assert.True(cl.AddDocument("doc2", fields));
+            Assert.Throws<RedisServerException>(() => cl.Search(new Query("hello").SummarizeFields("body")));
+        }
+
+        [Fact]
+        public void TestExpire()
+        {
+            var cl = new Client("idx", Db);
+            Schema sc = new Schema().AddTextField("title");
+
+            Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions().SetTemporaryTime(4).SetMaxTextFields()));
+            long ttl = (long) Db.Execute("FT.DEBUG", "TTL", "idx");
+            while (ttl > 2) {
+                ttl = (long) Db.Execute("FT.DEBUG", "TTL", "idx");
+                Thread.Sleep(10);
+            }
+
+            var fields = new Dictionary<string, RedisValue>
+            {
+                { "title", "hello world foo bar to be or not to be" }
+            };
+            Assert.True(cl.AddDocument("doc1", fields));
+            ttl = (long) Db.Execute("FT.DEBUG", "TTL", "idx");
+            Assert.True(ttl > 2);
         }
 
         [Fact]
@@ -820,10 +897,88 @@ namespace NRediSearch.Test.ClientTests
         }
 
         [Fact]
+        public void TestGetSortableTagField()
+        {
+            Client cl = GetClient();
+            Schema sc = new Schema()
+                    .AddTextField("title", 1.0)
+                    .AddSortableTagField("category", ";");
+
+            Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions()));
+            Assert.True(cl.AddDocument("foo", new Dictionary<string, RedisValue>
+            {
+                { "title", "hello world" },
+                { "category", "red" }
+            }));
+            Assert.True(cl.AddDocument("bar", new Dictionary<string, RedisValue>
+            {
+                { "title", "hello world" },
+                { "category", "blue" }
+            }));
+            Assert.True(cl.AddDocument("baz", new Dictionary<string, RedisValue>
+            {
+                { "title", "hello world" },
+                { "category", "green;yellow" }
+            }));
+            Assert.True(cl.AddDocument("qux", new Dictionary<string, RedisValue>
+            {
+                { "title", "hello world" },
+                { "category", "orange,purple" }
+            }));
+
+            var res = cl.Search(new Query("*") { SortBy = "category", SortAscending = false });
+            Assert.Equal("red", res.Documents[0]["category"]);
+            Assert.Equal("orange,purple", res.Documents[1]["category"]);
+            Assert.Equal("green;yellow", res.Documents[2]["category"]);
+            Assert.Equal("blue", res.Documents[3]["category"]);
+
+            Assert.Equal(1, cl.Search(new Query("@category:{red}")).TotalResults);
+            Assert.Equal(1, cl.Search(new Query("@category:{blue}")).TotalResults);
+            Assert.Equal(1, cl.Search(new Query("hello @category:{red}")).TotalResults);
+            Assert.Equal(1, cl.Search(new Query("hello @category:{blue}")).TotalResults);
+            Assert.Equal(1, cl.Search(new Query("hello @category:{yellow}")).TotalResults);
+            Assert.Equal(0, cl.Search(new Query("@category:{purple}")).TotalResults);
+            Assert.Equal(1, cl.Search(new Query("@category:{orange\\,purple}")).TotalResults);
+            Assert.Equal(4, cl.Search(new Query("hello")).TotalResults);
+        }
+
+        [Fact]
+        public void TestGetTagFieldUnf() {
+            // Add version check
+
+            Client cl = GetClient();
+
+            // Check that UNF can't be given to non-sortable filed
+            try {
+                var temp = new Schema().AddField(new TextField("non-sortable-unf", 1.0, sortable: false, unNormalizedForm: true));
+                Assert.True(false);
+            } catch (ArgumentException) {
+                Assert.True(true);
+            }
+
+            Schema sc = new Schema().AddSortableTextField("txt").AddSortableTextField("txt_unf", unf: true).
+                              AddSortableTagField("tag").AddSortableTagField("tag_unf", unNormalizedForm: true);
+            Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions()));
+            Db.Execute("HSET", "doc1", "txt", "FOO", "txt_unf", "FOO", "tag", "FOO", "tag_unf", "FOO");
+
+            AggregationBuilder r = new AggregationBuilder()
+                    .GroupBy(new List<string> {"@txt", "@txt_unf", "@tag", "@tag_unf"}, new List<Aggregation.Reducers.Reducer> {});
+
+            AggregationResult res = cl.Aggregate(r);
+            var results = res.GetResults()[0];
+            Assert.NotNull(results);
+            Assert.Equal(4, results.Count);
+            Assert.Equal("foo", results["txt"]);
+            Assert.Equal("FOO", results["txt_unf"]);
+            Assert.Equal("foo", results["tag"]);
+            Assert.Equal("FOO", results["tag_unf"]);
+        }
+
+        [Fact]
         public void TestMultiDocuments()
         {
             Client cl = GetClient();
-            Schema sc = new Schema().AddTextField("title", 1.0).AddTextField("body", 1.0);
+            Schema sc = new Schema().AddTextField("title").AddTextField("body");
 
             Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions()));
 
@@ -897,6 +1052,10 @@ namespace NRediSearch.Test.ClientTests
         [Fact]
         public void TestWithFieldNames()
         {
+            if (getModuleSearchVersion() <= 20200) {
+                return;
+            }
+
             Client cl = GetClient();
             IndexDefinition defenition = new IndexDefinition(prefixes: new string[] {"student:", "pupil:"});
             Schema sc = new Schema().AddTextField(FieldName.Of("first").As("given")).AddTextField(FieldName.Of("last"));
@@ -950,7 +1109,12 @@ namespace NRediSearch.Test.ClientTests
         }
 
         [Fact]
-        public void TestReturnWithFieldNames(){
+        public void TestReturnWithFieldNames()
+        {
+            if (getModuleSearchVersion() <= 20200) {
+                return;
+            }
+
             Client cl = GetClient();
             Schema sc = new Schema().AddTextField("a").AddTextField("b").AddTextField("c");
             Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions()));
@@ -974,6 +1138,10 @@ namespace NRediSearch.Test.ClientTests
         [Fact]
         public void TestJsonIndex()
         {
+            if (getModuleSearchVersion() <= 20200) {
+                return;
+            }
+
             Client cl = GetClient();
             IndexDefinition defenition = new IndexDefinition(prefixes: new string[] {"king:"} ,type: IndexDefinition.IndexType.Json);
             Schema sc = new Schema().AddTextField("$.name");
