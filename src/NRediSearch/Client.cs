@@ -182,7 +182,7 @@ namespace NRediSearch
             }
 
             /// <summary>
-            /// Disable the stopwords list
+            /// Disable the stopwords list.
             /// </summary>
             public ConfiguredIndexOptions SetNoStopwords()
             {
@@ -191,6 +191,9 @@ namespace NRediSearch
                 return this;
             }
 
+            /// <summary>
+            /// Disable highlight support.
+            /// </summary>
             public ConfiguredIndexOptions SetNoHighlight()
             {
                 _options |= IndexOptions.NoHighlight;
@@ -198,6 +201,9 @@ namespace NRediSearch
                 return this;
             }
 
+            /// <summary>
+            /// Disable initial index scans.
+            /// </summary>
             public ConfiguredIndexOptions SetSkipInitialScan()
             {
                 _options |= IndexOptions.SkipInitialScan;
@@ -205,6 +211,9 @@ namespace NRediSearch
                 return this;
             }
 
+            /// <summary>
+            /// Increases maximum text fields (past 32).
+            /// </summary>
             public ConfiguredIndexOptions SetMaxTextFields()
             {
                 _options |= IndexOptions.MaxTextFields;
@@ -212,6 +221,9 @@ namespace NRediSearch
                 return this;
             }
 
+            /// <summary>
+            /// Disable term offsets (saves memory but disables exact matches).
+            /// </summary>
             public ConfiguredIndexOptions SetUseTermOffsets()
             {
                 _options |= IndexOptions.UseTermOffsets;
