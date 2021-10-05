@@ -575,7 +575,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Raised when server indicates a maintenance event is going to happen;
         /// </summary>
-        public event EventHandler<AzureMaintenanceEvent> AzureServerMaintenanceEvent;
+        public event EventHandler<ServerMaintenanceEvent> ServerMaintenanceEvent;
 
         /// <summary>
         /// Gets the synchronous timeout associated with the connections
@@ -597,8 +597,8 @@ namespace StackExchange.Redis
             return _serverSnapshot.GetEndPoints();
         }
 
-        internal void InvokeServerMaintenanceEvent(AzureMaintenanceEvent e)
-            => AzureServerMaintenanceEvent?.Invoke(this, e);
+        internal void InvokeServerMaintenanceEvent(ServerMaintenanceEvent e)
+            => ServerMaintenanceEvent?.Invoke(this, e);
 
         internal bool TryResend(int hashSlot, Message message, EndPoint endpoint, bool isMoved)
         {
@@ -902,10 +902,8 @@ namespace StackExchange.Redis
                         muxer.InitializeSentinel(logProxy);
                     }
 
-                    if (configuration.IsAzureEndpoint())
-                    {
-                        await AzureMaintenanceEvent.AddListenerAsync(muxer, logProxy).ForAwait();
-                    }
+                    await Redis.ServerMaintenanceEvent.AddListenersAsync(muxer, logProxy).ForAwait();
+
                     return muxer;
                 }
                 finally
@@ -1201,10 +1199,7 @@ namespace StackExchange.Redis
                         // Initialize the Sentinel handlers
                         muxer.InitializeSentinel(logProxy);
                     }
-                    if (configuration.IsAzureEndpoint())
-                    {
-                        AzureMaintenanceEvent.AddListenerAsync(muxer, logProxy).Wait(muxer.SyncConnectTimeout(true));
-                    }
+                    Redis.ServerMaintenanceEvent.AddListenersAsync(muxer, logProxy).Wait(muxer.SyncConnectTimeout(true));
                     return muxer;
                 }
                 finally
