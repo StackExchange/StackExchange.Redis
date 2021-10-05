@@ -641,12 +641,12 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// Removes and returns count elements from the tail of the list stored at key.
-        /// If there are less elements in the list than count, removes and returns all the elements in the list
+        /// If there are less elements in the list than count, removes and returns all the elements in the list.
         /// </summary>
         /// <param name="key">The key of the list.</param>
-        /// <param name="count">The number of items to remove</param>
+        /// <param name="count">The number of items to remove.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>Array of values that were popped, or nil if the key doesn't exist</returns>
+        /// <returns>Array of values that were popped, or nil if the key doesn't exist.</returns>
         /// <remarks>https://redis.io/commands/lpop</remarks>
         RedisValue[] ListLeftPop(RedisKey key, long count, CommandFlags flags = CommandFlags.None);
 
@@ -732,12 +732,12 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// Removes and returns count elements from the head of the list stored at key.
-        /// If there are less elements in the list than count, removes and returns all the elements in the list
+        /// If there are less elements in the list than count, removes and returns all the elements in the list.
         /// </summary>
         /// <param name="key">The key of the list.</param>
-        /// <param name="count">tThe number of items to remove</param>
+        /// <param name="count">tThe number of items to remove.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>Array of values that were popped, or nil if the key doesn't exist</returns>
+        /// <returns>Array of values that were popped, or nil if the key doesn't exist.</returns>
         /// <remarks>https://redis.io/commands/rpop</remarks>
         RedisValue[] ListRightPop(RedisKey key, long count, CommandFlags flags = CommandFlags.None);
 
