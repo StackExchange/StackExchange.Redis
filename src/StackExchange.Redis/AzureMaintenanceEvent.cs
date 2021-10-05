@@ -184,6 +184,11 @@ namespace StackExchange.Redis
         public enum NotificationTypes
         {
             /// <summary>
+            /// Unrecognized event type, likely needs a library update to recognize new events.
+            /// </summary>
+            Unknown,
+
+            /// <summary>
             /// This event gets fired ~20s before maintenance begins.
             /// </summary>
             NodeMaintenanceStarting,
@@ -202,11 +207,6 @@ namespace StackExchange.Redis
             /// Indicates that a replica has been promoted to primary.
             /// </summary>
             NodeMaintenanceFailoverComplete,
-
-            /// <summary>
-            /// Unrecognized event type, likely needs a library update to recognize new events.
-            /// </summary>
-            Unknown,
         }
 
         private NotificationTypes ParseNotificationType(string typeString) => typeString switch
