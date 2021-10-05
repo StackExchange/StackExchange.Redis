@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Globalization;
 using System.Net;
 using Xunit;
 using Xunit.Abstractions;
@@ -30,7 +31,7 @@ namespace StackExchange.Redis.Tests
         public void TestAzureMaintenanceEventStrings(string message, AzureMaintenanceEvent.NotificationTypes expectedEventType, string expectedStart, bool expectedIsReplica, string expectedIP, int expectedSSLPort, int expectedNonSSLPort)
         {
             DateTime? expectedStartTimeUtc = null;
-            if (expectedStart != null && DateTime.TryParse(expectedStart, out DateTime startTimeUtc))
+            if (expectedStart != null && DateTime.TryParseExact(expectedStart, "s", CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out DateTime startTimeUtc))
             {
                 expectedStartTimeUtc = DateTime.SpecifyKind(startTimeUtc, DateTimeKind.Utc);
             }
