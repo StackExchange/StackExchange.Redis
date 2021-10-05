@@ -32,7 +32,7 @@ namespace NRediSearch
             /// <summary>
             /// The default indexing options - use term offsets, keep fields flags, keep term frequencies
             /// </summary>
-            Default = UseTermOffsets | KeepFieldFlags | KeepTermFrequencies,
+            Default = KeepFieldFlags | KeepTermFrequencies,
             /// <summary>
             /// If set, we keep an index of the top entries per term, allowing extremely fast single word queries
             /// regardless of index size, at the cost of more memory
@@ -47,7 +47,20 @@ namespace NRediSearch
             /// If set, we keep an index of the top entries per term, allowing extremely fast single word queries
             /// regardless of index size, at the cost of more memory
             /// </summary>
-            KeepTermFrequencies = 16
+            KeepTermFrequencies = 16,
+            /// <summary>
+            /// If set, we do not scan and index.
+            /// </summary>
+            SkipInitialScan = 32,
+            /// <summary>
+            /// Disable highlighting support. If set, we do not store corresponding byte offsets for term positions.
+            /// Also implied by UseTermOffsets.
+            /// </summary>
+            NoHighlight = 64,
+            /// <summary>
+            /// Increases maximum number of text fields (default is 32 fields)
+            /// </summary>
+            MaxTextFields = 128,
         }
 
         public sealed class IndexDefinition
@@ -132,7 +145,6 @@ namespace NRediSearch
                     args.Add(_payloadField);
                 }
             }
-
         }
 
         public sealed class ConfiguredIndexOptions
@@ -144,6 +156,7 @@ namespace NRediSearch
             private IndexOptions _options;
             private readonly IndexDefinition _definition;
             private string[] _stopwords;
+            private long _temporaryTimestamp;
 
             public ConfiguredIndexOptions(IndexOptions options = IndexOptions.Default)
             {
@@ -157,7 +170,7 @@ namespace NRediSearch
             }
 
             /// <summary>
-            /// Set a custom stopword list.
+            /// Set a custom stopword list. These words will be ignored during indexing and search time.
             /// </summary>
             /// <param name="stopwords">The new stopwords to use.</param>
             public ConfiguredIndexOptions SetStopwords(params string[] stopwords)
@@ -168,6 +181,9 @@ namespace NRediSearch
                 return this;
             }
 
+            /// <summary>
+            /// Disable the stopwords list.
+            /// </summary>
             public ConfiguredIndexOptions SetNoStopwords()
             {
                 _options |= IndexOptions.DisableStopWords;
@@ -175,8 +191,64 @@ namespace NRediSearch
                 return this;
             }
 
+            /// <summary>
+            /// Disable highlight support.
+            /// </summary>
+            public ConfiguredIndexOptions SetNoHighlight()
+            {
+                _options |= IndexOptions.NoHighlight;
+
+                return this;
+            }
+
+            /// <summary>
+            /// Disable initial index scans.
+            /// </summary>
+            public ConfiguredIndexOptions SetSkipInitialScan()
+            {
+                _options |= IndexOptions.SkipInitialScan;
+
+                return this;
+            }
+
+            /// <summary>
+            /// Increases maximum text fields (past 32).
+            /// </summary>
+            public ConfiguredIndexOptions SetMaxTextFields()
+            {
+                _options |= IndexOptions.MaxTextFields;
+
+                return this;
+            }
+
+            /// <summary>
+            /// Disable term offsets (saves memory but disables exact matches).
+            /// </summary>
+            public ConfiguredIndexOptions SetUseTermOffsets()
+            {
+                _options |= IndexOptions.UseTermOffsets;
+
+                return this;
+            }
+
+            /// <summary>
+            /// Set a lightweight temporary index which will expire after the specified period of inactivity.
+            /// The internal idle timer is reset whenever the index is searched or added to.
+            /// </summary>
+            /// <param name="time">The time to expire in seconds.</param>
+            public ConfiguredIndexOptions SetTemporaryTime(long time)
+            {
+                _temporaryTimestamp = time;
+                return this;
+            }
+
             internal void SerializeRedisArgs(List<object> args)
             {
+                if (_temporaryTimestamp != 0)
+                {
+                    args.Add("TEMPORARY".Literal());
+                    args.Add(_temporaryTimestamp);
+                }
                 SerializeRedisArgs(_options, args, _definition);
                 if (_stopwords?.Length > 0)
                 {
@@ -189,9 +261,17 @@ namespace NRediSearch
             internal static void SerializeRedisArgs(IndexOptions options, List<object> args, IndexDefinition definition)
             {
                 definition?.SerializeRedisArgs(args);
-                if ((options & IndexOptions.UseTermOffsets) == 0)
+                if ((options & IndexOptions.MaxTextFields) == IndexOptions.MaxTextFields)
+                {
+                    args.Add("MAXTEXTFIELDS".Literal());
+                }
+                if ((options & IndexOptions.UseTermOffsets) == IndexOptions.UseTermOffsets)
                 {
                     args.Add("NOOFFSETS".Literal());
+                }
+                if ((options & IndexOptions.NoHighlight) == IndexOptions.NoHighlight)
+                {
+                    args.Add("NOHL".Literal());
                 }
                 if ((options & IndexOptions.KeepFieldFlags) == 0)
                 {
@@ -205,6 +285,10 @@ namespace NRediSearch
                 {
                     args.Add("STOPWORDS".Literal());
                     args.Add(0.Boxed());
+                }
+                if ((options & IndexOptions.SkipInitialScan) == IndexOptions.SkipInitialScan)
+                {
+                    args.Add("SKIPINITIALSCAN".Literal());
                 }
             }
         }
