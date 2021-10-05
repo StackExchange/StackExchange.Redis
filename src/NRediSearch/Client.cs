@@ -60,7 +60,7 @@ namespace NRediSearch
             /// <summary>
             /// Increases maximum number of text fields (default is 32 fields)
             /// </summary>
-            MaxTextFields = 128
+            MaxTextFields = 128,
         }
 
         public sealed class IndexDefinition
