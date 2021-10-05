@@ -640,6 +640,17 @@ namespace StackExchange.Redis
         RedisValue ListLeftPop(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Removes and returns count elements from the tail of the list stored at key.
+        /// If there are less elements in the list than count, removes and returns all the elements in the list.
+        /// </summary>
+        /// <param name="key">The key of the list.</param>
+        /// <param name="count">The number of items to remove.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>Array of values that were popped, or nil if the key doesn't exist.</returns>
+        /// <remarks>https://redis.io/commands/lpop</remarks>
+        RedisValue[] ListLeftPop(RedisKey key, long count, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Insert the specified value at the head of the list stored at key. If key does not exist, it is created as empty list before performing the push operations.
         /// </summary>
         /// <param name="key">The key of the list.</param>
@@ -718,6 +729,17 @@ namespace StackExchange.Redis
         /// <returns>The element being popped.</returns>
         /// <remarks>https://redis.io/commands/rpop</remarks>
         RedisValue ListRightPop(RedisKey key, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Removes and returns count elements from the head of the list stored at key.
+        /// If there are less elements in the list than count, removes and returns all the elements in the list.
+        /// </summary>
+        /// <param name="key">The key of the list.</param>
+        /// <param name="count">tThe number of items to remove.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>Array of values that were popped, or nil if the key doesn't exist.</returns>
+        /// <remarks>https://redis.io/commands/rpop</remarks>
+        RedisValue[] ListRightPop(RedisKey key, long count, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Atomically returns and removes the last element (tail) of the list stored at source, and pushes the element at the first element (head) of the list stored at destination.
