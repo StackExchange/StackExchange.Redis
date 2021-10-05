@@ -902,7 +902,7 @@ namespace StackExchange.Redis
                         muxer.InitializeSentinel(logProxy);
                     }
 
-                    if (configuration.IsAzureEndpoint())
+                    if (configuration.IsAzureEndpoint() && configuration.CommandMap.IsAvailable(RedisCommand.SUBSCRIBE))
                     {
                         await AzureMaintenanceEvent.AddListenerAsync(muxer, logProxy).ForAwait();
                     }
@@ -1201,7 +1201,7 @@ namespace StackExchange.Redis
                         // Initialize the Sentinel handlers
                         muxer.InitializeSentinel(logProxy);
                     }
-                    if (configuration.IsAzureEndpoint())
+                    if (configuration.IsAzureEndpoint() && configuration.CommandMap.IsAvailable(RedisCommand.SUBSCRIBE))
                     {
                         AzureMaintenanceEvent.AddListenerAsync(muxer, logProxy).Wait(muxer.SyncConnectTimeout(true));
                     }
