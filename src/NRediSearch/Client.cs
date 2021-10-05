@@ -156,7 +156,7 @@ namespace NRediSearch
             private IndexOptions _options;
             private readonly IndexDefinition _definition;
             private string[] _stopwords;
-            private long _temporary;
+            private long _temporaryTimestamp;
 
             public ConfiguredIndexOptions(IndexOptions options = IndexOptions.Default)
             {
@@ -238,16 +238,16 @@ namespace NRediSearch
             /// <param name="time">The time to expire in seconds.</param>
             public ConfiguredIndexOptions SetTemporaryTime(long time)
             {
-                _temporary = time;
+                _temporaryTimestamp = time;
                 return this;
             }
 
             internal void SerializeRedisArgs(List<object> args)
             {
-                if (_temporary != 0)
+                if (_temporaryTimestamp != 0)
                 {
                     args.Add("TEMPORARY".Literal());
-                    args.Add(_temporary);
+                    args.Add(_temporaryTimestamp);
                 }
                 SerializeRedisArgs(_options, args, _definition);
                 if (_stopwords?.Length > 0)
