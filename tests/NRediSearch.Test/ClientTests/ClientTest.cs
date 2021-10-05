@@ -15,7 +15,7 @@ namespace NRediSearch.Test.ClientTests
     {
         public ClientTest(ITestOutputHelper output) : base(output) { }
 
-        private long getModuleSearchVersio() {
+        private long getModuleSearchVersion() {
             Client cl = GetClient();
             var modules = (RedisResult[])Db.Execute("MODULE", "LIST");
             long version = 0;
@@ -972,7 +972,7 @@ namespace NRediSearch.Test.ClientTests
         [Fact]
         public void TestWithFieldNames()
         {
-            if (getModuleSearchVersio() <= 20200) {
+            if (getModuleSearchVersion() <= 20200) {
                 return;
             }
 
@@ -1031,7 +1031,7 @@ namespace NRediSearch.Test.ClientTests
         [Fact]
         public void TestReturnWithFieldNames()
         {
-            if (getModuleSearchVersio() <= 20200) {
+            if (getModuleSearchVersion() <= 20200) {
                 return;
             }
 
@@ -1058,7 +1058,7 @@ namespace NRediSearch.Test.ClientTests
         [Fact]
         public void TestJsonIndex()
         {
-            if (getModuleSearchVersio() <= 20200) {
+            if (getModuleSearchVersion() <= 20200) {
                 return;
             }
 
