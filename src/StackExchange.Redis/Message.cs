@@ -359,6 +359,7 @@ namespace StackExchange.Redis
                 case RedisCommand.EXPIREAT:
                 case RedisCommand.FLUSHALL:
                 case RedisCommand.FLUSHDB:
+                case RedisCommand.GETDEL:
                 case RedisCommand.GETSET:
                 case RedisCommand.HDEL:
                 case RedisCommand.HINCRBY:

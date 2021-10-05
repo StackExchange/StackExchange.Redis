@@ -8,6 +8,7 @@
 - add: `Condition` API (transactions) now supports `StreamLengthEqual` and variants (#1807 via AlphaGremlin)
 - Add support for count argument to `ListLeftPop`, `ListLeftPopAsync`, `ListRightPop`, and `ListRightPopAsync` (#1850 via jjfmarket)
 - fix potential task/thread exhaustion from the backlog processor (#1854 via mgravell)
+- add `StringGetDelete`/`StringGetDeleteAsync` API for Redis `GETDEL` command(#1840 via WeihanLi)
 
 ## 2.2.62
 

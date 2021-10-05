@@ -832,6 +832,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.StringGetSetAsync(ToInner(key), value, flags);
         }
 
+        public Task<RedisValue> StringGetDeleteAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.StringGetDeleteAsync(ToInner(key), flags);
+        }
+
         public Task<RedisValueWithExpiry> StringGetWithExpiryAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             return Inner.StringGetWithExpiryAsync(ToInner(key), flags);

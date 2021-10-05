@@ -2503,6 +2503,18 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.RedisValue);
         }
 
+        public RedisValue StringGetDelete(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.GETDEL, key);
+            return ExecuteSync(msg, ResultProcessor.RedisValue);
+        }
+
+        public Task<RedisValue> StringGetDeleteAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.GETDEL, key);
+            return ExecuteAsync(msg, ResultProcessor.RedisValue);
+        }
+
         public RedisValueWithExpiry StringGetWithExpiry(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStringGetWithExpiryMessage(key, flags, out ResultProcessor<RedisValueWithExpiry> processor, out ServerEndPoint server);

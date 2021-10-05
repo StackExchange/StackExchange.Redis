@@ -1119,6 +1119,13 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void StringGetDelete()
+        {
+            wrapper.StringGetDelete("key", CommandFlags.None);
+            mock.Verify(_ => _.StringGetDelete("prefix:key", CommandFlags.None));
+        }
+
+        [Fact]
         public void StringGetWithExpiry()
         {
             wrapper.StringGetWithExpiry("key", CommandFlags.None);
