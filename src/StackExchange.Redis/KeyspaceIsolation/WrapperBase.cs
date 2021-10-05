@@ -286,6 +286,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.ListLeftPopAsync(ToInner(key), flags);
         }
 
+        public Task<RedisValue[]> ListLeftPopAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.ListLeftPopAsync(ToInner(key), count, flags);
+        }
+
         public Task<long> ListLeftPushAsync(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None)
         {
             return Inner.ListLeftPushAsync(ToInner(key), values, flags);
@@ -319,6 +324,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<RedisValue> ListRightPopAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             return Inner.ListRightPopAsync(ToInner(key), flags);
+        }
+
+        public Task<RedisValue[]> ListRightPopAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.ListRightPopAsync(ToInner(key), count, flags);
         }
 
         public Task<RedisValue> ListRightPopLeftPushAsync(RedisKey source, RedisKey destination, CommandFlags flags = CommandFlags.None)

@@ -617,6 +617,17 @@ namespace StackExchange.Redis
         Task<RedisValue> ListLeftPopAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Removes and returns count elements from the head of the list stored at key.
+        /// If the list contains less than count elements, removes and returns the number of elements in the list
+        /// </summary>
+        /// <param name="key">The key of the list.</param>
+        /// <param name="count">The number of elements to remove</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>Array of values that were popped, or nil if the key doesn't exist</returns>
+        /// <remarks>https://redis.io/commands/lpop</remarks>
+        Task<RedisValue[]> ListLeftPopAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Insert the specified value at the head of the list stored at key. If key does not exist, it is created as empty list before performing the push operations.
         /// </summary>
         /// <param name="key">The key of the list.</param>
@@ -695,6 +706,17 @@ namespace StackExchange.Redis
         /// <returns>The element being popped.</returns>
         /// <remarks>https://redis.io/commands/rpop</remarks>
         Task<RedisValue> ListRightPopAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Removes and returns count elements from the end the list stored at key.
+        /// If the list contains less than count elements, removes and returns the number of elements in the list
+        /// </summary>
+        /// <param name="key">The key of the list.</param>
+        /// <param name="count">The number of elements to pop</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>Array of values that were popped, or nil if the key doesn't exist</returns>
+        /// <remarks>https://redis.io/commands/rpop</remarks>
+        Task<RedisValue[]> ListRightPopAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Atomically returns and removes the last element (tail) of the list stored at source, and pushes the element at the first element (head) of the list stored at destination.
