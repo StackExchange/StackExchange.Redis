@@ -26,19 +26,24 @@ namespace NRediSearch
             public FieldType Type { get; }
             public bool Sortable { get; }
             public bool NoIndex { get; }
+            public bool Unf { get; }
 
-            internal Field(string name, FieldType type, bool sortable, bool noIndex = false)
-            : this(FieldName.Of(name), type, sortable, noIndex)
+            internal Field(string name, FieldType type, bool sortable, bool noIndex = false, bool unf = false)
+            : this(FieldName.Of(name), type, sortable, noIndex, unf)
             {
                 Name = name;
             }
 
-            internal Field(FieldName name, FieldType type, bool sortable, bool noIndex = false)
+            internal Field(FieldName name, FieldType type, bool sortable, bool noIndex = false, bool unf = false)
             {
                 FieldName = name;
                 Type = type;
                 Sortable = sortable;
                 NoIndex = noIndex;
+                if (unf && !sortable){
+                    throw new ArgumentException("UNF can't be applied on a non-sortable field.");
+                }
+                Unf = unf;
             }
 
             internal virtual void SerializeRedisArgs(List<object> args)
@@ -54,6 +59,7 @@ namespace NRediSearch
                 FieldName.AddCommandArguments(args);
                 args.Add(GetForRedis(Type));
                 if (Sortable) { args.Add("SORTABLE".Literal()); }
+                if (Unf) args.Add("UNF".Literal());
                 if (NoIndex) { args.Add("NOINDEX".Literal()); }
             }
         }
@@ -63,15 +69,21 @@ namespace NRediSearch
             public double Weight { get; }
             public bool NoStem { get; }
 
-            public TextField(string name, double weight = 1.0, bool sortable = false, bool noStem = false, bool noIndex = false)
-            : base(name, FieldType.FullText, sortable, noIndex)
+            public TextField(string name, double weight, bool sortable, bool noStem, bool noIndex)
+            : this(name, weight, sortable, noStem, noIndex, false) { }
+
+            public TextField(string name, double weight = 1.0, bool sortable = false, bool noStem = false, bool noIndex = false, bool unNormalizedForm = false)
+            : base(name, FieldType.FullText, sortable, noIndex, unNormalizedForm)
             {
                 Weight = weight;
                 NoStem = noStem;
             }
 
-            public TextField(FieldName name, double weight = 1.0, bool sortable = false, bool noStem = false, bool noIndex = false)
-            : base(name, FieldType.FullText, sortable, noIndex)
+            public TextField(FieldName name, double weight, bool sortable, bool noStem, bool noIndex)
+            : this(name, weight, sortable, noStem, noIndex, false) { }
+
+            public TextField(FieldName name, double weight = 1.0, bool sortable = false, bool noStem = false, bool noIndex = false, bool unNormalizedForm = false)
+            : base(name, FieldType.FullText, sortable, noIndex, unNormalizedForm)
             {
                 Weight = weight;
                 NoStem = noStem;
@@ -131,10 +143,12 @@ namespace NRediSearch
         /// </summary>
         /// <param name="name">The field's name.</param>
         /// <param name="weight">Its weight, a positive floating point number.</param>
+        /// <param name="unNormalizedForm">Set this to true to prevent the indexer from sorting on the normalized form.
+        /// Normalied form is the field sent to lower case with all diaretics removed</param>
         /// <returns>The <see cref="Schema"/> object.</returns>
-        public Schema AddSortableTextField(string name, double weight = 1.0)
+        public Schema AddSortableTextField(string name, double weight = 1.0, bool unf = false)
         {
-            Fields.Add(new TextField(name, weight, true));
+            Fields.Add(new TextField(name, weight, true, unNormalizedForm: unf));
             return this;
         }
 
@@ -144,11 +158,29 @@ namespace NRediSearch
         /// <param name="name">The field's name.</param>
         /// <param name="weight">Its weight, a positive floating point number.</param>
         /// <returns>The <see cref="Schema"/> object.</returns>
-        public Schema AddSortableTextField(FieldName name, double weight = 1.0)
+        public Schema AddSortableTextField(string name, double weight) => AddSortableTextField(name, weight, false);
+
+        /// <summary>
+        /// Add a text field that can be sorted on.
+        /// </summary>
+        /// <param name="name">The field's name.</param>
+        /// <param name="weight">Its weight, a positive floating point number.</param>
+        /// <param name="unNormalizedForm">Set this to true to prevent the indexer from sorting on the normalized form.
+        /// Normalied form is the field sent to lower case with all diaretics removed</param>
+        /// <returns>The <see cref="Schema"/> object.</returns>
+        public Schema AddSortableTextField(FieldName name, double weight = 1.0, bool unNormalizedForm = false)
         {
-            Fields.Add(new TextField(name, weight, true));
+            Fields.Add(new TextField(name, weight, true, unNormalizedForm: unNormalizedForm));
             return this;
         }
+
+        /// <summary>
+        /// Add a text field that can be sorted on.
+        /// </summary>
+        /// <param name="name">The field's name.</param>
+        /// <param name="weight">Its weight, a positive floating point number.</param>
+        /// <returns>The <see cref="Schema"/> object.</returns>
+        public Schema AddSortableTextField(FieldName name, double weight) => AddSortableTextField(name, weight, false);
 
         /// <summary>
         /// Add a numeric field to the schema.
@@ -220,12 +252,14 @@ namespace NRediSearch
         {
             public string Separator { get; }
 
-            internal TagField(string name, string separator = ",") : base(name, FieldType.Tag, false)
+            internal TagField(string name, string separator = ",", bool sortable = false, bool unNormalizedForm = false)
+            : base(name, FieldType.Tag, sortable, unf: unNormalizedForm)
             {
                 Separator = separator;
             }
 
-            internal TagField(FieldName name, string separator = ",") : base(name, FieldType.Tag, false)
+            internal TagField(FieldName name, string separator = ",", bool sortable = false, bool unNormalizedForm = false)
+            : base(name, FieldType.Tag, sortable, unf: unNormalizedForm)
             {
                 Separator = separator;
             }
@@ -235,8 +269,12 @@ namespace NRediSearch
                 base.SerializeRedisArgs(args);
                 if (Separator != ",")
                 {
+                    if (Sortable) args.Remove("SORTABLE");
+                    if (Unf) args.Remove("UNF");
                     args.Add("SEPARATOR".Literal());
                     args.Add(Separator);
+                    if (Sortable) args.Add("SORTABLE".Literal());
+                    if (Unf) args.Add("UNF".Literal());
                 }
             }
         }
@@ -262,6 +300,34 @@ namespace NRediSearch
         public Schema AddTagField(FieldName name, string separator = ",")
         {
             Fields.Add(new TagField(name, separator));
+            return this;
+        }
+
+        /// <summary>
+        /// Add a sortable TAG field.
+        /// </summary>
+        /// <param name="name">The field's name.</param>
+        /// <param name="separator">The tag separator.</param>
+        /// <param name="unNormalizedForm">Set this to true to prevent the indexer from sorting on the normalized form.
+        /// Normalied form is the field sent to lower case with all diaretics removed</param>
+        /// <returns>The <see cref="Schema"/> object.</returns>
+        public Schema AddSortableTagField(string name, string separator = ",", bool unNormalizedForm = false)
+        {
+            Fields.Add(new TagField(name, separator, sortable: true, unNormalizedForm: unNormalizedForm));
+            return this;
+        }
+
+        /// <summary>
+        /// Add a sortable TAG field.
+        /// </summary>
+        /// <param name="name">The field's name.</param>
+        /// <param name="separator">The tag separator.</param>
+        /// <param name="unNormalizedForm">Set this to true to prevent the indexer from sorting on the normalized form.
+        /// Normalied form is the field sent to lower case with all diaretics removed</param>
+        /// <returns>The <see cref="Schema"/> object.</returns>
+        public Schema AddSortableTagField(FieldName name, string separator = ",", bool unNormalizedForm = false)
+        {
+            Fields.Add(new TagField(name, separator, sortable: true, unNormalizedForm: unNormalizedForm));
             return this;
         }
     }

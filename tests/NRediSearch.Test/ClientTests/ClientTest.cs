@@ -1,9 +1,11 @@
 ﻿using System.Reflection.Metadata;
 using System.Collections.Generic;
 using System.Text;
+using System;
 using StackExchange.Redis;
 using Xunit;
 using Xunit.Abstractions;
+using NRediSearch.Aggregation;
 using static NRediSearch.Client;
 using static NRediSearch.Schema;
 using static NRediSearch.SuggestionOptions;
@@ -820,10 +822,88 @@ namespace NRediSearch.Test.ClientTests
         }
 
         [Fact]
+        public void TestGetSortableTagField()
+        {
+            Client cl = GetClient();
+            Schema sc = new Schema()
+                    .AddTextField("title", 1.0)
+                    .AddSortableTagField("category", ";");
+
+            Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions()));
+            Assert.True(cl.AddDocument("foo", new Dictionary<string, RedisValue>
+            {
+                { "title", "hello world" },
+                { "category", "red" }
+            }));
+            Assert.True(cl.AddDocument("bar", new Dictionary<string, RedisValue>
+            {
+                { "title", "hello world" },
+                { "category", "blue" }
+            }));
+            Assert.True(cl.AddDocument("baz", new Dictionary<string, RedisValue>
+            {
+                { "title", "hello world" },
+                { "category", "green;yellow" }
+            }));
+            Assert.True(cl.AddDocument("qux", new Dictionary<string, RedisValue>
+            {
+                { "title", "hello world" },
+                { "category", "orange,purple" }
+            }));
+
+            var res = cl.Search(new Query("*") { SortBy = "category", SortAscending = false });
+            Assert.Equal("red", res.Documents[0]["category"]);
+            Assert.Equal("orange,purple", res.Documents[1]["category"]);
+            Assert.Equal("green;yellow", res.Documents[2]["category"]);
+            Assert.Equal("blue", res.Documents[3]["category"]);
+
+            Assert.Equal(1, cl.Search(new Query("@category:{red}")).TotalResults);
+            Assert.Equal(1, cl.Search(new Query("@category:{blue}")).TotalResults);
+            Assert.Equal(1, cl.Search(new Query("hello @category:{red}")).TotalResults);
+            Assert.Equal(1, cl.Search(new Query("hello @category:{blue}")).TotalResults);
+            Assert.Equal(1, cl.Search(new Query("hello @category:{yellow}")).TotalResults);
+            Assert.Equal(0, cl.Search(new Query("@category:{purple}")).TotalResults);
+            Assert.Equal(1, cl.Search(new Query("@category:{orange\\,purple}")).TotalResults);
+            Assert.Equal(4, cl.Search(new Query("hello")).TotalResults);
+        }
+
+        [Fact]
+        public void TestGetTagFieldUnf() {
+            // Add version check
+
+            Client cl = GetClient();
+
+            // Check that UNF can't be given to non-sortable filed
+            try {
+                var temp = new Schema().AddField(new TextField("non-sortable-unf", 1.0, sortable: false, unNormalizedForm: true));
+                Assert.True(false);
+            } catch (ArgumentException) {
+                Assert.True(true);
+            }
+
+            Schema sc = new Schema().AddSortableTextField("txt").AddSortableTextField("txt_unf", unf: true).
+                              AddSortableTagField("tag").AddSortableTagField("tag_unf", unNormalizedForm: true);
+            Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions()));
+            Db.Execute("HSET", "doc1", "txt", "FOO", "txt_unf", "FOO", "tag", "FOO", "tag_unf", "FOO");
+
+            AggregationBuilder r = new AggregationBuilder()
+                    .GroupBy(new List<string> {"@txt", "@txt_unf", "@tag", "@tag_unf"}, new List<Aggregation.Reducers.Reducer> {});
+
+            AggregationResult res = cl.Aggregate(r);
+            var results = res.GetResults()[0];
+            Assert.NotNull(results);
+            Assert.Equal(4, results.Count);
+            Assert.Equal("foo", results["txt"]);
+            Assert.Equal("FOO", results["txt_unf"]);
+            Assert.Equal("foo", results["tag"]);
+            Assert.Equal("FOO", results["tag_unf"]);
+        }
+
+        [Fact]
         public void TestMultiDocuments()
         {
             Client cl = GetClient();
-            Schema sc = new Schema().AddTextField("title", 1.0).AddTextField("body", 1.0);
+            Schema sc = new Schema().AddTextField("title").AddTextField("body");
 
             Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions()));
 

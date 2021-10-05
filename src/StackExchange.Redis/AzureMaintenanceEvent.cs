@@ -100,10 +100,10 @@ namespace StackExchange.Redis
                             case var _ when key.SequenceEqual(nameof(IPAddress).AsSpan()) && IPAddress.TryParse(value.ToString(), out var ipAddress):
                                 IPAddress = ipAddress;
                                 break;
-                            case var _ when key.SequenceEqual("SSLPort".AsSpan()) && int.TryParse(value.ToString(), out var port):
+                            case var _ when key.SequenceEqual("SSLPort".AsSpan()) && int.TryParse(value.ToString(), NumberStyles.Integer, NumberFormatInfo.InvariantInfo, out var port):
                                 SslPort = port;
                                 break;
-                            case var _ when key.SequenceEqual("NonSSLPort".AsSpan()) && int.TryParse(value.ToString(), out var nonsslport):
+                            case var _ when key.SequenceEqual("NonSSLPort".AsSpan()) && int.TryParse(value.ToString(), NumberStyles.Integer, NumberFormatInfo.InvariantInfo, out var nonsslport):
                                 NonSslPort = nonsslport;
                                 break;
                             default:
@@ -158,12 +158,13 @@ namespace StackExchange.Redis
         public NotificationTypes NotificationType { get; }
 
         /// <summary>
-        /// Indicates if this event is for a replica node.
+        /// Indicates if the event is for a replica node.
         /// </summary>
         public bool IsReplica { get; }
 
         /// <summary>
         /// IPAddress of the node event is intended for.
+        /// IPAddress of the node event is intended for
         /// </summary>
         public IPAddress IPAddress { get; }
 

@@ -573,7 +573,7 @@ namespace StackExchange.Redis
         public event EventHandler<EndPointEventArgs> ConfigurationChangedBroadcast;
 
         /// <summary>
-        /// Raised when server indicates a maintenance event is going to happen;
+        /// Raised when server indicates a maintenance event is going to happen.
         /// </summary>
         public event EventHandler<ServerMaintenanceEvent> ServerMaintenanceEvent;
 
@@ -1199,7 +1199,9 @@ namespace StackExchange.Redis
                         // Initialize the Sentinel handlers
                         muxer.InitializeSentinel(logProxy);
                     }
+
                     Redis.ServerMaintenanceEvent.AddListenersAsync(muxer, logProxy).Wait(muxer.SyncConnectTimeout(true));
+
                     return muxer;
                 }
                 finally
