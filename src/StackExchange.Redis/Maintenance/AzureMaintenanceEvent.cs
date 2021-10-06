@@ -1,7 +1,7 @@
 ﻿using System;
+using System.Globalization;
 using System.Net;
 using System.Threading.Tasks;
-using System.Globalization;
 #if NETSTANDARD2_1_OR_GREATER || NETCOREAPP3_0_OR_GREATER
 using System.Buffers.Text;
 #endif
@@ -9,7 +9,7 @@ using System.Buffers.Text;
 namespace StackExchange.Redis.Maintenance
 {
     /// <summary>
-    /// Azure node maintenance event. For more information, please see: https://github.com/Azure/AzureCacheForRedis/blob/main/AzureRedisEvents.md
+    /// Azure node maintenance event. For more information, please see: https://aka.ms/redis/maintenanceevents
     /// </summary>
     public sealed class AzureMaintenanceEvent : ServerMaintenanceEvent
     {
@@ -22,7 +22,7 @@ namespace StackExchange.Redis.Maintenance
                 return;
             }
 
-            // The message consists of key-value pairs delimted by pipes. For example, a message might look like:
+            // The message consists of key-value pairs delimited by pipes. For example, a message might look like:
             // NotificationType|NodeMaintenanceStarting|StartTimeUtc|2021-09-23T12:34:19|IsReplica|False|IpAddress|13.67.42.199|SSLPort|15001|NonSSLPort|13001
             var message = azureEvent.AsSpan();
             try
