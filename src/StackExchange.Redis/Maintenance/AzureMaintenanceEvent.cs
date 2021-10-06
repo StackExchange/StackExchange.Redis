@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Net;
 using System.Threading.Tasks;
-using static StackExchange.Redis.ConnectionMultiplexer;
 using System.Globalization;
 #if NETSTANDARD2_1_OR_GREATER || NETCOREAPP3_0_OR_GREATER
 using System.Buffers.Text;
@@ -119,7 +118,7 @@ namespace StackExchange.Redis.Maintenance
             }
         }
 
-        internal async static Task AddListenerAsync(ConnectionMultiplexer multiplexer, LogProxy logProxy)
+        internal async static Task AddListenerAsync(ConnectionMultiplexer multiplexer, ConnectionMultiplexer.LogProxy logProxy)
         {
             try
             {
