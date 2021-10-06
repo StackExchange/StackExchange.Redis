@@ -49,6 +49,7 @@
 
         GET,
         GETBIT,
+        GETDEL,
         GETRANGE,
         GETSET,
 

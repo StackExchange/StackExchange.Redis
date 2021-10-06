@@ -370,6 +370,13 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void ListLeftPop_1()
+        {
+            wrapper.ListLeftPop("key", 123, CommandFlags.None);
+            mock.Verify(_ => _.ListLeftPop("prefix:key", 123, CommandFlags.None));
+        }
+
+        [Fact]
         public void ListLeftPush_1()
         {
             wrapper.ListLeftPush("key", "value", When.Exists, CommandFlags.None);
@@ -418,6 +425,13 @@ namespace StackExchange.Redis.Tests
         {
             wrapper.ListRightPop("key", CommandFlags.None);
             mock.Verify(_ => _.ListRightPop("prefix:key", CommandFlags.None));
+        }
+
+        [Fact]
+        public void ListRightPop_1()
+        {
+            wrapper.ListRightPop("key", 123, CommandFlags.None);
+            mock.Verify(_ => _.ListRightPop("prefix:key", 123, CommandFlags.None));
         }
 
         [Fact]
@@ -1102,6 +1116,13 @@ namespace StackExchange.Redis.Tests
         {
             wrapper.StringGetSet("key", "value", CommandFlags.None);
             mock.Verify(_ => _.StringGetSet("prefix:key", "value", CommandFlags.None));
+        }
+
+        [Fact]
+        public void StringGetDelete()
+        {
+            wrapper.StringGetDelete("key", CommandFlags.None);
+            mock.Verify(_ => _.StringGetDelete("prefix:key", CommandFlags.None));
         }
 
         [Fact]

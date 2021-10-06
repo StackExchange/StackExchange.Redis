@@ -107,6 +107,56 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void GetDelete()
+        {
+            using (var muxer = Create())
+            {
+                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.GetDelete), r => r.GetDelete);
+
+                var conn = muxer.GetDatabase();
+                var prefix = Me();
+                conn.KeyDelete(prefix + "1", CommandFlags.FireAndForget);
+                conn.KeyDelete(prefix + "2", CommandFlags.FireAndForget);
+                conn.StringSet(prefix + "1", "abc", flags: CommandFlags.FireAndForget);
+
+                Assert.True(conn.KeyExists(prefix + "1"));
+                Assert.False(conn.KeyExists(prefix + "2"));
+
+                var s0 = conn.StringGetDelete(prefix + "1");
+                var s2 = conn.StringGetDelete(prefix + "2");
+
+                Assert.False(conn.KeyExists(prefix + "1"));
+                Assert.Equal("abc", s0);
+                Assert.Equal(RedisValue.Null, s2);
+            }
+        }
+
+        [Fact]
+        public async Task GetDeleteAsync()
+        {
+            using (var muxer = Create())
+            {
+                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.GetDelete), r => r.GetDelete);
+
+                var conn = muxer.GetDatabase();
+                var prefix = Me();
+                conn.KeyDelete(prefix + "1", CommandFlags.FireAndForget);
+                conn.KeyDelete(prefix + "2", CommandFlags.FireAndForget);
+                conn.StringSet(prefix + "1", "abc", flags: CommandFlags.FireAndForget);
+
+                Assert.True(conn.KeyExists(prefix + "1"));
+                Assert.False(conn.KeyExists(prefix + "2"));
+
+                var s0 = conn.StringGetDeleteAsync(prefix + "1");
+                var s2 = conn.StringGetDeleteAsync(prefix + "2");
+
+                Assert.False(conn.KeyExists(prefix + "1"));
+                Assert.Equal("abc", await s0);
+                Assert.Equal(RedisValue.Null, await s2);
+            }
+        }
+
+        [Fact]
         public async Task SetNotExists()
         {
             using (var muxer = Create())
