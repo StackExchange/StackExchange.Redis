@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Globalization;
 using System.Net;
+using StackExchange.Redis.Maintenance;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -12,25 +14,25 @@ namespace StackExchange.Redis.Tests
         }
 
         [Theory]
-        [InlineData("NotificationType|NodeMaintenanceStarting|StartTimeInUTC|2021-03-02T23:26:57|IsReplica|False|IPAddress||SSLPort|15001|NonSSLPort|13001", "NodeMaintenanceStarting", "2021-03-02T23:26:57", false, null, 15001, 13001)]
-        [InlineData("NotificationType|NodeMaintenanceFailover|StartTimeInUTC||IsReplica|False|IPAddress||SSLPort|15001|NonSSLPort|13001", "NodeMaintenanceFailover", null, false, null, 15001, 13001)]
-        [InlineData("NotificationType|NodeMaintenanceFailover|StartTimeInUTC||IsReplica|True|IPAddress||SSLPort|15001|NonSSLPort|13001", "NodeMaintenanceFailover", null, true, null, 15001, 13001)]
-        [InlineData("NotificationType|NodeMaintenanceStarting|StartTimeInUTC|2021-03-02T23:26:57|IsReplica|j|IPAddress||SSLPort|char|NonSSLPort|char", "NodeMaintenanceStarting", "2021-03-02T23:26:57", false, null, 0, 0)]
-        [InlineData("NotificationType|NodeMaintenanceStarting|somejunkkey|somejunkvalue|StartTimeInUTC|2021-03-02T23:26:57|IsReplica|False|IPAddress||SSLPort|15999|NonSSLPort|139991", "NodeMaintenanceStarting", "2021-03-02T23:26:57", false, null, 15999, 139991)]
-        [InlineData("NotificationType|NodeMaintenanceStarting|somejunkkey|somejunkvalue|StartTimeInUTC|2021-03-02T23:26:57|IsReplica|False|IPAddress|127.0.0.1|SSLPort|15999|NonSSLPort|139991", "NodeMaintenanceStarting", "2021-03-02T23:26:57", false, "127.0.0.1", 15999, 139991)]
-        [InlineData("NotificationType|", null, null, false, null, 0, 0)]
-        [InlineData("NotificationType|NodeMaintenanceStarting1", "NodeMaintenanceStarting1", null, false, null, 0, 0)]
-        [InlineData("1|2|3", null, null, false, null, 0, 0)]
-        [InlineData("StartTimeInUTC|", null, null, false, null, 0, 0)]
-        [InlineData("IsReplica|", null, null, false, null, 0, 0)]
-        [InlineData("SSLPort|", null, null, false, null, 0, 0)]
-        [InlineData("NonSSLPort |", null, null, false, null, 0, 0)]
-        [InlineData("StartTimeInUTC|thisisthestart", null, null, false, null, 0, 0)]
-        [InlineData(null, null, null, false, null, 0, 0)]
-        public void TestAzureMaintenanceEventStrings(string message, string expectedEventType, string expectedStart, bool expectedIsReplica, string expectedIP, int expectedSSLPort, int expectedNonSSLPort)
+        [InlineData("NotificationType|NodeMaintenanceStarting|StartTimeInUTC|2021-03-02T23:26:57|IsReplica|False|IPAddress||SSLPort|15001|NonSSLPort|13001", AzureMaintenanceEvent.NotificationTypes.NodeMaintenanceStarting, "2021-03-02T23:26:57", false, null, 15001, 13001)]
+        [InlineData("NotificationType|NodeMaintenanceFailover|StartTimeInUTC||IsReplica|False|IPAddress||SSLPort|15001|NonSSLPort|13001", AzureMaintenanceEvent.NotificationTypes.NodeMaintenanceFailoverComplete, null, false, null, 15001, 13001)]
+        [InlineData("NotificationType|NodeMaintenanceFailover|StartTimeInUTC||IsReplica|True|IPAddress||SSLPort|15001|NonSSLPort|13001", AzureMaintenanceEvent.NotificationTypes.NodeMaintenanceFailoverComplete, null, true, null, 15001, 13001)]
+        [InlineData("NotificationType|NodeMaintenanceStarting|StartTimeInUTC|2021-03-02T23:26:57|IsReplica|j|IPAddress||SSLPort|char|NonSSLPort|char", AzureMaintenanceEvent.NotificationTypes.NodeMaintenanceStarting, "2021-03-02T23:26:57", false, null, 0, 0)]
+        [InlineData("NotificationType|NodeMaintenanceStarting|somejunkkey|somejunkvalue|StartTimeInUTC|2021-03-02T23:26:57|IsReplica|False|IPAddress||SSLPort|15999|NonSSLPort|139991", AzureMaintenanceEvent.NotificationTypes.NodeMaintenanceStarting, "2021-03-02T23:26:57", false, null, 15999, 139991)]
+        [InlineData("NotificationType|NodeMaintenanceStarting|somejunkkey|somejunkvalue|StartTimeInUTC|2021-03-02T23:26:57|IsReplica|False|IPAddress|127.0.0.1|SSLPort|15999|NonSSLPort|139991", AzureMaintenanceEvent.NotificationTypes.NodeMaintenanceStarting, "2021-03-02T23:26:57", false, "127.0.0.1", 15999, 139991)]
+        [InlineData("NotificationType|", AzureMaintenanceEvent.NotificationTypes.Unknown, null, false, null, 0, 0)]
+        [InlineData("NotificationType|NodeMaintenanceStarting1", AzureMaintenanceEvent.NotificationTypes.Unknown, null, false, null, 0, 0)]
+        [InlineData("1|2|3", AzureMaintenanceEvent.NotificationTypes.Unknown, null, false, null, 0, 0)]
+        [InlineData("StartTimeInUTC|", AzureMaintenanceEvent.NotificationTypes.Unknown, null, false, null, 0, 0)]
+        [InlineData("IsReplica|", AzureMaintenanceEvent.NotificationTypes.Unknown, null, false, null, 0, 0)]
+        [InlineData("SSLPort|", AzureMaintenanceEvent.NotificationTypes.Unknown, null, false, null, 0, 0)]
+        [InlineData("NonSSLPort |", AzureMaintenanceEvent.NotificationTypes.Unknown, null, false, null, 0, 0)]
+        [InlineData("StartTimeInUTC|thisisthestart", AzureMaintenanceEvent.NotificationTypes.Unknown, null, false, null, 0, 0)]
+        [InlineData(null, AzureMaintenanceEvent.NotificationTypes.Unknown, null, false, null, 0, 0)]
+        public void TestAzureMaintenanceEventStrings(string message, AzureMaintenanceEvent.NotificationTypes expectedEventType, string expectedStart, bool expectedIsReplica, string expectedIP, int expectedSSLPort, int expectedNonSSLPort)
         {
             DateTime? expectedStartTimeUtc = null;
-            if (expectedStart != null && DateTime.TryParse(expectedStart, out DateTime startTimeUtc))
+            if (expectedStart != null && DateTime.TryParseExact(expectedStart, "s", CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out DateTime startTimeUtc))
             {
                 expectedStartTimeUtc = DateTime.SpecifyKind(startTimeUtc, DateTimeKind.Utc);
             }
@@ -42,8 +44,8 @@ namespace StackExchange.Redis.Tests
             Assert.Equal(expectedStartTimeUtc, azureMaintenance.StartTimeUtc);
             Assert.Equal(expectedIsReplica, azureMaintenance.IsReplica);
             Assert.Equal(expectedIPAddress, azureMaintenance.IPAddress);
-            Assert.Equal(expectedSSLPort, azureMaintenance.SSLPort);
-            Assert.Equal(expectedNonSSLPort, azureMaintenance.NonSSLPort);
+            Assert.Equal(expectedSSLPort, azureMaintenance.SslPort);
+            Assert.Equal(expectedNonSSLPort, azureMaintenance.NonSslPort);
         }
     }
 }

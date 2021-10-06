@@ -1,16 +1,18 @@
 ﻿using System;
 using System.Net;
 using System.Threading.Tasks;
-using System.Buffers.Text;
 using static StackExchange.Redis.ConnectionMultiplexer;
 using System.Globalization;
+#if NETSTANDARD2_1_OR_GREATER || NETCOREAPP3_0_OR_GREATER
+using System.Buffers.Text;
+#endif
 
-namespace StackExchange.Redis
+namespace StackExchange.Redis.Maintenance
 {
     /// <summary>
     /// Azure node maintenance event. For more information, please see: https://github.com/Azure/AzureCacheForRedis/blob/main/AzureRedisEvents.md
     /// </summary>
-    public class AzureMaintenanceEvent
+    public sealed class AzureMaintenanceEvent : ServerMaintenanceEvent
     {
         private const string PubSubChannelName = "AzureRedisEvents";
 
@@ -61,7 +63,8 @@ namespace StackExchange.Redis
                         switch (key)
                         {
                             case var _ when key.SequenceEqual(nameof(NotificationType).AsSpan()):
-                                NotificationType = value.ToString();
+                                NotificationTypeString = value.ToString();
+                                NotificationType = ParseNotificationType(NotificationTypeString);
                                 break;
                             case var _ when key.SequenceEqual("StartTimeInUTC".AsSpan()) && DateTime.TryParseExact(value, "s", CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out DateTime startTime):
                                 StartTimeUtc = DateTime.SpecifyKind(startTime, DateTimeKind.Utc);
@@ -72,11 +75,11 @@ namespace StackExchange.Redis
                             case var _ when key.SequenceEqual(nameof(IPAddress).AsSpan()) && IPAddress.TryParse(value, out var ipAddress):
                                 IPAddress = ipAddress;
                                 break;
-                            case var _ when key.SequenceEqual(nameof(SSLPort).AsSpan()) && Int32.TryParse(value, out var port):
-                                SSLPort = port;
+                            case var _ when key.SequenceEqual("SSLPort".AsSpan()) && Format.TryParseInt32(value, out var port):
+                                SslPort = port;
                                 break;
-                            case var _ when key.SequenceEqual(nameof(NonSSLPort).AsSpan()) && Int32.TryParse(value, out var nonsslport):
-                                NonSSLPort = nonsslport;
+                            case var _ when key.SequenceEqual("NonSSLPort".AsSpan()) && Format.TryParseInt32(value, out var nonsslport):
+                                NonSslPort = nonsslport;
                                 break;
                             default:
                                 break;
@@ -85,7 +88,8 @@ namespace StackExchange.Redis
                         switch (key)
                         {
                             case var _ when key.SequenceEqual(nameof(NotificationType).AsSpan()):
-                                NotificationType = value.ToString();
+                                NotificationTypeString = value.ToString();
+                                NotificationType = ParseNotificationType(NotificationTypeString);
                                 break;
                             case var _ when key.SequenceEqual("StartTimeInUTC".AsSpan()) && DateTime.TryParseExact(value.ToString(), "s", CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out DateTime startTime):
                                 StartTimeUtc = DateTime.SpecifyKind(startTime, DateTimeKind.Utc);
@@ -96,11 +100,11 @@ namespace StackExchange.Redis
                             case var _ when key.SequenceEqual(nameof(IPAddress).AsSpan()) && IPAddress.TryParse(value.ToString(), out var ipAddress):
                                 IPAddress = ipAddress;
                                 break;
-                            case var _ when key.SequenceEqual(nameof(SSLPort).AsSpan()) && Int32.TryParse(value.ToString(), out var port):
-                                SSLPort = port;
+                            case var _ when key.SequenceEqual("SSLPort".AsSpan()) && Format.TryParseInt32(value.ToString(), out var port):
+                                SslPort = port;
                                 break;
-                            case var _ when key.SequenceEqual(nameof(NonSSLPort).AsSpan()) && Int32.TryParse(value.ToString(), out var nonsslport):
-                                NonSSLPort = nonsslport;
+                            case var _ when key.SequenceEqual("NonSSLPort".AsSpan()) && Format.TryParseInt32(value.ToString(), out var nonsslport):
+                                NonSslPort = nonsslport;
                                 break;
                             default:
                                 break;
@@ -131,7 +135,7 @@ namespace StackExchange.Redis
                     var newMessage = new AzureMaintenanceEvent(message);
                     multiplexer.InvokeServerMaintenanceEvent(newMessage);
 
-                    if (newMessage.NotificationType.Equals("NodeMaintenanceEnded") || newMessage.NotificationType.Equals("NodeMaintenanceFailover"))
+                    if (newMessage.NotificationType == NotificationTypes.NodeMaintenanceEnded || newMessage.NotificationType == NotificationTypes.NodeMaintenanceFailoverComplete)
                     {
                         multiplexer.ReconfigureAsync(first: false, reconfigureAll: true, log: logProxy, blame: null, cause: $"Azure Event: {newMessage.NotificationType}").Wait();
                     }
@@ -144,44 +148,81 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Raw message received from the server
+        /// Indicates the type of event (raw string form).
         /// </summary>
-        public string RawMessage { get; }
+        public string NotificationTypeString { get; }
 
         /// <summary>
-        /// indicates the event type
+        /// The parsed version of <see cref="NotificationTypeString"/> for easier consumption.
         /// </summary>
-        public string NotificationType { get; }
+        public NotificationTypes NotificationType { get; }
 
         /// <summary>
-        /// indicates the start time of the event
-        /// </summary>
-        public DateTime? StartTimeUtc { get; }
-
-        /// <summary>
-        /// indicates if the event is for a replica node
+        /// Indicates if the event is for a replica node.
         /// </summary>
         public bool IsReplica { get; }
 
         /// <summary>
-        /// IPAddress of the node event is intended for
+        /// IPAddress of the node event is intended for.
         /// </summary>
         public IPAddress IPAddress { get; }
 
         /// <summary>
-        /// ssl port
+        /// SSL Port.
         /// </summary>
-        public int SSLPort { get; }
+        public int SslPort { get; }
 
         /// <summary>
-        /// non-ssl port
+        /// Non-SSL port.
         /// </summary>
-        public int NonSSLPort { get; }
+        public int NonSslPort { get; }
 
         /// <summary>
-        /// Returns a string representing the maintenance event with all of its properties
+        /// The types of notifications that Azure is sending for events happening.
         /// </summary>
-        public override string ToString()
-            => RawMessage;
+        public enum NotificationTypes
+        {
+            /// <summary>
+            /// Unrecognized event type, likely needs a library update to recognize new events.
+            /// </summary>
+            Unknown,
+
+            /// <summary>
+            /// Indicates that a maintenance event is scheduled. May be several minutes from now.
+            /// </summary>
+            NodeMaintenanceScheduled,
+
+            /// <summary>
+            /// This event gets fired ~20s before maintenance begins.
+            /// </summary>
+            NodeMaintenanceStarting,
+
+            /// <summary>
+            /// This event gets fired when maintenance is imminent (&lt;5s).
+            /// </summary>
+            NodeMaintenanceStart,
+
+            /// <summary>
+            /// Indicates that the node maintenance operation is over.
+            /// </summary>
+            NodeMaintenanceEnded,
+
+            /// <summary>
+            /// Indicates that a replica has been promoted to primary.
+            /// </summary>
+            NodeMaintenanceFailoverComplete,
+        }
+
+        private NotificationTypes ParseNotificationType(string typeString) => typeString switch
+        {
+            "NodeMaintenanceScheduled" => NotificationTypes.NodeMaintenanceScheduled,
+            "NodeMaintenanceStarting" => NotificationTypes.NodeMaintenanceStarting,
+            "NodeMaintenanceStart" => NotificationTypes.NodeMaintenanceStart,
+            "NodeMaintenanceEnded" => NotificationTypes.NodeMaintenanceEnded,
+            // This is temporary until server changes go into effect - to be removed in later versions
+            "NodeMaintenanceFailover" => NotificationTypes.NodeMaintenanceFailoverComplete,
+            "NodeMaintenanceFailoverComplete" => NotificationTypes.NodeMaintenanceFailoverComplete,
+            _ => NotificationTypes.Unknown,
+        };
     }
 }

@@ -14,6 +14,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Pipelines.Sockets.Unofficial;
+using StackExchange.Redis.Maintenance;
 using StackExchange.Redis.Profiling;
 
 namespace StackExchange.Redis
@@ -573,9 +574,9 @@ namespace StackExchange.Redis
         public event EventHandler<EndPointEventArgs> ConfigurationChangedBroadcast;
 
         /// <summary>
-        /// Raised when server indicates a maintenance event is going to happen;
+        /// Raised when server indicates a maintenance event is going to happen.
         /// </summary>
-        public event EventHandler<AzureMaintenanceEvent> AzureServerMaintenanceEvent;
+        public event EventHandler<ServerMaintenanceEvent> ServerMaintenanceEvent;
 
         /// <summary>
         /// Gets the synchronous timeout associated with the connections
@@ -597,8 +598,8 @@ namespace StackExchange.Redis
             return _serverSnapshot.GetEndPoints();
         }
 
-        internal void InvokeServerMaintenanceEvent(AzureMaintenanceEvent e)
-            => AzureServerMaintenanceEvent?.Invoke(this, e);
+        internal void InvokeServerMaintenanceEvent(ServerMaintenanceEvent e)
+            => ServerMaintenanceEvent?.Invoke(this, e);
 
         internal bool TryResend(int hashSlot, Message message, EndPoint endpoint, bool isMoved)
         {
@@ -902,10 +903,8 @@ namespace StackExchange.Redis
                         muxer.InitializeSentinel(logProxy);
                     }
 
-                    if (configuration.IsAzureEndpoint() && configuration.CommandMap.IsAvailable(RedisCommand.SUBSCRIBE))
-                    {
-                        await AzureMaintenanceEvent.AddListenerAsync(muxer, logProxy).ForAwait();
-                    }
+                    await Maintenance.ServerMaintenanceEvent.AddListenersAsync(muxer, logProxy).ForAwait();
+
                     return muxer;
                 }
                 finally
@@ -1201,10 +1200,9 @@ namespace StackExchange.Redis
                         // Initialize the Sentinel handlers
                         muxer.InitializeSentinel(logProxy);
                     }
-                    if (configuration.IsAzureEndpoint() && configuration.CommandMap.IsAvailable(RedisCommand.SUBSCRIBE))
-                    {
-                        AzureMaintenanceEvent.AddListenerAsync(muxer, logProxy).Wait(muxer.SyncConnectTimeout(true));
-                    }
+
+                    Maintenance.ServerMaintenanceEvent.AddListenersAsync(muxer, logProxy).Wait(muxer.SyncConnectTimeout(true));
+
                     return muxer;
                 }
                 finally
