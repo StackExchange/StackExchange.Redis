@@ -63,8 +63,8 @@ namespace StackExchange.Redis.Maintenance
                         switch (key)
                         {
                             case var _ when key.SequenceEqual(nameof(NotificationType).AsSpan()):
-                                NotificationTypeString = value.ToString();
-                                NotificationType = ParseNotificationType(NotificationTypeString);
+                                AzureNotificationTypetring = value.ToString();
+                                NotificationType = ParseNotificationType(AzureNotificationTypetring);
                                 break;
                             case var _ when key.SequenceEqual("StartTimeInUTC".AsSpan()) && DateTime.TryParseExact(value, "s", CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out DateTime startTime):
                                 StartTimeUtc = DateTime.SpecifyKind(startTime, DateTimeKind.Utc);
@@ -88,8 +88,8 @@ namespace StackExchange.Redis.Maintenance
                         switch (key)
                         {
                             case var _ when key.SequenceEqual(nameof(NotificationType).AsSpan()):
-                                NotificationTypeString = value.ToString();
-                                NotificationType = ParseNotificationType(NotificationTypeString);
+                                AzureNotificationTypetring = value.ToString();
+                                NotificationType = ParseNotificationType(AzureNotificationTypetring);
                                 break;
                             case var _ when key.SequenceEqual("StartTimeInUTC".AsSpan()) && DateTime.TryParseExact(value.ToString(), "s", CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out DateTime startTime):
                                 StartTimeUtc = DateTime.SpecifyKind(startTime, DateTimeKind.Utc);
@@ -130,14 +130,19 @@ namespace StackExchange.Redis.Maintenance
                     return;
                 }
 
-                await sub.SubscribeAsync(PubSubChannelName, (channel, message) =>
+                await sub.SubscribeAsync(PubSubChannelName, async (channel, message) =>
                 {
                     var newMessage = new AzureMaintenanceEvent(message);
                     multiplexer.InvokeServerMaintenanceEvent(newMessage);
 
-                    if (newMessage.NotificationType == NotificationTypes.NodeMaintenanceEnded || newMessage.NotificationType == NotificationTypes.NodeMaintenanceFailoverComplete)
+                    switch (newMessage.NotificationType)
                     {
-                        multiplexer.ReconfigureAsync(first: false, reconfigureAll: true, log: logProxy, blame: null, cause: $"Azure Event: {newMessage.NotificationType}").Wait();
+                        case AzureNotificationType.NodeMaintenanceEnded:
+                        case AzureNotificationType.NodeMaintenanceFailoverComplete:
+                            await multiplexer.ReconfigureAsync(first: false, reconfigureAll: true, log: logProxy, blame: null, cause: $"Azure Event: {newMessage.NotificationType}").ForAwait();
+                            break;
+                        default:
+                            break;
                     }
                 }).ForAwait();
             }
@@ -150,12 +155,12 @@ namespace StackExchange.Redis.Maintenance
         /// <summary>
         /// Indicates the type of event (raw string form).
         /// </summary>
-        public string NotificationTypeString { get; }
+        public string AzureNotificationTypetring { get; }
 
         /// <summary>
-        /// The parsed version of <see cref="NotificationTypeString"/> for easier consumption.
+        /// The parsed version of <see cref="AzureNotificationTypetring"/> for easier consumption.
         /// </summary>
-        public NotificationTypes NotificationType { get; }
+        public AzureNotificationType NotificationType { get; }
 
         /// <summary>
         /// Indicates if the event is for a replica node.
@@ -177,52 +182,16 @@ namespace StackExchange.Redis.Maintenance
         /// </summary>
         public int NonSslPort { get; }
 
-        /// <summary>
-        /// The types of notifications that Azure is sending for events happening.
-        /// </summary>
-        public enum NotificationTypes
+        private AzureNotificationType ParseNotificationType(string typeString) => typeString switch
         {
-            /// <summary>
-            /// Unrecognized event type, likely needs a library update to recognize new events.
-            /// </summary>
-            Unknown,
-
-            /// <summary>
-            /// Indicates that a maintenance event is scheduled. May be several minutes from now.
-            /// </summary>
-            NodeMaintenanceScheduled,
-
-            /// <summary>
-            /// This event gets fired ~20s before maintenance begins.
-            /// </summary>
-            NodeMaintenanceStarting,
-
-            /// <summary>
-            /// This event gets fired when maintenance is imminent (&lt;5s).
-            /// </summary>
-            NodeMaintenanceStart,
-
-            /// <summary>
-            /// Indicates that the node maintenance operation is over.
-            /// </summary>
-            NodeMaintenanceEnded,
-
-            /// <summary>
-            /// Indicates that a replica has been promoted to primary.
-            /// </summary>
-            NodeMaintenanceFailoverComplete,
-        }
-
-        private NotificationTypes ParseNotificationType(string typeString) => typeString switch
-        {
-            "NodeMaintenanceScheduled" => NotificationTypes.NodeMaintenanceScheduled,
-            "NodeMaintenanceStarting" => NotificationTypes.NodeMaintenanceStarting,
-            "NodeMaintenanceStart" => NotificationTypes.NodeMaintenanceStart,
-            "NodeMaintenanceEnded" => NotificationTypes.NodeMaintenanceEnded,
+            "NodeMaintenanceScheduled" => AzureNotificationType.NodeMaintenanceScheduled,
+            "NodeMaintenanceStarting" => AzureNotificationType.NodeMaintenanceStarting,
+            "NodeMaintenanceStart" => AzureNotificationType.NodeMaintenanceStart,
+            "NodeMaintenanceEnded" => AzureNotificationType.NodeMaintenanceEnded,
             // This is temporary until server changes go into effect - to be removed in later versions
-            "NodeMaintenanceFailover" => NotificationTypes.NodeMaintenanceFailoverComplete,
-            "NodeMaintenanceFailoverComplete" => NotificationTypes.NodeMaintenanceFailoverComplete,
-            _ => NotificationTypes.Unknown,
+            "NodeMaintenanceFailover" => AzureNotificationType.NodeMaintenanceFailoverComplete,
+            "NodeMaintenanceFailoverComplete" => AzureNotificationType.NodeMaintenanceFailoverComplete,
+            _ => AzureNotificationType.Unknown,
         };
     }
 }
