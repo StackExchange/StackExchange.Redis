@@ -34,7 +34,7 @@ namespace StackExchange.Redis.Maintenance
         public string RawMessage { get; protected set; }
 
         /// <summary>
-        /// The time the event was received.
+        /// The time the event was received. If we know when the event is expected to start <see cref="StartTimeUtc"/> will be populated.
         /// </summary>
         public DateTime ReceivedTimeUtc { get; }
 

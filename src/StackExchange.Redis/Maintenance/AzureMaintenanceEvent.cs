@@ -75,10 +75,10 @@ namespace StackExchange.Redis.Maintenance
                             case var _ when key.SequenceEqual(nameof(IPAddress).AsSpan()) && IPAddress.TryParse(value, out var ipAddress):
                                 IPAddress = ipAddress;
                                 break;
-                            case var _ when key.SequenceEqual("SSLPort".AsSpan()) && int.TryParse(value, NumberStyles.Integer, NumberFormatInfo.InvariantInfo, out var port):
+                            case var _ when key.SequenceEqual("SSLPort".AsSpan()) && Format.TryParseInt32(value, out var port):
                                 SslPort = port;
                                 break;
-                            case var _ when key.SequenceEqual("NonSSLPort".AsSpan()) && int.TryParse(value, NumberStyles.Integer, NumberFormatInfo.InvariantInfo, out var nonsslport):
+                            case var _ when key.SequenceEqual("NonSSLPort".AsSpan()) && Format.TryParseInt32(value, out var nonsslport):
                                 NonSslPort = nonsslport;
                                 break;
                             default:
@@ -100,10 +100,10 @@ namespace StackExchange.Redis.Maintenance
                             case var _ when key.SequenceEqual(nameof(IPAddress).AsSpan()) && IPAddress.TryParse(value.ToString(), out var ipAddress):
                                 IPAddress = ipAddress;
                                 break;
-                            case var _ when key.SequenceEqual("SSLPort".AsSpan()) && int.TryParse(value.ToString(), NumberStyles.Integer, NumberFormatInfo.InvariantInfo, out var port):
+                            case var _ when key.SequenceEqual("SSLPort".AsSpan()) && Format.TryParseInt32(value.ToString(), out var port):
                                 SslPort = port;
                                 break;
-                            case var _ when key.SequenceEqual("NonSSLPort".AsSpan()) && int.TryParse(value.ToString(), NumberStyles.Integer, NumberFormatInfo.InvariantInfo, out var nonsslport):
+                            case var _ when key.SequenceEqual("NonSSLPort".AsSpan()) && Format.TryParseInt32(value.ToString(), out var nonsslport):
                                 NonSslPort = nonsslport;
                                 break;
                             default:
