@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Globalization;
 using System.Net;
+using StackExchange.Redis.Maintenance;
 using Xunit;
 using Xunit.Abstractions;
 

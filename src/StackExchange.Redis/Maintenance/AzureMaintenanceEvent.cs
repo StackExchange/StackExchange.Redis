@@ -7,7 +7,7 @@ using System.Globalization;
 using System.Buffers.Text;
 #endif
 
-namespace StackExchange.Redis
+namespace StackExchange.Redis.Maintenance
 {
     /// <summary>
     /// Azure node maintenance event. For more information, please see: https://github.com/Azure/AzureCacheForRedis/blob/main/AzureRedisEvents.md
@@ -164,7 +164,6 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// IPAddress of the node event is intended for.
-        /// IPAddress of the node event is intended for
         /// </summary>
         public IPAddress IPAddress { get; }
 
@@ -189,6 +188,11 @@ namespace StackExchange.Redis
             Unknown,
 
             /// <summary>
+            /// Indicates that a maintenance event is scheduled. May be several minutes from now.
+            /// </summary>
+            NodeMaintenanceScheduled,
+
+            /// <summary>
             /// This event gets fired ~20s before maintenance begins.
             /// </summary>
             NodeMaintenanceStarting,
@@ -211,10 +215,13 @@ namespace StackExchange.Redis
 
         private NotificationTypes ParseNotificationType(string typeString) => typeString switch
         {
+            "NodeMaintenanceScheduled" => NotificationTypes.NodeMaintenanceScheduled,
             "NodeMaintenanceStarting" => NotificationTypes.NodeMaintenanceStarting,
             "NodeMaintenanceStart" => NotificationTypes.NodeMaintenanceStart,
             "NodeMaintenanceEnded" => NotificationTypes.NodeMaintenanceEnded,
+            // This is temporary until server changes go into effect - to be removed in later versions
             "NodeMaintenanceFailover" => NotificationTypes.NodeMaintenanceFailoverComplete,
+            "NodeMaintenanceFailoverComplete" => NotificationTypes.NodeMaintenanceFailoverComplete,
             _ => NotificationTypes.Unknown,
         };
     }

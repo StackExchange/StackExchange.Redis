@@ -14,6 +14,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Pipelines.Sockets.Unofficial;
+using StackExchange.Redis.Maintenance;
 using StackExchange.Redis.Profiling;
 
 namespace StackExchange.Redis
@@ -902,7 +903,7 @@ namespace StackExchange.Redis
                         muxer.InitializeSentinel(logProxy);
                     }
 
-                    await Redis.ServerMaintenanceEvent.AddListenersAsync(muxer, logProxy).ForAwait();
+                    await Maintenance.ServerMaintenanceEvent.AddListenersAsync(muxer, logProxy).ForAwait();
 
                     return muxer;
                 }
@@ -1200,7 +1201,7 @@ namespace StackExchange.Redis
                         muxer.InitializeSentinel(logProxy);
                     }
 
-                    Redis.ServerMaintenanceEvent.AddListenersAsync(muxer, logProxy).Wait(muxer.SyncConnectTimeout(true));
+                    Maintenance.ServerMaintenanceEvent.AddListenersAsync(muxer, logProxy).Wait(muxer.SyncConnectTimeout(true));
 
                     return muxer;
                 }
