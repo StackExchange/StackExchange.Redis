@@ -9,6 +9,7 @@
 - Add support for count argument to `ListLeftPop`, `ListLeftPopAsync`, `ListRightPop`, and `ListRightPopAsync` (#1850 via jjfmarket)
 - fix potential task/thread exhaustion from the backlog processor (#1854 via mgravell)
 - add `StringGetDelete`/`StringGetDeleteAsync` API for Redis `GETDEL` command(#1840 via WeihanLi)
+- return to pre-2.2.62 behavior on ordering while we regroup (#1864) on sublte downstream issues (#1880 via NickCraver)
 
 ## 2.2.62
 
