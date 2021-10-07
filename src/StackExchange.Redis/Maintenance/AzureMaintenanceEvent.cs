@@ -140,8 +140,6 @@ namespace StackExchange.Redis.Maintenance
                         case AzureNotificationType.NodeMaintenanceFailoverComplete:
                             await multiplexer.ReconfigureAsync(first: false, reconfigureAll: true, log: logProxy, blame: null, cause: $"Azure Event: {newMessage.NotificationType}").ForAwait();
                             break;
-                        default:
-                            break;
                     }
                 }).ForAwait();
             }

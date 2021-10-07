@@ -790,21 +790,25 @@ namespace StackExchange.Redis
         // Microsoft Azure team wants abortConnect=false by default
         private bool GetDefaultAbortOnConnectFailSetting() => !IsAzureEndpoint();
 
+        /// <summary>
+        /// List of domains known to be Azure Redis, so we can light up some helpful functionality
+        /// for minimizing downtime during maintenance events and such.
+        /// </summary>
+        private static readonly List<string> azureRedisDomains = new List<string> {
+            ".redis.cache.windows.net",
+            ".redis.cache.chinacloudapi.cn",
+            ".redis.cache.usgovcloudapi.net",
+            ".redis.cache.cloudapi.de",
+            ".redisenterprise.cache.azure.net",
+        };
+
         internal bool IsAzureEndpoint()
         {
-            List<string> azureRedisHosts = new List<string> {
-                ".redis.cache.windows.net",
-                ".redis.cache.chinacloudapi.cn",
-                ".redis.cache.usgovcloudapi.net",
-                ".redis.cache.cloudapi.de",
-                ".redisenterprise.cache.azure.net"
-            };
-
             foreach (var ep in EndPoints)
             {
                 if (ep is DnsEndPoint dnsEp)
                 {
-                    foreach (var host in azureRedisHosts)
+                    foreach (var host in azureRedisDomains)
                     {
                         if (dnsEp.Host.EndsWith(host, StringComparison.InvariantCultureIgnoreCase))
                         {
