@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
+using StackExchange.Redis.Maintenance;
 using Xunit;
 using Xunit.Abstractions;
 // ReSharper disable AccessToModifiedClosure
@@ -704,6 +705,38 @@ namespace StackExchange.Redis.Tests
                 await AllowReasonableTimeToPublishAndProcess().ForAwait();
                 Assert.Equal(2, Volatile.Read(ref x));
                 Assert.Equal(2, Volatile.Read(ref y));
+            }
+        }
+
+        [Fact]
+        public async Task AzureRedisEventsAutomaticSubscribe()
+        {
+            Skip.IfNoConfig(nameof(TestConfig.Config.AzureCacheServer), TestConfig.Current.AzureCacheServer);
+            Skip.IfNoConfig(nameof(TestConfig.Config.AzureCachePassword), TestConfig.Current.AzureCachePassword);
+
+            bool didUpdate = false;
+            var options = new ConfigurationOptions()
+            {
+                EndPoints = { TestConfig.Current.AzureCacheServer },
+                Password = TestConfig.Current.AzureCachePassword,
+                Ssl = true
+            };
+
+            using (var connection = await ConnectionMultiplexer.ConnectAsync(options))
+            {
+                connection.ServerMaintenanceEvent += (object sender, ServerMaintenanceEvent e) =>
+                {
+                    if (e is AzureMaintenanceEvent)
+                    {
+                        didUpdate = true;
+                    }
+                };
+
+                var pubSub = connection.GetSubscriber();
+                await pubSub.PublishAsync("AzureRedisEvents", "HI");
+                await Task.Delay(100);
+
+                Assert.True(didUpdate);
             }
         }
 
