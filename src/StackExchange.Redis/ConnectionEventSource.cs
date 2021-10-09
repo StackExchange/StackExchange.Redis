@@ -1,10 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics.Tracing;
-using System.Linq;
-using System.Runtime.Serialization;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace StackExchange.Redis
 {
@@ -69,8 +66,6 @@ namespace StackExchange.Redis
         }
         #endregion Exception
 
-
-
         public static ConnectionEventSource Log = new ConnectionEventSource();
 
         private string _serializeDictionary(Dictionary<string, string> dictionary)
@@ -85,10 +80,6 @@ namespace StackExchange.Redis
             sb.Append("}");
             return sb.ToString();
         }
-
-
-
-
 
         internal class Messages
         {
