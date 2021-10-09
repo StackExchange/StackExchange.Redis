@@ -215,6 +215,9 @@ namespace StackExchange.Redis
             {
                 ReconfigureIfNeeded(endpoint, false, "connection failed");
             }
+
+            ConnectionEventSource.Log.ConnectionMultiplexer_ConnectionFailed(reconfigure.ToString(), connectionType.ToString(), failureType.ToString(), exception.GetType().ToString(), exception.Message);
+            ConnectionEventSource.Log.Exception(exception);
         }
 
         internal void OnInternalError(Exception exception, EndPoint endpoint = null, ConnectionType connectionType = ConnectionType.None, [CallerMemberName] string origin = null)
@@ -229,6 +232,8 @@ namespace StackExchange.Redis
                     ConnectionMultiplexer.CompleteAsWorker(
                         new InternalErrorEventArgs(handler, this, endpoint, connectionType, exception, origin));
                 }
+                ConnectionEventSource.Log.ConnectionMultiplexer_InternalError(connectionType.ToString(), origin, exception.GetType().ToString(), exception.Message);
+                ConnectionEventSource.Log.Exception(exception);
             }
             catch
             { // our internal error event failed; whatcha gonna do, exactly?
@@ -244,7 +249,8 @@ namespace StackExchange.Redis
                 ConnectionMultiplexer.CompleteAsWorker(
                     new ConnectionFailedEventArgs(handler, this, endpoint, connectionType, ConnectionFailureType.None, null, physicalName));
             }
-            ReconfigureIfNeeded(endpoint, false, "connection restored");
+            var reconfigured = ReconfigureIfNeeded(endpoint, false, "connection restored");
+            ConnectionEventSource.Log.ConnectionMultiplexer_ConnectionRestored(connectionType.ToString(), reconfigured.ToString());
         }
 
         private void OnEndpointChanged(EndPoint endpoint, EventHandler<EndPointEventArgs> handler)
@@ -254,6 +260,7 @@ namespace StackExchange.Redis
             {
                 ConnectionMultiplexer.CompleteAsWorker(new EndPointEventArgs(handler, this, endpoint));
             }
+            ConnectionEventSource.Log.ConnectionMultiplexer_EndpointChanged(endpoint?.AddressFamily.ToString()??string.Empty);
         }
 
         internal void OnConfigurationChanged(EndPoint endpoint) => OnEndpointChanged(endpoint, ConfigurationChanged);
