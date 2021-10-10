@@ -12,13 +12,12 @@ namespace StackExchange.Redis.Tests
 
         protected override string GetConfiguration() => TestConfig.Current.MasterServerAndPort + "," + TestConfig.Current.ReplicaServerAndPort;
 
-#if DEBUG
         [Fact]
         public async Task FastNoticesFailOnConnectingSyncCompletion()
         {
             try
             {
-                using (var muxer = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true))
+                using (var muxer = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true, shared: false))
                 {
                     var conn = muxer.GetDatabase();
                     conn.Ping();
@@ -29,12 +28,12 @@ namespace StackExchange.Redis.Tests
                     muxer.AllowConnect = false;
 
                     // muxer.IsConnected is true of *any* are connected, simulate failure for all cases.
-                    server.SimulateConnectionFailure();
+                    server.SimulateConnectionFailure(SimulatedFailureType.All);
                     Assert.False(server.IsConnected);
                     Assert.True(server2.IsConnected);
                     Assert.True(muxer.IsConnected);
 
-                    server2.SimulateConnectionFailure();
+                    server2.SimulateConnectionFailure(SimulatedFailureType.All);
                     Assert.False(server.IsConnected);
                     Assert.False(server2.IsConnected);
                     Assert.False(muxer.IsConnected);
@@ -42,7 +41,7 @@ namespace StackExchange.Redis.Tests
                     // should reconnect within 1 keepalive interval
                     muxer.AllowConnect = true;
                     Log("Waiting for reconnect");
-                    await Task.Delay(2000).ForAwait();
+                    await UntilCondition(TimeSpan.FromSeconds(2), () => muxer.IsConnected).ForAwait();
 
                     Assert.True(muxer.IsConnected);
                 }
@@ -58,7 +57,7 @@ namespace StackExchange.Redis.Tests
         {
             try
             {
-                using (var muxer = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true))
+                using (var muxer = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true, shared: false))
                 {
                     var conn = muxer.GetDatabase();
                     conn.Ping();
@@ -69,12 +68,12 @@ namespace StackExchange.Redis.Tests
                     muxer.AllowConnect = false;
 
                     // muxer.IsConnected is true of *any* are connected, simulate failure for all cases.
-                    server.SimulateConnectionFailure();
+                    server.SimulateConnectionFailure(SimulatedFailureType.All);
                     Assert.False(server.IsConnected);
                     Assert.True(server2.IsConnected);
                     Assert.True(muxer.IsConnected);
 
-                    server2.SimulateConnectionFailure();
+                    server2.SimulateConnectionFailure(SimulatedFailureType.All);
                     Assert.False(server.IsConnected);
                     Assert.False(server2.IsConnected);
                     Assert.False(muxer.IsConnected);
@@ -82,7 +81,7 @@ namespace StackExchange.Redis.Tests
                     // should reconnect within 1 keepalive interval
                     muxer.AllowConnect = true;
                     Log("Waiting for reconnect");
-                    await Task.Delay(2000).ForAwait();
+                    await UntilCondition(TimeSpan.FromSeconds(2), () => muxer.IsConnected).ForAwait();
 
                     Assert.True(muxer.IsConnected);
                 }
@@ -115,7 +114,7 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal(0, Volatile.Read(ref restoreCount));
 
                 var server = muxer.GetServer(TestConfig.Current.MasterServerAndPort);
-                server.SimulateConnectionFailure();
+                server.SimulateConnectionFailure(SimulatedFailureType.All);
 
                 await UntilCondition(TimeSpan.FromSeconds(10), () => Volatile.Read(ref failCount) + Volatile.Read(ref restoreCount) == 4);
                 // interactive+subscriber = 2
@@ -123,7 +122,6 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal(2, Volatile.Read(ref restoreCount));
             }
         }
-#endif
 
         [Fact]
         public void ConnectsWhenBeginConnectCompletesSynchronously()

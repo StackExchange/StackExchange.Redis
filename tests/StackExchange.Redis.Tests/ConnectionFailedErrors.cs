@@ -168,13 +168,12 @@ namespace StackExchange.Redis.Tests
             Assert.Null(ConnectionMultiplexer.TryGetAzureRoleInstanceIdNoThrow());
         }
 
-#if DEBUG
         [Fact]
         public async Task CheckFailureRecovered()
         {
             try
             {
-                using (var muxer = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true, log: Writer))
+                using (var muxer = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true, log: Writer, shared: false))
                 {
                     await RunBlockingSynchronousWithExtraThreadAsync(innerScenario).ForAwait();
                     void innerScenario()
@@ -184,7 +183,7 @@ namespace StackExchange.Redis.Tests
 
                         muxer.AllowConnect = false;
 
-                        server.SimulateConnectionFailure();
+                        server.SimulateConnectionFailure(SimulatedFailureType.All);
 
                         var lastFailure = ((RedisConnectionException)muxer.GetServerSnapshot()[0].LastException).FailureType;
                         // Depending on heartbat races, the last exception will be a socket failure or an internal (follow-up) failure
@@ -203,6 +202,5 @@ namespace StackExchange.Redis.Tests
                 ClearAmbientFailures();
             }
         }
-#endif
     }
 }

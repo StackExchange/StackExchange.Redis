@@ -740,11 +740,10 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-#if DEBUG
         [Fact]
         public async Task SubscriptionsSurviveConnectionFailureAsync()
         {
-            using (var muxer = Create(allowAdmin: true))
+            using (var muxer = Create(allowAdmin: true, shared: false))
             {
                 RedisChannel channel = Me();
                 var sub = muxer.GetSubscriber();
@@ -760,7 +759,7 @@ namespace StackExchange.Redis.Tests
                 var server = GetServer(muxer);
                 Assert.Equal(1, server.GetCounters().Subscription.SocketCount);
 
-                server.SimulateConnectionFailure();
+                server.SimulateConnectionFailure(SimulatedFailureType.All);
                 SetExpectedAmbientFailureCount(2);
                 await Task.Delay(200).ConfigureAwait(false);
                 sub.Ping();
@@ -771,6 +770,5 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal(2, Thread.VolatileRead(ref counter));
             }
         }
-#endif
     }
 }

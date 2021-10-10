@@ -905,10 +905,10 @@ namespace StackExchange.Redis
         /// <summary>
         /// For testing only
         /// </summary>
-        internal void SimulateConnectionFailure()
+        internal void SimulateConnectionFailure(SimulatedFailureType failureType)
         {
-            interactive?.SimulateConnectionFailure();
-            subscription?.SimulateConnectionFailure();
+            interactive?.SimulateConnectionFailure(failureType);
+            subscription?.SimulateConnectionFailure(failureType);
         }
     }
 }

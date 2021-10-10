@@ -1054,6 +1054,7 @@ namespace StackExchange.Redis
         /// For testing only: Break the connection without mercy or thought
         /// </summary>
         /// <param name="server">The server to simulate failure on.</param>
-        public static void SimulateConnectionFailure(this IServer server) => (server as RedisServer)?.SimulateConnectionFailure();
+        /// <param name="failureType">The type of failure(s) to simulate.</param>
+        public static void SimulateConnectionFailure(this IServer server, SimulatedFailureType failureType) => (server as RedisServer)?.SimulateConnectionFailure(failureType);
     }
 }

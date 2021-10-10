@@ -281,19 +281,18 @@ namespace StackExchange.Redis.Tests
             Assert.Equal("WRONGTYPE Operation against a key holding the wrong kind of value", ex.Message);
         }
 
-#if DEBUG
         [Fact]
         public async Task TestSevered()
         {
             SetExpectedAmbientFailureCount(2);
-            using (var muxer = Create(allowAdmin: true))
+            using (var muxer = Create(allowAdmin: true, shared: false))
             {
                 var db = muxer.GetDatabase();
                 string key = Me();
                 db.KeyDelete(key, CommandFlags.FireAndForget);
                 db.StringSet(key, key, flags: CommandFlags.FireAndForget);
                 var server = GetServer(muxer);
-                server.SimulateConnectionFailure();
+                server.SimulateConnectionFailure(SimulatedFailureType.All);
                 var watch = Stopwatch.StartNew();
                 await UntilCondition(TimeSpan.FromSeconds(10), () => server.IsConnected);
                 watch.Stop();
@@ -303,7 +302,6 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal(key, db.StringGet(key));
             }
         }
-#endif
 
         [Fact]
         public async Task IncrAsync()
