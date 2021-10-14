@@ -1,6 +1,7 @@
 ﻿Configuration
 ===
 
+When connecting to Redis version 6 or above with an ACL configured, your ACL user needs to at least have permissions to run the ECHO command. We run this command to verify that we have a valid connection to the Redis service.
 Because there are lots of different ways to configure redis, StackExchange.Redis offers a rich configuration model, which is invoked when calling `Connect` (or `ConnectAsync`):
 
 ```csharp
