@@ -168,6 +168,7 @@ namespace StackExchange.Redis.Tests
             Assert.Null(ConnectionMultiplexer.TryGetAzureRoleInstanceIdNoThrow());
         }
 
+#if DEBUG
         [Fact]
         public async Task CheckFailureRecovered()
         {
@@ -202,5 +203,6 @@ namespace StackExchange.Redis.Tests
                 ClearAmbientFailures();
             }
         }
+#endif
     }
 }
