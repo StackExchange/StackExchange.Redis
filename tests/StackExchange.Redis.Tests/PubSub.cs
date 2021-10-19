@@ -752,6 +752,7 @@ namespace StackExchange.Redis.Tests
                 {
                     Interlocked.Increment(ref counter);
                 }).ConfigureAwait(false);
+                await Task.Delay(200).ConfigureAwait(false);
                 await sub.PublishAsync(channel, "abc").ConfigureAwait(false);
                 sub.Ping();
                 await Task.Delay(200).ConfigureAwait(false);
