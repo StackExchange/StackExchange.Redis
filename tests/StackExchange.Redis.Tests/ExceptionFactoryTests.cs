@@ -27,6 +27,7 @@ namespace StackExchange.Redis.Tests
             Assert.Matches(@"2\.[0-9]+\.[0-9]+(\.[0-9]+)?", libVer);
         }
 
+#if DEBUG
         [Fact]
         public void MultipleEndpointsThrowConnectionException()
         {
@@ -55,6 +56,7 @@ namespace StackExchange.Redis.Tests
                 ClearAmbientFailures();
             }
         }
+#endif
 
         [Fact]
         public void ServerTakesPrecendenceOverSnapshot()
