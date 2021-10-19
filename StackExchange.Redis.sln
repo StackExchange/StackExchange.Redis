@@ -133,12 +133,6 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Docker", "Docker", "{A9F81D
 		tests\RedisConfigs\Docker\supervisord.conf = tests\RedisConfigs\Docker\supervisord.conf
 	EndProjectSection
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "RediSearch", "RediSearch", "{3FA2A7C6-DA16-4DEF-ACE0-34573A4AD430}"
-	ProjectSection(SolutionItems) = preProject
-		tests\RedisConfigs\RediSearch\redisearch-6385.conf = tests\RedisConfigs\RediSearch\redisearch-6385.conf
-		tests\RedisConfigs\RediSearch\redisearch.md = tests\RedisConfigs\RediSearch\redisearch.md
-	EndProjectSection
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
