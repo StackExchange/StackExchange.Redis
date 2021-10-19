@@ -40,7 +40,7 @@ namespace StackExchange.Redis.Tests
 
                     foreach (var endpoint in muxer.GetEndPoints())
                     {
-                        muxer.GetServer(endpoint).SimulateConnectionFailure();
+                        muxer.GetServer(endpoint).SimulateConnectionFailure(SimulatedFailureType.All);
                     }
 
                     var ex = ExceptionFactory.NoConnectionAvailable(muxer as ConnectionMultiplexer, null, null);
@@ -68,7 +68,7 @@ namespace StackExchange.Redis.Tests
                     muxer.GetDatabase();
                     muxer.AllowConnect = false;
 
-                    muxer.GetServer(muxer.GetEndPoints()[0]).SimulateConnectionFailure();
+                    muxer.GetServer(muxer.GetEndPoints()[0]).SimulateConnectionFailure(SimulatedFailureType.All);
 
                     var ex = ExceptionFactory.NoConnectionAvailable(muxer as ConnectionMultiplexer, null, muxer.GetServerSnapshot()[0]);
                     Assert.IsType<RedisConnectionException>(ex);

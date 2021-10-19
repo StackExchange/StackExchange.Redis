@@ -28,7 +28,7 @@ namespace StackExchange.Redis.Tests
                     // No need to delay, we're going to try a disconnected connection immediately so it'll fail...
                     conn.IgnoreConnect = true;
                     Log("simulating failure");
-                    server.SimulateConnectionFailure();
+                    server.SimulateConnectionFailure(SimulatedFailureType.All);
                     Log("simulated failure");
                     conn.IgnoreConnect = false;
                     Log("pinging - expect failure");

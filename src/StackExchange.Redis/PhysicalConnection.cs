@@ -290,6 +290,33 @@ namespace StackExchange.Redis
             return Task.CompletedTask;
         }
 
+        internal void SimulateConnectionFailure(SimulatedFailureType failureType)
+        {
+            if (connectionType == ConnectionType.Interactive)
+            {
+                if (failureType.HasFlag(SimulatedFailureType.InteractiveInbound))
+                {
+                    _ioPipe?.Input.Complete(new Exception("Simulating interactive input failure"));
+                }
+                if (failureType.HasFlag(SimulatedFailureType.InteractiveOutbound))
+                {
+                    _ioPipe?.Output.Complete(new Exception("Simulating interactive output failure"));
+                }
+            }
+            else if (connectionType == ConnectionType.Subscription)
+            {
+                if (failureType.HasFlag(SimulatedFailureType.SubscriptionInbound))
+                {
+                    _ioPipe?.Input.Complete(new Exception("Simulating subscription input failure"));
+                }
+                if (failureType.HasFlag(SimulatedFailureType.SubscriptionOutbound))
+                {
+                    _ioPipe?.Output.Complete(new Exception("Simulating subscription output failure"));
+                }
+            }
+            RecordConnectionFailed(ConnectionFailureType.SocketFailure);
+        }
+
         public void RecordConnectionFailed(ConnectionFailureType failureType, Exception innerException = null, [CallerMemberName] string origin = null,
             bool isInitialConnect = false, IDuplexPipe connectingPipe = null
             )

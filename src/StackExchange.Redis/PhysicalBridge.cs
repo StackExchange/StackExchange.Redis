@@ -1347,13 +1347,13 @@ namespace StackExchange.Redis
         /// <summary>
         /// For testing only
         /// </summary>
-        internal void SimulateConnectionFailure()
+        internal void SimulateConnectionFailure(SimulatedFailureType failureType)
         {
             if (!Multiplexer.RawConfig.AllowAdmin)
             {
                 throw ExceptionFactory.AdminModeNotEnabled(Multiplexer.IncludeDetailInExceptions, RedisCommand.DEBUG, null, ServerEndPoint); // close enough
             }
-            physical?.RecordConnectionFailed(ConnectionFailureType.SocketFailure);
+            physical?.SimulateConnectionFailure(failureType);
         }
 
         internal RedisCommand? GetActiveMessage() => Volatile.Read(ref _activeMessage)?.Command;
