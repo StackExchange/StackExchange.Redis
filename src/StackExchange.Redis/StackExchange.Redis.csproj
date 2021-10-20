@@ -15,6 +15,7 @@
 
   <ItemGroup>
     <!-- needed everywhere -->
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="5.0.0" />
     <PackageReference Include="Pipelines.Sockets.Unofficial" />
     <PackageReference Include="System.Diagnostics.PerformanceCounter" />
 
@@ -23,9 +24,9 @@
     <PackageReference Include="System.Threading.Channels" Condition="'$(TargetFramework)' == 'net472' or '$(TargetFramework)' == 'net461' or '$(TargetFramework)' == 'netstandard2.0'" />
 
     <!-- net461 needs this for OSPlatform et al -->
-    <PackageReference Include="System.Runtime.InteropServices.RuntimeInformation" Condition="'$(TargetFramework)' == 'net461' "/>
+    <PackageReference Include="System.Runtime.InteropServices.RuntimeInformation" Condition="'$(TargetFramework)' == 'net461' " />
     
     <!-- netfx needs this for ZipArchive -->
-    <PackageReference Include="System.IO.Compression" Condition="'$(TargetFramework)' == 'net472' or '$(TargetFramework)' == 'net461' "/>
+    <PackageReference Include="System.IO.Compression" Condition="'$(TargetFramework)' == 'net472' or '$(TargetFramework)' == 'net461' " />
   </ItemGroup>
 </Project>

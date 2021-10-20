@@ -9,6 +9,7 @@ using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using static StackExchange.Redis.ConnectionMultiplexer;
 
 namespace StackExchange.Redis
@@ -390,6 +391,12 @@ namespace StackExchange.Redis
         /// </summary>
         [Obsolete("This setting no longer has any effect, and should not be used")]
         public int WriteBuffer { get { return 0; } set { } }
+
+        /// <summary>
+        /// The factory for the ILoggerFactory that is going to be used for logging in SE.Redis
+        /// </summary>
+        /// <remarks>The ILoggerFacotry is wrapped into this to allow an extensibility point for additional custom loggers that can benefit from having access to the Mux</remarks>
+        public Func<ConnectionMultiplexer, ILoggerFactory> LoggerFactoryFactory { get; set; }
 
         internal LocalCertificateSelectionCallback CertificateSelectionCallback { get { return CertificateSelection; } private set { CertificateSelection = value; } }
 

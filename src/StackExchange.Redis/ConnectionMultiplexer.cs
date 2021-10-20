@@ -13,6 +13,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using Pipelines.Sockets.Unofficial;
 using StackExchange.Redis.Maintenance;
 using StackExchange.Redis.Profiling;
@@ -32,6 +33,10 @@ namespace StackExchange.Redis
         }
 
         private static FeatureFlags s_featureFlags;
+
+        internal ILoggerFactory LoggerFactory;
+        internal ILogger Logger;
+        internal string ConnectionId;
 
         /// <summary>
         /// Enables or disables a feature flag; this should only be used under support guidance, and should not be rapidly toggled
@@ -215,6 +220,9 @@ namespace StackExchange.Redis
             {
                 ReconfigureIfNeeded(endpoint, false, "connection failed");
             }
+
+            this.Logger?.LogInformation("[{ConnectionId}] - ConnectionMultiplexer connection failed.Reconfigure: {Reconfigure}, ConnectionType: {ConnectionType}, FailureType: {FailureType}, {ExceptionType}:{ExceptionMessage}",
+                                        this.ConnectionId, reconfigure.ToString(), connectionType.ToString(), failureType.ToString(), exception.GetType().ToString(), exception.Message, exception);
         }
 
         internal void OnInternalError(Exception exception, EndPoint endpoint = null, ConnectionType connectionType = ConnectionType.None, [CallerMemberName] string origin = null)
@@ -1297,6 +1305,10 @@ namespace StackExchange.Redis
         {
             IncludeDetailInExceptions = true;
             IncludePerformanceCountersInExceptions = false;
+
+            this.LoggerFactory = configuration?.LoggerFactoryFactory?.Invoke(this);
+            this.Logger = this.LoggerFactory?.CreateLogger(this.GetType());
+            this.ConnectionId = Guid.NewGuid().ToString("D");
 
             RawConfig = configuration ?? throw new ArgumentNullException(nameof(configuration));
 
