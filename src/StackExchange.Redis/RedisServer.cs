@@ -924,7 +924,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// For testing only
         /// </summary>
-        internal void SimulateConnectionFailure() => server.SimulateConnectionFailure();
+        internal void SimulateConnectionFailure(SimulatedFailureType failureType) => server.SimulateConnectionFailure(failureType);
 
         public Task<string> LatencyDoctorAsync(CommandFlags flags = CommandFlags.None)
         {

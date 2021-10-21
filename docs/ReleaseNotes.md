@@ -1,6 +1,9 @@
 # Release Notes
 
 ## Unreleased
+
+## 2.2.79
+
 - NRediSearch: Support on json index (#1808 via AvitalFineRedis)
 - NRediSearch: Support sortable TagFields and unNormalizedForm for Tag & Text Fields (#1862 via slorello89 & AvitalFineRedis)
 - fix potential errors getting socket bytes (#1836 via NickCraver)

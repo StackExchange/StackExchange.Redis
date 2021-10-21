@@ -33,7 +33,7 @@ namespace StackExchange.Redis.Tests
                 Assert.True(conn.Wait(b));
 
                 conn.AllowConnect = false;
-                server.SimulateConnectionFailure();
+                server.SimulateConnectionFailure(SimulatedFailureType.All);
                 var c = db.SetAddAsync(key, "c");
 
                 Assert.True(c.IsFaulted, "faulted");
