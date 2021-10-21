@@ -69,10 +69,6 @@ namespace StackExchange.Redis.Tests
             public int FailoverReplicaPort { get; set; } = 6383;
             public string FailoverReplicaServerAndPort => FailoverReplicaServer + ":" + FailoverReplicaPort.ToString();
 
-            public string RediSearchServer { get; set; } = "127.0.0.1";
-            public int RediSearchPort { get; set; } = 6385;
-            public string RediSearchServerAndPort => RediSearchServer + ":" + RediSearchPort.ToString();
-
             public string IPv4Server { get; set; } = "127.0.0.1";
             public int IPv4Port { get; set; } = 6379;
             public string IPv6Server { get; set; } = "::1";
