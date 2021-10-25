@@ -9,6 +9,7 @@ namespace StackExchange.Redis
     {
         private readonly int deltaBackOffMilliseconds;
         private readonly int maxDeltaBackOffMilliseconds = (int)TimeSpan.FromSeconds(10).TotalMilliseconds;
+        private readonly double exponentialBase = 1.1;
         [ThreadStatic]
         private static Random r;
 
@@ -23,10 +24,12 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="deltaBackOffMilliseconds">time in milliseconds for the back-off interval between retries</param>
         /// <param name="maxDeltaBackOffMilliseconds">time in milliseconds for the maximum value that the back-off interval can exponentially grow up to</param>
-        public ExponentialRetry(int deltaBackOffMilliseconds, int maxDeltaBackOffMilliseconds)
+        /// <param name="exponentialBase">base of the exponential function. The higher the base the faster the growth of the exponential</param>
+        public ExponentialRetry(int deltaBackOffMilliseconds, int maxDeltaBackOffMilliseconds, double exponentialBase = 1.1)
         {
             this.deltaBackOffMilliseconds = deltaBackOffMilliseconds;
             this.maxDeltaBackOffMilliseconds = maxDeltaBackOffMilliseconds;
+            this.exponentialBase = exponentialBase;
         }
 
         /// <summary>
@@ -36,21 +39,21 @@ namespace StackExchange.Redis
         /// <param name="timeElapsedMillisecondsSinceLastRetry">Total elapsed time in milliseconds since the last reconnect retry was made</param>
         public bool ShouldRetry(long currentRetryCount, int timeElapsedMillisecondsSinceLastRetry)
         {
-            var exponential = (int)Math.Min(maxDeltaBackOffMilliseconds, deltaBackOffMilliseconds * Math.Pow(1.1, currentRetryCount));
+            var exponential = (int)Math.Min(maxDeltaBackOffMilliseconds, deltaBackOffMilliseconds * Math.Pow(this.exponentialBase, currentRetryCount));
             int random;
             r ??= new Random();
             random = r.Next((int)deltaBackOffMilliseconds, exponential);
             return timeElapsedMillisecondsSinceLastRetry >= random;
-            //exponential backoff with deltaBackOff of 5000ms
+            //exponential backoff with deltaBackOff of 1000ms and a base of 1.5
             //deltabackoff  exponential 
-            //5000	        5500	   
-            //5000	        6050	   
-            //5000	        6655	   
-            //5000	        8053	   
-            //5000	        10718	   
-            //5000	        17261	   
-            //5000	        37001	   
-            //5000	        127738	   
+            //1000	        1500	   
+            //1000	        2250	   
+            //1000	        3375	   
+            //1000	        5063	   
+            //1000	        7594	   
+            //1000	        11391	   
+            //1000	        17086	   
+            //1000	        25629	   
         }
     }
 }
