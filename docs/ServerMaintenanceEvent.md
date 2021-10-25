@@ -1,19 +1,19 @@
-# Introducing ServerMaintenanceEvent
+# Introducing ServerMaintenanceEvents
 
-If you are running Azure Cache for Redis, SE.R now automatically subscribes to notfications about upcoming maintenance to the cache so that downtime/connection blips can be handled more gracefully on the client side.
+SE.R now automatically subscribes to notifications about upcoming maintenance from cache providers. The ServerMaintenanceEvent event handler on the ConnectionMultiplexer raises in response to these notifications and can be used for handling connection blips more gracefully. 
 
 ## Types of events
 
-The server currently sends the following notifications: 
+Azure Cache for Redis currently sends the following notifications: 
 * `NodeMaintenanceScheduled`: Indicates that a maintenance event is scheduled. Can be 10-15 minutes in advance. 
 * `NodeMaintenanceStarting`: This event gets fired ~20s before maintenance begins
 * `NodeMaintenanceStart`: This event gets fired when maintenance is imminent (<5s)
 * `NodeMaintenanceEnded`: Indicates that the node maintenance operation is over
 * `NodeMaintenanceFailoverComplete`: Indicates that a replica has been promoted to primary
 
-## Sample code to listen to *AzureRedisEvents* 
+## Sample code 
 
-The library will automatically subscribe to the AzureRedisEvents Pub/Sub channel. To plug in your maintenance response logic, you can pass in an event handler via the `ServerMaintenanceEvent` property on your `ConnectionMultiplexer`. 
+The library will automatically subscribe to the relevant channel for your provider. To plug in your maintenance response logic, you can pass in an event handler via the `ServerMaintenanceEvent` property on your `ConnectionMultiplexer`. 
 
 ```
 multiplexer.ServerMaintenanceEvent += (object sender, ServerMaintenanceEvent e) =>
@@ -24,9 +24,9 @@ multiplexer.ServerMaintenanceEvent += (object sender, ServerMaintenanceEvent e) 
     }
 };
 ```
-The server sends the message as a string in the form of key-value pairs delimited by pipes (|), which is then parsed into the `AzureMaintenanceEvent` class (you can look at the schema for the class [here](..\src\StackExchange.Redis\Maintenance\AzureMaintenanceEvent.cs).) The `ToString()` representation for Azure events also returns this format:
+On Azure, the server sends the message as a string in the form of key-value pairs delimited by pipes (|), which is then parsed into the `AzureMaintenanceEvent` class (you can look at the schema for the class [here](..\src\StackExchange.Redis\Maintenance\AzureMaintenanceEvent.cs).) The `ToString()` representation for Azure events also returns this format:
 ```
-NotificationType|{NotificationType}|StartTimeInUTC|{StartTimeInUTC}|IsReplica|{IsReplica}|IPAddress|{IPAddress}|SSLPort|{SSLPort}|NonSSLPort|{NonSSLPort}
+NotificationType|{NotificationType}|StartTimeInUTC|{StartTimeUtc}|IsReplica|{IsReplica}|IPAddress|{IPAddress}|SSLPort|{SSLPort}|NonSSLPort|{NonSSLPort}
 ```
 Note that the library automatically sets the `ReceivedTimeUtc` timestamp when the event is received. If you see in your logs that `ReceivedTimeUtc` is after `StartTimeUtc`, this may indicate that your connections are under high load. 
 
@@ -34,30 +34,13 @@ Note that the library automatically sets the `ReceivedTimeUtc` timestamp when th
 
 1. App is connected to Redis and everything is working fine. 
 
-2. Current Time: [16:21:39] -> Message received through *AzureRedisEvents* channel. The message notification type is "NodeMaintenanceScheduled" and StartTimeInUTC is "16:35:57" (about 14 minutes from current time). So we wait. 
-    ```
-    NotificationType|NodeMaintenanceScheduled|IsReplica|False|IPAddress|52.158.249.185|SSLPort|15000|NonSSLPort|13000|StartTimeInUTC|2021-10-20T16:35:57
-    ```
-3. Current Time: [16:34:26] -> "NodeMaintenanceStarting" message is received, and StartTimeInUTC is "16:34:56". This is about 30 seconds from current time, although the node will in practice become unavailable in around 20 seconds. 
-    ```
-    NotificationType|NodeMaintenanceStarting|IsReplica|False|IPAddress|52.158.249.185|SSLPort|15000|NonSSLPort|13000|StartTimeInUTC|2021-10-20T16:34:56
-    ```
+2. Current Time: [16:21:39] -> "NodeMaintenanceScheduled" event is raised, with a StartTimeUtc of "16:35:57" (about 14 minutes from current time).
+3. Current Time: [16:34:26] -> "NodeMaintenanceStarting" message is received, and StartTimeUtc is "16:34:56". This is about 30 seconds from current time, although the node will in practice become unavailable in around 20 seconds. 
 4. Current Time: [16:34:46] -> "NodeMaintenanceStart" message is received, so we know the node maintenance is about to happen. We break the circuit and stop sending new operations to the Redis object. SE.R will automatically refresh its view of the cache's topology. 
-    ```
-    NotificationType|NodeMaintenanceStart|IsReplica|False|IPAddress|52.158.249.185|SSLPort|15000|NonSSLPort|13000
-    ```
-6. Current Time: [16:34:47] -> The Redis object is disconnected from the Redis server. You can listen to these [ConnectionDisconnected events](<https://stackexchange.github.io/StackExchange.Redis/Events>).
-
-5. Current Time: [16:34:56] -> "NodeMaintenanceFailover" message is received. This tells us that the old replica has promoted itself to primary, in response to the maintenance happening on the other node.
-    ```
-    NotificationType|NodeMaintenanceFailover|IsReplica|False|IPAddress|52.158.249.185|SSLPort|15001|NonSSLPort|13001
-    ```
-5. Current Time [16:34:56] -> The Redis object is reconnected back to the Redis server (again, you can listen to the Reconnected event on your client). It is safe to send ops again to the Redis connection and all ops will succeed.
-
-6. Current Time [16:37:48] -> "NodeMaintenanceEnded" message is received, with a StartTimeInUTC of "16:37:48". Nothing to do here if you are talking to 6380/6379. For clustered caches, you can start sending readonly workloads to the replica. 
-    ```
-    NotificationType|NodeMaintenanceEnded|IsReplica|True|IPAddress|52.158.249.185|SSLPort|15000|NonSSLPort|13000|StartTimeInUTC|2021-10-20T16:37:48
-    ```
+5. Current Time: [16:34:47] -> The Redis object is disconnected from the Redis server. You can listen to these [ConnectionDisconnected events](<https://stackexchange.github.io/StackExchange.Redis/Events>).
+6. Current Time: [16:34:56] -> "NodeMaintenanceFailover" message is received. This tells us that the old replica has promoted itself to primary, in response to the maintenance happening on the other node.
+7. Current Time [16:34:56] -> The Redis object is reconnected back to the Redis server (again, you can listen to the Reconnected event on your client). It is safe to send ops again to the Redis connection and all ops will succeed.
+8. Current Time [16:37:48] -> "NodeMaintenanceEnded" message is received, with a StartTimeUtc of "16:37:48". Nothing to do here if you are talking to 6380/6379. For clustered caches, you can start sending readonly workloads to the replica. 
 
 ##  Maintenance Event details
 
