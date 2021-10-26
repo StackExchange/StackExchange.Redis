@@ -1779,8 +1779,10 @@ namespace StackExchange.Redis
                             {
                                 var server = servers[i];
                                 var task = available[i];
-                                server.GetOutstandingCount(RedisCommand.PING, out int inst, out int qs, out long @in, out int qu, out bool aw, out long toRead, out long toWrite, out var bs, out var rs, out var ws);
-                                log?.WriteLine($"  Server[{i}] ({Format.ToString(server)}) Status: {task.Status} (inst: {inst}, qs: {qs}, in: {@in}, qu: {qu}, aw: {aw}, in-pipe: {toRead}, out-pipe: {toWrite}, bw: {bs}, rs: {rs}. ws: {ws})");
+                                var bs = server.GetBridgeStatus(RedisCommand.PING);
+
+                                    //out int inst, out int qs, out long @in, out int qu, out bool aw, out long toRead, out long toWrite, out var bs, out var rs, out var ws);
+                                log?.WriteLine($"  Server[{i}] ({Format.ToString(server)}) Status: {task.Status} (inst: {bs.MessagesSinceLastHeartbeat}, qs: {bs.Connection.MessagesSentAwaitingResponse}, in: {bs.Connection.BytesAvailableOnSocket}, qu: {bs.MessagesSinceLastHeartbeat}, aw: {bs.IsWriterActive}, in-pipe: {bs.Connection.BytesInReadPipe}, out-pipe: {bs.Connection.BytesInWritePipe}, bw: {bs.BacklogStatus}, rs: {bs.Connection.ReadStatus}. ws: {bs.Connection.WriteStatus})");
                             }
                         }
 

@@ -330,7 +330,7 @@ namespace StackExchange.Redis
 
                 // stop anything new coming in...
                 bridge?.Trace("Failed: " + failureType);
-                long @in = -1, @toRead = -1, @toWrite = -1;
+                ConnectionStatus connStatus = ConnectionStatus.Default;
                 PhysicalBridge.State oldState = PhysicalBridge.State.Disconnected;
                 bool isCurrent = false;
                 bridge?.OnDisconnected(failureType, this, out isCurrent, out oldState);
@@ -338,7 +338,7 @@ namespace StackExchange.Redis
                 {
                     try
                     {
-                        @in = GetSocketBytes(out toRead, out toWrite);
+                        connStatus = GetStatus();
                     }
                     catch { /* best effort only */ }
                 }
@@ -408,9 +408,9 @@ namespace StackExchange.Redis
                             add("Keep-Alive", "keep-alive", bridge.ServerEndPoint?.WriteEverySeconds + "s");
                             add("Previous-Physical-State", "state", oldState.ToString());
                             add("Manager", "mgr", bridge.Multiplexer.SocketManager?.GetState());
-                            if (@in >= 0) add("Inbound-Bytes", "in", @in.ToString());
-                            if (toRead >= 0) add("Inbound-Pipe-Bytes", "in-pipe", toRead.ToString());
-                            if (toWrite >= 0) add("Outbound-Pipe-Bytes", "out-pipe", toWrite.ToString());
+                            if (connStatus.BytesAvailableOnSocket >= 0) add("Inbound-Bytes", "in", connStatus.BytesAvailableOnSocket.ToString());
+                            if (connStatus.BytesInReadPipe >= 0) add("Inbound-Pipe-Bytes", "in-pipe", connStatus.BytesInReadPipe.ToString());
+                            if (connStatus.BytesInWritePipe >= 0) add("Outbound-Pipe-Bytes", "out-pipe", connStatus.BytesInWritePipe.ToString());
 
                             add("Last-Heartbeat", "last-heartbeat", (lastBeat == 0 ? "never" : ((unchecked(now - lastBeat) / 1000) + "s ago")) + (BridgeCouldBeNull.IsBeating ? " (mid-beat)" : ""));
                             var mbeat = bridge.Multiplexer.LastHeartbeatSecondsAgo;
@@ -1266,25 +1266,87 @@ namespace StackExchange.Redis
             writer.Advance(bytes);
         }
 
-        internal long GetSocketBytes(out long readCount, out long writeCount)
+        internal readonly struct ConnectionStatus
+        {
+            /// <summary>
+            /// Number of messages sent outbound, but we don't yet have a response for.
+            /// </summary>
+            public int MessagesSentAwaitingResponse { get; init; }
+
+            /// <summary>
+            /// Bytes available on the socket, not yet read into the pipe.
+            /// </summary>
+            public long BytesAvailableOnSocket { get; init; } = -1;
+            /// <summary>
+            /// Bytes read from the socket, pending in the reader pipe.
+            /// </summary>
+            public long BytesInReadPipe { get; init; } = -1;
+            /// <summary>
+            /// Bytes in the writer pipe, waiting to be written to the socket.
+            /// </summary>
+            public long BytesInWritePipe { get; init; } = -1;
+
+            /// <summary>
+            /// The inbound pipe reader status.
+            /// </summary>
+            public ReadStatus ReadStatus { get; init; } = ReadStatus.NA;
+            /// <summary>
+            /// The outbound pipe writer status.
+            /// </summary>
+            public WriteStatus WriteStatus { get; init; } = WriteStatus.NA;
+
+            /// <summary>
+            /// The default connection stats, notable *not* the same as <code>default</code> since initializers don't run.
+            /// </summary>
+            public static ConnectionStatus Default { get; } = new();
+
+            /// <summary>
+            /// The zeroed connection stats, which we want to display as zero for default exception cases.
+            /// </summary>
+            public static ConnectionStatus Zero { get; } = new()
+            {
+                BytesAvailableOnSocket = 0,
+                BytesInReadPipe = 0,
+                BytesInWritePipe = 0
+            };
+        }
+
+        public ConnectionStatus GetStatus()
         {
             if (_ioPipe is SocketConnection conn)
             {
                 var counters = conn.GetCounters();
-                readCount = counters.BytesWaitingToBeRead;
-                writeCount = counters.BytesWaitingToBeSent;
-                return counters.BytesAvailableOnSocket;
+                return new ConnectionStatus()
+                {
+                    MessagesSentAwaitingResponse = GetSentAwaitingResponseCount(),
+                    BytesAvailableOnSocket = counters.BytesAvailableOnSocket,
+                    BytesInReadPipe = counters.BytesWaitingToBeRead,
+                    BytesInWritePipe = counters.BytesWaitingToBeSent,
+                    ReadStatus = _readStatus,
+                    WriteStatus = _writeStatus,
+                };
             }
-            readCount = writeCount = -1;
+
+            // Fall back to bytes waiting on the socket if we can
+            int fallbackBytesAvailable;
             try
-            {
-                return VolatileSocket?.Available ?? -1;
+            { 
+                fallbackBytesAvailable = VolatileSocket?.Available ?? -1;
             }
             catch
             {
                 // If this fails, we're likely in a race disposal situation and do not want to blow sky high here.
-                return -1;
+                fallbackBytesAvailable = -1;
             }
+
+            return new ConnectionStatus()
+            {
+                BytesAvailableOnSocket = fallbackBytesAvailable,
+                BytesInReadPipe = -1,
+                BytesInWritePipe = -1,
+                ReadStatus = _readStatus,
+                WriteStatus = _writeStatus,
+            };
         }
 
         private static RemoteCertificateValidationCallback GetAmbientIssuerCertificateCallback()
