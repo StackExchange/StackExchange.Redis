@@ -20,11 +20,10 @@ jobs:
       uses: actions/setup-dotnet@v1
       with:
         dotnet-version: '3.1.x'
-    - name: Setup .NET 6.x
+    - name: Setup .NET 5.x
       uses: actions/setup-dotnet@v1
       with:
-        dotnet-version: '6.0.x'
-        include-prerelease: true
+        dotnet-version: '5.0.x'
     - name: .NET Build
       run: dotnet build Build.csproj -c Release /p:CI=true
     - name: Start Redis Services (docker-compose)
@@ -52,11 +51,10 @@ jobs:
       uses: actions/setup-dotnet@v1
       with:
         dotnet-version: '3.1.x'
-    - name: Setup .NET 6.x
+    - name: Setup .NET 5.x
       uses: actions/setup-dotnet@v1
       with:
-        dotnet-version: '6.0.x'
-        include-prerelease: true
+        dotnet-version: '5.0.x'
     - name: .NET Build
       run: dotnet build Build.csproj -c Release /p:CI=true
     - name: Start Redis Services (v3.0.503)

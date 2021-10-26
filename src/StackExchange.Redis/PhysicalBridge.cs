@@ -304,7 +304,7 @@ namespace StackExchange.Redis
             /// <summary>
             /// Status foor the underlying <see cref="PhysicalConnection"/>.
             /// </summary>
-            public PhysicalConnection.ConnectionStatus Connection { get; init; } = PhysicalConnection.ConnectionStatus.Default;
+            public PhysicalConnection.ConnectionStatus Connection { get; init; }
 
             /// <summary>
             /// The default bridge stats, notable *not* the same as <code>default</code> since initializers don't run.

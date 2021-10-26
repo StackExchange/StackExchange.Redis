@@ -1276,29 +1276,36 @@ namespace StackExchange.Redis
             /// <summary>
             /// Bytes available on the socket, not yet read into the pipe.
             /// </summary>
-            public long BytesAvailableOnSocket { get; init; } = -1;
+            public long BytesAvailableOnSocket { get; init; }
             /// <summary>
             /// Bytes read from the socket, pending in the reader pipe.
             /// </summary>
-            public long BytesInReadPipe { get; init; } = -1;
+            public long BytesInReadPipe { get; init; }
             /// <summary>
             /// Bytes in the writer pipe, waiting to be written to the socket.
             /// </summary>
-            public long BytesInWritePipe { get; init; } = -1;
+            public long BytesInWritePipe { get; init; }
 
             /// <summary>
             /// The inbound pipe reader status.
             /// </summary>
-            public ReadStatus ReadStatus { get; init; } = ReadStatus.NA;
+            public ReadStatus ReadStatus { get; init; }
             /// <summary>
             /// The outbound pipe writer status.
             /// </summary>
-            public WriteStatus WriteStatus { get; init; } = WriteStatus.NA;
+            public WriteStatus WriteStatus { get; init; }
 
             /// <summary>
             /// The default connection stats, notable *not* the same as <code>default</code> since initializers don't run.
             /// </summary>
-            public static ConnectionStatus Default { get; } = new();
+            public static ConnectionStatus Default { get; } = new()
+            {
+                BytesAvailableOnSocket = -1,
+                BytesInReadPipe = -1,
+                BytesInWritePipe = -1,
+                ReadStatus = ReadStatus.NA,
+                WriteStatus = WriteStatus.NA,
+            };
 
             /// <summary>
             /// The zeroed connection stats, which we want to display as zero for default exception cases.
@@ -1307,7 +1314,9 @@ namespace StackExchange.Redis
             {
                 BytesAvailableOnSocket = 0,
                 BytesInReadPipe = 0,
-                BytesInWritePipe = 0
+                BytesInWritePipe = 0,
+                ReadStatus = ReadStatus.NA,
+                WriteStatus = WriteStatus.NA,
             };
         }
 
