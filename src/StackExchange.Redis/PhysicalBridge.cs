@@ -316,9 +316,8 @@ namespace StackExchange.Redis
         {
             MessagesSinceLastHeartbeat = (int)(Interlocked.Read(ref operationCount) - Interlocked.Read(ref profileLastLog)),
             IsWriterActive = !_singleWriterMutex.IsAvailable,
-            BacklogMessagesPending = _backlogGeneral.Count + _backlogSpecificServer.Count + _backlogHandshake.Count,
+            BacklogMessagesPending = _backlog.Count,
             BacklogStatus = _backlogStatus,
-            ActiveBacklog = _activeBacklog,
             Connection = physical?.GetStatus() ?? PhysicalConnection.ConnectionStatus.Default,
         };
 
