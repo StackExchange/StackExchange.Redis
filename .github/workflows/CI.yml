@@ -20,10 +20,6 @@ jobs:
       uses: actions/setup-dotnet@v1
       with:
         dotnet-version: '3.1.x'
-    - name: Setup .NET 5.x
-      uses: actions/setup-dotnet@v1
-      with:
-        dotnet-version: '5.0.x'
     - name: Setup .NET 6.x
       uses: actions/setup-dotnet@v1
       with:
@@ -56,10 +52,6 @@ jobs:
       uses: actions/setup-dotnet@v1
       with:
         dotnet-version: '3.1.x'
-    - name: Setup .NET 5.x
-      uses: actions/setup-dotnet@v1
-      with:
-        dotnet-version: '5.0.x'
     - name: Setup .NET 6.x
       uses: actions/setup-dotnet@v1
       with:
