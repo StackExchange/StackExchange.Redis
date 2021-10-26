@@ -24,8 +24,19 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="deltaBackOffMilliseconds">time in milliseconds for the back-off interval between retries</param>
         /// <param name="maxDeltaBackOffMilliseconds">time in milliseconds for the maximum value that the back-off interval can exponentially grow up to</param>
+        public ExponentialRetry(int deltaBackOffMilliseconds, int maxDeltaBackOffMilliseconds)
+        {
+            this.deltaBackOffMilliseconds = deltaBackOffMilliseconds;
+            this.maxDeltaBackOffMilliseconds = maxDeltaBackOffMilliseconds;
+        }
+
+        /// <summary>
+        /// Initializes a new instance using the specified back off interval.
+        /// </summary>
+        /// <param name="deltaBackOffMilliseconds">time in milliseconds for the back-off interval between retries</param>
+        /// <param name="maxDeltaBackOffMilliseconds">time in milliseconds for the maximum value that the back-off interval can exponentially grow up to</param>
         /// <param name="exponentialBase">base of the exponential function. The higher the base the faster the growth of the exponential</param>
-        public ExponentialRetry(int deltaBackOffMilliseconds, int maxDeltaBackOffMilliseconds, double exponentialBase = 1.1)
+        public ExponentialRetry(int deltaBackOffMilliseconds, int maxDeltaBackOffMilliseconds, double exponentialBase)
         {
             this.deltaBackOffMilliseconds = deltaBackOffMilliseconds;
             this.maxDeltaBackOffMilliseconds = maxDeltaBackOffMilliseconds;
