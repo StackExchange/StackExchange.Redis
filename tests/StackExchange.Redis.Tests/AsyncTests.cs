@@ -19,7 +19,7 @@ namespace StackExchange.Redis.Tests
         {
             SetExpectedAmbientFailureCount(-1); // this will get messy
 
-            using (var conn = Create(allowAdmin: true))
+            using (var conn = Create(allowAdmin: true, backlogPolicy: BacklogPolicy.FailFast))
             {
                 var server = conn.GetServer(TestConfig.Current.MasterServer, TestConfig.Current.MasterPort);
 

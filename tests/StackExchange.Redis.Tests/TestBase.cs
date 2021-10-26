@@ -230,6 +230,7 @@ namespace StackExchange.Redis.Tests
             string channelPrefix = null, Proxy? proxy = null,
             string configuration = null, bool logTransactionData = true,
             bool shared = true, int? defaultDatabase = null,
+            BacklogPolicy backlogPolicy = null,
             [CallerMemberName] string caller = null)
         {
             if (Output == null)
@@ -238,7 +239,7 @@ namespace StackExchange.Redis.Tests
             }
 
             if (shared && _fixture != null && _fixture.IsEnabled && enabledCommands == null && disabledCommands == null && fail && channelPrefix == null && proxy == null
-                && configuration == null && password == null && tieBreaker == null && defaultDatabase == null && (allowAdmin == null || allowAdmin == true) && expectedFailCount == 0)
+                && configuration == null && password == null && tieBreaker == null && defaultDatabase == null && (allowAdmin == null || allowAdmin == true) && expectedFailCount == 0 && backlogPolicy == null)
             {
                 configuration = GetConfiguration();
                 if (configuration == _fixture.Configuration)
@@ -255,7 +256,9 @@ namespace StackExchange.Redis.Tests
                 checkConnect, failMessage,
                 channelPrefix, proxy,
                 configuration ?? GetConfiguration(),
-                logTransactionData, defaultDatabase, caller);
+                logTransactionData, defaultDatabase,
+                backlogPolicy,
+                caller);
             muxer.InternalError += OnInternalError;
             muxer.ConnectionFailed += OnConnectionFailed;
             return muxer;
@@ -270,7 +273,7 @@ namespace StackExchange.Redis.Tests
             string channelPrefix = null, Proxy? proxy = null,
             string configuration = null, bool logTransactionData = true,
             int? defaultDatabase = null,
-
+            BacklogPolicy backlogPolicy = null,
             [CallerMemberName] string caller = null)
         {
             StringWriter localLog = null;
@@ -306,6 +309,7 @@ namespace StackExchange.Redis.Tests
                 if (connectTimeout != null) config.ConnectTimeout = connectTimeout.Value;
                 if (proxy != null) config.Proxy = proxy.Value;
                 if (defaultDatabase != null) config.DefaultDatabase = defaultDatabase.Value;
+                if (backlogPolicy != null) config.BacklogPolicy = backlogPolicy;
                 var watch = Stopwatch.StartNew();
                 var task = ConnectionMultiplexer.ConnectAsync(config, log);
                 if (!task.Wait(config.ConnectTimeout >= (int.MaxValue / 2) ? int.MaxValue : config.ConnectTimeout * 2))

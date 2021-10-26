@@ -768,6 +768,9 @@ namespace StackExchange.Redis
             return sb.ToString();
         }
 
+        /// <summary>
+        /// Write the message directly or queues in the handshake (priority) queue.
+        /// </summary>
         internal ValueTask WriteDirectOrQueueFireAndForgetAsync<T>(PhysicalConnection connection, Message message, ResultProcessor<T> processor)
         {
             static async ValueTask Awaited(ValueTask<WriteResult> l_result) => await l_result.ForAwait();
@@ -791,7 +794,7 @@ namespace StackExchange.Redis
                     }
                     else
                     {
-                        result = bridge.WriteMessageTakingWriteLockAsync(connection, message);
+                        result = bridge.WriteMessageTakingWriteLockAsync(connection, message, isHandShake: true);
                     }
                 }
 

@@ -99,8 +99,10 @@ namespace StackExchange.Redis.Tests
             config.AbortOnConnectFail = true;
             config.KeepAlive = 10;
             config.SyncTimeout = 1000;
+            config.AsyncTimeout = 1000;
             config.ReconnectRetryPolicy = new ExponentialRetry(5000);
             config.AllowAdmin = true;
+            config.BacklogPolicy = BacklogPolicy.FailFast;
 
             int failCount = 0, restoreCount = 0;
 

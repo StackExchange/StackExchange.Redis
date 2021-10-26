@@ -328,6 +328,7 @@ namespace StackExchange.Redis
                 if (bs.BacklogMessagesPending != 0)
                 {
                     Add(data, sb, "Backlog-Writer", "bw", bs.BacklogStatus.ToString());
+                    Add(data, sb, "Backlog-Name", "abl", bs.ActiveBacklog.ToString());
                 }
                 if (bs.Connection.ReadStatus != PhysicalConnection.ReadStatus.NA) Add(data, sb, "Read-State", "rs", bs.Connection.ReadStatus.ToString());
                 if (bs.Connection.WriteStatus != PhysicalConnection.WriteStatus.NA) Add(data, sb, "Write-State", "ws", bs.Connection.WriteStatus.ToString());

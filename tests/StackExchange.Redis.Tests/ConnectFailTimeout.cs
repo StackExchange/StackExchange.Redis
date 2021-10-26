@@ -13,7 +13,7 @@ namespace StackExchange.Redis.Tests
         public async Task NoticesConnectFail()
         {
             SetExpectedAmbientFailureCount(-1);
-            using (var conn = Create(allowAdmin: true))
+            using (var conn = Create(allowAdmin: true, backlogPolicy: BacklogPolicy.FailFast))
             {
                 var server = conn.GetServer(conn.GetEndPoints()[0]);
 

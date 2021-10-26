@@ -147,6 +147,8 @@ namespace StackExchange.Redis
 
         private IReconnectRetryPolicy reconnectRetryPolicy;
 
+        private BacklogPolicy backlogPolicy;
+
         /// <summary>
         /// A LocalCertificateSelectionCallback delegate responsible for selecting the certificate used for authentication; note
         /// that this cannot be specified in the configuration-string.
@@ -332,9 +334,14 @@ namespace StackExchange.Redis
         public Proxy Proxy { get { return proxy.GetValueOrDefault(); } set { proxy = value; } }
 
         /// <summary>
-        /// The retry policy to be used for connection reconnects
+        /// The retry policy to be used for connection reconnects.
         /// </summary>
         public IReconnectRetryPolicy ReconnectRetryPolicy { get { return reconnectRetryPolicy ??= new LinearRetry(ConnectTimeout); } set { reconnectRetryPolicy = value; } }
+
+        /// <summary>
+        /// The backlog policy to be used for commands when a connection is unhealthy.
+        /// </summary>
+        public BacklogPolicy BacklogPolicy { get => backlogPolicy ?? BacklogPolicy.Default; set => backlogPolicy = value; }
 
         /// <summary>
         /// Indicates whether endpoints should be resolved via DNS before connecting.
@@ -464,6 +471,7 @@ namespace StackExchange.Redis
                 responseTimeout = responseTimeout,
                 DefaultDatabase = DefaultDatabase,
                 ReconnectRetryPolicy = reconnectRetryPolicy,
+                BacklogPolicy = backlogPolicy,
                 SslProtocols = SslProtocols,
                 checkCertificateRevocation = checkCertificateRevocation,
             };
