@@ -3,7 +3,7 @@
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// Represents a retry policy that performs retries, using a randomized exponential back off scheme to determine the interval between retries. 
+    /// Represents a retry policy that performs retries, using a randomized exponential back off scheme to determine the interval between retries.
     /// </summary>
     public class ExponentialRetry : IReconnectRetryPolicy
     {
@@ -45,15 +45,26 @@ namespace StackExchange.Redis
             random = r.Next((int)deltaBackOffMilliseconds, exponential);
             return timeElapsedMillisecondsSinceLastRetry >= random;
             //exponential backoff with deltaBackOff of 1000ms and a base of 1.5
-            //deltabackoff  exponential 
-            //1000	        1500	   
-            //1000	        2250	   
-            //1000	        3375	   
-            //1000	        5063	   
-            //1000	        7594	   
-            //1000	        11391	   
-            //1000	        17086	   
-            //1000	        25629	   
+            //deltabackoff  exponential
+            //1000	        1500
+            //1000	        2250
+            //1000	        3375
+            //1000	        5063
+            //1000	        7594
+            //1000	        11391
+            //1000	        17086
+            //1000	        25629
+            //
+            //exponential backoff with deltaBackOff of 5000ms and a base of 1.1
+            //deltabackoff  exponential
+            //5000	        5500
+            //5000	        6050
+            //5000	        6655
+            //5000	        8053
+            //5000	        10718
+            //5000	        17261
+            //5000	        37001
+            //5000	        127738
         }
     }
 }
