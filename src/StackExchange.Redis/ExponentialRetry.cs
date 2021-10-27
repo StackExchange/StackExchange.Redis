@@ -9,7 +9,16 @@ namespace StackExchange.Redis
     {
         private readonly int deltaBackOffMilliseconds;
         private readonly int maxDeltaBackOffMilliseconds = (int)TimeSpan.FromSeconds(10).TotalMilliseconds;
-        private readonly double exponentialBase = 1.1;
+        private readonly double exponentialBase = DefaultExponentialBase;
+        /// <summary>
+        /// 
+        /// </summary>
+        public static const double DefaultExponentialBase = 1.1;
+        /// <summary>
+        /// 
+        /// </summary>
+        public static const int DefaultDeltaBackOffMiliseconds = 1000;
+
         [ThreadStatic]
         private static Random r;
 
@@ -24,11 +33,8 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="deltaBackOffMilliseconds">time in milliseconds for the back-off interval between retries</param>
         /// <param name="maxDeltaBackOffMilliseconds">time in milliseconds for the maximum value that the back-off interval can exponentially grow up to</param>
-        public ExponentialRetry(int deltaBackOffMilliseconds, int maxDeltaBackOffMilliseconds)
-        {
-            this.deltaBackOffMilliseconds = deltaBackOffMilliseconds;
-            this.maxDeltaBackOffMilliseconds = maxDeltaBackOffMilliseconds;
-        }
+        public ExponentialRetry(int deltaBackOffMilliseconds, int maxDeltaBackOffMilliseconds) : this(deltaBackOffMilliseconds, maxDeltaBackOffMilliseconds, DefaultExponentialBase) {}
+
 
         /// <summary>
         /// Initializes a new instance using the specified back off interval.

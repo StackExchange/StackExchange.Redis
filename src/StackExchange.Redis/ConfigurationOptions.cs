@@ -90,7 +90,8 @@ namespace StackExchange.Redis
                 TieBreaker = "tiebreaker",
                 Version = "version",
                 WriteBuffer = "writeBuffer",
-                CheckCertificateRevocation = "checkCertificateRevocation";
+                CheckCertificateRevocation = "checkCertificateRevocation",
+                UseLinearReconnectPolicy = "useLinearReconnectPolicy";
 
 
             private static readonly Dictionary<string, string> normalizedOptions = new[]
@@ -120,7 +121,8 @@ namespace StackExchange.Redis
                 TieBreaker,
                 Version,
                 WriteBuffer,
-                CheckCertificateRevocation
+                CheckCertificateRevocation,
+                UseLinearReconnectPolicy
             }.ToDictionary(x => x, StringComparer.OrdinalIgnoreCase);
 
             public static string TryNormalize(string value)
@@ -133,7 +135,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private bool? allowAdmin, abortOnConnectFail, highPrioritySocketThreads, resolveDns, ssl, checkCertificateRevocation;
+        private bool? allowAdmin, abortOnConnectFail, highPrioritySocketThreads, resolveDns, ssl, checkCertificateRevocation, useLinearReconnectPolicy;
 
         private string tieBreaker, sslHost, configChannel;
 
@@ -334,7 +336,25 @@ namespace StackExchange.Redis
         /// <summary>
         /// The retry policy to be used for connection reconnects
         /// </summary>
-        public IReconnectRetryPolicy ReconnectRetryPolicy { get { return reconnectRetryPolicy ??= new ExponentialRetry(1000, ConnectTimeout*2, 1.5); } set { reconnectRetryPolicy = value; } }
+        public IReconnectRetryPolicy ReconnectRetryPolicy
+        {
+            get
+            {
+                if (reconnectRetryPolicy != null)
+                {
+                    return reconnectRetryPolicy;
+                }
+                if (UseLinearReconnectPolicy)
+                {
+                    return new LinearRetry(ConnectTimeout);
+                }
+                return new ExponentialRetry(deltaBackOffMilliseconds:ExponentialRetry.DefaultDeltaBackOffMiliseconds, maxDeltaBackOffMilliseconds:ConnectTimeout * 2, exponentialBase: 1.5);
+            }
+            set
+            {
+                reconnectRetryPolicy = value;
+            }
+        }
 
         /// <summary>
         /// Indicates whether endpoints should be resolved via DNS before connecting.
@@ -402,6 +422,11 @@ namespace StackExchange.Redis
         public int ConfigCheckSeconds { get { return configCheckSeconds.GetValueOrDefault(60); } set { configCheckSeconds = value; } }
 
         /// <summary>
+        /// Indicates whether the linear retry policy should be used for reconnection, instead of the new exponential default.
+        /// </summary>
+        public bool UseLinearReconnectPolicy { get { return useLinearReconnectPolicy.GetValueOrDefault(); } set { useLinearReconnectPolicy = value; } }
+
+        /// <summary>
         /// Parse the configuration from a comma-delimited configuration string
         /// </summary>
         /// <param name="configuration">The configuration string to parse.</param>
@@ -466,6 +491,7 @@ namespace StackExchange.Redis
                 ReconnectRetryPolicy = reconnectRetryPolicy,
                 SslProtocols = SslProtocols,
                 checkCertificateRevocation = checkCertificateRevocation,
+                useLinearReconnectPolicy = useLinearReconnectPolicy
             };
             foreach (var item in EndPoints)
                 options.EndPoints.Add(item);
@@ -550,6 +576,7 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.ConfigCheckSeconds, configCheckSeconds);
             Append(sb, OptionKeys.ResponseTimeout, responseTimeout);
             Append(sb, OptionKeys.DefaultDatabase, DefaultDatabase);
+            Append(sb, OptionKeys.UseLinearReconnectPolicy, useLinearReconnectPolicy);
             commandMap?.AppendDeltas(sb);
             return sb.ToString();
         }
@@ -628,7 +655,7 @@ namespace StackExchange.Redis
         {
             ClientName = ServiceName = User = Password = tieBreaker = sslHost = configChannel = null;
             keepAlive = syncTimeout = asyncTimeout = connectTimeout = writeBuffer = connectRetry = configCheckSeconds = DefaultDatabase = null;
-            allowAdmin = abortOnConnectFail = highPrioritySocketThreads = resolveDns = ssl = null;
+            allowAdmin = abortOnConnectFail = highPrioritySocketThreads = resolveDns = ssl = useLinearReconnectPolicy = null;
             SslProtocols = null;
             defaultVersion = null;
             EndPoints.Clear();
@@ -757,6 +784,9 @@ namespace StackExchange.Redis
                             break;
                         case OptionKeys.SslProtocols:
                             SslProtocols = OptionKeys.ParseSslProtocols(key, value);
+                            break;
+                        case OptionKeys.UseLinearReconnectPolicy:
+                            UseLinearReconnectPolicy = OptionKeys.ParseBoolean(key, value);
                             break;
                         default:
                             if (!string.IsNullOrEmpty(key) && key[0] == '$')
