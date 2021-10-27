@@ -302,7 +302,7 @@ namespace StackExchange.Redis
             public BacklogStatus BacklogStatus { get; init; }
 
             /// <summary>
-            /// Status foor the underlying <see cref="PhysicalConnection"/>.
+            /// Status for the underlying <see cref="PhysicalConnection"/>.
             /// </summary>
             public PhysicalConnection.ConnectionStatus Connection { get; init; }
 

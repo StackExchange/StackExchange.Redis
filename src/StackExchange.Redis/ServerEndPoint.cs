@@ -445,7 +445,7 @@ namespace StackExchange.Redis
                 System.Diagnostics.Debug.WriteLine(ex.Message);
             }
 
-            return default;
+            return BridgeStatus.Zero;
         }
 
         internal string GetProfile()
