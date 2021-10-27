@@ -1,6 +1,8 @@
 # Introducing ServerMaintenanceEvents
 
-StackExchange.Redis now automatically subscribes to notifications about upcoming maintenance from Redis providers. The ServerMaintenanceEvent on the ConnectionMultiplexer raises events in response to server maintenance notifications, and application code can subscribe to the event to handle connection drops more gracefully during these maintenance operations.
+StackExchange.Redis now automatically subscribes to notifications about upcoming maintenance from supported Redis providers. The ServerMaintenanceEvent on the ConnectionMultiplexer raises events in response to notifications about server maintenance, and application code can subscribe to the event to handle connection drops more gracefully during these maintenance operations.
+
+If you are a Redis vendor and want to integrate support for ServerMaintenanceEvents into StackExchange.Redis, we recommend opening an issue so we can discuss the details.
 
 ## Types of events
 
@@ -32,36 +34,34 @@ You can see the schema for the `AzureMaintenanceEvent` class [here](..\src\Stack
 
 1. App is connected to Redis and everything is working fine. 
 
-2. Current Time: [16:21:39] -> "NodeMaintenanceScheduled" event is raised, with a StartTimeUtc of "16:35:57" (about 14 minutes from current time).
-3. Current Time: [16:34:26] -> "NodeMaintenanceStarting" message is received, and StartTimeUtc is "16:34:56". This start time is about 30 seconds from current time, although the node will in practice become unavailable in around 20 seconds.
-4. Current Time: [16:34:46] -> "NodeMaintenanceStart" message is received, so we know the node maintenance is about to happen. We break the circuit and stop sending new operations to the Redis connection. (Note: the appropriate action for your application may be different.) For clustered Redis servers, StackExchange.Redis will automatically refresh its view of the server's topology.
-5. Current Time: [16:34:47] -> The Redis connection is disconnected from the server.
-6. Current Time: [16:34:56] -> "NodeMaintenanceFailover" message is received. This tells us that the replica node has promoted itself to primary, so the other node can go offline for maintenance.
-7. Current Time [16:34:56] -> The Redis connection is reconnected back to the Redis server. It is safe to send commands again to the Redis connection and all commands will succeed.
-8. Current Time [16:37:48] -> "NodeMaintenanceEnded" message is received, with a StartTimeUtc of "16:37:48". Nothing to do here if you are talking to the load balancer endpoint (6380/6379). For clustered servers, you can start sending readonly workloads to the replica.
+2. Current Time: [16:21:39] -> `NodeMaintenanceScheduled` event is raised, with a `StartTimeUtc` of 16:35:57 (about 14 minutes from current time).
+3. Current Time: [16:34:26] -> `NodeMaintenanceStarting` message is received, and `StartTimeUtc` is 16:34:56. This start time is about 30 seconds from current time, although the node will in practice become unavailable in around 20 seconds.
+4. Current Time: [16:34:46] -> `NodeMaintenanceStart` message is received, so we know the node maintenance is about to happen. We break the circuit and stop sending new operations to the Redis connection. (Note: the appropriate action for your application may be different.) For clustered Redis servers, StackExchange.Redis will automatically refresh its view of the server's topology.
+5. Current Time: [16:34:47] -> The connection is closed by the Redis server.
+6. Current Time: [16:34:56] -> `NodeMaintenanceFailoverComplete` message is received. This tells us that the replica node has promoted itself to primary, so the other node can go offline for maintenance.
+7. Current Time [16:34:56] -> The connection to the Redis server is restored. It is safe to send commands again to the connection and all commands will succeed.
+8. Current Time [16:37:48] -> `NodeMaintenanceEnded` message is received, with a `StartTimeUtc` of 16:37:48. Nothing to do here if you are talking to the load balancer endpoint (port 6380 or 6379). For clustered servers, you can start sending readonly workloads to the replica.
 
-##  Maintenance Event details
+##  Azure Cache for Redis Maintenance Event details
 
-### `NodeMaintenanceScheduled` message
+### `NodeMaintenanceScheduled` event
 
-*NodeMaintenanceScheduled* messages are sent for maintenance events scheduled by Azure, up to 15 minutes in advance. This event will not get fired for user-initiated reboots. 
+*NodeMaintenanceScheduled* events are raised for maintenance scheduled by Azure, up to 15 minutes in advance. This event will not get fired for user-initiated reboots.
 
-### `NodeMaintenanceStarting` message
+### `NodeMaintenanceStarting` event
 
-*NodeMaintenanceStarting* messages are published ~20 seconds ahead of upcoming maintenance - which usually means that one of the nodes (primary/replica) is going to be down for Azure Standard/Premier Sku caches.
+*NodeMaintenanceStarting* events are raised ~20 seconds ahead of upcoming maintenance. This means that one of the primary or replica nodes will be going down for maintenance.
 
-It's important to understand that this does *not* mean downtime if you are using an Standard/Premier sku cache. Rather, it means there is going be a failover that will disconnect existing connections going through the load balancer port (6380/6379) or directly to the node (15000/15001) and operations might fail until these connections reconnect.
+It's important to understand that this does *not* mean downtime if you are using a Standard/Premier SKU cache. If the replica is targeted for maintenance, disruptions should be minimal. If the primary node is the one going down for maintenance, a failover will occur, which will close existing connections going through the load balancer port (6380/6379) or directly to the node (15000/15001). You may want to stop sending write commands until the replica node has assumed the primary role and the failover is complete.
 
-In the case of clustered servers, you might have to stop sending read/write operations to this node until it comes back up and use the node which will have been promoted to primary. Node maintenance only means complete downtime for the duration of the update for single-node servers (e.g. Azure basic sku).
+### `NodeMaintenanceStart` event
 
-### `NodeMaintenanceStart` message
+*NodeMaintenanceStart* events are raised when maintenance is imminent. These messages do not include a `StartTimeUtc` because they are fired immediately before maintenance occurs.
 
-*NodeMaintenanceStart* messages are published when maintenance is imminent. These messages do not include a `StartTimeUtc` because they are fired immediately before maintenance occurs.
+### `NodeMaintenanceFailoverComplete` event
 
-### `NodeMaintenanceFailover`/`NodeMaintenanceFailoverComplete` message
+This event is raised when a replica has promoted itself to primary. These events do not include a `StartTimeUtc` because the action has already occurred.
 
-This message is sent to indicate that a replica has promoted itself to primary. These events do not include a `StartTimeUtc` because the action has already occurred. The library exposes this event as *NodeMaintenanceFailoverComplete*, but on the server side this event will continue to get sent as *NodeMaintenanceFailover* until November 2021.
+### `NodeMaintenanceEnded` event
 
-### `NodeMaintenanceEnded` message
-
-This event is sent to indicate that the maintenance operation has completed. You do *NOT* need to wait for this message to use the load balancer endpoint. This endpoint is always available. However, we included this for logging purposes or for customers who use the replica endpoint in clusters for read workloads.
+This event is raised to indicate that the maintenance operation has completed. You do *NOT* need to wait for this event to use the load balancer endpoint. This endpoint is always available. However, we included this for logging purposes or for customers who use the replica endpoint in clusters for read workloads.
