@@ -519,6 +519,9 @@ namespace StackExchange.Redis
         internal bool IsSelectable(RedisCommand command, bool allowDisconnected = false)
         {
             var bridge = unselectableReasons == 0 ? GetBridge(command, false) : null;
+            var bridge = unselectableReasons == 0 || (allowDisconnected && unselectableReasons == UnselectableFlags.DidNotRespond)
+                ? GetBridge(command, false)
+                : null;
             return bridge != null && (allowDisconnected || bridge.IsConnected);
         }
 
@@ -782,7 +785,7 @@ namespace StackExchange.Redis
                 if (connection == null)
                 {
                     Multiplexer.Trace($"{Format.ToString(this)}: Enqueue (async): " + message);
-                    result = GetBridge(message.Command).TryWriteAsync(message, isReplica);
+                    result = GetBridge(message.Command).TryWriteAsync(message, isReplica, isHandshake: true);
                 }
                 else
                 {
@@ -794,7 +797,7 @@ namespace StackExchange.Redis
                     }
                     else
                     {
-                        result = bridge.WriteMessageTakingWriteLockAsync(connection, message, isHandShake: true);
+                        result = bridge.WriteMessageTakingWriteLockAsync(connection, message, isHandshake: true);
                     }
                 }
 

@@ -29,9 +29,8 @@ namespace StackExchange.Redis
         // We have 3 queues in play on this bridge, and things enter them in this order:
         //   General: for anything coming into the bridge. Everything but handshake commands goes into this queue.
         //   SpecificServer: for anything targeting this endpoint that cannot be handed off to another endpoint.
-        //   Handshake: foor anything coming from our own handshake
         // The queue priority order is reverse:
-        //   1. Handshake messages are sent first to re-establish the connection (e.g. AUTH)
+        //   1. Handshake messages are sent directly to the pipe itself to re-establish the connection (e.g. AUTH)
         //   2. Specific server messages are sent next (e.g. REPLICAOF - this queue is rare to start with)
         //   3. All other messages are handled
         //        Note: this doesn't mean sent - if we have another viable endpoint and these messages can be sent on it,
@@ -39,9 +38,8 @@ namespace StackExchange.Redis
         //              specific server queue so that we unblock the general FIFO queue for other handoffs.
         //
         private readonly ConcurrentQueue<Message> _backlogGeneral = new(),
-                                                  _backlogSpecificServer = new(),
-                                                  _backlogHandshake = new();
-        private bool BacklogHasItems => !_backlogGeneral.IsEmpty || !_backlogSpecificServer.IsEmpty || !_backlogHandshake.IsEmpty;
+                                                  _backlogSpecificServer = new();
+        private bool BacklogHasItems => !_backlogGeneral.IsEmpty || !_backlogSpecificServer.IsEmpty;
         private int _backlogProcessorIsRunning = 0;
 
         private int activeWriters = 0;
@@ -185,7 +183,7 @@ namespace StackExchange.Redis
             return result;
         }
 
-        public ValueTask<WriteResult> TryWriteAsync(Message message, bool isReplica)
+        public ValueTask<WriteResult> TryWriteAsync(Message message, bool isReplica, bool isHandshake = false)
         {
             if (isDisposed) throw new ObjectDisposedException(Name);
             if (!IsConnected) return new ValueTask<WriteResult>(QueueOrFailMessage(message));
@@ -193,7 +191,7 @@ namespace StackExchange.Redis
             var physical = this.physical;
             if (physical == null) return new ValueTask<WriteResult>(FailDueToNoConnection(message));
 
-            var result = WriteMessageTakingWriteLockAsync(physical, message);
+            var result = WriteMessageTakingWriteLockAsync(physical, message, isHandshake);
             LogNonPreferred(message.Flags, isReplica);
             return result;
         }
@@ -310,7 +308,7 @@ namespace StackExchange.Redis
             /// <summary>
             /// Total number of backlog messages that are in the retry backlog.
             /// </summary>
-            public int BacklogMessagesPending => BacklogMessagesPendingGeneral + BacklogMessagesPendingSpecificServer + BacklogMessagesPendingHandshake;
+            public int BacklogMessagesPending => BacklogMessagesPendingGeneral + BacklogMessagesPendingSpecificServer;
 
             /// <summary>
             /// The number of backlog messages that are in the <see cref="Backlog.General"/> retry queue.
@@ -320,10 +318,6 @@ namespace StackExchange.Redis
             /// The number of backlog messages that are in the <see cref="Backlog.SpecificServer"/> retry queue.
             /// </summary>
             public int BacklogMessagesPendingSpecificServer { get; init; }
-            /// <summary>
-            /// The number of backlog messages that are in the <see cref="Backlog.Handshake"/> retry queue.
-            /// </summary>
-            public int BacklogMessagesPendingHandshake { get; init; }
 
             /// <summary>
             /// Status of the currently processing backlog, if any.
@@ -351,7 +345,6 @@ namespace StackExchange.Redis
             IsWriterActive = !_singleWriterMutex.IsAvailable,
             BacklogMessagesPendingGeneral = _backlogGeneral.Count,
             BacklogMessagesPendingSpecificServer = _backlogSpecificServer.Count,
-            BacklogMessagesPendingHandshake = _backlogHandshake.Count,
             BacklogStatus = _backlogStatus,
             ActiveBacklog = _activeBacklog,
             Connection = physical?.GetStatus() ?? PhysicalConnection.ConnectionStatus.Default,
@@ -762,7 +755,7 @@ namespace StackExchange.Redis
             // AVOID REORDERING MESSAGES
             // Prefer to add it to the backlog if this thread can see that there might already be a message backlog.
             // We do this before attempting to take the writelock, because we won't actually write, we'll just let the backlog get processed in due course
-            if (PushToBacklog(message, onlyIfExists: true))
+            if (TryPushToBacklog(message, onlyIfExists: true))
             {
                 return WriteResult.Success; // queued counts as success
             }
@@ -775,7 +768,7 @@ namespace StackExchange.Redis
                 {
                     // we can't get it *instantaneously*; is there
                     // perhaps a backlog and active backlog processor?
-                    if (PushToBacklog(message, onlyIfExists: true)) return WriteResult.Success; // queued counts as success
+                    if (TryPushToBacklog(message, onlyIfExists: true)) return WriteResult.Success; // queued counts as success
 
                     // no backlog... try to wait with the timeout;
                     // if we *still* can't get it: that counts as
@@ -804,21 +797,19 @@ namespace StackExchange.Redis
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private bool PushToBacklog(Message message, bool onlyIfExists, bool isHandShake = false)
+        private bool TryPushToBacklog(Message message, bool onlyIfExists, bool isHandshake = false)
         {
             // If we're unhealthy in middle of a handshake, queue behind so that we AUTH and such in order
             // For anything not handshake, we handle as before going into the general queue
-            if (isHandShake)
+            // Internal calls also aren't queued here because ordering does no matter for them
+            // Get them on the wire ASAP or fail internally (which doesn't alert the user) to complete ASAP
+            if (isHandshake || message.IsInternalCall)
             {
-                // If this is the initial attempt, bail - we'll come back if we fail to write to the pipe.
-                if (_backlogHandshake.IsEmpty & onlyIfExists)
-                {
-                    return false;
-                }
-
-                _backlogHandshake.Enqueue(message);
-                StartBacklogProcessor();
-                return true;
+                // TODO: Discussion.
+                // For handshake commands we did have a backlog in mind here, but if they bypass directly to the pipe
+                // It's effectively a queue already, or our handshake failed and we're restarting anyhow
+                // So perhaps, we simply do not need this concurrent queue at all.
+                return false;
             }
 
             // Note, for deciding emptyness for whether to push onlyIfExists, and start worker, 
@@ -827,7 +818,7 @@ namespace StackExchange.Redis
             // So strong synchronization is not required.
             if (_backlogGeneral.IsEmpty & onlyIfExists) return false;
 
-            
+
             int count = _backlogGeneral.Count;
             message.SetBacklogState(count, physical);
             _backlogGeneral.Enqueue(message);
@@ -857,8 +848,8 @@ namespace StackExchange.Redis
                 // we start is actually useful, despite thinking "but that will just go async and back to the pool"
                 var thread = new Thread(s => ((PhysicalBridge)s).ProcessBacklogsAsync().RedisFireAndForget())
                 {
-                    IsBackground = true,   // don't keep process alive (also: act like the thread-pool used to)
-                    Name = "redisbacklog", // help anyone looking at thread-dumps
+                    IsBackground = true,                  // don't keep process alive (also: act like the thread-pool used to)
+                    Name = "StackExchange.Redis Backlog", // help anyone looking at thread-dumps
                 };
                 thread.Start(this);
             }
@@ -870,17 +861,17 @@ namespace StackExchange.Redis
         private void CheckBacklogsForTimeouts() // check the head of the backlog queue, consuming anything that looks dead
         {
             // Check the head of the backlog queue, consuming anything that looks dead
-            void crawlQueue(ConcurrentQueue<Message> backlog)
+            void crawlQueue(ConcurrentQueue<Message> backlog, int timeout)
             {
                 var now = Environment.TickCount;
-                var timeout = TimeoutMilliseconds;
 
                 // Because peeking at the backlog, checking message and then dequeueing, is not thread-safe, we do have to use
                 // a lock here, for mutual exclusion of backlog DEQUEUERS. Unfortunately.
                 // But we reduce contention by only locking if we see something that looks timed out.
                 while (backlog.TryPeek(out Message message))
                 {
-                    if (message.IsInternalCall) break; // don't stomp these (not that they should have the async timeout flag, but...)
+                    // don't stomp these (not that they should have the async timeout flag, but...)
+                    if (message.IsInternalCall) break;
                     if (!message.HasAsyncTimedOut(now, timeout, out var _)) break; // not a timeout - we can stop looking
                     lock (backlog)
                     {
@@ -903,9 +894,8 @@ namespace StackExchange.Redis
                 }
             }
 
-            crawlQueue(_backlogHandshake);
-            crawlQueue(_backlogSpecificServer);
-            crawlQueue(_backlogGeneral);
+            crawlQueue(_backlogSpecificServer, TimeoutMilliseconds);
+            crawlQueue(_backlogGeneral, TimeoutMilliseconds);
         }
 
         internal enum BacklogStatus : byte
@@ -931,7 +921,6 @@ namespace StackExchange.Redis
             None,
             General,
             SpecificServer,
-            Handshake,
         }
 
         private volatile Backlog _activeBacklog;
@@ -941,10 +930,6 @@ namespace StackExchange.Redis
             _backlogStatus = BacklogStatus.Starting;
             try
             {
-                if (!_backlogHandshake.IsEmpty)
-                {
-                    await ProcessBridgeBacklogAsync(_backlogHandshake, Backlog.Handshake);
-                }
                 if (!_backlogSpecificServer.IsEmpty)
                 {
                     await ProcessBridgeBacklogAsync(_backlogSpecificServer, Backlog.SpecificServer);
@@ -974,7 +959,7 @@ namespace StackExchange.Redis
                 if (BacklogHasItems)
                 {
                     // Check for faults mainly to prevent unlimited tasks spawning in a fault scenario
-                    // - it isn't StackOverflowException due to the Task.Run()
+                    // This won't cause a StackOverflowException due to the Task.Run() handoff
                     if (_backlogStatus != BacklogStatus.Faulted)
                     {
                         StartBacklogProcessor();
@@ -986,97 +971,104 @@ namespace StackExchange.Redis
         private async Task ProcessBridgeBacklogAsync(ConcurrentQueue<Message> backlog, Backlog handlingBacklog)
         {
             LockToken token = default;
-#if DEBUG
-            int tryToAcquireTime = Environment.TickCount;
-            var msToStartWorker = unchecked(tryToAcquireTime - _backlogProcessorRequestedTime);
-            int failureCount = 0;
-#endif
-            _activeBacklog = handlingBacklog;
-            _backlogStatus = BacklogStatus.Starting;
-
-            while (true)
+            try
             {
-                // check whether the backlog is empty *before* even trying to get the lock
-                if (backlog.IsEmpty) return; // nothing to do
-
-                // try and get the lock; if unsuccessful, retry
-                token = await _singleWriterMutex.TryWaitAsync().ConfigureAwait(false);
-                if (token.Success) break; // got the lock; now go do something with it
 #if DEBUG
-                failureCount++;
+                int tryToAcquireTime = Environment.TickCount;
+                var msToStartWorker = unchecked(tryToAcquireTime - _backlogProcessorRequestedTime);
+                int failureCount = 0;
 #endif
-            }
-            _backlogStatus = BacklogStatus.Started;
+                _activeBacklog = handlingBacklog;
+                _backlogStatus = BacklogStatus.Starting;
 
-#if DEBUG
-            int acquiredTime = Environment.TickCount;
-            var msToGetLock = unchecked(acquiredTime - tryToAcquireTime);
-#endif
-
-            // so now we are the writer; write some things!
-            Message message;
-            var timeout = TimeoutMilliseconds;
-            while (true)
-            {
-                _backlogStatus = BacklogStatus.CheckingForWork;
-                // We need to lock _backlog when dequeueing because of 
-                // races with timeout processing logic
-                lock (backlog)
+                while (true)
                 {
-                    if (!backlog.TryDequeue(out message)) break; // all done
+                    // check whether the backlog is empty *before* even trying to get the lock
+                    if (backlog.IsEmpty) return; // nothing to do
+
+                    // try and get the lock; if unsuccessful, retry
+                    token = await _singleWriterMutex.TryWaitAsync().ConfigureAwait(false);
+                    if (token.Success) break; // got the lock; now go do something with it
+#if DEBUG
+                    failureCount++;
+#endif
                 }
+                _backlogStatus = BacklogStatus.Started;
 
-                try
+#if DEBUG
+                int acquiredTime = Environment.TickCount;
+                var msToGetLock = unchecked(acquiredTime - tryToAcquireTime);
+#endif
+
+                // so now we are the writer; write some things!
+                Message message;
+                var timeout = TimeoutMilliseconds;
+                while (true)
                 {
-                    _backlogStatus = BacklogStatus.CheckingForTimeout;
-                    if (message.HasAsyncTimedOut(Environment.TickCount, timeout, out var _))
+                    _backlogStatus = BacklogStatus.CheckingForWork;
+                    // We need to lock _backlog when dequeueing because of 
+                    // races with timeout processing logic
+                    lock (backlog)
                     {
-                        _backlogStatus = BacklogStatus.RecordingTimeout;
-                        var ex = Multiplexer.GetException(WriteResult.TimeoutBeforeWrite, message, ServerEndPoint);
+                        if (!backlog.TryDequeue(out message)) break; // all done
+                    }
+
+                    try
+                    {
+                        _backlogStatus = BacklogStatus.CheckingForTimeout;
+                        if (message.HasAsyncTimedOut(Environment.TickCount, timeout, out var _))
+                        {
+                            _backlogStatus = BacklogStatus.RecordingTimeout;
+                            var ex = Multiplexer.GetException(WriteResult.TimeoutBeforeWrite, message, ServerEndPoint);
 #if DEBUG // additional tracking
-                        ex.Data["Redis-BacklogStartDelay"] = msToStartWorker;
-                        ex.Data["Redis-BacklogGetLockDelay"] = msToGetLock;
-                        if (failureCount != 0) ex.Data["Redis-BacklogFailCount"] = failureCount;
-                        if (_maxWriteTime >= 0) ex.Data["Redis-MaxWrite"] = _maxWriteTime.ToString() + "ms, " + _maxWriteCommand.ToString();
-                        var maxFlush = physical?.MaxFlushTime ?? -1;
-                        if (maxFlush >= 0) ex.Data["Redis-MaxFlush"] = maxFlush.ToString() + "ms, " + (physical?.MaxFlushBytes ?? -1).ToString();
-                        if (_maxLockDuration >= 0) ex.Data["Redis-MaxLockDuration"] = _maxLockDuration;
+                            ex.Data["Redis-BacklogStartDelay"] = msToStartWorker;
+                            ex.Data["Redis-BacklogGetLockDelay"] = msToGetLock;
+                            if (failureCount != 0) ex.Data["Redis-BacklogFailCount"] = failureCount;
+                            if (_maxWriteTime >= 0) ex.Data["Redis-MaxWrite"] = _maxWriteTime.ToString() + "ms, " + _maxWriteCommand.ToString();
+                            var maxFlush = physical?.MaxFlushTime ?? -1;
+                            if (maxFlush >= 0) ex.Data["Redis-MaxFlush"] = maxFlush.ToString() + "ms, " + (physical?.MaxFlushBytes ?? -1).ToString();
+                            if (_maxLockDuration >= 0) ex.Data["Redis-MaxLockDuration"] = _maxLockDuration;
 #endif
-                        message.SetExceptionAndComplete(ex, this);
+                            message.SetExceptionAndComplete(ex, this);
+                        }
+                        else
+                        {
+                            _backlogStatus = BacklogStatus.WritingMessage;
+                            var result = WriteMessageInsideLock(physical, message);
+
+                            if (result == WriteResult.Success)
+                            {
+                                _backlogStatus = BacklogStatus.Flushing;
+                                result = await physical.FlushAsync(false).ConfigureAwait(false);
+                            }
+
+                            _backlogStatus = BacklogStatus.MarkingInactive;
+                            if (result != WriteResult.Success)
+                            {
+                                _backlogStatus = BacklogStatus.RecordingWriteFailure;
+                                var ex = Multiplexer.GetException(result, message, ServerEndPoint);
+                                HandleWriteException(message, ex);
+                            }
+                        }
                     }
-                    else
+                    catch (Exception ex)
                     {
-                        _backlogStatus = BacklogStatus.WritingMessage;
-                        var result = WriteMessageInsideLock(physical, message);
-
-                        if (result == WriteResult.Success)
-                        {
-                            _backlogStatus = BacklogStatus.Flushing;
-                            result = await physical.FlushAsync(false).ConfigureAwait(false);
-                        }
-
-                        _backlogStatus = BacklogStatus.MarkingInactive;
-                        if (result != WriteResult.Success)
-                        {
-                            _backlogStatus = BacklogStatus.RecordingWriteFailure;
-                            var ex = Multiplexer.GetException(result, message, ServerEndPoint);
-                            HandleWriteException(message, ex);
-                        }
+                        _backlogStatus = BacklogStatus.RecordingFault;
+                        HandleWriteException(message, ex);
+                    }
+                    finally
+                    {
+                        UnmarkActiveMessage(message);
                     }
                 }
-                catch (Exception ex)
-                {
-                    _backlogStatus = BacklogStatus.RecordingFault;
-                    HandleWriteException(message, ex);
-                }
-                finally
-                {
-                    UnmarkActiveMessage(message);
-                }
+                _backlogStatus = BacklogStatus.SettingIdle;
+                physical.SetIdle();
+                _backlogStatus = BacklogStatus.Inactive;
             }
-            _backlogStatus = BacklogStatus.SettingIdle;
-            physical.SetIdle();
-            _backlogStatus = BacklogStatus.Inactive;
+            finally
+            {
+                token.Dispose();
+            }
         }
 
         private WriteResult TimedOutBeforeWrite(Message message)
@@ -1092,8 +1084,8 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="physical">The phsyical connection to write to.</param>
         /// <param name="message">The message to be written.</param>
-        /// <param name="isHandShake">Whether this message is part of the handshake process.</param>
-        internal ValueTask<WriteResult> WriteMessageTakingWriteLockAsync(PhysicalConnection physical, Message message, bool isHandShake = false)
+        /// <param name="isHandshake">Whether this message is part of the handshake process.</param>
+        internal ValueTask<WriteResult> WriteMessageTakingWriteLockAsync(PhysicalConnection physical, Message message, bool isHandshake = false)
         {
             /* design decision/choice; the code works fine either way, but if this is
              * set to *true*, then when we can't take the writer-lock *right away*,
@@ -1113,7 +1105,7 @@ namespace StackExchange.Redis
             // AVOID REORDERING MESSAGES
             // Prefer to add it to the backlog if this thread can see that there might already be a message backlog.
             // We do this before attempting to take the writelock, because we won't actually write, we'll just let the backlog get processed in due course
-            if (PushToBacklog(message, onlyIfExists: true, isHandShake: isHandShake))
+            if (TryPushToBacklog(message, onlyIfExists: true, isHandshake: isHandshake))
             {
                 return new ValueTask<WriteResult>(WriteResult.Success); // queued counts as success
             }
@@ -1131,7 +1123,7 @@ namespace StackExchange.Redis
                 {
                     // we can't get it *instantaneously*; is there
                     // perhaps a backlog and active backlog processor?
-                    if (PushToBacklog(message, onlyIfExists: !ALWAYS_USE_BACKLOG_IF_CANNOT_GET_SYNC_LOCK, isHandShake: isHandShake))
+                    if (TryPushToBacklog(message, onlyIfExists: !ALWAYS_USE_BACKLOG_IF_CANNOT_GET_SYNC_LOCK, isHandshake: isHandshake))
                         return new ValueTask<WriteResult>(WriteResult.Success); // queued counts as success
 
                     // no backlog... try to wait with the timeout;
@@ -1180,6 +1172,7 @@ namespace StackExchange.Redis
                 }
             }
         }
+
 #if DEBUG
         private void RecordLockDuration(int lockTaken)
         {
@@ -1190,7 +1183,7 @@ namespace StackExchange.Redis
         volatile int _maxLockDuration = -1;
 #endif
 
-    private async ValueTask<WriteResult> WriteMessageTakingWriteLockAsync_Awaited(ValueTask<LockToken> pending, PhysicalConnection physical, Message message)
+        private async ValueTask<WriteResult> WriteMessageTakingWriteLockAsync_Awaited(ValueTask<LockToken> pending, PhysicalConnection physical, Message message)
         {
             try
             {
