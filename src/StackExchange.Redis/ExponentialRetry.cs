@@ -10,14 +10,16 @@ namespace StackExchange.Redis
         private readonly int deltaBackOffMilliseconds;
         private readonly int maxDeltaBackOffMilliseconds = (int)TimeSpan.FromSeconds(10).TotalMilliseconds;
         private readonly double exponentialBase = DefaultExponentialBase;
+
         /// <summary>
-        /// 
+        /// The default base of the exponential function. The higher the base the faster the growth of the exponential
         /// </summary>
-        public static const double DefaultExponentialBase = 1.1;
+        public const double DefaultExponentialBase = 1.1;
+
         /// <summary>
-        /// 
+        /// The default time in milliseconds for the back-off interval between retries
         /// </summary>
-        public static const int DefaultDeltaBackOffMiliseconds = 1000;
+        public const int DefaultDeltaBackOffMiliseconds = 1000;
 
         [ThreadStatic]
         private static Random r;
