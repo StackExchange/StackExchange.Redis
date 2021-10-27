@@ -336,7 +336,7 @@ namespace StackExchange.Redis
         /// </summary>
         public IReconnectRetryPolicy ReconnectRetryPolicy
         {
-            get { return reconnectRetryPolicy ?? new ExponentialRetry(deltaBackOffMilliseconds: ExponentialRetry.DefaultDeltaBackOffMiliseconds, maxDeltaBackOffMilliseconds: ConnectTimeout * 2, exponentialBase: 1.5); }
+            get { return reconnectRetryPolicy ?? new ExponentialRetry(deltaBackOffMilliseconds: ExponentialRetry.DefaultDeltaBackOffMilliseconds, maxDeltaBackOffMilliseconds: ConnectTimeout * 2, exponentialBase: 1.5); }
             set { reconnectRetryPolicy = value; }
         }
 
@@ -469,7 +469,7 @@ namespace StackExchange.Redis
                 DefaultDatabase = DefaultDatabase,
                 ReconnectRetryPolicy = reconnectRetryPolicy,
                 SslProtocols = SslProtocols,
-                checkCertificateRevocation = checkCertificateRevocation
+                checkCertificateRevocation = checkCertificateRevocation,
             };
             foreach (var item in EndPoints)
                 options.EndPoints.Add(item);

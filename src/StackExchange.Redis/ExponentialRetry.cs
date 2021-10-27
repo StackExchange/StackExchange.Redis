@@ -19,7 +19,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// The default time in milliseconds for the back-off interval between retries
         /// </summary>
-        public const int DefaultDeltaBackOffMiliseconds = 1000;
+        public const int DefaultDeltaBackOffMilliseconds = 1000;
 
         [ThreadStatic]
         private static Random r;
