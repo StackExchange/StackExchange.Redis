@@ -519,9 +519,6 @@ namespace StackExchange.Redis
         internal bool IsSelectable(RedisCommand command, bool allowDisconnected = false)
         {
             var bridge = unselectableReasons == 0 ? GetBridge(command, false) : null;
-            var bridge = unselectableReasons == 0 || (allowDisconnected && unselectableReasons == UnselectableFlags.DidNotRespond)
-                ? GetBridge(command, false)
-                : null;
             return bridge != null && (allowDisconnected || bridge.IsConnected);
         }
 
