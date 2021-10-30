@@ -334,11 +334,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// The retry policy to be used for connection reconnects
         /// </summary>
-        public IReconnectRetryPolicy ReconnectRetryPolicy
-        {
-            get { return reconnectRetryPolicy ?? new ExponentialRetry(deltaBackOffMilliseconds: ExponentialRetry.DefaultDeltaBackOffMilliseconds, maxDeltaBackOffMilliseconds: ConnectTimeout * 2, exponentialBase: 1.5); }
-            set { reconnectRetryPolicy = value; }
-        }
+        public IReconnectRetryPolicy ReconnectRetryPolicy { get { return reconnectRetryPolicy ?? new ExponentialRetry(ConnectTimeout/2); } set { reconnectRetryPolicy = value; } }
 
         /// <summary>
         /// Indicates whether endpoints should be resolved via DNS before connecting.
