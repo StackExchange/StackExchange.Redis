@@ -3,7 +3,7 @@
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// Represents a retry policy that performs retries, using a randomized exponential back off scheme to determine the interval between retries.
+    /// Represents a retry policy that performs retries, using a randomized exponential back off scheme to determine the interval between retries. 
     /// </summary>
     public class ExponentialRetry : IReconnectRetryPolicy
     {
@@ -16,7 +16,7 @@ namespace StackExchange.Redis
         /// Initializes a new instance using the specified back off interval with default maxDeltaBackOffMilliseconds of 10 seconds
         /// </summary>
         /// <param name="deltaBackOffMilliseconds">time in milliseconds for the back-off interval between retries</param>
-        public ExponentialRetry(int deltaBackOffMilliseconds) : this(deltaBackOffMilliseconds, (int)TimeSpan.FromSeconds(10).TotalMilliseconds) { }
+        public ExponentialRetry(int deltaBackOffMilliseconds) : this(deltaBackOffMilliseconds, (int)TimeSpan.FromSeconds(10).TotalMilliseconds) {}
 
         /// <summary>
         /// Initializes a new instance using the specified back off interval.
@@ -42,15 +42,15 @@ namespace StackExchange.Redis
             random = r.Next((int)deltaBackOffMilliseconds, exponential);
             return timeElapsedMillisecondsSinceLastRetry >= random;
             //exponential backoff with deltaBackOff of 5000ms
-            //deltabackoff  exponential
-            //5000	        5500
-            //5000	        6050
-            //5000	        6655
-            //5000	        8053
-            //5000	        10718
-            //5000	        17261
-            //5000	        37001
-            //5000	        127738
+            //deltabackoff  exponential 
+            //5000	        5500	   
+            //5000	        6050	   
+            //5000	        6655	   
+            //5000	        8053	   
+            //5000	        10718	   
+            //5000	        17261	   
+            //5000	        37001	   
+            //5000	        127738	   
         }
     }
 }
