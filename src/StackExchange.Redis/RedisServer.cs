@@ -575,7 +575,7 @@ namespace StackExchange.Redis
         {   // inject our expected server automatically
             if (server == null) server = this.server;
             FixFlags(message, server);
-            if (!server.IsConnected)
+            if (!server.IsConnected && !multiplexer.RawConfig.BacklogPolicy.QueueWhileDisconnected)
             {
                 if (message == null) return CompletedTask<T>.Default(asyncState);
                 if (message.IsFireAndForget) return CompletedTask<T>.Default(null); // F+F explicitly does not get async-state
@@ -592,7 +592,7 @@ namespace StackExchange.Redis
         {   // inject our expected server automatically
             if (server == null) server = this.server;
             FixFlags(message, server);
-            if (!server.IsConnected)
+            if (!server.IsConnected && !multiplexer.RawConfig.BacklogPolicy.QueueWhileDisconnected)
             {
                 if (message == null || message.IsFireAndForget) return default(T);
                 throw ExceptionFactory.NoConnectionAvailable(multiplexer, message, server);

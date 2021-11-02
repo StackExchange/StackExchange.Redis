@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
@@ -12,39 +11,147 @@ namespace StackExchange.Redis.Tests
 
         protected override string GetConfiguration() => TestConfig.Current.MasterServerAndPort + "," + TestConfig.Current.ReplicaServerAndPort;
 
+        // TODO: Sync route testing (e.g. Ping() for TryWriteSync path)
+        // TODO: Specific server calls
+
         [Fact]
-        public async Task BasicTest()
+        public async Task FailFast()
         {
             try
             {
-                using (var muxer = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true, shared: false))
+                // Ensuring the FailFast policy errors immediate with no connection available exceptions
+                var options = new ConfigurationOptions()
                 {
-                    var conn = muxer.GetDatabase();
-                    conn.Ping();
+                    BacklogPolicy = BacklogPolicy.FailFast,
+                    AbortOnConnectFail = false,
+                    ConnectTimeout = 1000,
+                    ConnectRetry = 2,
+                    SyncTimeout = 10000,
+                    KeepAlive = 10000,
+                    AsyncTimeout = 5000,
+                    AllowAdmin = true,
+                };
+                options.EndPoints.Add(TestConfig.Current.MasterServerAndPort);
 
-                    var server = muxer.GetServer(muxer.GetEndPoints()[0]);
-                    var server2 = muxer.GetServer(muxer.GetEndPoints()[1]);
+                using var muxer = await ConnectionMultiplexer.ConnectAsync(options, Writer);
 
-                    muxer.AllowConnect = false;
+                var db = muxer.GetDatabase();
+                Writer.WriteLine("Test: Initial (connected) ping");
+                await db.PingAsync();
 
-                    // muxer.IsConnected is true of *any* are connected, simulate failure for all cases.
-                    server.SimulateConnectionFailure(SimulatedFailureType.All);
-                    Assert.False(server.IsConnected);
-                    Assert.True(server2.IsConnected);
-                    Assert.True(muxer.IsConnected);
+                var server = muxer.GetServerSnapshot()[0];
+                var stats = server.GetBridgeStatus(RedisCommand.PING);
+                Assert.Equal(0, stats.BacklogMessagesPending); // Everything's normal
 
-                    server2.SimulateConnectionFailure(SimulatedFailureType.All);
-                    Assert.False(server.IsConnected);
-                    Assert.False(server2.IsConnected);
-                    Assert.False(muxer.IsConnected);
+                // Fail the connection
+                Writer.WriteLine("Test: Simulating failure");
+                muxer.AllowConnect = false;
+                server.SimulateConnectionFailure(SimulatedFailureType.All);
+                Assert.False(muxer.IsConnected);
 
-                    // should reconnect within 1 keepalive interval
-                    muxer.AllowConnect = true;
-                    Log("Waiting for reconnect");
-                    await UntilCondition(TimeSpan.FromSeconds(2), () => muxer.IsConnected).ForAwait();
+                // Queue up some commands
+                Writer.WriteLine("Test: Disconnected pings");
+                await Assert.ThrowsAsync<RedisConnectionException>(() => db.PingAsync());
 
-                    Assert.True(muxer.IsConnected);
-                }
+                var disconnectedStats = server.GetBridgeStatus(RedisCommand.PING);
+                Assert.False(muxer.IsConnected);
+                Assert.Equal(0, disconnectedStats.BacklogMessagesPending);
+
+                Writer.WriteLine("Test: Allowing reconnect");
+                muxer.AllowConnect = true;
+                Writer.WriteLine("Test: Awaiting reconnect");
+                await UntilCondition(TimeSpan.FromSeconds(3), () => muxer.IsConnected).ForAwait();
+
+                Writer.WriteLine("Test: Reconnecting");
+                Assert.True(muxer.IsConnected);
+                var reconnectedStats = server.GetBridgeStatus(RedisCommand.PING);
+                Assert.Equal(0, reconnectedStats.BacklogMessagesPending);
+                Assert.Equal(0, reconnectedStats.BacklogMessagesPendingGeneral);
+                Assert.Equal(0, reconnectedStats.BacklogMessagesPendingSpecificServer);
+
+                _ = db.PingAsync();
+                _ = db.PingAsync();
+                var lastPing = db.PingAsync();
+
+                // We should see none queued
+                Assert.Equal(0, stats.BacklogMessagesPending);
+                await lastPing;
+            }
+            finally
+            {
+                ClearAmbientFailures();
+            }
+        }
+
+
+        [Fact]
+        public async Task QueuesAndFlushesAfterReconnecting()
+        {
+            try
+            {
+                var options = new ConfigurationOptions()
+                {
+                    BacklogPolicy = BacklogPolicy.Default,
+                    AbortOnConnectFail = false,
+                    ConnectTimeout = 1000,
+                    ConnectRetry = 2,
+                    SyncTimeout = 10000,
+                    KeepAlive = 10000,
+                    AsyncTimeout = 5000,
+                    AllowAdmin = true,
+                };                
+                options.EndPoints.Add(TestConfig.Current.MasterServerAndPort);
+
+                using var muxer = await ConnectionMultiplexer.ConnectAsync(options, Writer);
+
+                var db = muxer.GetDatabase();
+                Writer.WriteLine("Test: Initial (connected) ping");
+                await db.PingAsync();
+
+                var server = muxer.GetServerSnapshot()[0];
+                var stats = server.GetBridgeStatus(RedisCommand.PING);
+                Assert.Equal(0, stats.BacklogMessagesPending); // Everything's normal
+
+                // Fail the connection
+                Writer.WriteLine("Test: Simulating failure");
+                muxer.AllowConnect = false;
+                server.SimulateConnectionFailure(SimulatedFailureType.All);
+                Assert.False(muxer.IsConnected);
+
+                // Queue up some commands
+                Writer.WriteLine("Test: Disconnected pings");
+                _ = db.PingAsync();
+                _ = db.PingAsync();
+                var lastPing = db.PingAsync();
+
+                // TODO: Add specific server call
+
+                var disconnectedStats = server.GetBridgeStatus(RedisCommand.PING);
+                Assert.False(muxer.IsConnected);
+                Assert.True(disconnectedStats.BacklogMessagesPending >= 3, $"Expected {nameof(disconnectedStats.BacklogMessagesPending)} > 3, got {disconnectedStats.BacklogMessagesPending}");
+
+                Writer.WriteLine("Test: Allowing reconnect");
+                muxer.AllowConnect = true;
+                Writer.WriteLine("Test: Awaiting reconnect");
+                await UntilCondition(TimeSpan.FromSeconds(3), () => muxer.IsConnected).ForAwait();
+
+                Writer.WriteLine("Test: Awaiting ping1");
+                await lastPing;
+
+                Writer.WriteLine("Test: Reconnecting");
+                Assert.True(muxer.IsConnected);
+                var reconnectedStats = server.GetBridgeStatus(RedisCommand.PING);
+                Assert.Equal(0, reconnectedStats.BacklogMessagesPending);
+                Assert.Equal(0, reconnectedStats.BacklogMessagesPendingGeneral);
+                Assert.Equal(0, reconnectedStats.BacklogMessagesPendingSpecificServer);
+
+                _ = db.PingAsync();
+                _ = db.PingAsync();
+                lastPing = db.PingAsync();
+
+                // We should see none queued
+                Assert.Equal(0, stats.BacklogMessagesPending);
+                await lastPing;
             }
             finally
             {

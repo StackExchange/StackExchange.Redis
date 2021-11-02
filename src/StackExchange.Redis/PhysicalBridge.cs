@@ -152,6 +152,13 @@ namespace StackExchange.Redis
                 _backlogGeneral.Enqueue(message);
                 return WriteResult.Success; // we'll take it...
             }
+            else if (Multiplexer.RawConfig.BacklogPolicy.QueueWhileDisconnected)
+            {
+                message.SetEnqueued(null);
+                message.SetBacklogState(_backlogGeneral.Count, null);
+                _backlogGeneral.Enqueue(message);
+                return WriteResult.Success; // we'll queue for retry here...
+            }
             else
             {
                 // sorry, we're just not ready for you yet;
@@ -178,6 +185,19 @@ namespace StackExchange.Redis
 
             var physical = this.physical;
             if (physical == null) return FailDueToNoConnection(message);
+            if (physical == null)
+            {
+                // If we're not connected yet and supposed to, queue it up
+                if (Multiplexer.RawConfig.BacklogPolicy.QueueWhileDisconnected)
+                {
+                    if (TryPushToBacklog(message, onlyIfExists: false))
+                    {
+                        message.SetEnqueued(null);
+                        return WriteResult.Success;
+                    }
+                }
+                return FailDueToNoConnection(message);
+            }
             var result = WriteMessageTakingWriteLockSync(physical, message);
             LogNonPreferred(message.Flags, isReplica);
             return result;
@@ -189,7 +209,19 @@ namespace StackExchange.Redis
             if (!IsConnected) return new ValueTask<WriteResult>(QueueOrFailMessage(message));
 
             var physical = this.physical;
-            if (physical == null) return new ValueTask<WriteResult>(FailDueToNoConnection(message));
+            if (physical == null)
+            {
+                // If we're not connected yet and supposed to, queue it up
+                if (!isHandshake && Multiplexer.RawConfig.BacklogPolicy.QueueWhileDisconnected)
+                {
+                    if (TryPushToBacklog(message, onlyIfExists: false))
+                    {
+                        message.SetEnqueued(null);
+                        return new ValueTask<WriteResult>(WriteResult.Success);
+                    }
+                }
+                return new ValueTask<WriteResult>(FailDueToNoConnection(message));
+            }
 
             var result = WriteMessageTakingWriteLockAsync(physical, message, isHandshake);
             LogNonPreferred(message.Flags, isReplica);
@@ -540,7 +572,15 @@ namespace StackExchange.Redis
             bool runThisTime = false;
             try
             {
-                CheckBacklogsForTimeouts();
+                if (BacklogHasItems)
+                {
+                    CheckBacklogsForTimeouts();
+                    // Ensure we're processing the backlog
+                    if (BacklogHasItems)
+                    {
+                        StartBacklogProcessor();
+                    }
+                }
 
                 runThisTime = !isDisposed && Interlocked.CompareExchange(ref beating, 1, 0) == 0;
                 if (!runThisTime) return;
@@ -970,6 +1010,8 @@ namespace StackExchange.Redis
 
         private async Task ProcessBridgeBacklogAsync(ConcurrentQueue<Message> backlog, Backlog handlingBacklog)
         {
+            // Importantly: don't assume we have a physical connection here
+            // We are very likely to hit a state where it's not re-established or even referenced here
             LockToken token = default;
             try
             {
@@ -1031,7 +1073,7 @@ namespace StackExchange.Redis
 #endif
                             message.SetExceptionAndComplete(ex, this);
                         }
-                        else
+                        else if (physical?.HasOuputPipe == true)
                         {
                             _backlogStatus = BacklogStatus.WritingMessage;
                             var result = WriteMessageInsideLock(physical, message);
@@ -1062,7 +1104,7 @@ namespace StackExchange.Redis
                     }
                 }
                 _backlogStatus = BacklogStatus.SettingIdle;
-                physical.SetIdle();
+                physical?.SetIdle();
                 _backlogStatus = BacklogStatus.Inactive;
             }
             finally
@@ -1105,7 +1147,7 @@ namespace StackExchange.Redis
             // AVOID REORDERING MESSAGES
             // Prefer to add it to the backlog if this thread can see that there might already be a message backlog.
             // We do this before attempting to take the writelock, because we won't actually write, we'll just let the backlog get processed in due course
-            if (TryPushToBacklog(message, onlyIfExists: true, isHandshake: isHandshake))
+            if (TryPushToBacklog(message, onlyIfExists: physical.HasOuputPipe, isHandshake: isHandshake))
             {
                 return new ValueTask<WriteResult>(WriteResult.Success); // queued counts as success
             }
