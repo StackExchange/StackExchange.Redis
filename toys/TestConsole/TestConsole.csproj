@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFrameworks>netcoreapp3.1;net472</TargetFrameworks>
+    <TargetFrameworks>net50;net472</TargetFrameworks>
     <DefineConstants>SEV2</DefineConstants>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
   </PropertyGroup>
