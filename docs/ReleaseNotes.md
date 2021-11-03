@@ -1,6 +1,7 @@
 # Release Notes
 
 ## Unreleased
+- Connection backoff default is not exponential instead of linear (#1896 via lolodi)
 
 ## 2.2.79
 
