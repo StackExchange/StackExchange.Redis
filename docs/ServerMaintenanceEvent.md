@@ -28,19 +28,19 @@ multiplexer.ServerMaintenanceEvent += (object sender, ServerMaintenanceEvent e) 
     }
 };
 ```
-You can see the schema for the `AzureMaintenanceEvent` class [here](..\src\StackExchange.Redis\Maintenance\AzureMaintenanceEvent.cs). Note that the library automatically sets the `ReceivedTimeUtc` timestamp when the event is received, so if you see in your logs that `ReceivedTimeUtc` is after `StartTimeUtc`, this may indicate that your connections are under high load.
+You can see the schema for the `AzureMaintenanceEvent` class [here](https://github.com/StackExchange/StackExchange.Redis/blob/main/src/StackExchange.Redis/Maintenance/AzureMaintenanceEvent.cs). Note that the library automatically sets the `ReceivedTimeUtc` timestamp when the event is received, so if you see in your logs that `ReceivedTimeUtc` is after `StartTimeUtc`, this may indicate that your connections are under high load.
 
 ## Walking through a sample maintenance event
 
 1. App is connected to Redis and everything is working fine. 
-
 2. Current Time: [16:21:39] -> `NodeMaintenanceScheduled` event is raised, with a `StartTimeUtc` of 16:35:57 (about 14 minutes from current time).
-3. Current Time: [16:34:26] -> `NodeMaintenanceStarting` message is received, and `StartTimeUtc` is 16:34:56. This start time is about 30 seconds from current time, although the node will in practice become unavailable in around 20 seconds.
-4. Current Time: [16:34:46] -> `NodeMaintenanceStart` message is received, so we know the node maintenance is about to happen. We break the circuit and stop sending new operations to the Redis connection. (Note: the appropriate action for your application may be different.) For clustered Redis servers, StackExchange.Redis will automatically refresh its view of the server's topology.
+    * Note: the start time for this event is an approximation, because we will start getting ready for the update proactively and the node may become unavailable up to 3 minutes sooner. We recommend listening for NodeMaintenanceStarting and NodeMaintenanceStart for the highest level of accuracy (these are only likely to differ by a few seconds at most).
+3. Current Time: [16:34:26] -> `NodeMaintenanceStarting` message is received, and `StartTimeUtc` is 16:34:46, about 20 seconds from the current time.
+4. Current Time: [16:34:46] -> `NodeMaintenanceStart` message is received, so we know the node maintenance is about to happen. We break the circuit and stop sending new operations to the Redis connection. (Note: the appropriate action for your application may be different.) StackExchange.Redis will automatically refresh its view of the overall server topology.
 5. Current Time: [16:34:47] -> The connection is closed by the Redis server.
 6. Current Time: [16:34:56] -> `NodeMaintenanceFailoverComplete` message is received. This tells us that the replica node has promoted itself to primary, so the other node can go offline for maintenance.
 7. Current Time [16:34:56] -> The connection to the Redis server is restored. It is safe to send commands again to the connection and all commands will succeed.
-8. Current Time [16:37:48] -> `NodeMaintenanceEnded` message is received, with a `StartTimeUtc` of 16:37:48. Nothing to do here if you are talking to the load balancer endpoint (port 6380 or 6379). For clustered servers, you can start sending readonly workloads to the replica.
+8. Current Time [16:37:48] -> `NodeMaintenanceEnded` message is received, with a `StartTimeUtc` of 16:37:48. Nothing to do here if you are talking to the load balancer endpoint (port 6380 or 6379). For clustered servers, you can resume sending readonly workloads to the replica(s).
 
 ##  Azure Cache for Redis Maintenance Event details
 
@@ -52,11 +52,11 @@ You can see the schema for the `AzureMaintenanceEvent` class [here](..\src\Stack
 
 *NodeMaintenanceStarting* events are raised ~20 seconds ahead of upcoming maintenance. This means that one of the primary or replica nodes will be going down for maintenance.
 
-It's important to understand that this does *not* mean downtime if you are using a Standard/Premier SKU cache. If the replica is targeted for maintenance, disruptions should be minimal. If the primary node is the one going down for maintenance, a failover will occur, which will close existing connections going through the load balancer port (6380/6379) or directly to the node (15000/15001). You may want to stop sending write commands until the replica node has assumed the primary role and the failover is complete.
+It's important to understand that this does *not* mean downtime if you are using a Standard/Premier SKU cache. If the replica is targeted for maintenance, disruptions should be minimal. If the primary node is the one going down for maintenance, a failover will occur, which will close existing connections going through the load balancer port (6380/6379) or directly to the node (15000/15001). You may want to pause sending write commands until the replica node has assumed the primary role and the failover is complete.
 
 ### `NodeMaintenanceStart` event
 
-*NodeMaintenanceStart* events are raised when maintenance is imminent. These messages do not include a `StartTimeUtc` because they are fired immediately before maintenance occurs.
+*NodeMaintenanceStart* events are raised when maintenance is imminent (within seconds). These messages do not include a `StartTimeUtc` because they are fired immediately before maintenance occurs.
 
 ### `NodeMaintenanceFailoverComplete` event
 
@@ -64,4 +64,4 @@ This event is raised when a replica has promoted itself to primary. These events
 
 ### `NodeMaintenanceEnded` event
 
-This event is raised to indicate that the maintenance operation has completed. You do *NOT* need to wait for this event to use the load balancer endpoint. This endpoint is always available. However, we included this for logging purposes or for customers who use the replica endpoint in clusters for read workloads.
+This event is raised to indicate that the maintenance operation has completed. It indicates that the replica is once again available. You do *NOT* need to wait for this event to use the load balancer endpoint, as it is available throughout. However, we included this for logging purposes or for customers who use the replica endpoint in clusters for read workloads.
