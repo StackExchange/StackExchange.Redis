@@ -64,4 +64,4 @@ This event is raised when a replica has promoted itself to primary. These events
 
 ### `NodeMaintenanceEnded` event
 
-This event is raised to indicate that the maintenance operation has completed. It indicates that the replica is once again available. You do *NOT* need to wait for this event to use the load balancer endpoint, as it is available throughout. However, we included this for logging purposes or for customers who use the replica endpoint in clusters for read workloads.
+This event is raised to indicate that the maintenance operation has completed and that the replica is once again available. You do *NOT* need to wait for this event to use the load balancer endpoint, as it is available throughout. However, we included this for logging purposes or for customers who use the replica endpoint in clusters for read workloads.
