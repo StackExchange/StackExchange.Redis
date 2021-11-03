@@ -38,7 +38,7 @@ Documentation
 - [Transactions](Transactions) - how atomic transactions work in redis
 - [Events](Events) - the events available for logging / information purposes
 - [Pub/Sub Message Order](PubSubOrder) - advice on sequential and concurrent processing
-- [ServerMaintenanceEvent](ServerMaintenanceEvent) - how to listen and prepare for server maintenance
+- [ServerMaintenanceEvent](ServerMaintenanceEvent) - how to listen and prepare for hosted server maintenance (e.g. Azure Cache for Redis)
 - [Streams](Streams) - how to use the Stream data type
 - [Where are `KEYS` / `SCAN` / `FLUSH*`?](KeysScan) - how to use server-based commands
 - [Profiling](Profiling) - profiling interfaces, as well as how to profile in an `async` world
