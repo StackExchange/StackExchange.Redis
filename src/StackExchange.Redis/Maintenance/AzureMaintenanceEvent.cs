@@ -138,6 +138,7 @@ namespace StackExchange.Redis.Maintenance
                     {
                         case AzureNotificationType.NodeMaintenanceEnded:
                         case AzureNotificationType.NodeMaintenanceFailoverComplete:
+                        case AzureNotificationType.NodeMaintenanceScaleComplete:
                             await multiplexer.ReconfigureAsync(first: false, reconfigureAll: true, log: logProxy, blame: null, cause: $"Azure Event: {newMessage.NotificationType}").ForAwait();
                             break;
                     }
@@ -188,6 +189,7 @@ namespace StackExchange.Redis.Maintenance
             // This is temporary until server changes go into effect - to be removed in later versions
             "NodeMaintenanceFailover" => AzureNotificationType.NodeMaintenanceFailoverComplete,
             "NodeMaintenanceFailoverComplete" => AzureNotificationType.NodeMaintenanceFailoverComplete,
+            "NodeMaintenanceScaleComplete" => AzureNotificationType.NodeMaintenanceScaleComplete,
             _ => AzureNotificationType.Unknown,
         };
     }
