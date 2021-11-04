@@ -4,7 +4,6 @@
     "SecureServer": "redis",
     "FailoverMasterServer": "redis",
     "FailoverReplicaServer": "redis",
-    "RediSearchServer": "redisearch",
     "IPv4Server": "redis",
     "RemoteServer": "redis",
     "SentinelServer": "redis",

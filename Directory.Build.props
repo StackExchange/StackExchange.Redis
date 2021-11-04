@@ -15,7 +15,7 @@
     <PackageProjectUrl>https://github.com/StackExchange/StackExchange.Redis/</PackageProjectUrl>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
 
-    <LangVersion>8.0</LangVersion>
+    <LangVersion>9.0</LangVersion>
     <RepositoryType>git</RepositoryType>
     <RepositoryUrl>https://github.com/StackExchange/StackExchange.Redis/</RepositoryUrl>
 

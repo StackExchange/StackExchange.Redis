@@ -434,24 +434,18 @@ namespace StackExchange.Redis
             return counters;
         }
 
-        internal void GetOutstandingCount(RedisCommand command, out int inst, out int qs, out long @in, out int qu, out bool aw, out long toRead, out long toWrite,
-            out BacklogStatus bs, out PhysicalConnection.ReadStatus rs, out PhysicalConnection.WriteStatus ws)
+        internal BridgeStatus GetBridgeStatus(RedisCommand command)
         {
-            inst = qs = qu = 0;
-            @in = toRead = toWrite = 0;
-            aw = false;
-            bs = BacklogStatus.Inactive;
-            rs = PhysicalConnection.ReadStatus.NA;
-            ws = PhysicalConnection.WriteStatus.NA;
             try
             {
-                var bridge = GetBridge(command, false);
-                bridge?.GetOutstandingCount(out inst, out qs, out @in, out qu, out aw, out toRead, out toWrite, out bs, out rs, out ws);
+                return GetBridge(command, false)?.GetStatus() ?? BridgeStatus.Zero;
             }
             catch (Exception ex)
             {   // only needs to be best efforts
                 System.Diagnostics.Debug.WriteLine(ex.Message);
             }
+
+            return BridgeStatus.Zero;
         }
 
         internal string GetProfile()

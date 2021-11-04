@@ -2,6 +2,7 @@
 
 ## Unreleased
 - Connection backoff default is now exponential instead of linear (#1896 via lolodi)
+- Add support for NodeMaintenanceScaleComplete event (handles Redis cluster scaling) (#1902 via NickCraver)
 
 ## 2.2.79
 

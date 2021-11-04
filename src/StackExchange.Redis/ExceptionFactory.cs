@@ -312,27 +312,31 @@ namespace StackExchange.Redis
             // Add server data, if we have it
             if (server != null && message != null)
             {
-                server.GetOutstandingCount(message.Command, out int inst, out int qs, out long @in, out int qu, out bool aw, out long toRead, out long toWrite, out var bs, out var rs, out var ws);
-                switch (rs)
+                var bs = server.GetBridgeStatus(message.Command);
+
+                switch (bs.Connection.ReadStatus)
                 {
                     case PhysicalConnection.ReadStatus.CompletePendingMessageAsync:
                     case PhysicalConnection.ReadStatus.CompletePendingMessageSync:
                         sb.Append(" ** possible thread-theft indicated; see https://stackexchange.github.io/StackExchange.Redis/ThreadTheft ** ");
                         break;
                 }
-                Add(data, sb, "OpsSinceLastHeartbeat", "inst", inst.ToString());
-                Add(data, sb, "Queue-Awaiting-Write", "qu", qu.ToString());
-                Add(data, sb, "Queue-Awaiting-Response", "qs", qs.ToString());
-                Add(data, sb, "Active-Writer", "aw", aw.ToString());
-                if (qu != 0) Add(data, sb, "Backlog-Writer", "bw", bs.ToString());
-                if (rs != PhysicalConnection.ReadStatus.NA) Add(data, sb, "Read-State", "rs", rs.ToString());
-                if (ws != PhysicalConnection.WriteStatus.NA) Add(data, sb, "Write-State", "ws", ws.ToString());
+                Add(data, sb, "OpsSinceLastHeartbeat", "inst", bs.MessagesSinceLastHeartbeat.ToString());
+                Add(data, sb, "Queue-Awaiting-Write", "qu", bs.BacklogMessagesPending.ToString());
+                Add(data, sb, "Queue-Awaiting-Response", "qs", bs.Connection.MessagesSentAwaitingResponse.ToString());
+                Add(data, sb, "Active-Writer", "aw", bs.IsWriterActive.ToString());
+                if (bs.BacklogMessagesPending != 0)
+                {
+                    Add(data, sb, "Backlog-Writer", "bw", bs.BacklogStatus.ToString());
+                }
+                if (bs.Connection.ReadStatus != PhysicalConnection.ReadStatus.NA) Add(data, sb, "Read-State", "rs", bs.Connection.ReadStatus.ToString());
+                if (bs.Connection.WriteStatus != PhysicalConnection.WriteStatus.NA) Add(data, sb, "Write-State", "ws", bs.Connection.WriteStatus.ToString());
 
-                if (@in >= 0) Add(data, sb, "Inbound-Bytes", "in", @in.ToString());
-                if (toRead >= 0) Add(data, sb, "Inbound-Pipe-Bytes", "in-pipe", toRead.ToString());
-                if (toWrite >= 0) Add(data, sb, "Outbound-Pipe-Bytes", "out-pipe", toWrite.ToString());
+                if (bs.Connection.BytesAvailableOnSocket >= 0) Add(data, sb, "Inbound-Bytes", "in", bs.Connection.BytesAvailableOnSocket.ToString());
+                if (bs.Connection.BytesInReadPipe >= 0) Add(data, sb, "Inbound-Pipe-Bytes", "in-pipe", bs.Connection.BytesInReadPipe.ToString());
+                if (bs.Connection.BytesInWritePipe >= 0) Add(data, sb, "Outbound-Pipe-Bytes", "out-pipe", bs.Connection.BytesInWritePipe.ToString());
 
-                if (multiplexer.StormLogThreshold >= 0 && qs >= multiplexer.StormLogThreshold && Interlocked.CompareExchange(ref multiplexer.haveStormLog, 1, 0) == 0)
+                if (multiplexer.StormLogThreshold >= 0 && bs.Connection.MessagesSentAwaitingResponse >= multiplexer.StormLogThreshold && Interlocked.CompareExchange(ref multiplexer.haveStormLog, 1, 0) == 0)
                 {
                     var log = server.GetStormLog(message.Command);
                     if (string.IsNullOrWhiteSpace(log)) Interlocked.Exchange(ref multiplexer.haveStormLog, 0);
