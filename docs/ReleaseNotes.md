@@ -1,6 +1,7 @@
 # Release Notes
 
 ## Unreleased
+- Add support for NodeMaintenanceScaleComplete event (handles Redis cluster scaling) (#1902 via NickCraver)
 
 ## 2.2.79
 

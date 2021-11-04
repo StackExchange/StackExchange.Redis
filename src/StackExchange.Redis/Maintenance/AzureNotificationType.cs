@@ -34,5 +34,10 @@
         /// Indicates that a replica has been promoted to primary.
         /// </summary>
         NodeMaintenanceFailoverComplete,
+
+        /// <summary>
+        /// Indicates that a scale event (adding or removing nodes) has completed for a cluster.
+        /// </summary>
+        NodeMaintenanceScaleComplete,
     }
 }
