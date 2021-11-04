@@ -34,7 +34,7 @@ You can see the schema for the `AzureMaintenanceEvent` class [here](https://gith
 
 1. App is connected to Redis and everything is working fine. 
 2. Current Time: [16:21:39] -> `NodeMaintenanceScheduled` event is raised, with a `StartTimeUtc` of 16:35:57 (about 14 minutes from current time).
-    * Note: the start time for this event is an approximation, because we will start getting ready for the update proactively and the node may become unavailable up to 3 minutes sooner. We recommend listening for NodeMaintenanceStarting and NodeMaintenanceStart for the highest level of accuracy (these are only likely to differ by a few seconds at most).
+    * Note: the start time for this event is an approximation, because we will start getting ready for the update proactively and the node may become unavailable up to 3 minutes sooner. We recommend listening for `NodeMaintenanceStarting` and `NodeMaintenanceStart` for the highest level of accuracy (these are only likely to differ by a few seconds at most).
 3. Current Time: [16:34:26] -> `NodeMaintenanceStarting` message is received, and `StartTimeUtc` is 16:34:46, about 20 seconds from the current time.
 4. Current Time: [16:34:46] -> `NodeMaintenanceStart` message is received, so we know the node maintenance is about to happen. We break the circuit and stop sending new operations to the Redis connection. (Note: the appropriate action for your application may be different.) StackExchange.Redis will automatically refresh its view of the overall server topology.
 5. Current Time: [16:34:47] -> The connection is closed by the Redis server.
@@ -44,24 +44,24 @@ You can see the schema for the `AzureMaintenanceEvent` class [here](https://gith
 
 ##  Azure Cache for Redis Maintenance Event details
 
-### `NodeMaintenanceScheduled` event
+#### NodeMaintenanceScheduled event
 
-*NodeMaintenanceScheduled* events are raised for maintenance scheduled by Azure, up to 15 minutes in advance. This event will not get fired for user-initiated reboots.
+`NodeMaintenanceScheduled` events are raised for maintenance scheduled by Azure, up to 15 minutes in advance. This event will not get fired for user-initiated reboots.
 
-### `NodeMaintenanceStarting` event
+#### NodeMaintenanceStarting event
 
-*NodeMaintenanceStarting* events are raised ~20 seconds ahead of upcoming maintenance. This means that one of the primary or replica nodes will be going down for maintenance.
+`NodeMaintenanceStarting` events are raised ~20 seconds ahead of upcoming maintenance. This means that one of the primary or replica nodes will be going down for maintenance.
 
 It's important to understand that this does *not* mean downtime if you are using a Standard/Premier SKU cache. If the replica is targeted for maintenance, disruptions should be minimal. If the primary node is the one going down for maintenance, a failover will occur, which will close existing connections going through the load balancer port (6380/6379) or directly to the node (15000/15001). You may want to pause sending write commands until the replica node has assumed the primary role and the failover is complete.
 
-### `NodeMaintenanceStart` event
+#### NodeMaintenanceStart event
 
-*NodeMaintenanceStart* events are raised when maintenance is imminent (within seconds). These messages do not include a `StartTimeUtc` because they are fired immediately before maintenance occurs.
+`NodeMaintenanceStart` events are raised when maintenance is imminent (within seconds). These messages do not include a `StartTimeUtc` because they are fired immediately before maintenance occurs.
 
-### `NodeMaintenanceFailoverComplete` event
+#### NodeMaintenanceFailoverComplete event
 
-This event is raised when a replica has promoted itself to primary. These events do not include a `StartTimeUtc` because the action has already occurred.
+`NodeMaintenanceFailoverComplete` events are raised when a replica has promoted itself to primary. These events do not include a `StartTimeUtc` because the action has already occurred.
 
-### `NodeMaintenanceEnded` event
+#### NodeMaintenanceEnded event
 
-This event is raised to indicate that the maintenance operation has completed and that the replica is once again available. You do *NOT* need to wait for this event to use the load balancer endpoint, as it is available throughout. However, we included this for logging purposes or for customers who use the replica endpoint in clusters for read workloads.
+`NodeMaintenanceEnded` events are raised to indicate that the maintenance operation has completed and that the replica is once again available. You do *NOT* need to wait for this event to use the load balancer endpoint, as it is available throughout. However, we included this for logging purposes and for customers who use the replica endpoint in clusters for read workloads.
