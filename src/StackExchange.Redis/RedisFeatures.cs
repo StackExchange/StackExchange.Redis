@@ -35,7 +35,8 @@ namespace StackExchange.Redis
                                          v3_2_1 = new Version(3, 2, 1),
                                          v4_0_0 = new Version(4, 0, 0),
                                          v4_9_1 = new Version(4, 9, 1), // 5.0 RC1 is version 4.9.1; // 5.0 RC1 is version 4.9.1
-                                         v5_0_0 = new Version(5, 0, 0);
+                                         v5_0_0 = new Version(5, 0, 0),
+                                         v6_2_0 = new Version(6, 2, 0);
 
         private readonly Version version;
 
@@ -67,6 +68,11 @@ namespace StackExchange.Redis
         /// Can EXPIRE be used to set expiration on a key that is already volatile (i.e. has an expiration)?
         /// </summary>
         public bool ExpireOverwrite => Version >= v2_1_3;
+
+        /// <summary>
+        /// Is GETDEL available?
+        /// </summary>
+        public bool GetDelete => Version >= v6_2_0;
 
         /// <summary>
         /// Is HSTRLEN available?

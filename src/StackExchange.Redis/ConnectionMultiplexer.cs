@@ -1,20 +1,21 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Net;
+using System.Reflection;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Reflection;
-using System.IO.Compression;
-using System.Runtime.CompilerServices;
-using StackExchange.Redis.Profiling;
 using Pipelines.Sockets.Unofficial;
-using System.ComponentModel;
-using System.Runtime.InteropServices;
+using StackExchange.Redis.Maintenance;
+using StackExchange.Redis.Profiling;
 
 namespace StackExchange.Redis
 {
@@ -142,6 +143,7 @@ namespace StackExchange.Redis
         public string ClientName => RawConfig.ClientName ?? GetDefaultClientName();
 
         private static string defaultClientName;
+
         private static string GetDefaultClientName()
         {
             return defaultClientName ??= TryGetAzureRoleInstanceIdNoThrow()
@@ -572,6 +574,11 @@ namespace StackExchange.Redis
         public event EventHandler<EndPointEventArgs> ConfigurationChangedBroadcast;
 
         /// <summary>
+        /// Raised when server indicates a maintenance event is going to happen.
+        /// </summary>
+        public event EventHandler<ServerMaintenanceEvent> ServerMaintenanceEvent;
+
+        /// <summary>
         /// Gets the synchronous timeout associated with the connections
         /// </summary>
         public int TimeoutMilliseconds { get; }
@@ -590,6 +597,9 @@ namespace StackExchange.Redis
 
             return _serverSnapshot.GetEndPoints();
         }
+
+        internal void InvokeServerMaintenanceEvent(ServerMaintenanceEvent e)
+            => ServerMaintenanceEvent?.Invoke(this, e);
 
         internal bool TryResend(int hashSlot, Message message, EndPoint endpoint, bool isMoved)
         {
@@ -892,6 +902,9 @@ namespace StackExchange.Redis
                         // Initialize the Sentinel handlers
                         muxer.InitializeSentinel(logProxy);
                     }
+
+                    await Maintenance.ServerMaintenanceEvent.AddListenersAsync(muxer, logProxy).ForAwait();
+
                     return muxer;
                 }
                 finally
@@ -1187,6 +1200,9 @@ namespace StackExchange.Redis
                         // Initialize the Sentinel handlers
                         muxer.InitializeSentinel(logProxy);
                     }
+
+                    Maintenance.ServerMaintenanceEvent.AddListenersAsync(muxer, logProxy).Wait(muxer.SyncConnectTimeout(true));
+
                     return muxer;
                 }
                 finally
@@ -1763,8 +1779,9 @@ namespace StackExchange.Redis
                             {
                                 var server = servers[i];
                                 var task = available[i];
-                                server.GetOutstandingCount(RedisCommand.PING, out int inst, out int qs, out long @in, out int qu, out bool aw, out long toRead, out long toWrite, out var bs, out var rs, out var ws);
-                                log?.WriteLine($"  Server[{i}] ({Format.ToString(server)}) Status: {task.Status} (inst: {inst}, qs: {qs}, in: {@in}, qu: {qu}, aw: {aw}, in-pipe: {toRead}, out-pipe: {toWrite}, bw: {bs}, rs: {rs}. ws: {ws})");
+                                var bs = server.GetBridgeStatus(RedisCommand.PING);
+
+                                log?.WriteLine($"  Server[{i}] ({Format.ToString(server)}) Status: {task.Status} (inst: {bs.MessagesSinceLastHeartbeat}, qs: {bs.Connection.MessagesSentAwaitingResponse}, in: {bs.Connection.BytesAvailableOnSocket}, qu: {bs.MessagesSinceLastHeartbeat}, aw: {bs.IsWriterActive}, in-pipe: {bs.Connection.BytesInReadPipe}, out-pipe: {bs.Connection.BytesInWritePipe}, bw: {bs.BacklogStatus}, rs: {bs.Connection.ReadStatus}. ws: {bs.Connection.WriteStatus})");
                             }
                         }
 
@@ -2863,7 +2880,7 @@ namespace StackExchange.Redis
                     }
                 }
                 // snapshot these so that we can recycle the box
-                var  val = source.GetResult(out var ex, canRecycle: true); // now that we aren't locking it...
+                var val = source.GetResult(out var ex, canRecycle: true); // now that we aren't locking it...
                 if (ex != null) throw ex;
                 Trace(message + " received " + val);
                 return val;

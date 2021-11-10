@@ -38,7 +38,7 @@ namespace StackExchange.Redis.Tests
                 var server = conn.GetServer(TestConfig.Current.MasterServer, TestConfig.Current.MasterPort);
 
                 SetExpectedAmbientFailureCount(2);
-                server.SimulateConnectionFailure();
+                server.SimulateConnectionFailure(SimulatedFailureType.All);
 
                 db.Ping(CommandFlags.FireAndForget);
                 await Task.Delay(250).ForAwait();

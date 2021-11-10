@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
+using StackExchange.Redis.Maintenance;
 using Xunit;
 using Xunit.Abstractions;
 // ReSharper disable AccessToModifiedClosure
@@ -707,11 +708,42 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-#if DEBUG
+        [Fact]
+        public async Task AzureRedisEventsAutomaticSubscribe()
+        {
+            Skip.IfNoConfig(nameof(TestConfig.Config.AzureCacheServer), TestConfig.Current.AzureCacheServer);
+            Skip.IfNoConfig(nameof(TestConfig.Config.AzureCachePassword), TestConfig.Current.AzureCachePassword);
+
+            bool didUpdate = false;
+            var options = new ConfigurationOptions()
+            {
+                EndPoints = { TestConfig.Current.AzureCacheServer },
+                Password = TestConfig.Current.AzureCachePassword,
+                Ssl = true
+            };
+
+            using (var connection = await ConnectionMultiplexer.ConnectAsync(options))
+            {
+                connection.ServerMaintenanceEvent += (object sender, ServerMaintenanceEvent e) =>
+                {
+                    if (e is AzureMaintenanceEvent)
+                    {
+                        didUpdate = true;
+                    }
+                };
+
+                var pubSub = connection.GetSubscriber();
+                await pubSub.PublishAsync("AzureRedisEvents", "HI");
+                await Task.Delay(100);
+
+                Assert.True(didUpdate);
+            }
+        }
+
         [Fact]
         public async Task SubscriptionsSurviveConnectionFailureAsync()
         {
-            using (var muxer = Create(allowAdmin: true))
+            using (var muxer = Create(allowAdmin: true, shared: false))
             {
                 RedisChannel channel = Me();
                 var sub = muxer.GetSubscriber();
@@ -720,6 +752,7 @@ namespace StackExchange.Redis.Tests
                 {
                     Interlocked.Increment(ref counter);
                 }).ConfigureAwait(false);
+                await Task.Delay(200).ConfigureAwait(false);
                 await sub.PublishAsync(channel, "abc").ConfigureAwait(false);
                 sub.Ping();
                 await Task.Delay(200).ConfigureAwait(false);
@@ -727,7 +760,7 @@ namespace StackExchange.Redis.Tests
                 var server = GetServer(muxer);
                 Assert.Equal(1, server.GetCounters().Subscription.SocketCount);
 
-                server.SimulateConnectionFailure();
+                server.SimulateConnectionFailure(SimulatedFailureType.All);
                 SetExpectedAmbientFailureCount(2);
                 await Task.Delay(200).ConfigureAwait(false);
                 sub.Ping();
@@ -738,6 +771,5 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal(2, Thread.VolatileRead(ref counter));
             }
         }
-#endif
     }
 }

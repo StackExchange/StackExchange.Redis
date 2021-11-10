@@ -281,29 +281,45 @@ namespace StackExchange.Redis
         internal bool TryEnqueueBackgroundSubscriptionWrite(in PendingSubscriptionState state)
             => !isDisposed && (_subscriptionBackgroundQueue ?? GetSubscriptionQueue()).Writer.TryWrite(state);
 
-        internal void GetOutstandingCount(out int inst, out int qs, out long @in, out int qu, out bool aw, out long toRead, out long toWrite,
-            out BacklogStatus bs, out PhysicalConnection.ReadStatus rs, out PhysicalConnection.WriteStatus ws)
+        internal readonly struct BridgeStatus
         {
-            inst = (int)(Interlocked.Read(ref operationCount) - Interlocked.Read(ref profileLastLog));
-            qu = _backlog.Count;
-            aw = !_singleWriterMutex.IsAvailable;
-            bs = _backlogStatus;
-            var tmp = physical;
-            if (tmp == null)
-            {
-                qs = 0;
-                toRead = toWrite = @in = -1;
-                rs = PhysicalConnection.ReadStatus.NA;
-                ws = PhysicalConnection.WriteStatus.NA;
-            }
-            else
-            {
-                qs = tmp.GetSentAwaitingResponseCount();
-                @in = tmp.GetSocketBytes(out toRead, out toWrite);
-                rs = tmp.GetReadStatus();
-                ws = tmp.GetWriteStatus();
-            }
+            /// <summary>
+            /// Number of messages sent since the last heartbeat was processed.
+            /// </summary>
+            public int MessagesSinceLastHeartbeat { get; init; }
+            /// <summary>
+            /// Whether the pipe writer is currently active.
+            /// </summary>
+            public bool IsWriterActive { get; init; }
+
+            /// <summary>
+            /// Total number of backlog messages that are in the retry backlog.
+            /// </summary>
+            public int BacklogMessagesPending { get; init; }
+            /// <summary>
+            /// Status of the currently processing backlog, if any.
+            /// </summary>
+            public BacklogStatus BacklogStatus { get; init; }
+
+            /// <summary>
+            /// Status for the underlying <see cref="PhysicalConnection"/>.
+            /// </summary>
+            public PhysicalConnection.ConnectionStatus Connection { get; init; }
+
+            /// <summary>
+            /// The default bridge stats, notable *not* the same as <code>default</code> since initializers don't run.
+            /// </summary>
+            public static BridgeStatus Zero { get; } = new() { Connection = PhysicalConnection.ConnectionStatus.Zero };
         }
+
+        internal BridgeStatus GetStatus() => new()
+        {
+            MessagesSinceLastHeartbeat = (int)(Interlocked.Read(ref operationCount) - Interlocked.Read(ref profileLastLog)),
+            IsWriterActive = !_singleWriterMutex.IsAvailable,
+            BacklogMessagesPending = _backlog.Count,
+            BacklogStatus = _backlogStatus,
+            Connection = physical?.GetStatus() ?? PhysicalConnection.ConnectionStatus.Default,
+        };
 
         internal string GetStormLog()
         {
@@ -1347,13 +1363,13 @@ namespace StackExchange.Redis
         /// <summary>
         /// For testing only
         /// </summary>
-        internal void SimulateConnectionFailure()
+        internal void SimulateConnectionFailure(SimulatedFailureType failureType)
         {
             if (!Multiplexer.RawConfig.AllowAdmin)
             {
                 throw ExceptionFactory.AdminModeNotEnabled(Multiplexer.IncludeDetailInExceptions, RedisCommand.DEBUG, null, ServerEndPoint); // close enough
             }
-            physical?.RecordConnectionFailed(ConnectionFailureType.SocketFailure);
+            physical?.SimulateConnectionFailure(failureType);
         }
 
         internal RedisCommand? GetActiveMessage() => Volatile.Read(ref _activeMessage)?.Command;

@@ -1,12 +1,20 @@
 # Release Notes
 
 ## Unreleased
+- Connection backoff default is now exponential instead of linear (#1896 via lolodi)
+- Add support for NodeMaintenanceScaleComplete event (handles Redis cluster scaling) (#1902 via NickCraver)
+
+## 2.2.79
+
 - NRediSearch: Support on json index (#1808 via AvitalFineRedis)
 - NRediSearch: Support sortable TagFields and unNormalizedForm for Tag & Text Fields (#1862 via slorello89 & AvitalFineRedis)
 - fix potential errors getting socket bytes (#1836 via NickCraver)
 - logging additions (.NET Version and timestamps) for better debugging (#1796 via philon-msft)
 - add: `Condition` API (transactions) now supports `StreamLengthEqual` and variants (#1807 via AlphaGremlin)
+- Add support for count argument to `ListLeftPop`, `ListLeftPopAsync`, `ListRightPop`, and `ListRightPopAsync` (#1850 via jjfmarket)
 - fix potential task/thread exhaustion from the backlog processor (#1854 via mgravell)
+- add support for listening to Azure Maintenance Events (#1876 via amsoedal)
+- add `StringGetDelete`/`StringGetDeleteAsync` API for Redis `GETDEL` command(#1840 via WeihanLi)
 
 ## 2.2.62
 

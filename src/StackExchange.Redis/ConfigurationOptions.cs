@@ -334,7 +334,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// The retry policy to be used for connection reconnects
         /// </summary>
-        public IReconnectRetryPolicy ReconnectRetryPolicy { get { return reconnectRetryPolicy ??= new LinearRetry(ConnectTimeout); } set { reconnectRetryPolicy = value; } }
+        public IReconnectRetryPolicy ReconnectRetryPolicy { get { return reconnectRetryPolicy ??= new ExponentialRetry(ConnectTimeout/2); } set { reconnectRetryPolicy = value; } }
 
         /// <summary>
         /// Indicates whether endpoints should be resolved via DNS before connecting.
@@ -790,22 +790,29 @@ namespace StackExchange.Redis
         // Microsoft Azure team wants abortConnect=false by default
         private bool GetDefaultAbortOnConnectFailSetting() => !IsAzureEndpoint();
 
-        private bool IsAzureEndpoint()
+        /// <summary>
+        /// List of domains known to be Azure Redis, so we can light up some helpful functionality
+        /// for minimizing downtime during maintenance events and such.
+        /// </summary>
+        private static readonly List<string> azureRedisDomains = new List<string> {
+            ".redis.cache.windows.net",
+            ".redis.cache.chinacloudapi.cn",
+            ".redis.cache.usgovcloudapi.net",
+            ".redis.cache.cloudapi.de",
+            ".redisenterprise.cache.azure.net",
+        };
+
+        internal bool IsAzureEndpoint()
         {
             foreach (var ep in EndPoints)
             {
                 if (ep is DnsEndPoint dnsEp)
                 {
-                    int firstDot = dnsEp.Host.IndexOf('.');
-                    if (firstDot >= 0)
+                    foreach (var host in azureRedisDomains)
                     {
-                        switch (dnsEp.Host.Substring(firstDot).ToLowerInvariant())
+                        if (dnsEp.Host.EndsWith(host, StringComparison.InvariantCultureIgnoreCase))
                         {
-                            case ".redis.cache.windows.net":
-                            case ".redis.cache.chinacloudapi.cn":
-                            case ".redis.cache.usgovcloudapi.net":
-                            case ".redis.cache.cloudapi.de":
-                                return true;
+                            return true;
                         }
                     }
                 }
