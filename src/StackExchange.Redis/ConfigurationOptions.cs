@@ -336,7 +336,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// The retry policy to be used for connection reconnects.
         /// </summary>
-        public IReconnectRetryPolicy ReconnectRetryPolicy { get { return reconnectRetryPolicy ??= new LinearRetry(ConnectTimeout); } set { reconnectRetryPolicy = value; } }
+        public IReconnectRetryPolicy ReconnectRetryPolicy { get { return reconnectRetryPolicy ??= new ExponentialRetry(ConnectTimeout/2); } set { reconnectRetryPolicy = value; } }
 
         /// <summary>
         /// The backlog policy to be used for commands when a connection is unhealthy.
