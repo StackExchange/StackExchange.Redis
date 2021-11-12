@@ -26,20 +26,17 @@ namespace StackExchange.Redis
 
         private readonly long[] profileLog = new long[ProfileLogSamples];
 
-        // We have 3 queues in play on this bridge, and things enter them in this order:
-        //   General: for anything coming into the bridge. Everything but handshake commands goes into this queue.
-        //   SpecificServer: for anything targeting this endpoint that cannot be handed off to another endpoint.
-        // The queue priority order is reverse:
-        //   1. Handshake messages are sent directly to the pipe itself to re-establish the connection (e.g. AUTH)
-        //   2. Specific server messages are sent next (e.g. REPLICAOF - this queue is rare to start with)
-        //   3. All other messages are handled
-        //        Note: this doesn't mean sent - if we have another viable endpoint and these messages can be sent on it,
-        //              then we'll either send them to it. Any messages specifying this endpoint explicitly will go into the
-        //              specific server queue so that we unblock the general FIFO queue for other handoffs.
-        //
-        private readonly ConcurrentQueue<Message> _backlogGeneral = new(),
-                                                  _backlogSpecificServer = new();
-        private bool BacklogHasItems => !_backlogGeneral.IsEmpty || !_backlogSpecificServer.IsEmpty;
+        /// <summary>
+        /// We have 1 queue in play on this bridge.
+        /// We're bypassing the queue for handshake events that go straight to the socket.
+        /// Everything else that's not an internal call goes into the queue if there is a queue.
+        ///
+        /// In a later release we want to remove per-server events from this queue compeltely and shunt queued messages
+        /// to another capable primary connection if oone if avaialble to process them faster (order is already hosed).
+        /// For now, simplicity in: queue it all, replay or timeout it all.
+        /// </summary>
+        private readonly ConcurrentQueue<Message> _backlog = new();
+        private bool BacklogHasItems => !_backlog.IsEmpty;
         private int _backlogProcessorIsRunning = 0;
 
         private int activeWriters = 0;
@@ -148,15 +145,15 @@ namespace StackExchange.Redis
                 // you can go in the queue, but we won't be starting
                 // a worker, because the handshake has not completed
                 message.SetEnqueued(null);
-                message.SetBacklogState(_backlogGeneral.Count, null);
-                _backlogGeneral.Enqueue(message);
+                message.SetBacklogState(_backlog.Count, null);
+                _backlog.Enqueue(message);
                 return WriteResult.Success; // we'll take it...
             }
             else if (Multiplexer.RawConfig.BacklogPolicy.QueueWhileDisconnected)
             {
                 message.SetEnqueued(null);
-                message.SetBacklogState(_backlogGeneral.Count, null);
-                _backlogGeneral.Enqueue(message);
+                message.SetBacklogState(_backlog.Count, null);
+                _backlog.Enqueue(message);
                 return WriteResult.Success; // we'll queue for retry here...
             }
             else
@@ -338,27 +335,14 @@ namespace StackExchange.Redis
             public bool IsWriterActive { get; init; }
 
             /// <summary>
-            /// Total number of backlog messages that are in the retry backlog.
+            /// The number of messages that are in the backlog queue (waiting to be sent when the connection is healthy again).
             /// </summary>
-            public int BacklogMessagesPending => BacklogMessagesPendingGeneral + BacklogMessagesPendingSpecificServer;
-
-            /// <summary>
-            /// The number of backlog messages that are in the <see cref="Backlog.General"/> retry queue.
-            /// </summary>
-            public int BacklogMessagesPendingGeneral { get; init; }
-            /// <summary>
-            /// The number of backlog messages that are in the <see cref="Backlog.SpecificServer"/> retry queue.
-            /// </summary>
-            public int BacklogMessagesPendingSpecificServer { get; init; }
+            public int BacklogMessagesPending { get; init; }
 
             /// <summary>
             /// Status of the currently processing backlog, if any.
             /// </summary>
             public BacklogStatus BacklogStatus { get; init; }
-            /// <summary>
-            /// Name of the currently processing backlog, if any.
-            /// </summary>
-            public Backlog ActiveBacklog { get; init; }
 
             /// <summary>
             /// Status for the underlying <see cref="PhysicalConnection"/>.
@@ -375,10 +359,8 @@ namespace StackExchange.Redis
         {
             MessagesSinceLastHeartbeat = (int)(Interlocked.Read(ref operationCount) - Interlocked.Read(ref profileLastLog)),
             IsWriterActive = !_singleWriterMutex.IsAvailable,
-            BacklogMessagesPendingGeneral = _backlogGeneral.Count,
-            BacklogMessagesPendingSpecificServer = _backlogSpecificServer.Count,
+            BacklogMessagesPending = _backlog.Count,
             BacklogStatus = _backlogStatus,
-            ActiveBacklog = _activeBacklog,
             Connection = physical?.GetStatus() ?? PhysicalConnection.ConnectionStatus.Default,
         };
 
@@ -529,13 +511,7 @@ namespace StackExchange.Redis
 
         private void AbandonPendingBacklog(Exception ex)
         {
-            // Drain both lower queues, but not handshake since that's likely to cause overlapping failure shenanigans.
-            while (_backlogSpecificServer.TryDequeue(out Message next))
-            {
-                Multiplexer?.OnMessageFaulted(next, ex);
-                next.SetExceptionAndComplete(ex, this);
-            }
-            while (_backlogGeneral.TryDequeue(out Message next))
+            while (_backlog.TryDequeue(out Message next))
             {
                 Multiplexer?.OnMessageFaulted(next, ex);
                 next.SetExceptionAndComplete(ex, this);
@@ -839,16 +815,14 @@ namespace StackExchange.Redis
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private bool TryPushToBacklog(Message message, bool onlyIfExists, bool isHandshake = false)
         {
-            // If we're unhealthy in middle of a handshake, queue behind so that we AUTH and such in order
-            // For anything not handshake, we handle as before going into the general queue
-            // Internal calls also aren't queued here because ordering does no matter for them
-            // Get them on the wire ASAP or fail internally (which doesn't alert the user) to complete ASAP
+            // In the handshake case: send the command directly through.
+            // If we're disconnected *in the middle of a handshake*, we've bombed a brand new socket and failing,
+            // backing off, and retrying next heartbeat is best anyway.
+            // 
+            // Internal calls also shouldn't queue - try immediately. If these aren't errors (most aren't), we
+            // won't alert the user.
             if (isHandshake || message.IsInternalCall)
             {
-                // TODO: Discussion.
-                // For handshake commands we did have a backlog in mind here, but if they bypass directly to the pipe
-                // It's effectively a queue already, or our handshake failed and we're restarting anyhow
-                // So perhaps, we simply do not need this concurrent queue at all.
                 return false;
             }
 
@@ -856,12 +830,11 @@ namespace StackExchange.Redis
             // we only need care if WE are able to 
             // see the queue when its empty. Not whether anyone else sees it as empty.
             // So strong synchronization is not required.
-            if (_backlogGeneral.IsEmpty & onlyIfExists) return false;
+            if (_backlog.IsEmpty & onlyIfExists) return false;
 
-
-            int count = _backlogGeneral.Count;
+            int count = _backlog.Count;
             message.SetBacklogState(count, physical);
-            _backlogGeneral.Enqueue(message);
+            _backlog.Enqueue(message);
 
             // The correct way to decide to start backlog process is not based on previously empty
             // but based on a) not empty now (we enqueued!) and b) no backlog processor already running.
@@ -898,44 +871,42 @@ namespace StackExchange.Redis
         private volatile int _backlogProcessorRequestedTime;
 #endif
 
-        private void CheckBacklogsForTimeouts() // check the head of the backlog queue, consuming anything that looks dead
+        /// <summary>
+        /// Crawls from the head of the backlog queue, consuming anything that should have timed out
+        /// and pruning it accoordingly (these messages will get timeout exceptions).
+        /// </summary>
+        private void CheckBacklogsForTimeouts()
         {
-            // Check the head of the backlog queue, consuming anything that looks dead
-            void crawlQueue(ConcurrentQueue<Message> backlog, int timeout)
+            var now = Environment.TickCount;
+            var timeout = TimeoutMilliseconds;
+
+            // Because peeking at the backlog, checking message and then dequeueing, is not thread-safe, we do have to use
+            // a lock here, for mutual exclusion of backlog DEQUEUERS. Unfortunately.
+            // But we reduce contention by only locking if we see something that looks timed out.
+            while (_backlog.TryPeek(out Message message))
             {
-                var now = Environment.TickCount;
-
-                // Because peeking at the backlog, checking message and then dequeueing, is not thread-safe, we do have to use
-                // a lock here, for mutual exclusion of backlog DEQUEUERS. Unfortunately.
-                // But we reduce contention by only locking if we see something that looks timed out.
-                while (backlog.TryPeek(out Message message))
+                // don't stomp these (not that they should have the async timeout flag, but...)
+                if (message.IsInternalCall) break;
+                if (!message.HasAsyncTimedOut(now, timeout, out var _)) break; // not a timeout - we can stop looking
+                lock (_backlog)
                 {
-                    // don't stomp these (not that they should have the async timeout flag, but...)
+                    // peek again since we didn't have lock before...
+                    // and rerun the exact same checks as above, note that it may be a different message now
+                    if (!_backlog.TryPeek(out message)) break;
                     if (message.IsInternalCall) break;
-                    if (!message.HasAsyncTimedOut(now, timeout, out var _)) break; // not a timeout - we can stop looking
-                    lock (backlog)
+                    if (!message.HasAsyncTimedOut(now, timeout, out var _)) break;
+
+                    if (!_backlog.TryDequeue(out var message2) || (message != message2)) // consume it for real
                     {
-                        // peek again since we didn't have lock before...
-                        // and rerun the exact same checks as above, note that it may be a different message now
-                        if (!backlog.TryPeek(out message)) break;
-                        if (message.IsInternalCall) break;
-                        if (!message.HasAsyncTimedOut(now, timeout, out var _)) break;
-
-                        if (!backlog.TryDequeue(out var message2) || (message != message2)) // consume it for real
-                        {
-                            throw new RedisException("Thread safety bug detected! A queue message disappeared while we had the backlog lock");
-                        }
+                        throw new RedisException("Thread safety bug detected! A queue message disappeared while we had the backlog lock");
                     }
-
-                    // Tell the message it has failed
-                    // Note: Attempting to *avoid* reentrancy/deadlock issues by not holding the lock while completing messages.
-                    var ex = Multiplexer.GetException(WriteResult.TimeoutBeforeWrite, message, ServerEndPoint);
-                    message.SetExceptionAndComplete(ex, this);
                 }
-            }
 
-            crawlQueue(_backlogSpecificServer, TimeoutMilliseconds);
-            crawlQueue(_backlogGeneral, TimeoutMilliseconds);
+                // Tell the message it has failed
+                // Note: Attempting to *avoid* reentrancy/deadlock issues by not holding the lock while completing messages.
+                var ex = Multiplexer.GetException(WriteResult.TimeoutBeforeWrite, message, ServerEndPoint);
+                message.SetExceptionAndComplete(ex, this);
+            }
         }
 
         internal enum BacklogStatus : byte
@@ -956,28 +927,18 @@ namespace StackExchange.Redis
             Faulted,
         }
 
-        internal enum Backlog : byte
-        {
-            None,
-            General,
-            SpecificServer,
-        }
-
-        private volatile Backlog _activeBacklog;
         private volatile BacklogStatus _backlogStatus;
         private async Task ProcessBacklogsAsync()
         {
             _backlogStatus = BacklogStatus.Starting;
             try
             {
-                if (!_backlogSpecificServer.IsEmpty)
+                if (!_backlog.IsEmpty)
                 {
-                    await ProcessBridgeBacklogAsync(_backlogSpecificServer, Backlog.SpecificServer);
-                }
-                if (!_backlogGeneral.IsEmpty)
-                {
-                    await ProcessBridgeBacklogAsync(_backlogGeneral, Backlog.General); // Needs handoff
-                    // only handoff to another completely viable connection
+                    // TODO: vNext handoff this backlog to another primary ("can handle everything") connection
+                    // and remove any per-server commands. This means we need to track a bit of whether something
+                    // was server-endpoint-specific in PrepareToPushMessageToBridge (was the server ref null or not)
+                    await ProcessBridgeBacklogAsync(_backlog); // Needs handoff
                 }
             }
             catch
@@ -986,8 +947,6 @@ namespace StackExchange.Redis
             }
             finally
             {
-                _activeBacklog = Backlog.None;
-
                 // Do this in finally block, so that thread aborts can't convince us the backlog processor is running forever
                 if (Interlocked.CompareExchange(ref _backlogProcessorIsRunning, 0, 1) != 1)
                 {
@@ -1008,7 +967,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private async Task ProcessBridgeBacklogAsync(ConcurrentQueue<Message> backlog, Backlog handlingBacklog)
+        private async Task ProcessBridgeBacklogAsync(ConcurrentQueue<Message> backlog)
         {
             // Importantly: don't assume we have a physical connection here
             // We are very likely to hit a state where it's not re-established or even referenced here
@@ -1020,7 +979,6 @@ namespace StackExchange.Redis
                 var msToStartWorker = unchecked(tryToAcquireTime - _backlogProcessorRequestedTime);
                 int failureCount = 0;
 #endif
-                _activeBacklog = handlingBacklog;
                 _backlogStatus = BacklogStatus.Starting;
 
                 while (true)

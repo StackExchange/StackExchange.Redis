@@ -66,8 +66,6 @@ namespace StackExchange.Redis.Tests
                 Assert.True(muxer.IsConnected);
                 var reconnectedStats = server.GetBridgeStatus(RedisCommand.PING);
                 Assert.Equal(0, reconnectedStats.BacklogMessagesPending);
-                Assert.Equal(0, reconnectedStats.BacklogMessagesPendingGeneral);
-                Assert.Equal(0, reconnectedStats.BacklogMessagesPendingSpecificServer);
 
                 _ = db.PingAsync();
                 _ = db.PingAsync();
@@ -142,8 +140,6 @@ namespace StackExchange.Redis.Tests
                 Assert.True(muxer.IsConnected);
                 var reconnectedStats = server.GetBridgeStatus(RedisCommand.PING);
                 Assert.Equal(0, reconnectedStats.BacklogMessagesPending);
-                Assert.Equal(0, reconnectedStats.BacklogMessagesPendingGeneral);
-                Assert.Equal(0, reconnectedStats.BacklogMessagesPendingSpecificServer);
 
                 _ = db.PingAsync();
                 _ = db.PingAsync();
