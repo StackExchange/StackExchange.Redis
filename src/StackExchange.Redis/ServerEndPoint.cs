@@ -518,9 +518,6 @@ namespace StackExchange.Redis
 
         internal bool IsSelectable(RedisCommand command, bool allowDisconnected = false)
         {
-            //var bridge = unselectableReasons == 0 ? GetBridge(command, false) : null;
-
-            // TODO: Possible v2 (need to observe flags)
             // Until we've connected at least once, we're going too have a DidNotRespond unselectable reason present
             var bridge = unselectableReasons == 0 || (allowDisconnected && unselectableReasons == UnselectableFlags.DidNotRespond)
                 ? GetBridge(command, false)

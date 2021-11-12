@@ -338,7 +338,6 @@ namespace StackExchange.Redis
             /// The number of messages that are in the backlog queue (waiting to be sent when the connection is healthy again).
             /// </summary>
             public int BacklogMessagesPending { get; init; }
-
             /// <summary>
             /// Status of the currently processing backlog, if any.
             /// </summary>
