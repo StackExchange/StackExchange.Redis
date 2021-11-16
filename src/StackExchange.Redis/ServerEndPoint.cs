@@ -582,6 +582,9 @@ namespace StackExchange.Redis
                 var bridge = connection?.BridgeCouldBeNull;
                 if (bridge != null)
                 {
+                    // Clear the unselectable flag ASAP since we are open for business
+                    ClearUnselectable(UnselectableFlags.DidNotRespond);
+
                     if (bridge == subscription)
                     {
                         Multiplexer.ResendSubscriptions(this);

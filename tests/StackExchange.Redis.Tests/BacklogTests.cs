@@ -17,6 +17,25 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task FailFast()
         {
+            void PrintSnapshot(ConnectionMultiplexer muxer)
+            {
+                Writer.WriteLine("Snapshot summary:");
+                foreach (var server in muxer.GetServerSnapshot())
+                {
+                    Writer.WriteLine($"  {server.EndPoint}: ");
+                    Writer.WriteLine($"     Type: {server.ServerType}");
+                    Writer.WriteLine($"     IsConnected: {server.IsConnected}");
+                    Writer.WriteLine($"      IsConnecting: {server.IsConnecting}");
+                    Writer.WriteLine($"      IsSelectable(allowDisconnected: true): {server.IsSelectable(RedisCommand.PING, true)}");
+                    Writer.WriteLine($"      IsSelectable(allowDisconnected: false): {server.IsSelectable(RedisCommand.PING, false)}");
+                    Writer.WriteLine($"      UnselectableFlags: {server.GetUnselectableFlags()}");
+                    var bridge = server.GetBridge(RedisCommand.PING, create: false);
+                    Writer.WriteLine($"      GetBridge: {bridge}");
+                    Writer.WriteLine($"        IsConnected: {bridge.IsConnected}");
+                    Writer.WriteLine($"        ConnectionState: {bridge.ConnectionState}");
+                }
+            }
+
             try
             {
                 // Ensuring the FailFast policy errors immediate with no connection available exceptions
@@ -64,12 +83,18 @@ namespace StackExchange.Redis.Tests
 
                 Writer.WriteLine("Test: Reconnecting");
                 Assert.True(muxer.IsConnected);
+                Assert.True(server.IsConnected);
                 var reconnectedStats = server.GetBridgeStatus(RedisCommand.PING);
                 Assert.Equal(0, reconnectedStats.BacklogMessagesPending);
 
                 _ = db.PingAsync();
                 _ = db.PingAsync();
                 var lastPing = db.PingAsync();
+
+                // For debug, print out the snapshot and server states
+                PrintSnapshot(muxer);
+
+                Assert.NotNull(muxer.SelectServer(Message.Create(-1, CommandFlags.None, RedisCommand.PING)));
 
                 // We should see none queued
                 Assert.Equal(0, stats.BacklogMessagesPending);
@@ -136,7 +161,7 @@ namespace StackExchange.Redis.Tests
                 Writer.WriteLine("Test: Awaiting ping1");
                 await lastPing;
 
-                Writer.WriteLine("Test: Reconnecting");
+                Writer.WriteLine("Test: Checking reconnected");
                 Assert.True(muxer.IsConnected);
                 var reconnectedStats = server.GetBridgeStatus(RedisCommand.PING);
                 Assert.Equal(0, reconnectedStats.BacklogMessagesPending);
