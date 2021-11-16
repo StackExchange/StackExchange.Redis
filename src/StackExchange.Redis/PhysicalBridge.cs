@@ -884,16 +884,15 @@ namespace StackExchange.Redis
             // But we reduce contention by only locking if we see something that looks timed out.
             while (_backlog.TryPeek(out Message message))
             {
-                // don't stomp these (not that they should have the async timeout flag, but...)
-                if (message.IsInternalCall) break;
-                if (!message.HasAsyncTimedOut(now, timeout, out var _)) break; // not a timeout - we can stop looking
+                // See if the message has pass our async timeout threshold
+                // or has otherwise been completed (e.g. a sync wait timed out) which would have cleared the ResultBox
+                if (message.HasAsyncTimedOut(now, timeout, out var _) || message.ResultBox == null) break; // not a timeout - we can stop looking
                 lock (_backlog)
                 {
-                    // peek again since we didn't have lock before...
+                    // Peek again since we didn't have lock before...
                     // and rerun the exact same checks as above, note that it may be a different message now
                     if (!_backlog.TryPeek(out message)) break;
-                    if (message.IsInternalCall) break;
-                    if (!message.HasAsyncTimedOut(now, timeout, out var _)) break;
+                    if (!message.HasAsyncTimedOut(now, timeout, out var _) && message.ResultBox != null) break;
 
                     if (!_backlog.TryDequeue(out var message2) || (message != message2)) // consume it for real
                     {
