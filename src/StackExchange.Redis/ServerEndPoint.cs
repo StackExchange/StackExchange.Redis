@@ -773,7 +773,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Write the message directly or queues in the handshake (priority) queue.
+        /// Write the message directly to the pipe or fail...will not queue.
         /// </summary>
         internal ValueTask WriteDirectOrQueueFireAndForgetAsync<T>(PhysicalConnection connection, Message message, ResultProcessor<T> processor)
         {
