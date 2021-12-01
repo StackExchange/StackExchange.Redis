@@ -16,7 +16,7 @@ namespace StackExchange.Redis
         /// Initializes a new instance using the specified back off interval with default maxDeltaBackOffMilliseconds of 10 seconds
         /// </summary>
         /// <param name="deltaBackOffMilliseconds">time in milliseconds for the back-off interval between retries</param>
-        public ExponentialRetry(int deltaBackOffMilliseconds) : this(deltaBackOffMilliseconds, (int)TimeSpan.FromSeconds(10).TotalMilliseconds) {}
+        public ExponentialRetry(int deltaBackOffMilliseconds) : this(deltaBackOffMilliseconds, Math.Max(deltaBackOffMilliseconds, (int)TimeSpan.FromSeconds(10).TotalMilliseconds)) { }
 
         /// <summary>
         /// Initializes a new instance using the specified back off interval.
@@ -25,6 +25,21 @@ namespace StackExchange.Redis
         /// <param name="maxDeltaBackOffMilliseconds">time in milliseconds for the maximum value that the back-off interval can exponentially grow up to</param>
         public ExponentialRetry(int deltaBackOffMilliseconds, int maxDeltaBackOffMilliseconds)
         {
+            if (deltaBackOffMilliseconds < 0)
+            {
+                throw new ArgumentException("must be greater than or equal to zero", nameof(deltaBackOffMilliseconds));
+            }
+
+            if (maxDeltaBackOffMilliseconds < 0)
+            {
+                throw new ArgumentException("must be greater than or equal to zero", nameof(maxDeltaBackOffMilliseconds));
+            }
+
+            if (maxDeltaBackOffMilliseconds < deltaBackOffMilliseconds)
+            {
+                throw new ArgumentException($"must be greater than or equal to {nameof(deltaBackOffMilliseconds)}", nameof(maxDeltaBackOffMilliseconds));
+            }
+
             this.deltaBackOffMilliseconds = deltaBackOffMilliseconds;
             this.maxDeltaBackOffMilliseconds = maxDeltaBackOffMilliseconds;
         }
