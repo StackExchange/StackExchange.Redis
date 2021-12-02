@@ -7,7 +7,10 @@ namespace StackExchange.Redis
     /// </summary>
     public readonly struct StreamEntry
     {
-        internal StreamEntry(RedisValue id, NameValueEntry[] values)
+        /// <summary>
+        /// Creates an stream entry
+        /// </summary>
+        public StreamEntry(RedisValue id, NameValueEntry[] values)
         {
             Id = id;
             Values = values;
