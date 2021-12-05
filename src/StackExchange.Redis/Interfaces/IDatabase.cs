@@ -353,7 +353,7 @@ namespace StackExchange.Redis
         /// <param name="value">The value to set.</param>
         /// <param name="when">Which conditions under which to set the field value (defaults to always).</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>1 if field is a new field in the hash and value was set. 0 if field already exists in the hash and the value was updated.</returns>
+        /// <returns>True if field is a new field in the hash and value was set. False if field already exists in the hash and the value was updated.</returns>
         /// <remarks>https://redis.io/commands/hset</remarks>
         /// <remarks>https://redis.io/commands/hsetnx</remarks>
         bool HashSet(RedisKey key, RedisValue hashField, RedisValue value, When when = When.Always, CommandFlags flags = CommandFlags.None);
