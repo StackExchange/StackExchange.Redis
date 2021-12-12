@@ -926,6 +926,10 @@ namespace StackExchange.Redis
         }
 
         private volatile BacklogStatus _backlogStatus;
+        /// <summary>
+        /// Process the backlog(s) in play if any.
+        /// This means flushing commands to an available/active connection (if any) or spinning until timeout if not.
+        /// </summary>
         private async Task ProcessBacklogsAsync()
         {
             _backlogStatus = BacklogStatus.Starting;
