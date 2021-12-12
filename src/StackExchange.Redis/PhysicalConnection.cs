@@ -68,7 +68,7 @@ namespace StackExchange.Redis
         }
 
         private IDuplexPipe _ioPipe;
-        internal bool HasOuputPipe => _ioPipe?.Output != null;
+        internal bool HasOutputPipe => _ioPipe?.Output != null;
 
         private Socket _socket;
         private Socket VolatileSocket => Volatile.Read(ref _socket);

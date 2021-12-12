@@ -1029,7 +1029,7 @@ namespace StackExchange.Redis
 #endif
                             message.SetExceptionAndComplete(ex, this);
                         }
-                        else if (physical?.HasOuputPipe == true)
+                        else if (physical?.HasOutputPipe == true)
                         {
                             _backlogStatus = BacklogStatus.WritingMessage;
                             var result = WriteMessageInsideLock(physical, message);
@@ -1103,7 +1103,7 @@ namespace StackExchange.Redis
             // AVOID REORDERING MESSAGES
             // Prefer to add it to the backlog if this thread can see that there might already be a message backlog.
             // We do this before attempting to take the writelock, because we won't actually write, we'll just let the backlog get processed in due course
-            if (TryPushToBacklog(message, onlyIfExists: physical.HasOuputPipe, isHandshake: isHandshake))
+            if (TryPushToBacklog(message, onlyIfExists: physical.HasOutputPipe, isHandshake: isHandshake))
             {
                 return new ValueTask<WriteResult>(WriteResult.Success); // queued counts as success
             }
