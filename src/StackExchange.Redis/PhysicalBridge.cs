@@ -31,8 +31,8 @@ namespace StackExchange.Redis
         /// We're bypassing the queue for handshake events that go straight to the socket.
         /// Everything else that's not an internal call goes into the queue if there is a queue.
         ///
-        /// In a later release we want to remove per-server events from this queue compeltely and shunt queued messages
-        /// to another capable primary connection if oone if avaialble to process them faster (order is already hosed).
+        /// In a later release we want to remove per-server events from this queue completely and shunt queued messages
+        /// to another capable primary connection if one is available to process them faster (order is already hosed).
         /// For now, simplicity in: queue it all, replay or timeout it all.
         /// </summary>
         private readonly ConcurrentQueue<Message> _backlog = new();
@@ -413,7 +413,7 @@ namespace StackExchange.Redis
                 msg.SetInternalCall();
                 Multiplexer.Trace("Enqueue: " + msg);
                 Multiplexer.OnInfoMessage($"heartbeat ({physical?.LastWriteSecondsAgo}s >= {ServerEndPoint?.WriteEverySeconds}s, {physical?.GetSentAwaitingResponseCount()} waiting) '{msg.CommandAndKey}' on '{PhysicalName}' (v{features.Version})");
-                physical?.UpdateLastWriteTime(); // pre-emptively
+                physical?.UpdateLastWriteTime(); // preemptively
 #pragma warning disable CS0618
                 var result = TryWriteSync(msg, ServerEndPoint.IsReplica);
 #pragma warning restore CS0618
@@ -549,7 +549,7 @@ namespace StackExchange.Redis
             {
                 if (BacklogHasItems)
                 {
-                    CheckBacklogsForTimeouts();
+                    CheckBacklogForTimeouts();
                     // Ensure we're processing the backlog
                     if (BacklogHasItems)
                     {
@@ -769,7 +769,7 @@ namespace StackExchange.Redis
 
             // AVOID REORDERING MESSAGES
             // Prefer to add it to the backlog if this thread can see that there might already be a message backlog.
-            // We do this before attempting to take the writelock, because we won't actually write, we'll just let the backlog get processed in due course
+            // We do this before attempting to take the write lock, because we won't actually write, we'll just let the backlog get processed in due course
             if (TryPushToBacklog(message, onlyIfExists: true))
             {
                 return WriteResult.Success; // queued counts as success
@@ -825,7 +825,7 @@ namespace StackExchange.Redis
                 return false;
             }
 
-            // Note, for deciding emptyness for whether to push onlyIfExists, and start worker, 
+            // Note, for deciding emptiness for whether to push onlyIfExists, and start worker, 
             // we only need care if WE are able to 
             // see the queue when its empty. Not whether anyone else sees it as empty.
             // So strong synchronization is not required.
@@ -852,7 +852,7 @@ namespace StackExchange.Redis
 #endif
                 _backlogStatus = BacklogStatus.Activating;
 
-                // Start the backlog processor; this is a bit unorthadox, as you would *expect* this to just
+                // Start the backlog processor; this is a bit unorthodox, as you would *expect* this to just
                 // be Task.Run; that would work fine when healthy, but when we're falling on our face, it is
                 // easy to get into a thread-pool-starvation "spiral of death" if we rely on the thread-pool
                 // to unblock the thread-pool when there could be sync-over-async callers. Note that in reality,
@@ -872,14 +872,14 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// Crawls from the head of the backlog queue, consuming anything that should have timed out
-        /// and pruning it accoordingly (these messages will get timeout exceptions).
+        /// and pruning it accordingly (these messages will get timeout exceptions).
         /// </summary>
-        private void CheckBacklogsForTimeouts()
+        private void CheckBacklogForTimeouts()
         {
             var now = Environment.TickCount;
             var timeout = TimeoutMilliseconds;
 
-            // Because peeking at the backlog, checking message and then dequeueing, is not thread-safe, we do have to use
+            // Because peeking at the backlog, checking message and then dequeuing, is not thread-safe, we do have to use
             // a lock here, for mutual exclusion of backlog DEQUEUERS. Unfortunately.
             // But we reduce contention by only locking if we see something that looks timed out.
             while (_backlog.TryPeek(out Message message))
@@ -1008,7 +1008,7 @@ namespace StackExchange.Redis
                 while (true)
                 {
                     _backlogStatus = BacklogStatus.CheckingForWork;
-                    // We need to lock _backlog when dequeueing because of 
+                    // We need to lock _backlog when dequeuing because of 
                     // races with timeout processing logic
                     lock (backlog)
                     {
@@ -1084,7 +1084,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// This writes a message to the output stream
         /// </summary>
-        /// <param name="physical">The phsyical connection to write to.</param>
+        /// <param name="physical">The physical connection to write to.</param>
         /// <param name="message">The message to be written.</param>
         /// <param name="isHandshake">Whether this message is part of the handshake process.</param>
         internal ValueTask<WriteResult> WriteMessageTakingWriteLockAsync(PhysicalConnection physical, Message message, bool isHandshake = false)
@@ -1106,7 +1106,7 @@ namespace StackExchange.Redis
 
             // AVOID REORDERING MESSAGES
             // Prefer to add it to the backlog if this thread can see that there might already be a message backlog.
-            // We do this before attempting to take the writelock, because we won't actually write, we'll just let the backlog get processed in due course
+            // We do this before attempting to take the write lock, because we won't actually write, we'll just let the backlog get processed in due course
             if (TryPushToBacklog(message, onlyIfExists: physical.HasOutputPipe, isHandshake: isHandshake))
             {
                 return new ValueTask<WriteResult>(WriteResult.Success); // queued counts as success
