@@ -12,7 +12,7 @@
         /// Backlog behavior matching StackExchange.Redis's 2.x line, failing fast and not attempting to queue
         /// and retry when a connection is available again.
         /// </summary>
-        public static BacklogPolicy FailFast = new()
+        public static BacklogPolicy FailFast { get; } = new()
         {
             QueueWhileDisconnected = false,
             AbortPendingOnConnectionFailure = true,
@@ -22,7 +22,7 @@
         /// Default backlog policy which will allow commands to be issues against an endpoint and queue up.
         /// Commands are still subject to their async timeout (which serves as a queue size check).
         /// </summary>
-        public static BacklogPolicy Default = new()
+        public static BacklogPolicy Default { get; } = new()
         {
             QueueWhileDisconnected = true,
             AbortPendingOnConnectionFailure = false,
