@@ -114,32 +114,11 @@ namespace StackExchange.Redis
             var delta = _totalConsumed - _lastSnapshotBytes;
             if (delta == 0) return _lastSnapshotPosition;
 
-            SequencePosition pos;
-            try
-            {
-                pos = _buffer.GetPosition(delta, _lastSnapshotPosition);
-            }
-            catch (ArgumentOutOfRangeException ex)
-            {
-                ThrowSnapshotFailure(delta, ex);
-                throw; // should never be reached
-            }
+            var pos = _buffer.GetPosition(delta, _lastSnapshotPosition);
             _lastSnapshotBytes = _totalConsumed;
             return _lastSnapshotPosition = pos;
         }
-        private void ThrowSnapshotFailure(long delta, Exception innerException)
-        {
-            long length;
-            try
-            {
-                length = _buffer.Length;
-            }
-            catch
-            {
-                length = -1;
-            }
-            throw new ArgumentOutOfRangeException($"Error calculating {nameof(SnapshotPosition)}: {_totalConsumed} of {length}, {_lastSnapshotBytes}+{delta}", innerException);
-        }
+
         public ReadOnlySequence<byte> ConsumeAsBuffer(int count)
         {
             if (!TryConsumeAsBuffer(count, out var buffer)) throw new EndOfStreamException();
