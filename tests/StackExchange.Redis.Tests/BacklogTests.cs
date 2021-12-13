@@ -106,7 +106,6 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-
         [Fact]
         public async Task QueuesAndFlushesAfterReconnecting()
         {
@@ -122,7 +121,8 @@ namespace StackExchange.Redis.Tests
                     KeepAlive = 10000,
                     AsyncTimeout = 5000,
                     AllowAdmin = true,
-                };                
+                    SocketManager = SocketManager.ThreadPool,
+                };
                 options.EndPoints.Add(TestConfig.Current.MasterServerAndPort);
 
                 using var muxer = await ConnectionMultiplexer.ConnectAsync(options, Writer);
@@ -166,13 +166,18 @@ namespace StackExchange.Redis.Tests
                 var reconnectedStats = server.GetBridgeStatus(RedisCommand.PING);
                 Assert.Equal(0, reconnectedStats.BacklogMessagesPending);
 
+                Writer.WriteLine("Test: Pinging again...");
                 _ = db.PingAsync();
                 _ = db.PingAsync();
+                Writer.WriteLine("Test: Last Ping issued");
                 lastPing = db.PingAsync();
 
                 // We should see none queued
+                Writer.WriteLine("Test: BacklogMessagesPending check");
                 Assert.Equal(0, stats.BacklogMessagesPending);
+                Writer.WriteLine("Test: Awaiting lastPing");
                 await lastPing;
+                Writer.WriteLine("Test: Done");
             }
             finally
             {

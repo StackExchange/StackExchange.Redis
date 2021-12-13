@@ -203,7 +203,7 @@ namespace StackExchange.Redis
         public ValueTask<WriteResult> TryWriteAsync(Message message, bool isReplica, bool isHandshake = false)
         {
             if (isDisposed) throw new ObjectDisposedException(Name);
-            if (!IsConnected) return new ValueTask<WriteResult>(QueueOrFailMessage(message));
+            if (!IsConnected && !isHandshake) return new ValueTask<WriteResult>(QueueOrFailMessage(message));
 
             var physical = this.physical;
             if (physical == null)

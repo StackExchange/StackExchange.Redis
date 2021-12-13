@@ -1803,7 +1803,7 @@ namespace StackExchange.Redis
                                 Message msg = Message.Create(0, flags, RedisCommand.GET, tieBreakerKey);
                                 msg.SetInternalCall();
                                 msg = LoggingMessage.Create(log, msg);
-                                tieBreakers[i] = server.WriteDirectAsync(msg, ResultProcessor.String);
+                                tieBreakers[i] = server.WriteDirectAsync(msg, ResultProcessor.String, isHandshake: true);
                             }
                         }
 
