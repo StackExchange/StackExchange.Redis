@@ -12,15 +12,16 @@ namespace StackExchange.Redis
     }
     internal ref struct BufferReader
     {
+        private long _totalConsumed;
+        public int OffsetThisSpan { get; private set; }
+        public int RemainingThisSpan { get; private set; }
+
         private ReadOnlySequence<byte>.Enumerator _iterator;
         private ReadOnlySpan<byte> _current;
 
         public ReadOnlySpan<byte> OversizedSpan => _current;
 
         public ReadOnlySpan<byte> SlicedSpan => _current.Slice(OffsetThisSpan, RemainingThisSpan);
-        public int OffsetThisSpan { get; private set; }
-        private int TotalConsumed { get; set; } // hide this; callers should use the snapshot-aware methods instead
-        public int RemainingThisSpan { get; private set; }
 
         public bool IsEmpty => RemainingThisSpan == 0;
 
@@ -49,7 +50,7 @@ namespace StackExchange.Redis
             _lastSnapshotBytes = 0;
             _iterator = buffer.GetEnumerator();
             _current = default;
-            OffsetThisSpan = RemainingThisSpan = TotalConsumed = 0;
+            _totalConsumed = OffsetThisSpan = RemainingThisSpan = 0;
 
             FetchNextSegment();
         }
@@ -87,7 +88,7 @@ namespace StackExchange.Redis
                 if (count <= available)
                 {
                     // consume part of this span
-                    TotalConsumed += count;
+                    _totalConsumed += count;
                     RemainingThisSpan -= count;
                     OffsetThisSpan += count;
 
@@ -96,7 +97,7 @@ namespace StackExchange.Redis
                 }
 
                 // consume all of this span
-                TotalConsumed += available;
+                _totalConsumed += available;
                 count -= available;
             } while (FetchNextSegment());
             return false;
@@ -110,8 +111,7 @@ namespace StackExchange.Redis
         // to avoid having to use buffer.Slice on huge ranges
         private SequencePosition SnapshotPosition()
         {
-            var consumed = TotalConsumed;
-            var delta = consumed - _lastSnapshotBytes;
+            var delta = _totalConsumed - _lastSnapshotBytes;
             if (delta == 0) return _lastSnapshotPosition;
 
             SequencePosition pos;
@@ -124,7 +124,7 @@ namespace StackExchange.Redis
                 ThrowSnapshotFailure(delta, ex);
                 throw; // should never be reached
             }
-            _lastSnapshotBytes = consumed;
+            _lastSnapshotBytes = _totalConsumed;
             return _lastSnapshotPosition = pos;
         }
         private void ThrowSnapshotFailure(long delta, Exception innerException)
@@ -138,7 +138,7 @@ namespace StackExchange.Redis
             {
                 length = -1;
             }
-            throw new ArgumentOutOfRangeException($"Error calculating {nameof(SnapshotPosition)}: {TotalConsumed} of {length}, {_lastSnapshotBytes}+{delta}", innerException);
+            throw new ArgumentOutOfRangeException($"Error calculating {nameof(SnapshotPosition)}: {_totalConsumed} of {length}, {_lastSnapshotBytes}+{delta}", innerException);
         }
         public ReadOnlySequence<byte> ConsumeAsBuffer(int count)
         {
