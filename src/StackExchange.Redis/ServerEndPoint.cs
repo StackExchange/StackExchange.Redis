@@ -693,7 +693,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal Task<T> WriteDirectAsync<T>(Message message, ResultProcessor<T> processor, object asyncState = null, PhysicalBridge bridge = null, bool isHandshake = false)
+        internal Task<T> WriteDirectAsync<T>(Message message, ResultProcessor<T> processor, object asyncState = null, PhysicalBridge bridge = null)
         {
             static async Task<T> Awaited(ServerEndPoint @this, Message message, ValueTask<WriteResult> write, TaskCompletionSource<T> tcs)
             {
@@ -717,7 +717,7 @@ namespace StackExchange.Redis
             }
             else
             {
-                var write = bridge.TryWriteAsync(message, isReplica, isHandshake: isHandshake);
+                var write = bridge.TryWriteAsync(message, isReplica);
                 if (!write.IsCompletedSuccessfully)
                 {
                     return Awaited(this, message, write, tcs);
