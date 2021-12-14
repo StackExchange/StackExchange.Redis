@@ -26,3 +26,4 @@ If you don't want to run your own redis servers, multiple commercial cloud offer
 - RedisLabs
 - Azure Redis Cache
 - AWS ElastiCache for Redis
+- GCP Memorystore for Redis

@@ -1719,20 +1719,16 @@ namespace StackExchange.Redis
                     }
                     int standaloneCount = 0, clusterCount = 0, sentinelCount = 0;
                     var endpoints = RawConfig.EndPoints;
-                    log?.WriteLine($"{endpoints.Count} unique nodes specified");
+                    bool useTieBreakers = !string.IsNullOrWhiteSpace(RawConfig.TieBreaker);
+                    log?.WriteLine($"{endpoints.Count} unique nodes specified ({(useTieBreakers ? "with" : "without")} tiebreaker)");
 
                     if (endpoints.Count == 0)
                     {
                         throw new InvalidOperationException("No nodes to consider");
                     }
-#pragma warning disable CS0618
-                    const CommandFlags flags = CommandFlags.NoRedirect | CommandFlags.HighPriority;
-#pragma warning restore CS0618
                     List<ServerEndPoint> masters = new List<ServerEndPoint>(endpoints.Count);
-                    bool useTieBreakers = !string.IsNullOrWhiteSpace(RawConfig.TieBreaker);
 
                     ServerEndPoint[] servers = null;
-                    Task<string>[] tieBreakers = null;
                     bool encounteredConnectedClusterServer = false;
                     Stopwatch watch = null;
 
@@ -1748,7 +1744,6 @@ namespace StackExchange.Redis
                         if (endpoints == null) break;
 
                         var available = new Task<string>[endpoints.Count];
-                        tieBreakers = useTieBreakers ? new Task<string>[endpoints.Count] : null;
                         servers = new ServerEndPoint[available.Length];
 
                         RedisKey tieBreakerKey = useTieBreakers ? (RedisKey)RawConfig.TieBreaker : default(RedisKey);
@@ -1789,22 +1784,6 @@ namespace StackExchange.Redis
                         foreach (var server in servers)
                         {
                             log?.WriteLine($"{Format.ToString(server.EndPoint)}: Endpoint is {server.ConnectionState}");
-                        }
-
-                        // After we've successfully connected (and authenticated), kickoff tie breakers if needed
-                        if (useTieBreakers)
-                        {
-                            log?.WriteLine($"Election: Gathering tie-breakers...");
-                            for (int i = 0; i < available.Length; i++)
-                            {
-                                var server = servers[i];
-
-                                log?.WriteLine($"{Format.ToString(server.EndPoint)}: Requesting tie-break (Key=\"{RawConfig.TieBreaker}\")...");
-                                Message msg = Message.Create(0, flags, RedisCommand.GET, tieBreakerKey);
-                                msg.SetInternalCall();
-                                msg = LoggingMessage.Create(log, msg);
-                                tieBreakers[i] = server.WriteDirectAsync(msg, ResultProcessor.String, isHandshake: true);
-                            }
                         }
 
                         EndPointCollection updatedClusterEndpointCollection = null;
@@ -1920,7 +1899,7 @@ namespace StackExchange.Redis
                             ServerSelectionStrategy.ServerType = ServerType.Standalone;
                         }
 
-                        var preferred = await NominatePreferredMaster(log, servers, useTieBreakers, tieBreakers, masters, timeoutMs: RawConfig.ConnectTimeout - checked((int)watch.ElapsedMilliseconds)).ObserveErrors().ForAwait();
+                        var preferred = NominatePreferredMaster(log, servers, useTieBreakers, masters);
                         foreach (var master in masters)
                         {
                             if (master == preferred || master.IsReplica)
@@ -2050,44 +2029,26 @@ namespace StackExchange.Redis
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Partial - may use instance data")]
         partial void OnTraceLog(LogProxy log, [CallerMemberName] string caller = null);
 
-        private static async Task<ServerEndPoint> NominatePreferredMaster(LogProxy log, ServerEndPoint[] servers, bool useTieBreakers, Task<string>[] tieBreakers, List<ServerEndPoint> masters, int timeoutMs)
+        private static ServerEndPoint NominatePreferredMaster(LogProxy log, ServerEndPoint[] servers, bool useTieBreakers, List<ServerEndPoint> masters)
         {
             Dictionary<string, int> uniques = null;
             if (useTieBreakers)
             {   // count the votes
                 uniques = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-                log?.WriteLine("Waiting for tiebreakers...");
-                await WaitAllIgnoreErrorsAsync("tiebreaker", tieBreakers, Math.Max(timeoutMs, 200), log).ForAwait();
-                for (int i = 0; i < tieBreakers.Length; i++)
+                for (int i = 0; i < servers.Length; i++)
                 {
-                    var ep = servers[i].EndPoint;
-                    var status = tieBreakers[i].Status;
-                    switch (status)
+                    var server = servers[i];
+                    string serverResult = server.TieBreakerResult;
+
+                    if (string.IsNullOrWhiteSpace(serverResult))
                     {
-                        case TaskStatus.RanToCompletion:
-                            string s = tieBreakers[i].Result;
-                            if (string.IsNullOrWhiteSpace(s))
-                            {
-                                log?.WriteLine($"Election: {Format.ToString(ep)} had no tiebreaker set");
-                            }
-                            else
-                            {
-                                log?.WriteLine($"Election: {Format.ToString(ep)} nominates: {s}");
-                                if (!uniques.TryGetValue(s, out int count)) count = 0;
-                                uniques[s] = count + 1;
-                            }
-                            break;
-                        case TaskStatus.Faulted:
-                            log?.WriteLine($"Election: {Format.ToString(ep)} failed to nominate ({status})");
-                            foreach (var ex in tieBreakers[i].Exception.InnerExceptions)
-                            {
-                                if (ex.Message.StartsWith("MOVED ") || ex.Message.StartsWith("ASK ")) continue;
-                                log?.WriteLine("> " + ex.Message);
-                            }
-                            break;
-                        default:
-                            log?.WriteLine($"Election: {Format.ToString(ep)} failed to nominate ({status})");
-                            break;
+                        log?.WriteLine($"Election: {Format.ToString(server)} had no tiebreaker set");
+                    }
+                    else
+                    {
+                        log?.WriteLine($"Election: {Format.ToString(server)} nominates: {serverResult}");
+                        if (!uniques.TryGetValue(serverResult, out int count)) count = 0;
+                        uniques[serverResult] = count + 1;
                     }
                 }
             }

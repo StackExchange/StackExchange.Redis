@@ -121,6 +121,7 @@ namespace StackExchange.Redis
 
         public static readonly ResultProcessor<string>
                             String = new StringProcessor(),
+            TieBreaker = new TieBreakerProcessor(),
             ClusterNodesRaw = new ClusterNodesRawProcessor();
 
         #region Sentinel
@@ -2068,6 +2069,34 @@ The coordinates as a two items x,y array (longitude,latitude).
             }
         }
 
+        private sealed class TieBreakerProcessor : ResultProcessor<string>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                switch (result.Type)
+                {
+                    case ResultType.SimpleString:
+                    case ResultType.BulkString:
+                        var tieBreaker = result.GetString();
+                        SetResult(message, tieBreaker);
+
+                        var bridge = connection.BridgeCouldBeNull;
+                        try
+                        {
+                            var endpoint = bridge?.ServerEndPoint;
+                            if (endpoint != null)
+                            {
+                                endpoint.TieBreakerResult = tieBreaker;
+                            }
+                        }
+                        catch { }
+
+                        return true;
+                }
+                return false;
+            }
+        }
+
         private class TracerProcessor : ResultProcessor<bool>
         {
             private readonly bool establishConnection;
@@ -2146,6 +2175,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                 {
                     if (establishConnection)
                     {
+                        // This is what ultimately brings us to complete a connection, by advancing the state forward from a successful tracer after connection.
                         connection.BridgeCouldBeNull?.OnFullyEstablished(connection, $"From command: {message.Command}");
                     }
                     SetResult(message, happy);

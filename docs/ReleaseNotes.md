@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Makes `StreamEntry` constructor public for better unit test experience (#1923 via WeihanLi)
+- Fix integer overflow error (issue #1926) with 2GiB+ result payloads
+
 ## 2.2.88
 
 - Connection backoff default is now exponential instead of linear (#1896 via lolodi)
