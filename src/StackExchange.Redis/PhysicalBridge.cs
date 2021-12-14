@@ -200,16 +200,16 @@ namespace StackExchange.Redis
             return result;
         }
 
-        public ValueTask<WriteResult> TryWriteAsync(Message message, bool isReplica, bool isHandshake = false)
+        public ValueTask<WriteResult> TryWriteAsync(Message message, bool isReplica, bool bypassBacklog = false)
         {
             if (isDisposed) throw new ObjectDisposedException(Name);
-            if (!IsConnected && !isHandshake) return new ValueTask<WriteResult>(QueueOrFailMessage(message));
+            if (!IsConnected && !bypassBacklog) return new ValueTask<WriteResult>(QueueOrFailMessage(message));
 
             var physical = this.physical;
             if (physical == null)
             {
                 // If we're not connected yet and supposed to, queue it up
-                if (!isHandshake && Multiplexer.RawConfig.BacklogPolicy.QueueWhileDisconnected)
+                if (!bypassBacklog && Multiplexer.RawConfig.BacklogPolicy.QueueWhileDisconnected)
                 {
                     if (TryPushToBacklog(message, onlyIfExists: false))
                     {
@@ -220,7 +220,7 @@ namespace StackExchange.Redis
                 return new ValueTask<WriteResult>(FailDueToNoConnection(message));
             }
 
-            var result = WriteMessageTakingWriteLockAsync(physical, message, isHandshake);
+            var result = WriteMessageTakingWriteLockAsync(physical, message, bypassBacklog: bypassBacklog);
             LogNonPreferred(message.Flags, isReplica);
             return result;
         }
@@ -812,7 +812,7 @@ namespace StackExchange.Redis
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private bool TryPushToBacklog(Message message, bool onlyIfExists, bool isHandshake = false)
+        private bool TryPushToBacklog(Message message, bool onlyIfExists, bool bypassBacklog = false)
         {
             // In the handshake case: send the command directly through.
             // If we're disconnected *in the middle of a handshake*, we've bombed a brand new socket and failing,
@@ -820,7 +820,7 @@ namespace StackExchange.Redis
             // 
             // Internal calls also shouldn't queue - try immediately. If these aren't errors (most aren't), we
             // won't alert the user.
-            if (isHandshake || message.IsInternalCall)
+            if (bypassBacklog || message.IsInternalCall)
             {
                 return false;
             }
@@ -1086,8 +1086,8 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="physical">The physical connection to write to.</param>
         /// <param name="message">The message to be written.</param>
-        /// <param name="isHandshake">Whether this message is part of the handshake process.</param>
-        internal ValueTask<WriteResult> WriteMessageTakingWriteLockAsync(PhysicalConnection physical, Message message, bool isHandshake = false)
+        /// <param name="bypassBacklog">Whether this message should bypass the backlog, going straight to the pipe or failing.</param>
+        internal ValueTask<WriteResult> WriteMessageTakingWriteLockAsync(PhysicalConnection physical, Message message, bool bypassBacklog = false)
         {
             /* design decision/choice; the code works fine either way, but if this is
              * set to *true*, then when we can't take the writer-lock *right away*,
@@ -1107,7 +1107,7 @@ namespace StackExchange.Redis
             // AVOID REORDERING MESSAGES
             // Prefer to add it to the backlog if this thread can see that there might already be a message backlog.
             // We do this before attempting to take the write lock, because we won't actually write, we'll just let the backlog get processed in due course
-            if (TryPushToBacklog(message, onlyIfExists: physical.HasOutputPipe, isHandshake: isHandshake))
+            if (TryPushToBacklog(message, onlyIfExists: physical.HasOutputPipe, bypassBacklog: bypassBacklog))
             {
                 return new ValueTask<WriteResult>(WriteResult.Success); // queued counts as success
             }
@@ -1125,7 +1125,7 @@ namespace StackExchange.Redis
                 {
                     // we can't get it *instantaneously*; is there
                     // perhaps a backlog and active backlog processor?
-                    if (TryPushToBacklog(message, onlyIfExists: !ALWAYS_USE_BACKLOG_IF_CANNOT_GET_SYNC_LOCK, isHandshake: isHandshake))
+                    if (TryPushToBacklog(message, onlyIfExists: !ALWAYS_USE_BACKLOG_IF_CANNOT_GET_SYNC_LOCK, bypassBacklog: bypassBacklog))
                         return new ValueTask<WriteResult>(WriteResult.Success); // queued counts as success
 
                     // no backlog... try to wait with the timeout;

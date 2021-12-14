@@ -804,7 +804,7 @@ namespace StackExchange.Redis
                 if (connection == null)
                 {
                     Multiplexer.Trace($"{Format.ToString(this)}: Enqueue (async): " + message);
-                    result = GetBridge(message.Command).TryWriteAsync(message, isReplica, isHandshake: true);
+                    result = GetBridge(message.Command).TryWriteAsync(message, isReplica, bypassBacklog: true);
                 }
                 else
                 {
@@ -816,7 +816,7 @@ namespace StackExchange.Redis
                     }
                     else
                     {
-                        result = bridge.WriteMessageTakingWriteLockAsync(connection, message, isHandshake: true);
+                        result = bridge.WriteMessageTakingWriteLockAsync(connection, message, bypassBacklog: true);
                     }
                 }
 
