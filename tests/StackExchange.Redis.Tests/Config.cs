@@ -14,6 +14,9 @@ namespace StackExchange.Redis.Tests
 {
     public class Config : TestBase
     {
+        public Version DefaultVersion = new (2, 8, 0);
+        public Version DefaultAzureVersion = new (4, 0, 0);
+
         public Config(ITestOutputHelper output) : base(output) { }
 
         [Fact]
@@ -63,7 +66,7 @@ namespace StackExchange.Redis.Tests
         public void ConfigurationOptionsDefaultForAzure()
         {
             var options = ConfigurationOptions.Parse("contoso.redis.cache.windows.net");
-            Assert.True(options.DefaultVersion.Equals(new Version(3, 0, 0)));
+            Assert.True(options.DefaultVersion.Equals(DefaultAzureVersion));
             Assert.False(options.AbortOnConnectFail);
         }
 
@@ -80,7 +83,7 @@ namespace StackExchange.Redis.Tests
         {
             // added a few upper case chars to validate comparison
             var options = ConfigurationOptions.Parse("contoso.REDIS.CACHE.chinacloudapi.cn");
-            Assert.True(options.DefaultVersion.Equals(new Version(3, 0, 0)));
+            Assert.True(options.DefaultVersion.Equals(DefaultAzureVersion));
             Assert.False(options.AbortOnConnectFail);
         }
 
@@ -88,7 +91,7 @@ namespace StackExchange.Redis.Tests
         public void ConfigurationOptionsDefaultForAzureGermany()
         {
             var options = ConfigurationOptions.Parse("contoso.redis.cache.cloudapi.de");
-            Assert.True(options.DefaultVersion.Equals(new Version(3, 0, 0)));
+            Assert.True(options.DefaultVersion.Equals(DefaultAzureVersion));
             Assert.False(options.AbortOnConnectFail);
         }
 
@@ -96,7 +99,7 @@ namespace StackExchange.Redis.Tests
         public void ConfigurationOptionsDefaultForAzureUSGov()
         {
             var options = ConfigurationOptions.Parse("contoso.redis.cache.usgovcloudapi.net");
-            Assert.True(options.DefaultVersion.Equals(new Version(3, 0, 0)));
+            Assert.True(options.DefaultVersion.Equals(DefaultAzureVersion));
             Assert.False(options.AbortOnConnectFail);
         }
 
@@ -104,7 +107,7 @@ namespace StackExchange.Redis.Tests
         public void ConfigurationOptionsDefaultForNonAzure()
         {
             var options = ConfigurationOptions.Parse("redis.contoso.com");
-            Assert.True(options.DefaultVersion.Equals(new Version(2, 0, 0)));
+            Assert.True(options.DefaultVersion.Equals(DefaultVersion));
             Assert.True(options.AbortOnConnectFail);
         }
 
@@ -112,7 +115,7 @@ namespace StackExchange.Redis.Tests
         public void ConfigurationOptionsDefaultWhenNoEndpointsSpecifiedYet()
         {
             var options = new ConfigurationOptions();
-            Assert.True(options.DefaultVersion.Equals(new Version(2, 0, 0)));
+            Assert.True(options.DefaultVersion.Equals(DefaultVersion));
             Assert.True(options.AbortOnConnectFail);
         }
 
