@@ -375,6 +375,16 @@ namespace StackExchange.Redis
                 msg.SetInternalCall();
                 await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.ClusterNodes).ForAwait();
             }
+            // If we are ging to fetch a tie breaker, do so last and we'll get it in before the tracer fires completing the connection
+            if (!string.IsNullOrEmpty(Multiplexer.RawConfig.TieBreaker))
+            {
+                RedisKey tieBreakerKey = Multiplexer.RawConfig.TieBreaker;
+                log?.WriteLine($"{Format.ToString(EndPoint)}: Requesting tie-break (Key=\"{tieBreakerKey}\")...");
+                msg = Message.Create(0, flags, RedisCommand.GET, tieBreakerKey);
+                msg.SetInternalCall();
+                msg = LoggingMessage.Create(log, msg);
+                await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.TieBreaker).ForAwait();
+            }
         }
 
         private int _nextReplicaOffset;
@@ -607,6 +617,11 @@ namespace StackExchange.Redis
             get { return masterEndPoint; }
             set { SetConfig(ref masterEndPoint, value); }
         }
+
+        /// <summary>
+        /// Result of the latest tie breaker (from the last reconfigure).
+        /// </summary>
+        internal string TieBreakerResult { get; set; }
 
         internal bool CheckInfoReplication()
         {
