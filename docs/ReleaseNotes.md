@@ -4,6 +4,7 @@
 
 - Makes `StreamEntry` constructor public for better unit test experience (#1923 via WeihanLi)
 - Fix integer overflow error (issue #1926) with 2GiB+ result payloads
+- Moved tiebreaker fetching in connections into the handshake phase (streamline + simplification) (#1931 via NickCraver)
 
 ## 2.2.88
 
