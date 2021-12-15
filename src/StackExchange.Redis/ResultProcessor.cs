@@ -2080,11 +2080,9 @@ The coordinates as a two items x,y array (longitude,latitude).
                         var tieBreaker = result.GetString();
                         SetResult(message, tieBreaker);
 
-                        var bridge = connection.BridgeCouldBeNull;
                         try
                         {
-                            var endpoint = bridge?.ServerEndPoint;
-                            if (endpoint != null)
+                            if (connection.BridgeCouldBeNull?.ServerEndPoint is ServerEndPoint endpoint)
                             {
                                 endpoint.TieBreakerResult = tieBreaker;
                             }
