@@ -375,8 +375,9 @@ namespace StackExchange.Redis
                 msg.SetInternalCall();
                 await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.ClusterNodes).ForAwait();
             }
-            // If we are ging to fetch a tie breaker, do so last and we'll get it in before the tracer fires completing the connection
-            if (!string.IsNullOrEmpty(Multiplexer.RawConfig.TieBreaker))
+            // If we are going to fetch a tie breaker, do so last and we'll get it in before the tracer fires completing the connection
+            // But if GETs are disabled on this, do not fail the connection - we just don't get tiebreaker benefits
+            if (!string.IsNullOrEmpty(Multiplexer.RawConfig.TieBreaker) && Multiplexer.RawConfig.CommandMap.IsAvailable(RedisCommand.GET))
             {
                 RedisKey tieBreakerKey = Multiplexer.RawConfig.TieBreaker;
                 log?.WriteLine($"{Format.ToString(EndPoint)}: Requesting tie-break (Key=\"{tieBreakerKey}\")...");
