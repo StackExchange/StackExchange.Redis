@@ -54,5 +54,24 @@ namespace StackExchange.Redis.Tests
                 Assert.Null(server.TieBreakerResult);
             }
         }
+
+        [Fact]
+        public void TiebreakerIncorrectType()
+        {
+            var tiebreakerKey = Me();
+            using var fubarMuxer = Create(allowAdmin: true, log: Writer);
+            // Store something nonsensical in the tiebreaker key:
+            fubarMuxer.GetDatabase().HashSet(tiebreakerKey, "foo", "bar");
+
+            // Ensure the next connection getting an invalid type still connects
+            using var muxer = Create(allowAdmin: true, tieBreaker: tiebreakerKey, log: Writer);
+
+            var db = muxer.GetDatabase();
+            db.Ping();
+            Assert.True(db.IsConnected(default(RedisKey)));
+
+            var ex = Assert.Throws<RedisServerException>(() => db.StringGet(tiebreakerKey));
+            Assert.Contains("WRONGTYPE", ex.Message);
+        }
     }
 }
