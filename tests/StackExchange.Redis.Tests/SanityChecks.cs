@@ -16,7 +16,7 @@ namespace StackExchange.Redis.Tests
         /// Thanks Lucas Trzesniewski!
         /// </remarks>
         [Fact]
-        public void ValueTupleRefernces()
+        public void ValueTupleNotReferenced()
         {
             using var fileStream = File.OpenRead(typeof(RedisValue).Assembly.Location);
             using var peReader = new PEReader(fileStream);
