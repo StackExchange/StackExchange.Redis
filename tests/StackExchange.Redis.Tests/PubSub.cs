@@ -643,7 +643,7 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        internal static Task AllowReasonableTimeToPublishAndProcess() => Task.Delay(100);
+        internal static Task AllowReasonableTimeToPublishAndProcess() => Task.Delay(500);
 
         [Fact]
         public async Task TestPartialSubscriberGetMessage()
