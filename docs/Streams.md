@@ -12,7 +12,7 @@ Use the following to add a simple message with a single name/value pair to a str
 
 ```csharp
 var db = redis.GetDatabase();
-var messageId = db.StreamAdd("event_stream", "foo_name", "bar_value");
+var messageId = db.StreamAdd("events_stream", "foo_name", "bar_value");
 // messageId = 1518951480106-0
 ```
 
@@ -34,7 +34,7 @@ var messageId = db.StreamAdd("sensor_stream", values);
 You also have the option to override the auto-generated message ID by passing your own ID to the `StreamAdd` method. Other optional parameters allow you to trim the stream's length.
 
 ```csharp
-db.StreamAdd("event_stream", "foo_name", "bar_value", messageId: "0-1", maxLength: 100);
+db.StreamAdd("events_stream", "foo_name", "bar_value", messageId: "0-1", maxLength: 100);
 ```
 
 Reading from Streams
@@ -43,7 +43,7 @@ Reading from Streams
 Reading from a stream is done by using either the `StreamRead` or `StreamRange` methods.
 
 ```csharp
-var messages = db.StreamRead("event_stream", "0-0");
+var messages = db.StreamRead("events_stream", "0-0");
 ```
 
 The code above will read all messages from the ID `"0-0"` to the end of the stream. You have the option to limit the number of messages returned by using the optional `count` parameter.
@@ -53,7 +53,7 @@ The `StreamRead` method also allows you to read from multiple streams at once:
 ```csharp
 var streams = db.StreamRead(new StreamPosition[]
 {
-    new StreamPosition("event_stream", "0-0"),
+    new StreamPosition("events_stream", "0-0"),
     new StreamPosition("score_stream", "0-0")
 });
 
@@ -66,13 +66,13 @@ You can limit the number of messages returned per stream by using the `countPerS
 The `StreamRange` method allows you to return a range of entries within a stream.
 
 ```csharp
-var messages = db.StreamRange("event_stream", minId: "-", maxId: "+");
+var messages = db.StreamRange("events_stream", minId: "-", maxId: "+");
 ```
 
 The `"-"` and `"+"` special characters indicate the smallest and greatest IDs possible. These values are the default values that will be used if no value is passed for the respective parameter. You also have the option to read the stream in reverse by using the `messageOrder` parameter. The `StreamRange` method also provides the ability to limit the number of entries returned by using the `count` parameter.
 
 ```csharp
-var messages = db.StreamRange("event_stream",
+var messages = db.StreamRange("events_stream",
     minId: "0-0",
     maxId: "+",
     count: 100,
@@ -85,7 +85,7 @@ Stream Information
 The `StreamInfo` method provides the ability to read basic information about a stream: its first and last entry, the stream's length, the number of consumer groups, etc. This information can be used to process a stream in a more efficient manner.
 
 ```csharp
-var info = db.StreamInfo("event_stream");
+var info = db.StreamInfo("events_stream");
 
 Console.WriteLine(info.Length);
 Console.WriteLine(info.FirstEntry.Id);
