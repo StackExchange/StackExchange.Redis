@@ -16,14 +16,13 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v1
-    - name: Setup .NET Core 3.x
+    - name: Setup .NET Core
       uses: actions/setup-dotnet@v1
       with:
-        dotnet-version: '3.1.x'
-    - name: Setup .NET 5.x
-      uses: actions/setup-dotnet@v1
-      with:
-        dotnet-version: '5.0.x'
+        dotnet-version: | 
+          3.1.x
+          5.0.x
+          6.0.x
     - name: .NET Build
       run: dotnet build Build.csproj -c Release /p:CI=true
     - name: Start Redis Services (docker-compose)
@@ -50,11 +49,10 @@ jobs:
     - name: Setup .NET Core 3.x
       uses: actions/setup-dotnet@v1
       with:
-        dotnet-version: '3.1.x'
-    - name: Setup .NET 5.x
-      uses: actions/setup-dotnet@v1
-      with:
-        dotnet-version: '5.0.x'
+        dotnet-version: | 
+          3.1.x
+          5.0.x
+          6.0.x
     - name: .NET Build
       run: dotnet build Build.csproj -c Release /p:CI=true
     - name: Start Redis Services (v3.0.503)
