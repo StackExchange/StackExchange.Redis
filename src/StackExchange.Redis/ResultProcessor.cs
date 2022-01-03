@@ -1427,7 +1427,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                             return null;
                         }
                     }
-                }                
+                }
 
                 return new Role.Master(offset, replicas);
             }
@@ -2267,7 +2267,7 @@ The coordinates as a two items x,y array (longitude,latitude).
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
-                if (!(StringPairInterleaved is StringPairInterleavedProcessor innerProcessor))
+                if (StringPairInterleaved is not StringPairInterleavedProcessor innerProcessor)
                 {
                     return false;
                 }

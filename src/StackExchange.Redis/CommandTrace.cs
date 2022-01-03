@@ -4,7 +4,7 @@ namespace StackExchange.Redis
 {
     /// <summary>
     /// Represents the information known about long-running commands
-    /// </summary>    
+    /// </summary>
     public sealed class CommandTrace
     {
         internal static readonly ResultProcessor<CommandTrace[]> Processor = new CommandTraceProcessor();

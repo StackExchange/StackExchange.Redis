@@ -110,7 +110,6 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-
         [Fact]
         public async Task DereplicateGoesToPrimary()
         {

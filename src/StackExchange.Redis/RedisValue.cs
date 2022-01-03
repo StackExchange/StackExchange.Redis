@@ -309,7 +309,6 @@ namespace StackExchange.Redis
                 return acc;
             }
         }
-        
 
         internal void AssertNotNull()
         {

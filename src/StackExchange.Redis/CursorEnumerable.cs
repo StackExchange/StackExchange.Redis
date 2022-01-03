@@ -129,7 +129,6 @@ namespace StackExchange.Redis
                 Dispose();
                 return default;
             }
-            
 
             object IEnumerator.Current => _pageOversized[_pageOffset];
 
@@ -185,7 +184,7 @@ namespace StackExchange.Redis
             /// </summary>
             public bool MoveNext() => SimpleNext() || SlowNextSync();
 
-            bool SlowNextSync()
+            private bool SlowNextSync()
             {
                 var pending = SlowNextAsync();
                 if (pending.IsCompletedSuccessfully) return pending.Result;
@@ -285,7 +284,7 @@ namespace StackExchange.Redis
                 return false;
             }
 
-            static void Recycle(ref T[] array, ref bool isPooled)
+            private static void Recycle(ref T[] array, ref bool isPooled)
             {
                 var tmp = array;
                 array = null;
@@ -333,10 +332,10 @@ namespace StackExchange.Redis
         internal static CursorEnumerable<T> From(RedisBase redis, ServerEndPoint server, Task<T[]> pending, int pageOffset)
             => new SingleBlockEnumerable(redis, server, pending, pageOffset);
 
-        class SingleBlockEnumerable : CursorEnumerable<T>
+        private class SingleBlockEnumerable : CursorEnumerable<T>
         {
             private readonly Task<T[]> _pending;
-            public SingleBlockEnumerable(RedisBase redis, ServerEndPoint server, 
+            public SingleBlockEnumerable(RedisBase redis, ServerEndPoint server,
                 Task<T[]> pending, int pageOffset) : base(redis, server, 0, int.MaxValue, 0, pageOffset, default)
             {
                 _pending = pending;

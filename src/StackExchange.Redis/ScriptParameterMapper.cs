@@ -199,7 +199,7 @@ namespace StackExchange.Redis
         /// types.
         /// </para>
         /// <para>
-        /// The created Func takes a RedisKey, which will be prefixed to all keys (and arguments of type RedisKey) for 
+        /// The created Func takes a RedisKey, which will be prefixed to all keys (and arguments of type RedisKey) for
         /// keyspace isolation.
         /// </para>
         /// </summary>

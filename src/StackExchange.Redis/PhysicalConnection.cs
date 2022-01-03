@@ -180,7 +180,7 @@ namespace StackExchange.Redis
                     }
                 }
             }
-            catch (NotImplementedException ex) when (!(endpoint is IPEndPoint))
+            catch (NotImplementedException ex) when (endpoint is not IPEndPoint)
             {
                 throw new InvalidOperationException("BeginConnect failed with NotImplementedException; consider using IP endpoints, or enable ResolveDns in the configuration", ex);
             }
@@ -779,7 +779,6 @@ namespace StackExchange.Redis
             writer.Advance(2);
         }
 
-
         internal static int WriteRaw(Span<byte> span, long value, bool withLengthPrefix = false, int offset = 0)
         {
             if (value >= 0 && value <= 9)
@@ -967,7 +966,6 @@ namespace StackExchange.Redis
 #if DEBUG
         private void RecordEndFlush(int start, long bytes)
         {
-
             var end = Environment.TickCount;
             int taken = unchecked(end - start);
             if (taken > _maxFlushTime)
@@ -1339,7 +1337,7 @@ namespace StackExchange.Redis
             // Fall back to bytes waiting on the socket if we can
             int fallbackBytesAvailable;
             try
-            { 
+            {
                 fallbackBytesAvailable = VolatileSocket?.Available ?? -1;
             }
             catch

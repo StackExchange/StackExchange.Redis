@@ -172,7 +172,7 @@ namespace StackExchange.Redis
                                 AddFlag(ref flags, value, ClientFlags.Unblocked, 'u');
                                 AddFlag(ref flags, value, ClientFlags.UnixDomainSocket, 'U');
                                 AddFlag(ref flags, value, ClientFlags.Transaction, 'x');
-                                
+
                                 client.Flags = flags;
                                 break;
                             case "id": client.Id = Format.ParseInt64(value); break;

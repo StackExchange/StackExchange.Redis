@@ -9,7 +9,6 @@ using Xunit;
 
 namespace StackExchange.Redis.Tests
 {
-
     [CollectionDefinition(nameof(MoqDependentCollection), DisableParallelization = true)]
     public class MoqDependentCollection { }
 
