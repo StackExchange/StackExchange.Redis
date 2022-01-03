@@ -457,7 +457,7 @@ namespace StackExchange.Redis.Tests
                 EndPoints = { { IPAddress.Loopback, 6379 } },
             };
             using var muxer = ConnectionMultiplexer.Connect(config);
-            Assert.Same(SocketManager.Shared.Scheduler, muxer.SocketManager.Scheduler);
+            Assert.Same(ConnectionMultiplexer.GetDefaultSocketManager().Scheduler, muxer.SocketManager.Scheduler);
         }
 
         [Theory]

@@ -361,14 +361,7 @@ namespace StackExchange.Redis.Tests
         }
 
         public static string Me([CallerFilePath] string filePath = null, [CallerMemberName] string caller = null) =>
-#if NET472
-            "net472-"
-#elif NETCOREAPP3_1
-            "netcoreapp3.1-"
-#else
-            "unknown-"
-#endif
-         + Path.GetFileNameWithoutExtension(filePath) + "-" + caller;
+            Environment.Version.ToString() + Path.GetFileNameWithoutExtension(filePath) + "-" + caller;
 
         protected static TimeSpan RunConcurrent(Action work, int threads, int timeout = 10000, [CallerMemberName] string caller = null)
         {
@@ -417,7 +410,9 @@ namespace StackExchange.Redis.Tests
                 for (int i = 0; i < threads; i++)
                 {
                     var thd = threadArr[i];
+#if !NET6_0_OR_GREATER
                     if (thd.IsAlive) thd.Abort();
+#endif
                 }
                 throw new TimeoutException();
             }
