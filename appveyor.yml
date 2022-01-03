@@ -1,13 +1,11 @@
 image:
-- Visual Studio 2019
+- Visual Studio 2022
 
 init:
   - git config --global core.autocrlf input
 
 install:
 - cmd: >-
-    choco install dotnet-sdk --version 5.0.100
-
     cd tests\RedisConfigs\3.0.503
 
     redis-server.exe --service-install --service-name "redis-6379" "..\Basic\master-6379.conf"
