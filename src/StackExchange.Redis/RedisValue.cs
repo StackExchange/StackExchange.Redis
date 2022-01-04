@@ -1033,7 +1033,7 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// Create a RedisValue from a MemoryStream; it will *attempt* to use the internal buffer
-        /// directly, but if this isn't possibly it will fallback to ToArray
+        /// directly, but if this isn't possible it will fallback to ToArray
         /// </summary>
         /// <param name="stream">The <see cref="MemoryStream"/> to create a value from.</param>
         public static RedisValue CreateFrom(MemoryStream stream)
