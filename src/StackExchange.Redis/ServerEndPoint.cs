@@ -897,7 +897,7 @@ namespace StackExchange.Redis
             log?.WriteLine($"{Format.ToString(this)}: Sending critical tracer (handshake): {tracer.CommandAndKey}");
             await WriteDirectOrQueueFireAndForgetAsync(connection, tracer, ResultProcessor.EstablishConnection).ForAwait();
 
-            // note: this **must** be the last thing on the subscription handshake, because after this
+            // Note: this **must** be the last thing on the subscription handshake, because after this
             // we will be in subscriber mode: regular commands cannot be sent
             if (connType == ConnectionType.Subscription)
             {
@@ -905,7 +905,7 @@ namespace StackExchange.Redis
                 if (configChannel != null)
                 {
                     msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.SUBSCRIBE, (RedisChannel)configChannel);
-                    msg.SetInternalCall();
+                    // Note: this is NOT internal, we want it to queue in a backlog for sending when ready if necessary
                     await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.TrackSubscriptions).ForAwait();
                 }
             }
