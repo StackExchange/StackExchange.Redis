@@ -5,6 +5,7 @@
 - Makes `StreamEntry` constructor public for better unit test experience (#1923 via WeihanLi)
 - Fix integer overflow error (issue #1926) with 2GiB+ result payloads (#1928 via mgravell)
 - Update assumed redis versions to v2.8 or v4.0 in the Azure case (#1929 via NickCraver)
+- Fix profiler showing `EVAL` instead `EVALSHA` (#1930 via martinpotter)
 - Moved tiebreaker fetching in connections into the handshake phase (streamline + simplification) (#1931 via NickCraver)
 
 ## 2.2.88
