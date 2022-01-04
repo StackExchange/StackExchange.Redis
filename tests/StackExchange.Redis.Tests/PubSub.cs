@@ -746,7 +746,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task SubscriptionsSurviveConnectionFailureAsync()
         {
-            using (var muxer = Create(allowAdmin: true, shared: false, syncTimeout: 1000))
+            using (var muxer = Create(allowAdmin: true, shared: false, syncTimeout: 1000) as ConnectionMultiplexer)
             {
                 RedisChannel channel = Me();
                 var sub = muxer.GetSubscriber();
@@ -755,6 +755,7 @@ namespace StackExchange.Redis.Tests
                 {
                     Interlocked.Increment(ref counter);
                 }).ConfigureAwait(false);
+                Assert.Equal(1, muxer.GetSubscriptionsCount());
 
                 await Task.Delay(200).ConfigureAwait(false);
 
@@ -789,11 +790,15 @@ namespace StackExchange.Redis.Tests
                 // And time to resubscribe...
                 await Task.Delay(200).ConfigureAwait(false);
                 sub.Ping();
+                Assert.Equal(1, muxer.GetSubscriptionsCount());
 
                 await sub.PublishAsync(channel, "abc").ConfigureAwait(false);
                 // Give it a few seconds to get our messages
                 await UntilCondition(TimeSpan.FromSeconds(5), () => Thread.VolatileRead(ref counter) == 2);
-                Assert.Equal(2, Thread.VolatileRead(ref counter));
+
+                var counter2 = Thread.VolatileRead(ref counter);
+                Log($"Expecting 2 messsages, got {counter2}");
+                Assert.Equal(2, counter2);
             }
         }
     }

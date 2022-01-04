@@ -13,6 +13,14 @@ namespace StackExchange.Redis
     {
         private readonly Dictionary<RedisChannel, Subscription> subscriptions = new Dictionary<RedisChannel, Subscription>();
 
+        internal int GetSubscriptionsCount()
+        {
+            lock (subscriptions)
+            {
+                return subscriptions.Count;
+            }
+        }
+
         internal static void CompleteAsWorker(ICompletable completable)
         {
             if (completable != null) ThreadPool.QueueUserWorkItem(s_CompleteAsWorker, completable);
