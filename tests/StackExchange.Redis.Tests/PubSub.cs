@@ -746,7 +746,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task SubscriptionsSurviveConnectionFailureAsync()
         {
-            using (var muxer = Create(allowAdmin: true, shared: false))
+            using (var muxer = Create(allowAdmin: true, shared: false, syncTimeout: 1000))
             {
                 RedisChannel channel = Me();
                 var sub = muxer.GetSubscriber();
@@ -755,22 +755,44 @@ namespace StackExchange.Redis.Tests
                 {
                     Interlocked.Increment(ref counter);
                 }).ConfigureAwait(false);
-                await Task.Delay(200).ConfigureAwait(false);
-                await sub.PublishAsync(channel, "abc").ConfigureAwait(false);
-                sub.Ping();
-                await Task.Delay(200).ConfigureAwait(false);
-                Assert.Equal(1, Thread.VolatileRead(ref counter));
-                var server = GetServer(muxer);
-                Assert.Equal(1, server.GetCounters().Subscription.SocketCount);
 
-                server.SimulateConnectionFailure(SimulatedFailureType.All);
-                SetExpectedAmbientFailureCount(2);
                 await Task.Delay(200).ConfigureAwait(false);
-                sub.Ping();
-                Assert.Equal(2, server.GetCounters().Subscription.SocketCount);
+
                 await sub.PublishAsync(channel, "abc").ConfigureAwait(false);
+                sub.Ping();
+                await Task.Delay(200).ConfigureAwait(false);
+
+                var counter1 = Thread.VolatileRead(ref counter);
+                Log($"Expecting 1 messsage, got {counter1}");
+                Assert.Equal(1, counter1);
+
+                var server = GetServer(muxer);
+                var socketCount = server.GetCounters().Subscription.SocketCount;
+                Log($"Expecting 1 socket, got {socketCount}");
+                Assert.Equal(1, socketCount);
+
+                // We might fail both connections or just the primary in the time period
+                SetExpectedAmbientFailureCount(-1);
+
+                // Make sure we fail all the way
+                muxer.AllowConnect = false;
+                // Fail all connections
+                server.SimulateConnectionFailure(SimulatedFailureType.All);
+                // Trigger failure
+                Assert.Throws<RedisTimeoutException>(() => sub.Ping());
+                Assert.False(server.IsConnected);
+
+                // Now reconnect...
+                muxer.AllowConnect = true;
+                // Wait until we're reconnected
+                await UntilCondition(TimeSpan.FromSeconds(5), () => server.IsConnected);
+                // And time to resubscribe...
                 await Task.Delay(200).ConfigureAwait(false);
                 sub.Ping();
+
+                await sub.PublishAsync(channel, "abc").ConfigureAwait(false);
+                // Give it a few seconds to get our messages
+                await UntilCondition(TimeSpan.FromSeconds(5), () => Thread.VolatileRead(ref counter) == 2);
                 Assert.Equal(2, Thread.VolatileRead(ref counter));
             }
         }
