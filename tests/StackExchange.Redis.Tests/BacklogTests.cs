@@ -126,6 +126,8 @@ namespace StackExchange.Redis.Tests
                 options.EndPoints.Add(TestConfig.Current.MasterServerAndPort);
 
                 using var muxer = await ConnectionMultiplexer.ConnectAsync(options, Writer);
+                muxer.ErrorMessage += (s, e) => Writer.WriteLine($"Error Message {e.EndPoint}: {e.Message}");
+                muxer.InternalError += (s, e) => Writer.WriteLine($"Internal Error {e.EndPoint}: {e.Exception.Message}");
 
                 var db = muxer.GetDatabase();
                 Writer.WriteLine("Test: Initial (connected) ping");
@@ -143,8 +145,8 @@ namespace StackExchange.Redis.Tests
 
                 // Queue up some commands
                 Writer.WriteLine("Test: Disconnected pings");
-                _ = db.PingAsync();
-                _ = db.PingAsync();
+                var ignoredA = db.PingAsync();
+                var ignoredB = db.PingAsync();
                 var lastPing = db.PingAsync();
 
                 // TODO: Add specific server call
@@ -158,10 +160,19 @@ namespace StackExchange.Redis.Tests
                 Writer.WriteLine("Test: Awaiting reconnect");
                 await UntilCondition(TimeSpan.FromSeconds(3), () => muxer.IsConnected).ForAwait();
 
-                Writer.WriteLine("Test: Awaiting ping1");
+                Writer.WriteLine("Test: Checking reconnected 1");
+                Assert.True(muxer.IsConnected);
+
+                Writer.WriteLine("Test: ignoredA Status: " + ignoredA.Status);
+                Writer.WriteLine("Test: ignoredB Status: " + ignoredB.Status);
+                Writer.WriteLine("Test: lastPing Status: " + lastPing.Status);
+                var afterConnectedStats = server.GetBridgeStatus(RedisCommand.PING);
+                Writer.WriteLine($"Test: BacklogStatus: {afterConnectedStats.BacklogStatus}, BacklogMessagesPending: {afterConnectedStats.BacklogMessagesPending}, IsWriterActive: {afterConnectedStats.IsWriterActive}, MessagesSinceLastHeartbeat: {afterConnectedStats.MessagesSinceLastHeartbeat}, TotalBacklogMessagesQueued: {afterConnectedStats.TotalBacklogMessagesQueued}");
+
+                Writer.WriteLine("Test: Awaiting lastPing 1");
                 await lastPing;
 
-                Writer.WriteLine("Test: Checking reconnected");
+                Writer.WriteLine("Test: Checking reconnected 2");
                 Assert.True(muxer.IsConnected);
                 var reconnectedStats = server.GetBridgeStatus(RedisCommand.PING);
                 Assert.Equal(0, reconnectedStats.BacklogMessagesPending);
@@ -175,7 +186,7 @@ namespace StackExchange.Redis.Tests
                 // We should see none queued
                 Writer.WriteLine("Test: BacklogMessagesPending check");
                 Assert.Equal(0, stats.BacklogMessagesPending);
-                Writer.WriteLine("Test: Awaiting lastPing");
+                Writer.WriteLine("Test: Awaiting lastPing 2");
                 await lastPing;
                 Writer.WriteLine("Test: Done");
             }

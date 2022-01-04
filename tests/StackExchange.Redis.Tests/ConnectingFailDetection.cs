@@ -108,8 +108,16 @@ namespace StackExchange.Redis.Tests
 
             using (var muxer = ConnectionMultiplexer.Connect(config, log: Writer))
             {
-                muxer.ConnectionFailed += delegate { Interlocked.Increment(ref failCount); };
-                muxer.ConnectionRestored += delegate { Interlocked.Increment(ref restoreCount); };
+                muxer.ConnectionFailed += (s, e) =>
+                {
+                    Interlocked.Increment(ref failCount);
+                    Log($"Connection Failed ({e.ConnectionType},{e.FailureType}): {e.Exception}");
+                };
+                muxer.ConnectionRestored += (s, e) =>
+                {
+                    Interlocked.Increment(ref restoreCount);
+                    Log($"Connection Failed ({e.ConnectionType},{e.FailureType}): {e.Exception}");
+                };
 
                 muxer.GetDatabase();
                 Assert.Equal(0, Volatile.Read(ref failCount));

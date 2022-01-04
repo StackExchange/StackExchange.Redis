@@ -38,6 +38,7 @@ namespace StackExchange.Redis
         private readonly ConcurrentQueue<Message> _backlog = new();
         private bool BacklogHasItems => !_backlog.IsEmpty;
         private int _backlogProcessorIsRunning = 0;
+        private long _backlogTotalEnqueued = 0;
 
         private int activeWriters = 0;
         private int beating;
@@ -147,6 +148,7 @@ namespace StackExchange.Redis
                 message.SetEnqueued(null);
                 message.SetBacklogState(_backlog.Count, null);
                 _backlog.Enqueue(message);
+                Interlocked.Increment(ref _backlogTotalEnqueued);
                 return WriteResult.Success; // we'll take it...
             }
             else if (Multiplexer.RawConfig.BacklogPolicy.QueueWhileDisconnected)
@@ -154,6 +156,7 @@ namespace StackExchange.Redis
                 message.SetEnqueued(null);
                 message.SetBacklogState(_backlog.Count, null);
                 _backlog.Enqueue(message);
+                Interlocked.Increment(ref _backlogTotalEnqueued);
                 return WriteResult.Success; // we'll queue for retry here...
             }
             else
@@ -344,6 +347,11 @@ namespace StackExchange.Redis
             public BacklogStatus BacklogStatus { get; init; }
 
             /// <summary>
+            /// The number of messages ever added to the backlog queue in the life of this connection.
+            /// </summary>
+            public long TotalBacklogMessagesQueued { get; init; }
+
+            /// <summary>
             /// Status for the underlying <see cref="PhysicalConnection"/>.
             /// </summary>
             public PhysicalConnection.ConnectionStatus Connection { get; init; }
@@ -360,6 +368,7 @@ namespace StackExchange.Redis
             IsWriterActive = !_singleWriterMutex.IsAvailable,
             BacklogMessagesPending = _backlog.Count,
             BacklogStatus = _backlogStatus,
+            TotalBacklogMessagesQueued = _backlogTotalEnqueued,
             Connection = physical?.GetStatus() ?? PhysicalConnection.ConnectionStatus.Default,
         };
 
@@ -549,12 +558,11 @@ namespace StackExchange.Redis
             {
                 if (BacklogHasItems)
                 {
-                    CheckBacklogForTimeouts();
-                    // Ensure we're processing the backlog
-                    if (BacklogHasItems)
-                    {
-                        StartBacklogProcessor();
-                    }
+                    // If we have a backlog, kickoff the processing
+                    // This will first timeout any messages that have sat too long and either:
+                    // A: Abort if we're still not connected yet (we should be in this path)
+                    // or B: Process the backlog and send those messages through the pipe
+                    StartBacklogProcessor();
                 }
 
                 runThisTime = !isDisposed && Interlocked.CompareExchange(ref beating, 1, 0) == 0;
@@ -834,6 +842,7 @@ namespace StackExchange.Redis
             int count = _backlog.Count;
             message.SetBacklogState(count, physical);
             _backlog.Enqueue(message);
+            Interlocked.Increment(ref _backlogTotalEnqueued);
 
             // The correct way to decide to start backlog process is not based on previously empty
             // but based on a) not empty now (we enqueued!) and b) no backlog processor already running.
@@ -874,7 +883,7 @@ namespace StackExchange.Redis
         /// Crawls from the head of the backlog queue, consuming anything that should have timed out
         /// and pruning it accordingly (these messages will get timeout exceptions).
         /// </summary>
-        private void CheckBacklogForTimeouts()
+        private void CheckBacklogForTimeouts(ConcurrentQueue<Message> backlog)
         {
             var now = Environment.TickCount;
             var timeout = TimeoutMilliseconds;
@@ -886,15 +895,15 @@ namespace StackExchange.Redis
             {
                 // See if the message has pass our async timeout threshold
                 // or has otherwise been completed (e.g. a sync wait timed out) which would have cleared the ResultBox
-                if (message.HasAsyncTimedOut(now, timeout, out var _) || message.ResultBox == null) break; // not a timeout - we can stop looking
-                lock (_backlog)
+                if (message.HasTimedOut(now, timeout, out var _) || message.ResultBox == null) break; // not a timeout - we can stop looking
+                lock (backlog)
                 {
                     // Peek again since we didn't have lock before...
                     // and rerun the exact same checks as above, note that it may be a different message now
-                    if (!_backlog.TryPeek(out message)) break;
-                    if (!message.HasAsyncTimedOut(now, timeout, out var _) && message.ResultBox != null) break;
+                    if (!backlog.TryPeek(out message)) break;
+                    if (!message.HasTimedOut(now, timeout, out var _) && message.ResultBox != null) break;
 
-                    if (!_backlog.TryDequeue(out var message2) || (message != message2)) // consume it for real
+                    if (!backlog.TryDequeue(out var message2) || (message != message2)) // consume it for real
                     {
                         throw new RedisException("Thread safety bug detected! A queue message disappeared while we had the backlog lock");
                     }
@@ -915,6 +924,7 @@ namespace StackExchange.Redis
             Started,
             CheckingForWork,
             CheckingForTimeout,
+            CheckingForTimeoutComplete,
             RecordingTimeout,
             WritingMessage,
             Flushing,
@@ -983,7 +993,13 @@ namespace StackExchange.Redis
 #endif
                 _backlogStatus = BacklogStatus.Starting;
 
-                while (true)
+                // First eliminate any messages that have timed out already.
+                _backlogStatus = BacklogStatus.CheckingForTimeout;
+                CheckBacklogForTimeouts(backlog);
+                _backlogStatus = BacklogStatus.CheckingForTimeoutComplete;
+
+                // For the rest of the backlog, if we're not connected there's no point - abort out
+                while (IsConnected)
                 {
                     // check whether the backlog is empty *before* even trying to get the lock
                     if (backlog.IsEmpty) return; // nothing to do
@@ -1001,56 +1017,40 @@ namespace StackExchange.Redis
                 int acquiredTime = Environment.TickCount;
                 var msToGetLock = unchecked(acquiredTime - tryToAcquireTime);
 #endif
-
-                // so now we are the writer; write some things!
-                Message message;
-                var timeout = TimeoutMilliseconds;
-                while (true)
+                // Only execute if we're connected.
+                // Timeouts are handled above, so we're exclusively into backlog items eligible to write at this point.
+                // If we can't write them, abort and wait for the next heartbeat or activation to try this again.
+                while (IsConnected && physical?.HasOutputPipe == true)
                 {
+                    Message message;
                     _backlogStatus = BacklogStatus.CheckingForWork;
+
                     // We need to lock _backlog when dequeuing because of 
-                    // races with timeout processing logic
+                    // races with timeout processing logic (e.g. next heartbeat hitting us
                     lock (backlog)
                     {
-                        if (!backlog.TryDequeue(out message)) break; // all done
+                        // Note that we're actively taking it off the queue here, not peeking
+                        // If there's nothing left in queue, we're done.
+                        if (!backlog.TryDequeue(out message)) break;
                     }
 
                     try
                     {
-                        _backlogStatus = BacklogStatus.CheckingForTimeout;
-                        if (message.HasAsyncTimedOut(Environment.TickCount, timeout, out var _))
+                        _backlogStatus = BacklogStatus.WritingMessage;
+                        var result = WriteMessageInsideLock(physical, message);
+
+                        if (result == WriteResult.Success)
                         {
-                            _backlogStatus = BacklogStatus.RecordingTimeout;
-                            var ex = Multiplexer.GetException(WriteResult.TimeoutBeforeWrite, message, ServerEndPoint);
-#if DEBUG // additional tracking
-                            ex.Data["Redis-BacklogStartDelay"] = msToStartWorker;
-                            ex.Data["Redis-BacklogGetLockDelay"] = msToGetLock;
-                            if (failureCount != 0) ex.Data["Redis-BacklogFailCount"] = failureCount;
-                            if (_maxWriteTime >= 0) ex.Data["Redis-MaxWrite"] = _maxWriteTime.ToString() + "ms, " + _maxWriteCommand.ToString();
-                            var maxFlush = physical?.MaxFlushTime ?? -1;
-                            if (maxFlush >= 0) ex.Data["Redis-MaxFlush"] = maxFlush.ToString() + "ms, " + (physical?.MaxFlushBytes ?? -1).ToString();
-                            if (_maxLockDuration >= 0) ex.Data["Redis-MaxLockDuration"] = _maxLockDuration;
-#endif
-                            message.SetExceptionAndComplete(ex, this);
+                            _backlogStatus = BacklogStatus.Flushing;
+                            result = await physical.FlushAsync(false).ConfigureAwait(false);
                         }
-                        else if (physical?.HasOutputPipe == true)
+
+                        _backlogStatus = BacklogStatus.MarkingInactive;
+                        if (result != WriteResult.Success)
                         {
-                            _backlogStatus = BacklogStatus.WritingMessage;
-                            var result = WriteMessageInsideLock(physical, message);
-
-                            if (result == WriteResult.Success)
-                            {
-                                _backlogStatus = BacklogStatus.Flushing;
-                                result = await physical.FlushAsync(false).ConfigureAwait(false);
-                            }
-
-                            _backlogStatus = BacklogStatus.MarkingInactive;
-                            if (result != WriteResult.Success)
-                            {
-                                _backlogStatus = BacklogStatus.RecordingWriteFailure;
-                                var ex = Multiplexer.GetException(result, message, ServerEndPoint);
-                                HandleWriteException(message, ex);
-                            }
+                            _backlogStatus = BacklogStatus.RecordingWriteFailure;
+                            var ex = Multiplexer.GetException(result, message, ServerEndPoint);
+                            HandleWriteException(message, ex);
                         }
                     }
                     catch (Exception ex)

@@ -73,8 +73,7 @@ namespace StackExchange.Redis
         protected RedisCommand command;
 
         private const CommandFlags AskingFlag = (CommandFlags)32,
-                                   ScriptUnavailableFlag = (CommandFlags)256,
-                                   NeedsAsyncTimeoutCheckFlag = (CommandFlags)1024;
+                                   ScriptUnavailableFlag = (CommandFlags)256;
 
         private const CommandFlags MaskMasterServerPreference = CommandFlags.DemandMaster
                                                               | CommandFlags.DemandReplica
@@ -697,29 +696,22 @@ namespace StackExchange.Redis
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal void SetWriteTime()
         {
-            if ((Flags & NeedsAsyncTimeoutCheckFlag) != 0)
-            {
-                _writeTickCount = Environment.TickCount; // note this might be reset if we resend a message, cluster-moved etc; I'm OK with that
-            }
+            _writeTickCount = Environment.TickCount; // note this might be reset if we resend a message, cluster-moved etc; I'm OK with that
         }
         private int _writeTickCount;
         public int GetWriteTime() => Volatile.Read(ref _writeTickCount);
 
-        private void SetNeedsTimeoutCheck() => Flags |= NeedsAsyncTimeoutCheckFlag;
-        internal bool HasAsyncTimedOut(int now, int timeoutMilliseconds, out int millisecondsTaken)
+        /// <summary>
+        /// Checks if this message has violated the provided timeout.
+        /// Whether it's a sync operation in a .Wait() or in the backlog queue or written/pending asynchronously, we need to timeout everything.
+        /// ...or we get indefinite Task hangs for completions.
+        /// </summary>
+        internal bool HasTimedOut(int now, int timeoutMilliseconds, out int millisecondsTaken)
         {
-            if ((Flags & NeedsAsyncTimeoutCheckFlag) != 0)
+            millisecondsTaken = unchecked(now - _writeTickCount); // note: we can't just check "if sent < cutoff" because of wrap-aro
+            if (millisecondsTaken >= timeoutMilliseconds)
             {
-                millisecondsTaken = unchecked(now - _writeTickCount); // note: we can't just check "if sent < cutoff" because of wrap-aro
-                if (millisecondsTaken >= timeoutMilliseconds)
-                {
-                    Flags &= ~NeedsAsyncTimeoutCheckFlag; // note: we don't remove it from the queue - still might need to marry it up; but: it is toast
-                    return true;
-                }
-            }
-            else
-            {
-                millisecondsTaken = default;
+                return true;
             }
             return false;
         }
@@ -745,16 +737,17 @@ namespace StackExchange.Redis
             Flags = (Flags & ~MaskMasterServerPreference) | CommandFlags.PreferReplica;
         }
 
+        /// <remarks>
+        /// Note order here reversed to prevent overload resolution errors
+        /// </remarks>
         internal void SetSource(ResultProcessor resultProcessor, IResultBox resultBox)
-        { // note order here reversed to prevent overload resolution errors
-            if (resultBox != null && resultBox.IsAsync) SetNeedsTimeoutCheck();
+        {
             this.resultBox = resultBox;
             this.resultProcessor = resultProcessor;
         }
 
         internal void SetSource<T>(IResultBox<T> resultBox, ResultProcessor<T> resultProcessor)
         {
-            if (resultBox != null && resultBox.IsAsync) SetNeedsTimeoutCheck();
             this.resultBox = resultBox;
             this.resultProcessor = resultProcessor;
         }
