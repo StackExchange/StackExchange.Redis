@@ -92,7 +92,7 @@ namespace StackExchange.Redis
                 }
                 if (sendTracerIfConnected)
                 {
-                    await SendTracer(log).ForAwait();
+                    await SendTracerAsync(log).ForAwait();
                 }
                 log?.WriteLine($"{Format.ToString(this)}: OnConnectedAsync already connected end");
                 return "Already connected";
@@ -694,7 +694,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal Task<T> WriteDirectAsync<T>(Message message, ResultProcessor<T> processor, object asyncState = null, PhysicalBridge bridge = null)
+        internal Task<T> WriteDirectAsync<T>(Message message, ResultProcessor<T> processor, PhysicalBridge bridge = null)
         {
             static async Task<T> Awaited(ServerEndPoint @this, Message message, ValueTask<WriteResult> write, TaskCompletionSource<T> tcs)
             {
@@ -707,7 +707,7 @@ namespace StackExchange.Redis
                 return await tcs.Task.ForAwait();
             }
 
-            var source = TaskResultBox<T>.Create(out var tcs, asyncState);
+            var source = TaskResultBox<T>.Create(out var tcs, null);
             message.SetSource(processor, source);
             if (bridge == null) bridge = GetBridge(message.Command);
 
@@ -751,7 +751,7 @@ namespace StackExchange.Redis
             subscription?.ReportNextFailure();
         }
 
-        internal Task<bool> SendTracer(LogProxy log = null)
+        internal Task<bool> SendTracerAsync(LogProxy log = null)
         {
             var msg = GetTracerMessage(false);
             msg = LoggingMessage.Create(log, msg);
@@ -905,6 +905,7 @@ namespace StackExchange.Redis
                 if (configChannel != null)
                 {
                     msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.SUBSCRIBE, (RedisChannel)configChannel);
+                    msg.SetInternalCall();
                     await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.TrackSubscriptions).ForAwait();
                 }
             }
