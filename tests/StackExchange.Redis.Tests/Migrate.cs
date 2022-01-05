@@ -10,7 +10,7 @@ namespace StackExchange.Redis.Tests
     {
         public Migrate(ITestOutputHelper output) : base (output) { }
 
-        [Fact]
+        [FactLongRunning]
         public async Task Basic()
         {
             var fromConfig = new ConfigurationOptions { EndPoints = { { TestConfig.Current.SecureServer, TestConfig.Current.SecurePort } }, Password = TestConfig.Current.SecurePassword, AllowAdmin = true };
