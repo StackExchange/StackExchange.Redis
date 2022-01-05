@@ -16,7 +16,7 @@ namespace StackExchange.Redis
     public static class ExtensionMethods
     {
         /// <summary>
-        /// Create a dictionary from an array of HashEntry values 
+        /// Create a dictionary from an array of HashEntry values.
         /// </summary>
         /// <param name="hash">The entry to convert to a dictionary.</param>
         public static Dictionary<string,string> ToStringDictionary(this HashEntry[] hash)
@@ -31,7 +31,7 @@ namespace StackExchange.Redis
             return result;
         }
         /// <summary>
-        /// Create a dictionary from an array of HashEntry values 
+        /// Create a dictionary from an array of HashEntry values.
         /// </summary>
         /// <param name="hash">The entry to convert to a dictionary.</param>
         public static Dictionary<RedisValue, RedisValue> ToDictionary(this HashEntry[] hash)
@@ -47,7 +47,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Create a dictionary from an array of SortedSetEntry values 
+        /// Create a dictionary from an array of SortedSetEntry values.
         /// </summary>
         /// <param name="sortedSet">The set entries to convert to a dictionary.</param>
         public static Dictionary<string, double> ToStringDictionary(this SortedSetEntry[] sortedSet)
@@ -63,7 +63,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Create a dictionary from an array of SortedSetEntry values 
+        /// Create a dictionary from an array of SortedSetEntry values.
         /// </summary>
         /// <param name="sortedSet">The set entries to convert to a dictionary.</param>
         public static Dictionary<RedisValue, double> ToDictionary(this SortedSetEntry[] sortedSet)
@@ -79,7 +79,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Create a dictionary from an array of key/value pairs
+        /// Create a dictionary from an array of key/value pairs.
         /// </summary>
         /// <param name="pairs">The pairs to convert to a dictionary.</param>
         public static Dictionary<string, string> ToStringDictionary(this KeyValuePair<RedisKey, RedisValue>[] pairs)
@@ -95,7 +95,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Create a dictionary from an array of key/value pairs
+        /// Create a dictionary from an array of key/value pairs.
         /// </summary>
         /// <param name="pairs">The pairs to convert to a dictionary.</param>
         public static Dictionary<RedisKey, RedisValue> ToDictionary(this KeyValuePair<RedisKey, RedisValue>[] pairs)
@@ -111,7 +111,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Create a dictionary from an array of string pairs
+        /// Create a dictionary from an array of string pairs.
         /// </summary>
         /// <param name="pairs">The pairs to convert to a dictionary.</param>
         public static Dictionary<string, string> ToDictionary(this KeyValuePair<string, string>[] pairs)
@@ -129,7 +129,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Create an array of RedisValues from an array of strings.
         /// </summary>
-        /// <param name="values">The string array to convert to RedisValues</param>
+        /// <param name="values">The string array to convert to RedisValues.</param>
         public static RedisValue[] ToRedisValueArray(this string[] values)
         {
             if (values == null) return null;
@@ -138,7 +138,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Create an array of strings from an array of values
+        /// Create an array of strings from an array of values.
         /// </summary>
         /// <param name="values">The values to convert to an array.</param>
         public static string[] ToStringArray(this RedisValue[] values)
@@ -167,10 +167,10 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Represent a byte-Lease as a read-only Stream
+        /// Represent a byte-Lease as a read-only Stream.
         /// </summary>
-        /// <param name="bytes">The lease upon which to base the stream</param>
-        /// <param name="ownsLease">If true, disposing the stream also disposes the lease</param>
+        /// <param name="bytes">The lease upon which to base the stream.</param>
+        /// <param name="ownsLease">If true, disposing the stream also disposes the lease.</param>
         public static Stream AsStream(this Lease<byte> bytes, bool ownsLease = true)
         {
             if (bytes == null) return null; // GIGO
@@ -180,10 +180,10 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Decode a byte-Lease as a String, optionally specifying the encoding (UTF-8 if omitted)
+        /// Decode a byte-Lease as a String, optionally specifying the encoding (UTF-8 if omitted).
         /// </summary>
-        /// <param name="bytes">The bytes to decode</param>
-        /// <param name="encoding">The encoding to use</param>
+        /// <param name="bytes">The bytes to decode.</param>
+        /// <param name="encoding">The encoding to use.</param>
         public static string DecodeString(this Lease<byte> bytes, Encoding encoding = null)
         {
             if (bytes == null) return null;
@@ -194,10 +194,10 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Decode a byte-Lease as a String, optionally specifying the encoding (UTF-8 if omitted)
+        /// Decode a byte-Lease as a String, optionally specifying the encoding (UTF-8 if omitted).
         /// </summary>
-        /// <param name="bytes">The bytes to decode</param>
-        /// <param name="encoding">The encoding to use</param>
+        /// <param name="bytes">The bytes to decode.</param>
+        /// <param name="encoding">The encoding to use.</param>
         public static Lease<char> DecodeLease(this Lease<byte> bytes, Encoding encoding = null)
         {
             if (bytes == null) return null;

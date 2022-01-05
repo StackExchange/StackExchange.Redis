@@ -6,7 +6,7 @@ using System.Collections.Generic;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// Describes a pre-condition used in a redis transaction
+    /// Describes a pre-condition used in a redis transaction.
     /// </summary>
     public abstract class Condition
     {
@@ -69,13 +69,13 @@ namespace StackExchange.Redis
         public static Condition KeyExists(RedisKey key) => new ExistsCondition(key, RedisType.None, RedisValue.Null, true);
 
         /// <summary>
-        /// Enforces that the given key must not exist
+        /// Enforces that the given key must not exist.
         /// </summary>
         /// <param name="key">The key that must not exist.</param>
         public static Condition KeyNotExists(RedisKey key) => new ExistsCondition(key, RedisType.None, RedisValue.Null, false);
 
         /// <summary>
-        /// Enforces that the given list index must have the specified value 
+        /// Enforces that the given list index must have the specified value.
         /// </summary>
         /// <param name="key">The key of the list to check.</param>
         /// <param name="index">The position in the list to check.</param>
@@ -83,14 +83,14 @@ namespace StackExchange.Redis
         public static Condition ListIndexEqual(RedisKey key, long index, RedisValue value) => new ListCondition(key, index, true, value);
 
         /// <summary>
-        /// Enforces that the given list index must exist
+        /// Enforces that the given list index must exist.
         /// </summary>
         /// <param name="key">The key of the list to check.</param>
         /// <param name="index">The position in the list that must exist.</param>
         public static Condition ListIndexExists(RedisKey key, long index) => new ListCondition(key, index, true, null);
 
         /// <summary>
-        /// Enforces that the given list index must not have the specified value 
+        /// Enforces that the given list index must not have the specified value.
         /// </summary>
         /// <param name="key">The key of the list to check.</param>
         /// <param name="index">The position in the list to check.</param>
@@ -98,14 +98,14 @@ namespace StackExchange.Redis
         public static Condition ListIndexNotEqual(RedisKey key, long index, RedisValue value) => new ListCondition(key, index, false, value);
 
         /// <summary>
-        /// Enforces that the given list index must not exist
+        /// Enforces that the given list index must not exist.
         /// </summary>
         /// <param name="key">The key of the list to check.</param>
         /// <param name="index">The position in the list that must not exist.</param>
         public static Condition ListIndexNotExists(RedisKey key, long index) => new ListCondition(key, index, false, null);
 
         /// <summary>
-        /// Enforces that the given key must have the specified value
+        /// Enforces that the given key must have the specified value.
         /// </summary>
         /// <param name="key">The key to check.</param>
         /// <param name="value">The value that must match.</param>
@@ -116,7 +116,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Enforces that the given key must not have the specified value
+        /// Enforces that the given key must not have the specified value.
         /// </summary>
         /// <param name="key">The key to check.</param>
         /// <param name="value">The value that must not match.</param>
@@ -127,112 +127,112 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Enforces that the given hash length is a certain value
+        /// Enforces that the given hash length is a certain value.
         /// </summary>
         /// <param name="key">The key of the hash to check.</param>
         /// <param name="length">The length the hash must have.</param>
         public static Condition HashLengthEqual(RedisKey key, long length) => new LengthCondition(key, RedisType.Hash, 0, length);
 
         /// <summary>
-        /// Enforces that the given hash length is less than a certain value
+        /// Enforces that the given hash length is less than a certain value.
         /// </summary>
         /// <param name="key">The key of the hash to check.</param>
         /// <param name="length">The length the hash must be less than.</param>
         public static Condition HashLengthLessThan(RedisKey key, long length) => new LengthCondition(key, RedisType.Hash, 1, length);
 
         /// <summary>
-        /// Enforces that the given hash length is greater than a certain value
+        /// Enforces that the given hash length is greater than a certain value.
         /// </summary>
         /// <param name="key">The key of the hash to check.</param>
         /// <param name="length">The length the hash must be greater than.</param>
         public static Condition HashLengthGreaterThan(RedisKey key, long length) => new LengthCondition(key, RedisType.Hash, -1, length);
 
         /// <summary>
-        /// Enforces that the given string length is a certain value
+        /// Enforces that the given string length is a certain value.
         /// </summary>
         /// <param name="key">The key of the string to check.</param>
         /// <param name="length">The length the string must be equal to.</param>
         public static Condition StringLengthEqual(RedisKey key, long length) => new LengthCondition(key, RedisType.String, 0, length);
 
         /// <summary>
-        /// Enforces that the given string length is less than a certain value
+        /// Enforces that the given string length is less than a certain value.
         /// </summary>
         /// <param name="key">The key of the string to check.</param>
         /// <param name="length">The length the string must be less than.</param>
         public static Condition StringLengthLessThan(RedisKey key, long length) => new LengthCondition(key, RedisType.String, 1, length);
 
         /// <summary>
-        /// Enforces that the given string length is greater than a certain value
+        /// Enforces that the given string length is greater than a certain value.
         /// </summary>
         /// <param name="key">The key of the string to check.</param>
         /// <param name="length">The length the string must be greater than.</param>
         public static Condition StringLengthGreaterThan(RedisKey key, long length) => new LengthCondition(key, RedisType.String, -1, length);
 
         /// <summary>
-        /// Enforces that the given list length is a certain value
+        /// Enforces that the given list length is a certain value.
         /// </summary>
         /// <param name="key">The key of the list to check.</param>
         /// <param name="length">The length the list must be equal to.</param>
         public static Condition ListLengthEqual(RedisKey key, long length) => new LengthCondition(key, RedisType.List, 0, length);
 
         /// <summary>
-        /// Enforces that the given list length is less than a certain value
+        /// Enforces that the given list length is less than a certain value.
         /// </summary>
         /// <param name="key">The key of the list to check.</param>
         /// <param name="length">The length the list must be less than.</param>
         public static Condition ListLengthLessThan(RedisKey key, long length) => new LengthCondition(key, RedisType.List, 1, length);
 
         /// <summary>
-        /// Enforces that the given list length is greater than a certain value
+        /// Enforces that the given list length is greater than a certain value.
         /// </summary>
         /// <param name="key">The key of the list to check.</param>
         /// <param name="length">The length the list must be greater than.</param>
         public static Condition ListLengthGreaterThan(RedisKey key, long length) => new LengthCondition(key, RedisType.List, -1, length);
 
         /// <summary>
-        /// Enforces that the given set cardinality is a certain value
+        /// Enforces that the given set cardinality is a certain value.
         /// </summary>
         /// <param name="key">The key of the set to check.</param>
         /// <param name="length">The length the set must be equal to.</param>
         public static Condition SetLengthEqual(RedisKey key, long length) => new LengthCondition(key, RedisType.Set, 0, length);
 
         /// <summary>
-        /// Enforces that the given set cardinality is less than a certain value
+        /// Enforces that the given set cardinality is less than a certain value.
         /// </summary>
         /// <param name="key">The key of the set to check.</param>
         /// <param name="length">The length the set must be less than.</param>
         public static Condition SetLengthLessThan(RedisKey key, long length) => new LengthCondition(key, RedisType.Set, 1, length);
 
         /// <summary>
-        /// Enforces that the given set cardinality is greater than a certain value
+        /// Enforces that the given set cardinality is greater than a certain value.
         /// </summary>
         /// <param name="key">The key of the set to check.</param>
         /// <param name="length">The length the set must be greater than.</param>
         public static Condition SetLengthGreaterThan(RedisKey key, long length) => new LengthCondition(key, RedisType.Set, -1, length);
 
         /// <summary>
-        /// Enforces that the given set contains a certain member
+        /// Enforces that the given set contains a certain member.
         /// </summary>
         /// <param name="key">The key of the set to check.</param>
         /// <param name="member">The member the set must contain.</param>
         public static Condition SetContains(RedisKey key, RedisValue member) => new ExistsCondition(key, RedisType.Set, member, true);
 
         /// <summary>
-        /// Enforces that the given set does not contain a certain member
+        /// Enforces that the given set does not contain a certain member.
         /// </summary>
         /// <param name="key">The key of the set to check.</param>
         /// <param name="member">The member the set must not contain.</param>
         public static Condition SetNotContains(RedisKey key, RedisValue member) => new ExistsCondition(key, RedisType.Set, member, false);
 
         /// <summary>
-        /// Enforces that the given sorted set cardinality is a certain value
+        /// Enforces that the given sorted set cardinality is a certain value.
         /// </summary>
         /// <param name="key">The key of the sorted set to check.</param>
         /// <param name="length">The length the sorted set must be equal to.</param>
         public static Condition SortedSetLengthEqual(RedisKey key, long length) => new LengthCondition(key, RedisType.SortedSet, 0, length);
 
         /// <summary>
-        /// Enforces that the given sorted set contains a certain number of members with scores in the given range
+        /// Enforces that the given sorted set contains a certain number of members with scores in the given range.
         /// </summary>
         /// <param name="key">The key of the sorted set to check.</param>
         /// <param name="length">The length the sorted set must be equal to.</param>
@@ -248,7 +248,7 @@ namespace StackExchange.Redis
         public static Condition SortedSetLengthLessThan(RedisKey key, long length) => new LengthCondition(key, RedisType.SortedSet, 1, length);
 
         /// <summary>
-        /// Enforces that the given sorted set contains less than a certain number of members with scores in the given range
+        /// Enforces that the given sorted set contains less than a certain number of members with scores in the given range.
         /// </summary>
         /// <param name="key">The key of the sorted set to check.</param>
         /// <param name="length">The length the sorted set must be equal to.</param>
@@ -257,14 +257,14 @@ namespace StackExchange.Redis
         public static Condition SortedSetLengthLessThan(RedisKey key, long length, double min = double.NegativeInfinity, double max = double.PositiveInfinity) => new SortedSetRangeLengthCondition(key, min, max, 1, length);
 
         /// <summary>
-        /// Enforces that the given sorted set cardinality is greater than a certain value
+        /// Enforces that the given sorted set cardinality is greater than a certain value.
         /// </summary>
         /// <param name="key">The key of the sorted set to check.</param>
         /// <param name="length">The length the sorted set must be greater than.</param>
         public static Condition SortedSetLengthGreaterThan(RedisKey key, long length) => new LengthCondition(key, RedisType.SortedSet, -1, length);
 
         /// <summary>
-        /// Enforces that the given sorted set contains more than a certain number of members with scores in the given range
+        /// Enforces that the given sorted set contains more than a certain number of members with scores in the given range.
         /// </summary>
         /// <param name="key">The key of the sorted set to check.</param>
         /// <param name="length">The length the sorted set must be equal to.</param>
@@ -273,14 +273,14 @@ namespace StackExchange.Redis
         public static Condition SortedSetLengthGreaterThan(RedisKey key, long length, double min = double.NegativeInfinity, double max = double.PositiveInfinity) => new SortedSetRangeLengthCondition(key, min, max, -1, length);
 
         /// <summary>
-        /// Enforces that the given sorted set contains a certain member
+        /// Enforces that the given sorted set contains a certain member.
         /// </summary>
         /// <param name="key">The key of the sorted set to check.</param>
         /// <param name="member">The member the sorted set must contain.</param>
         public static Condition SortedSetContains(RedisKey key, RedisValue member) => new ExistsCondition(key, RedisType.SortedSet, member, true);
 
         /// <summary>
-        /// Enforces that the given sorted set does not contain a certain member
+        /// Enforces that the given sorted set does not contain a certain member.
         /// </summary>
         /// <param name="key">The key of the sorted set to check.</param>
         /// <param name="member">The member the sorted set must not contain.</param>
@@ -333,21 +333,21 @@ namespace StackExchange.Redis
         public static Condition SortedSetScoreNotExists(RedisKey key, RedisValue score, RedisValue count) => new SortedSetScoreCondition(key, score, false, count);
 
         /// <summary>
-        /// Enforces that the given stream length is a certain value
+        /// Enforces that the given stream length is a certain value.
         /// </summary>
         /// <param name="key">The key of the stream to check.</param>
         /// <param name="length">The length the stream must have.</param>
         public static Condition StreamLengthEqual(RedisKey key, long length) => new LengthCondition(key, RedisType.Stream, 0, length);
 
         /// <summary>
-        /// Enforces that the given stream length is less than a certain value
+        /// Enforces that the given stream length is less than a certain value.
         /// </summary>
         /// <param name="key">The key of the stream to check.</param>
         /// <param name="length">The length the stream must be less than.</param>
         public static Condition StreamLengthLessThan(RedisKey key, long length) => new LengthCondition(key, RedisType.Stream, 1, length);
 
         /// <summary>
-        /// Enforces that the given stream length is greater than a certain value
+        /// Enforces that the given stream length is greater than a certain value.
         /// </summary>
         /// <param name="key">The key of the stream to check.</param>
         /// <param name="length">The length the stream must be greater than.</param>

@@ -26,7 +26,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
         /// <para>
         ///     The following methods are not supported in a key space isolated database and
         ///     will throw an <see cref="NotSupportedException"/> when invoked:
-        /// </para>    
+        /// </para>
         /// <list type="bullet">
         ///     <item><see cref="IDatabaseAsync.KeyRandomAsync(CommandFlags)"/></item>
         ///     <item><see cref="IDatabase.KeyRandom(CommandFlags)"/></item>

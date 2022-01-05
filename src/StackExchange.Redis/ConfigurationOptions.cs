@@ -92,7 +92,6 @@ namespace StackExchange.Redis
                 WriteBuffer = "writeBuffer",
                 CheckCertificateRevocation = "checkCertificateRevocation";
 
-
             private static readonly Dictionary<string, string> normalizedOptions = new[]
             {
                 AbortOnConnectFail,
@@ -247,19 +246,12 @@ namespace StackExchange.Redis
         /// </summary>
         public CommandMap CommandMap
         {
-            get
+            get => commandMap ?? Proxy switch
             {
-                if (commandMap != null) return commandMap;
-                return Proxy switch
-                {
-                    Proxy.Twemproxy => CommandMap.Twemproxy,
-                    _ => CommandMap.Default,
-                };
-            }
-            set
-            {
-                commandMap = value ?? throw new ArgumentNullException(nameof(value));
-            }
+                Proxy.Twemproxy => CommandMap.Twemproxy,
+                _ => CommandMap.Default,
+            };
+            set => commandMap = value ?? throw new ArgumentNullException(nameof(value));
         }
 
         /// <summary>

@@ -70,7 +70,6 @@ namespace StackExchange.Redis
 
         internal static bool PreventThreadTheft => (s_featureFlags & FeatureFlags.PreventThreadTheft) != 0;
 
-
         private static TaskFactory _factory = null;
 
 #if DEBUG
@@ -1847,7 +1846,7 @@ namespace StackExchange.Redis
                                         case ServerType.Cluster:
                                             server.ClearUnselectable(UnselectableFlags.ServerType);
                                             if (server.IsReplica)
-                                            { 
+                                            {
                                                 server.ClearUnselectable(UnselectableFlags.RedundantMaster);
                                             }
                                             else
@@ -2005,7 +2004,6 @@ namespace StackExchange.Redis
                     {
                         serverEndpoint.UpdateNodeRelations(clusterConfig);
                     }
-                    
                 }
                 return clusterEndpoints;
             }
@@ -2476,7 +2474,6 @@ namespace StackExchange.Redis
 
             try
             {
-
                 // Run a switch to make sure we have update-to-date
                 // information about which master we should connect to
                 SwitchMaster(e.EndPoint, connection);

@@ -3,7 +3,7 @@
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// Represents a retry policy that performs retries, using a randomized exponential back off scheme to determine the interval between retries. 
+    /// Represents a retry policy that performs retries, using a randomized exponential back off scheme to determine the interval between retries.
     /// </summary>
     public class ExponentialRetry : IReconnectRetryPolicy
     {

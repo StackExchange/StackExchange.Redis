@@ -953,7 +953,6 @@ namespace StackExchange.Redis
                     for (int i = 0; i < eventNames.Length; i++)
                         arr[i + 1] = eventNames[i];
                     return Message.Create(-1, flags, RedisCommand.LATENCY, arr);
-
             }
         }
         public Task<long> LatencyResetAsync(string[] eventNames = null, CommandFlags flags = CommandFlags.None)

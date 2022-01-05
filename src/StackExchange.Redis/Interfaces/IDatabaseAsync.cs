@@ -2042,6 +2042,5 @@ namespace StackExchange.Redis
         /// <returns>The number of keys that were touched.</returns>
         /// <remarks>https://redis.io/commands/touch</remarks>
         Task<long> KeyTouchAsync(RedisKey[] keys, CommandFlags flags = CommandFlags.None);
-
     }
 }

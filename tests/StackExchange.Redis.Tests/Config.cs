@@ -495,7 +495,6 @@ namespace StackExchange.Redis.Tests
             Assert.Equal("flibble", ex.ParamName);
         }
 
-
         [Fact]
         public void NullApply()
         {

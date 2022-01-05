@@ -581,7 +581,7 @@ namespace StackExchange.Redis
                 connection.RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
             }
         }
-        
+
         internal void OnFullyEstablished(PhysicalConnection connection, string source)
         {
             try
@@ -598,7 +598,7 @@ namespace StackExchange.Redis
                         CompletePendingConnectionMonitors(source);
                     }
 
-                    Multiplexer.OnConnectionRestored(EndPoint, bridge.ConnectionType, connection?.ToString());                    
+                    Multiplexer.OnConnectionRestored(EndPoint, bridge.ConnectionType, connection?.ToString());
                 }
             }
             catch (Exception ex)
@@ -646,7 +646,6 @@ namespace StackExchange.Redis
         internal volatile int ConfigCheckSeconds;
         [ThreadStatic]
         private static Random r;
-
 
         // Forces frequent replication check starting from 1 second up to max ConfigCheckSeconds with an exponential increment
         internal void ForceExponentialBackoffReplicationCheck()
