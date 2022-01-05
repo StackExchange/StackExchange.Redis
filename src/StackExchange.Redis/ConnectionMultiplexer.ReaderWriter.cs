@@ -17,8 +17,6 @@ namespace StackExchange.Redis
         }
         partial void OnWriterCreated();
 
-        private static readonly Version SharedThreadpoolMinVersion = new(6, 0, 0);
-
         /// <summary>
         /// .NET 6.0+ has changes to sync-over-async stalls in the .NET primary thread pool
         /// If we're in that environment, by default remove the overhead of our own threadpool
