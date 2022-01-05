@@ -12,7 +12,7 @@ namespace StackExchange.Redis.Tests.Issues
     {
         public Issue1101(ITestOutputHelper output) : base(output) { }
 
-        static void AssertCounts(ISubscriber pubsub, in RedisChannel channel,
+        private static void AssertCounts(ISubscriber pubsub, in RedisChannel channel,
             bool has, int handlers, int queues)
         {
             var aHas = ((RedisSubscriber)pubsub).GetSubscriberCounts(channel, out var ah, out var aq);
@@ -78,7 +78,6 @@ namespace StackExchange.Redis.Tests.Issues
                 Assert.True(first.Completion.IsCompleted, "completed");
                 Assert.True(second.Completion.IsCompleted, "completed");
                 AssertCounts(pubsub, name, false, 0, 0);
-
 
                 subs = muxer.GetServer(muxer.GetEndPoints().Single()).SubscriptionSubscriberCount(name);
                 Assert.Equal(0, subs);

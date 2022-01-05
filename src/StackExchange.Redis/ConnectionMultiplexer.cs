@@ -70,7 +70,6 @@ namespace StackExchange.Redis
 
         internal static bool PreventThreadTheft => (s_featureFlags & FeatureFlags.PreventThreadTheft) != 0;
 
-
         private static TaskFactory _factory = null;
 
 #if DEBUG
@@ -1794,7 +1793,7 @@ namespace StackExchange.Redis
                         // After we've successfully connected (and authenticated), kickoff tie breakers if needed
                         if (useTieBreakers)
                         {
-                            log?.WriteLine($"Election: Gathering tie-breakers...");
+                            log?.WriteLine("Election: Gathering tie-breakers...");
                             for (int i = 0; i < available.Length; i++)
                             {
                                 var server = servers[i];
@@ -1868,7 +1867,7 @@ namespace StackExchange.Redis
                                         case ServerType.Cluster:
                                             server.ClearUnselectable(UnselectableFlags.ServerType);
                                             if (server.IsReplica)
-                                            { 
+                                            {
                                                 server.ClearUnselectable(UnselectableFlags.RedundantMaster);
                                             }
                                             else
@@ -2026,7 +2025,6 @@ namespace StackExchange.Redis
                     {
                         serverEndpoint.UpdateNodeRelations(clusterConfig);
                     }
-                    
                 }
                 return clusterEndpoints;
             }
@@ -2515,7 +2513,6 @@ namespace StackExchange.Redis
 
             try
             {
-
                 // Run a switch to make sure we have update-to-date
                 // information about which master we should connect to
                 SwitchMaster(e.EndPoint, connection);

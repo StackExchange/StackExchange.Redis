@@ -634,7 +634,6 @@ return timeTaken
             }
         }
 
-
         [Fact]
         public void LuaScriptWithKeys()
         {
@@ -900,7 +899,7 @@ return timeTaken
             {
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
                 var db = conn.GetDatabase();
-                var wrappedDb = DatabaseExtensions.WithKeyPrefix(db, "prefix-");
+                var wrappedDb = db.WithKeyPrefix("prefix-");
                 var key = Me();
                 db.KeyDelete(key, CommandFlags.FireAndForget);
 
@@ -926,7 +925,7 @@ return timeTaken
             {
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
                 var db = conn.GetDatabase();
-                var wrappedDb = DatabaseExtensions.WithKeyPrefix(db, "prefix-");
+                var wrappedDb = db.WithKeyPrefix("prefix-");
                 var key = Me();
                 await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
 
@@ -952,7 +951,7 @@ return timeTaken
             {
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
                 var db = conn.GetDatabase();
-                var wrappedDb = DatabaseExtensions.WithKeyPrefix(db, "prefix2-");
+                var wrappedDb = db.WithKeyPrefix("prefix2-");
                 var key = Me();
                 db.KeyDelete(key, CommandFlags.FireAndForget);
 
@@ -979,7 +978,7 @@ return timeTaken
             {
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
                 var db = conn.GetDatabase();
-                var wrappedDb = DatabaseExtensions.WithKeyPrefix(db, "prefix2-");
+                var wrappedDb = db.WithKeyPrefix("prefix2-");
                 var key = Me();
                 await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
 
@@ -1047,10 +1046,10 @@ return arr;
             {
                 var p = conn.GetDatabase().WithKeyPrefix("prefix/");
                 var args = new { k = (RedisKey)"key", s = "str", v = 123 };
-                LuaScript lua = LuaScript.Prepare(@"return {@k, @s, @v}");
+                LuaScript lua = LuaScript.Prepare("return {@k, @s, @v}");
                 var viaArgs = (RedisValue[])p.ScriptEvaluate(lua, args);
 
-                var viaArr = (RedisValue[])p.ScriptEvaluate(@"return {KEYS[1], ARGV[1], ARGV[2]}", new[] { args.k }, new RedisValue[] { args.s, args.v });
+                var viaArr = (RedisValue[])p.ScriptEvaluate("return {KEYS[1], ARGV[1], ARGV[2]}", new[] { args.k }, new RedisValue[] { args.s, args.v });
                 Assert.Equal(string.Join(",", viaArr), string.Join(",", viaArgs));
             }
         }
@@ -1060,7 +1059,7 @@ return arr;
         [Fact]
         public void RedisResultUnderstandsNullArrayNull() => TestNullArray(null);
 
-        static void TestNullArray(RedisResult value)
+        private static void TestNullArray(RedisResult value)
         {
             Assert.True(value == null || value.IsNull);
 
@@ -1081,7 +1080,7 @@ return arr;
         [Fact]
         public void RedisResultUnderstandsNullValue() => TestNullValue(RedisResult.Create(RedisValue.Null, ResultType.None));
 
-        static void TestNullValue(RedisResult value)
+        private static void TestNullValue(RedisResult value)
         {
             Assert.True(value == null || value.IsNull);
 

@@ -464,7 +464,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void ConfigObject_Issue1407_ToStringIncludesSslProtocols()
         {
-            var sslProtocols = SslProtocols.Tls12 | SslProtocols.Tls;
+            const SslProtocols sslProtocols = SslProtocols.Tls12 | SslProtocols.Tls;
             var sourceOptions = new ConfigurationOptions
             {
                 AbortOnConnectFail = false,
