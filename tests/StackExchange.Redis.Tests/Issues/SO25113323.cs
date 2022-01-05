@@ -23,7 +23,8 @@ namespace StackExchange.Redis.Tests.Issues
                 await Task.Delay(2000).ForAwait();
 
                 // When
-                var expiresOn = DateTime.UtcNow.AddSeconds(-2);
+                var serverTime = GetServer(conn).Time();
+                var expiresOn = serverTime.AddSeconds(-2);
 
                 var firstResult = cache.KeyExpire(key, expiresOn, CommandFlags.PreferMaster);
                 var secondResult = cache.KeyExpire(key, expiresOn, CommandFlags.PreferMaster);
