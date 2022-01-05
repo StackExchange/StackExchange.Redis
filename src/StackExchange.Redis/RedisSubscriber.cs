@@ -174,11 +174,10 @@ namespace StackExchange.Redis
 
         internal bool SubscriberConnected(in RedisChannel channel = default(RedisChannel))
         {
-            var server = GetSubscribedServer(channel);
-            if (server != null) return server.IsConnected;
+            // TODO: default(RedisKey) is incorrect here - should shard based on the channel in cluster
+            var server = GetSubscribedServer(channel) ?? SelectServer(RedisCommand.SUBSCRIBE, CommandFlags.DemandMaster, default(RedisKey));
 
-            server = SelectServer(RedisCommand.SUBSCRIBE, CommandFlags.DemandMaster, default(RedisKey));
-            return server?.IsConnected == true;
+            return server?.IsConnected == true && server.IsSubscriberConnected;
         }
 
         internal long ValidateSubscriptions()
@@ -228,6 +227,7 @@ namespace StackExchange.Redis
 
             public Task SubscribeToServer(ConnectionMultiplexer multiplexer, in RedisChannel channel, CommandFlags flags, object asyncState, bool internalCall)
             {
+                // TODO: default(RedisKey) is incorrect here - should shard based on the channel in cluster
                 var selected = multiplexer.SelectServer(RedisCommand.SUBSCRIBE, flags, default(RedisKey));
                 var bridge = selected?.GetBridge(ConnectionType.Subscription, true);
                 if (bridge == null) return null;
@@ -305,14 +305,13 @@ namespace StackExchange.Redis
 
             internal void Resubscribe(in RedisChannel channel, ServerEndPoint server)
             {
-                if (server != null && Interlocked.CompareExchange(ref owner, server, server) == server)
+                // Only re-subscribe to the original server
+                if (server != null && GetOwner() == server)
                 {
                     var cmd = channel.IsPatternBased ? RedisCommand.PSUBSCRIBE : RedisCommand.SUBSCRIBE;
                     var msg = Message.Create(-1, CommandFlags.FireAndForget, cmd, channel);
                     msg.SetInternalCall();
-#pragma warning disable CS0618
-                    server.WriteDirectFireAndForgetSync(msg, ResultProcessor.TrackSubscriptions);
-#pragma warning restore CS0618
+                    server.Multiplexer.ExecuteSyncImpl(msg, ResultProcessor.TrackSubscriptions, server);
                 }
             }
 
@@ -428,36 +427,24 @@ namespace StackExchange.Redis
 
         public override TimeSpan Ping(CommandFlags flags = CommandFlags.None)
         {
-            var msg = CreatePingMessage(flags, out var server);
-            return ExecuteSync(msg, ResultProcessor.ResponseTimer, server);
+            var msg = CreatePingMessage(flags);
+            return ExecuteSync(msg, ResultProcessor.ResponseTimer);
         }
 
         public override Task<TimeSpan> PingAsync(CommandFlags flags = CommandFlags.None)
         {
-            var msg = CreatePingMessage(flags, out var server);
-            return ExecuteAsync(msg, ResultProcessor.ResponseTimer, server);
+            var msg = CreatePingMessage(flags);
+            return ExecuteAsync(msg, ResultProcessor.ResponseTimer);
         }
 
-        private Message CreatePingMessage(CommandFlags flags, out ServerEndPoint server)
+        private Message CreatePingMessage(CommandFlags flags)
         {
-            bool usePing = false;
-            server = null;
-            if (multiplexer.CommandMap.IsAvailable(RedisCommand.PING))
-            {
-                try { usePing = GetFeatures(default, flags, out server).PingOnSubscriber; }
-                catch { }
-            }
-
-            if (usePing)
-            {
-                return ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.PING);
-            }
-            else
-            {
-                // can't use regular PING, but we can unsubscribe from something random that we weren't even subscribed to...
-                RedisValue channel = multiplexer.UniqueId;
-                return ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.UNSUBSCRIBE, channel);
-            }
+            // We're explicitly NOT using PING here because GetBridge() would send this over the interactive connection
+            // rather than the subscription connection we intend.
+            RedisValue channel = multiplexer.UniqueId;
+            var message = ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.UNSUBSCRIBE, channel);
+            message.SetInternalCall();
+            return message;
         }
 
         public long Publish(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None)

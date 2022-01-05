@@ -73,6 +73,7 @@ namespace StackExchange.Redis
         public bool HasDatabases => serverType == ServerType.Standalone;
 
         public bool IsConnected => interactive?.IsConnected == true;
+        public bool IsSubscriberConnected => subscription?.IsConnected == true;
 
         public bool IsConnecting => interactive?.IsConnecting == true;
 

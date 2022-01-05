@@ -1,11 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using StackExchange.Redis.Maintenance;
+using StackExchange.Redis.Profiling;
 using Xunit;
 using Xunit.Abstractions;
 // ReSharper disable AccessToModifiedClosure
@@ -746,8 +748,10 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task SubscriptionsSurviveConnectionFailureAsync()
         {
+            var session = new ProfilingSession();
             using (var muxer = Create(allowAdmin: true, shared: false, syncTimeout: 1000) as ConnectionMultiplexer)
             {
+                muxer.RegisterProfiler(() => session);
                 RedisChannel channel = Me();
                 var sub = muxer.GetSubscriber();
                 int counter = 0;
@@ -755,6 +759,15 @@ namespace StackExchange.Redis.Tests
                 {
                     Interlocked.Increment(ref counter);
                 }).ConfigureAwait(false);
+
+                var profile1 = session.FinishProfiling();
+                foreach (var command in profile1)
+                {
+                    Log($"{command.EndPoint}: {command}");
+                }
+                // We shouldn't see the initial connection here
+                Assert.Equal(0, profile1.Count(p => p.Command == nameof(RedisCommand.SUBSCRIBE)));
+
                 Assert.Equal(1, muxer.GetSubscriptionsCount());
 
                 await Task.Delay(200).ConfigureAwait(false);
@@ -777,28 +790,58 @@ namespace StackExchange.Redis.Tests
 
                 // Make sure we fail all the way
                 muxer.AllowConnect = false;
+                Log("Failing connection");
                 // Fail all connections
                 server.SimulateConnectionFailure(SimulatedFailureType.All);
                 // Trigger failure
                 Assert.Throws<RedisTimeoutException>(() => sub.Ping());
-                Assert.False(server.IsConnected);
+                Assert.False(sub.IsConnected(channel));
 
                 // Now reconnect...
                 muxer.AllowConnect = true;
+                Log("Waiting on reconnect");
                 // Wait until we're reconnected
-                await UntilCondition(TimeSpan.FromSeconds(5), () => server.IsConnected);
+                await UntilCondition(TimeSpan.FromSeconds(10), () => sub.IsConnected(channel));
+                Log("Reconnected");
+                // Ensure we're reconnected
+                Assert.True(sub.IsConnected(channel));
+
                 // And time to resubscribe...
-                await Task.Delay(200).ConfigureAwait(false);
+                await Task.Delay(1000).ConfigureAwait(false);
+
+                // Ensure we've sent the subscribe command after reconnecting
+                var profile2 = session.FinishProfiling();
+                foreach (var command in profile2)
+                {
+                    Log($"{command.EndPoint}: {command}");
+                }
+                //Assert.Equal(1, profile2.Count(p => p.Command == nameof(RedisCommand.SUBSCRIBE)));
+
+                Log($"Issuing ping after reconnected");
                 sub.Ping();
                 Assert.Equal(1, muxer.GetSubscriptionsCount());
 
-                await sub.PublishAsync(channel, "abc").ConfigureAwait(false);
+                Log("Publishing");
+                var published = await sub.PublishAsync(channel, "abc").ConfigureAwait(false);
+
+                Log($"Published to {published} subscriber(s).");
+                Assert.Equal(1, published);
+
                 // Give it a few seconds to get our messages
+                Log("Waiting for 2 messages");
                 await UntilCondition(TimeSpan.FromSeconds(5), () => Thread.VolatileRead(ref counter) == 2);
 
                 var counter2 = Thread.VolatileRead(ref counter);
                 Log($"Expecting 2 messsages, got {counter2}");
                 Assert.Equal(2, counter2);
+
+                // Log all commands at the end
+                Log("All commands since connecting:");
+                var profile3 = session.FinishProfiling();
+                foreach (var command in profile3)
+                {
+                    Log($"{command.EndPoint}: {command}");
+                }
             }
         }
     }
