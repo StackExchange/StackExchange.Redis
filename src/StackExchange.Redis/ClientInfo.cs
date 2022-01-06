@@ -47,6 +47,9 @@ namespace StackExchange.Redis
         /// S: the client is a normal replica server
         /// U: the client is connected via a Unix domain socket
         /// x: the client is in a MULTI/EXEC context
+        /// t: the client enabled keys tracking in order to perform client side caching
+        /// R: the client tracking target client is invalid
+        /// B: the client enabled broadcast tracking mode
         /// </summary>
         public string FlagsRaw { get; private set; }
 
@@ -172,7 +175,11 @@ namespace StackExchange.Redis
                                 AddFlag(ref flags, value, ClientFlags.Unblocked, 'u');
                                 AddFlag(ref flags, value, ClientFlags.UnixDomainSocket, 'U');
                                 AddFlag(ref flags, value, ClientFlags.Transaction, 'x');
-                                
+
+                                AddFlag(ref flags, value, ClientFlags.KeysTracking, 't');
+                                AddFlag(ref flags, value, ClientFlags.TrackingTargetInvalid, 'R');
+                                AddFlag(ref flags, value, ClientFlags.BroadcastTracking, 'B');
+
                                 client.Flags = flags;
                                 break;
                             case "id": client.Id = Format.ParseInt64(value); break;
