@@ -4,7 +4,7 @@ namespace StackExchange.Redis
 {
     /// <summary>
     /// Represents the information known about long-running commands
-    /// </summary>    
+    /// </summary>
     public sealed class CommandTrace
     {
         internal static readonly ResultProcessor<CommandTrace[]> Processor = new CommandTraceProcessor();
@@ -50,7 +50,7 @@ namespace StackExchange.Redis
 
             const string BaseUrl = "https://redis.io/commands/";
 
-            string encoded0 = Uri.EscapeUriString(((string)Arguments[0]).ToLowerInvariant());
+            string encoded0 = Uri.EscapeDataString(((string)Arguments[0]).ToLowerInvariant());
 
             if (Arguments.Length > 1)
             {
@@ -62,7 +62,7 @@ namespace StackExchange.Redis
                     case "config":
                     case "debug":
                     case "pubsub":
-                        string encoded1 = Uri.EscapeUriString(((string)Arguments[1]).ToLowerInvariant());
+                        string encoded1 = Uri.EscapeDataString(((string)Arguments[1]).ToLowerInvariant());
                         return BaseUrl + encoded0 + "-" + encoded1;
                 }
             }

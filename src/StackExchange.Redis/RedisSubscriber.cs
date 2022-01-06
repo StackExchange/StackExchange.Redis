@@ -225,6 +225,7 @@ namespace StackExchange.Redis
                 return _handlers == null & _queues == null;
             }
 
+            [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "RCS1210:Return completed task instead of returning null.", Justification = "Intentional for efficient success check")]
             public Task SubscribeToServer(ConnectionMultiplexer multiplexer, in RedisChannel channel, CommandFlags flags, object asyncState, bool internalCall)
             {
                 // TODO: default(RedisKey) is incorrect here - should shard based on the channel in cluster
@@ -253,6 +254,7 @@ namespace StackExchange.Redis
                 }
             }
 
+            [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "RCS1210:Return completed task instead of returning null.", Justification = "Intentional for efficient success check")]
             public Task UnsubscribeFromServer(in RedisChannel channel, CommandFlags flags, object asyncState, bool internalCall)
             {
                 var oldOwner = Interlocked.Exchange(ref owner, null);

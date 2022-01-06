@@ -7,7 +7,6 @@ namespace StackExchange.Redis.Tests
     [Collection(SharedConnectionFixture.Key)]
     public class Latency : TestBase
     {
-
         public Latency(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
 
         [Fact]

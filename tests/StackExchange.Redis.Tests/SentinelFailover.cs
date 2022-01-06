@@ -55,7 +55,7 @@ namespace StackExchange.Redis.Tests
             await WaitForReplicationAsync(servers.First()).ForAwait();
             value = await db.StringGetAsync(key, CommandFlags.DemandReplica);
             Assert.Equal(expected, value);
- 
+
             Log("Waiting for ready pre-failover...");
             await WaitForReadyAsync();
 

@@ -84,7 +84,6 @@ namespace StackExchange.Redis.Tests
                     count++;
                 }
                 Assert.Equal(200, count);
-
             }
         }
 

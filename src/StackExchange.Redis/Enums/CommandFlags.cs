@@ -37,8 +37,6 @@ namespace StackExchange.Redis
         /// </summary>
         DemandMaster = 4,
 
-
-
         /// <summary>
         /// This operation should be performed on the replica if it is available, but will be performed on
         /// a master if no replicas are available. Suitable for read operations only.

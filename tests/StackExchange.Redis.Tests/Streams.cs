@@ -1794,7 +1794,6 @@ namespace StackExchange.Redis.Tests
 
         private RedisKey GetUniqueKey(string type) => $"{type}_stream_{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
 
-
         [Fact]
         public async Task StreamReadIndexerUsage()
         {
@@ -1821,6 +1820,5 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal("test", (string)obj.name);
             }
         }
-
     }
 }

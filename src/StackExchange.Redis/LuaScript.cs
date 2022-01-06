@@ -12,7 +12,7 @@ namespace StackExchange.Redis
     /// Public fields and properties of the passed in object are treated as parameters.
     /// </para>
     /// <para>
-    /// Parameters of type RedisKey are sent to Redis as KEY (https://redis.io/commands/eval) in addition to arguments, 
+    /// Parameters of type RedisKey are sent to Redis as KEY (https://redis.io/commands/eval) in addition to arguments,
     /// so as to play nicely with Redis Cluster.
     /// </para>
     /// <para>All members of this class are thread safe.</para>
@@ -218,7 +218,7 @@ namespace StackExchange.Redis
     /// Public fields and properties of the passed in object are treated as parameters.
     /// </para>
     /// <para>
-    /// Parameters of type RedisKey are sent to Redis as KEY (https://redis.io/commands/eval) in addition to arguments, 
+    /// Parameters of type RedisKey are sent to Redis as KEY (https://redis.io/commands/eval) in addition to arguments,
     /// so as to play nicely with Redis Cluster.
     /// </para>
     /// <para>All members of this class are thread safe.</para>

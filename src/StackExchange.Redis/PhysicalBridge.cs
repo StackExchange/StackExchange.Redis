@@ -306,6 +306,7 @@ namespace StackExchange.Redis
                 {
                     try
                     {
+                        // Treat these commands as background/handshake and do not allow queueing to backlog
                         if ((await TryWriteAsync(next.Message, next.IsReplica).ForAwait()) != WriteResult.Success)
                         {
                             next.Abort();
@@ -357,7 +358,7 @@ namespace StackExchange.Redis
             public PhysicalConnection.ConnectionStatus Connection { get; init; }
 
             /// <summary>
-            /// The default bridge stats, notable *not* the same as <code>default</code> since initializers don't run.
+            /// The default bridge stats, notable *not* the same as <c>default</c> since initializers don't run.
             /// </summary>
             public static BridgeStatus Zero { get; } = new() { Connection = PhysicalConnection.ConnectionStatus.Zero };
         }
@@ -816,7 +817,6 @@ namespace StackExchange.Redis
                 UnmarkActiveMessage(message);
                 token.Dispose();
             }
-
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -1117,7 +1117,6 @@ namespace StackExchange.Redis
             LockToken token = default;
             try
             {
-
                 // try to acquire it synchronously
                 // note: timeout is specified in mutex-constructor
                 token = _singleWriterMutex.TryWait(options: WaitOptions.NoDelay);
@@ -1152,7 +1151,7 @@ namespace StackExchange.Redis
 
                     result = flush.Result; // we know it was completed, this is fine
                 }
-                
+
                 physical.SetIdle();
 
                 return new ValueTask<WriteResult>(result);
@@ -1178,7 +1177,6 @@ namespace StackExchange.Redis
 #if DEBUG
         private void RecordLockDuration(int lockTaken)
         {
-
             var lockDuration = unchecked(Environment.TickCount - lockTaken);
             if (lockDuration > _maxLockDuration) _maxLockDuration = lockDuration;
         }
@@ -1201,7 +1199,7 @@ namespace StackExchange.Redis
                     {
                         result = await physical.FlushAsync(false).ForAwait();
                     }
-                    
+
                     physical.SetIdle();
 
 #if DEBUG
