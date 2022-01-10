@@ -14,7 +14,7 @@ namespace StackExchange.Redis.Tests
 {
     public class Config : TestBase
     {
-        public Version DefaultVersion = new (2, 8, 0);
+        public Version DefaultVersion = new (3, 0, 0);
         public Version DefaultAzureVersion = new (4, 0, 0);
 
         public Config(ITestOutputHelper output) : base(output) { }
