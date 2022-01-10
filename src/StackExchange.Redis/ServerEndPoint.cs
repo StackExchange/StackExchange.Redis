@@ -74,6 +74,8 @@ namespace StackExchange.Redis
 
         public bool IsConnected => interactive?.IsConnected == true;
 
+        public bool IsSubscriberConnected => subscription?.IsConnected == true;
+
         public bool IsConnecting => interactive?.IsConnecting == true;
 
         private readonly List<TaskCompletionSource<string>> _pendingConnectionMonitors = new List<TaskCompletionSource<string>>();
@@ -92,7 +94,7 @@ namespace StackExchange.Redis
                 }
                 if (sendTracerIfConnected)
                 {
-                    await SendTracer(log).ForAwait();
+                    await SendTracerAsync(log).ForAwait();
                 }
                 log?.WriteLine($"{Format.ToString(this)}: OnConnectedAsync already connected end");
                 return "Already connected";
@@ -686,7 +688,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal Task<T> WriteDirectAsync<T>(Message message, ResultProcessor<T> processor, object asyncState = null, PhysicalBridge bridge = null)
+        internal Task<T> WriteDirectAsync<T>(Message message, ResultProcessor<T> processor, PhysicalBridge bridge = null)
         {
             static async Task<T> Awaited(ServerEndPoint @this, Message message, ValueTask<WriteResult> write, TaskCompletionSource<T> tcs)
             {
@@ -699,7 +701,7 @@ namespace StackExchange.Redis
                 return await tcs.Task.ForAwait();
             }
 
-            var source = TaskResultBox<T>.Create(out var tcs, asyncState);
+            var source = TaskResultBox<T>.Create(out var tcs, null);
             message.SetSource(processor, source);
             if (bridge == null) bridge = GetBridge(message.Command);
 
@@ -743,7 +745,7 @@ namespace StackExchange.Redis
             subscription?.ReportNextFailure();
         }
 
-        internal Task<bool> SendTracer(LogProxy log = null)
+        internal Task<bool> SendTracerAsync(LogProxy log = null)
         {
             var msg = GetTracerMessage(false);
             msg = LoggingMessage.Create(log, msg);
@@ -783,6 +785,9 @@ namespace StackExchange.Redis
             return sb.ToString();
         }
 
+        /// <summary>
+        /// Write the message directly to the pipe or fail...will not queue.
+        /// </summary>
         internal ValueTask WriteDirectOrQueueFireAndForgetAsync<T>(PhysicalConnection connection, Message message, ResultProcessor<T> processor)
         {
             static async ValueTask Awaited(ValueTask<WriteResult> l_result) => await l_result.ForAwait();
@@ -886,7 +891,7 @@ namespace StackExchange.Redis
             log?.WriteLine($"{Format.ToString(this)}: Sending critical tracer (handshake): {tracer.CommandAndKey}");
             await WriteDirectOrQueueFireAndForgetAsync(connection, tracer, ResultProcessor.EstablishConnection).ForAwait();
 
-            // note: this **must** be the last thing on the subscription handshake, because after this
+            // Note: this **must** be the last thing on the subscription handshake, because after this
             // we will be in subscriber mode: regular commands cannot be sent
             if (connType == ConnectionType.Subscription)
             {
@@ -894,6 +899,7 @@ namespace StackExchange.Redis
                 if (configChannel != null)
                 {
                     msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.SUBSCRIBE, (RedisChannel)configChannel);
+                    // Note: this is NOT internal, we want it to queue in a backlog for sending when ready if necessary
                     await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.TrackSubscriptions).ForAwait();
                 }
             }
