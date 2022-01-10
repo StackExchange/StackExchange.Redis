@@ -99,22 +99,31 @@ namespace StackExchange.Redis.Tests
             config.AbortOnConnectFail = true;
             config.KeepAlive = 10;
             config.SyncTimeout = 1000;
+            config.AsyncTimeout = 1000;
             config.ReconnectRetryPolicy = new ExponentialRetry(5000);
             config.AllowAdmin = true;
 
             int failCount = 0, restoreCount = 0;
 
-            using (var muxer = ConnectionMultiplexer.Connect(config))
+            using (var muxer = ConnectionMultiplexer.Connect(config, log: Writer))
             {
-                muxer.ConnectionFailed += delegate { Interlocked.Increment(ref failCount); };
-                muxer.ConnectionRestored += delegate { Interlocked.Increment(ref restoreCount); };
+                muxer.ConnectionFailed += (s, e) =>
+                {
+                    Interlocked.Increment(ref failCount);
+                    Log($"Connection Failed ({e.ConnectionType},{e.FailureType}): {e.Exception}");
+                };
+                muxer.ConnectionRestored += (s, e) =>
+                {
+                    Interlocked.Increment(ref restoreCount);
+                    Log($"Connection Failed ({e.ConnectionType},{e.FailureType}): {e.Exception}");
+                };
 
                 muxer.GetDatabase();
                 Assert.Equal(0, Volatile.Read(ref failCount));
                 Assert.Equal(0, Volatile.Read(ref restoreCount));
 
                 var server = muxer.GetServer(TestConfig.Current.MasterServerAndPort);
-                server.SimulateConnectionFailure(SimulatedFailureType.All);
+                server.SimulateConnectionFailure(SimulatedFailureType.InteractiveInbound | SimulatedFailureType.InteractiveOutbound);
 
                 await UntilCondition(TimeSpan.FromSeconds(10), () => Volatile.Read(ref failCount) + Volatile.Read(ref restoreCount) == 4);
                 // interactive+subscriber = 2

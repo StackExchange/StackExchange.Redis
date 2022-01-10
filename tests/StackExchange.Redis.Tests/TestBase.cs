@@ -119,6 +119,7 @@ namespace StackExchange.Redis.Tests
             Console.WriteLine("  GC LOH Mode: " + GCSettings.LargeObjectHeapCompactionMode);
             Console.WriteLine("  GC Latency Mode: " + GCSettings.LatencyMode);
         }
+
         internal static string Time() => DateTime.UtcNow.ToString("HH:mm:ss.ffff");
         protected void OnConnectionFailed(object sender, ConnectionFailedEventArgs e)
         {
@@ -223,13 +224,25 @@ namespace StackExchange.Redis.Tests
         }
 
         internal virtual IInternalConnectionMultiplexer Create(
-            string clientName = null, int? syncTimeout = null, bool? allowAdmin = null, int? keepAlive = null,
-            int? connectTimeout = null, string password = null, string tieBreaker = null, TextWriter log = null,
-            bool fail = true, string[] disabledCommands = null, string[] enabledCommands = null,
-            bool checkConnect = true, string failMessage = null,
-            string channelPrefix = null, Proxy? proxy = null,
-            string configuration = null, bool logTransactionData = true,
-            bool shared = true, int? defaultDatabase = null,
+            string clientName = null,
+            int? syncTimeout = null,
+            bool? allowAdmin = null,
+            int? keepAlive = null,
+            int? connectTimeout = null,
+            string password = null,
+            string tieBreaker = null,
+            TextWriter log = null,
+            bool fail = true,
+            string[] disabledCommands = null,
+            string[] enabledCommands = null,
+            bool checkConnect = true,
+            string failMessage = null,
+            string channelPrefix = null,
+            Proxy? proxy = null,
+            string configuration = null,
+            bool logTransactionData = true,
+            bool shared = true,
+            int? defaultDatabase = null,
             [CallerMemberName] string caller = null)
         {
             if (Output == null)
@@ -237,8 +250,20 @@ namespace StackExchange.Redis.Tests
                 Assert.True(false, "Failure: Be sure to call the TestBase constuctor like this: BasicOpsTests(ITestOutputHelper output) : base(output) { }");
             }
 
-            if (shared && _fixture != null && _fixture.IsEnabled && enabledCommands == null && disabledCommands == null && fail && channelPrefix == null && proxy == null
-                && configuration == null && password == null && tieBreaker == null && defaultDatabase == null && (allowAdmin == null || allowAdmin == true) && expectedFailCount == 0)
+            // Share a connection if instructed to and we can - many specifics mean no sharing
+            if (shared
+                && _fixture != null && _fixture.IsEnabled
+                && enabledCommands == null
+                && disabledCommands == null
+                && fail
+                && channelPrefix == null
+                && proxy == null
+                && configuration == null
+                && password == null
+                && tieBreaker == null
+                && defaultDatabase == null
+                && (allowAdmin == null || allowAdmin == true)
+                && expectedFailCount == 0)
             {
                 configuration = GetConfiguration();
                 if (configuration == _fixture.Configuration)
@@ -255,7 +280,8 @@ namespace StackExchange.Redis.Tests
                 checkConnect, failMessage,
                 channelPrefix, proxy,
                 configuration ?? GetConfiguration(),
-                logTransactionData, defaultDatabase, caller);
+                logTransactionData, defaultDatabase,
+                caller);
             muxer.InternalError += OnInternalError;
             muxer.ConnectionFailed += OnConnectionFailed;
             return muxer;
@@ -263,18 +289,28 @@ namespace StackExchange.Redis.Tests
 
         public static ConnectionMultiplexer CreateDefault(
             TextWriter output,
-            string clientName = null, int? syncTimeout = null, bool? allowAdmin = null, int? keepAlive = null,
-            int? connectTimeout = null, string password = null, string tieBreaker = null, TextWriter log = null,
-            bool fail = true, string[] disabledCommands = null, string[] enabledCommands = null,
-            bool checkConnect = true, string failMessage = null,
-            string channelPrefix = null, Proxy? proxy = null,
-            string configuration = null, bool logTransactionData = true,
+            string clientName = null,
+            int? syncTimeout = null,
+            bool? allowAdmin = null,
+            int? keepAlive = null,
+            int? connectTimeout = null,
+            string password = null,
+            string tieBreaker = null,
+            TextWriter log = null,
+            bool fail = true,
+            string[] disabledCommands = null,
+            string[] enabledCommands = null,
+            bool checkConnect = true,
+            string failMessage = null,
+            string channelPrefix = null,
+            Proxy? proxy = null,
+            string configuration = null,
+            bool logTransactionData = true,
             int? defaultDatabase = null,
-
             [CallerMemberName] string caller = null)
         {
             StringWriter localLog = null;
-            if(log == null)
+            if (log == null)
             {
                 log = localLog = new StringWriter();
             }
