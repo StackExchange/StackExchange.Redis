@@ -160,12 +160,12 @@ namespace StackExchange.Redis.Tests
                 if (abortOnConnect)
                 {
                     options.EndPoints.Add(TestConfig.Current.MasterServerAndPort);
-                    muxer = ConnectionMultiplexer.Connect(options);
+                    muxer = ConnectionMultiplexer.Connect(options, Writer);
                 }
                 else
                 {
                     options.EndPoints.Add($"doesnot.exist.{Guid.NewGuid():N}:6379");
-                    muxer = ConnectionMultiplexer.Connect(options);
+                    muxer = ConnectionMultiplexer.Connect(options, Writer);
                 }
 
                 using (muxer)
