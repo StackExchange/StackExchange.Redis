@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -166,12 +167,16 @@ namespace StackExchange.Redis.Tests
                 conn.KeyDelete(prefix + "1", CommandFlags.FireAndForget);
                 conn.KeyDelete(prefix + "2", CommandFlags.FireAndForget);
                 conn.KeyDelete(prefix + "3", CommandFlags.FireAndForget);
+                conn.KeyDelete(prefix + "4", CommandFlags.FireAndForget);
+                conn.KeyDelete(prefix + "5", CommandFlags.FireAndForget);
                 conn.StringSet(prefix + "1", "abc", flags: CommandFlags.FireAndForget);
 
                 var x0 = conn.StringSetAsync(prefix + "1", "def", when: When.NotExists);
                 var x1 = conn.StringSetAsync(prefix + "1", Encode("def"), when: When.NotExists);
                 var x2 = conn.StringSetAsync(prefix + "2", "def", when: When.NotExists);
                 var x3 = conn.StringSetAsync(prefix + "3", Encode("def"), when: When.NotExists);
+                var x4 = conn.StringSetAsync(prefix + "4", "def", expiry: TimeSpan.FromSeconds(4), when: When.NotExists);
+                var x5 = conn.StringSetAsync(prefix + "5", "def", expiry: TimeSpan.FromMilliseconds(4001), when: When.NotExists);
 
                 var s0 = conn.StringGetAsync(prefix + "1");
                 var s2 = conn.StringGetAsync(prefix + "2");
@@ -181,6 +186,8 @@ namespace StackExchange.Redis.Tests
                 Assert.False(await x1);
                 Assert.True(await x2);
                 Assert.True(await x3);
+                Assert.True(await x4);
+                Assert.True(await x5);
                 Assert.Equal("abc", await s0);
                 Assert.Equal("def", await s2);
                 Assert.Equal("def", await s3);
