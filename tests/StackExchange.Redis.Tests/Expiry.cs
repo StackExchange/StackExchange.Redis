@@ -64,9 +64,10 @@ namespace StackExchange.Redis.Tests
 
                 var now = utc ? DateTime.UtcNow : DateTime.Now;
                 var serverTime = GetServer(muxer).Time();
+                Log("Server time: {0}", serverTime);
                 var offset = DateTime.UtcNow - serverTime;
 
-                Log("Now: {0}", now);
+                Log("Now (local time): {0}", now);
                 conn.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
                 var a = conn.KeyTimeToLiveAsync(key);
                 conn.KeyExpire(key, now.AddHours(1), CommandFlags.FireAndForget);
@@ -84,7 +85,7 @@ namespace StackExchange.Redis.Tests
                 var time = await b;
 
                 // Adjust for server time offset, if any when checking expectations
-                time += offset;
+                time -= offset;
 
                 Assert.NotNull(time);
                 Log("Time: {0}, Expected: {1}-{2}", time, TimeSpan.FromMinutes(59), TimeSpan.FromMinutes(60));
