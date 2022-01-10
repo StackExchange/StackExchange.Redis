@@ -794,7 +794,7 @@ namespace StackExchange.Redis.Tests
                 // Fail all connections
                 server.SimulateConnectionFailure(SimulatedFailureType.All);
                 // Trigger failure
-                Assert.Throws<RedisTimeoutException>(() => sub.Ping());
+                Assert.Throws<RedisConnectionException>(() => sub.Ping());
                 Assert.False(sub.IsConnected(channel));
 
                 // Now reconnect...

@@ -312,7 +312,7 @@ namespace StackExchange.Redis
             // Add server data, if we have it
             if (server != null && message != null)
             {
-                var bs = server.GetBridgeStatus(message.Command);
+                var bs = server.GetBridgeStatus(message.IsForSubscriptionBridge ? ConnectionType.Subscription: ConnectionType.Interactive);
 
                 switch (bs.Connection.ReadStatus)
                 {
@@ -338,7 +338,7 @@ namespace StackExchange.Redis
 
                 if (multiplexer.StormLogThreshold >= 0 && bs.Connection.MessagesSentAwaitingResponse >= multiplexer.StormLogThreshold && Interlocked.CompareExchange(ref multiplexer.haveStormLog, 1, 0) == 0)
                 {
-                    var log = server.GetStormLog(message.Command);
+                    var log = server.GetStormLog(message);
                     if (string.IsNullOrWhiteSpace(log)) Interlocked.Exchange(ref multiplexer.haveStormLog, 0);
                     else Interlocked.Exchange(ref multiplexer.stormLogSnapshot, log);
                 }

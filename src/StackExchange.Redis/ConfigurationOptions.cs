@@ -280,7 +280,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// The server version to assume
         /// </summary>
-        public Version DefaultVersion { get { return defaultVersion ?? (IsAzureEndpoint() ? RedisFeatures.v4_0_0 : RedisFeatures.v2_8_0); } set { defaultVersion = value; } }
+        public Version DefaultVersion { get { return defaultVersion ?? (IsAzureEndpoint() ? RedisFeatures.v4_0_0 : RedisFeatures.v3_0_0); } set { defaultVersion = value; } }
 
         /// <summary>
         /// The endpoints defined for this configuration

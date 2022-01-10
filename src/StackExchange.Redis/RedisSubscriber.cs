@@ -441,12 +441,27 @@ namespace StackExchange.Redis
 
         private Message CreatePingMessage(CommandFlags flags)
         {
-            // We're explicitly NOT using PING here because GetBridge() would send this over the interactive connection
-            // rather than the subscription connection we intend.
-            RedisValue channel = multiplexer.UniqueId;
-            var message = ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.UNSUBSCRIBE, channel);
-            message.SetInternalCall();
-            return message;
+            bool usePing = false;
+            if (multiplexer.CommandMap.IsAvailable(RedisCommand.PING))
+            {
+                try { usePing = GetFeatures(default, flags, out _).PingOnSubscriber; }
+                catch { }
+            }
+
+            Message msg;
+            if (usePing)
+            {
+                msg = ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.PING);
+            }
+            else
+            {
+                // can't use regular PING, but we can unsubscribe from something random that we weren't even subscribed to...
+                RedisValue channel = multiplexer.UniqueId;
+                msg = ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.UNSUBSCRIBE, channel);
+            }
+            // Ensure the ping is sent over the intended subscriver connection, which wouldn't happen in GetBridge() by default with PING;
+            msg.SetForSubscriptionBridge();
+            return msg;
         }
 
         public long Publish(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None)
