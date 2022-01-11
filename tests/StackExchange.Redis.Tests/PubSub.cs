@@ -57,7 +57,7 @@ namespace StackExchange.Redis.Tests
         [InlineData("Foo:", true, "f")]
         public async Task TestBasicPubSub(string channelPrefix, bool wildCard, string breaker)
         {
-            using (var muxer = Create(channelPrefix: channelPrefix))
+            using (var muxer = Create(channelPrefix: channelPrefix, log: Writer))
             {
                 var pub = GetAnyMaster(muxer);
                 var sub = muxer.GetSubscriber();
@@ -127,7 +127,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task TestBasicPubSubFireAndForget()
         {
-            using (var muxer = Create())
+            using (var muxer = Create(log: Writer))
             {
                 var pub = GetAnyMaster(muxer);
                 var sub = muxer.GetSubscriber();
