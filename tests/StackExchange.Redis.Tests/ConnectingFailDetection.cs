@@ -123,7 +123,7 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal(0, Volatile.Read(ref restoreCount));
 
                 var server = muxer.GetServer(TestConfig.Current.MasterServerAndPort);
-                server.SimulateConnectionFailure(SimulatedFailureType.InteractiveInbound | SimulatedFailureType.InteractiveOutbound);
+                server.SimulateConnectionFailure(SimulatedFailureType.All);
 
                 await UntilCondition(TimeSpan.FromSeconds(10), () => Volatile.Read(ref failCount) + Volatile.Read(ref restoreCount) == 4);
                 // interactive+subscriber = 2
