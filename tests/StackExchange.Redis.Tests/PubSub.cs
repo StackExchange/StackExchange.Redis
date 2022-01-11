@@ -157,6 +157,7 @@ namespace StackExchange.Redis.Tests
                 var count = sub.Publish(key, "def", CommandFlags.FireAndForget);
                 await PingAsync(muxer, pub, sub).ForAwait();
 
+                await UntilCondition(TimeSpan.FromSeconds(5), () => received.Count == 1);
                 lock (received)
                 {
                     Assert.Single(received);
@@ -184,9 +185,7 @@ namespace StackExchange.Redis.Tests
                 // way to prove that is to use TPL objects
                 var t1 = sub.PingAsync();
                 var t2 = pub.PingAsync();
-                await Task.Delay(100).ForAwait(); // especially useful when testing any-order mode
-
-                if (!Task.WaitAll(new[] { t1, t2 }, muxer.TimeoutMilliseconds * 2)) throw new TimeoutException();
+                await Task.WhenAll(t1, t2).ForAwait();
             }
         }
 
