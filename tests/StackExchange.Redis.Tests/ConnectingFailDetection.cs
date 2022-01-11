@@ -110,12 +110,12 @@ namespace StackExchange.Redis.Tests
                 muxer.ConnectionFailed += (s, e) =>
                 {
                     Interlocked.Increment(ref failCount);
-                    Log($"Connection Failed ({e.ConnectionType},{e.FailureType}): {e.Exception}");
+                    Log($"Connection Failed ({e.ConnectionType}, {e.FailureType}): {e.Exception}");
                 };
                 muxer.ConnectionRestored += (s, e) =>
                 {
                     Interlocked.Increment(ref restoreCount);
-                    Log($"Connection Restored ({e.ConnectionType},{e.FailureType}): {e.Exception}");
+                    Log($"Connection Restored ({e.ConnectionType}, {e.FailureType})");
                 };
 
                 muxer.GetDatabase();
