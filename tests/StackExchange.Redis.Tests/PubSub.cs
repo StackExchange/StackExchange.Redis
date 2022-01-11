@@ -93,6 +93,7 @@ namespace StackExchange.Redis.Tests
 
                 await PingAsync(muxer, pub, sub, 3).ForAwait();
 
+                await UntilCondition(TimeSpan.FromSeconds(5), () => received.Count == 1);
                 lock (received)
                 {
                     Assert.Single(received);
@@ -221,6 +222,7 @@ namespace StackExchange.Redis.Tests
                 var count = sub.Publish("abc", "def");
                 await PingAsync(muxer, pub, sub).ForAwait();
 
+                await UntilCondition(TimeSpan.FromSeconds(5), () => received.Count == 1);
                 lock (received)
                 {
                     Assert.Single(received);
