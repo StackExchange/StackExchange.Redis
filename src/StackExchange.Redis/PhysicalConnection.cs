@@ -293,15 +293,18 @@ namespace StackExchange.Redis
 
         internal void SimulateConnectionFailure(SimulatedFailureType failureType)
         {
+            var raiseFailed = false;
             if (connectionType == ConnectionType.Interactive)
             {
                 if (failureType.HasFlag(SimulatedFailureType.InteractiveInbound))
                 {
                     _ioPipe?.Input.Complete(new Exception("Simulating interactive input failure"));
+                    raiseFailed = true;
                 }
                 if (failureType.HasFlag(SimulatedFailureType.InteractiveOutbound))
                 {
                     _ioPipe?.Output.Complete(new Exception("Simulating interactive output failure"));
+                    raiseFailed = true;
                 }
             }
             else if (connectionType == ConnectionType.Subscription)
@@ -309,13 +312,18 @@ namespace StackExchange.Redis
                 if (failureType.HasFlag(SimulatedFailureType.SubscriptionInbound))
                 {
                     _ioPipe?.Input.Complete(new Exception("Simulating subscription input failure"));
+                    raiseFailed = true;
                 }
                 if (failureType.HasFlag(SimulatedFailureType.SubscriptionOutbound))
                 {
                     _ioPipe?.Output.Complete(new Exception("Simulating subscription output failure"));
+                    raiseFailed = true;
                 }
             }
-            RecordConnectionFailed(ConnectionFailureType.SocketFailure);
+            if (raiseFailed)
+            {
+                RecordConnectionFailed(ConnectionFailureType.SocketFailure);
+            }
         }
 
         public void RecordConnectionFailed(ConnectionFailureType failureType, Exception innerException = null, [CallerMemberName] string origin = null,
