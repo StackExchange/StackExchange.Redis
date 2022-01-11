@@ -351,7 +351,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task PubSubGetAllCorrectOrder()
         {
-            using (var muxer = Create(configuration: TestConfig.Current.RemoteServerAndPort, syncTimeout: 20000))
+            using (var muxer = Create(configuration: TestConfig.Current.RemoteServerAndPort, syncTimeout: 20000, log: Writer))
             {
                 var sub = muxer.GetSubscriber();
                 RedisChannel channel = Me();
