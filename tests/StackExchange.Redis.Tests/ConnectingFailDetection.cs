@@ -105,7 +105,7 @@ namespace StackExchange.Redis.Tests
 
             int failCount = 0, restoreCount = 0;
 
-            using (var muxer = ConnectionMultiplexer.Connect(config, log: Writer))
+            using (var muxer = ConnectionMultiplexer.Connect(config))
             {
                 muxer.ConnectionFailed += (s, e) =>
                 {
