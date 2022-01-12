@@ -152,7 +152,6 @@ namespace StackExchange.Redis.Tests
                 {
                     AbortOnConnectFail = abortOnConnect,
                     BacklogPolicy = BacklogPolicy.FailFast,
-                    ConnectRetry = 1,
                     ConnectTimeout = 500,
                     SyncTimeout = 500,
                     KeepAlive = 5000
