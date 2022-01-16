@@ -776,14 +776,6 @@ namespace StackExchange.Redis
             Trace("Writing: " + message);
             message.SetEnqueued(physical); // this also records the read/write stats at this point
 
-            // AVOID REORDERING MESSAGES
-            // Prefer to add it to the backlog if this thread can see that there might already be a message backlog.
-            // We do this before attempting to take the write lock, because we won't actually write, we'll just let the backlog get processed in due course
-            if (TryPushToBacklog(message, onlyIfExists: true))
-            {
-                return WriteResult.Success; // queued counts as success
-            }
-
             LockToken token = default;
             try
             {
@@ -1089,28 +1081,8 @@ namespace StackExchange.Redis
         /// <param name="bypassBacklog">Whether this message should bypass the backlog, going straight to the pipe or failing.</param>
         internal ValueTask<WriteResult> WriteMessageTakingWriteLockAsync(PhysicalConnection physical, Message message, bool bypassBacklog = false)
         {
-            /* design decision/choice; the code works fine either way, but if this is
-             * set to *true*, then when we can't take the writer-lock *right away*,
-             * we push the message to the backlog (starting a worker if needed)
-             *
-             * otherwise, we go for a TryWaitAsync and rely on the await machinery
-             *
-             * "true" seems to give faster times *when under heavy contention*, based on profiling
-             * but it involves the backlog concept; "false" works well under low contention, and
-             * makes more use of async
-             */
-            const bool ALWAYS_USE_BACKLOG_IF_CANNOT_GET_SYNC_LOCK = true;
-
             Trace("Writing: " + message);
             message.SetEnqueued(physical); // this also records the read/write stats at this point
-
-            // AVOID REORDERING MESSAGES
-            // Prefer to add it to the backlog if this thread can see that there might already be a message backlog.
-            // We do this before attempting to take the write lock, because we won't actually write, we'll just let the backlog get processed in due course
-            if (TryPushToBacklog(message, onlyIfExists: physical.HasOutputPipe, bypassBacklog: bypassBacklog))
-            {
-                return new ValueTask<WriteResult>(WriteResult.Success); // queued counts as success
-            }
 
             bool releaseLock = true; // fine to default to true, as it doesn't matter until token is a "success"
             int lockTaken = 0;
@@ -1122,9 +1094,8 @@ namespace StackExchange.Redis
                 token = _singleWriterMutex.TryWait(options: WaitOptions.NoDelay);
                 if (!token.Success)
                 {
-                    // we can't get it *instantaneously*; is there
-                    // perhaps a backlog and active backlog processor?
-                    if (TryPushToBacklog(message, onlyIfExists: !ALWAYS_USE_BACKLOG_IF_CANNOT_GET_SYNC_LOCK, bypassBacklog: bypassBacklog))
+                    // If we can't get it *instantaneously*; pass it to the backlog for throughput
+                    if (TryPushToBacklog(message, onlyIfExists: false, bypassBacklog: bypassBacklog))
                         return new ValueTask<WriteResult>(WriteResult.Success); // queued counts as success
 
                     // no backlog... try to wait with the timeout;
