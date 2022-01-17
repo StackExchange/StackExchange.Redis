@@ -649,8 +649,7 @@ namespace StackExchange.Redis
                     var timeout = bridge.Multiplexer.AsyncTimeoutMilliseconds;
                     foreach (var msg in _writtenAwaitingResponse)
                     {
-                        // We only handle async timeouts here, synchronous timeouts are handled upstream.
-                        if (msg.ResultBoxIsAsync && msg.HasTimedOut(now, timeout, out var elapsed))
+                        if (msg.HasAsyncTimedOut(now, timeout, out var elapsed))
                         {
                             bool haveDeltas = msg.TryGetPhysicalState(out _, out _, out long sentDelta, out var receivedDelta) && sentDelta >= 0 && receivedDelta >= 0;
                             var timeoutEx = ExceptionFactory.Timeout(bridge.Multiplexer, haveDeltas

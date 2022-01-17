@@ -38,7 +38,7 @@ namespace StackExchange.Redis
         public bool IsEmpty => PendingUnsentItems == 0 && SentItemsAwaitingResponse == 0 && ResponsesAwaitingAsyncCompletion == 0 && FailedAsynchronously == 0;
 
         /// <summary>
-        /// Indicates the total number of messages dispatched to a non-preferred endpoint, for example sent to a master
+        /// Indicates the total number of messages despatched to a non-preferred endpoint, for example sent to a master
         /// when the caller stated a preference of replica
         /// </summary>
         public long NonPreferredEndpointCount { get; internal set; }
@@ -109,18 +109,20 @@ namespace StackExchange.Redis
             WriterCount += other.WriterCount;
         }
 
-        internal bool Any() =>
-            CompletedAsynchronously != 0
-            || CompletedSynchronously != 0
-            || FailedAsynchronously != 0
-            || NonPreferredEndpointCount != 0
-            || OperationCount != 0
-            || PendingUnsentItems != 0
-            || ResponsesAwaitingAsyncCompletion != 0
-            || SentItemsAwaitingResponse != 0
-            || SocketCount != 0
-            || Subscriptions != 0
-            || WriterCount != 0;
+        internal bool Any()
+        {
+            return CompletedAsynchronously != 0
+                || CompletedSynchronously != 0
+                || FailedAsynchronously != 0
+                || NonPreferredEndpointCount != 0
+                || OperationCount != 0
+                || PendingUnsentItems != 0
+                || ResponsesAwaitingAsyncCompletion != 0
+                || SentItemsAwaitingResponse != 0
+                || SocketCount != 0
+                || Subscriptions != 0
+                || WriterCount != 0;
+        }
 
         internal void Append(StringBuilder sb)
         {
