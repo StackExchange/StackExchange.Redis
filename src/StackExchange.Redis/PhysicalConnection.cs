@@ -1311,6 +1311,9 @@ namespace StackExchange.Redis
             /// </summary>
             public WriteStatus WriteStatus { get; init; }
 
+            public override string ToString() =>
+                $"SentAwaitingResponse: {MessagesSentAwaitingResponse}, AvailableOnSocket: {BytesAvailableOnSocket} byte(s), InReadPipe: {BytesInReadPipe} byte(s), InWritePipe: {BytesInWritePipe} byte(s), ReadStatus: {ReadStatus}, WriteStatus: {WriteStatus}";
+
             /// <summary>
             /// The default connection stats, notable *not* the same as <code>default</code> since initializers don't run.
             /// </summary>
