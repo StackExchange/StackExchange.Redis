@@ -196,7 +196,7 @@ namespace StackExchange.Redis
                 var server = bridge.ServerEndPoint;
                 bool log = !message.IsInternalCall;
                 bool isMoved = result.StartsWith(CommonReplies.MOVED);
-                bool wasNoRedirect = ( message.Flags & CommandFlags.NoRedirect ) != 0;
+                bool wasNoRedirect = (message.Flags & CommandFlags.NoRedirect) != 0;
                 string err = string.Empty;
                 bool unableToConnectError = false;
                 if (isMoved || result.StartsWith(CommonReplies.ASK))
