@@ -324,7 +324,7 @@ namespace StackExchange.Redis
         public Proxy Proxy { get { return proxy.GetValueOrDefault(); } set { proxy = value; } }
 
         /// <summary>
-        /// The retry policy to be used for connection reconnects
+        /// The retry policy to be used for connection reconnects.
         /// </summary>
         public IReconnectRetryPolicy ReconnectRetryPolicy { get { return reconnectRetryPolicy ??= new ExponentialRetry(ConnectTimeout/2); } set { reconnectRetryPolicy = value; } }
 
