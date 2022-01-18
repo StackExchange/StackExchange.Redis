@@ -69,7 +69,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void TestOpCountByVersionLocal_UpLevel()
         {
-            using (var conn = Create())
+            using (var conn = Create(shared: false))
             {
                 TestLockOpCountByVersion(conn, 1, false);
                 TestLockOpCountByVersion(conn, 1, true);
