@@ -92,20 +92,18 @@ namespace StackExchange.Redis
         };
 
         /// <summary>
-        /// The Latitude of the GeoPosition
+        /// The Latitude of the GeoPosition.
         /// </summary>
         public double Latitude { get; }
 
         /// <summary>
-        /// The Longitude of the GeoPosition
+        /// The Longitude of the GeoPosition.
         /// </summary>
         public double Longitude { get; }
 
         /// <summary>
         /// Creates a new GeoPosition.
         /// </summary>
-        /// <param name="longitude"></param>
-        /// <param name="latitude"></param>
         public GeoPosition(double longitude, double latitude)
         {
             Longitude = longitude;
