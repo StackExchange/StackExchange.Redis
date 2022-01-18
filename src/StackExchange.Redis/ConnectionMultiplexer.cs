@@ -152,7 +152,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Tries to get the Roleinstance Id if Microsoft.WindowsAzure.ServiceRuntime is loaded.
+        /// Tries to get the RoleInstance Id if Microsoft.WindowsAzure.ServiceRuntime is loaded.
         /// In case of any failure, swallows the exception and returns null
         /// </summary>
         internal static string TryGetAzureRoleInstanceIdNoThrow()
@@ -464,7 +464,7 @@ namespace StackExchange.Redis
             // Try and broadcast the fact a change happened to all members
             // We want everyone possible to pick it up.
             // We broadcast before *and after* the change to remote members, so that they don't go without detecting a change happened.
-            // This eliminates the race of pub/sub *then* re-slaving happening, since a method both preceeds and follows.
+            // This eliminates the race of pub/sub *then* re-slaving happening, since a method both precedes and follows.
             void Broadcast(ReadOnlySpan<ServerEndPoint> serverNodes)
             {
                 if ((options & ReplicationChangeOptions.Broadcast) != 0 && ConfigurationChangedChannel != null
@@ -1672,7 +1672,7 @@ namespace StackExchange.Redis
         internal async Task<bool> ReconfigureAsync(bool first, bool reconfigureAll, LogProxy log, EndPoint blame, string cause, bool publishReconfigure = false, CommandFlags publishReconfigureFlags = CommandFlags.None)
         {
             if (_isDisposed) throw new ObjectDisposedException(ToString());
-            bool showStats = log is object;
+            bool showStats = log is not null;
 
             bool ranThisCall = false;
             try
@@ -2190,7 +2190,8 @@ namespace StackExchange.Redis
             message.SetSource(processor, resultBox);
 
             if (server == null)
-            {   // infer a server automatically
+            {
+                // Infer a server automatically
                 server = SelectServer(message);
             }
             else // a server was specified; do we trust their choice, though?
@@ -2233,7 +2234,7 @@ namespace StackExchange.Redis
                     }
                 }
 
-                Trace("Queueing on server: " + message);
+                Trace("Queuing on server: " + message);
                 return true;
             }
             Trace("No server or server unavailable - aborting: " + message);
@@ -2827,7 +2828,7 @@ namespace StackExchange.Redis
 
                     if (Monitor.Wait(source, TimeoutMilliseconds))
                     {
-                        Trace("Timeley response to " + message);
+                        Trace("Timely response to " + message);
                     }
                     else
                     {
@@ -2866,10 +2867,8 @@ namespace StackExchange.Redis
         /// <summary>
         /// Obtains the log of unusual busy patterns
         /// </summary>
-        public string GetStormLog()
-        {
-            return Volatile.Read(ref stormLogSnapshot);
-        }
+        public string GetStormLog() => Volatile.Read(ref stormLogSnapshot);
+
         /// <summary>
         /// Resets the log of unusual busy patterns
         /// </summary>

@@ -79,14 +79,7 @@ namespace StackExchange.Redis
 
         public ServerEndPoint ServerEndPoint { get; }
 
-        public long SubscriptionCount
-        {
-            get
-            {
-                var tmp = physical;
-                return tmp == null ? 0 : physical.SubscriptionCount;
-            }
-        }
+        public long SubscriptionCount => physical?.SubscriptionCount ?? 0;
 
         internal State ConnectionState => (State)state;
         internal bool IsBeating => Interlocked.CompareExchange(ref beating, 0, 0) == 1;
@@ -373,7 +366,7 @@ namespace StackExchange.Redis
                 msg.SetInternalCall();
                 Multiplexer.Trace("Enqueue: " + msg);
                 Multiplexer.OnInfoMessage($"heartbeat ({physical?.LastWriteSecondsAgo}s >= {ServerEndPoint?.WriteEverySeconds}s, {physical?.GetSentAwaitingResponseCount()} waiting) '{msg.CommandAndKey}' on '{PhysicalName}' (v{features.Version})");
-                physical?.UpdateLastWriteTime(); // pre-emptively
+                physical?.UpdateLastWriteTime(); // preemptively
 #pragma warning disable CS0618
                 var result = TryWriteSync(msg, ServerEndPoint.IsReplica);
 #pragma warning restore CS0618
@@ -471,6 +464,7 @@ namespace StackExchange.Redis
                 next.SetExceptionAndComplete(ex, this);
             }
         }
+
         internal void OnFullyEstablished(PhysicalConnection connection, string source)
         {
             Trace("OnFullyEstablished");
@@ -628,7 +622,8 @@ namespace StackExchange.Redis
             var physical = this.physical;
             if (physical == null) return false;
             foreach (var message in messages)
-            {   // deliberately not taking a single lock here; we don't care if
+            {
+                // deliberately not taking a single lock here; we don't care if
                 // other threads manage to interleave - in fact, it would be desirable
                 // (to avoid a batch monopolising the connection)
 #pragma warning disable CS0618
@@ -649,7 +644,7 @@ namespace StackExchange.Redis
             var existingMessage = Interlocked.CompareExchange(ref _activeMessage, message, null);
             if (existingMessage != null)
             {
-                Multiplexer?.OnInfoMessage($"reentrant call to WriteMessageTakingWriteLock for {message.CommandAndKey}, {existingMessage.CommandAndKey} is still active");
+                Multiplexer?.OnInfoMessage($"Reentrant call to WriteMessageTakingWriteLock for {message.CommandAndKey}, {existingMessage.CommandAndKey} is still active");
                 return WriteResult.NoConnectionAvailable;
             }
 #if DEBUG
@@ -658,9 +653,9 @@ namespace StackExchange.Redis
 #endif
             {
                 physical.SetWriting();
-                var messageIsSent = false;
                 if (message is IMultiMessage multiMessage)
                 {
+                    var messageIsSent = false;
                     SelectDatabaseInsideWriteLock(physical, message); // need to switch database *before* the transaction
                     foreach (var subCommand in multiMessage.GetMessages(physical))
                     {
@@ -777,39 +772,50 @@ namespace StackExchange.Redis
             StartBacklogProcessor();
             return true;
         }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void StartBacklogProcessor()
         {
             if (Interlocked.CompareExchange(ref _backlogProcessorIsRunning, 1, 0) == 0)
             {
-
 #if DEBUG
                 _backlogProcessorRequestedTime = Environment.TickCount;
 #endif
                 _backlogStatus = BacklogStatus.Activating;
 
-                // start the backlog processor; this is a bit unorthadox, as you would *expect* this to just
+#if NET6_0_OR_GREATER
+                // In .NET 6, use the thread pool stall semantics to our advantage and use a lighter-weight Task
+                Task.Run(ProcessBacklogAsync);
+#else
+                // Start the backlog processor; this is a bit unorthodox, as you would *expect* this to just
                 // be Task.Run; that would work fine when healthy, but when we're falling on our face, it is
                 // easy to get into a thread-pool-starvation "spiral of death" if we rely on the thread-pool
                 // to unblock the thread-pool when there could be sync-over-async callers. Note that in reality,
                 // the initial "enough" of the back-log processor is typically sync, which means that the thread
                 // we start is actually useful, despite thinking "but that will just go async and back to the pool"
-                var thread = new Thread(s => ((PhysicalBridge)s).ProcessBacklogAsync().RedisFireAndForget());
-                thread.IsBackground = true; // don't keep process alive (also: act like the thread-pool used to)
-                thread.Name = "redisbacklog"; // help anyone looking at thread-dumps
+                var thread = new Thread(s => ((PhysicalBridge)s).ProcessBacklogAsync().RedisFireAndForget())
+                {
+                    IsBackground = true,                  // don't keep process alive (also: act like the thread-pool used to)
+                    Name = "StackExchange.Redis Backlog", // help anyone looking at thread-dumps
+                };
                 thread.Start(this);
+#endif
             }
         }
 #if DEBUG
         private volatile int _backlogProcessorRequestedTime;
 #endif
 
-        private void CheckBacklogForTimeouts() // check the head of the backlog queue, consuming anything that looks dead
+        /// <summary>
+        /// Crawls from the head of the backlog queue, consuming anything that should have timed out
+        /// and pruning it accordingly (these messages will get timeout exceptions).
+        /// </summary>
+        private void CheckBacklogForTimeouts()
         {
             var now = Environment.TickCount;
             var timeout = TimeoutMilliseconds;
 
-            // Because peeking at the backlog, checking message and then dequeueing, is not thread-safe, we do have to use
+            // Because peeking at the backlog, checking message and then dequeuing, is not thread-safe, we do have to use
             // a lock here, for mutual exclusion of backlog DEQUEUERS. Unfortunately.
             // But we reduce contention by only locking if we see something that looks timed out.
             while (_backlog.TryPeek(out Message message))
@@ -836,6 +842,7 @@ namespace StackExchange.Redis
                 message.SetExceptionAndComplete(ex, this);
             }
         }
+
         internal enum BacklogStatus : byte
         {
             Inactive,
@@ -853,6 +860,7 @@ namespace StackExchange.Redis
             SettingIdle,
             Faulted,
         }
+
         private volatile BacklogStatus _backlogStatus;
         private async Task ProcessBacklogAsync()
         {
@@ -879,6 +887,7 @@ namespace StackExchange.Redis
 #endif
                 }
                 _backlogStatus = BacklogStatus.Started;
+
 #if DEBUG
                 int acquiredTime = Environment.TickCount;
                 var msToGetLock = unchecked(acquiredTime - tryToAcquireTime);
@@ -988,7 +997,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// This writes a message to the output stream
         /// </summary>
-        /// <param name="physical">The phsyical connection to write to.</param>
+        /// <param name="physical">The physical connection to write to.</param>
         /// <param name="message">The message to be written.</param>
         internal ValueTask<WriteResult> WriteMessageTakingWriteLockAsync(PhysicalConnection physical, Message message)
         {
@@ -1059,7 +1068,10 @@ namespace StackExchange.Redis
 
                 return new ValueTask<WriteResult>(result);
             }
-            catch (Exception ex) { return new ValueTask<WriteResult>(HandleWriteException(message, ex)); }
+            catch (Exception ex)
+            {
+                return new ValueTask<WriteResult>(HandleWriteException(message, ex));
+            }
             finally
             {
                 if (token.Success)
@@ -1076,6 +1088,7 @@ namespace StackExchange.Redis
                 }
             }
         }
+
 #if DEBUG
         private void RecordLockDuration(int lockTaken)
         {
@@ -1243,7 +1256,10 @@ namespace StackExchange.Redis
 
         private WriteResult WriteMessageToServerInsideWriteLock(PhysicalConnection connection, Message message)
         {
-            if (message == null) return WriteResult.Success; // for some definition of success
+            if (message == null)
+            {
+                return WriteResult.Success; // for some definition of success
+            }
 
             bool isQueued = false;
             try

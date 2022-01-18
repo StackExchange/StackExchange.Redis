@@ -4,7 +4,7 @@ using System.Text;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// Illustrates the queues associates with this server
+    /// Illustrates the queues associates with this server.
     /// </summary>
     public class ServerCounters
     {
@@ -21,26 +21,27 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// The endpoint to which this data relates (this can be null if the data represents all servers)
+        /// The endpoint to which this data relates (this can be null if the data represents all servers).
         /// </summary>
         public EndPoint EndPoint { get; }
 
         /// <summary>
-        /// Counters associated with the interactive (non pub-sub) connection
+        /// Counters associated with the interactive (non pub-sub) connection.
         /// </summary>
         public ConnectionCounters Interactive { get; }
 
         /// <summary>
-        /// Counters associated with other ambient activity
+        /// Counters associated with other ambient activity.
         /// </summary>
         public ConnectionCounters Other { get; }
 
         /// <summary>
-        /// Counters associated with the subscription (pub-sub) connection
+        /// Counters associated with the subscription (pub-sub) connection.
         /// </summary>
         public ConnectionCounters Subscription { get; }
+
         /// <summary>
-        /// Indicates the total number of outstanding items against this server
+        /// Indicates the total number of outstanding items against this server.
         /// </summary>
         public long TotalOutstanding => Interactive.TotalOutstanding + Subscription.TotalOutstanding + Other.TotalOutstanding;
 

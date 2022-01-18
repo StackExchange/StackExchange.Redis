@@ -5,7 +5,7 @@ using System.Text;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// Describes internal errors (mainly intended for debugging)
+    /// Describes internal errors (mainly intended for debugging).
     /// </summary>
     public class InternalErrorEventArgs : EventArgs, ICompletable
     {
@@ -35,22 +35,22 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Gets the connection-type of the failing connection
+        /// Gets the connection-type of the failing connection.
         /// </summary>
         public ConnectionType ConnectionType { get; }
 
         /// <summary>
-        /// Gets the failing server-endpoint (this can be null)
+        /// Gets the failing server-endpoint (this can be null).
         /// </summary>
         public EndPoint EndPoint { get; }
 
         /// <summary>
-        /// Gets the exception if available (this can be null)
+        /// Gets the exception if available (this can be null).
         /// </summary>
         public Exception Exception { get; }
 
         /// <summary>
-        /// The underlying origin of the error
+        /// The underlying origin of the error.
         /// </summary>
         public string Origin { get; }
 

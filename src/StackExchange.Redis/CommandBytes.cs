@@ -88,6 +88,7 @@ namespace StackExchange.Redis
                 new Span<byte>(bPtr + 1, *bPtr).CopyTo(target);
             }
         }
+
         public unsafe byte this[int index]
         {
             get
@@ -124,7 +125,7 @@ namespace StackExchange.Redis
         public unsafe CommandBytes(ReadOnlySpan<byte> value)
 #pragma warning restore RCS1231 // Make parameter ref read-only.
         {
-            if (value.Length > MaxLength) throw new ArgumentOutOfRangeException("Maximum command length exceeed: " + value.Length + " bytes");
+            if (value.Length > MaxLength) throw new ArgumentOutOfRangeException("Maximum command length exceeded: " + value.Length + " bytes");
             _0 = _1 = _2 = _3 = 0L;
             fixed (ulong* uPtr = &_0)
             {
@@ -136,7 +137,7 @@ namespace StackExchange.Redis
 
         public unsafe CommandBytes(in ReadOnlySequence<byte> value)
         {
-            if (value.Length > MaxLength) throw new ArgumentOutOfRangeException(nameof(value), "Maximum command length exceeed");
+            if (value.Length > MaxLength) throw new ArgumentOutOfRangeException(nameof(value), "Maximum command length exceeded");
             int len = unchecked((int)value.Length);
             _0 = _1 = _2 = _3 = 0L;
             fixed (ulong* uPtr = &_0)
@@ -164,7 +165,7 @@ namespace StackExchange.Redis
             const ulong HighBits = 0x8080808080808080;
             if (((_0 | _1 | _2 | _3) & HighBits) == 0)
             {
-                // no unicode; use ASCII bit bricks
+                // no Unicode; use ASCII bit bricks
                 for (int i = 0; i < len; i++)
                 {
                     *bPtr = ToUpperInvariantAscii(*bPtr++);

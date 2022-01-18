@@ -151,7 +151,7 @@ namespace StackExchange.Redis.Tests
                 var options = new ConfigurationOptions()
                 {
                     AbortOnConnectFail = abortOnConnect,
-                    ConnectTimeout = 500,
+                    ConnectTimeout = 1000,
                     SyncTimeout = 500,
                     KeepAlive = 5000
                 };

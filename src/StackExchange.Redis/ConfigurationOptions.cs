@@ -163,17 +163,29 @@ namespace StackExchange.Redis
         /// <summary>
         /// Gets or sets whether connect/configuration timeouts should be explicitly notified via a TimeoutException
         /// </summary>
-        public bool AbortOnConnectFail { get { return abortOnConnectFail ?? GetDefaultAbortOnConnectFailSetting(); } set { abortOnConnectFail = value; } }
+        public bool AbortOnConnectFail
+        {
+            get => abortOnConnectFail ?? GetDefaultAbortOnConnectFailSetting();
+            set => abortOnConnectFail = value;
+        }
 
         /// <summary>
         /// Indicates whether admin operations should be allowed
         /// </summary>
-        public bool AllowAdmin { get { return allowAdmin.GetValueOrDefault(); } set { allowAdmin = value; } }
+        public bool AllowAdmin
+        {
+            get => allowAdmin.GetValueOrDefault();
+            set => allowAdmin = value;
+        }
 
         /// <summary>
         /// Specifies the time in milliseconds that the system should allow for asynchronous operations (defaults to SyncTimeout)
         /// </summary>
-        public int AsyncTimeout { get { return asyncTimeout ?? SyncTimeout; } set { asyncTimeout = value; } }
+        public int AsyncTimeout
+        {
+            get => asyncTimeout ?? SyncTimeout;
+            set => asyncTimeout = value;
+        }
 
         /// <summary>
         /// Indicates whether the connection should be encrypted
@@ -181,7 +193,11 @@ namespace StackExchange.Redis
         [Obsolete("Please use .Ssl instead of .UseSsl"),
          Browsable(false),
          EditorBrowsable(EditorBrowsableState.Never)]
-        public bool UseSsl { get { return Ssl; } set { Ssl = value; } }
+        public bool UseSsl
+        {
+            get => Ssl;
+            set => Ssl = value;
+        }
 
         /// <summary>
         /// Automatically encodes and decodes channels
@@ -191,7 +207,11 @@ namespace StackExchange.Redis
         /// <summary>
         /// A Boolean value that specifies whether the certificate revocation list is checked during authentication.
         /// </summary>
-        public bool CheckCertificateRevocation { get { return checkCertificateRevocation ?? true; } set { checkCertificateRevocation = value; } }
+        public bool CheckCertificateRevocation
+        {
+            get => checkCertificateRevocation ?? true;
+            set => checkCertificateRevocation = value;
+        }
 
         /// <summary>
         /// Create a certificate validation check that checks against the supplied issuer even if not known by the machine
@@ -239,7 +259,11 @@ namespace StackExchange.Redis
         /// <summary>
         /// The number of times to repeat the initial connect cycle if no servers respond promptly
         /// </summary>
-        public int ConnectRetry { get { return connectRetry ?? 3; } set { connectRetry = value; } }
+        public int ConnectRetry
+        {
+            get => connectRetry ?? 3;
+            set => connectRetry = value;
+        }
 
         /// <summary>
         /// The command-map associated with this configuration
@@ -257,19 +281,19 @@ namespace StackExchange.Redis
         /// <summary>
         /// Channel to use for broadcasting and listening for configuration change notification
         /// </summary>
-        public string ConfigurationChannel { get { return configChannel ?? DefaultConfigurationChannel; } set { configChannel = value; } }
+        public string ConfigurationChannel
+        {
+            get => configChannel ?? DefaultConfigurationChannel;
+            set => configChannel = value;
+        }
 
         /// <summary>
         /// Specifies the time in milliseconds that should be allowed for connection (defaults to 5 seconds unless SyncTimeout is higher)
         /// </summary>
         public int ConnectTimeout
         {
-            get
-            {
-                if (connectTimeout.HasValue) return connectTimeout.GetValueOrDefault();
-                return Math.Max(5000, SyncTimeout);
-            }
-            set { connectTimeout = value; }
+            get => connectTimeout ?? Math.Max(5000, SyncTimeout);
+            set => connectTimeout = value;
         }
 
         /// <summary>
@@ -280,7 +304,11 @@ namespace StackExchange.Redis
         /// <summary>
         /// The server version to assume
         /// </summary>
-        public Version DefaultVersion { get { return defaultVersion ?? (IsAzureEndpoint() ? RedisFeatures.v4_0_0 : RedisFeatures.v3_0_0); } set { defaultVersion = value; } }
+        public Version DefaultVersion
+        {
+            get => defaultVersion ?? (IsAzureEndpoint() ? RedisFeatures.v4_0_0 : RedisFeatures.v3_0_0);
+            set => defaultVersion = value;
+        }
 
         /// <summary>
         /// The endpoints defined for this configuration
@@ -290,13 +318,21 @@ namespace StackExchange.Redis
         /// <summary>
         /// Use ThreadPriority.AboveNormal for SocketManager reader and writer threads (true by default). If false, ThreadPriority.Normal will be used.
         /// </summary>
-        public bool HighPrioritySocketThreads { get { return highPrioritySocketThreads ?? true; } set { highPrioritySocketThreads = value; } }
+        public bool HighPrioritySocketThreads
+        {
+            get => highPrioritySocketThreads ?? true;
+            set => highPrioritySocketThreads = value;
+        }
 
         // Use coalesce expression.
         /// <summary>
         /// Specifies the time in seconds at which connections should be pinged to ensure validity
         /// </summary>
-        public int KeepAlive { get { return keepAlive.GetValueOrDefault(-1); } set { keepAlive = value; } }
+        public int KeepAlive
+        {
+            get => keepAlive.GetValueOrDefault(-1);
+            set => keepAlive = value;
+        }
 
         /// <summary>
         /// The user to use to authenticate with the server.
@@ -314,33 +350,49 @@ namespace StackExchange.Redis
         [Obsolete("Not supported; if you require ordered pub/sub, please see " + nameof(ChannelMessageQueue), false)]
         public bool PreserveAsyncOrder
         {
-            get { return false; }
+            get => false;
             set { }
         }
 
         /// <summary>
         /// Type of proxy to use (if any); for example Proxy.Twemproxy.
         /// </summary>
-        public Proxy Proxy { get { return proxy.GetValueOrDefault(); } set { proxy = value; } }
+        public Proxy Proxy
+        {
+            get => proxy.GetValueOrDefault();
+            set => proxy = value;
+        }
 
         /// <summary>
-        /// The retry policy to be used for connection reconnects
+        /// The retry policy to be used for connection reconnects.
         /// </summary>
-        public IReconnectRetryPolicy ReconnectRetryPolicy { get { return reconnectRetryPolicy ??= new ExponentialRetry(ConnectTimeout/2); } set { reconnectRetryPolicy = value; } }
+        public IReconnectRetryPolicy ReconnectRetryPolicy
+        {
+            get => reconnectRetryPolicy ??= new ExponentialRetry(ConnectTimeout / 2);
+            set => reconnectRetryPolicy = value;
+        }
 
         /// <summary>
         /// Indicates whether endpoints should be resolved via DNS before connecting.
         /// If enabled the ConnectionMultiplexer will not re-resolve DNS
         /// when attempting to re-connect after a connection failure.
         /// </summary>
-        public bool ResolveDns { get { return resolveDns.GetValueOrDefault(); } set { resolveDns = value; } }
+        public bool ResolveDns
+        {
+            get => resolveDns.GetValueOrDefault();
+            set => resolveDns = value;
+        }
 
         /// <summary>
         /// Specifies the time in milliseconds that the system should allow for responses before concluding that the socket is unhealthy
         /// (defaults to SyncTimeout)
         /// </summary>
         [Obsolete("This setting no longer has any effect, and should not be used")]
-        public int ResponseTimeout { get { return 0; } set { } }
+        public int ResponseTimeout
+        {
+            get => 0;
+            set { }
+        }
 
         /// <summary>
         /// The service name used to resolve a service via sentinel.
@@ -356,42 +408,75 @@ namespace StackExchange.Redis
         /// <summary>
         /// Indicates whether the connection should be encrypted
         /// </summary>
-        public bool Ssl { get { return ssl.GetValueOrDefault(); } set { ssl = value; } }
+        public bool Ssl
+        {
+            get => ssl.GetValueOrDefault();
+            set => ssl = value;
+        }
 
         /// <summary>
         /// The target-host to use when validating SSL certificate; setting a value here enables SSL mode
         /// </summary>
-        public string SslHost { get { return sslHost ?? InferSslHostFromEndpoints(); } set { sslHost = value; } }
+        public string SslHost
+        {
+            get => sslHost ?? InferSslHostFromEndpoints();
+            set => sslHost = value;
+        }
 
         /// <summary>
-        /// Configures which Ssl/TLS protocols should be allowed.  If not set, defaults are chosen by the .NET framework.
+        /// Configures which SSL/TLS protocols should be allowed.  If not set, defaults are chosen by the .NET framework.
         /// </summary>
         public SslProtocols? SslProtocols { get; set; }
 
         /// <summary>
         /// Specifies the time in milliseconds that the system should allow for synchronous operations (defaults to 5 seconds)
         /// </summary>
-        public int SyncTimeout { get { return syncTimeout.GetValueOrDefault(5000); } set { syncTimeout = value; } }
+        public int SyncTimeout
+        {
+            get => syncTimeout.GetValueOrDefault(5000);
+            set => syncTimeout = value;
+        }
 
         /// <summary>
         /// Tie-breaker used to choose between masters (must match the endpoint exactly)
         /// </summary>
-        public string TieBreaker { get { return tieBreaker ?? DefaultTieBreaker; } set { tieBreaker = value; } }
+        public string TieBreaker
+        {
+            get => tieBreaker ?? DefaultTieBreaker;
+            set => tieBreaker = value;
+        }
+
         /// <summary>
         /// The size of the output buffer to use
         /// </summary>
         [Obsolete("This setting no longer has any effect, and should not be used")]
-        public int WriteBuffer { get { return 0; } set { } }
+        public int WriteBuffer
+        {
+            get => 0;
+            set { }
+        }
 
-        internal LocalCertificateSelectionCallback CertificateSelectionCallback { get { return CertificateSelection; } private set { CertificateSelection = value; } }
+        internal LocalCertificateSelectionCallback CertificateSelectionCallback
+        {
+            get => CertificateSelection;
+            private set => CertificateSelection = value;
+        }
 
         // these just rip out the underlying handlers, bypassing the event accessors - needed when creating the SSL stream
-        internal RemoteCertificateValidationCallback CertificateValidationCallback { get { return CertificateValidation; } private set { CertificateValidation = value; } }
+        internal RemoteCertificateValidationCallback CertificateValidationCallback
+        {
+            get => CertificateValidation;
+            private set => CertificateValidation = value;
+        }
 
         /// <summary>
         /// Check configuration every n seconds (every minute by default)
         /// </summary>
-        public int ConfigCheckSeconds { get { return configCheckSeconds.GetValueOrDefault(60); } set { configCheckSeconds = value; } }
+        public int ConfigCheckSeconds
+        {
+            get => configCheckSeconds.GetValueOrDefault(60);
+            set => configCheckSeconds = value;
+        }
 
         /// <summary>
         /// Parse the configuration from a comma-delimited configuration string
@@ -460,7 +545,9 @@ namespace StackExchange.Redis
                 checkCertificateRevocation = checkCertificateRevocation,
             };
             foreach (var item in EndPoints)
+            {
                 options.EndPoints.Add(item);
+            }
             return options;
         }
 
@@ -478,10 +565,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Resolve the default port for any endpoints that did not have a port explicitly specified
         /// </summary>
-        public void SetDefaultPorts()
-        {
-            EndPoints.SetDefaultPorts(Ssl ? 6380 : 6379);
-        }
+        public void SetDefaultPorts() => EndPoints.SetDefaultPorts(Ssl ? 6380 : 6379);
 
         /// <summary>
         /// Sets default config settings required for sentinel usage
@@ -548,7 +632,13 @@ namespace StackExchange.Redis
 
         internal bool HasDnsEndPoints()
         {
-            foreach (var endpoint in EndPoints) if (endpoint is DnsEndPoint) return true;
+            foreach (var endpoint in EndPoints)
+            {
+                if (endpoint is DnsEndPoint)
+                {
+                    return true;
+                }
+            }
             return false;
         }
 
@@ -786,7 +876,8 @@ namespace StackExchange.Redis
         /// List of domains known to be Azure Redis, so we can light up some helpful functionality
         /// for minimizing downtime during maintenance events and such.
         /// </summary>
-        private static readonly List<string> azureRedisDomains = new List<string> {
+        private static readonly List<string> azureRedisDomains = new()
+        {
             ".redis.cache.windows.net",
             ".redis.cache.chinacloudapi.cn",
             ".redis.cache.usgovcloudapi.net",
