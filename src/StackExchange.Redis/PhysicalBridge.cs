@@ -9,6 +9,12 @@ using System.Threading.Channels;
 using System.Threading.Tasks;
 using static StackExchange.Redis.ConnectionMultiplexer;
 using PendingSubscriptionState = global::StackExchange.Redis.ConnectionMultiplexer.Subscription.PendingSubscriptionState;
+#if !NETCOREAPP3_1_OR_GREATER
+using Pipelines.Sockets.Unofficial.Threading;
+using static Pipelines.Sockets.Unofficial.Threading.MutexSlim;
+#endif
+
+
 namespace StackExchange.Redis
 {
     internal sealed class PhysicalBridge : IDisposable
@@ -43,6 +49,12 @@ namespace StackExchange.Redis
 
         private volatile int state = (int)State.Disconnected;
 
+#if NETCOREAPP3_1_OR_GREATER
+        private readonly SemaphoreSlim _singleWriterMutex = new(1,1);
+#else
+        private readonly MutexSlim _singleWriterMutex;
+#endif
+
         internal string PhysicalName => physical?.ToString();
         public PhysicalBridge(ServerEndPoint serverEndPoint, ConnectionType type, int timeoutMilliseconds)
         {
@@ -51,6 +63,9 @@ namespace StackExchange.Redis
             Multiplexer = serverEndPoint.Multiplexer;
             Name = Format.ToString(serverEndPoint.EndPoint) + "/" + ConnectionType.ToString();
             TimeoutMilliseconds = timeoutMilliseconds;
+#if !NETCOREAPP3_1_OR_GREATER
+            _singleWriterMutex = new MutexSlim(timeoutMilliseconds: timeoutMilliseconds);
+#endif
         }
 
         private readonly int TimeoutMilliseconds;
@@ -312,7 +327,11 @@ namespace StackExchange.Redis
         internal BridgeStatus GetStatus() => new()
         {
             MessagesSinceLastHeartbeat = (int)(Interlocked.Read(ref operationCount) - Interlocked.Read(ref profileLastLog)),
+#if NETCOREAPP3_1_OR_GREATER
             IsWriterActive = _singleWriterMutex.CurrentCount == 0,
+#else
+            IsWriterActive = !_singleWriterMutex.IsAvailable,
+#endif
             BacklogMessagesPending = _backlog.Count,
             BacklogStatus = _backlogStatus,
             Connection = physical?.GetStatus() ?? PhysicalConnection.ConnectionStatus.Default,
@@ -634,8 +653,6 @@ namespace StackExchange.Redis
             return true;
         }
 
-        private readonly SemaphoreSlim _singleWriterMutex = new(1,1);
-
         private Message _activeMessage;
 
         private WriteResult WriteMessageInsideLock(PhysicalConnection physical, Message message)
@@ -717,11 +734,20 @@ namespace StackExchange.Redis
                 return WriteResult.Success; // queued counts as success
             }
 
+#if NETCOREAPP3_1_OR_GREATER
             bool gotLock = false;
+#else
+            LockToken token = default;
+#endif
             try
             {
+#if NETCOREAPP3_1_OR_GREATER
                 gotLock = _singleWriterMutex.Wait(0);
                 if (!gotLock)
+#else
+                token = _singleWriterMutex.TryWait(WaitOptions.NoDelay);
+                if (!token.Success)
+#endif
                 {
                     // we can't get it *instantaneously*; is there
                     // perhaps a backlog and active backlog processor?
@@ -730,8 +756,13 @@ namespace StackExchange.Redis
                     // no backlog... try to wait with the timeout;
                     // if we *still* can't get it: that counts as
                     // an actual timeout
+#if NETCOREAPP3_1_OR_GREATER
                     gotLock = _singleWriterMutex.Wait(TimeoutMilliseconds);
                     if (!gotLock) return TimedOutBeforeWrite(message);
+#else
+                    token = _singleWriterMutex.TryWait();
+                    if (!token.Success) return TimedOutBeforeWrite(message);
+#endif
                 }
 
                 var result = WriteMessageInsideLock(physical, message);
@@ -748,10 +779,14 @@ namespace StackExchange.Redis
             finally
             {
                 UnmarkActiveMessage(message);
+#if NETCOREAPP3_1_OR_GREATER
                 if (gotLock)
                 {
                     _singleWriterMutex.Release();
                 }
+#else
+                token.Dispose();
+#endif
             }
         }
 
@@ -780,7 +815,6 @@ namespace StackExchange.Redis
         {
             if (Interlocked.CompareExchange(ref _backlogProcessorIsRunning, 1, 0) == 0)
             {
-
 #if DEBUG
                 _backlogProcessorRequestedTime = Environment.TickCount;
 #endif
@@ -854,7 +888,11 @@ namespace StackExchange.Redis
         private volatile BacklogStatus _backlogStatus;
         private async Task ProcessBacklogAsync()
         {
+#if NETCOREAPP3_1_OR_GREATER
             bool gotLock = false;
+#else
+            LockToken token = default;
+#endif
             try
             {
 #if DEBUG
@@ -869,8 +907,13 @@ namespace StackExchange.Redis
                     if (_backlog.IsEmpty) return; // nothing to do
 
                     // try and get the lock; if unsuccessful, retry
+#if NETCOREAPP3_1_OR_GREATER
                     gotLock = await _singleWriterMutex.WaitAsync(TimeoutMilliseconds).ConfigureAwait(false);
                     if (gotLock) break; // got the lock; now go do something with it
+#else
+                    token = await _singleWriterMutex.TryWaitAsync().ConfigureAwait(false);
+                    if (token.Success) break; // got the lock; now go do something with it
+#endif
 
 #if DEBUG
                     failureCount++;
@@ -953,10 +996,14 @@ namespace StackExchange.Redis
             }
             finally
             {
+#if NETCOREAPP3_1_OR_GREATER
                 if (gotLock)
                 {
                     _singleWriterMutex.Release();
                 }
+#else
+                token.Dispose();
+#endif
 
                 // Do this in finally block, so that thread aborts can't convince us the backlog processor is running forever
                 if (Interlocked.CompareExchange(ref _backlogProcessorIsRunning, 0, 1) != 1)
@@ -987,7 +1034,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// This writes a message to the output stream
+        /// This writes a message to the output stream.
         /// </summary>
         /// <param name="physical">The physical connection to write to.</param>
         /// <param name="message">The message to be written.</param>
@@ -1018,13 +1065,22 @@ namespace StackExchange.Redis
 
             bool releaseLock = true; // fine to default to true, as it doesn't matter until token is a "success"
             int lockTaken = 0;
+#if NETCOREAPP3_1_OR_GREATER
             bool gotLock = false;
+#else
+            LockToken token = default;
+#endif
             try
             {
                 // try to acquire it synchronously
                 // note: timeout is specified in mutex-constructor
+#if NETCOREAPP3_1_OR_GREATER
                 gotLock = _singleWriterMutex.Wait(0);
                 if (!gotLock)
+#else
+                token = _singleWriterMutex.TryWait(options: WaitOptions.NoDelay);
+                if (!token.Success)
+#endif
                 {
                     // we can't get it *instantaneously*; is there
                     // perhaps a backlog and active backlog processor?
@@ -1034,11 +1090,19 @@ namespace StackExchange.Redis
                     // no backlog... try to wait with the timeout;
                     // if we *still* can't get it: that counts as
                     // an actual timeout
+#if NETCOREAPP3_1_OR_GREATER
                     var pending = _singleWriterMutex.WaitAsync(TimeoutMilliseconds);
                     if (pending.Status != TaskStatus.RanToCompletion) return WriteMessageTakingWriteLockAsync_Awaited(pending, physical, message);
 
                     gotLock = pending.Result; // fine since we know we got a result
                     if (!gotLock) return new ValueTask<WriteResult>(TimedOutBeforeWrite(message));
+#else
+                    var pending = _singleWriterMutex.TryWaitAsync(options: WaitOptions.DisableAsyncContext);
+                    if (!pending.IsCompletedSuccessfully) return WriteMessageTakingWriteLockAsync_Awaited(pending, physical, message);
+
+                    token = pending.Result; // fine since we know we got a result
+                    if (!token.Success) return new ValueTask<WriteResult>(TimedOutBeforeWrite(message));
+#endif
                 }
                 lockTaken = Environment.TickCount;
 
@@ -1050,7 +1114,11 @@ namespace StackExchange.Redis
                     if (!flush.IsCompletedSuccessfully)
                     {
                         releaseLock = false; // so we don't release prematurely
+#if NETCOREAPP3_1_OR_GREATER
                         return CompleteWriteAndReleaseLockAsync(flush, message, lockTaken);
+#else
+                        return CompleteWriteAndReleaseLockAsync(token, flush, message, lockTaken);
+#endif
                     }
 
                     result = flush.Result; // we know it was completed, this is fine
@@ -1063,7 +1131,11 @@ namespace StackExchange.Redis
             catch (Exception ex) { return new ValueTask<WriteResult>(HandleWriteException(message, ex)); }
             finally
             {
+#if NETCOREAPP3_1_OR_GREATER
                 if (gotLock)
+#else
+                if (token.Success)
+#endif
                 {
                     UnmarkActiveMessage(message);
 
@@ -1072,7 +1144,11 @@ namespace StackExchange.Redis
 #if DEBUG
                         RecordLockDuration(lockTaken);
 #endif
+#if NETCOREAPP3_1_OR_GREATER
                         _singleWriterMutex.Release();
+#else
+                        token.Dispose();
+#endif
                     }
                 }
             }
@@ -1087,13 +1163,26 @@ namespace StackExchange.Redis
         volatile int _maxLockDuration = -1;
 #endif
 
-        private async ValueTask<WriteResult> WriteMessageTakingWriteLockAsync_Awaited(Task<bool> pending, PhysicalConnection physical, Message message)
+        private async ValueTask<WriteResult> WriteMessageTakingWriteLockAsync_Awaited(
+#if NETCOREAPP3_1_OR_GREATER
+            Task<bool> pending,
+#else
+            ValueTask<LockToken> pending,
+#endif
+            PhysicalConnection physical, Message message)
         {
+#if NETCOREAPP3_1_OR_GREATER
             bool gotLock = false;
+#endif
+
             try
             {
+#if NETCOREAPP3_1_OR_GREATER
                 gotLock = await pending.ForAwait();
                 if (!gotLock) return TimedOutBeforeWrite(message);
+#else
+                using var token = await pending.ForAwait();
+#endif
 #if DEBUG
                 int lockTaken = Environment.TickCount;
 #endif
@@ -1118,16 +1207,27 @@ namespace StackExchange.Redis
             finally
             {
                 UnmarkActiveMessage(message);
+#if NETCOREAPP3_1_OR_GREATER
                 if (gotLock)
                 {
                     _singleWriterMutex.Release();
                 }
+#endif
             }
         }
 
-        private async ValueTask<WriteResult> CompleteWriteAndReleaseLockAsync(ValueTask<WriteResult> flush, Message message, int lockTaken)
+        private async ValueTask<WriteResult> CompleteWriteAndReleaseLockAsync(
+#if !NETCOREAPP3_1_OR_GREATER
+            LockToken lockToken,
+#endif
+            ValueTask<WriteResult> flush,
+            Message message,
+            int lockTaken)
         {
-            try
+#if !NETCOREAPP3_1_OR_GREATER
+            using (lockToken)
+#endif
+                try
             {
                 var result = await flush.ForAwait();
                 physical.SetIdle();
@@ -1142,7 +1242,9 @@ namespace StackExchange.Redis
 #if DEBUG
                 RecordLockDuration(lockTaken);
 #endif
+#if NETCOREAPP3_1_OR_GREATER
                 _singleWriterMutex.Release();
+#endif
             }
         }
 
