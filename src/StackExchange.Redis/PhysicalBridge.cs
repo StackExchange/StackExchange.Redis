@@ -1227,7 +1227,7 @@ namespace StackExchange.Redis
 #if !NETCOREAPP3_1_OR_GREATER
             using (lockToken)
 #endif
-                try
+            try
             {
                 var result = await flush.ForAwait();
                 physical.SetIdle();
