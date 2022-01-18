@@ -13,7 +13,7 @@
       <PackageReference Update="Microsoft.NET.Test.Sdk" Version="16.8.0" />
       <PackageReference Update="Moq" Version="4.15.1" />
       <PackageReference Update="NSubstitute" Version="4.2.2" />
-      <PackageReference Update="Pipelines.Sockets.Unofficial" Version="2.2.0" />
+      <PackageReference Update="Pipelines.Sockets.Unofficial" Version="2.2.2" />
       <PackageReference Update="System.Diagnostics.PerformanceCounter" Version="5.0.0" />
       <PackageReference Update="System.IO.Compression" Version="4.3.0" />
       <PackageReference Update="System.Runtime.InteropServices.RuntimeInformation" Version="4.3.0" />
@@ -25,6 +25,6 @@
       <!-- note that it is only the tests that have a dependency on this; the main lib takes the
       transitive dependency from Pipelines.Sockets.Unofficial; this is for testing some binding
       redirect problems (something new and different for us!) -->
-      <PackageReference Update="System.IO.Pipelines" Version="5.0.0" />
+      <PackageReference Update="System.IO.Pipelines" Version="5.0.1" />
   </ItemGroup>
 </Project>
