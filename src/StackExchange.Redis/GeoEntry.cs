@@ -9,7 +9,7 @@ namespace StackExchange.Redis
     public enum GeoRadiusOptions
     {
         /// <summary>
-        /// No Options.s
+        /// No Options.
         /// </summary>
         None = 0,
         /// <summary>
