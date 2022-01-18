@@ -46,7 +46,6 @@ namespace StackExchange.Redis.Maintenance
         /// <summary>
         /// Returns a string representing the maintenance event with all of its properties.
         /// </summary>
-        public override string ToString()
-            => RawMessage;
+        public override string ToString() => RawMessage;
     }
 }

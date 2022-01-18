@@ -68,14 +68,14 @@ namespace StackExchange.Redis
         public bool Equals(NameValueEntry other) => name == other.name && value == other.value;
 
         /// <summary>
-        /// Compares two values for equality
+        /// Compares two values for equality.
         /// </summary>
         /// <param name="x">The first <see cref="NameValueEntry"/> to compare.</param>
         /// <param name="y">The second <see cref="NameValueEntry"/> to compare.</param>
         public static bool operator ==(NameValueEntry x, NameValueEntry y) => x.name == y.name && x.value == y.value;
 
         /// <summary>
-        /// Compares two values for non-equality
+        /// Compares two values for non-equality.
         /// </summary>
         /// <param name="x">The first <see cref="NameValueEntry"/> to compare.</param>
         /// <param name="y">The second <see cref="NameValueEntry"/> to compare.</param>

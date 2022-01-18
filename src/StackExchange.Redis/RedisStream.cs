@@ -17,7 +17,7 @@
         public RedisKey Key { get; }
 
         /// <summary>
-        /// An arry of entries contained within the stream.
+        /// An array of entries contained within the stream.
         /// </summary>
         public StreamEntry[] Entries { get; }
     }

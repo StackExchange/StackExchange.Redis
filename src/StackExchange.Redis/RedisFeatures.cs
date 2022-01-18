@@ -272,12 +272,12 @@ namespace StackExchange.Redis
         public override bool Equals(object obj) => obj is RedisFeatures f && f.Version == Version;
 
         /// <summary>
-        /// Checks if 2 RedisFeatures are .Equal()
+        /// Checks if 2 RedisFeatures are .Equal().
         /// </summary>
         public static bool operator ==(RedisFeatures left, RedisFeatures right) => left.Equals(right);
 
         /// <summary>
-        /// Checks if 2 RedisFeatures are not .Equal()
+        /// Checks if 2 RedisFeatures are not .Equal().
         /// </summary>
         public static bool operator !=(RedisFeatures left, RedisFeatures right) => !left.Equals(right);
     }

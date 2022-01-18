@@ -30,6 +30,7 @@ namespace StackExchange.Redis
             }
             return result;
         }
+
         /// <summary>
         /// Create a dictionary from an array of HashEntry values.
         /// </summary>
@@ -235,7 +236,7 @@ namespace StackExchange.Redis
         //     Could not load file or assembly 'System.Numerics.Vectors, Version=4.1.3.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a'
         //     or one of its dependencies.The located assembly's manifest definition does not match the assembly reference. (Exception from HRESULT: 0x80131040)
         //
-        // also; note that the nuget tools *do not* reliably (or even occasionally) produce the correct
+        // also; note that the NuGet tools *do not* reliably (or even occasionally) produce the correct
         // assembly-binding-redirect entries to fix this up, so; it would present an unreasonable support burden
         // otherwise. And yes, I've tried explicitly referencing System.Numerics.Vectors in the manifest to
         // force it... nothing. Nada.

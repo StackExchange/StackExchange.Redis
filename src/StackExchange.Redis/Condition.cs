@@ -364,19 +364,15 @@ namespace StackExchange.Redis
 
         internal sealed class ConditionProcessor : ResultProcessor<bool>
         {
-            public static readonly ConditionProcessor Default = new ConditionProcessor();
+            public static readonly ConditionProcessor Default = new();
 
 #pragma warning disable RCS1231 // Make parameter ref read-only.
-            public static Message CreateMessage(Condition condition, int db, CommandFlags flags, RedisCommand command, in RedisKey key, RedisValue value = default(RedisValue))
+            public static Message CreateMessage(Condition condition, int db, CommandFlags flags, RedisCommand command, in RedisKey key, RedisValue value = default(RedisValue)) =>
+                new ConditionMessage(condition, db, flags, command, key, value);
 #pragma warning restore RCS1231 // Make parameter ref read-only.
-            {
-                return new ConditionMessage(condition, db, flags, command, key, value);
-            }
 
-            public static Message CreateMessage(Condition condition, int db, CommandFlags flags, RedisCommand command, in RedisKey key, in RedisValue value, in RedisValue value1)
-            {
-                return new ConditionMessage(condition, db, flags, command, key, value, value1);
-            }
+            public static Message CreateMessage(Condition condition, int db, CommandFlags flags, RedisCommand command, in RedisKey key, in RedisValue value, in RedisValue value1) =>
+                new ConditionMessage(condition, db, flags, command, key, value, value1);
 
             [System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0071:Simplify interpolation", Justification = "Allocations (string.Concat vs. string.Format)")]
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
@@ -441,10 +437,8 @@ namespace StackExchange.Redis
             private readonly RedisType type;
             private readonly RedisCommand cmd;
 
-            internal override Condition MapKeys(Func<RedisKey, RedisKey> map)
-            {
-                return new ExistsCondition(map(key), type, expectedValue, expectedResult);
-            }
+            internal override Condition MapKeys(Func<RedisKey, RedisKey> map) =>
+                new ExistsCondition(map(key), type, expectedValue, expectedResult);
 
             public ExistsCondition(in RedisKey key, RedisType type, in RedisValue expectedValue, bool expectedResult)
             {
@@ -470,11 +464,9 @@ namespace StackExchange.Redis
                 }
             }
 
-            public override string ToString()
-            {
-                return (expectedValue.IsNull ? key.ToString() : ((string)key) + " " + type + " > " + expectedValue)
+            public override string ToString() =>
+                (expectedValue.IsNull ? key.ToString() : ((string)key) + " " + type + " > " + expectedValue)
                     + (expectedResult ? " exists" : " does not exists");
-            }
 
             internal override void CheckCommands(CommandMap commandMap) => commandMap.AssertAvailable(cmd);
 
@@ -515,10 +507,8 @@ namespace StackExchange.Redis
 
         internal class EqualsCondition : Condition
         {
-            internal override Condition MapKeys(Func<RedisKey, RedisKey> map)
-            {
-                return new EqualsCondition(map(key), type, memberName, expectedEqual, expectedValue);
-            }
+            internal override Condition MapKeys(Func<RedisKey, RedisKey> map) =>
+                new EqualsCondition(map(key), type, memberName, expectedEqual, expectedValue);
 
             private readonly bool expectedEqual;
             private readonly RedisValue memberName, expectedValue;
@@ -542,12 +532,10 @@ namespace StackExchange.Redis
                 };
             }
 
-            public override string ToString()
-            {
-                return (memberName.IsNull ? key.ToString() : ((string)key) + " " + type + " > " + memberName)
+            public override string ToString() =>
+                (memberName.IsNull ? key.ToString() : ((string)key) + " " + type + " > " + memberName)
                     + (expectedEqual ? " == " : " != ")
                     + expectedValue;
-            }
 
             internal override void CheckCommands(CommandMap commandMap) => commandMap.AssertAvailable(cmd);
 
@@ -560,10 +548,7 @@ namespace StackExchange.Redis
                 yield return message;
             }
 
-            internal override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
-            {
-                return serverSelectionStrategy.HashSlot(key);
-            }
+            internal override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) => serverSelectionStrategy.HashSlot(key);
 
             internal override bool TryValidate(in RawResult result, out bool value)
             {
@@ -604,10 +589,8 @@ namespace StackExchange.Redis
 
         internal class ListCondition : Condition
         {
-            internal override Condition MapKeys(Func<RedisKey, RedisKey> map)
-            {
-                return new ListCondition(map(key), index, expectedResult, expectedValue);
-            }
+            internal override Condition MapKeys(Func<RedisKey, RedisKey> map) =>
+                new ListCondition(map(key), index, expectedResult, expectedValue);
 
             private readonly bool expectedResult;
             private readonly long index;
@@ -622,16 +605,11 @@ namespace StackExchange.Redis
                 this.expectedValue = expectedValue;
             }
 
-            public override string ToString()
-            {
-                return ((string)key) + "[" + index.ToString() + "]"
+            public override string ToString() =>
+                ((string)key) + "[" + index.ToString() + "]"
                     + (expectedValue.HasValue ? (expectedResult ? " == " : " != ") + expectedValue.Value : (expectedResult ? " exists" : " does not exist"));
-            }
 
-            internal override void CheckCommands(CommandMap commandMap)
-            {
-                commandMap.AssertAvailable(RedisCommand.LINDEX);
-            }
+            internal override void CheckCommands(CommandMap commandMap) => commandMap.AssertAvailable(RedisCommand.LINDEX);
 
             internal sealed override IEnumerable<Message> CreateMessages(int db, IResultBox resultBox)
             {
@@ -672,10 +650,8 @@ namespace StackExchange.Redis
 
         internal class LengthCondition : Condition
         {
-            internal override Condition MapKeys(Func<RedisKey, RedisKey> map)
-            {
-                return new LengthCondition(map(key), type, compareToResult, expectedLength);
-            }
+            internal override Condition MapKeys(Func<RedisKey, RedisKey> map) =>
+                new LengthCondition(map(key), type, compareToResult, expectedLength);
 
             private readonly int compareToResult;
             private readonly long expectedLength;
@@ -702,20 +678,11 @@ namespace StackExchange.Redis
                 };
             }
 
-            public override string ToString()
-            {
-                return ((string)key) + " " + type + " length" + GetComparisonString() + expectedLength;
-            }
+            public override string ToString() => ((string)key) + " " + type + " length" + GetComparisonString() + expectedLength;
 
-            private string GetComparisonString()
-            {
-                return compareToResult == 0 ? " == " : (compareToResult < 0 ? " > " : " < ");
-            }
+            private string GetComparisonString() => compareToResult == 0 ? " == " : (compareToResult < 0 ? " > " : " < ");
 
-            internal override void CheckCommands(CommandMap commandMap)
-            {
-                commandMap.AssertAvailable(cmd);
-            }
+            internal override void CheckCommands(CommandMap commandMap) => commandMap.AssertAvailable(cmd);
 
             internal sealed override IEnumerable<Message> CreateMessages(int db, IResultBox resultBox)
             {
@@ -726,10 +693,7 @@ namespace StackExchange.Redis
                 yield return message;
             }
 
-            internal override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
-            {
-                return serverSelectionStrategy.HashSlot(key);
-            }
+            internal override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) => serverSelectionStrategy.HashSlot(key);
 
             internal override bool TryValidate(in RawResult result, out bool value)
             {
@@ -751,10 +715,8 @@ namespace StackExchange.Redis
 
         internal class SortedSetRangeLengthCondition : Condition
         {
-            internal override Condition MapKeys(Func<RedisKey, RedisKey> map)
-            {
-                return new SortedSetRangeLengthCondition(map(key), min, max, compareToResult, expectedLength);
-            }
+            internal override Condition MapKeys(Func<RedisKey, RedisKey> map) =>
+                new SortedSetRangeLengthCondition(map(key), min, max, compareToResult, expectedLength);
 
             private readonly RedisValue min;
             private readonly RedisValue max;
@@ -772,20 +734,12 @@ namespace StackExchange.Redis
                 this.expectedLength = expectedLength;
             }
 
-            public override string ToString()
-            {
-                return ((string)key) + " " + RedisType.SortedSet + " range[" + min + ", " + max + "] length" + GetComparisonString() + expectedLength;
-            }
+            public override string ToString() =>
+                ((string)key) + " " + RedisType.SortedSet + " range[" + min + ", " + max + "] length" + GetComparisonString() + expectedLength;
 
-            private string GetComparisonString()
-            {
-                return compareToResult == 0 ? " == " : (compareToResult < 0 ? " > " : " < ");
-            }
+            private string GetComparisonString() => compareToResult == 0 ? " == " : (compareToResult < 0 ? " > " : " < ");
 
-            internal override void CheckCommands(CommandMap commandMap)
-            {
-                commandMap.AssertAvailable(RedisCommand.ZCOUNT);
-            }
+            internal override void CheckCommands(CommandMap commandMap) => commandMap.AssertAvailable(RedisCommand.ZCOUNT);
 
             internal sealed override IEnumerable<Message> CreateMessages(int db, IResultBox resultBox)
             {
@@ -796,10 +750,7 @@ namespace StackExchange.Redis
                 yield return message;
             }
 
-            internal override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
-            {
-                return serverSelectionStrategy.HashSlot(key);
-            }
+            internal override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) => serverSelectionStrategy.HashSlot(key);
 
             internal override bool TryValidate(in RawResult result, out bool value)
             {
@@ -821,10 +772,8 @@ namespace StackExchange.Redis
 
         internal class SortedSetScoreCondition : Condition
         {
-            internal override Condition MapKeys(Func<RedisKey, RedisKey> map)
-            {
-                return new SortedSetScoreCondition(map(key), sortedSetScore, expectedEqual, expectedValue);
-            }
+            internal override Condition MapKeys(Func<RedisKey, RedisKey> map) =>
+                new SortedSetScoreCondition(map(key), sortedSetScore, expectedEqual, expectedValue);
 
             private readonly bool expectedEqual;
             private readonly RedisValue sortedSetScore, expectedValue;
@@ -843,10 +792,8 @@ namespace StackExchange.Redis
                 this.expectedValue = expectedValue;
             }
 
-            public override string ToString()
-            {
-                return key.ToString() + (expectedEqual ? " contains " : " not contains ") + expectedValue + " members with score: " + sortedSetScore;
-            }
+            public override string ToString() =>
+                key.ToString() + (expectedEqual ? " contains " : " not contains ") + expectedValue + " members with score: " + sortedSetScore;
 
             internal override void CheckCommands(CommandMap commandMap) => commandMap.AssertAvailable(RedisCommand.ZCOUNT);
 

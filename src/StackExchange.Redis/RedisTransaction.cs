@@ -535,17 +535,4 @@ namespace StackExchange.Redis
             }
         }
     }
-    //internal class RedisDatabaseTransaction : RedisCoreTransaction, ITransaction<IRedisDatabaseAsync>
-    //{
-    //    public IRedisDatabaseAsync Pending { get { return this; } }
-
-    //    bool ITransaction<IRedisDatabaseAsync>.Execute(CommandFlags flags)
-    //    {
-    //        return ExecuteTransaction(flags);
-    //    }
-    //    Task<bool> ITransaction<IRedisDatabaseAsync>.ExecuteAsync(CommandFlags flags)
-    //    {
-    //        return ExecuteTransactionAsync(flags);
-    //    }
-    //}
 }

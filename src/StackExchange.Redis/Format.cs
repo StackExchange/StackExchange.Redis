@@ -3,8 +3,10 @@ using System.Buffers;
 using System.Buffers.Text;
 using System.Globalization;
 using System.Net;
-using System.Net.Sockets;
 using System.Text;
+#if UNIX_SOCKET
+using System.Net.Sockets;
+#endif
 
 namespace StackExchange.Redis
 {
@@ -39,10 +41,8 @@ namespace StackExchange.Redis
             return false;
         }
 
-        public static bool TryParseInt32(string s, out int value)
-        {
-            return int.TryParse(s, NumberStyles.Integer, NumberFormatInfo.InvariantInfo, out value);
-        }
+        public static bool TryParseInt32(string s, out int value) =>
+            int.TryParse(s, NumberStyles.Integer, NumberFormatInfo.InvariantInfo, out value);
 
         internal static EndPoint ParseEndPoint(string host, int port)
         {
@@ -100,18 +100,13 @@ namespace StackExchange.Redis
             }
         }
 
-        internal static string ToStringHostOnly(EndPoint endpoint)
-        {
-            if (endpoint is DnsEndPoint dns)
+        internal static string ToStringHostOnly(EndPoint endpoint) =>
+            endpoint switch
             {
-                return dns.Host;
-            }
-            if (endpoint is IPEndPoint ip)
-            {
-                return ip.Address.ToString();
-            }
-            return "";
-        }
+                DnsEndPoint dns => dns.Host,
+                IPEndPoint ip => ip.Address.ToString(),
+                _ => ""
+            };
 
         internal static bool TryGetHostPort(EndPoint endpoint, out string host, out int port)
         {
@@ -161,14 +156,14 @@ namespace StackExchange.Redis
             return double.TryParse(s, NumberStyles.Any, NumberFormatInfo.InvariantInfo, out value);
         }
 
-        internal static bool TryParseUInt64(string s, out ulong value)
-                    => ulong.TryParse(s, NumberStyles.Integer, NumberFormatInfo.InvariantInfo, out value);
+        internal static bool TryParseUInt64(string s, out ulong value) =>
+            ulong.TryParse(s, NumberStyles.Integer, NumberFormatInfo.InvariantInfo, out value);
 
-        internal static bool TryParseUInt64(ReadOnlySpan<byte> s, out ulong value)
-            => Utf8Parser.TryParse(s, out value, out int bytes, standardFormat: 'D') & bytes == s.Length;
+        internal static bool TryParseUInt64(ReadOnlySpan<byte> s, out ulong value) =>
+            Utf8Parser.TryParse(s, out value, out int bytes, standardFormat: 'D') & bytes == s.Length;
 
-        internal static bool TryParseInt64(ReadOnlySpan<byte> s, out long value)
-            => Utf8Parser.TryParse(s, out value, out int bytes, standardFormat: 'D') & bytes == s.Length;
+        internal static bool TryParseInt64(ReadOnlySpan<byte> s, out long value) =>
+            Utf8Parser.TryParse(s, out value, out int bytes, standardFormat: 'D') & bytes == s.Length;
 
         internal static bool CouldBeInteger(string s)
         {
@@ -193,8 +188,8 @@ namespace StackExchange.Redis
             return true;
         }
 
-        internal static bool TryParseInt64(string s, out long value)
-            => long.TryParse(s, NumberStyles.Integer, NumberFormatInfo.InvariantInfo, out value);
+        internal static bool TryParseInt64(string s, out long value) =>
+            long.TryParse(s, NumberStyles.Integer, NumberFormatInfo.InvariantInfo, out value);
 
         internal static bool TryParseDouble(ReadOnlySpan<byte> s, out double value)
         {
@@ -322,6 +317,7 @@ namespace StackExchange.Redis
             ArrayPool<byte>.Shared.Return(arr);
             return s;
         }
+
         internal static unsafe string GetString(ReadOnlySpan<byte> span)
         {
             if (span.IsEmpty) return "";

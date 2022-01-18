@@ -47,10 +47,10 @@ namespace StackExchange.Redis
         internal long DirectOverlappedBits64 => _overlappedBits64;
 #pragma warning restore RCS1085 // Use auto-implemented property.
 
-        private readonly static object Sentinel_SignedInteger = new object();
-        private readonly static object Sentinel_UnsignedInteger = new object();
-        private readonly static object Sentinel_Raw = new object();
-        private readonly static object Sentinel_Double = new object();
+        private readonly static object Sentinel_SignedInteger = new();
+        private readonly static object Sentinel_UnsignedInteger = new();
+        private readonly static object Sentinel_Raw = new();
+        private readonly static object Sentinel_Double = new();
 
         /// <summary>
         /// Obtain this value as an object - to be used alongside Unbox
@@ -238,21 +238,14 @@ namespace StackExchange.Redis
         private static int GetHashCode(RedisValue x)
         {
             x = x.Simplify();
-            switch (x.Type)
+            return x.Type switch
             {
-                case StorageType.Null:
-                    return -1;
-                case StorageType.Double:
-                    return x.OverlappedValueDouble.GetHashCode();
-                case StorageType.Int64:
-                case StorageType.UInt64:
-                    return x._overlappedBits64.GetHashCode();
-                case StorageType.Raw:
-                    return ((string)x).GetHashCode(); // to match equality
-                case StorageType.String:
-                default:
-                    return x._objectOrSentinel.GetHashCode();
-            }
+                StorageType.Null => -1,
+                StorageType.Double => x.OverlappedValueDouble.GetHashCode(),
+                StorageType.Int64 or StorageType.UInt64 => x._overlappedBits64.GetHashCode(),
+                StorageType.Raw => ((string)x).GetHashCode(),// to match equality
+                _ => x._objectOrSentinel.GetHashCode(),
+            };
         }
 
         /// <summary>

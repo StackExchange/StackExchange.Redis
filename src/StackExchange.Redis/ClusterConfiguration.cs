@@ -155,7 +155,7 @@ namespace StackExchange.Redis
     /// </summary>
     public sealed class ClusterConfiguration
     {
-        private readonly Dictionary<EndPoint, ClusterNode> nodeLookup = new Dictionary<EndPoint, ClusterNode>();
+        private readonly Dictionary<EndPoint, ClusterNode> nodeLookup = new();
 
         private readonly ServerSelectionStrategy serverSelectionStrategy;
         internal ClusterConfiguration(ServerSelectionStrategy serverSelectionStrategy, string nodes, EndPoint origin)
@@ -268,7 +268,7 @@ namespace StackExchange.Redis
     /// </summary>
     public sealed class ClusterNode :  IEquatable<ClusterNode>, IComparable<ClusterNode>, IComparable
     {
-        private static readonly ClusterNode Dummy = new ClusterNode();
+        private static readonly ClusterNode Dummy = new();
 
         private readonly ClusterConfiguration configuration;
 

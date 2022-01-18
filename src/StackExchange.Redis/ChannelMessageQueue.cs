@@ -11,7 +11,7 @@ namespace StackExchange.Redis
     /// </summary>
     public readonly struct ChannelMessage
     {
-        private readonly ChannelMessageQueue _queue; // this is *smaller* than storing a RedisChannel for the subsribed channel
+        private readonly ChannelMessageQueue _queue; // this is *smaller* than storing a RedisChannel for the subscribed channel
         /// <summary>
         /// See Object.ToString
         /// </summary>
