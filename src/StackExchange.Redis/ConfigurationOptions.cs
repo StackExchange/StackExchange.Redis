@@ -377,7 +377,11 @@ namespace StackExchange.Redis
         /// <summary>
         /// The backlog policy to be used for commands when a connection is unhealthy.
         /// </summary>
-        public BacklogPolicy BacklogPolicy { get => backlogPolicy ?? BacklogPolicy.Default; set => backlogPolicy = value; }
+        public BacklogPolicy BacklogPolicy
+        {
+            get => backlogPolicy ?? BacklogPolicy.Default;
+            set => backlogPolicy = value;
+        }
 
         /// <summary>
         /// Indicates whether endpoints should be resolved via DNS before connecting.
