@@ -116,10 +116,8 @@ namespace StackExchange.Redis.Profiling
             }
         }
 
-        public override string ToString()
-        {
-            return
-                $@"EndPoint = {EndPoint}
+        public override string ToString() =>
+$@"EndPoint = {EndPoint}
 Db = {Db}
 Command = {Command}
 CommandCreated = {CommandCreated:u}
@@ -129,7 +127,6 @@ SentToResponse = {SentToResponse}
 ResponseToCompletion = {ResponseToCompletion}
 ElapsedTime = {ElapsedTime}
 Flags = {Flags}
-RetransmissionOf = ({RetransmissionOf})";
-        }
+RetransmissionOf = ({RetransmissionOf?.ToString() ?? "nothing"})";
     }
 }

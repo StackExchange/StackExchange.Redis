@@ -2,7 +2,7 @@
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// Describes stream information retrieved using the XINFO STREAM command. <see cref="IDatabase.StreamInfo"/>
+    /// Describes stream information retrieved using the XINFO STREAM command. <see cref="IDatabase.StreamInfo"/>.
     /// </summary>
     public readonly struct StreamInfo
     {
@@ -55,7 +55,7 @@ namespace StackExchange.Redis
         public StreamEntry LastEntry { get; }
 
         /// <summary>
-        /// The last generated id
+        /// The last generated id.
         /// </summary>
         public RedisValue LastGeneratedId { get; }
     }

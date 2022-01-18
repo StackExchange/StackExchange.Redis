@@ -21,7 +21,7 @@ namespace StackExchange.Redis
     {
         // Since the mapping of "script text" -> LuaScript doesn't depend on any particular details of
         // the redis connection itself, this cache is global.
-        private static readonly ConcurrentDictionary<string, WeakReference> Cache = new ConcurrentDictionary<string, WeakReference>();
+        private static readonly ConcurrentDictionary<string, WeakReference> Cache = new();
 
         /// <summary>
         /// The original Lua script that was used to create this.
@@ -34,7 +34,9 @@ namespace StackExchange.Redis
         /// </summary>
         public string ExecutableScript { get; }
 
-        // Arguments are in the order they have to passed to the script in
+        /// <summary>
+        /// Arguments are in the order they have to passed to the script in.
+        /// </summary>
         internal string[] Arguments { get; }
 
         private bool HasArguments => Arguments?.Length > 0;
@@ -167,7 +169,7 @@ namespace StackExchange.Redis
         /// Loads this LuaScript into the given IServer so it can be run with it's SHA1 hash, instead of
         /// passing the full script on each Evaluate or EvaluateAsync call.
         /// </para>
-        /// <para>Note: the FireAndForget command flag cannot be set</para>
+        /// <para>Note: the FireAndForget command flag cannot be set.</para>
         /// </summary>
         /// <param name="server">The server to load the script on.</param>
         /// <param name="flags">The command flags to use.</param>

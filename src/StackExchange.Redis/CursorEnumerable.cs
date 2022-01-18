@@ -168,7 +168,8 @@ namespace StackExchange.Redis
                 _isPooled = result.IsPooled;
                 _pageCount = result.Count;
                 if (_nextCursor == RedisBase.CursorUtils.Origin)
-                {   // eof
+                {
+                    // EOF
                     _pending = null;
                     _pendingMessage = null;
                 }
@@ -289,7 +290,9 @@ namespace StackExchange.Redis
                 var tmp = array;
                 array = null;
                 if (tmp != null && tmp.Length != 0 && isPooled)
+                {
                     ArrayPool<T>.Shared.Return(tmp);
+                }
                 isPooled = false;
             }
 
@@ -298,7 +301,10 @@ namespace StackExchange.Redis
             /// </summary>
             public void Reset()
             {
-                if (_state == State.Disposed) throw new ObjectDisposedException(GetType().Name);
+                if (_state == State.Disposed)
+                {
+                    throw new ObjectDisposedException(GetType().Name);
+                }
                 _nextCursor = _currentCursor = parent.initialCursor;
                 _pageOffset = parent.initialOffset; // don't -1 here; this makes it look "right" before incremented
                 _state = State.Initial;
@@ -317,17 +323,14 @@ namespace StackExchange.Redis
             int IScanningCursor.PageOffset => _pageOffset;
         }
 
-        long IScanningCursor.Cursor // this may fail on cluster-proxy; I'm OK with this for now
-        {
-            get { var tmp = activeCursor; return tmp?.Cursor ?? (long)initialCursor; }
-        }
+        /// <remarks>
+        /// This may fail on cluster-proxy; I'm OK with this for now
+        /// </remarks>
+        long IScanningCursor.Cursor => activeCursor?.Cursor ?? (long)initialCursor;
 
         int IScanningCursor.PageSize => pageSize;
 
-        int IScanningCursor.PageOffset
-        {
-            get { var tmp = activeCursor; return tmp?.PageOffset ?? initialOffset; }
-        }
+        int IScanningCursor.PageOffset => activeCursor?.PageOffset ?? initialOffset;
 
         internal static CursorEnumerable<T> From(RedisBase redis, ServerEndPoint server, Task<T[]> pending, int pageOffset)
             => new SingleBlockEnumerable(redis, server, pending, pageOffset);

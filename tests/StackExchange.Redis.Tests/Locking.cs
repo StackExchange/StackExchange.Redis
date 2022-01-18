@@ -69,7 +69,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void TestOpCountByVersionLocal_UpLevel()
         {
-            using (var conn = Create())
+            using (var conn = Create(shared: false))
             {
                 TestLockOpCountByVersion(conn, 1, false);
                 TestLockOpCountByVersion(conn, 1, true);
@@ -99,7 +99,7 @@ namespace StackExchange.Redis.Tests
 
             Assert.Equal(!existFirst, taken);
             Assert.Equal(expectedVal, valAfter);
-            Assert.Equal(expectedOps, countAfter - countBefore);
+            Assert.True(expectedOps >= countAfter - countBefore, $"{expectedOps} >= ({countAfter} - {countBefore})");
             // note we get a ping from GetCounters
         }
 

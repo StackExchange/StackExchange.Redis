@@ -5,7 +5,7 @@ using System.Text;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// Contains information about individual hash-slot relocations
+    /// Contains information about individual hash-slot relocations.
     /// </summary>
     public class HashSlotMovedEventArgs : EventArgs, ICompletable
     {
@@ -13,17 +13,17 @@ namespace StackExchange.Redis
         private readonly EventHandler<HashSlotMovedEventArgs> handler;
 
         /// <summary>
-        /// The hash-slot that was relocated
+        /// The hash-slot that was relocated.
         /// </summary>
         public int HashSlot { get; }
 
         /// <summary>
-        /// The old endpoint for this hash-slot (if known)
+        /// The old endpoint for this hash-slot (if known).
         /// </summary>
         public EndPoint OldEndPoint { get; }
 
         /// <summary>
-        /// The new endpoint for this hash-slot (if known)
+        /// The new endpoint for this hash-slot (if known).
         /// </summary>
         public EndPoint NewEndPoint { get; }
 

@@ -90,14 +90,7 @@ namespace StackExchange.Redis
 
         public ServerEndPoint ServerEndPoint { get; }
 
-        public long SubscriptionCount
-        {
-            get
-            {
-                var tmp = physical;
-                return tmp == null ? 0 : physical.SubscriptionCount;
-            }
-        }
+        public long SubscriptionCount => physical?.SubscriptionCount ?? 0;
 
         internal State ConnectionState => (State)state;
         internal bool IsBeating => Interlocked.CompareExchange(ref beating, 0, 0) == 1;
@@ -690,7 +683,8 @@ namespace StackExchange.Redis
             var physical = this.physical;
             if (physical == null) return false;
             foreach (var message in messages)
-            {   // deliberately not taking a single lock here; we don't care if
+            {
+                // deliberately not taking a single lock here; we don't care if
                 // other threads manage to interleave - in fact, it would be desirable
                 // (to avoid a batch monopolising the connection)
 #pragma warning disable CS0618
@@ -711,7 +705,7 @@ namespace StackExchange.Redis
             var existingMessage = Interlocked.CompareExchange(ref _activeMessage, message, null);
             if (existingMessage != null)
             {
-                Multiplexer?.OnInfoMessage($"reentrant call to WriteMessageTakingWriteLock for {message.CommandAndKey}, {existingMessage.CommandAndKey} is still active");
+                Multiplexer?.OnInfoMessage($"Reentrant call to WriteMessageTakingWriteLock for {message.CommandAndKey}, {existingMessage.CommandAndKey} is still active");
                 return WriteResult.NoConnectionAvailable;
             }
 #if DEBUG
@@ -720,9 +714,9 @@ namespace StackExchange.Redis
 #endif
             {
                 physical.SetWriting();
-                var messageIsSent = false;
                 if (message is IMultiMessage multiMessage)
                 {
+                    var messageIsSent = false;
                     SelectDatabaseInsideWriteLock(physical, message); // need to switch database *before* the transaction
                     foreach (var subCommand in multiMessage.GetMessages(physical))
                     {
@@ -853,6 +847,10 @@ namespace StackExchange.Redis
 #endif
                 _backlogStatus = BacklogStatus.Activating;
 
+#if NET6_0_OR_GREATER
+                // In .NET 6, use the thread pool stall semantics to our advantage and use a lighter-weight Task
+                Task.Run(ProcessBacklogAsync);
+#else
                 // Start the backlog processor; this is a bit unorthodox, as you would *expect* this to just
                 // be Task.Run; that would work fine when healthy, but when we're falling on our face, it is
                 // easy to get into a thread-pool-starvation "spiral of death" if we rely on the thread-pool
@@ -865,6 +863,7 @@ namespace StackExchange.Redis
                     Name = "StackExchange.Redis Backlog", // help anyone looking at thread-dumps
                 };
                 thread.Start(this);
+#endif
             }
         }
 #if DEBUG
@@ -1127,7 +1126,10 @@ namespace StackExchange.Redis
 
                 return new ValueTask<WriteResult>(result);
             }
-            catch (Exception ex) { return new ValueTask<WriteResult>(HandleWriteException(message, ex)); }
+            catch (Exception ex)
+            {
+                return new ValueTask<WriteResult>(HandleWriteException(message, ex));
+            }
             finally
             {
                 if (token.Success)
@@ -1312,7 +1314,10 @@ namespace StackExchange.Redis
 
         private WriteResult WriteMessageToServerInsideWriteLock(PhysicalConnection connection, Message message)
         {
-            if (message == null) return WriteResult.Success; // for some definition of success
+            if (message == null)
+            {
+                return WriteResult.Success; // for some definition of success
+            }
 
             bool isQueued = false;
             try

@@ -1,17 +1,20 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 using System.Threading;
 
 namespace StackExchange.Redis
 {
-#pragma warning disable CA1416 // windows only APIs; we've guarded against that
     internal static class PerfCounterHelper
     {
-        private static readonly object staticLock = new object();
+        private static readonly object staticLock = new();
         private static volatile PerformanceCounter _cpu;
         private static volatile bool _disabled = !RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
 
+#if NET5_0_OR_GREATER
+        [SupportedOSPlatform("Windows")]
+#endif
         public static bool TryGetSystemCPU(out float value)
         {
             value = -1;
@@ -58,12 +61,10 @@ namespace StackExchange.Redis
             return $"IOCP: {iocp}, WORKER: {worker}, Local-CPU: {cpu}";
         }
 
-        internal static string GetSystemCpuPercent()
-        {
-            return TryGetSystemCPU(out float systemCPU)
+        internal static string GetSystemCpuPercent() =>
+            RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && TryGetSystemCPU(out float systemCPU)
                 ? Math.Round(systemCPU, 2) + "%"
                 : "unavailable";
-        }
 
         internal static int GetThreadPoolStats(out string iocp, out string worker)
         {
@@ -79,5 +80,4 @@ namespace StackExchange.Redis
             return busyWorkerThreads;
         }
     }
-#pragma warning restore CA1416 // windows only APIs; we've guarded against that
 }

@@ -6,9 +6,9 @@ using System.Threading;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// A sized region of contiguous memory backed by a memory pool; disposing the lease returns the memory to the pool
+    /// A sized region of contiguous memory backed by a memory pool; disposing the lease returns the memory to the pool.
     /// </summary>
-    /// <typeparam name="T">The type of data being leased</typeparam>
+    /// <typeparam name="T">The type of data being leased.</typeparam>
     public sealed class Lease<T> : IMemoryOwner<T>
     {
         /// <summary>
@@ -19,15 +19,15 @@ namespace StackExchange.Redis
         private T[] _arr;
 
         /// <summary>
-        /// The length of the lease
+        /// The length of the lease.
         /// </summary>
         public int Length { get; }
 
         /// <summary>
-        /// Create a new lease
+        /// Create a new lease.
         /// </summary>
-        /// <param name="length">The size required</param>
-        /// <param name="clear">Whether to erase the memory</param>
+        /// <param name="length">The size required.</param>
+        /// <param name="clear">Whether to erase the memory.</param>
         public static Lease<T> Create(int length, bool clear = true)
         {
             if (length == 0) return Empty;
@@ -43,7 +43,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Release all resources owned by the lease
+        /// Release all resources owned by the lease.
         /// </summary>
         public void Dispose()
         {
@@ -53,8 +53,10 @@ namespace StackExchange.Redis
                 if (arr != null) ArrayPool<T>.Shared.Return(arr);
             }
         }
+
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static T[] ThrowDisposed() => throw new ObjectDisposedException(nameof(Lease<T>));
+
         private T[] Array
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -62,17 +64,17 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// The data as a Memory
+        /// The data as a <see cref="Memory{T}"/>.
         /// </summary>
         public Memory<T> Memory => new Memory<T>(Array, 0, Length);
 
         /// <summary>
-        /// The data as a Span
+        /// The data as a <see cref="Span{T}"/>.
         /// </summary>
         public Span<T> Span => new Span<T>(Array, 0, Length);
 
         /// <summary>
-        /// The data as an ArraySegment
+        /// The data as an <see cref="ArraySegment{T}"/>.
         /// </summary>
         public ArraySegment<T> ArraySegment => new ArraySegment<T>(Array, 0, Length);
     }
