@@ -857,7 +857,7 @@ namespace StackExchange.Redis
                 // to unblock the thread-pool when there could be sync-over-async callers. Note that in reality,
                 // the initial "enough" of the back-log processor is typically sync, which means that the thread
                 // we start is actually useful, despite thinking "but that will just go async and back to the pool"
-                var thread = new Thread(s => ((PhysicalBridge)s).ProcessBacklogsAsync().RedisFireAndForget())
+                var thread = new Thread(s => ((PhysicalBridge)s).ProcessBacklogAsync().RedisFireAndForget())
                 {
                     IsBackground = true,                  // don't keep process alive (also: act like the thread-pool used to)
                     Name = "StackExchange.Redis Backlog", // help anyone looking at thread-dumps
@@ -931,7 +931,7 @@ namespace StackExchange.Redis
         /// Process the backlog(s) in play if any.
         /// This means flushing commands to an available/active connection (if any) or spinning until timeout if not.
         /// </summary>
-        private async Task ProcessBacklogsAsync()
+        private async Task ProcessBacklogAsync()
         {
             _backlogStatus = BacklogStatus.Starting;
             try
