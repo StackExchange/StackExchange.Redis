@@ -20,7 +20,7 @@ namespace StackExchange.Redis.Tests.Issues
                 // setup some data
                 cache.KeyDelete(key, CommandFlags.FireAndForget);
                 cache.HashSet(key, "full", "some value", flags: CommandFlags.FireAndForget);
-                cache.KeyExpire(key, TimeSpan.FromSeconds(2), CommandFlags.FireAndForget);
+                cache.KeyExpire(key, TimeSpan.FromSeconds(4), CommandFlags.FireAndForget);
 
                 // test while exists
                 var keyExists = cache.KeyExists(key);
