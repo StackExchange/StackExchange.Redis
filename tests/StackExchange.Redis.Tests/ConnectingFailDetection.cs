@@ -123,12 +123,16 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal(0, Volatile.Read(ref restoreCount));
 
                 var server = muxer.GetServer(TestConfig.Current.MasterServerAndPort);
-                server.SimulateConnectionFailure(SimulatedFailureType.InteractiveInbound | SimulatedFailureType.InteractiveOutbound);
+                server.SimulateConnectionFailure(SimulatedFailureType.All);
 
-                await UntilCondition(TimeSpan.FromSeconds(10), () => Volatile.Read(ref failCount) + Volatile.Read(ref restoreCount) == 4);
+                await UntilCondition(TimeSpan.FromSeconds(10), () => Volatile.Read(ref failCount) >= 2 && Volatile.Read(ref restoreCount) >= 2);
+
                 // interactive+subscriber = 2
-                Assert.Equal(2, Volatile.Read(ref failCount));
-                Assert.Equal(2, Volatile.Read(ref restoreCount));
+                var failCountSnapshot = Volatile.Read(ref failCount);
+                Assert.True(failCountSnapshot >= 2, $"failCount {failCountSnapshot} >= 2");
+
+                var restoreCountSnapshot = Volatile.Read(ref restoreCount);
+                Assert.True(restoreCountSnapshot >= 2, $"restoreCount ({restoreCountSnapshot}) >= 2");
             }
         }
 
