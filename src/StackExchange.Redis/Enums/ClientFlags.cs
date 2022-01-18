@@ -85,5 +85,17 @@ namespace StackExchange.Redis
         /// the client is connected via a Unix domain socket
         /// </summary>
         UnixDomainSocket = 2048,
+        /// <summary>
+        /// the client enabled keys tracking in order to perform client side caching
+        /// </summary>
+        KeysTracking = 4096,
+        /// <summary>
+        /// the client tracking target client is invalid
+        /// </summary>
+        TrackingTargetInvalid = 8192,
+        /// <summary>
+        /// the client enabled broadcast tracking mode
+        /// </summary>
+        BroadcastTracking = 16384,
     }
 }
