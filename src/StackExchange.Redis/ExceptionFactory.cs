@@ -244,10 +244,6 @@ namespace StackExchange.Redis
                 Add(data, sb, "Timeout", "timeout", Format.ToString(multiplexer.TimeoutMilliseconds));
                 try
                 {
-#if DEBUG
-                    if (message.QueuePosition >= 0) Add(data, sb, "QueuePosition", null, message.QueuePosition.ToString()); // the position the item was when added to the queue
-                    if ((int)message.ConnectionWriteState >= 0) Add(data, sb, "WriteState", null, message.ConnectionWriteState.ToString()); // what the physical was doing when it was added to the queue
-#endif
                     if (message != null && message.TryGetPhysicalState(out var ws, out var rs, out var sentDelta, out var receivedDelta))
                     {
                         Add(data, sb, "Write-State", null, ws.ToString());
