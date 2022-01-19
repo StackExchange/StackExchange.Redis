@@ -188,7 +188,6 @@ namespace StackExchange.Redis
             if (!IsConnected) return QueueOrFailMessage(message);
 
             var physical = this.physical;
-            if (physical == null) return FailDueToNoConnection(message);
             if (physical == null)
             {
                 // If we're not connected yet and supposed to, queue it up
