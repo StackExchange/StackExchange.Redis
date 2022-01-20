@@ -890,18 +890,11 @@ namespace StackExchange.Redis
         }
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "DEBUG uses instance data")]
-        private async ValueTask<WriteResult> FlushAsync_Awaited(PhysicalConnection connection, ValueTask<FlushResult> flush, bool throwOnFailure
-#if DEBUG
-            , int startFlush, long flushBytes
-#endif
-            )
+        private async ValueTask<WriteResult> FlushAsync_Awaited(PhysicalConnection connection, ValueTask<FlushResult> flush, bool throwOnFailure)
         {
             try
             {
                 await flush.ForAwait();
-#if DEBUG
-                RecordEndFlush(startFlush, flushBytes);
-#endif
                 connection._writeStatus = WriteStatus.Flushed;
                 connection.UpdateLastWriteTime();
                 return WriteResult.Success;
@@ -943,9 +936,6 @@ namespace StackExchange.Redis
 
             void ThrowTimeout()
             {
-#if DEBUG
-                if (millisecondsTimeout > _maxFlushTime) _maxFlushTime = millisecondsTimeout; // a fair bet even if we didn't measure
-#endif
                 throw new TimeoutException("timeout while synchronously flushing");
             }
         }
@@ -956,20 +946,8 @@ namespace StackExchange.Redis
             try
             {
                 _writeStatus = WriteStatus.Flushing;
-#if DEBUG
-                int startFlush = Environment.TickCount;
-                long flushBytes = -1;
-                if (_ioPipe is SocketConnection sc) flushBytes = sc.GetCounters().BytesWaitingToBeSent;
-#endif
                 var flush = tmp.FlushAsync(cancellationToken);
-                if (!flush.IsCompletedSuccessfully) return FlushAsync_Awaited(this, flush, throwOnFailure
-#if DEBUG
-                    , startFlush, flushBytes
-#endif
-                );
-#if DEBUG
-                RecordEndFlush(startFlush, flushBytes);
-#endif
+                if (!flush.IsCompletedSuccessfully) return FlushAsync_Awaited(this, flush, throwOnFailure);
                 _writeStatus = WriteStatus.Flushed;
                 UpdateLastWriteTime();
                 return new ValueTask<WriteResult>(WriteResult.Success);
@@ -980,24 +958,8 @@ namespace StackExchange.Redis
                 return new ValueTask<WriteResult>(WriteResult.WriteFailure);
             }
         }
-#if DEBUG
-        private void RecordEndFlush(int start, long bytes)
-        {
-            var end = Environment.TickCount;
-            int taken = unchecked(end - start);
-            if (taken > _maxFlushTime)
-            {
-                _maxFlushTime = taken;
-                if (bytes >= 0) _maxFlushBytes = bytes;
-            }
-        }
-        private volatile int _maxFlushTime = -1;
-        private long _maxFlushBytes = -1;
-        internal int MaxFlushTime => _maxFlushTime;
-        internal long MaxFlushBytes => _maxFlushBytes;
-#endif
 
-    private static readonly ReadOnlyMemory<byte> NullBulkString = Encoding.ASCII.GetBytes("$-1\r\n"), EmptyBulkString = Encoding.ASCII.GetBytes("$0\r\n\r\n");
+        private static readonly ReadOnlyMemory<byte> NullBulkString = Encoding.ASCII.GetBytes("$-1\r\n"), EmptyBulkString = Encoding.ASCII.GetBytes("$0\r\n\r\n");
 
         private static void WriteUnifiedBlob(PipeWriter writer, byte[] value)
         {
@@ -1676,12 +1638,9 @@ namespace StackExchange.Redis
             }
         }
 
-        private static readonly ArenaOptions s_arenaOptions = new ArenaOptions(
-#if DEBUG
-            blockSizeBytes: Unsafe.SizeOf<RawResult>() * 8 // force an absurdly small page size to trigger bugs
-#endif
-        );
+        private static readonly ArenaOptions s_arenaOptions = new ArenaOptions();
         private readonly Arena<RawResult> _arena = new Arena<RawResult>(s_arenaOptions);
+
         private int ProcessBuffer(ref ReadOnlySequence<byte> buffer)
         {
             int messageCount = 0;

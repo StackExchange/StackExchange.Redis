@@ -54,20 +54,6 @@ namespace StackExchange.Redis
     {
         public readonly int Db;
 
-#if DEBUG
-        internal int QueuePosition { get; private set; }
-        internal PhysicalConnection.WriteStatus ConnectionWriteState { get; private set; }
-#endif
-        [Conditional("DEBUG")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "DEBUG uses instance data")]
-        internal void SetBacklogState(int position, PhysicalConnection physical)
-        {
-#if DEBUG
-            QueuePosition = position;
-            ConnectionWriteState = physical?.GetWriteStatus() ?? PhysicalConnection.WriteStatus.NA;
-#endif
-        }
-
         internal const CommandFlags InternalCallFlag = (CommandFlags)128;
 
         protected RedisCommand command;
@@ -602,10 +588,6 @@ namespace StackExchange.Redis
 
         internal void SetEnqueued(PhysicalConnection connection)
         {
-#if DEBUG
-            QueuePosition = -1;
-            ConnectionWriteState = PhysicalConnection.WriteStatus.NA;
-#endif
             SetWriteTime();
             performance?.SetEnqueued();
             _enqueuedTo = connection;
