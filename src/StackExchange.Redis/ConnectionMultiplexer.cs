@@ -1504,33 +1504,6 @@ namespace StackExchange.Redis
             return new RedisServer(this, server, asyncState);
         }
 
-        [Conditional("VERBOSE")]
-        internal void Trace(string message, [CallerMemberName] string category = null)
-        {
-            OnTrace(message, category);
-        }
-
-        [Conditional("VERBOSE")]
-        internal void Trace(bool condition, string message, [CallerMemberName] string category = null)
-        {
-            if (condition) OnTrace(message, category);
-        }
-
-        partial void OnTrace(string message, string category);
-        static partial void OnTraceWithoutContext(string message, string category);
-
-        [Conditional("VERBOSE")]
-        internal static void TraceWithoutContext(string message, [CallerMemberName] string category = null)
-        {
-            OnTraceWithoutContext(message, category);
-        }
-
-        [Conditional("VERBOSE")]
-        internal static void TraceWithoutContext(bool condition, string message, [CallerMemberName] string category = null)
-        {
-            if (condition) OnTraceWithoutContext(message, category);
-        }
-
         /// <summary>
         /// The number of operations that have been performed on all connections
         /// </summary>
@@ -2174,16 +2147,14 @@ namespace StackExchange.Redis
 
         private IDisposable pulse;
 
-        internal ServerEndPoint SelectServer(Message message)
-        {
-            if (message == null) return null;
-            return ServerSelectionStrategy.Select(message);
-        }
+        internal ServerEndPoint SelectServer(Message message) =>
+            message == null ? null : ServerSelectionStrategy.Select(message);
 
-        internal ServerEndPoint SelectServer(RedisCommand command, CommandFlags flags, in RedisKey key)
-        {
-            return ServerSelectionStrategy.Select(command, key, flags);
-        }
+        internal ServerEndPoint SelectServer(RedisCommand command, CommandFlags flags, in RedisKey key) =>
+            ServerSelectionStrategy.Select(command, key, flags);
+
+        internal ServerEndPoint SelectServer(RedisCommand command, CommandFlags flags, in RedisChannel channel) =>
+            ServerSelectionStrategy.Select(command, channel, flags);
 
         private bool PrepareToPushMessageToBridge<T>(Message message, ResultProcessor<T> processor, IResultBox<T> resultBox, ref ServerEndPoint server)
         {
