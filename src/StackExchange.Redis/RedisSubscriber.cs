@@ -372,16 +372,20 @@ namespace StackExchange.Redis
                 catch { }
             }
 
+            Message msg;
             if (usePing)
             {
-                return ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.PING);
+                msg = ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.PING);
             }
             else
             {
                 // can't use regular PING, but we can unsubscribe from something random that we weren't even subscribed to...
                 RedisValue channel = multiplexer.UniqueId;
-                return ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.UNSUBSCRIBE, channel);
+                msg = ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.UNSUBSCRIBE, channel);
             }
+            // Ensure the ping is sent over the intended subscriver connection, which wouldn't happen in GetBridge() by default with PING;
+            msg.SetForSubscriptionBridge();
+            return msg;
         }
 
         public long Publish(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None)
