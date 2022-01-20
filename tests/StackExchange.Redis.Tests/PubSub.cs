@@ -523,9 +523,6 @@ namespace StackExchange.Redis.Tests
                 });
                 await sub.PingAsync().ForAwait();
 
-                // Give a delay between subscriptions and when we try to publish to be safe
-                await Task.Delay(1000).ForAwait();
-
                 lock (syncLock)
                 {
                     for (int i = 0; i < count; i++)
