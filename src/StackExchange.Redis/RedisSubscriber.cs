@@ -207,6 +207,9 @@ namespace StackExchange.Redis
             {
                 var command = channel.IsPatternBased ? RedisCommand.PSUBSCRIBE : RedisCommand.SUBSCRIBE;
                 var selected = multiplexer.SelectServer(command, flags, channel);
+                // TODO: look at this case
+                var bridge = selected?.GetBridge(ConnectionType.Subscription, true);
+                if (bridge == null) return false;
 
                 // Do we have a server already? And is it connected? Then bail out.
                 if (CurrentServer?.IsSubscriberConnected == true)
