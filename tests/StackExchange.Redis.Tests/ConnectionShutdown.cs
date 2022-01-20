@@ -14,7 +14,7 @@ namespace StackExchange.Redis.Tests
         [Fact(Skip = "Unfriendly")]
         public async Task ShutdownRaisesConnectionFailedAndRestore()
         {
-            using (var conn = Create(allowAdmin: true))
+            using (var conn = Create(allowAdmin: true, shared: false))
             {
                 int failed = 0, restored = 0;
                 Stopwatch watch = Stopwatch.StartNew();

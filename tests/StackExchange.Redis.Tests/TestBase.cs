@@ -128,6 +128,7 @@ namespace StackExchange.Redis.Tests
             {
                 privateExceptions.Add($"{Time()}: Connection failed ({e.FailureType}): {EndPointCollection.ToString(e.EndPoint)}/{e.ConnectionType}: {e.Exception}");
             }
+            Log($"Connection Failed ({e.ConnectionType},{e.FailureType}): {e.Exception}");
         }
 
         protected void OnInternalError(object sender, InternalErrorEventArgs e)
@@ -285,6 +286,10 @@ namespace StackExchange.Redis.Tests
                 caller);
             muxer.InternalError += OnInternalError;
             muxer.ConnectionFailed += OnConnectionFailed;
+            muxer.ConnectionRestored += (s, e) =>
+            {
+                Log($"Connection Restored ({e.ConnectionType},{e.FailureType}): {e.Exception}");
+            };
             return muxer;
         }
 

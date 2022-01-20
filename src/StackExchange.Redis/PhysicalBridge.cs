@@ -364,6 +364,7 @@ namespace StackExchange.Redis
                     if (commandMap.IsAvailable(RedisCommand.PING) && features.PingOnSubscriber)
                     {
                         msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.PING);
+                        msg.SetForSubscriptionBridge();
                         msg.SetSource(ResultProcessor.Tracer, null);
                     }
                     else if (commandMap.IsAvailable(RedisCommand.UNSUBSCRIBE))

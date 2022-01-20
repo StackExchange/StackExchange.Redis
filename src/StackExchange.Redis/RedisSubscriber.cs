@@ -1,8 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Net;
-using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Pipelines.Sockets.Unofficial;
@@ -13,34 +11,11 @@ namespace StackExchange.Redis
     {
         private readonly Dictionary<RedisChannel, Subscription> subscriptions = new Dictionary<RedisChannel, Subscription>();
 
-        internal static void CompleteAsWorker(ICompletable completable)
+        internal int GetSubscriptionsCount()
         {
-            if (completable != null) ThreadPool.QueueUserWorkItem(s_CompleteAsWorker, completable);
-        }
-
-        private static readonly WaitCallback s_CompleteAsWorker = s => ((ICompletable)s).TryComplete(true);
-
-        internal static bool TryCompleteHandler<T>(EventHandler<T> handler, object sender, T args, bool isAsync) where T : EventArgs, ICompletable
-        {
-            if (handler == null) return true;
-            if (isAsync)
+            lock (subscriptions)
             {
-                if (handler.IsSingle())
-                {
-                    try { handler(sender, args); } catch { }
-                }
-                else
-                {
-                    foreach (EventHandler<T> sub in handler.AsEnumerable())
-                    {
-                        try { sub(sender, args); } catch { }
-                    }
-                }
-                return true;
-            }
-            else
-            {
-                return false;
+                return subscriptions.Count;
             }
         }
 
@@ -106,7 +81,7 @@ namespace StackExchange.Redis
                 }
             }
             if (queues != null) ChannelMessageQueue.WriteAll(ref queues, channel, payload);
-            if (completable != null && !completable.TryComplete(false)) ConnectionMultiplexer.CompleteAsWorker(completable);
+            if (completable != null && !completable.TryComplete(false)) CompleteAsWorker(completable);
         }
 
         internal Task RemoveAllSubscriptions(CommandFlags flags, object asyncState)
@@ -169,7 +144,7 @@ namespace StackExchange.Redis
             var server = GetSubscribedServer(channel);
             if (server != null) return server.IsConnected;
 
-            server = SelectServer(RedisCommand.SUBSCRIBE, CommandFlags.DemandMaster, default(RedisKey));
+            server = SelectServer(RedisCommand.SUBSCRIBE, CommandFlags.DemandMaster, channel);
             return server?.IsConnected == true;
         }
 
@@ -221,7 +196,7 @@ namespace StackExchange.Redis
             [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "RCS1210:Return completed task instead of returning null.", Justification = "Intentional for efficient success check")]
             public Task SubscribeToServer(ConnectionMultiplexer multiplexer, in RedisChannel channel, CommandFlags flags, object asyncState, bool internalCall)
             {
-                var selected = multiplexer.SelectServer(RedisCommand.SUBSCRIBE, flags, default(RedisKey));
+                var selected = multiplexer.SelectServer(RedisCommand.SUBSCRIBE, flags, channel);
                 var bridge = selected?.GetBridge(ConnectionType.Subscription, true);
                 if (bridge == null) return null;
 
@@ -347,51 +322,6 @@ namespace StackExchange.Redis
                     foreach (var sub in tmp.AsEnumerable()) { handlers++; }
                 }
             }
-        }
-
-        internal string GetConnectionName(EndPoint endPoint, ConnectionType connectionType)
-            => GetServerEndPoint(endPoint)?.GetBridge(connectionType, false)?.PhysicalName;
-
-        internal event Action<string, Exception, string> MessageFaulted;
-        internal event Action<bool> Closing;
-        internal event Action<string> PreTransactionExec, TransactionLog, InfoMessage;
-        internal event Action<EndPoint, ConnectionType> Connecting;
-        internal event Action<EndPoint, ConnectionType> Resurrecting;
-
-        [Conditional("VERBOSE")]
-        internal void OnMessageFaulted(Message msg, Exception fault, [CallerMemberName] string origin = default, [CallerFilePath] string path = default, [CallerLineNumber] int lineNumber = default)
-        {
-            MessageFaulted?.Invoke(msg?.CommandAndKey, fault, $"{origin} ({path}#{lineNumber})");
-        }
-        [Conditional("VERBOSE")]
-        internal void OnInfoMessage(string message)
-        {
-            InfoMessage?.Invoke(message);
-        }
-        [Conditional("VERBOSE")]
-        internal void OnClosing(bool complete)
-        {
-            Closing?.Invoke(complete);
-        }
-        [Conditional("VERBOSE")]
-        internal void OnConnecting(EndPoint endpoint, ConnectionType connectionType)
-        {
-            Connecting?.Invoke(endpoint, connectionType);
-        }
-        [Conditional("VERBOSE")]
-        internal void OnResurrecting(EndPoint endpoint, ConnectionType connectionType)
-        {
-            Resurrecting.Invoke(endpoint, connectionType);
-        }
-        [Conditional("VERBOSE")]
-        internal void OnPreTransactionExec(Message message)
-        {
-            PreTransactionExec?.Invoke(message.CommandAndKey);
-        }
-        [Conditional("VERBOSE")]
-        internal void OnTransactionLog(string message)
-        {
-            TransactionLog?.Invoke(message);
         }
     }
 
