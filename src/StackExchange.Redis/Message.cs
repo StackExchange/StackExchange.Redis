@@ -693,9 +693,11 @@ namespace StackExchange.Redis
         internal void SetPreferReplica() =>
             Flags = (Flags & ~MaskMasterServerPreference) | CommandFlags.PreferReplica;
 
+        /// <remarks>
+        /// Note order here reversed to prevent overload resolution errors
+        /// </remarks>
         internal void SetSource(ResultProcessor resultProcessor, IResultBox resultBox)
         {
-            // note order here reversed to prevent overload resolution errors
             this.resultBox = resultBox;
             this.resultProcessor = resultProcessor;
         }

@@ -804,7 +804,7 @@ namespace StackExchange.Redis
                 if (!token.Success)
 #endif
                 {
-                    // If we can't get it *instantaneously*; pass it to the backlog for throughput
+                    // If we can't get it *instantaneously*, pass it to the backlog for throughput
                     if (TryPushToBacklog(message, onlyIfExists: false))
                     {
                         return WriteResult.Success; // queued counts as success
@@ -1189,7 +1189,7 @@ namespace StackExchange.Redis
                 if (!token.Success)
 #endif
                 {
-                    // If we can't get it *instantaneously*; pass it to the backlog for throughput
+                    // If we can't get it *instantaneously*, pass it to the backlog for throughput
                     if (TryPushToBacklog(message, onlyIfExists: false, bypassBacklog: bypassBacklog))
                     {
                         return new ValueTask<WriteResult>(WriteResult.Success); // queued counts as success
