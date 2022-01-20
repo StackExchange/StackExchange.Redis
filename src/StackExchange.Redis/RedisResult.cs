@@ -5,7 +5,7 @@ using System.Runtime.CompilerServices;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// Represents a general-purpose result from redis, that may be cast into various anticipated types
+    /// Represents a general-purpose result from redis, that may be cast into various anticipated types.
     /// </summary>
     public abstract class RedisResult
     {
@@ -35,12 +35,12 @@ namespace StackExchange.Redis
             => values == null ? NullArray : values.Length == 0 ? EmptyArray : new ArrayRedisResult(values);
 
         /// <summary>
-        /// An empty array result
+        /// An empty array result.
         /// </summary>
         internal static RedisResult EmptyArray { get; } = new ArrayRedisResult(Array.Empty<RedisResult>());
 
         /// <summary>
-        /// A null array result
+        /// A null array result.
         /// </summary>
         internal static RedisResult NullArray { get; } = new ArrayRedisResult(null);
 
@@ -84,12 +84,12 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Indicate the type of result that was received from redis
+        /// Indicate the type of result that was received from redis.
         /// </summary>
         public abstract ResultType Type { get; }
 
         /// <summary>
-        /// Indicates whether this result was a null result
+        /// Indicates whether this result was a null result.
         /// </summary>
         public abstract bool IsNull { get; }
 
@@ -218,9 +218,9 @@ namespace StackExchange.Redis
         public static explicit operator RedisResult[](RedisResult result) => result?.AsRedisResultArray();
 
         /// <summary>
-        /// Interprets a multi-bulk result with successive key/name values as a dictionary keyed by name
+        /// Interprets a multi-bulk result with successive key/name values as a dictionary keyed by name.
         /// </summary>
-        /// <param name="comparer">The key comparator to use, or <see cref="StringComparer.InvariantCultureIgnoreCase"/> by default</param>
+        /// <param name="comparer">The key comparator to use, or <see cref="StringComparer.InvariantCultureIgnoreCase"/> by default.</param>
         public Dictionary<string, RedisResult> ToDictionary(IEqualityComparer<string> comparer = null)
         {
             var arr = AsRedisResultArray();

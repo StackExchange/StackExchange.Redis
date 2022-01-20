@@ -1596,7 +1596,7 @@ namespace StackExchange.Redis
             var bridge = BridgeCouldBeNull;
             if (bridge == null || !bridge.Multiplexer.AllowConnect)
             {
-                throw new RedisConnectionException(ConnectionFailureType.InternalFailure, "debugging");
+                throw new RedisConnectionException(ConnectionFailureType.InternalFailure, "Aborting (AllowConnect: False)");
             }
         }
 
