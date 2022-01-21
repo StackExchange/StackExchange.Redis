@@ -25,6 +25,24 @@ namespace StackExchange.Redis
             return false;
         }
 
+        internal bool AddSubscription(RedisChannel channel, Action<RedisChannel, RedisValue> handler, ChannelMessageQueue queue, CommandFlags flags)
+        {
+            if (handler != null || queue != null)
+            {
+                if (!subscriptions.TryGetValue(channel, out Subscription sub))
+                {
+                    sub = new Subscription(flags);
+                    subscriptions.TryAdd(channel, sub);
+                    if (!sub.SubscribeToServer(this, channel, flags, false))
+                    {
+                        return false;
+                    }
+                }
+                sub.Add(handler, queue);
+            }
+            return true;
+        }
+
         internal async Task<bool> AddSubscriptionAsync(RedisChannel channel, Action<RedisChannel, RedisValue> handler, ChannelMessageQueue queue, CommandFlags flags, object asyncState)
         {
             if (handler != null || queue != null)
@@ -146,12 +164,7 @@ namespace StackExchange.Redis
 
             public Subscription(CommandFlags flags) => Flags = flags;
 
-            private Message GetMessage(
-                RedisChannel channel,
-                RedisCommand command,
-                object asyncState,
-                bool internalCall,
-                out TaskCompletionSource<bool> taskSource)
+            private Message GetMessage(RedisChannel channel, RedisCommand command, bool internalCall)
             {
                 var msg = Message.Create(-1, Flags, command, channel);
                 msg.SetForSubscriptionBridge();
@@ -159,9 +172,6 @@ namespace StackExchange.Redis
                 {
                     msg.SetInternalCall();
                 }
-
-                var source = TaskResultBox<bool>.Create(out taskSource, asyncState);
-                msg.SetSource(ResultProcessor.TrackSubscriptions, source);
                 return msg;
             }
 
@@ -203,10 +213,34 @@ namespace StackExchange.Redis
                 return _handlers == null & _queues == null;
             }
 
+            public bool SubscribeToServer(ConnectionMultiplexer multiplexer, RedisChannel channel, CommandFlags flags, bool internalCall)
+            {
+                ServerEndPoint selected = null;
+                // Do we have a server already? And is it connected? Then bail out.
+                if (CurrentServer?.IsSubscriberConnected == true)
+                {
+                    return false;
+                }
+                // Otherwise try and subscribe on the server side
+                try
+                {
+                    var command = channel.IsPatternBased ? RedisCommand.PSUBSCRIBE : RedisCommand.SUBSCRIBE;
+                    selected = multiplexer.SelectServer(command, flags, channel);
+
+                    var message = GetMessage(channel, command, internalCall);
+                    return multiplexer.ExecuteSyncImpl(message, ResultProcessor.TrackSubscriptions, selected);
+                }
+                catch
+                {
+                    // If there was an exception, clear the owner
+                    Interlocked.CompareExchange(ref CurrentServer, null, selected);
+                    throw;
+                }
+            }
+
             public async Task<bool> SubscribeToServerAsync(ConnectionMultiplexer multiplexer, RedisChannel channel, CommandFlags flags, object asyncState, bool internalCall)
             {
-                var command = channel.IsPatternBased ? RedisCommand.PSUBSCRIBE : RedisCommand.SUBSCRIBE;
-                var selected = multiplexer.SelectServer(command, flags, channel);
+                ServerEndPoint selected = null;
 
                 // Do we have a server already? And is it connected? Then bail out.
                 if (CurrentServer?.IsSubscriberConnected == true)
@@ -216,7 +250,13 @@ namespace StackExchange.Redis
                 // Otherwise try and subscribe on the server side
                 try
                 {
-                    var message = GetMessage(channel, command, asyncState, internalCall, out var taskSource);
+                    var command = channel.IsPatternBased ? RedisCommand.PSUBSCRIBE : RedisCommand.SUBSCRIBE;
+                    selected = multiplexer.SelectServer(command, flags, channel);
+
+                    var source = TaskResultBox<bool>.Create(out var taskSource, asyncState);
+                    var message = GetMessage(channel, command, internalCall);
+                    message.SetSource(ResultProcessor.TrackSubscriptions, source);
+
                     // TODO: Could move this entirely into a processor, e.g. the CurrentServer removal we need below
                     var success = await multiplexer.ExecuteAsyncImpl(message, ResultProcessor.TrackSubscriptions, asyncState, selected);
                     if (!success)
@@ -239,7 +279,10 @@ namespace StackExchange.Redis
                 var oldOwner = Interlocked.Exchange(ref CurrentServer, null);
                 if (oldOwner != null)
                 {
-                    var message = GetMessage(channel, command, asyncState, internalCall, out var taskSource);
+                    var source = TaskResultBox<bool>.Create(out var taskSource, asyncState);
+                    var message = GetMessage(channel, command, internalCall);
+                    message.SetSource(ResultProcessor.TrackSubscriptions, source);
+
                     var success = await oldOwner.Multiplexer.ExecuteAsyncImpl(message, ResultProcessor.TrackSubscriptions, asyncState, oldOwner);
                     if (!success)
                     {
@@ -387,8 +430,11 @@ namespace StackExchange.Redis
 
         public void Subscribe(RedisChannel channel, Action<RedisChannel, RedisValue> handler, ChannelMessageQueue queue, CommandFlags flags)
         {
-            var task = SubscribeAsync(channel, handler, queue, flags);
-            if ((flags & CommandFlags.FireAndForget) == 0) Wait(task);
+            if (channel.IsNullOrEmpty)
+            {
+                throw new ArgumentNullException(nameof(channel));
+            }
+            multiplexer.AddSubscription(channel, handler, queue, flags);
         }
 
         public ChannelMessageQueue Subscribe(RedisChannel channel, CommandFlags flags = CommandFlags.None)
