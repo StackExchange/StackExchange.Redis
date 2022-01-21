@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Net;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -190,7 +191,7 @@ namespace StackExchange.Redis
         {
             private Action<RedisChannel, RedisValue> _handlers;
             private ChannelMessageQueue _queues;
-            private ServerEndPoint owner;
+            private readonly HashSet<ServerEndPoint> owners = new HashSet<ServerEndPoint>();
 
             public void Add(Action<RedisChannel, RedisValue> handler, ChannelMessageQueue queue)
             {
@@ -221,14 +222,51 @@ namespace StackExchange.Redis
             [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "RCS1210:Return completed task instead of returning null.", Justification = "Intentional for efficient success check")]
             public Task SubscribeToServer(ConnectionMultiplexer multiplexer, in RedisChannel channel, CommandFlags flags, object asyncState, bool internalCall)
             {
-                var selected = multiplexer.SelectServer(RedisCommand.SUBSCRIBE, flags, default(RedisKey));
+                // subscribe to all masters in cluster for keyspace/keyevent notifications
+                if (channel.IsKeyspaceChannel)
+                {
+                    return SubscribeToMasters(multiplexer, channel, flags, asyncState, internalCall);
+                }
+                return SubscribeToSelectedEndpoint(multiplexer, channel, flags, asyncState, internalCall);
+            }
+
+            private Task SubscribeToMasters(ConnectionMultiplexer multiplexer, RedisChannel channel, CommandFlags flags, object asyncState, bool internalCall)
+            {
+                var subscribeTasks = new List<Task>();
+                var masters = multiplexer.GetServerSnapshot().ToArray()
+                    .Where(s => !s.IsReplica && s.ClusterConfiguration != null && s.EndPoint.Equals(s.ClusterConfiguration.Origin));
+
+                lock (owners)
+                {
+                    foreach (var master in masters)
+                    {
+                        if (owners.Contains(master)) continue;
+                        owners.Add(master);
+
+                        var state = SubscribeToSelectedEndpoint(multiplexer, channel, flags, asyncState, internalCall);
+                        subscribeTasks.Add(state ?? CompletedTask<bool>.Default(asyncState));
+                    }
+                }
+
+                return Task.WhenAll(subscribeTasks);
+            }
+
+            private Task SubscribeToSelectedEndpoint(ConnectionMultiplexer multiplexer, RedisChannel channel, CommandFlags flags, object asyncState, bool internalCall)
+            {
+                var cmd = channel.IsPatternBased ? RedisCommand.PSUBSCRIBE : RedisCommand.SUBSCRIBE;
+                var selected = multiplexer.SelectServer(cmd, flags, default(RedisKey));
                 var bridge = selected?.GetBridge(ConnectionType.Subscription, true);
                 if (bridge == null) return null;
 
-                // note: check we can create the message validly *before* we swap the owner over (Interlocked)
                 var state = PendingSubscriptionState.Create(channel, this, flags, true, internalCall, asyncState, selected.IsReplica);
 
-                if (Interlocked.CompareExchange(ref owner, selected, null) != null) return null;
+                lock (owners)
+                {
+                    if (!owners.Add(selected))
+                    {
+                        return null;
+                    }
+                }
                 try
                 {
                     if (!bridge.TryEnqueueBackgroundSubscriptionWrite(state))
@@ -241,7 +279,10 @@ namespace StackExchange.Redis
                 catch
                 {
                     // clear the owner if it is still us
-                    Interlocked.CompareExchange(ref owner, null, selected);
+                    lock (owners)
+                    {
+                        owners.Remove(selected);
+                    }
                     throw;
                 }
             }
@@ -249,18 +290,38 @@ namespace StackExchange.Redis
             [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "RCS1210:Return completed task instead of returning null.", Justification = "Intentional for efficient success check")]
             public Task UnsubscribeFromServer(in RedisChannel channel, CommandFlags flags, object asyncState, bool internalCall)
             {
-                var oldOwner = Interlocked.Exchange(ref owner, null);
-                var bridge = oldOwner?.GetBridge(ConnectionType.Subscription, false);
-                if (bridge == null) return null;
-
-                var state = PendingSubscriptionState.Create(channel, this, flags, false, internalCall, asyncState, oldOwner.IsReplica);
-
-                if (!bridge.TryEnqueueBackgroundSubscriptionWrite(state))
+                lock (owners)
                 {
-                    state.Abort();
-                    return null;
+                    if (owners.Count == 0) return null;
                 }
-                return state.Task;
+
+                var queuedTasks = new List<Task>();
+
+                var cmd = channel.IsPatternBased ? RedisCommand.PUNSUBSCRIBE : RedisCommand.UNSUBSCRIBE;
+
+                var msg = Message.Create(-1, flags, cmd, channel);
+                if (internalCall) msg.SetInternalCall();
+
+                lock (owners)
+                {
+                    foreach (var owner in owners)
+                    {
+                        var bridge = owner?.GetBridge(ConnectionType.Subscription, false);
+                        if (bridge == null) return null;
+
+                        var state = PendingSubscriptionState.Create(channel, this, flags, false, internalCall, asyncState, owner.IsReplica);
+
+                        if (!bridge.TryEnqueueBackgroundSubscriptionWrite(state))
+                        {
+                            state.Abort();
+                            return null;
+                        }
+                        queuedTasks.Add(state.Task);
+                    }
+
+                    owners.Clear();
+                }
+                return Task.WhenAll(queuedTasks);
             }
 
             internal readonly struct PendingSubscriptionState
@@ -295,36 +356,50 @@ namespace StackExchange.Redis
                 }
             }
 
-            internal ServerEndPoint GetOwner() => Volatile.Read(ref owner);
+            internal ServerEndPoint GetOwner()
+            {
+                lock (owners)
+                {
+                    return owners.FirstOrDefault();
+                }
+            }
 
             internal void Resubscribe(in RedisChannel channel, ServerEndPoint server)
             {
-                if (server != null && Interlocked.CompareExchange(ref owner, server, server) == server)
+                bool hasOwner;
+                lock (owners)
                 {
-                    var cmd = channel.IsPatternBased ? RedisCommand.PSUBSCRIBE : RedisCommand.SUBSCRIBE;
-                    var msg = Message.Create(-1, CommandFlags.FireAndForget, cmd, channel);
-                    msg.SetInternalCall();
-#pragma warning disable CS0618
-                    server.WriteDirectFireAndForgetSync(msg, ResultProcessor.TrackSubscriptions);
-#pragma warning restore CS0618
+                    hasOwner = owners.Contains(server);
                 }
+                if (server == null || !hasOwner)
+                {
+                    return;
+                }
+                var cmd = channel.IsPatternBased ? RedisCommand.PSUBSCRIBE : RedisCommand.SUBSCRIBE;
+                var msg = Message.Create(-1, CommandFlags.FireAndForget, cmd, channel);
+                msg.SetInternalCall();
+#pragma warning disable CS0618
+                server.WriteDirectFireAndForgetSync(msg, ResultProcessor.TrackSubscriptions);
+#pragma warning restore CS0618
             }
 
             internal bool Validate(ConnectionMultiplexer multiplexer, in RedisChannel channel)
             {
                 bool changed = false;
-                var oldOwner = Volatile.Read(ref owner);
-                if (oldOwner != null && !oldOwner.IsSelectable(RedisCommand.PSUBSCRIBE))
+                lock (owners)
                 {
-                    if (UnsubscribeFromServer(channel, CommandFlags.FireAndForget, null, true) != null)
+                    if (owners.Count != 0 && !owners.All(o => o.IsSelectable(RedisCommand.PSUBSCRIBE)))
+                    {
+                        if (UnsubscribeFromServer(channel, CommandFlags.FireAndForget, null, true) != null)
+                        {
+                            changed = true;
+                        }
+                        owners.Clear();
+                    }
+                    if (owners.Count == 0 && SubscribeToServer(multiplexer, channel, CommandFlags.FireAndForget, null, true) != null)
                     {
                         changed = true;
                     }
-                    oldOwner = null;
-                }
-                if (oldOwner == null && SubscribeToServer(multiplexer, channel, CommandFlags.FireAndForget, null, true) != null)
-                {
-                    changed = true;
                 }
                 return changed;
             }
