@@ -400,6 +400,7 @@ namespace StackExchange.Redis
                     if (items.Length >= 3 && items[2].TryGetInt64(out long count))
                     {
                         connection.SubscriptionCount = count;
+                        SetResult(message, true);
                         return true;
                     }
                 }
