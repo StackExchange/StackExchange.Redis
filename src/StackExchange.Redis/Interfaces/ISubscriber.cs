@@ -100,8 +100,8 @@ namespace StackExchange.Redis
         EndPoint SubscribedEndpoint(RedisChannel channel);
 
         /// <summary>
-        /// Unsubscribe from a specified message channel; note; if no handler is specified, the subscription is cancelled regardless
-        /// of the subscribers; if a handler is specified, the subscription is only cancelled if this handler is the
+        /// Unsubscribe from a specified message channel; note; if no handler is specified, the subscription is canceled regardless
+        /// of the subscribers; if a handler is specified, the subscription is only canceled if this handler is the
         /// last handler remaining against the channel
         /// </summary>
         /// <param name="channel">The channel that was subscribed to.</param>
@@ -128,8 +128,8 @@ namespace StackExchange.Redis
         Task UnsubscribeAllAsync(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Unsubscribe from a specified message channel; note; if no handler is specified, the subscription is cancelled regardless
-        /// of the subscribers; if a handler is specified, the subscription is only cancelled if this handler is the
+        /// Unsubscribe from a specified message channel; note; if no handler is specified, the subscription is canceled regardless
+        /// of the subscribers; if a handler is specified, the subscription is only canceled if this handler is the
         /// last handler remaining against the channel
         /// </summary>
         /// <param name="channel">The channel that was subscribed to.</param>

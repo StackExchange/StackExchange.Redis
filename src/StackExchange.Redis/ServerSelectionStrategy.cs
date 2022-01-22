@@ -58,19 +58,26 @@ namespace StackExchange.Redis
         internal static int TotalSlots => RedisClusterSlotCount;
 
         /// <summary>
-        /// Computes the hash-slot that would be used by the given key
+        /// Computes the hash-slot that would be used by the given key.
         /// </summary>
         /// <param name="key">The <see cref="RedisKey"/> to determine a slot ID for.</param>
         public int HashSlot(in RedisKey key)
-            => ServerType == ServerType.Standalone ? NoSlot : GetClusterSlot(key);
+            => ServerType == ServerType.Standalone || key.IsNull ? NoSlot : GetClusterSlot((byte[])key);
 
-        private static unsafe int GetClusterSlot(in RedisKey key)
+        /// <summary>
+        /// Computes the hash-slot that would be used by the given channel.
+        /// </summary>
+        /// <param name="channel">The <see cref="RedisChannel"/> to determine a slot ID for.</param>
+        public int HashSlot(in RedisChannel channel)
+            => ServerType == ServerType.Standalone || channel.IsNull ? NoSlot : GetClusterSlot((byte[])channel);
+
+        /// <remarks>
+        /// HASH_SLOT = CRC16(key) mod 16384
+        /// </remarks>
+        private static unsafe int GetClusterSlot(byte[] blob)
         {
-            //HASH_SLOT = CRC16(key) mod 16384
-            if (key.IsNull) return NoSlot;
             unchecked
             {
-                var blob = (byte[])key;
                 fixed (byte* ptr = blob)
                 {
                     fixed (ushort* crc16tab = s_crc16tab)
@@ -113,6 +120,12 @@ namespace StackExchange.Redis
         public ServerEndPoint Select(RedisCommand command, in RedisKey key, CommandFlags flags)
         {
             int slot = ServerType == ServerType.Cluster ? HashSlot(key) : NoSlot;
+            return Select(slot, command, flags);
+        }
+
+        public ServerEndPoint Select(RedisCommand command, in RedisChannel channel, CommandFlags flags)
+        {
+            int slot = ServerType == ServerType.Cluster ? HashSlot(channel) : NoSlot;
             return Select(slot, command, flags);
         }
 

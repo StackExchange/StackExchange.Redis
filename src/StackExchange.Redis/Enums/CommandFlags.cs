@@ -82,5 +82,7 @@ namespace StackExchange.Redis
         NoScriptCache = 512,
 
         // 1024: used for timed-out; never user-specified, so not visible on the public API
+
+        // 2048: Use subscription connection type; never user-specified, so not visible on the public API
     }
 }

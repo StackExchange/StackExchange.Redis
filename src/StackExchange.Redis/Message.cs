@@ -60,7 +60,8 @@ namespace StackExchange.Redis
 
         private const CommandFlags AskingFlag = (CommandFlags)32,
                                    ScriptUnavailableFlag = (CommandFlags)256,
-                                   NeedsAsyncTimeoutCheckFlag = (CommandFlags)1024;
+                                   NeedsAsyncTimeoutCheckFlag = (CommandFlags)1024,
+                                   DemandSubscriptionConnection = (CommandFlags)2048;
 
         private const CommandFlags MaskMasterServerPreference = CommandFlags.DemandMaster
                                                               | CommandFlags.DemandReplica
@@ -651,6 +652,15 @@ namespace StackExchange.Redis
         }
         private int _writeTickCount;
         public int GetWriteTime() => Volatile.Read(ref _writeTickCount);
+
+        /// <summary>
+        /// Gets if this command should be sent over the subscription bridge.
+        /// </summary>
+        internal bool IsForSubscriptionBridge => (Flags & DemandSubscriptionConnection) != 0;
+        /// <summary>
+        /// Sends this command to the subscription connection rather than the interactive.
+        /// </summary>
+        internal void SetForSubscriptionBridge() => Flags |= DemandSubscriptionConnection;
 
         private void SetNeedsTimeoutCheck() => Flags |= NeedsAsyncTimeoutCheckFlag;
         internal bool HasAsyncTimedOut(int now, int timeoutMilliseconds, out int millisecondsTaken)
