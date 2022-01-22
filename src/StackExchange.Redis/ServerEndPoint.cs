@@ -615,7 +615,7 @@ namespace StackExchange.Redis
                 {
                     if (bridge == subscription)
                     {
-                        Multiplexer.ResendSubscriptions(this);
+                        Multiplexer.EnsureSubscriptions();
                     }
                     else if (bridge == interactive)
                     {

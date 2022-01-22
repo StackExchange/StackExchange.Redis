@@ -15,7 +15,7 @@ namespace StackExchange.Redis.Tests.Issues
         private static void AssertCounts(ISubscriber pubsub, in RedisChannel channel,
             bool has, int handlers, int queues)
         {
-            var aHas = ((RedisSubscriber)pubsub).GetSubscriberCounts(channel, out var ah, out var aq);
+            var aHas = (pubsub.Multiplexer as ConnectionMultiplexer).GetSubscriberCounts(channel, out var ah, out var aq);
             Assert.Equal(has, aHas);
             Assert.Equal(handlers, ah);
             Assert.Equal(queues, aq);
