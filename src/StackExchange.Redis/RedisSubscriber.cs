@@ -317,17 +317,10 @@ namespace StackExchange.Redis
 
             // TODO: Cleanup old hangers here?
 
-            try
-            {
-                var message = sub.GetMessage(channel, SubscriptionAction.Subscribe, flags, internalCall);
-                var selected = multiplexer.SelectServer(message);
-                return multiplexer.ExecuteSyncImpl(message, sub.Processor, selected);
-            }
-            catch
-            {
-                sub.SetServer(null); // If there was an exception, clear the owner
-                throw;
-            }
+            sub.SetServer(null); // we're not appropriately connected, so blank it out for eligible reconnection
+            var message = sub.GetMessage(channel, SubscriptionAction.Subscribe, flags, internalCall);
+            var selected = multiplexer.SelectServer(message);
+            return multiplexer.ExecuteSyncImpl(message, sub.Processor, selected);
         }
 
         Task ISubscriber.SubscribeAsync(RedisChannel channel, Action<RedisChannel, RedisValue> handler, CommandFlags flags)
@@ -350,24 +343,16 @@ namespace StackExchange.Redis
             return EnsureSubscribedToServerAsync(sub, channel, flags, false);
         }
 
-        public async Task<bool> EnsureSubscribedToServerAsync(Subscription sub, RedisChannel channel, CommandFlags flags, bool internalCall)
+        public Task<bool> EnsureSubscribedToServerAsync(Subscription sub, RedisChannel channel, CommandFlags flags, bool internalCall)
         {
-            if (sub.IsConnected) { return false; }
+            if (sub.IsConnected) { return CompletedTask<bool>.Default(null); }
 
             // TODO: Cleanup old hangers here?
 
-            try
-            {
-                var message = sub.GetMessage(channel, SubscriptionAction.Subscribe, flags, internalCall);
-                var selected = multiplexer.SelectServer(message);
-                return await ExecuteAsync(message, sub.Processor, selected);
-            }
-            catch
-            {
-                // If there was an exception, clear the owner
-                sub.SetServer(null);
-                throw;
-            }
+            sub.SetServer(null); // we're not appropriately connected, so blank it out for eligible reconnection
+            var message = sub.GetMessage(channel, SubscriptionAction.Subscribe, flags, internalCall);
+            var selected = multiplexer.SelectServer(message);
+            return ExecuteAsync(message, sub.Processor, selected);
         }
 
         public EndPoint SubscribedEndpoint(RedisChannel channel) => multiplexer.GetSubscribedServer(channel)?.EndPoint;

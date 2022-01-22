@@ -762,8 +762,6 @@ namespace StackExchange.Redis.Tests
                 }).ConfigureAwait(false);
 
                 var profile1 = Log(profiler);
-                // We shouldn't see the initial connection here
-                Assert.Equal(0, profile1.Count(p => p.Command == nameof(RedisCommand.SUBSCRIBE)));
 
                 Assert.Equal(1, muxer.GetSubscriptionsCount());
 
