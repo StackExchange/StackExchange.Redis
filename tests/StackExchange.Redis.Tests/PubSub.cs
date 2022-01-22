@@ -568,8 +568,8 @@ namespace StackExchange.Redis.Tests
         public async Task TestPublishWithSubscribers()
         {
             var channel = Me();
-            using (var muxerA = Create(shared: false))
-            using (var muxerB = Create(shared: false))
+            using (var muxerA = Create(shared: false, log: Writer))
+            using (var muxerB = Create(shared: false, log: Writer))
             using (var conn = Create())
             {
                 var listenA = muxerA.GetSubscriber();
