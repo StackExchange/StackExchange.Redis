@@ -57,7 +57,8 @@ namespace StackExchange.Redis
         protected RedisCommand command;
 
         private const CommandFlags AskingFlag = (CommandFlags)32,
-                                   ScriptUnavailableFlag = (CommandFlags)256;
+                                   ScriptUnavailableFlag = (CommandFlags)256,
+                                   DemandSubscriptionConnection = (CommandFlags)2048;
 
         private const CommandFlags MaskMasterServerPreference = CommandFlags.DemandMaster
                                                               | CommandFlags.DemandReplica
@@ -585,7 +586,7 @@ namespace StackExchange.Redis
         internal void SetEnqueued(PhysicalConnection connection)
         {
             SetWriteTime();
-            performance?.SetEnqueued();
+            performance?.SetEnqueued(connection?.BridgeCouldBeNull?.ConnectionType);
             _enqueuedTo = connection;
             if (connection == null)
             {
@@ -645,6 +646,15 @@ namespace StackExchange.Redis
         }
         private int _writeTickCount;
         public int GetWriteTime() => Volatile.Read(ref _writeTickCount);
+
+        /// <summary>
+        /// Gets if this command should be sent over the subscription bridge.
+        /// </summary>
+        internal bool IsForSubscriptionBridge => (Flags & DemandSubscriptionConnection) != 0;
+        /// <summary>
+        /// Sends this command to the subscription connection rather than the interactive.
+        /// </summary>
+        internal void SetForSubscriptionBridge() => Flags |= DemandSubscriptionConnection;
 
         /// <summary>
         /// Checks if this message has violated the provided timeout.
@@ -716,6 +726,8 @@ namespace StackExchange.Redis
             }
 
             public override string CommandAndKey => Command + " " + Channel;
+
+            public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) => serverSelectionStrategy.HashSlot(Channel);
         }
 
         internal abstract class CommandKeyBase : Message

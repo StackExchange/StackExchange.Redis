@@ -308,7 +308,7 @@ namespace StackExchange.Redis
         /// </summary>
         public Version DefaultVersion
         {
-            get => defaultVersion ?? (IsAzureEndpoint() ? RedisFeatures.v4_0_0 : RedisFeatures.v2_8_0);
+            get => defaultVersion ?? (IsAzureEndpoint() ? RedisFeatures.v4_0_0 : RedisFeatures.v3_0_0);
             set => defaultVersion = value;
         }
 

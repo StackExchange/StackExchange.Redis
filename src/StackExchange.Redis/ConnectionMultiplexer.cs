@@ -1504,33 +1504,6 @@ namespace StackExchange.Redis
             return new RedisServer(this, server, asyncState);
         }
 
-        [Conditional("VERBOSE")]
-        internal void Trace(string message, [CallerMemberName] string category = null)
-        {
-            OnTrace(message, category);
-        }
-
-        [Conditional("VERBOSE")]
-        internal void Trace(bool condition, string message, [CallerMemberName] string category = null)
-        {
-            if (condition) OnTrace(message, category);
-        }
-
-        partial void OnTrace(string message, string category);
-        static partial void OnTraceWithoutContext(string message, string category);
-
-        [Conditional("VERBOSE")]
-        internal static void TraceWithoutContext(string message, [CallerMemberName] string category = null)
-        {
-            OnTraceWithoutContext(message, category);
-        }
-
-        [Conditional("VERBOSE")]
-        internal static void TraceWithoutContext(bool condition, string message, [CallerMemberName] string category = null)
-        {
-            if (condition) OnTraceWithoutContext(message, category);
-        }
-
         /// <summary>
         /// The number of operations that have been performed on all connections
         /// </summary>
@@ -1773,7 +1746,7 @@ namespace StackExchange.Redis
                             {
                                 var server = servers[i];
                                 var task = available[i];
-                                var bs = server.GetBridgeStatus(RedisCommand.PING);
+                                var bs = server.GetBridgeStatus(ConnectionType.Interactive);
 
                                 log?.WriteLine($"  Server[{i}] ({Format.ToString(server)}) Status: {task.Status} (inst: {bs.MessagesSinceLastHeartbeat}, qs: {bs.Connection.MessagesSentAwaitingResponse}, in: {bs.Connection.BytesAvailableOnSocket}, qu: {bs.MessagesSinceLastHeartbeat}, aw: {bs.IsWriterActive}, in-pipe: {bs.Connection.BytesInReadPipe}, out-pipe: {bs.Connection.BytesInWritePipe}, bw: {bs.BacklogStatus}, rs: {bs.Connection.ReadStatus}. ws: {bs.Connection.WriteStatus})");
                             }
@@ -1921,7 +1894,7 @@ namespace StackExchange.Redis
                     }
                     if (!first)
                     {
-                        long subscriptionChanges = ValidateSubscriptions();
+                        long subscriptionChanges = await EnsureSubscriptionsAsync();
                         if (subscriptionChanges == 0)
                         {
                             log?.WriteLine("No subscription changes necessary");
@@ -2174,16 +2147,14 @@ namespace StackExchange.Redis
 
         private IDisposable pulse;
 
-        internal ServerEndPoint SelectServer(Message message)
-        {
-            if (message == null) return null;
-            return ServerSelectionStrategy.Select(message);
-        }
+        internal ServerEndPoint SelectServer(Message message) =>
+            message == null ? null : ServerSelectionStrategy.Select(message);
 
-        internal ServerEndPoint SelectServer(RedisCommand command, CommandFlags flags, in RedisKey key)
-        {
-            return ServerSelectionStrategy.Select(command, key, flags);
-        }
+        internal ServerEndPoint SelectServer(RedisCommand command, CommandFlags flags, in RedisKey key) =>
+            ServerSelectionStrategy.Select(command, key, flags);
+
+        internal ServerEndPoint SelectServer(RedisCommand command, CommandFlags flags, in RedisChannel channel) =>
+            ServerSelectionStrategy.Select(command, channel, flags);
 
         private bool PrepareToPushMessageToBridge<T>(Message message, ResultProcessor<T> processor, IResultBox<T> resultBox, ref ServerEndPoint server)
         {

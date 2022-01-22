@@ -210,6 +210,28 @@ namespace StackExchange.Redis
             };
         }
 
+        public PhysicalBridge GetBridge(Message message, bool create = true)
+        {
+            if (isDisposed) return null;
+
+            // Subscription commands go to a specific bridge - so we need to set that up.
+            // There are other commands we need to send to the right connection (e.g. subscriber PING with an explicit SetForSubscriptionBridge call),
+            // but these always go subscriber.
+            switch (message.Command)
+            {
+                case RedisCommand.SUBSCRIBE:
+                case RedisCommand.UNSUBSCRIBE:
+                case RedisCommand.PSUBSCRIBE:
+                case RedisCommand.PUNSUBSCRIBE:
+                    message.SetForSubscriptionBridge();
+                    break;
+            }
+
+            return message.IsForSubscriptionBridge
+                ? subscription ?? (create ? subscription = CreateBridge(ConnectionType.Subscription, null) : null)
+                : interactive ?? (create ? interactive = CreateBridge(ConnectionType.Interactive, null) : null);
+        }
+
         public PhysicalBridge GetBridge(RedisCommand command, bool create = true)
         {
             if (isDisposed) return null;
@@ -282,9 +304,9 @@ namespace StackExchange.Redis
         public override string ToString() => Format.ToString(EndPoint);
 
         [Obsolete("prefer async")]
-        public WriteResult TryWriteSync(Message message) => GetBridge(message.Command)?.TryWriteSync(message, isReplica) ?? WriteResult.NoConnectionAvailable;
+        public WriteResult TryWriteSync(Message message) => GetBridge(message)?.TryWriteSync(message, isReplica) ?? WriteResult.NoConnectionAvailable;
 
-        public ValueTask<WriteResult> TryWriteAsync(Message message) => GetBridge(message.Command)?.TryWriteAsync(message, isReplica) ?? new ValueTask<WriteResult>(WriteResult.NoConnectionAvailable);
+        public ValueTask<WriteResult> TryWriteAsync(Message message) => GetBridge(message)?.TryWriteAsync(message, isReplica) ?? new ValueTask<WriteResult>(WriteResult.NoConnectionAvailable);
 
         internal void Activate(ConnectionType type, LogProxy log)
         {
@@ -446,11 +468,11 @@ namespace StackExchange.Redis
             return counters;
         }
 
-        internal BridgeStatus GetBridgeStatus(RedisCommand command)
+        internal BridgeStatus GetBridgeStatus(ConnectionType connectionType)
         {
             try
             {
-                return GetBridge(command, false)?.GetStatus() ?? BridgeStatus.Zero;
+                return GetBridge(connectionType, false)?.GetStatus() ?? BridgeStatus.Zero;
             }
             catch (Exception ex)
             {   // only needs to be best efforts
@@ -485,9 +507,9 @@ namespace StackExchange.Redis
             return found;
         }
 
-        internal string GetStormLog(RedisCommand command)
+        internal string GetStormLog(Message message)
         {
-            var bridge = GetBridge(command);
+            var bridge = GetBridge(message);
             return bridge?.GetStormLog();
         }
 
@@ -599,7 +621,10 @@ namespace StackExchange.Redis
 
                     if (bridge == subscription)
                     {
-                        Multiplexer.ResendSubscriptions(this);
+                        // Note: this MUST be fire and forget, because we might be in the middle of a Sync processing
+                        // TracerProcessor which is executing this line inside a SetResultCore().
+                        // Since we're issuing commands inside a SetResult path in a message, we'd create a deadlock by waiting.
+                        Multiplexer.EnsureSubscriptions(CommandFlags.FireAndForget);
                     }
                     else if (bridge == interactive)
                     {
@@ -709,7 +734,7 @@ namespace StackExchange.Redis
 
             var source = TaskResultBox<T>.Create(out var tcs, null);
             message.SetSource(processor, source);
-            if (bridge == null) bridge = GetBridge(message.Command);
+            if (bridge == null) bridge = GetBridge(message);
 
             WriteResult result;
             if (bridge == null)
@@ -741,7 +766,7 @@ namespace StackExchange.Redis
             {
                 message.SetSource(processor, null);
                 Multiplexer.Trace("Enqueue: " + message);
-                (bridge ?? GetBridge(message.Command)).TryWriteSync(message, isReplica);
+                (bridge ?? GetBridge(message)).TryWriteSync(message, isReplica);
             }
         }
 
@@ -805,7 +830,7 @@ namespace StackExchange.Redis
                 if (connection == null)
                 {
                     Multiplexer.Trace($"{Format.ToString(this)}: Enqueue (async): " + message);
-                    result = GetBridge(message.Command).TryWriteAsync(message, isReplica, bypassBacklog: true);
+                    result = GetBridge(message).TryWriteAsync(message, isReplica);
                 }
                 else
                 {

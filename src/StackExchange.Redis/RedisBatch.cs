@@ -30,7 +30,7 @@ namespace StackExchange.Redis
                     FailNoServer(snapshot);
                     throw ExceptionFactory.NoConnectionAvailable(multiplexer, message, server);
                 }
-                var bridge = server.GetBridge(message.Command);
+                var bridge = server.GetBridge(message);
                 if (bridge == null)
                 {
                     FailNoServer(snapshot);

@@ -80,5 +80,7 @@ namespace StackExchange.Redis
         /// Indicates that script-related operations should use EVAL, not SCRIPT LOAD + EVALSHA
         /// </summary>
         NoScriptCache = 512,
+
+        // 1024: Use subscription connection type; never user-specified, so not visible on the public API
     }
 }

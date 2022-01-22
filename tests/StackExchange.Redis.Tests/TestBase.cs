@@ -8,6 +8,7 @@ using System.Runtime;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using StackExchange.Redis.Profiling;
 using StackExchange.Redis.Tests.Helpers;
 using Xunit;
 using Xunit.Abstractions;
@@ -76,6 +77,16 @@ namespace StackExchange.Redis.Tests
             }
         }
 
+        protected ProfiledCommandEnumerable Log(ProfilingSession session)
+        {
+            var profile = session.FinishProfiling();
+            foreach (var command in profile)
+            {
+                Writer.WriteLineNoTime(command.ToString());
+            }
+            return profile;
+        }
+
         protected void CollectGarbage()
         {
             GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced);
@@ -128,6 +139,7 @@ namespace StackExchange.Redis.Tests
             {
                 privateExceptions.Add($"{Time()}: Connection failed ({e.FailureType}): {EndPointCollection.ToString(e.EndPoint)}/{e.ConnectionType}: {e.Exception}");
             }
+            Log($"Connection Failed ({e.ConnectionType},{e.FailureType}): {e.Exception}");
         }
 
         protected void OnInternalError(object sender, InternalErrorEventArgs e)
@@ -288,6 +300,10 @@ namespace StackExchange.Redis.Tests
                 caller);
             muxer.InternalError += OnInternalError;
             muxer.ConnectionFailed += OnConnectionFailed;
+            muxer.ConnectionRestored += (s, e) =>
+            {
+                Log($"Connection Restored ({e.ConnectionType},{e.FailureType}): {e.Exception}");
+            };
             return muxer;
         }
 
