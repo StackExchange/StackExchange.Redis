@@ -1894,7 +1894,7 @@ namespace StackExchange.Redis
                     }
                     if (!first)
                     {
-                        long subscriptionChanges = ValidateSubscriptions();
+                        long subscriptionChanges = await EnsureSubscriptionsAsync();
                         if (subscriptionChanges == 0)
                         {
                             log?.WriteLine("No subscription changes necessary");

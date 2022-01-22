@@ -589,7 +589,7 @@ namespace StackExchange.Redis
         internal void SetEnqueued(PhysicalConnection connection)
         {
             SetWriteTime();
-            performance?.SetEnqueued();
+            performance?.SetEnqueued(connection?.BridgeCouldBeNull?.ConnectionType);
             _enqueuedTo = connection;
             if (connection == null)
             {
@@ -735,6 +735,8 @@ namespace StackExchange.Redis
             }
 
             public override string CommandAndKey => Command + " " + Channel;
+
+            public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) => serverSelectionStrategy.HashSlot(Channel);
         }
 
         internal abstract class CommandKeyBase : Message

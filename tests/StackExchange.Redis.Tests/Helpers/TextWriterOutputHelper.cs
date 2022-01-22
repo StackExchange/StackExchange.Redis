@@ -20,6 +20,20 @@ namespace StackExchange.Redis.Tests.Helpers
 
         public void EchoTo(StringBuilder sb) => Echo = sb;
 
+        public void WriteLineNoTime(string value)
+        {
+            try
+            {
+                base.WriteLine(value);
+            }
+            catch (Exception ex)
+            {
+                Console.Write("Attempted to write: ");
+                Console.WriteLine(value);
+                Console.WriteLine(ex);
+            }
+        }
+
         public override void WriteLine(string value)
         {
             try
