@@ -414,6 +414,7 @@ namespace StackExchange.Redis
                         return true;
                     }
                 }
+                SetResult(message, false);
                 return false;
             }
         }

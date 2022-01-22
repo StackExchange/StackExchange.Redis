@@ -615,7 +615,10 @@ namespace StackExchange.Redis
                 {
                     if (bridge == subscription)
                     {
-                        Multiplexer.EnsureSubscriptions();
+                        // Note: this MUST be fire and forget, because we might be in the middle of a Sync processing
+                        // TracerProcessor which is executing this line inside a SetResultCore().
+                        // Since we're issuing commands inside a SetResult path in a message, we'd create a deadlock by waiting.
+                        Multiplexer.EnsureSubscriptions(CommandFlags.FireAndForget);
                     }
                     else if (bridge == interactive)
                     {
