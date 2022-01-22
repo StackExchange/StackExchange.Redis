@@ -793,8 +793,8 @@ namespace StackExchange.Redis.Tests
                 Log("Failing connection");
                 // Fail all connections
                 server.SimulateConnectionFailure(SimulatedFailureType.All);
-                // Trigger failure
-                Assert.Throws<RedisConnectionException>(() => sub.Ping());
+                // Trigger failure (RedisTimeoutException because of backlog behavior)
+                Assert.Throws<RedisTimeoutException>(() => sub.Ping());
                 Assert.False(sub.IsConnected(channel));
 
                 // Now reconnect...

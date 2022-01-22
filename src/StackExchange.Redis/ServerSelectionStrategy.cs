@@ -123,10 +123,10 @@ namespace StackExchange.Redis
             return Select(slot, command, flags, allowDisconnected);
         }
 
-        public ServerEndPoint Select(RedisCommand command, in RedisChannel channel, CommandFlags flags)
+        public ServerEndPoint Select(RedisCommand command, in RedisChannel channel, CommandFlags flags, bool allowDisconnected = false)
         {
             int slot = ServerType == ServerType.Cluster ? HashSlot(channel) : NoSlot;
-            return Select(slot, command, flags);
+            return Select(slot, command, flags, allowDisconnected);
         }
 
         public bool TryResend(int hashSlot, Message message, EndPoint endpoint, bool isMoved)

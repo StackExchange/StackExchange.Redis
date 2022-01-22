@@ -58,7 +58,7 @@ namespace StackExchange.Redis
 
         private const CommandFlags AskingFlag = (CommandFlags)32,
                                    ScriptUnavailableFlag = (CommandFlags)256,
-                                   DemandSubscriptionConnection = (CommandFlags)2048;
+                                   DemandSubscriptionConnection = (CommandFlags)1024;
 
         private const CommandFlags MaskMasterServerPreference = CommandFlags.DemandMaster
                                                               | CommandFlags.DemandReplica

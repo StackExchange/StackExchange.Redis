@@ -60,7 +60,7 @@ namespace StackExchange.Redis.Tests
                 await db.PingAsync();
 
                 var server = muxer.GetServerSnapshot()[0];
-                var stats = server.GetBridgeStatus(RedisCommand.PING);
+                var stats = server.GetBridgeStatus(ConnectionType.Interactive);
                 Assert.Equal(0, stats.BacklogMessagesPending); // Everything's normal
 
                 // Fail the connection
@@ -73,7 +73,7 @@ namespace StackExchange.Redis.Tests
                 Writer.WriteLine("Test: Disconnected pings");
                 await Assert.ThrowsAsync<RedisConnectionException>(() => db.PingAsync());
 
-                var disconnectedStats = server.GetBridgeStatus(RedisCommand.PING);
+                var disconnectedStats = server.GetBridgeStatus(ConnectionType.Interactive);
                 Assert.False(muxer.IsConnected);
                 Assert.Equal(0, disconnectedStats.BacklogMessagesPending);
 
@@ -85,7 +85,7 @@ namespace StackExchange.Redis.Tests
                 Writer.WriteLine("Test: Reconnecting");
                 Assert.True(muxer.IsConnected);
                 Assert.True(server.IsConnected);
-                var reconnectedStats = server.GetBridgeStatus(RedisCommand.PING);
+                var reconnectedStats = server.GetBridgeStatus(ConnectionType.Interactive);
                 Assert.Equal(0, reconnectedStats.BacklogMessagesPending);
 
                 _ = db.PingAsync();
@@ -137,7 +137,7 @@ namespace StackExchange.Redis.Tests
                 await db.PingAsync();
 
                 var server = muxer.GetServerSnapshot()[0];
-                var stats = server.GetBridgeStatus(RedisCommand.PING);
+                var stats = server.GetBridgeStatus(ConnectionType.Interactive);
                 Assert.Equal(0, stats.BacklogMessagesPending); // Everything's normal
 
                 // Fail the connection
@@ -154,7 +154,7 @@ namespace StackExchange.Redis.Tests
 
                 // TODO: Add specific server call
 
-                var disconnectedStats = server.GetBridgeStatus(RedisCommand.PING);
+                var disconnectedStats = server.GetBridgeStatus(ConnectionType.Interactive);
                 Assert.False(muxer.IsConnected);
                 Assert.True(disconnectedStats.BacklogMessagesPending >= 3, $"Expected {nameof(disconnectedStats.BacklogMessagesPending)} > 3, got {disconnectedStats.BacklogMessagesPending}");
 
@@ -169,7 +169,7 @@ namespace StackExchange.Redis.Tests
                 Writer.WriteLine("Test: ignoredA Status: " + ignoredA.Status);
                 Writer.WriteLine("Test: ignoredB Status: " + ignoredB.Status);
                 Writer.WriteLine("Test: lastPing Status: " + lastPing.Status);
-                var afterConnectedStats = server.GetBridgeStatus(RedisCommand.PING);
+                var afterConnectedStats = server.GetBridgeStatus(ConnectionType.Interactive);
                 Writer.WriteLine($"Test: BacklogStatus: {afterConnectedStats.BacklogStatus}, BacklogMessagesPending: {afterConnectedStats.BacklogMessagesPending}, IsWriterActive: {afterConnectedStats.IsWriterActive}, MessagesSinceLastHeartbeat: {afterConnectedStats.MessagesSinceLastHeartbeat}, TotalBacklogMessagesQueued: {afterConnectedStats.TotalBacklogMessagesQueued}");
 
                 Writer.WriteLine("Test: Awaiting lastPing 1");
@@ -177,7 +177,7 @@ namespace StackExchange.Redis.Tests
 
                 Writer.WriteLine("Test: Checking reconnected 2");
                 Assert.True(muxer.IsConnected);
-                var reconnectedStats = server.GetBridgeStatus(RedisCommand.PING);
+                var reconnectedStats = server.GetBridgeStatus(ConnectionType.Interactive);
                 Assert.Equal(0, reconnectedStats.BacklogMessagesPending);
 
                 Writer.WriteLine("Test: Pinging again...");
@@ -230,7 +230,7 @@ namespace StackExchange.Redis.Tests
                 await db.PingAsync();
 
                 var server = muxer.GetServerSnapshot()[0];
-                var stats = server.GetBridgeStatus(RedisCommand.PING);
+                var stats = server.GetBridgeStatus(ConnectionType.Interactive);
                 Assert.Equal(0, stats.BacklogMessagesPending); // Everything's normal
 
                 // Fail the connection
@@ -257,9 +257,9 @@ namespace StackExchange.Redis.Tests
 
                 Assert.False(muxer.IsConnected);
                 // Give the tasks time to queue
-                await UntilCondition(TimeSpan.FromSeconds(5), () => server.GetBridgeStatus(RedisCommand.PING).BacklogMessagesPending >= 3);
+                await UntilCondition(TimeSpan.FromSeconds(5), () => server.GetBridgeStatus(ConnectionType.Interactive).BacklogMessagesPending >= 3);
 
-                var disconnectedStats = server.GetBridgeStatus(RedisCommand.PING);
+                var disconnectedStats = server.GetBridgeStatus(ConnectionType.Interactive);
                 Log($"Test Stats: (BacklogMessagesPending: {disconnectedStats.BacklogMessagesPending}, TotalBacklogMessagesQueued: {disconnectedStats.TotalBacklogMessagesQueued})");
                 Assert.True(disconnectedStats.BacklogMessagesPending >= 3, $"Expected {nameof(disconnectedStats.BacklogMessagesPending)} > 3, got {disconnectedStats.BacklogMessagesPending}");
 
@@ -271,7 +271,7 @@ namespace StackExchange.Redis.Tests
                 Writer.WriteLine("Test: Checking reconnected 1");
                 Assert.True(muxer.IsConnected);
 
-                var afterConnectedStats = server.GetBridgeStatus(RedisCommand.PING);
+                var afterConnectedStats = server.GetBridgeStatus(ConnectionType.Interactive);
                 Writer.WriteLine($"Test: BacklogStatus: {afterConnectedStats.BacklogStatus}, BacklogMessagesPending: {afterConnectedStats.BacklogMessagesPending}, IsWriterActive: {afterConnectedStats.IsWriterActive}, MessagesSinceLastHeartbeat: {afterConnectedStats.MessagesSinceLastHeartbeat}, TotalBacklogMessagesQueued: {afterConnectedStats.TotalBacklogMessagesQueued}");
 
                 Writer.WriteLine("Test: Awaiting 3 pings");
@@ -279,7 +279,7 @@ namespace StackExchange.Redis.Tests
 
                 Writer.WriteLine("Test: Checking reconnected 2");
                 Assert.True(muxer.IsConnected);
-                var reconnectedStats = server.GetBridgeStatus(RedisCommand.PING);
+                var reconnectedStats = server.GetBridgeStatus(ConnectionType.Interactive);
                 Assert.Equal(0, reconnectedStats.BacklogMessagesPending);
 
                 Writer.WriteLine("Test: Pinging again...");
