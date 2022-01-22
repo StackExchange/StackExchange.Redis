@@ -1,13 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using StackExchange.Redis.Maintenance;
-using StackExchange.Redis.Profiling;
 using Xunit;
 using Xunit.Abstractions;
 // ReSharper disable AccessToModifiedClosure
@@ -127,13 +125,14 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task TestBasicPubSubFireAndForget()
         {
-            using (var muxer = Create(log: Writer))
+            using (var muxer = Create(log: Writer, shared: false))
             {
+                var profiler = muxer.AddProfiler();
                 var pub = GetAnyMaster(muxer);
                 var sub = muxer.GetSubscriber();
 
                 RedisChannel key = Me() + Guid.NewGuid();
-                HashSet<string> received = new HashSet<string>();
+                HashSet<string> received = new();
                 int secondHandler = 0;
                 await PingAsync(muxer, pub, sub).ForAwait();
                 sub.Subscribe(key, (channel, payload) =>
@@ -148,6 +147,7 @@ namespace StackExchange.Redis.Tests
                 }, CommandFlags.FireAndForget);
 
                 sub.Subscribe(key, (_, __) => Interlocked.Increment(ref secondHandler), CommandFlags.FireAndForget);
+                Log(profiler);
 
                 lock (received)
                 {
@@ -159,6 +159,8 @@ namespace StackExchange.Redis.Tests
                 await PingAsync(muxer, pub, sub).ForAwait();
 
                 await UntilCondition(TimeSpan.FromSeconds(5), () => received.Count == 1);
+                Log(profiler);
+
                 lock (received)
                 {
                     Assert.Single(received);
@@ -169,7 +171,7 @@ namespace StackExchange.Redis.Tests
                 count = sub.Publish(key, "ghi", CommandFlags.FireAndForget);
 
                 await PingAsync(muxer, pub, sub).ForAwait();
-
+                Log(profiler);
                 lock (received)
                 {
                     Assert.Single(received);
@@ -178,27 +180,30 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        private static async Task PingAsync(IConnectionMultiplexer muxer, IServer pub, ISubscriber sub, int times = 1)
+        private async Task PingAsync(IConnectionMultiplexer muxer, IServer pub, ISubscriber sub, int times = 1)
         {
             while (times-- > 0)
             {
                 // both use async because we want to drain the completion managers, and the only
                 // way to prove that is to use TPL objects
-                var t1 = sub.PingAsync();
-                var t2 = pub.PingAsync();
-                await Task.WhenAll(t1, t2).ForAwait();
+                var subTask = sub.PingAsync();
+                var pubTask = pub.PingAsync();
+                await Task.WhenAll(subTask, pubTask).ForAwait();
+
+                Log($"Sub PING time: {subTask.Result.TotalMilliseconds} ms");
+                Log($"Pub PING time: {pubTask.Result.TotalMilliseconds} ms");
             }
         }
 
         [Fact]
         public async Task TestPatternPubSub()
         {
-            using (var muxer = Create())
+            using (var muxer = Create(shared: false))
             {
                 var pub = GetAnyMaster(muxer);
                 var sub = muxer.GetSubscriber();
 
-                HashSet<string> received = new HashSet<string>();
+                HashSet<string> received = new();
                 int secondHandler = 0;
                 sub.Subscribe("a*c", (channel, payload) =>
                 {
@@ -238,7 +243,6 @@ namespace StackExchange.Redis.Tests
                 {
                     Assert.Single(received);
                 }
-                Assert.Equal(0, count);
             }
         }
 
@@ -746,10 +750,9 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task SubscriptionsSurviveConnectionFailureAsync()
         {
-            var session = new ProfilingSession();
             using (var muxer = Create(allowAdmin: true, shared: false, syncTimeout: 1000) as ConnectionMultiplexer)
             {
-                muxer.RegisterProfiler(() => session);
+                var profiler = muxer.AddProfiler();
                 RedisChannel channel = Me();
                 var sub = muxer.GetSubscriber();
                 int counter = 0;
@@ -758,11 +761,7 @@ namespace StackExchange.Redis.Tests
                     Interlocked.Increment(ref counter);
                 }).ConfigureAwait(false);
 
-                var profile1 = session.FinishProfiling();
-                foreach (var command in profile1)
-                {
-                    Log($"{command.EndPoint}: {command}");
-                }
+                var profile1 = Log(profiler);
                 // We shouldn't see the initial connection here
                 Assert.Equal(0, profile1.Count(p => p.Command == nameof(RedisCommand.SUBSCRIBE)));
 
@@ -775,7 +774,7 @@ namespace StackExchange.Redis.Tests
                 await Task.Delay(200).ConfigureAwait(false);
 
                 var counter1 = Thread.VolatileRead(ref counter);
-                Log($"Expecting 1 messsage, got {counter1}");
+                Log($"Expecting 1 message, got {counter1}");
                 Assert.Equal(1, counter1);
 
                 var server = GetServer(muxer);
@@ -808,11 +807,7 @@ namespace StackExchange.Redis.Tests
                 await Task.Delay(1000).ConfigureAwait(false);
 
                 // Ensure we've sent the subscribe command after reconnecting
-                var profile2 = session.FinishProfiling();
-                foreach (var command in profile2)
-                {
-                    Log($"{command.EndPoint}: {command}");
-                }
+                var profile2 = Log(profiler);
                 //Assert.Equal(1, profile2.Count(p => p.Command == nameof(RedisCommand.SUBSCRIBE)));
 
                 Log($"Issuing ping after reconnected");
@@ -830,12 +825,12 @@ namespace StackExchange.Redis.Tests
                 await UntilCondition(TimeSpan.FromSeconds(5), () => Thread.VolatileRead(ref counter) == 2);
 
                 var counter2 = Thread.VolatileRead(ref counter);
-                Log($"Expecting 2 messsages, got {counter2}");
+                Log($"Expecting 2 messages, got {counter2}");
                 Assert.Equal(2, counter2);
 
                 // Log all commands at the end
                 Log("All commands since connecting:");
-                var profile3 = session.FinishProfiling();
+                var profile3 = profiler.FinishProfiling();
                 foreach (var command in profile3)
                 {
                     Log($"{command.EndPoint}: {command}");
