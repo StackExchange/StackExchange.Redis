@@ -8,6 +8,7 @@ using System.Runtime;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using StackExchange.Redis.Profiling;
 using StackExchange.Redis.Tests.Helpers;
 using Xunit;
 using Xunit.Abstractions;
@@ -74,6 +75,16 @@ namespace StackExchange.Redis.Tests
             {
                 Console.WriteLine(message, args);
             }
+        }
+
+        protected ProfiledCommandEnumerable Log(ProfilingSession session)
+        {
+            var profile = session.FinishProfiling();
+            foreach (var command in profile)
+            {
+                Writer.WriteLineNoTime(command.ToString());
+            }
+            return profile;
         }
 
         protected void CollectGarbage()
