@@ -62,7 +62,7 @@ namespace StackExchange.Redis.Tests
                 var pub = GetAnyMaster(muxer);
                 var sub = muxer.GetSubscriber();
                 await PingAsync(muxer, pub, sub).ForAwait();
-                HashSet<string> received = new HashSet<string>();
+                HashSet<string> received = new();
                 int secondHandler = 0;
                 string subChannel = (wildCard ? "a*c" : "abc") + breaker;
                 string pubChannel = "abc" + breaker;
@@ -98,6 +98,8 @@ namespace StackExchange.Redis.Tests
                 {
                     Assert.Single(received);
                 }
+                // Give handler firing a moment
+                await UntilCondition(TimeSpan.FromSeconds(2), () => Thread.VolatileRead(ref secondHandler) == 1);
                 Assert.Equal(1, Thread.VolatileRead(ref secondHandler));
 
                 // unsubscribe from first; should still see second
@@ -108,7 +110,12 @@ namespace StackExchange.Redis.Tests
                 {
                     Assert.Single(received);
                 }
-                Assert.Equal(2, Thread.VolatileRead(ref secondHandler));
+
+                await UntilCondition(TimeSpan.FromSeconds(2), () => Thread.VolatileRead(ref secondHandler) == 2);
+
+                var secondHandlerCount = Thread.VolatileRead(ref secondHandler);
+                Log("Expecting 2 from second handler, got: " + secondHandlerCount);
+                Assert.Equal(2, secondHandlerCount);
                 Assert.Equal(1, count);
 
                 // unsubscribe from second; should see nothing this time
@@ -119,7 +126,9 @@ namespace StackExchange.Redis.Tests
                 {
                     Assert.Single(received);
                 }
-                Assert.Equal(2, Thread.VolatileRead(ref secondHandler));
+                secondHandlerCount = Thread.VolatileRead(ref secondHandler);
+                Log("Expecting 2 from second handler, got: " + secondHandlerCount);
+                Assert.Equal(2, secondHandlerCount);
                 Assert.Equal(0, count);
             }
         }
@@ -234,6 +243,9 @@ namespace StackExchange.Redis.Tests
                 {
                     Assert.Single(received);
                 }
+
+                // Give reception a bit, the handler could be delayed under load
+                await UntilCondition(TimeSpan.FromSeconds(2), () => Thread.VolatileRead(ref secondHandler) == 1);
                 Assert.Equal(1, Thread.VolatileRead(ref secondHandler));
 
                 sub.Unsubscribe("a*c");
@@ -258,7 +270,7 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        [FactLongRunning]
+        [Fact]
         public void TestMassivePublishWithWithoutFlush_Local()
         {
             using (var muxer = Create())
@@ -306,7 +318,7 @@ namespace StackExchange.Redis.Tests
             Assert.True(withFAF.ElapsedMilliseconds < withAsync.ElapsedMilliseconds + 3000, caption);
         }
 
-        [FactLongRunning]
+        [Fact]
         public async Task PubSubGetAllAnyOrder()
         {
             using (var muxer = Create(syncTimeout: 20000))
@@ -806,16 +818,23 @@ namespace StackExchange.Redis.Tests
                 // Ensure we're reconnected
                 Assert.True(sub.IsConnected(channel));
 
-                // And time to resubscribe...
-                await Task.Delay(1000).ConfigureAwait(false);
-
                 // Ensure we've sent the subscribe command after reconnecting
                 var profile2 = Log(profiler);
                 //Assert.Equal(1, profile2.Count(p => p.Command == nameof(RedisCommand.SUBSCRIBE)));
 
-                Log($"Issuing ping after reconnected");
+                Log("Issuing ping after reconnected");
                 sub.Ping();
-                Assert.Equal(1, muxer.GetSubscriptionsCount());
+
+                var muxerSubCount = muxer.GetSubscriptionsCount();
+                Log($"Muxer thinks we have {muxerSubCount} subscriber(s).");
+                Assert.Equal(1, muxerSubCount);
+
+                var muxerSubs = muxer.GetSubscriptions();
+                foreach (var pair in muxerSubs)
+                {
+                    var muxerSub = pair.Value;
+                    Log($"  Muxer Sub: {pair.Key}: (EndPoint: {muxerSub.GetCurrentServer()}, Connected: {muxerSub.IsConnected})");
+                }
 
                 Log("Publishing");
                 var published = await sub.PublishAsync(channel, "abc").ConfigureAwait(false);

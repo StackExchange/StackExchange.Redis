@@ -286,7 +286,7 @@ namespace StackExchange.Redis
 
         private ServerEndPoint Select(int slot, RedisCommand command, CommandFlags flags, bool allowDisconnected)
         {
-            flags = Message.GetMasterReplicaFlags(flags); // only intersted in master/replica preferences
+            flags = Message.GetMasterReplicaFlags(flags); // only interested in master/replica preferences
 
             ServerEndPoint[] arr;
             if (slot == NoSlot || (arr = map) == null) return Any(command, flags, allowDisconnected);

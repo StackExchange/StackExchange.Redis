@@ -23,7 +23,7 @@ namespace StackExchange.Redis.Tests.Issues
         [Fact]
         public async Task ExecuteWithUnsubscribeViaChannel()
         {
-            using (var muxer = Create())
+            using (var muxer = Create(log: Writer))
             {
                 RedisChannel name = Me();
                 var pubsub = muxer.GetSubscriber();
@@ -89,7 +89,7 @@ namespace StackExchange.Redis.Tests.Issues
         [Fact]
         public async Task ExecuteWithUnsubscribeViaSubscriber()
         {
-            using (var muxer = Create())
+            using (var muxer = Create(log: Writer))
             {
                 RedisChannel name = Me();
                 var pubsub = muxer.GetSubscriber();
@@ -141,7 +141,7 @@ namespace StackExchange.Redis.Tests.Issues
         [Fact]
         public async Task ExecuteWithUnsubscribeViaClearAll()
         {
-            using (var muxer = Create())
+            using (var muxer = Create(log: Writer))
             {
                 RedisChannel name = Me();
                 var pubsub = muxer.GetSubscriber();

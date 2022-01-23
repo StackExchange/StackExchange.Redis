@@ -578,6 +578,10 @@ namespace StackExchange.Redis
             {
                 CompletePendingConnectionMonitors("Disconnected");
             }
+            else if (bridge == subscription)
+            {
+                Multiplexer.UpdateSubscriptions();
+            }
         }
 
         internal Task OnEstablishingAsync(PhysicalConnection connection, LogProxy log)
@@ -626,8 +630,9 @@ namespace StackExchange.Redis
                         // Since we're issuing commands inside a SetResult path in a message, we'd create a deadlock by waiting.
                         Multiplexer.EnsureSubscriptions(CommandFlags.FireAndForget);
                     }
-                    else if (bridge == interactive)
+                    if (IsConnected && IsSubscriberConnected)
                     {
+                        // Only connect on the second leg - we can accomplish this by checking both
                         CompletePendingConnectionMonitors(source);
                     }
 
