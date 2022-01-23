@@ -60,7 +60,7 @@ namespace StackExchange.Redis.Tests
                 var pub = GetAnyMaster(muxer);
                 var sub = muxer.GetSubscriber();
                 await PingAsync(muxer, pub, sub).ForAwait();
-                HashSet<string> received = new HashSet<string>();
+                HashSet<string> received = new();
                 int secondHandler = 0;
                 string subChannel = (wildCard ? "a*c" : "abc") + breaker;
                 string pubChannel = "abc" + breaker;
@@ -106,7 +106,12 @@ namespace StackExchange.Redis.Tests
                 {
                     Assert.Single(received);
                 }
-                Assert.Equal(2, Thread.VolatileRead(ref secondHandler));
+
+                await UntilCondition(TimeSpan.FromSeconds(2), () => Thread.VolatileRead(ref secondHandler) == 2);
+
+                var secondHandlerCount = Thread.VolatileRead(ref secondHandler);
+                Log("Expecting 2 from second handler, got: " + secondHandlerCount);
+                Assert.Equal(2, secondHandlerCount);
                 Assert.Equal(1, count);
 
                 // unsubscribe from second; should see nothing this time
@@ -117,7 +122,9 @@ namespace StackExchange.Redis.Tests
                 {
                     Assert.Single(received);
                 }
-                Assert.Equal(2, Thread.VolatileRead(ref secondHandler));
+                secondHandlerCount = Thread.VolatileRead(ref secondHandler);
+                Log("Expecting 2 from second handler, got: " + secondHandlerCount);
+                Assert.Equal(2, secondHandlerCount);
                 Assert.Equal(0, count);
             }
         }
