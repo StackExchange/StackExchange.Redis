@@ -433,6 +433,7 @@ namespace StackExchange.Redis
         public bool Unsubscribe(in RedisChannel channel, Action<RedisChannel, RedisValue> handler, ChannelMessageQueue queue, CommandFlags flags)
         {
             ThrowIfNull(channel);
+            // Unregister the subscription handler/queue, and if that returns true (last handler removed), also disconnect from the server
             return UnregisterSubscription(channel, handler, queue, out var sub)
                 ? UnsubscribeFromServer(sub, channel, flags, false)
                 : true;
@@ -454,6 +455,7 @@ namespace StackExchange.Redis
         public Task<bool> UnsubscribeAsync(in RedisChannel channel, Action<RedisChannel, RedisValue> handler, ChannelMessageQueue queue, CommandFlags flags)
         {
             ThrowIfNull(channel);
+            // Unregister the subscription handler/queue, and if that returns true (last handler removed), also disconnect from the server
             return UnregisterSubscription(channel, handler, queue, out var sub)
                 ? UnsubscribeFromServerAsync(sub, channel, flags, asyncState, false)
                 : CompletedTask<bool>.Default(asyncState);
