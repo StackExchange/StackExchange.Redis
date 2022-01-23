@@ -85,6 +85,14 @@ namespace StackExchange.Redis
             }
         }
 
+        internal void UpdateSubscriptions()
+        {
+            foreach (var pair in subscriptions)
+            {
+                pair.Value.UpdateServer();
+            }
+        }
+
         internal async Task<long> EnsureSubscriptionsAsync(CommandFlags flags = CommandFlags.None)
         {
             long count = 0;
@@ -182,9 +190,6 @@ namespace StackExchange.Redis
                 }
                 return _handlers == null & _queues == null;
             }
-
-            internal ServerEndPoint GetCurrentServer() => Volatile.Read(ref CurrentServer);
-
             internal void GetSubscriberCounts(out int handlers, out int queues)
             {
                 queues = ChannelMessageQueue.Count(ref _queues);
@@ -201,6 +206,16 @@ namespace StackExchange.Redis
                 {
                     handlers = 0;
                     foreach (var sub in tmp.AsEnumerable()) { handlers++; }
+                }
+            }
+
+            internal ServerEndPoint GetCurrentServer() => Volatile.Read(ref CurrentServer);
+
+            internal void UpdateServer()
+            {
+                if (!IsConnected)
+                {
+                    SetServer(null);
                 }
             }
         }

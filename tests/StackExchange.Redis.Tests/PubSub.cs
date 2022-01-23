@@ -801,16 +801,23 @@ namespace StackExchange.Redis.Tests
                 // Ensure we're reconnected
                 Assert.True(sub.IsConnected(channel));
 
-                // And time to resubscribe...
-                await Task.Delay(1000).ConfigureAwait(false);
-
                 // Ensure we've sent the subscribe command after reconnecting
                 var profile2 = Log(profiler);
                 //Assert.Equal(1, profile2.Count(p => p.Command == nameof(RedisCommand.SUBSCRIBE)));
 
-                Log($"Issuing ping after reconnected");
+                Log("Issuing ping after reconnected");
                 sub.Ping();
-                Assert.Equal(1, muxer.GetSubscriptionsCount());
+
+                var muxerSubCount = muxer.GetSubscriptionsCount();
+                Log($"Muxer thinks we have {muxerSubCount} subscriber(s).");
+                Assert.Equal(1, muxerSubCount);
+
+                var muxerSubs = muxer.GetSubscriptions();
+                foreach (var pair in muxerSubs)
+                {
+                    var muxerSub = pair.Value;
+                    Log($"  Muxer Sub: {pair.Key}: (EndPoint: {muxerSub.GetCurrentServer()}, Connected: {muxerSub.IsConnected})");
+                }
 
                 Log("Publishing");
                 var published = await sub.PublishAsync(channel, "abc").ConfigureAwait(false);
