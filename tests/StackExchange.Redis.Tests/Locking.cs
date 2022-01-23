@@ -99,7 +99,7 @@ namespace StackExchange.Redis.Tests
 
             Assert.Equal(!existFirst, taken);
             Assert.Equal(expectedVal, valAfter);
-            Assert.True(expectedOps >= countAfter - countBefore, $"{expectedOps} >= ({countAfter} - {countBefore})");
+            Assert.True(expectedOps <= countAfter - countBefore, $"{expectedOps} >= ({countAfter} - {countBefore})");
             // note we get a ping from GetCounters
         }
 
