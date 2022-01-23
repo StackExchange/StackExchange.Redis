@@ -99,8 +99,8 @@ namespace StackExchange.Redis.Tests
 
             Assert.Equal(!existFirst, taken);
             Assert.Equal(expectedVal, valAfter);
-            Assert.True(expectedOps >= countAfter - countBefore, $"{expectedOps} >= ({countAfter} - {countBefore})");
             // note we get a ping from GetCounters
+            Assert.True(countAfter - countBefore >= expectedOps, $"({countAfter} - {countBefore}) >= {expectedOps}");
         }
 
         private IConnectionMultiplexer Create(TestMode mode) => mode switch

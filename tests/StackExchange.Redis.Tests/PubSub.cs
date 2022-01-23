@@ -31,7 +31,6 @@ namespace StackExchange.Redis.Tests
                 pub.Subscribe(new RedisChannel("ab*d", RedisChannel.PatternMode.Auto), (x, y) => Interlocked.Increment(ref c));
                 pub.Subscribe("abc*", (x, y) => Interlocked.Increment(ref d));
 
-                await Task.Delay(1000).ForAwait();
                 pub.Publish("abcd", "efg");
                 await UntilCondition(TimeSpan.FromSeconds(10),
                     () => Thread.VolatileRead(ref b) == 1
