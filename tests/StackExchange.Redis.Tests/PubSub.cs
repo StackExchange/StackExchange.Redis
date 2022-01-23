@@ -96,6 +96,8 @@ namespace StackExchange.Redis.Tests
                 {
                     Assert.Single(received);
                 }
+                // Give handler firing a moment
+                await UntilCondition(TimeSpan.FromSeconds(2), () => Thread.VolatileRead(ref secondHandler) == 1);
                 Assert.Equal(1, Thread.VolatileRead(ref secondHandler));
 
                 // unsubscribe from first; should still see second
