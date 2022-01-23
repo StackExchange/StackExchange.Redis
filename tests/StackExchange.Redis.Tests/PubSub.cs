@@ -319,7 +319,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task PubSubGetAllAnyOrder()
         {
-            using (var muxer = Create(syncTimeout: 20000))
+            using (var muxer = Create(syncTimeout: 20000, shared: false))
             {
                 var sub = muxer.GetSubscriber();
                 RedisChannel channel = Me();
