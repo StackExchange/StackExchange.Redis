@@ -82,7 +82,14 @@ namespace StackExchange.Redis.Tests.Helpers
         private void FlushBuffer()
         {
             var text = Buffer.ToString();
-            Output.WriteLine(text);
+            try
+            {
+                Output.WriteLine(text);
+            }
+            catch (InvalidOperationException)
+            {
+                // Thrown when writing from a handler after a test has ended - just bail in this case
+            }
             Echo?.AppendLine(text);
             if (ToConsole)
             {
