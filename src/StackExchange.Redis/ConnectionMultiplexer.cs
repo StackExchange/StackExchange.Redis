@@ -2321,7 +2321,7 @@ namespace StackExchange.Redis
                             }
                         }
                     }
-                });
+                }, CommandFlags.FireAndForget);
             }
 
             // If we lose connection to a sentinel server,
