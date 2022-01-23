@@ -239,6 +239,9 @@ namespace StackExchange.Redis.Tests
                 {
                     Assert.Single(received);
                 }
+
+                // Give reception a bit, the handler could be delayed under load
+                await UntilCondition(TimeSpan.FromSeconds(2), () => Thread.VolatileRead(ref secondHandler) == 1);
                 Assert.Equal(1, Thread.VolatileRead(ref secondHandler));
 
                 sub.Unsubscribe("a*c");
