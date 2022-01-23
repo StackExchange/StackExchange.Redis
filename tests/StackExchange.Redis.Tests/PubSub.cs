@@ -256,7 +256,7 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        [FactLongRunning]
+        [Fact]
         public void TestMassivePublishWithWithoutFlush_Local()
         {
             using (var muxer = Create())
@@ -304,7 +304,7 @@ namespace StackExchange.Redis.Tests
             Assert.True(withFAF.ElapsedMilliseconds < withAsync.ElapsedMilliseconds + 3000, caption);
         }
 
-        [FactLongRunning]
+        [Fact]
         public async Task PubSubGetAllAnyOrder()
         {
             using (var muxer = Create(syncTimeout: 20000))
