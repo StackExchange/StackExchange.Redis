@@ -325,6 +325,7 @@ namespace StackExchange.Redis.Tests
                 const int count = 1000;
                 var syncLock = new object();
 
+                Assert.True(sub.IsConnected());
                 var data = new HashSet<int>();
                 await sub.SubscribeAsync(channel, (_, val) =>
                 {
