@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
@@ -33,10 +34,23 @@ namespace StackExchange.Redis.Tests
             var sub = muxer.GetSubscriber();
             var channel = (RedisChannel)Me();
 
+            var count = 0;
             Log("Subscribing...");
-            await sub.SubscribeAsync(channel, (channel, val) => Log("Message: " + val));
-
+            await sub.SubscribeAsync(channel, (channel, val) =>
+            {
+                Interlocked.Increment(ref count);
+                Log("Message: " + val);
+            });
             Assert.True(sub.IsConnected(channel));
+
+            Log("Publishing (1)...");
+            Assert.Equal(0, count);
+            var publishedTo = await sub.PublishAsync(channel, "message1");
+            // Client -> Redis -> Client -> handler takes just a moment
+            await UntilCondition(TimeSpan.FromSeconds(2), () => Volatile.Read(ref count) == 1);
+            Assert.Equal(1, count);
+            Log($"  Published (1) to {publishedTo} subscriber(s).");
+            Assert.Equal(1, publishedTo);
 
             var endpoint = sub.SubscribedEndpoint(channel);
             var subscribedServer = muxer.GetServer(endpoint);
@@ -64,13 +78,19 @@ namespace StackExchange.Redis.Tests
             var newServer = subscription.GetCurrentServer();
             Assert.NotNull(newServer);
             Assert.NotEqual(newServer, initialServer);
-            Log($"Now connected to: " + initialServer);
-        }
+            Log($"Now connected to: " + newServer);
 
-        //      04:14:23.7955: Connection failed(InternalFailure): 127.0.0.1:7002/Subscription: StackExchange.Redis.RedisConnectionException: InternalFailure on 127.0.0.1:7002/Subscription, Initializing/NotStarted, last: SUBSCRIBE, origin: ConnectedAsync, outstanding: 0, last-read: 0s ago, last-write: 0s ago, keep-alive: 60s, state: Connecting, mgr: 9 of 10 available, last-heartbeat: never, last-mbeat: 0s ago, global: 23s ago, v: 2.5.49.64454 ---> StackExchange.Redis.RedisConnectionException: debugging
-        //at StackExchange.Redis.PhysicalConnection.OnDebugAbort() in C:\git\StackExchange\StackExchange.Redis\src\StackExchange.Redis\PhysicalConnection.cs:line 1560
-        // at StackExchange.Redis.PhysicalConnection.<ConnectedAsync>d__104.MoveNext() in C:\git\StackExchange\StackExchange.Redis\src\StackExchange.Redis\PhysicalConnection.cs:line 1389
-        // --- End of inner exception stack trace ---
+            count = 0;
+            Log("Publishing (2)...");
+            Assert.Equal(0, count);
+            publishedTo = await sub.PublishAsync(channel, "message2");
+            // Client -> Redis -> Client -> handler takes just a moment
+            await UntilCondition(TimeSpan.FromSeconds(2), () => Volatile.Read(ref count) == 1);
+            Assert.Equal(1, count);
+            Log($"  Published (2) to {publishedTo} subscriber(s).");
+
+            ClearAmbientFailures();
+        }
 
         // TODO: Primary/Replica failover
         // TODO: Subscribe failover, but with CommandFlags

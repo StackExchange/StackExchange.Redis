@@ -54,7 +54,7 @@ namespace StackExchange.Redis.Tests
         [InlineData("Foo:", true, "f")]
         public async Task TestBasicPubSub(string channelPrefix, bool wildCard, string breaker)
         {
-            using (var muxer = Create(channelPrefix: channelPrefix, log: Writer))
+            using (var muxer = Create(channelPrefix: channelPrefix, shared: false, log: Writer))
             {
                 var pub = GetAnyMaster(muxer);
                 var sub = muxer.GetSubscriber();
