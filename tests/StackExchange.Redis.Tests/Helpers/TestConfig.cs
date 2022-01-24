@@ -2,6 +2,7 @@
 using System;
 using Newtonsoft.Json;
 using System.Threading;
+using System.Linq;
 
 namespace StackExchange.Redis.Tests
 {
@@ -87,6 +88,7 @@ namespace StackExchange.Redis.Tests
             public string ClusterServer { get; set; } = "127.0.0.1";
             public int ClusterStartPort { get; set; } = 7000;
             public int ClusterServerCount { get; set; } = 6;
+            public string ClusterServersAndPorts => string.Join(",", Enumerable.Range(ClusterStartPort, ClusterServerCount).Select(port => ClusterServer + ":" + port));
 
             public string SslServer { get; set; }
             public int SslPort { get; set; }

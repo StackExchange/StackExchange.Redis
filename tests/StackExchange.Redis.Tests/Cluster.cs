@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using StackExchange.Redis.Profiling;
@@ -15,14 +14,7 @@ namespace StackExchange.Redis.Tests
     public class Cluster : TestBase
     {
         public Cluster(ITestOutputHelper output) : base (output) { }
-
-        protected override string GetConfiguration()
-        {
-            var server = TestConfig.Current.ClusterServer;
-            return string.Join(",",
-                Enumerable.Range(TestConfig.Current.ClusterStartPort, TestConfig.Current.ClusterServerCount).Select(port => server + ":" + port)
-            ) + ",connectTimeout=10000";
-        }
+        protected override string GetConfiguration() => TestConfig.Current.ClusterServersAndPorts + ",connectTimeout=10000";
 
         [Fact]
         public void ExportConfiguration()
