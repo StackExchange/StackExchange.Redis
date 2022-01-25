@@ -2348,7 +2348,7 @@ namespace StackExchange.Redis
                 {
                     string[] messageParts = ((string)message).Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
                     UpdateSentinelAddressList(messageParts[0]);
-                });
+                }, CommandFlags.FireAndForget);
             }
         }
 

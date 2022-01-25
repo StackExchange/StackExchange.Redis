@@ -410,7 +410,7 @@ namespace StackExchange.Redis
                             RedisCommand.SUBSCRIBE or RedisCommand.PSUBSCRIBE => connection.BridgeCouldBeNull?.ServerEndPoint,
                             _ => null
                         };
-                        Subscription?.SetServer(newServer);
+                        Subscription?.SetCurrentServer(newServer);
                         return true;
                     }
                 }
