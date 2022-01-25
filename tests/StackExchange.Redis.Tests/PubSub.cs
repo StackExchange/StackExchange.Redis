@@ -267,7 +267,7 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        [Fact]
+        [FactLongRunning]
         public void TestMassivePublishWithWithoutFlush_Local()
         {
             using (var muxer = Create())
