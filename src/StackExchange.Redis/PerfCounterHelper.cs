@@ -58,7 +58,7 @@ namespace StackExchange.Redis
         {
             GetThreadPoolStats(out string iocp, out string worker, out string workItems);
             var cpu = includePerformanceCounters ? GetSystemCpuPercent() : "n/a";
-            return $"IOCP: {iocp}, WORKER: {worker}, POOL: {workItems}, Local-CPU: {cpu}";
+            return $"IOCP: {iocp}, WORKER: {worker}, POOL: {workItems ?? "n/a"}, Local-CPU: {cpu}";
         }
 
         internal static string GetSystemCpuPercent() =>
