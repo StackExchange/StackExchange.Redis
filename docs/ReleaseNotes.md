@@ -8,6 +8,7 @@
 - Fix profiler showing `EVAL` instead `EVALSHA` (#1930 via martinpotter)
 - Moved tiebreaker fetching in connections into the handshake phase (streamline + simplification) (#1931 via NickCraver)
 - Fixed potential disposed object usage around Arenas (pulling in [Piplines.Sockets.Unofficial#63](https://github.com/mgravell/Pipelines.Sockets.Unofficial/pull/63) by MarcGravell)
+- Adds thread pool work item stats to exception messages to help diagnose contention (#1964 via NickCraver)
 
 ## 2.2.88
 
