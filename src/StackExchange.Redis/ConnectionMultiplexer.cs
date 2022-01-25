@@ -702,8 +702,12 @@ namespace StackExchange.Redis
             {
                 var sb = new StringBuilder();
                 sb.Append(message);
-                busyWorkerCount = PerfCounterHelper.GetThreadPoolStats(out string iocp, out string worker);
+                busyWorkerCount = PerfCounterHelper.GetThreadPoolStats(out string iocp, out string worker, out string workItems);
                 sb.Append(", IOCP: ").Append(iocp).Append(", WORKER: ").Append(worker);
+                if (workItems != null)
+                {
+                    sb.Append(", POOL: ").Append(workItems);
+                }
                 log?.WriteLine(sb.ToString());
             }
         }

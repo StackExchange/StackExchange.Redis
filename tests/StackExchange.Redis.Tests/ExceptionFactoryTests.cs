@@ -123,6 +123,11 @@ namespace StackExchange.Redis.Tests
                     Assert.Contains("inst: 0, qu: 0, qs: 0, aw: False, in: 0, in-pipe: 0, out-pipe: 0", ex.Message);
                     Assert.Contains("mc: 1/1/0", ex.Message);
                     Assert.Contains("serverEndpoint: " + server.EndPoint, ex.Message);
+                    Assert.Contains("IOCP: ", ex.Message);
+                    Assert.Contains("WORKER: ", ex.Message);
+#if NETCOREAPP
+                    Assert.Contains("POOL: ", ex.Message);
+#endif
                     Assert.DoesNotContain("Unspecified/", ex.Message);
                     Assert.EndsWith(" (Please take a look at this article for some common client-side issues that can cause timeouts: https://stackexchange.github.io/StackExchange.Redis/Timeouts)", ex.Message);
                     Assert.Null(ex.InnerException);
