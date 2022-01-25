@@ -353,9 +353,10 @@ namespace StackExchange.Redis
                     Add(data, sb, "Key-HashSlot", "PerfCounterHelperkeyHashSlot", message.GetHashSlot(multiplexer.ServerSelectionStrategy).ToString());
                 }
             }
-            int busyWorkerCount = PerfCounterHelper.GetThreadPoolStats(out string iocp, out string worker);
+            int busyWorkerCount = PerfCounterHelper.GetThreadPoolStats(out string iocp, out string worker, out string workItems);
             Add(data, sb, "ThreadPool-IO-Completion", "IOCP", iocp);
             Add(data, sb, "ThreadPool-Workers", "WORKER", worker);
+            Add(data, sb, "ThreadPool-Items", "POOL", workItems);
             data.Add(Tuple.Create("Busy-Workers", busyWorkerCount.ToString()));
 
             if (multiplexer.IncludePerformanceCountersInExceptions)

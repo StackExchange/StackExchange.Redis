@@ -56,9 +56,9 @@ namespace StackExchange.Redis
 
         internal static string GetThreadPoolAndCPUSummary(bool includePerformanceCounters)
         {
-            GetThreadPoolStats(out string iocp, out string worker);
+            GetThreadPoolStats(out string iocp, out string worker, out string workItems);
             var cpu = includePerformanceCounters ? GetSystemCpuPercent() : "n/a";
-            return $"IOCP: {iocp}, WORKER: {worker}, Local-CPU: {cpu}";
+            return $"IOCP: {iocp}, WORKER: {worker}, POOL: {workItems}, Local-CPU: {cpu}";
         }
 
         internal static string GetSystemCpuPercent() =>
@@ -66,7 +66,7 @@ namespace StackExchange.Redis
                 ? Math.Round(systemCPU, 2) + "%"
                 : "unavailable";
 
-        internal static int GetThreadPoolStats(out string iocp, out string worker)
+        internal static int GetThreadPoolStats(out string iocp, out string worker, out string workItems)
         {
             ThreadPool.GetMaxThreads(out int maxWorkerThreads, out int maxIoThreads);
             ThreadPool.GetAvailableThreads(out int freeWorkerThreads, out int freeIoThreads);
@@ -77,6 +77,13 @@ namespace StackExchange.Redis
 
             iocp = $"(Busy={busyIoThreads},Free={freeIoThreads},Min={minIoThreads},Max={maxIoThreads})";
             worker = $"(Busy={busyWorkerThreads},Free={freeWorkerThreads},Min={minWorkerThreads},Max={maxWorkerThreads})";
+
+#if NETCOREAPP
+            workItems = $"(Threads={ThreadPool.ThreadCount},Queued={ThreadPool.PendingWorkItemCount},Completed={ThreadPool.CompletedWorkItemCount})";
+#else
+            workItems = null;
+#endif
+
             return busyWorkerThreads;
         }
     }
