@@ -356,7 +356,10 @@ namespace StackExchange.Redis
             int busyWorkerCount = PerfCounterHelper.GetThreadPoolStats(out string iocp, out string worker, out string workItems);
             Add(data, sb, "ThreadPool-IO-Completion", "IOCP", iocp);
             Add(data, sb, "ThreadPool-Workers", "WORKER", worker);
-            Add(data, sb, "ThreadPool-Items", "POOL", workItems);
+            if (workItems != null)
+            {
+                Add(data, sb, "ThreadPool-Items", "POOL", workItems);
+            }
             data.Add(Tuple.Create("Busy-Workers", busyWorkerCount.ToString()));
 
             if (multiplexer.IncludePerformanceCountersInExceptions)
