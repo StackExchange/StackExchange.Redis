@@ -89,7 +89,7 @@ namespace StackExchange.Redis.Tests.Issues
         [Fact]
         public async Task ExecuteWithUnsubscribeViaSubscriber()
         {
-            using (var muxer = Create(log: Writer))
+            using (var muxer = Create(shared: false, log: Writer))
             {
                 RedisChannel name = Me();
                 var pubsub = muxer.GetSubscriber();
