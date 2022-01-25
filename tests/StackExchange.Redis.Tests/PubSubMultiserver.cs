@@ -101,7 +101,7 @@ namespace StackExchange.Redis.Tests
         {
             var config = TestConfig.Current.MasterServerAndPort + "," + TestConfig.Current.ReplicaServerAndPort;
             Log("Connecting...");
-            using var muxer = Create(configuration: config, allowAdmin: true) as ConnectionMultiplexer;
+            using var muxer = Create(configuration: config, shared: false, allowAdmin: true) as ConnectionMultiplexer;
             var sub = muxer.GetSubscriber();
             var channel = (RedisChannel)Me();
 
