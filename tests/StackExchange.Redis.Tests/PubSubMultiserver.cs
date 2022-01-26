@@ -103,7 +103,7 @@ namespace StackExchange.Redis.Tests
             Log("Connecting...");
             using var muxer = Create(configuration: config, shared: false, allowAdmin: true) as ConnectionMultiplexer;
             var sub = muxer.GetSubscriber();
-            var channel = (RedisChannel)Me();
+            var channel = (RedisChannel)(Me() + flags.ToString()); // Individual channel per case to not overlap publishers
 
             var count = 0;
             Log("Subscribing...");
@@ -117,10 +117,10 @@ namespace StackExchange.Redis.Tests
             Log("Publishing (1)...");
             Assert.Equal(0, count);
             var publishedTo = await sub.PublishAsync(channel, "message1");
+            Log($"  Published (1) to {publishedTo} subscriber(s).");
             // Client -> Redis -> Client -> handler takes just a moment
             await UntilCondition(TimeSpan.FromSeconds(2), () => Volatile.Read(ref count) == 1);
             Assert.Equal(1, count);
-            Log($"  Published (1) to {publishedTo} subscriber(s).");
 
             var endpoint = sub.SubscribedEndpoint(channel);
             var subscribedServer = muxer.GetServer(endpoint);
