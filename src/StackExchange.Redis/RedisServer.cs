@@ -572,30 +572,41 @@ namespace StackExchange.Redis
         }
 
         internal override Task<T> ExecuteAsync<T>(Message message, ResultProcessor<T> processor, ServerEndPoint server = null)
-        {   // inject our expected server automatically
+        {
+            // inject our expected server automatically
             if (server == null) server = this.server;
             FixFlags(message, server);
-            if (!server.IsConnected && !multiplexer.RawConfig.BacklogPolicy.QueueWhileDisconnected)
+            if (!server.IsConnected)
             {
                 if (message == null) return CompletedTask<T>.Default(asyncState);
                 if (message.IsFireAndForget) return CompletedTask<T>.Default(null); // F+F explicitly does not get async-state
 
-                // no need to deny exec-sync here; will be complete before they see if
-                var tcs = TaskSource.Create<T>(asyncState);
-                ConnectionMultiplexer.ThrowFailed(tcs, ExceptionFactory.NoConnectionAvailable(multiplexer, message, server));
-                return tcs.Task;
+                // After the "don't care" cases above, if we can't queue then it's time to error - otherwise call through to queueing.
+                if (!multiplexer.RawConfig.BacklogPolicy.QueueWhileDisconnected)
+                {
+                    // no need to deny exec-sync here; will be complete before they see if
+                    var tcs = TaskSource.Create<T>(asyncState);
+                    ConnectionMultiplexer.ThrowFailed(tcs, ExceptionFactory.NoConnectionAvailable(multiplexer, message, server));
+                    return tcs.Task;
+                }
             }
             return base.ExecuteAsync<T>(message, processor, server);
         }
 
         internal override T ExecuteSync<T>(Message message, ResultProcessor<T> processor, ServerEndPoint server = null)
-        {   // inject our expected server automatically
+        {
+            // inject our expected server automatically
             if (server == null) server = this.server;
             FixFlags(message, server);
-            if (!server.IsConnected && !multiplexer.RawConfig.BacklogPolicy.QueueWhileDisconnected)
+            if (!server.IsConnected)
             {
                 if (message == null || message.IsFireAndForget) return default(T);
-                throw ExceptionFactory.NoConnectionAvailable(multiplexer, message, server);
+
+                // After the "don't care" cases above, if we can't queue then it's time to error - otherwise call through to queueing.
+                if (!multiplexer.RawConfig.BacklogPolicy.QueueWhileDisconnected)
+                {
+                    throw ExceptionFactory.NoConnectionAvailable(multiplexer, message, server);
+                }
             }
             return base.ExecuteSync<T>(message, processor, server);
         }
