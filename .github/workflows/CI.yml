@@ -36,6 +36,7 @@ jobs:
         name: StackExchange.Redis.Tests (Ubuntu) - Results
         path: 'test-results/*.trx'
         reporter: dotnet-trx
+        list-tests: 'failed'
     - name: .NET Lib Pack
       run: dotnet pack src/StackExchange.Redis/StackExchange.Redis.csproj --no-build -c Release /p:Packing=true /p:PackageOutputPath=%CD%\.nupkgs /p:CI=true
 
@@ -82,4 +83,5 @@ jobs:
       with:
         name: StackExchange.Redis.Tests (Windows Server 2019) - Results
         path: 'test-results/*.trx'
-        reporter: dotnet-trx      
+        reporter: dotnet-trx
+        list-tests: 'failed'
