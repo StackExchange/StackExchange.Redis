@@ -9,7 +9,7 @@ namespace StackExchange.Redis.Tests
 {
     public class Failover : TestBase, IAsyncLifetime
     {
-        protected override string GetConfiguration() => GetMasterReplicaConfig().ToString();
+        protected override string GetConfiguration() => GetPrimaryReplicaConfig().ToString();
 
         public Failover(ITestOutputHelper output) : base(output)
         {
@@ -21,24 +21,24 @@ namespace StackExchange.Redis.Tests
         {
             using (var mutex = Create())
             {
-                var shouldBeMaster = mutex.GetServer(TestConfig.Current.FailoverMasterServerAndPort);
-                if (shouldBeMaster.IsReplica)
+                var shouldBePrimary = mutex.GetServer(TestConfig.Current.FailoverMasterServerAndPort);
+                if (shouldBePrimary.IsReplica)
                 {
-                    Log(shouldBeMaster.EndPoint + " should be master, fixing...");
-                    shouldBeMaster.MakeMaster(ReplicationChangeOptions.SetTiebreaker);
+                    Log(shouldBePrimary.EndPoint + " should be primary, fixing...");
+                    await shouldBePrimary.MakePrimaryAsync(ReplicationChangeOptions.SetTiebreaker);
                 }
 
                 var shouldBeReplica = mutex.GetServer(TestConfig.Current.FailoverReplicaServerAndPort);
                 if (!shouldBeReplica.IsReplica)
                 {
                     Log(shouldBeReplica.EndPoint + " should be a replica, fixing...");
-                    shouldBeReplica.ReplicaOf(shouldBeMaster.EndPoint);
+                    await shouldBeReplica.ReplicaOfAsync(shouldBePrimary.EndPoint);
                     await Task.Delay(2000).ForAwait();
                 }
             }
         }
 
-        private static ConfigurationOptions GetMasterReplicaConfig()
+        private static ConfigurationOptions GetPrimaryReplicaConfig()
         {
             return new ConfigurationOptions
             {
@@ -99,10 +99,10 @@ namespace StackExchange.Redis.Tests
 
                 Interlocked.Exchange(ref total, 0);
 
-                // and send a second time via a re-master operation
+                // and send a second time via a re-primary operation
                 var server = GetServer(sender);
                 if (server.IsReplica) Skip.Inconclusive("didn't expect a replica");
-                server.MakeMaster(ReplicationChangeOptions.Broadcast);
+                await server.MakePrimaryAsync(ReplicationChangeOptions.Broadcast);
                 await Task.Delay(1000).ConfigureAwait(false);
                 GetServer(receiver).Ping();
                 GetServer(receiver).Ping();
@@ -113,7 +113,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task DereplicateGoesToPrimary()
         {
-            ConfigurationOptions config = GetMasterReplicaConfig();
+            ConfigurationOptions config = GetPrimaryReplicaConfig();
             config.ConfigCheckSeconds = 5;
             using (var conn = ConnectionMultiplexer.Connect(config))
             {
@@ -123,8 +123,8 @@ namespace StackExchange.Redis.Tests
                 primary.Ping();
                 secondary.Ping();
 
-                primary.MakeMaster(ReplicationChangeOptions.SetTiebreaker);
-                secondary.MakeMaster(ReplicationChangeOptions.None);
+                await primary.MakePrimaryAsync(ReplicationChangeOptions.SetTiebreaker);
+                await secondary.MakePrimaryAsync(ReplicationChangeOptions.None);
 
                 await Task.Delay(100).ConfigureAwait(false);
 
@@ -150,22 +150,22 @@ namespace StackExchange.Redis.Tests
 
                 var ex = Assert.Throws<RedisConnectionException>(() => db.IdentifyEndpoint(key, CommandFlags.DemandReplica));
                 Assert.StartsWith("No connection is active/available to service this operation: EXISTS " + Me(), ex.Message);
-                Writer.WriteLine("Invoking MakeMaster()...");
-                primary.MakeMaster(ReplicationChangeOptions.Broadcast | ReplicationChangeOptions.ReplicateToOtherEndpoints | ReplicationChangeOptions.SetTiebreaker, Writer);
-                Writer.WriteLine("Finished MakeMaster() call.");
+                Writer.WriteLine("Invoking MakePrimaryAsync()...");
+                await primary.MakePrimaryAsync(ReplicationChangeOptions.Broadcast | ReplicationChangeOptions.ReplicateToOtherEndpoints | ReplicationChangeOptions.SetTiebreaker, Writer);
+                Writer.WriteLine("Finished MakePrimaryAsync() call.");
 
                 await Task.Delay(100).ConfigureAwait(false);
 
-                Writer.WriteLine("Invoking Ping() (post-master)");
+                Writer.WriteLine("Invoking Ping() (post-primary)");
                 primary.Ping();
                 secondary.Ping();
-                Writer.WriteLine("Finished Ping() (post-master)");
+                Writer.WriteLine("Finished Ping() (post-primary)");
 
                 Assert.True(primary.IsConnected, $"{primary.EndPoint} is not connected.");
                 Assert.True(secondary.IsConnected, $"{secondary.EndPoint} is not connected.");
 
-                Writer.WriteLine($"{primary.EndPoint}: {primary.ServerType}, Mode: {(primary.IsReplica ? "Replica" : "Master")}");
-                Writer.WriteLine($"{secondary.EndPoint}: {secondary.ServerType}, Mode: {(secondary.IsReplica ? "Replica" : "Master")}");
+                Writer.WriteLine($"{primary.EndPoint}: {primary.ServerType}, Mode: {(primary.IsReplica ? "Replica" : "Primary")}");
+                Writer.WriteLine($"{secondary.EndPoint}: {secondary.ServerType}, Mode: {(secondary.IsReplica ? "Replica" : "Primary")}");
 
                 // Create a separate multiplexer with a valid view of the world to distinguish between failures of
                 // server topology changes from failures to recognize those changes
@@ -175,10 +175,10 @@ namespace StackExchange.Redis.Tests
                     var primary2 = conn2.GetServer(TestConfig.Current.FailoverMasterServerAndPort);
                     var secondary2 = conn2.GetServer(TestConfig.Current.FailoverReplicaServerAndPort);
 
-                    Writer.WriteLine($"Check: {primary2.EndPoint}: {primary2.ServerType}, Mode: {(primary2.IsReplica ? "Replica" : "Master")}");
-                    Writer.WriteLine($"Check: {secondary2.EndPoint}: {secondary2.ServerType}, Mode: {(secondary2.IsReplica ? "Replica" : "Master")}");
+                    Writer.WriteLine($"Check: {primary2.EndPoint}: {primary2.ServerType}, Mode: {(primary2.IsReplica ? "Replica" : "Primary")}");
+                    Writer.WriteLine($"Check: {secondary2.EndPoint}: {secondary2.ServerType}, Mode: {(secondary2.IsReplica ? "Replica" : "Primary")}");
 
-                    Assert.False(primary2.IsReplica, $"{primary2.EndPoint} should be a master (verification connection).");
+                    Assert.False(primary2.IsReplica, $"{primary2.EndPoint} should be a primary (verification connection).");
                     Assert.True(secondary2.IsReplica, $"{secondary2.EndPoint} should be a replica (verification connection).");
 
                     var db2 = conn2.GetDatabase();
@@ -191,7 +191,7 @@ namespace StackExchange.Redis.Tests
 
                 await UntilCondition(TimeSpan.FromSeconds(20), () => !primary.IsReplica && secondary.IsReplica);
 
-                Assert.False(primary.IsReplica, $"{primary.EndPoint} should be a master.");
+                Assert.False(primary.IsReplica, $"{primary.EndPoint} should be a primary.");
                 Assert.True(secondary.IsReplica, $"{secondary.EndPoint} should be a replica.");
 
                 Assert.Equal(primary.EndPoint, db.IdentifyEndpoint(key, CommandFlags.PreferMaster));
@@ -203,9 +203,9 @@ namespace StackExchange.Redis.Tests
 
 #if DEBUG
         [Fact]
-        public async Task SubscriptionsSurviveMasterSwitchAsync()
+        public async Task SubscriptionsSurvivePrimarySwitchAsync()
         {
-            static void TopologyFail() => Skip.Inconclusive("Replication tolopogy change failed...and that's both inconsistent and not what we're testing.");
+            static void TopologyFail() => Skip.Inconclusive("Replication topology change failed...and that's both inconsistent and not what we're testing.");
 
             if (RunningInCI)
             {
@@ -220,14 +220,14 @@ namespace StackExchange.Redis.Tests
                 var subA = a.GetSubscriber();
                 var subB = b.GetSubscriber();
 
-                long masterChanged = 0, aCount = 0, bCount = 0;
+                long primaryChanged = 0, aCount = 0, bCount = 0;
                 a.ConfigurationChangedBroadcast += delegate
                 {
-                    Log("A noticed config broadcast: " + Interlocked.Increment(ref masterChanged));
+                    Log("A noticed config broadcast: " + Interlocked.Increment(ref primaryChanged));
                 };
                 b.ConfigurationChangedBroadcast += delegate
                 {
-                    Log("B noticed config broadcast: " + Interlocked.Increment(ref masterChanged));
+                    Log("B noticed config broadcast: " + Interlocked.Increment(ref primaryChanged));
                 };
                 subA.Subscribe(channel, (_, message) =>
                 {
@@ -263,34 +263,34 @@ namespace StackExchange.Redis.Tests
 
                 Assert.Equal(2, Interlocked.Read(ref aCount));
                 Assert.Equal(2, Interlocked.Read(ref bCount));
-                Assert.Equal(0, Interlocked.Read(ref masterChanged));
+                Assert.Equal(0, Interlocked.Read(ref primaryChanged));
 
                 try
                 {
-                    Interlocked.Exchange(ref masterChanged, 0);
+                    Interlocked.Exchange(ref primaryChanged, 0);
                     Interlocked.Exchange(ref aCount, 0);
                     Interlocked.Exchange(ref bCount, 0);
-                    Log("Changing master...");
+                    Log("Changing primary...");
                     using (var sw = new StringWriter())
                     {
-                        a.GetServer(TestConfig.Current.FailoverReplicaServerAndPort).MakeMaster(ReplicationChangeOptions.All, sw);
+                        await a.GetServer(TestConfig.Current.FailoverReplicaServerAndPort).MakePrimaryAsync(ReplicationChangeOptions.All, sw);
                         Log(sw.ToString());
                     }
                     Log("Waiting for connection B to detect...");
                     await UntilCondition(TimeSpan.FromSeconds(10), () => b.GetServer(TestConfig.Current.FailoverMasterServerAndPort).IsReplica).ForAwait();
                     subA.Ping();
                     subB.Ping();
-                    Log("Falover 2 Attempted. Pausing...");
-                    Log("  A " + TestConfig.Current.FailoverMasterServerAndPort + " status: " + (a.GetServer(TestConfig.Current.FailoverMasterServerAndPort).IsReplica ? "Replica" : "Master"));
-                    Log("  A " + TestConfig.Current.FailoverReplicaServerAndPort + " status: " + (a.GetServer(TestConfig.Current.FailoverReplicaServerAndPort).IsReplica ? "Replica" : "Master"));
-                    Log("  B " + TestConfig.Current.FailoverMasterServerAndPort + " status: " + (b.GetServer(TestConfig.Current.FailoverMasterServerAndPort).IsReplica ? "Replica" : "Master"));
-                    Log("  B " + TestConfig.Current.FailoverReplicaServerAndPort + " status: " + (b.GetServer(TestConfig.Current.FailoverReplicaServerAndPort).IsReplica ? "Replica" : "Master"));
+                    Log("Failover 2 Attempted. Pausing...");
+                    Log("  A " + TestConfig.Current.FailoverMasterServerAndPort + " status: " + (a.GetServer(TestConfig.Current.FailoverMasterServerAndPort).IsReplica ? "Replica" : "Primary"));
+                    Log("  A " + TestConfig.Current.FailoverReplicaServerAndPort + " status: " + (a.GetServer(TestConfig.Current.FailoverReplicaServerAndPort).IsReplica ? "Replica" : "Primary"));
+                    Log("  B " + TestConfig.Current.FailoverMasterServerAndPort + " status: " + (b.GetServer(TestConfig.Current.FailoverMasterServerAndPort).IsReplica ? "Replica" : "Primary"));
+                    Log("  B " + TestConfig.Current.FailoverReplicaServerAndPort + " status: " + (b.GetServer(TestConfig.Current.FailoverReplicaServerAndPort).IsReplica ? "Replica" : "Primary"));
 
                     if (!a.GetServer(TestConfig.Current.FailoverMasterServerAndPort).IsReplica)
                     {
                         TopologyFail();
                     }
-                    Log("Falover 2 Complete.");
+                    Log("Failover 2 Complete.");
 
                     Assert.True(a.GetServer(TestConfig.Current.FailoverMasterServerAndPort).IsReplica, $"A Connection: {TestConfig.Current.FailoverMasterServerAndPort} should be a replica");
                     Assert.False(a.GetServer(TestConfig.Current.FailoverReplicaServerAndPort).IsReplica, $"A Connection: {TestConfig.Current.FailoverReplicaServerAndPort} should be a master");
@@ -334,12 +334,12 @@ namespace StackExchange.Redis.Tests
                     Log("Counts so far:");
                     Log("  aCount: " + Interlocked.Read(ref aCount));
                     Log("  bCount: " + Interlocked.Read(ref bCount));
-                    Log("  masterChanged: " + Interlocked.Read(ref masterChanged));
+                    Log("  primaryChanged: " + Interlocked.Read(ref primaryChanged));
 
                     Assert.Equal(2, Interlocked.Read(ref aCount));
                     Assert.Equal(2, Interlocked.Read(ref bCount));
-                    // Expect 10, because a sees a, but b sees a and b due to replication
-                    Assert.Equal(10, Interlocked.CompareExchange(ref masterChanged, 0, 0));
+                    // Expect 12, because a sees a, but b sees a and b due to replication
+                    Assert.Equal(12, Interlocked.CompareExchange(ref primaryChanged, 0, 0));
                 }
                 catch
                 {
@@ -353,7 +353,7 @@ namespace StackExchange.Redis.Tests
                     Log("Restoring configuration...");
                     try
                     {
-                        a.GetServer(TestConfig.Current.FailoverMasterServerAndPort).MakeMaster(ReplicationChangeOptions.All);
+                        await a.GetServer(TestConfig.Current.FailoverMasterServerAndPort).MakePrimaryAsync(ReplicationChangeOptions.All);
                         await Task.Delay(1000).ForAwait();
                     }
                     catch { /* Don't bomb here */ }
