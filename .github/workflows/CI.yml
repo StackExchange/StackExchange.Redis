@@ -1,4 +1,4 @@
-name: CI Builds
+name: CI
 
 on:
   pull_request:
@@ -32,7 +32,7 @@ jobs:
       continue-on-error: true
       if: success() || failure()
       with:
-        name: StackExchange.Redis.Tests (Ubuntu) - Results
+        name: Test Results - Ubuntu
         path: 'test-results/*.trx'
         reporter: dotnet-trx
     - name: .NET Lib Pack
@@ -77,6 +77,6 @@ jobs:
       continue-on-error: true
       if: success() || failure()
       with:
-        name: StackExchange.Redis.Tests (Windows Server 2019) - Results
+        name: Tests Results - Windows Server 2019
         path: 'test-results/*.trx'
         reporter: dotnet-trx
