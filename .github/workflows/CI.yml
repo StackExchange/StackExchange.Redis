@@ -20,7 +20,6 @@ jobs:
       uses: actions/setup-dotnet@v1
       with:
         dotnet-version: | 
-          3.1.x
           6.0.x
     - name: .NET Build
       run: dotnet build Build.csproj -c Release /p:CI=true
@@ -49,7 +48,6 @@ jobs:
       uses: actions/setup-dotnet@v1
       with:
         dotnet-version: | 
-          3.1.x
           6.0.x
     - name: .NET Build
       run: dotnet build Build.csproj -c Release /p:CI=true
