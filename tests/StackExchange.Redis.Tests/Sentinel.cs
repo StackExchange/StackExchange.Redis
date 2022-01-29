@@ -359,8 +359,11 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void SentinelReplicasTest()
+        public async Task SentinelReplicasTest()
         {
+            // Give previous test run a moment to reset when multi-framework failover is in play.
+            await UntilCondition(TimeSpan.FromSeconds(5), () => SentinelServerA.SentinelReplicas(ServiceName).Length > 0);
+
             var replicaConfigs = SentinelServerA.SentinelReplicas(ServiceName);
             Assert.True(replicaConfigs.Length > 0, "Has replicaConfigs");
             Assert.True(replicaConfigs[0].ToDictionary().ContainsKey("name"), "replicaConfigs contains 'name'");
@@ -378,6 +381,9 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task SentinelReplicasAsyncTest()
         {
+            // Give previous test run a moment to reset when multi-framework failover is in play.
+            await UntilCondition(TimeSpan.FromSeconds(5), () => SentinelServerA.SentinelReplicas(ServiceName).Length > 0);
+
             var replicaConfigs = await SentinelServerA.SentinelReplicasAsync(ServiceName).ForAwait();
             Assert.True(replicaConfigs.Length > 0, "Has replicaConfigs");
             Assert.True(replicaConfigs[0].ToDictionary().ContainsKey("name"), "replicaConfigs contains 'name'");

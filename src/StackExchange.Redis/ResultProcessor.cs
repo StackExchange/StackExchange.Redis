@@ -18,7 +18,7 @@ namespace StackExchange.Redis
             DemandPONG = new ExpectBasicStringProcessor(CommonReplies.PONG),
             DemandZeroOrOne = new DemandZeroOrOneProcessor(),
             AutoConfigure = new AutoConfigureProcessor(),
-            TrackSubscriptions = new TrackSubscriptionsProcessor(),
+            TrackSubscriptions = new TrackSubscriptionsProcessor(null),
             Tracer = new TracerProcessor(false),
             EstablishConnection = new TracerProcessor(true),
             BackgroundSaveStarted = new ExpectBasicStringProcessor(CommonReplies.backgroundSavingStarted_trimmed, startsWith: true);
@@ -392,6 +392,9 @@ namespace StackExchange.Redis
 
         public sealed class TrackSubscriptionsProcessor : ResultProcessor<bool>
         {
+            private ConnectionMultiplexer.Subscription Subscription { get; }
+            public TrackSubscriptionsProcessor(ConnectionMultiplexer.Subscription sub) => Subscription = sub;
+
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
                 if (result.Type == ResultType.MultiBulk)
@@ -400,9 +403,18 @@ namespace StackExchange.Redis
                     if (items.Length >= 3 && items[2].TryGetInt64(out long count))
                     {
                         connection.SubscriptionCount = count;
+                        SetResult(message, true);
+
+                        var newServer = message.Command switch
+                        {
+                            RedisCommand.SUBSCRIBE or RedisCommand.PSUBSCRIBE => connection.BridgeCouldBeNull?.ServerEndPoint,
+                            _ => null
+                        };
+                        Subscription?.SetCurrentServer(newServer);
                         return true;
                     }
                 }
+                SetResult(message, false);
                 return false;
             }
         }

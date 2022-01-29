@@ -105,6 +105,7 @@ namespace StackExchange.Redis.Tests
                 options.Password = "";
                 options.AbortOnConnectFail = false;
                 options.ConnectTimeout = 1000;
+                options.BacklogPolicy = BacklogPolicy.FailFast;
                 var outer = Assert.Throws<RedisConnectionException>(() =>
                 {
                     using (var muxer = ConnectionMultiplexer.Connect(options))
