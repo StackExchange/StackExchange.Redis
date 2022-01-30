@@ -33,12 +33,8 @@ namespace StackExchange.Redis
         /// </summary>
         public EndPoint EndPoint { get; }
 
-        void ICompletable.AppendStormLog(StringBuilder sb)
-        {
-            sb.Append("event, endpoint: ");
-            if (EndPoint == null) sb.Append("n/a");
-            else sb.Append(Format.ToString(EndPoint));
-        }
+        void ICompletable.AppendStormLog(StringBuilder sb) =>
+            sb.Append("event, endpoint: ").Append(EndPoint != null ? Format.ToString(EndPoint) : "n/a");
 
         bool ICompletable.TryComplete(bool isAsync) => ConnectionMultiplexer.TryCompleteHandler(handler, sender, this, isAsync);
     }

@@ -2,7 +2,7 @@
 using System.Globalization;
 using System.Net;
 using System.Threading.Tasks;
-#if NETSTANDARD2_1_OR_GREATER || NETCOREAPP3_0_OR_GREATER
+#if NETCOREAPP
 using System.Buffers.Text;
 #endif
 
@@ -58,7 +58,7 @@ namespace StackExchange.Redis.Maintenance
 
                     if (key.Length > 0 && value.Length > 0)
                     {
-#if NETSTANDARD2_1_OR_GREATER || NETCOREAPP3_0_OR_GREATER
+#if NETCOREAPP
                         switch (key)
                         {
                             case var _ when key.SequenceEqual(nameof(NotificationType).AsSpan()):

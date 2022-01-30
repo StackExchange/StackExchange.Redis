@@ -29,7 +29,7 @@ namespace StackExchange.Redis
         /// <param name="endPoint">Redis endpoint.</param>
         /// <param name="connectionType">Redis connection type.</param>
         /// <param name="failureType">Redis connection failure type.</param>
-        /// <param name="exception">The exception occured.</param>
+        /// <param name="exception">The exception occurred.</param>
         /// <param name="physicalName">Connection physical name.</param>
         public ConnectionFailedEventArgs(object sender, EndPoint endPoint, ConnectionType connectionType, ConnectionFailureType failureType, Exception exception, string physicalName)
             : this (null, sender, endPoint, connectionType, failureType, exception, physicalName)
@@ -58,12 +58,8 @@ namespace StackExchange.Redis
         /// </summary>
         public ConnectionFailureType FailureType { get; }
 
-        void ICompletable.AppendStormLog(StringBuilder sb)
-        {
-            sb.Append("event, connection-failed: ");
-            if (EndPoint == null) sb.Append("n/a");
-            else sb.Append(Format.ToString(EndPoint));
-        }
+        void ICompletable.AppendStormLog(StringBuilder sb) =>
+            sb.Append("event, connection-failed: ").Append(EndPoint != null ? Format.ToString(EndPoint) : "n/a");
 
         bool ICompletable.TryComplete(bool isAsync) => ConnectionMultiplexer.TryCompleteHandler(handler, sender, this, isAsync);
 

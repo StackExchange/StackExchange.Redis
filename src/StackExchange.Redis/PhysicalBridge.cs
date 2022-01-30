@@ -794,7 +794,7 @@ namespace StackExchange.Redis
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void BacklogEnqueue(Message message, PhysicalConnection physical)
-        {   
+        {
             _backlog.Enqueue(message);
             Interlocked.Increment(ref _backlogTotalEnqueued);
         }

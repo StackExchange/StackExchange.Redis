@@ -48,9 +48,6 @@ namespace StackExchange.Redis
             }
         }
 
-        void ICompletable.AppendStormLog(StringBuilder sb)
-        {
-            sb.Append("event, pub/sub: ").Append((string)channel);
-        }
+        void ICompletable.AppendStormLog(StringBuilder sb) => sb.Append("event, pub/sub: ").Append((string)channel);
     }
 }

@@ -43,7 +43,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Gets the subscriber counts for a channel.
         /// </summary>
-        /// <returns>True if there's a subscription registered at all.</returns>
+        /// <returns><see langword="true"/> if there's a subscription registered at all.</returns>
         internal bool GetSubscriberCounts(in RedisChannel channel, out int handlers, out int queues)
         {
             if (subscriptions.TryGetValue(channel, out var sub))
@@ -291,10 +291,10 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.ConnectionIdentity);
         }
 
-        /// <remarks>
+        /// <summary>
         /// This is *could* we be connected, as in "what's the theoretical endpoint for this channel?",
         /// rather than if we're actually connected and actually listening on that channel.
-        /// </remarks>
+        /// </summary>
         public bool IsConnected(RedisChannel channel = default(RedisChannel))
         {
             var server = multiplexer.GetSubscribedServer(channel) ?? multiplexer.SelectServer(RedisCommand.SUBSCRIBE, CommandFlags.DemandMaster, channel);
@@ -338,7 +338,7 @@ namespace StackExchange.Redis
             return msg;
         }
 
-        private void ThrowIfNull(in RedisChannel channel)
+        private static void ThrowIfNull(in RedisChannel channel)
         {
             if (channel.IsNullOrEmpty)
             {
@@ -474,7 +474,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Unregisters a handler or queue and returns if we should remove it from the server.
         /// </summary>
-        /// <returns>True if we should remove the subscription from the server, false otherwise.</returns>
+        /// <returns><see langword="true"/> if we should remove the subscription from the server, <see langword="false"/> otherwise.</returns>
         private bool UnregisterSubscription(in RedisChannel channel, Action<RedisChannel, RedisValue> handler, ChannelMessageQueue queue, out Subscription sub)
         {
             ThrowIfNull(channel);

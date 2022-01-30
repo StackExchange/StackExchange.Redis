@@ -16,7 +16,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Replication connections
         /// </summary>
-        Replica = 1, // / as an implementation detail, note that enum.ToString without [Flags] preferes *earlier* values
+        Replica = 1, // / as an implementation detail, note that enum.ToString without [Flags] prefers *earlier* values
         /// <summary>
         /// Replication connections
         /// </summary>

@@ -188,7 +188,7 @@ namespace StackExchange.Redis
         public static string DecodeString(this Lease<byte> bytes, Encoding encoding = null)
         {
             if (bytes == null) return null;
-            if (encoding == null) encoding = Encoding.UTF8;
+            encoding ??= Encoding.UTF8;
             if (bytes.Length == 0) return "";
             var segment = bytes.ArraySegment;
             return encoding.GetString(segment.Array, segment.Offset, segment.Count);
@@ -202,7 +202,7 @@ namespace StackExchange.Redis
         public static Lease<char> DecodeLease(this Lease<byte> bytes, Encoding encoding = null)
         {
             if (bytes == null) return null;
-            if (encoding == null) encoding = Encoding.UTF8;
+            encoding ??= Encoding.UTF8;
             if (bytes.Length == 0) return Lease<char>.Empty;
             var bytesSegment = bytes.ArraySegment;
             var charCount = encoding.GetCharCount(bytesSegment.Array, bytesSegment.Offset, bytesSegment.Count);

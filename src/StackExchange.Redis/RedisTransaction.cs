@@ -42,10 +42,7 @@ namespace StackExchange.Redis
             }
         }
 
-        public void Execute()
-        {
-            Execute(CommandFlags.FireAndForget);
-        }
+        public void Execute() => Execute(CommandFlags.FireAndForget);
 
         public bool Execute(CommandFlags flags)
         {
@@ -193,8 +190,8 @@ namespace StackExchange.Redis
             public TransactionMessage(int db, CommandFlags flags, List<ConditionResult> conditions, List<QueuedMessage> operations)
                 : base(db, flags, RedisCommand.EXEC)
             {
-                InnerOperations = (operations == null || operations.Count == 0) ? Array.Empty<QueuedMessage>() : operations.ToArray();
-                this.conditions = (conditions == null || conditions.Count == 0) ? Array.Empty<ConditionResult>(): conditions.ToArray();
+                InnerOperations = (operations?.Count > 0) ? operations.ToArray() : Array.Empty<QueuedMessage>();
+                this.conditions = (conditions?.Count > 0) ? conditions.ToArray() : Array.Empty<ConditionResult>();
             }
 
             internal override void SetExceptionAndComplete(Exception exception, PhysicalBridge bridge)
@@ -215,7 +212,10 @@ namespace StackExchange.Redis
             public override void AppendStormLog(StringBuilder sb)
             {
                 base.AppendStormLog(sb);
-                if (conditions.Length != 0) sb.Append(", ").Append(conditions.Length).Append(" conditions");
+                if (conditions.Length != 0)
+                {
+                    sb.Append(", ").Append(conditions.Length).Append(" conditions");
+                }
                 sb.Append(", ").Append(InnerOperations.Length).Append(" operations");
             }
 
@@ -406,10 +406,8 @@ namespace StackExchange.Redis
                 }
             }
 
-            protected override void WriteImpl(PhysicalConnection physical)
-            {
-                physical.WriteHeader(Command, 0);
-            }
+            protected override void WriteImpl(PhysicalConnection physical) => physical.WriteHeader(Command, 0);
+
             public override int ArgCount => 0;
 
             private bool AreAllConditionsSatisfied(ConnectionMultiplexer multiplexer)
@@ -434,7 +432,7 @@ namespace StackExchange.Redis
 
         private class TransactionProcessor : ResultProcessor<bool>
         {
-            public static readonly TransactionProcessor Default = new TransactionProcessor();
+            public static readonly TransactionProcessor Default = new();
 
             public override bool SetResult(PhysicalConnection connection, Message message, in RawResult result)
             {
@@ -523,8 +521,7 @@ namespace StackExchange.Redis
                     // the pending tasks
                     foreach (var op in wrapped)
                     {
-                        var inner = op?.Wrapped;
-                        if(inner != null)
+                        if (op?.Wrapped is Message inner)
                         {
                             inner.Fail(ConnectionFailureType.ProtocolFailure, null, "transaction failure");
                             inner.Complete();

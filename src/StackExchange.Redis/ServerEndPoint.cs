@@ -127,7 +127,7 @@ namespace StackExchange.Redis
                 var subEx = subscription?.LastException;
                 var subExData = subEx?.Data;
 
-                //check if subscription endpoint has a better lastexception
+                //check if subscription endpoint has a better last exception
                 if (subExData != null && subExData.Contains("Redis-FailureType") && subExData["Redis-FailureType"]?.ToString() != nameof(ConnectionFailureType.UnableToConnect))
                 {
                     return subEx;
@@ -136,14 +136,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal PhysicalBridge.State ConnectionState
-        {
-            get
-            {
-                var tmp = interactive;
-                return tmp?.ConnectionState ?? State.Disconnected;
-            }
-        }
+        internal State ConnectionState => interactive?.ConnectionState ?? State.Disconnected;
 
         public bool IsReplica { get { return isReplica; } set { SetConfig(ref isReplica, value); } }
 
@@ -162,15 +155,31 @@ namespace StackExchange.Redis
 
         public bool RequiresReadMode => serverType == ServerType.Cluster && IsReplica;
 
-        public ServerType ServerType { get { return serverType; } set { SetConfig(ref serverType, value); } }
+        public ServerType ServerType
+        {
+            get => serverType;
+            set => SetConfig(ref serverType, value);
+        }
 
-        public bool ReplicaReadOnly { get { return replicaReadOnly; } set { SetConfig(ref replicaReadOnly, value); } }
+        public bool ReplicaReadOnly
+        {
+            get => replicaReadOnly;
+            set => SetConfig(ref replicaReadOnly, value);
+        }
 
         public bool AllowReplicaWrites { get; set; }
 
-        public Version Version { get { return version; } set { SetConfig(ref version, value); } }
+        public Version Version
+        {
+            get => version;
+            set => SetConfig(ref version, value);
+        }
 
-        public int WriteEverySeconds { get { return writeEverySeconds; } set { SetConfig(ref writeEverySeconds, value); } }
+        public int WriteEverySeconds
+        {
+            get => writeEverySeconds;
+            set => SetConfig(ref writeEverySeconds, value);
+        }
 
         internal ConnectionMultiplexer Multiplexer { get; }
 
@@ -308,10 +317,7 @@ namespace StackExchange.Redis
 
         public ValueTask<WriteResult> TryWriteAsync(Message message) => GetBridge(message)?.TryWriteAsync(message, isReplica) ?? new ValueTask<WriteResult>(WriteResult.NoConnectionAvailable);
 
-        internal void Activate(ConnectionType type, LogProxy log)
-        {
-            GetBridge(type, true, log);
-        }
+        internal void Activate(ConnectionType type, LogProxy log) => GetBridge(type, true, log);
 
         internal void AddScript(string script, byte[] hash)
         {
@@ -411,7 +417,7 @@ namespace StackExchange.Redis
 
         private int _nextReplicaOffset;
         internal uint NextReplicaOffset() // used to round-robin between multiple replicas
-            => (uint)System.Threading.Interlocked.Increment(ref _nextReplicaOffset);
+            => (uint)Interlocked.Increment(ref _nextReplicaOffset);
 
         internal Task Close(ConnectionType connectionType)
         {
@@ -505,11 +511,7 @@ namespace StackExchange.Redis
             return found;
         }
 
-        internal string GetStormLog(Message message)
-        {
-            var bridge = GetBridge(message);
-            return bridge?.GetStormLog();
-        }
+        internal string GetStormLog(Message message) => GetBridge(message)?.GetStormLog();
 
         internal Message GetTracerMessage(bool assertIdentity)
         {
@@ -643,16 +645,14 @@ namespace StackExchange.Redis
             }
         }
 
-        internal int LastInfoReplicationCheckSecondsAgo
-        {
-            get { return unchecked(Environment.TickCount - Thread.VolatileRead(ref lastInfoReplicationCheckTicks)) / 1000; }
-        }
+        internal int LastInfoReplicationCheckSecondsAgo =>
+            unchecked(Environment.TickCount - Thread.VolatileRead(ref lastInfoReplicationCheckTicks)) / 1000;
 
         private EndPoint masterEndPoint;
         public EndPoint MasterEndPoint
         {
-            get { return masterEndPoint; }
-            set { SetConfig(ref masterEndPoint, value); }
+            get => masterEndPoint;
+            set => SetConfig(ref masterEndPoint, value);
         }
 
         /// <summary>
@@ -903,8 +903,8 @@ namespace StackExchange.Redis
             {
                 return;
             }
-            var connType = bridge.ConnectionType;
 
+            var connType = bridge.ConnectionType;
             if (connType == ConnectionType.Interactive)
             {
                 await AutoConfigureAsync(connection, log);

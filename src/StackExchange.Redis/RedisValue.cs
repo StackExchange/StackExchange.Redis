@@ -847,7 +847,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Converts a <see cref="RedisValue"/> to a ReadOnlyMemory
+        /// Converts a <see cref="RedisValue"/> to a <see cref="ReadOnlyMemory{T}"/>.
         /// </summary>
         /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
         public static implicit operator ReadOnlyMemory<byte>(RedisValue value)
@@ -942,10 +942,10 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// <para>Convert to a signed long if possible, returning true.</para>
-        /// <para>Returns false otherwise.</para>
+        /// Convert to a signed <see cref="long"/> if possible.
         /// </summary>
         /// <param name="val">The <see cref="long"/> value, if conversion was possible.</param>
+        /// <returns><see langword="true"/> if successfully parsed, <see langword="false"/> otherwise.</returns>
         public bool TryParse(out long val)
         {
             switch (Type)
@@ -976,10 +976,10 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// <para>Convert to a int if possible, returning true.</para>
-        /// <para>Returns false otherwise.</para>
+        /// Convert to a <see cref="int"/> if possible.
         /// </summary>
         /// <param name="val">The <see cref="int"/> value, if conversion was possible.</param>
+        /// <returns><see langword="true"/> if successfully parsed, <see langword="false"/> otherwise.</returns>
         public bool TryParse(out int val)
         {
             if (!TryParse(out long l) || l > int.MaxValue || l < int.MinValue)
@@ -993,10 +993,10 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// <para>Convert to a double if possible, returning true.</para>
-        /// <para>Returns false otherwise.</para>
+        /// Convert to a <see cref="double"/> if possible.
         /// </summary>
         /// <param name="val">The <see cref="double"/> value, if conversion was possible.</param>
+        /// <returns><see langword="true"/> if successfully parsed, <see langword="false"/> otherwise.</returns>
         public bool TryParse(out double val)
         {
             switch (Type)
@@ -1024,8 +1024,8 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Create a RedisValue from a MemoryStream; it will *attempt* to use the internal buffer
-        /// directly, but if this isn't possible it will fallback to ToArray
+        /// Create a <see cref="RedisValue"/> from a <see cref="MemoryStream"/>.
+        /// It will *attempt* to use the internal buffer directly, but if this isn't possible it will fallback to <see cref="MemoryStream.ToArray"/>.
         /// </summary>
         /// <param name="stream">The <see cref="MemoryStream"/> to create a value from.</param>
         public static RedisValue CreateFrom(MemoryStream stream)

@@ -20,6 +20,6 @@
         /// <summary>
         /// <a href="https://en.wikipedia.org/wiki/Bitwise_operation#NOT">Not</a>
         /// </summary>
-        Not
+        Not,
     }
 }

@@ -535,38 +535,24 @@ namespace StackExchange.Redis
             {
                 switch (System.Type.GetTypeCode(conversionType))
                 {
-                    case TypeCode.Boolean:
-                        return AsBoolean();
-                    case TypeCode.Char:
-                        checked { return (char)AsInt32(); }
-                    case TypeCode.SByte:
-                        checked { return (sbyte)AsInt32(); }
-                    case TypeCode.Byte:
-                        checked { return (byte)AsInt32(); }
-                    case TypeCode.Int16:
-                        checked { return (short)AsInt32(); }
-                    case TypeCode.UInt16:
-                        checked { return (ushort)AsInt32(); }
-                    case TypeCode.Int32:
-                        return AsInt32();
-                    case TypeCode.UInt32:
-                        checked { return (uint)AsInt64(); }
-                    case TypeCode.Int64:
-                        return AsInt64();
-                    case TypeCode.UInt64:
-                        checked { return (ulong)AsInt64(); }
-                    case TypeCode.Single:
-                        return (float)AsDouble();
-                    case TypeCode.Double:
-                        return AsDouble();
-                    case TypeCode.Decimal:
-                        if (Type == ResultType.Integer) return AsInt64();
-                        break;
-                    case TypeCode.String:
-                        return AsString();
+                    case TypeCode.Boolean: return AsBoolean();
+                    case TypeCode.Char: checked { return (char)AsInt32(); }
+                    case TypeCode.SByte: checked { return (sbyte)AsInt32(); }
+                    case TypeCode.Byte: checked { return (byte)AsInt32(); }
+                    case TypeCode.Int16: checked { return (short)AsInt32(); }
+                    case TypeCode.UInt16: checked { return (ushort)AsInt32(); }
+                    case TypeCode.Int32: return AsInt32();
+                    case TypeCode.UInt32: checked { return (uint)AsInt64(); }
+                    case TypeCode.Int64: return AsInt64();
+                    case TypeCode.UInt64: checked { return (ulong)AsInt64(); }
+                    case TypeCode.Single: return (float)AsDouble();
+                    case TypeCode.Double: return AsDouble();
+                    case TypeCode.Decimal when Type == ResultType.Integer: return AsInt64();
+                    case TypeCode.String: return AsString();
+                    default:
+                        ThrowNotSupported();
+                        return default;
                 }
-                ThrowNotSupported();
-                return default;
             }
 
             void ThrowNotSupported([CallerMemberName] string caller = null)

@@ -39,7 +39,7 @@ namespace StackExchange.Redis
                 {
                     var prevChar = script[ix];
 
-                    // don't consider this a parameter if it's in the middle of word (ie. if it's preceeded by a letter)
+                    // don't consider this a parameter if it's in the middle of word (i.e. if it's preceded by a letter)
                     if (char.IsLetterOrDigit(prevChar) || prevChar == '_') continue;
 
                     // this is an escape, ignore it
@@ -137,23 +137,23 @@ namespace StackExchange.Redis
             return new LuaScript(script, ordinalScript, ps);
         }
 
-        private static readonly HashSet<Type> ConvertableTypes =
-            new HashSet<Type> {
-                typeof(int),
-                typeof(int?),
-                typeof(long),
-                typeof(long?),
-                typeof(double),
-                typeof(double?),
-                typeof(string),
-                typeof(byte[]),
-                typeof(ReadOnlyMemory<byte>),
-                typeof(bool),
-                typeof(bool?),
+        private static readonly HashSet<Type> ConvertableTypes = new()
+        {
+            typeof(int),
+            typeof(int?),
+            typeof(long),
+            typeof(long?),
+            typeof(double),
+            typeof(double?),
+            typeof(string),
+            typeof(byte[]),
+            typeof(ReadOnlyMemory<byte>),
+            typeof(bool),
+            typeof(bool?),
 
-                typeof(RedisKey),
-                typeof(RedisValue)
-            };
+            typeof(RedisKey),
+            typeof(RedisValue)
+        };
 
         /// <summary>
         /// Determines whether or not the given type can be used to provide parameters for the given LuaScript.
@@ -279,7 +279,7 @@ namespace StackExchange.Redis
                 valuesResult = Expression.NewArrayInit(typeof(RedisValue), args.Select(arg =>
                 {
                     var member = GetMember(objTyped, arg);
-                    if (member.Type == typeof(RedisValue)) return member; // pass-thru
+                    if (member.Type == typeof(RedisValue)) return member; // pass-through
                     if (member.Type == typeof(RedisKey))
                     { // need to apply prefix (note we can re-use the body from earlier)
                         var val = keysResultArr[keys.IndexOf(arg)];
