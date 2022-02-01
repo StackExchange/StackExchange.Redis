@@ -20,10 +20,11 @@ jobs:
       uses: actions/setup-dotnet@v1
       with:
         dotnet-version: | 
-          3.1.x
           6.0.x
+    - name: .NET Restore
+      run: dotnet restore Build.csproj -clp:PerformanceSummary
     - name: .NET Build
-      run: dotnet build Build.csproj -c Release /p:CI=true
+      run: dotnet build Build.csproj -c Release --no-restore /p:CI=true
     - name: Start Redis Services (docker-compose)
       working-directory: ./tests/RedisConfigs
       run: docker-compose -f docker-compose.yml up -d
@@ -49,10 +50,11 @@ jobs:
       uses: actions/setup-dotnet@v1
       with:
         dotnet-version: | 
-          3.1.x
           6.0.x
+    - name: .NET Restore
+      run: dotnet restore Build.csproj -clp:PerformanceSummary
     - name: .NET Build
-      run: dotnet build Build.csproj -c Release /p:CI=true
+      run: dotnet build Build.csproj -c Release --no-restore /p:CI=true
     - name: Start Redis Services (v3.0.503)
       working-directory: .\tests\RedisConfigs\3.0.503
       run: |
