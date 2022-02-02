@@ -16,7 +16,7 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v1
-    - name: Setup .NET Core
+    - name: Install .NET SDK
       uses: actions/setup-dotnet@v1
       with:
         dotnet-version: | 
@@ -39,16 +39,18 @@ jobs:
       run: dotnet pack src/StackExchange.Redis/StackExchange.Redis.csproj --no-build -c Release /p:Packing=true /p:PackageOutputPath=%CD%\.nupkgs /p:CI=true
 
   windows:
-    name: StackExchange.Redis (Windows Server 2019)
-    runs-on: windows-2019
+    name: StackExchange.Redis (Windows Server 2022)
+    runs-on: windows-2022
+    env:
+      NUGET_CERT_REVOCATION_MODE: offline # Disabling signing because of massive perf hit, see https://github.com/NuGet/Home/issues/11548
     steps:
     - name: Checkout code
       uses: actions/checkout@v1
-    - name: Setup .NET Core 3.x
-      uses: actions/setup-dotnet@v1
-      with:
-        dotnet-version: | 
-          6.0.x
+    # - name: Install .NET SDK
+    #   uses: actions/setup-dotnet@v1
+    #   with:
+    #     dotnet-version: | 
+    #       6.0.x
     - name: .NET Build
       run: dotnet build Build.csproj -c Release /p:CI=true
     - name: Start Redis Services (v3.0.503)
@@ -77,6 +79,6 @@ jobs:
       continue-on-error: true
       if: success() || failure()
       with:
-        name: Tests Results - Windows Server 2019
+        name: Tests Results - Windows Server 2022
         path: 'test-results/*.trx'
         reporter: dotnet-trx
