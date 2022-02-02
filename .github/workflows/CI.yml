@@ -43,6 +43,8 @@ jobs:
   windows:
     name: StackExchange.Redis (Windows Server 2022)
     runs-on: windows-2022
+    env:
+      NUGET_CERT_REVOCATION_MODE: offline
     steps:
     - name: Checkout code
       uses: actions/checkout@v1
