@@ -22,7 +22,7 @@ jobs:
         dotnet-version: | 
           6.0.x
     - name: .NET Restore
-      run: dotnet restore Build.csproj -clp:PerformanceSummary
+      run: dotnet restore Build.csproj --verbosity:diag
     - name: .NET Build
       run: dotnet build Build.csproj -c Release --no-restore /p:CI=true
     - name: Start Redis Services (docker-compose)
@@ -43,8 +43,6 @@ jobs:
   windows:
     name: StackExchange.Redis (Windows Server 2022)
     runs-on: windows-2022
-    env:
-      NUGET_CERT_REVOCATION_MODE: offline
     steps:
     - name: Checkout code
       uses: actions/checkout@v1
@@ -54,7 +52,7 @@ jobs:
     #     dotnet-version: | 
     #       6.0.x
     - name: .NET Restore
-      run: dotnet restore Build.csproj -clp:PerformanceSummary
+      run: dotnet restore Build.csproj --verbosity:diag
     - name: .NET Build
       run: dotnet build Build.csproj -c Release --no-restore /p:CI=true
     - name: Start Redis Services (v3.0.503)
