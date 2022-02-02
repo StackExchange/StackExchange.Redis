@@ -16,7 +16,7 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v1
-    - name: Setup .NET SDKs
+    - name: Install .NET SDK
       uses: actions/setup-dotnet@v1
       with:
         dotnet-version: | 
@@ -41,16 +41,16 @@ jobs:
       run: dotnet pack src/StackExchange.Redis/StackExchange.Redis.csproj --no-build -c Release /p:Packing=true /p:PackageOutputPath=%CD%\.nupkgs /p:CI=true
 
   windows:
-    name: StackExchange.Redis (Windows Server 2019)
-    runs-on: windows-2019
+    name: StackExchange.Redis (Windows Server 2022)
+    runs-on: windows-2022
     steps:
     - name: Checkout code
       uses: actions/checkout@v1
-    - name: Setup .NET SDKs
-      uses: actions/setup-dotnet@v1
-      with:
-        dotnet-version: | 
-          6.0.x
+    # - name: Install .NET SDK
+    #   uses: actions/setup-dotnet@v1
+    #   with:
+    #     dotnet-version: | 
+    #       6.0.x
     - name: .NET Restore
       run: dotnet restore Build.csproj -clp:PerformanceSummary
     - name: .NET Build
