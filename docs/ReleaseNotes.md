@@ -9,6 +9,11 @@
 - Moved tiebreaker fetching in connections into the handshake phase (streamline + simplification) (#1931 via NickCraver)
 - Fixed potential disposed object usage around Arenas (pulling in [Piplines.Sockets.Unofficial#63](https://github.com/mgravell/Pipelines.Sockets.Unofficial/pull/63) by MarcGravell)
 - Adds thread pool work item stats to exception messages to help diagnose contention (#1964 via NickCraver)
+- Overhauls pub/sub implementation for correctness (#1947 via NickCraver)
+  - Fixes a race in subscribing right after connected
+  - Fixes a race in subscribing immediately before a publish
+  - Fixes subscription routing on clusters (spreading instead of choosing 1 node)
+  - More correctly reconnects subscriptions on connection failures, including to other endpoints
 
 ## 2.2.88
 
