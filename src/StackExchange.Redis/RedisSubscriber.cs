@@ -107,28 +107,17 @@ namespace StackExchange.Redis
         /// <summary>
         /// Ensures all subscriptions are connected to a server, if possible.
         /// </summary>
-        internal void EnsureSubscriptions(CommandFlags flags = CommandFlags.None)
+        /// <returns>The count of subscriptions attempting to reconnect (same as the count currently not connected).</returns>
+        internal long EnsureSubscriptions(CommandFlags flags = CommandFlags.None)
         {
             // TODO: Subscribe with variadic commands to reduce round trips
-            foreach (var pair in subscriptions)
-            {
-                DefaultSubscriber.EnsureSubscribedToServer(pair.Value, pair.Key, flags, true);
-            }
-        }
-
-        /// <summary>
-        /// Ensures all subscriptions are connected to a server, if possible.
-        /// </summary>
-        internal async Task<long> EnsureSubscriptionsAsync(CommandFlags flags = CommandFlags.None)
-        {
-            // TODO: Evaluate performance here, this isn't good for a large number of subscriptions.
-            // It's probable we want to fire and forget `n` here, recording how many are going to try to reconnect?
             long count = 0;
             foreach (var pair in subscriptions)
             {
-                if (await DefaultSubscriber.EnsureSubscribedToServerAsync(pair.Value, pair.Key, flags, true))
+                if (!pair.Value.IsConnected)
                 {
                     count++;
+                    DefaultSubscriber.EnsureSubscribedToServer(pair.Value, pair.Key, flags, true);
                 }
             }
             return count;

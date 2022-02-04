@@ -1896,14 +1896,15 @@ namespace StackExchange.Redis
                     }
                     if (!first)
                     {
-                        long subscriptionChanges = await EnsureSubscriptionsAsync();
+                        // Calling the sync path here because it's all fire and forget
+                        long subscriptionChanges = EnsureSubscriptions(CommandFlags.FireAndForget);
                         if (subscriptionChanges == 0)
                         {
                             log?.WriteLine("No subscription changes necessary");
                         }
                         else
                         {
-                            log?.WriteLine($"Subscriptions reconfigured: {subscriptionChanges}");
+                            log?.WriteLine($"Subscriptions attempting reconnect: {subscriptionChanges}");
                         }
                     }
                     if (showStats)

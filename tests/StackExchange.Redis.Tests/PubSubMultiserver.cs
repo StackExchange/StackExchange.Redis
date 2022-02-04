@@ -103,7 +103,7 @@ namespace StackExchange.Redis.Tests
             Log("Connecting...");
             using var muxer = Create(configuration: config, shared: false, allowAdmin: true) as ConnectionMultiplexer;
             var sub = muxer.GetSubscriber();
-            var channel = (RedisChannel)Me();
+            var channel = (RedisChannel)(Me() + flags.ToString()); // Individual channel per case to not overlap publishers
 
             var count = 0;
             Log("Subscribing...");

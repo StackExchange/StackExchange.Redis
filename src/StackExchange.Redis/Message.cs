@@ -58,7 +58,7 @@ namespace StackExchange.Redis
 
         private const CommandFlags AskingFlag = (CommandFlags)32,
                                    ScriptUnavailableFlag = (CommandFlags)256,
-                                   DemandSubscriptionConnection = (CommandFlags)1024;
+                                   DemandSubscriptionConnection = (CommandFlags)2048;
 
         private const CommandFlags MaskMasterServerPreference = CommandFlags.DemandMaster
                                                               | CommandFlags.DemandReplica
@@ -663,7 +663,7 @@ namespace StackExchange.Redis
         /// </summary>
         internal bool HasTimedOut(int now, int timeoutMilliseconds, out int millisecondsTaken)
         {
-            millisecondsTaken = unchecked(now - _writeTickCount); // note: we can't just check "if sent < cutoff" because of wrap-aro
+            millisecondsTaken = unchecked(now - _writeTickCount); // note: we can't just check "if sent < cutoff" because of wrap-around
             if (millisecondsTaken >= timeoutMilliseconds)
             {
                 return true;

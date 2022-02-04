@@ -6,7 +6,7 @@
     /// or it could choose to fail fast and throw ASAP. Different apps desire different behaviors with backpressure and how to handle
     /// large amounts of load, so this is configurable to optimize the happy path but avoid spiral-of-death queue scenarios for others.
     /// </summary>
-    public class BacklogPolicy
+    public sealed class BacklogPolicy
     {
         /// <summary>
         /// Backlog behavior matching StackExchange.Redis's 2.x line, failing fast and not attempting to queue

@@ -38,7 +38,10 @@ namespace StackExchange.Redis
         /// <param name="channel">The channel to publish to.</param>
         /// <param name="message">The message to publish.</param>
         /// <param name="flags">The command flags to use.</param>
-        /// <returns>the number of clients that received the message.</returns>
+        /// <returns>
+        /// The number of clients that received the message *on the destination server*,
+        /// note that this doesn't mean much in a cluster as clients can get the message through other nodes.
+        /// </returns>
         /// <remarks>https://redis.io/commands/publish</remarks>
         long Publish(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None);
 
@@ -48,7 +51,10 @@ namespace StackExchange.Redis
         /// <param name="channel">The channel to publish to.</param>
         /// <param name="message">The message to publish.</param>
         /// <param name="flags">The command flags to use.</param>
-        /// <returns>the number of clients that received the message.</returns>
+        /// <returns>
+        /// The number of clients that received the message *on the destination server*,
+        /// note that this doesn't mean much in a cluster as clients can get the message through other nodes.
+        /// </returns>
         /// <remarks>https://redis.io/commands/publish</remarks>
         Task<long> PublishAsync(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None);
 
