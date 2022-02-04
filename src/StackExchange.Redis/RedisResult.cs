@@ -44,9 +44,10 @@ namespace StackExchange.Redis
         /// </summary>
         internal static RedisResult NullArray { get; } = new ArrayRedisResult(null);
 
-        // internally, this is very similar to RawResult, except it is designed to be usable
-        // outside of the IO-processing pipeline: the buffers are standalone, etc
-
+        /// <summary>
+        /// Internally, this is very similar to RawResult, except it is designed to be usable,
+        /// outside of the IO-processing pipeline: the buffers are standalone, etc.
+        /// </summary>
         internal static RedisResult TryCreate(PhysicalConnection connection, in RawResult result)
         {
             try

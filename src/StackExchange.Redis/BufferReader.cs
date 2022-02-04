@@ -10,6 +10,7 @@ namespace StackExchange.Redis
         Success,
         NeedMoreData,
     }
+
     internal ref struct BufferReader
     {
         private long _totalConsumed;
@@ -209,6 +210,7 @@ namespace StackExchange.Redis
             Consume(1);
             return value;
         }
+
         public int PeekByte() => IsEmpty ? -1 : _current[OffsetThisSpan];
 
         public ReadOnlySequence<byte> SliceFromCurrent()

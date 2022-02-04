@@ -5,23 +5,21 @@ using System.Text;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// Represents the commands mapped on a particular configuration
+    /// Represents the commands mapped on a particular configuration.
     /// </summary>
     public sealed class CommandMap
     {
         private readonly CommandBytes[] map;
 
-        internal CommandMap(CommandBytes[] map)
-        {
-            this.map = map;
-        }
+        internal CommandMap(CommandBytes[] map) => this.map = map;
+
         /// <summary>
-        /// The default commands specified by redis
+        /// The default commands specified by redis.
         /// </summary>
         public static CommandMap Default { get; } = CreateImpl(null, null);
 
         /// <summary>
-        /// The commands available to <a href="twemproxy">https://github.com/twitter/twemproxy</a>
+        /// The commands available to <a href="twemproxy">https://github.com/twitter/twemproxy</a>.
         /// </summary>
         /// <remarks>https://github.com/twitter/twemproxy/blob/master/notes/redis.md</remarks>
         public static CommandMap Twemproxy { get; } = CreateImpl(null, exclusions: new HashSet<RedisCommand>
@@ -54,7 +52,7 @@ namespace StackExchange.Redis
         });
 
         /// <summary>
-        /// The commands available to <a href="ssdb">http://www.ideawu.com/ssdb/</a>
+        /// The commands available to <a href="ssdb">http://www.ideawu.com/ssdb/</a>.
         /// </summary>
         /// <remarks>http://www.ideawu.com/ssdb/docs/redis-to-ssdb.html</remarks>
         public static CommandMap SSDB { get; } = Create(new HashSet<string> {
@@ -67,7 +65,7 @@ namespace StackExchange.Redis
         }, true);
 
         /// <summary>
-        /// The commands available to <a href="Sentinel">https://redis.io/topics/sentinel</a>
+        /// The commands available to <a href="Sentinel">https://redis.io/topics/sentinel</a>.
         /// </summary>
         /// <remarks>https://redis.io/topics/sentinel</remarks>
         public static CommandMap Sentinel { get; } = Create(new HashSet<string> {
@@ -75,7 +73,7 @@ namespace StackExchange.Redis
             "auth", "ping", "info", "role", "sentinel", "subscribe", "shutdown", "psubscribe", "unsubscribe", "punsubscribe" }, true);
 
         /// <summary>
-        /// Create a new CommandMap, customizing some commands
+        /// Create a new <see cref="CommandMap"/>, customizing some commands.
         /// </summary>
         /// <param name="overrides">The commands to override.</param>
         public static CommandMap Create(Dictionary<string, string> overrides)
@@ -96,7 +94,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Creates a CommandMap by specifying which commands are available or unavailable
+        /// Creates a CommandMap by specifying which commands are available or unavailable.
         /// </summary>
         /// <param name="commands">The commands to specify.</param>
         /// <param name="available">Whether the commands are available or excluded.</param>
@@ -140,7 +138,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// See Object.ToString()
+        /// See <see cref="object.ToString"/>.
         /// </summary>
         public override string ToString()
         {

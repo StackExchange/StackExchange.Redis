@@ -173,7 +173,7 @@ namespace StackExchange.Redis
                 {
                     if (message is QueuedMessage q)
                     {
-                        connection?.BridgeCouldBeNull?.Multiplexer?.OnTransactionLog($"observed QUEUED for " + q.Wrapped?.CommandAndKey);
+                        connection?.BridgeCouldBeNull?.Multiplexer?.OnTransactionLog("Observed QUEUED for " + q.Wrapped?.CommandAndKey);
                         q.WasQueued = true;
                     }
                     return true;
@@ -250,15 +250,15 @@ namespace StackExchange.Redis
                 {
                     try
                     {
-                        // Important: if the server supports EXECABORT, then we can check the pre-conditions (pause there),
-                        // which will usually be pretty small and cheap to do - if that passes, we can just isue all the commands
+                        // Important: if the server supports EXECABORT, then we can check the preconditions (pause there),
+                        // which will usually be pretty small and cheap to do - if that passes, we can just issue all the commands
                         // and rely on EXECABORT to kick us if we are being idiotic inside the MULTI. However, if the server does
                         // *not* support EXECABORT, then we need to explicitly check for QUEUED anyway; we might as well defer
                         // checking the preconditions to the same time to avoid having to pause twice. This will mean that on
-                        // up-version servers, pre-condition failures exit with UNWATCH; and on down-version servers pre-condition
-                        // failures exit with DISCARD - but that's ok : both work fine
+                        // up-version servers, precondition failures exit with UNWATCH; and on down-version servers precondition
+                        // failures exit with DISCARD - but that's okay : both work fine
 
-                        // PART 1: issue the pre-conditions
+                        // PART 1: issue the preconditions
                         if (!IsAborted && conditions.Length != 0)
                         {
                             sb.AppendLine("issuing conditions...");
@@ -287,7 +287,7 @@ namespace StackExchange.Redis
                                 // need to get those sent ASAP; if they are stuck in the buffers, we die
                                 multiplexer.Trace("Flushing and waiting for precondition responses");
 #pragma warning disable CS0618
-                                connection.FlushSync(true, multiplexer.TimeoutMilliseconds); // make sure they get sent, so we can check for QUEUED (and the pre-conditions if necessary)
+                                connection.FlushSync(true, multiplexer.TimeoutMilliseconds); // make sure they get sent, so we can check for QUEUED (and the preconditions if necessary)
 #pragma warning restore CS0618
 
                                 if (Monitor.Wait(lastBox, multiplexer.TimeoutMilliseconds))
@@ -298,7 +298,7 @@ namespace StackExchange.Redis
                                     sb.Append("after condition check, we are ").Append(command).AppendLine();
                                 }
                                 else
-                                { // timeout running pre-conditions
+                                { // timeout running preconditions
                                     multiplexer.Trace("Timeout checking preconditions");
                                     command = RedisCommand.UNWATCH;
 
@@ -312,7 +312,7 @@ namespace StackExchange.Redis
                         // PART 2: begin the transaction
                         if (!IsAborted)
                         {
-                            multiplexer.Trace("Begining transaction");
+                            multiplexer.Trace("Beginning transaction");
                             yield return Message.Create(-1, CommandFlags.None, RedisCommand.MULTI);
                             sb.AppendLine("issued MULTI");
                         }
@@ -346,7 +346,7 @@ namespace StackExchange.Redis
 
                                 multiplexer.Trace("Flushing and waiting for precondition+queued responses");
 #pragma warning disable CS0618
-                                connection.FlushSync(true, multiplexer.TimeoutMilliseconds); // make sure they get sent, so we can check for QUEUED (and the pre-conditions if necessary)
+                                connection.FlushSync(true, multiplexer.TimeoutMilliseconds); // make sure they get sent, so we can check for QUEUED (and the preconditions if necessary)
 #pragma warning restore CS0618
                                 if (Monitor.Wait(lastBox, multiplexer.TimeoutMilliseconds))
                                 {
@@ -485,7 +485,7 @@ namespace StackExchange.Redis
                                 var arr = result.GetItems();
                                 if (result.IsNull)
                                 {
-                                    connection?.BridgeCouldBeNull?.Multiplexer?.OnTransactionLog($"aborting wrapped messages (failed watch)");
+                                    connection?.BridgeCouldBeNull?.Multiplexer?.OnTransactionLog("Aborting wrapped messages (failed watch)");
                                     connection.Trace("Server aborted due to failed WATCH");
                                     foreach (var op in wrapped)
                                     {
@@ -499,7 +499,7 @@ namespace StackExchange.Redis
                                 else if (wrapped.Length == arr.Length)
                                 {
                                     connection.Trace("Server committed; processing nested replies");
-                                    connection?.BridgeCouldBeNull?.Multiplexer?.OnTransactionLog($"processing {arr.Length} wrapped messages");
+                                    connection?.BridgeCouldBeNull?.Multiplexer?.OnTransactionLog($"Processing {arr.Length} wrapped messages");
 
                                     int i = 0;
                                     foreach(ref RawResult item in arr)
@@ -523,7 +523,7 @@ namespace StackExchange.Redis
                     {
                         if (op?.Wrapped is Message inner)
                         {
-                            inner.Fail(ConnectionFailureType.ProtocolFailure, null, "transaction failure");
+                            inner.Fail(ConnectionFailureType.ProtocolFailure, null, "Transaction failure");
                             inner.Complete();
                         }
                     }

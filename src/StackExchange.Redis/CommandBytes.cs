@@ -46,6 +46,7 @@ namespace StackExchange.Redis
             hashCode = (hashCode * -1521134295) + _3.GetHashCode();
             return hashCode;
         }
+
         public override bool Equals(object obj) => obj is CommandBytes cb && Equals(cb);
 
         bool IEquatable<CommandBytes>.Equals(CommandBytes other) => _0 == other._0 && _1 == other._1 && _2 == other._2 && _3 == other._3;
@@ -78,9 +79,7 @@ namespace StackExchange.Redis
 
         public bool IsEmpty => _0 == 0L; // cheap way of checking zero length
 
-#pragma warning disable RCS1231 // Make parameter ref read-only. - spans are tiny!
         public unsafe void CopyTo(Span<byte> target)
-#pragma warning restore RCS1231 // Make parameter ref read-only.
         {
             fixed (ulong* uPtr = &_0)
             {
@@ -121,9 +120,7 @@ namespace StackExchange.Redis
             }
         }
 
-#pragma warning disable RCS1231 // Make parameter ref read-only. - spans are tiny!
         public unsafe CommandBytes(ReadOnlySpan<byte> value)
-#pragma warning restore RCS1231 // Make parameter ref read-only.
         {
             if (value.Length > MaxLength) throw new ArgumentOutOfRangeException("Maximum command length exceeded: " + value.Length + " bytes");
             _0 = _1 = _2 = _3 = 0L;

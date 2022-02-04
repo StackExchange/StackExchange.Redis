@@ -7,51 +7,76 @@ namespace StackExchange.Redis
     /// The client flags can be a combination of:
     /// <list type="table">
     ///     <item>
-    ///         <term>O</term>
-    ///         <description>The client is a replica in MONITOR mode.</description>
-    ///     </item>
-    ///     <item>
-    ///         <term>S</term>
-    ///         <description>The client is a normal replica server.</description>
-    ///     </item>
-    ///     <item>
-    ///         <term>M</term>
-    ///         <description>The client is a primary.</description>
-    ///     </item>
-    ///     <item>
-    ///         <term>x</term>
-    ///         <description>The client is in a MULTI/EXEC context.</description>
+    ///         <term>A</term>
+    ///         <description>Connection to be closed ASAP.</description>
     ///     </item>
     ///     <item>
     ///         <term>b</term>
     ///         <description>The client is waiting in a blocking operation.</description>
     ///     </item>
     ///     <item>
-    ///         <term>i</term>
-    ///         <description>The client is waiting for a VM I/O (deprecated).</description>
+    ///         <term>c</term>
+    ///         <description>Connection to be closed after writing entire reply.</description>
     ///     </item>
     ///     <item>
     ///         <term>d</term>
     ///         <description>A watched keys has been modified - EXEC will fail.</description>
     ///     </item>
     ///     <item>
-    ///         <term>c</term>
-    ///         <description>Connection to be closed after writing entire reply.</description>
+    ///         <term>i</term>
+    ///         <description>The client is waiting for a VM I/O (deprecated).</description>
+    ///     </item>
+    ///     <item>
+    ///         <term>M</term>
+    ///         <description>The client is a primary.</description>
+    ///     </item>
+    ///     <item>
+    ///         <term>N</term>
+    ///         <description>No specific flag set.</description>
+    ///     </item>
+    ///     <item>
+    ///         <term>O</term>
+    ///         <description>The client is a replica in MONITOR mode.</description>
+    ///     </item>
+    ///     <item>
+    ///         <term>P</term>
+    ///         <description>The client is a Pub/Sub subscriber.</description>
+    ///     </item>
+    ///     <item>
+    ///         <term>r</term>
+    ///         <description>The client is in readonly mode against a cluster node.</description>
+    ///     </item>
+    ///     <item>
+    ///         <term>S</term>
+    ///         <description>The client is a normal replica server.</description>
     ///     </item>
     ///     <item>
     ///         <term>u</term>
     ///         <description>The client is unblocked.</description>
     ///     </item>
     ///     <item>
-    ///         <term>A</term>
-    ///         <description>Connection to be closed ASAP.</description>
+    ///         <term>U</term>
+    ///         <description>The client is unblocked.</description>
     ///     </item>
     ///     <item>
-    ///         <term>N</term>
-    ///         <description>No specific flag set.</description>
+    ///         <term>x</term>
+    ///         <description>The client is in a MULTI/EXEC context.</description>
+    ///     </item>
+    ///     <item>
+    ///         <term>t</term>
+    ///         <description>The client enabled keys tracking in order to perform client side caching.</description>
+    ///     </item>
+    ///     <item>
+    ///         <term>R</term>
+    ///         <description>The client tracking target client is invalid.</description>
+    ///     </item>
+    ///     <item>
+    ///         <term>B</term>
+    ///         <description>The client enabled broadcast tracking mode.</description>
     ///     </item>
     /// </list>
     /// </summary>
+    /// <remarks>https://redis.io/commands/client-list</remarks>
     [Flags]
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1069:Enums values should not be duplicated", Justification = "Compatibility")]
     public enum ClientFlags : long

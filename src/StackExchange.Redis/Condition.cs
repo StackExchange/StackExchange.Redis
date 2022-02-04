@@ -6,7 +6,7 @@ using System.Collections.Generic;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// Describes a pre-condition used in a redis transaction.
+    /// Describes a precondition used in a redis transaction.
     /// </summary>
     public abstract class Condition
     {
@@ -241,7 +241,7 @@ namespace StackExchange.Redis
         public static Condition SortedSetLengthEqual(RedisKey key, long length, double min = double.NegativeInfinity, double max = double.PositiveInfinity) => new SortedSetRangeLengthCondition(key, min, max, 0, length);
 
         /// <summary>
-        /// Enforces that the given sorted set cardinality is less than a certain value
+        /// Enforces that the given sorted set cardinality is less than a certain value.
         /// </summary>
         /// <param name="key">The key of the sorted set to check.</param>
         /// <param name="length">The length the sorted set must be less than.</param>
@@ -366,10 +366,8 @@ namespace StackExchange.Redis
         {
             public static readonly ConditionProcessor Default = new();
 
-#pragma warning disable RCS1231 // Make parameter ref read-only.
             public static Message CreateMessage(Condition condition, int db, CommandFlags flags, RedisCommand command, in RedisKey key, RedisValue value = default(RedisValue)) =>
                 new ConditionMessage(condition, db, flags, command, key, value);
-#pragma warning restore RCS1231 // Make parameter ref read-only.
 
             public static Message CreateMessage(Condition condition, int db, CommandFlags flags, RedisCommand command, in RedisKey key, in RedisValue value, in RedisValue value1) =>
                 new ConditionMessage(condition, db, flags, command, key, value, value1);
@@ -556,12 +554,9 @@ namespace StackExchange.Redis
                 {
                     case RedisType.SortedSet:
                         var parsedValue = RedisValue.Null;
-                        if (!result.IsNull)
+                        if (!result.IsNull && result.TryGetDouble(out var val))
                         {
-                            if (result.TryGetDouble(out var val))
-                            {
-                                parsedValue = val;
-                            }
+                            parsedValue = val;
                         }
 
                         value = (parsedValue == expectedValue) == expectedEqual;
@@ -596,6 +591,8 @@ namespace StackExchange.Redis
             private readonly long index;
             private readonly RedisValue? expectedValue;
             private readonly RedisKey key;
+
+            [System.Diagnostics.CodeAnalysis.SuppressMessage("Roslynator", "RCS1242:Do not pass non-read-only struct by read-only reference.", Justification = "Attribute")]
             public ListCondition(in RedisKey key, long index, bool expectedResult, in RedisValue? expectedValue)
             {
                 if (key.IsNull) throw new ArgumentNullException(nameof(key));
@@ -827,7 +824,7 @@ namespace StackExchange.Redis
     }
 
     /// <summary>
-    /// Indicates the status of a condition as part of a transaction
+    /// Indicates the status of a condition as part of a transaction.
     /// </summary>
     public sealed class ConditionResult
     {
@@ -844,7 +841,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Indicates whether the condition was satisfied
+        /// Indicates whether the condition was satisfied.
         /// </summary>
         public bool WasSatisfied => wasSatisfied;
 

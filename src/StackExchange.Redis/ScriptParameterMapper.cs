@@ -125,8 +125,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Turns a script with @namedParameters into a LuaScript that can be executed
-        /// against a given IDatabase(Async) object
+        /// Turns a script with @namedParameters into a LuaScript that can be executed against a given IDatabase(Async) object.
         /// </summary>
         /// <param name="script">The script to prepare.</param>
         public static LuaScript PrepareScript(string script)
@@ -156,7 +155,7 @@ namespace StackExchange.Redis
         };
 
         /// <summary>
-        /// Determines whether or not the given type can be used to provide parameters for the given LuaScript.
+        /// Determines whether or not the given type can be used to provide parameters for the given <see cref="LuaScript"/>.
         /// </summary>
         /// <param name="t">The type of the parameter.</param>
         /// <param name="script">The script to match against.</param>

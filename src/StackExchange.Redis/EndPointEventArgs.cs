@@ -5,7 +5,7 @@ using System.Text;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// Event information related to redis endpoints
+    /// Event information related to redis endpoints.
     /// </summary>
     public class EndPointEventArgs : EventArgs, ICompletable
     {
@@ -29,7 +29,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// The endpoint involved in this event (this can be null)
+        /// The endpoint involved in this event (this can be null).
         /// </summary>
         public EndPoint EndPoint { get; }
 

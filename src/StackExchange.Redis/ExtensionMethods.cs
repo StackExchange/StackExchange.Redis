@@ -11,7 +11,7 @@ using Pipelines.Sockets.Unofficial.Arenas;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// Utility methods
+    /// Utility methods.
     /// </summary>
     public static class ExtensionMethods
     {

@@ -11,7 +11,7 @@ using System.Text;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// Represents values that can be stored in redis
+    /// Represents values that can be stored in redis.
     /// </summary>
     public readonly struct RedisValue : IEquatable<RedisValue>, IComparable<RedisValue>, IComparable, IConvertible
     {
@@ -21,7 +21,6 @@ namespace StackExchange.Redis
         private readonly ReadOnlyMemory<byte> _memory;
         private readonly long _overlappedBits64;
 
-        // internal bool IsNullOrDefaultValue {  get { return (valueBlob == null && valueInt64 == 0L) || ((object)valueBlob == (object)NullSentinel); } }
         private RedisValue(long overlappedValue64, ReadOnlyMemory<byte> memory, object objectOrSentinel)
         {
             _overlappedBits64 = overlappedValue64;
@@ -93,7 +92,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Represents the string <c>""</c>
+        /// Represents the string <c>""</c>.
         /// </summary>
         public static RedisValue EmptyString { get; } = new RedisValue(0, default, Sentinel_Raw);
 
@@ -103,22 +102,22 @@ namespace StackExchange.Redis
         static readonly object[] s_CommonInt32 = Enumerable.Range(-1, 22).Select(i => (object)i).ToArray(); // [-1,20] = 22 values
 
         /// <summary>
-        /// A null value
+        /// A null value.
         /// </summary>
         public static RedisValue Null { get; } = new RedisValue(0, default, null);
 
         /// <summary>
-        /// Indicates whether the value is a primitive integer (signed or unsigned)
+        /// Indicates whether the value is a primitive integer (signed or unsigned).
         /// </summary>
         public bool IsInteger => _objectOrSentinel == Sentinel_SignedInteger || _objectOrSentinel == Sentinel_UnsignedInteger;
 
         /// <summary>
-        /// Indicates whether the value should be considered a null value
+        /// Indicates whether the value should be considered a null value.
         /// </summary>
         public bool IsNull => _objectOrSentinel == null;
 
         /// <summary>
-        /// Indicates whether the value is either null or a zero-length value
+        /// Indicates whether the value is either null or a zero-length value.
         /// </summary>
         public bool IsNullOrEmpty
         {
@@ -133,12 +132,12 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Indicates whether the value is greater than zero-length or has an integer value
+        /// Indicates whether the value is greater than zero-length or has an integer value.
         /// </summary>
         public bool HasValue => !IsNullOrEmpty;
 
         /// <summary>
-        /// Indicates whether two RedisValue values are equivalent
+        /// Indicates whether two RedisValue values are equivalent.
         /// </summary>
         /// <param name="x">The first <see cref="RedisValue"/> to compare.</param>
         /// <param name="y">The second <see cref="RedisValue"/> to compare.</param>
@@ -163,7 +162,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Indicates whether two RedisValue values are equivalent
+        /// Indicates whether two RedisValue values are equivalent.
         /// </summary>
         /// <param name="x">The first <see cref="RedisValue"/> to compare.</param>
         /// <param name="y">The second <see cref="RedisValue"/> to compare.</param>
@@ -214,7 +213,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// See Object.Equals()
+        /// See <see cref="object.Equals(object)"/>.
         /// </summary>
         /// <param name="obj">The other <see cref="RedisValue"/> to compare.</param>
         public override bool Equals(object obj)
@@ -226,14 +225,12 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Indicates whether two RedisValue values are equivalent
+        /// Indicates whether two RedisValue values are equivalent.
         /// </summary>
         /// <param name="other">The <see cref="RedisValue"/> to compare to.</param>
         public bool Equals(RedisValue other) => this == other;
 
-        /// <summary>
-        /// See Object.GetHashCode()
-        /// </summary>
+        /// <inheritdoc/>
         public override int GetHashCode() => GetHashCode(this);
         private static int GetHashCode(RedisValue x)
         {
@@ -249,7 +246,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Returns a string representation of the value
+        /// Returns a string representation of the value.
         /// </summary>
         public override string ToString() => (string)this;
 
@@ -341,7 +338,7 @@ namespace StackExchange.Redis
         };
 
         /// <summary>
-        /// Compare against a RedisValue for relative order
+        /// Compare against a RedisValue for relative order.
         /// </summary>
         /// <param name="other">The other <see cref="RedisValue"/> to compare.</param>
         public int CompareTo(RedisValue other) => CompareTo(this, other);

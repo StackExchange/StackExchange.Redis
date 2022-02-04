@@ -5,7 +5,7 @@ using System.Text;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// Contains information about a server connection failure
+    /// Contains information about a server connection failure.
     /// </summary>
     public class ConnectionFailedEventArgs : EventArgs, ICompletable
     {
@@ -39,22 +39,22 @@ namespace StackExchange.Redis
         private readonly string _physicalName;
 
         /// <summary>
-        /// Gets the connection-type of the failing connection
+        /// Gets the connection-type of the failing connection.
         /// </summary>
         public ConnectionType ConnectionType { get; }
 
         /// <summary>
-        /// Gets the failing server-endpoint
+        /// Gets the failing server-endpoint.
         /// </summary>
         public EndPoint EndPoint { get; }
 
         /// <summary>
-        /// Gets the exception if available (this can be null)
+        /// Gets the exception if available (this can be null).
         /// </summary>
         public Exception Exception { get; }
 
         /// <summary>
-        /// The type of failure
+        /// The type of failure.
         /// </summary>
         public ConnectionFailureType FailureType { get; }
 

@@ -60,13 +60,11 @@ namespace StackExchange.Redis
         public static implicit operator SortedSetEntry(KeyValuePair<RedisValue, double> value) => new SortedSetEntry(value.Key, value.Value);
 
         /// <summary>
-        /// See <see cref="object.ToString"/>.
+        /// A "{element}: {score}" string representation of the entry.
         /// </summary>
         public override string ToString() => element + ": " + score;
 
-        /// <summary>
-        /// See <see cref="object.GetHashCode"/>.
-        /// </summary>
+        /// <inheritdoc/>
         public override int GetHashCode() => element.GetHashCode() ^ score.GetHashCode();
 
         /// <summary>

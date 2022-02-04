@@ -7,7 +7,7 @@ using System.Net;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// A list of endpoints
+    /// A list of endpoints.
     /// </summary>
     public sealed class EndPointCollection : Collection<EndPoint>, IEnumerable<EndPoint>
     {
@@ -103,6 +103,7 @@ namespace StackExchange.Redis
 
             base.InsertItem(index, item);
         }
+
         /// <summary>
         /// See <see cref="Collection{T}.SetItem(int, T)"/>.
         /// </summary>

@@ -951,7 +951,7 @@ namespace StackExchange.Redis
             return config;
         }
 
-        internal class LogProxy : IDisposable
+        internal sealed class LogProxy : IDisposable
         {
             public static LogProxy TryCreate(TextWriter writer)
                 => writer == null ? null : new LogProxy(writer);
@@ -2450,6 +2450,7 @@ namespace StackExchange.Redis
             return connection;
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Roslynator", "RCS1075:Avoid empty catch clause that catches System.Exception.", Justification = "We don't care.")]
         internal void OnManagedConnectionRestored(object sender, ConnectionFailedEventArgs e)
         {
             ConnectionMultiplexer connection = (ConnectionMultiplexer)sender;
@@ -2490,6 +2491,7 @@ namespace StackExchange.Redis
             }
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Roslynator", "RCS1075:Avoid empty catch clause that catches System.Exception.", Justification = "We don't care.")]
         internal void OnManagedConnectionFailed(object sender, ConnectionFailedEventArgs e)
         {
             ConnectionMultiplexer connection = (ConnectionMultiplexer)sender;

@@ -376,6 +376,14 @@ namespace StackExchange.Redis
             }
         }
 
+        /// <summary>Gets whether this is primary-only.</summary>
+        /// <remarks>
+        /// Note that the constructor runs the switch statement above, so
+        /// this will already be true for primary-only commands, even if the
+        /// user specified <see cref="CommandFlags.PreferMaster"/> etc.
+        /// </remarks>
+        public bool IsMasterOnly() => GetMasterReplicaFlags(Flags) == CommandFlags.DemandMaster;
+
         public virtual void AppendStormLog(StringBuilder sb)
         {
             if (Db >= 0) sb.Append(Db).Append(':');
@@ -383,13 +391,6 @@ namespace StackExchange.Redis
         }
 
         public virtual int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) => ServerSelectionStrategy.NoSlot;
-
-        /// <remarks>
-        /// Note that the constructor runs the switch statement above, so
-        /// this will already be true for master-only commands, even if the
-        /// user specified PreferMaster etc
-        /// </remarks>
-        public bool IsMasterOnly() => GetMasterReplicaFlags(Flags) == CommandFlags.DemandMaster;
 
         /// <summary>
         /// This does a few important things:
@@ -664,11 +665,7 @@ namespace StackExchange.Redis
         internal bool HasTimedOut(int now, int timeoutMilliseconds, out int millisecondsTaken)
         {
             millisecondsTaken = unchecked(now - _writeTickCount); // note: we can't just check "if sent < cutoff" because of wrap-around
-            if (millisecondsTaken >= timeoutMilliseconds)
-            {
-                return true;
-            }
-            return false;
+            return millisecondsTaken >= timeoutMilliseconds;
         }
 
         internal void SetAsking(bool value)
@@ -685,6 +682,9 @@ namespace StackExchange.Redis
         internal void SetPreferReplica() =>
             Flags = (Flags & ~MaskMasterServerPreference) | CommandFlags.PreferReplica;
 
+        /// <summary>
+        /// Sets the processor and box for this message to execute.
+        /// </summary>
         /// <remarks>
         /// Note order here reversed to prevent overload resolution errors
         /// </remarks>
@@ -694,6 +694,12 @@ namespace StackExchange.Redis
             this.resultProcessor = resultProcessor;
         }
 
+        /// <summary>
+        /// Sets the box and processor for this message to execute.
+        /// </summary>
+        /// <remarks>
+        /// Note order here reversed to prevent overload resolution errors
+        /// </remarks>
         internal void SetSource<T>(IResultBox<T> resultBox, ResultProcessor<T> resultProcessor)
         {
             this.resultBox = resultBox;

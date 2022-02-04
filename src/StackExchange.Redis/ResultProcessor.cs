@@ -511,7 +511,7 @@ namespace StackExchange.Redis
                         byte[] hash = null;
                         if (!message.IsInternalCall)
                         {
-                            hash = ParseSHA1(asciiHash); // external caller wants the hex bytes, not the ascii bytes
+                            hash = ParseSHA1(asciiHash); // external caller wants the hex bytes, not the ASCII bytes
                         }
                         if (message is RedisDatabase.ScriptLoadMessage sl)
                         {
@@ -738,7 +738,8 @@ namespace StackExchange.Redis
                                     }
                                 }
                                 if (roleSeen)
-                                { // these are in the same section, if presnt
+                                {
+                                    // these are in the same section, if present
                                     server.MasterEndPoint = Format.TryParseEndPoint(masterHost, masterPort);
                                 }
                             }
@@ -957,7 +958,7 @@ namespace StackExchange.Redis
                             case 2:
                                 if (arr[0].TryGetInt64(out unixTime) && arr[1].TryGetInt64(out long micros))
                                 {
-                                    var time = RedisBase.UnixEpoch.AddSeconds(unixTime).AddTicks(micros * 10); // datetime ticks are 100ns
+                                    var time = RedisBase.UnixEpoch.AddSeconds(unixTime).AddTicks(micros * 10); // DateTime ticks are 100ns
                                     SetResult(message, time);
                                     return true;
                                 }
@@ -1715,8 +1716,13 @@ The coordinates as a two items x,y array (longitude,latitude).
         private static class KeyValuePairParser
         {
             internal static readonly CommandBytes
-                Name = "name", Consumers = "consumers", Pending = "pending", Idle = "idle", LastDeliveredId = "last-delivered-id",
-                IP = "ip", Port = "port";
+                Name = "name",
+                Consumers = "consumers",
+                Pending = "pending",
+                Idle = "idle",
+                LastDeliveredId = "last-delivered-id",
+                IP = "ip",
+                Port = "port";
 
             internal static bool TryRead(Sequence<RawResult> pairs, in CommandBytes key, ref long value)
             {
