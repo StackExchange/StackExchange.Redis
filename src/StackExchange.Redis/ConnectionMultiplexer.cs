@@ -1898,14 +1898,15 @@ namespace StackExchange.Redis
                     }
                     if (!first)
                     {
-                        long subscriptionChanges = ValidateSubscriptions();
+                        // Calling the sync path here because it's all fire and forget
+                        long subscriptionChanges = EnsureSubscriptions(CommandFlags.FireAndForget);
                         if (subscriptionChanges == 0)
                         {
                             log?.WriteLine("No subscription changes necessary");
                         }
                         else
                         {
-                            log?.WriteLine($"Subscriptions reconfigured: {subscriptionChanges}");
+                            log?.WriteLine($"Subscriptions attempting reconnect: {subscriptionChanges}");
                         }
                     }
                     if (showStats)
@@ -2325,7 +2326,7 @@ namespace StackExchange.Redis
                             }
                         }
                     }
-                });
+                }, CommandFlags.FireAndForget);
             }
 
             // If we lose connection to a sentinel server,
@@ -2344,7 +2345,7 @@ namespace StackExchange.Redis
                 {
                     string[] messageParts = ((string)message).Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
                     UpdateSentinelAddressList(messageParts[0]);
-                });
+                }, CommandFlags.FireAndForget);
             }
         }
 

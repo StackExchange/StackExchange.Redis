@@ -1,13 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using StackExchange.Redis.Maintenance;
-using StackExchange.Redis.Profiling;
 using Xunit;
 using Xunit.Abstractions;
 // ReSharper disable AccessToModifiedClosure
@@ -22,7 +20,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task ExplicitPublishMode()
         {
-            using (var mx = Create(channelPrefix: "foo:"))
+            using (var mx = Create(channelPrefix: "foo:", log: Writer))
             {
                 var pub = mx.GetSubscriber();
                 int a = 0, b = 0, c = 0, d = 0;
@@ -31,7 +29,6 @@ namespace StackExchange.Redis.Tests
                 pub.Subscribe(new RedisChannel("ab*d", RedisChannel.PatternMode.Auto), (x, y) => Interlocked.Increment(ref c));
                 pub.Subscribe("abc*", (x, y) => Interlocked.Increment(ref d));
 
-                await Task.Delay(1000).ForAwait();
                 pub.Publish("abcd", "efg");
                 await UntilCondition(TimeSpan.FromSeconds(10),
                     () => Thread.VolatileRead(ref b) == 1
@@ -57,12 +54,12 @@ namespace StackExchange.Redis.Tests
         [InlineData("Foo:", true, "f")]
         public async Task TestBasicPubSub(string channelPrefix, bool wildCard, string breaker)
         {
-            using (var muxer = Create(channelPrefix: channelPrefix, log: Writer))
+            using (var muxer = Create(channelPrefix: channelPrefix, shared: false, log: Writer))
             {
                 var pub = GetAnyMaster(muxer);
                 var sub = muxer.GetSubscriber();
-                await PingAsync(muxer, pub, sub).ForAwait();
-                HashSet<string> received = new HashSet<string>();
+                await PingAsync(pub, sub).ForAwait();
+                HashSet<string> received = new();
                 int secondHandler = 0;
                 string subChannel = (wildCard ? "a*c" : "abc") + breaker;
                 string pubChannel = "abc" + breaker;
@@ -91,35 +88,44 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal(0, Thread.VolatileRead(ref secondHandler));
                 var count = sub.Publish(pubChannel, "def");
 
-                await PingAsync(muxer, pub, sub, 3).ForAwait();
+                await PingAsync(pub, sub, 3).ForAwait();
 
                 await UntilCondition(TimeSpan.FromSeconds(5), () => received.Count == 1);
                 lock (received)
                 {
                     Assert.Single(received);
                 }
+                // Give handler firing a moment
+                await UntilCondition(TimeSpan.FromSeconds(2), () => Thread.VolatileRead(ref secondHandler) == 1);
                 Assert.Equal(1, Thread.VolatileRead(ref secondHandler));
 
                 // unsubscribe from first; should still see second
                 sub.Unsubscribe(subChannel, handler1);
                 count = sub.Publish(pubChannel, "ghi");
-                await PingAsync(muxer, pub, sub).ForAwait();
+                await PingAsync(pub, sub).ForAwait();
                 lock (received)
                 {
                     Assert.Single(received);
                 }
-                Assert.Equal(2, Thread.VolatileRead(ref secondHandler));
+
+                await UntilCondition(TimeSpan.FromSeconds(2), () => Thread.VolatileRead(ref secondHandler) == 2);
+
+                var secondHandlerCount = Thread.VolatileRead(ref secondHandler);
+                Log("Expecting 2 from second handler, got: " + secondHandlerCount);
+                Assert.Equal(2, secondHandlerCount);
                 Assert.Equal(1, count);
 
                 // unsubscribe from second; should see nothing this time
                 sub.Unsubscribe(subChannel, handler2);
                 count = sub.Publish(pubChannel, "ghi");
-                await PingAsync(muxer, pub, sub).ForAwait();
+                await PingAsync(pub, sub).ForAwait();
                 lock (received)
                 {
                     Assert.Single(received);
                 }
-                Assert.Equal(2, Thread.VolatileRead(ref secondHandler));
+                secondHandlerCount = Thread.VolatileRead(ref secondHandler);
+                Log("Expecting 2 from second handler, got: " + secondHandlerCount);
+                Assert.Equal(2, secondHandlerCount);
                 Assert.Equal(0, count);
             }
         }
@@ -127,15 +133,16 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task TestBasicPubSubFireAndForget()
         {
-            using (var muxer = Create(log: Writer))
+            using (var muxer = Create(shared: false, log: Writer))
             {
+                var profiler = muxer.AddProfiler();
                 var pub = GetAnyMaster(muxer);
                 var sub = muxer.GetSubscriber();
 
                 RedisChannel key = Me() + Guid.NewGuid();
-                HashSet<string> received = new HashSet<string>();
+                HashSet<string> received = new();
                 int secondHandler = 0;
-                await PingAsync(muxer, pub, sub).ForAwait();
+                await PingAsync(pub, sub).ForAwait();
                 sub.Subscribe(key, (channel, payload) =>
                 {
                     lock (received)
@@ -148,17 +155,20 @@ namespace StackExchange.Redis.Tests
                 }, CommandFlags.FireAndForget);
 
                 sub.Subscribe(key, (_, __) => Interlocked.Increment(ref secondHandler), CommandFlags.FireAndForget);
+                Log(profiler);
 
                 lock (received)
                 {
                     Assert.Empty(received);
                 }
                 Assert.Equal(0, Thread.VolatileRead(ref secondHandler));
-                await PingAsync(muxer, pub, sub).ForAwait();
+                await PingAsync(pub, sub).ForAwait();
                 var count = sub.Publish(key, "def", CommandFlags.FireAndForget);
-                await PingAsync(muxer, pub, sub).ForAwait();
+                await PingAsync(pub, sub).ForAwait();
 
                 await UntilCondition(TimeSpan.FromSeconds(5), () => received.Count == 1);
+                Log(profiler);
+
                 lock (received)
                 {
                     Assert.Single(received);
@@ -168,8 +178,8 @@ namespace StackExchange.Redis.Tests
                 sub.Unsubscribe(key);
                 count = sub.Publish(key, "ghi", CommandFlags.FireAndForget);
 
-                await PingAsync(muxer, pub, sub).ForAwait();
-
+                await PingAsync(pub, sub).ForAwait();
+                Log(profiler);
                 lock (received)
                 {
                     Assert.Single(received);
@@ -178,27 +188,30 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        private static async Task PingAsync(IConnectionMultiplexer muxer, IServer pub, ISubscriber sub, int times = 1)
+        private async Task PingAsync(IServer pub, ISubscriber sub, int times = 1)
         {
             while (times-- > 0)
             {
                 // both use async because we want to drain the completion managers, and the only
                 // way to prove that is to use TPL objects
-                var t1 = sub.PingAsync();
-                var t2 = pub.PingAsync();
-                await Task.WhenAll(t1, t2).ForAwait();
+                var subTask = sub.PingAsync();
+                var pubTask = pub.PingAsync();
+                await Task.WhenAll(subTask, pubTask).ForAwait();
+
+                Log($"Sub PING time: {subTask.Result.TotalMilliseconds} ms");
+                Log($"Pub PING time: {pubTask.Result.TotalMilliseconds} ms");
             }
         }
 
         [Fact]
         public async Task TestPatternPubSub()
         {
-            using (var muxer = Create())
+            using (var muxer = Create(shared: false, log: Writer))
             {
                 var pub = GetAnyMaster(muxer);
                 var sub = muxer.GetSubscriber();
 
-                HashSet<string> received = new HashSet<string>();
+                HashSet<string> received = new();
                 int secondHandler = 0;
                 sub.Subscribe("a*c", (channel, payload) =>
                 {
@@ -218,27 +231,29 @@ namespace StackExchange.Redis.Tests
                 }
                 Assert.Equal(0, Thread.VolatileRead(ref secondHandler));
 
-                await PingAsync(muxer, pub, sub).ForAwait();
+                await PingAsync(pub, sub).ForAwait();
                 var count = sub.Publish("abc", "def");
-                await PingAsync(muxer, pub, sub).ForAwait();
+                await PingAsync(pub, sub).ForAwait();
 
                 await UntilCondition(TimeSpan.FromSeconds(5), () => received.Count == 1);
                 lock (received)
                 {
                     Assert.Single(received);
                 }
+
+                // Give reception a bit, the handler could be delayed under load
+                await UntilCondition(TimeSpan.FromSeconds(2), () => Thread.VolatileRead(ref secondHandler) == 1);
                 Assert.Equal(1, Thread.VolatileRead(ref secondHandler));
 
                 sub.Unsubscribe("a*c");
                 count = sub.Publish("abc", "ghi");
 
-                await PingAsync(muxer, pub, sub).ForAwait();
+                await PingAsync(pub, sub).ForAwait();
 
                 lock (received)
                 {
                     Assert.Single(received);
                 }
-                Assert.Equal(0, count);
             }
         }
 
@@ -300,16 +315,17 @@ namespace StackExchange.Redis.Tests
             Assert.True(withFAF.ElapsedMilliseconds < withAsync.ElapsedMilliseconds + 3000, caption);
         }
 
-        [FactLongRunning]
+        [Fact]
         public async Task PubSubGetAllAnyOrder()
         {
-            using (var muxer = Create(syncTimeout: 20000))
+            using (var muxer = Create(syncTimeout: 20000, shared: false, log: Writer))
             {
                 var sub = muxer.GetSubscriber();
                 RedisChannel channel = Me();
                 const int count = 1000;
                 var syncLock = new object();
 
+                Assert.True(sub.IsConnected());
                 var data = new HashSet<int>();
                 await sub.SubscribeAsync(channel, (_, val) =>
                 {
@@ -424,7 +440,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task PubSubGetAllCorrectOrder_OnMessage_Sync()
         {
-            using (var muxer = Create(configuration: TestConfig.Current.RemoteServerAndPort, syncTimeout: 20000))
+            using (var muxer = Create(configuration: TestConfig.Current.RemoteServerAndPort, syncTimeout: 20000, log: Writer))
             {
                 var sub = muxer.GetSubscriber();
                 RedisChannel channel = Me();
@@ -493,7 +509,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task PubSubGetAllCorrectOrder_OnMessage_Async()
         {
-            using (var muxer = Create(configuration: TestConfig.Current.RemoteServerAndPort, syncTimeout: 20000))
+            using (var muxer = Create(configuration: TestConfig.Current.RemoteServerAndPort, syncTimeout: 20000, log: Writer))
             {
                 var sub = muxer.GetSubscriber();
                 RedisChannel channel = Me();
@@ -564,8 +580,8 @@ namespace StackExchange.Redis.Tests
         public async Task TestPublishWithSubscribers()
         {
             var channel = Me();
-            using (var muxerA = Create(shared: false))
-            using (var muxerB = Create(shared: false))
+            using (var muxerA = Create(shared: false, log: Writer))
+            using (var muxerB = Create(shared: false, log: Writer))
             using (var conn = Create())
             {
                 var listenA = muxerA.GetSubscriber();
@@ -588,8 +604,8 @@ namespace StackExchange.Redis.Tests
         public async Task TestMultipleSubscribersGetMessage()
         {
             var channel = Me();
-            using (var muxerA = Create(shared: false))
-            using (var muxerB = Create(shared: false))
+            using (var muxerA = Create(shared: false, log: Writer))
+            using (var muxerB = Create(shared: false, log: Writer))
             using (var conn = Create())
             {
                 var listenA = muxerA.GetSubscriber();
@@ -619,7 +635,7 @@ namespace StackExchange.Redis.Tests
         public async Task Issue38()
         {
             // https://code.google.com/p/booksleeve/issues/detail?id=38
-            using (var pub = Create())
+            using (var pub = Create(log: Writer))
             {
                 var sub = pub.GetSubscriber();
                 int count = 0;
@@ -746,25 +762,19 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task SubscriptionsSurviveConnectionFailureAsync()
         {
-            var session = new ProfilingSession();
-            using (var muxer = Create(allowAdmin: true, shared: false, syncTimeout: 1000) as ConnectionMultiplexer)
+            using (var muxer = Create(allowAdmin: true, shared: false, log: Writer, syncTimeout: 1000) as ConnectionMultiplexer)
             {
-                muxer.RegisterProfiler(() => session);
+                var profiler = muxer.AddProfiler();
                 RedisChannel channel = Me();
                 var sub = muxer.GetSubscriber();
                 int counter = 0;
+                Assert.True(sub.IsConnected());
                 await sub.SubscribeAsync(channel, delegate
                 {
                     Interlocked.Increment(ref counter);
                 }).ConfigureAwait(false);
 
-                var profile1 = session.FinishProfiling();
-                foreach (var command in profile1)
-                {
-                    Log($"{command.EndPoint}: {command}");
-                }
-                // We shouldn't see the initial connection here
-                Assert.Equal(0, profile1.Count(p => p.Command == nameof(RedisCommand.SUBSCRIBE)));
+                var profile1 = Log(profiler);
 
                 Assert.Equal(1, muxer.GetSubscriptionsCount());
 
@@ -775,7 +785,7 @@ namespace StackExchange.Redis.Tests
                 await Task.Delay(200).ConfigureAwait(false);
 
                 var counter1 = Thread.VolatileRead(ref counter);
-                Log($"Expecting 1 messsage, got {counter1}");
+                Log($"Expecting 1 message, got {counter1}");
                 Assert.Equal(1, counter1);
 
                 var server = GetServer(muxer);
@@ -804,20 +814,23 @@ namespace StackExchange.Redis.Tests
                 // Ensure we're reconnected
                 Assert.True(sub.IsConnected(channel));
 
-                // And time to resubscribe...
-                await Task.Delay(1000).ConfigureAwait(false);
-
                 // Ensure we've sent the subscribe command after reconnecting
-                var profile2 = session.FinishProfiling();
-                foreach (var command in profile2)
-                {
-                    Log($"{command.EndPoint}: {command}");
-                }
+                var profile2 = Log(profiler);
                 //Assert.Equal(1, profile2.Count(p => p.Command == nameof(RedisCommand.SUBSCRIBE)));
 
-                Log($"Issuing ping after reconnected");
+                Log("Issuing ping after reconnected");
                 sub.Ping();
-                Assert.Equal(1, muxer.GetSubscriptionsCount());
+
+                var muxerSubCount = muxer.GetSubscriptionsCount();
+                Log($"Muxer thinks we have {muxerSubCount} subscriber(s).");
+                Assert.Equal(1, muxerSubCount);
+
+                var muxerSubs = muxer.GetSubscriptions();
+                foreach (var pair in muxerSubs)
+                {
+                    var muxerSub = pair.Value;
+                    Log($"  Muxer Sub: {pair.Key}: (EndPoint: {muxerSub.GetCurrentServer()}, Connected: {muxerSub.IsConnected})");
+                }
 
                 Log("Publishing");
                 var published = await sub.PublishAsync(channel, "abc").ConfigureAwait(false);
@@ -830,12 +843,12 @@ namespace StackExchange.Redis.Tests
                 await UntilCondition(TimeSpan.FromSeconds(5), () => Thread.VolatileRead(ref counter) == 2);
 
                 var counter2 = Thread.VolatileRead(ref counter);
-                Log($"Expecting 2 messsages, got {counter2}");
+                Log($"Expecting 2 messages, got {counter2}");
                 Assert.Equal(2, counter2);
 
                 // Log all commands at the end
                 Log("All commands since connecting:");
-                var profile3 = session.FinishProfiling();
+                var profile3 = profiler.FinishProfiling();
                 foreach (var command in profile3)
                 {
                     Log($"{command.EndPoint}: {command}");

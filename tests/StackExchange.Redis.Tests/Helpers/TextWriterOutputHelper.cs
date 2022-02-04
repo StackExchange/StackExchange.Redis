@@ -20,6 +20,20 @@ namespace StackExchange.Redis.Tests.Helpers
 
         public void EchoTo(StringBuilder sb) => Echo = sb;
 
+        public void WriteLineNoTime(string value)
+        {
+            try
+            {
+                base.WriteLine(value);
+            }
+            catch (Exception ex)
+            {
+                Console.Write("Attempted to write: ");
+                Console.WriteLine(value);
+                Console.WriteLine(ex);
+            }
+        }
+
         public override void WriteLine(string value)
         {
             try
@@ -68,7 +82,14 @@ namespace StackExchange.Redis.Tests.Helpers
         private void FlushBuffer()
         {
             var text = Buffer.ToString();
-            Output.WriteLine(text);
+            try
+            {
+                Output.WriteLine(text);
+            }
+            catch (InvalidOperationException)
+            {
+                // Thrown when writing from a handler after a test has ended - just bail in this case
+            }
             Echo?.AppendLine(text);
             if (ToConsole)
             {
