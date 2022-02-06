@@ -3,7 +3,7 @@
 If you're here because you followed a link in an exception and you just want your code to work,
 the short version is: try adding the following *early on* in your application startup:
 
-``` c#
+```csharp
 ConnectionMultiplexer.SetFeatureFlag("preventthreadtheft", true);
 ```
 
@@ -40,14 +40,13 @@ be an asynchronous dispatch API. But... not all implementations are equal. Some
 in particular of `LegacyAspNetSynchronizationContext`, which is what you get if you
 configure ASP.NET with:
 
-
 ``` xml
 <add key="aspnet:UseTaskFriendlySynchronizationContext" value="false" />
 ```
 
 or
 
-```
+```xml
 <httpRuntime targetFramework="4.5" />
 ```
 
