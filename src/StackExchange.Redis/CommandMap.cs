@@ -54,6 +54,38 @@ namespace StackExchange.Redis
         });
 
         /// <summary>
+        /// The commands available to <a href="https://github.com/envoyproxy/envoy">envoyproxy</a> via
+        /// </summary>
+        public static CommandMap Envoyproxy { get; } = CreateImpl(null, exclusions: new HashSet<RedisCommand>
+        {
+            // not in <a href="https://github.com/envoyproxy/envoy/blob/0fae6970ddaf93f024908ba304bbd2b34e997a51/source/extensions/filters/network/common/redis/supported_commands.h">supported_commands.h</a>
+            RedisCommand.KEYS, RedisCommand.MIGRATE, RedisCommand.MOVE, RedisCommand.OBJECT, RedisCommand.RANDOMKEY,
+            RedisCommand.RENAME, RedisCommand.RENAMENX, RedisCommand.SORT, RedisCommand.SCAN,
+
+            RedisCommand.BITOP, RedisCommand.MSET, RedisCommand.MSETNX,
+
+            RedisCommand.BLPOP, RedisCommand.BRPOP, RedisCommand.BRPOPLPUSH, // yeah, me neither!
+
+            RedisCommand.PSUBSCRIBE, RedisCommand.PUBLISH, RedisCommand.PUNSUBSCRIBE, RedisCommand.SUBSCRIBE, RedisCommand.UNSUBSCRIBE,
+
+            RedisCommand.DISCARD, RedisCommand.EXEC, RedisCommand.MULTI, RedisCommand.UNWATCH, RedisCommand.WATCH,
+
+            RedisCommand.SCRIPT,
+
+            RedisCommand.ECHO, RedisCommand.PING, RedisCommand.QUIT, RedisCommand.SELECT,
+
+            RedisCommand.BGREWRITEAOF, RedisCommand.BGSAVE, RedisCommand.CLIENT, RedisCommand.CLUSTER, RedisCommand.CONFIG, RedisCommand.DBSIZE,
+            RedisCommand.DEBUG, RedisCommand.FLUSHALL, RedisCommand.FLUSHDB, RedisCommand.INFO, RedisCommand.LASTSAVE, RedisCommand.MONITOR, RedisCommand.REPLICAOF,
+            RedisCommand.SAVE, RedisCommand.SHUTDOWN, RedisCommand.SLAVEOF, RedisCommand.SLOWLOG, RedisCommand.SYNC, RedisCommand.TIME,
+
+            // supported by envoy but not enabled by stack exchange
+            // RedisCommand.BITFIELD,
+            //
+            // RedisCommand.GEORADIUS_RO,
+            // RedisCommand.GEORADIUSBYMEMBER_RO,
+        });
+
+        /// <summary>
         /// The commands available to <a href="https://ssdb.io/">https://ssdb.io/</a>
         /// </summary>
         /// <remarks>https://ssdb.io/docs/redis-to-ssdb.html</remarks>
@@ -173,7 +205,7 @@ namespace StackExchange.Redis
         internal CommandBytes GetBytes(string command)
         {
             if (command == null) return default;
-            if(Enum.TryParse(command, true, out RedisCommand cmd))
+            if (Enum.TryParse(command, true, out RedisCommand cmd))
             {   // we know that one!
                 return map[(int)cmd];
             }

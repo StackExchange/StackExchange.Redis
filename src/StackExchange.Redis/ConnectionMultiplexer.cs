@@ -1416,7 +1416,14 @@ namespace StackExchange.Redis
         /// <param name="asyncState">The async state object to pass to the created <see cref="RedisSubscriber"/>.</param>
         public ISubscriber GetSubscriber(object asyncState = null)
         {
-            if (RawConfig.Proxy == Proxy.Twemproxy) throw new NotSupportedException("The pub/sub API is not available via twemproxy");
+            switch (RawConfig.Proxy)
+            {
+                case Proxy.Twemproxy:
+                case Proxy.Envoyproxy:
+                    throw new NotSupportedException($"The pub/sub API is not available via {RawConfig.Proxy}");
+                case Proxy.None:
+                    break;
+            }
             return new RedisSubscriber(this, asyncState);
         }
 
@@ -1432,9 +1439,10 @@ namespace StackExchange.Redis
                 throw new ArgumentOutOfRangeException(nameof(db));
             }
 
-            if (db != 0 && RawConfig.Proxy == Proxy.Twemproxy)
+            if (db != 0 &&
+                (RawConfig.Proxy == Proxy.Twemproxy || RawConfig.Proxy == Proxy.Envoyproxy))
             {
-                throw new NotSupportedException("Twemproxy only supports database 0");
+                throw new NotSupportedException($"{RawConfig.Proxy} only supports database 0");
             }
 
             return db;
@@ -1502,7 +1510,10 @@ namespace StackExchange.Redis
         public IServer GetServer(EndPoint endpoint, object asyncState = null)
         {
             if (endpoint == null) throw new ArgumentNullException(nameof(endpoint));
-            if (RawConfig.Proxy == Proxy.Twemproxy) throw new NotSupportedException("The server API is not available via twemproxy");
+            if (RawConfig.Proxy == Proxy.Twemproxy || RawConfig.Proxy == Proxy.Envoyproxy)
+            {
+                throw new NotSupportedException($"The server API is not available via {RawConfig.Proxy}");
+            }
             var server = (ServerEndPoint)servers[endpoint];
             if (server == null) throw new ArgumentException("The specified endpoint is not defined", nameof(endpoint));
             return new RedisServer(this, server, asyncState);
@@ -1818,6 +1829,7 @@ namespace StackExchange.Redis
                                     switch (server.ServerType)
                                     {
                                         case ServerType.Twemproxy:
+                                        case ServerType.Envoyproxy:
                                         case ServerType.Sentinel:
                                         case ServerType.Standalone:
                                         case ServerType.Cluster:
@@ -1862,31 +1874,44 @@ namespace StackExchange.Redis
                     if (clusterCount == 0)
                     {
                         // set the serverSelectionStrategy
-                        if (RawConfig.Proxy == Proxy.Twemproxy)
+                        switch (RawConfig.Proxy)
                         {
-                            ServerSelectionStrategy.ServerType = ServerType.Twemproxy;
-                        }
-                        else if (standaloneCount == 0 && sentinelCount > 0)
-                        {
-                            ServerSelectionStrategy.ServerType = ServerType.Sentinel;
-                        }
-                        else if (standaloneCount > 0)
-                        {
-                            ServerSelectionStrategy.ServerType = ServerType.Standalone;
+                            case Proxy.Twemproxy:
+                                ServerSelectionStrategy.ServerType = ServerType.Twemproxy;
+                                break;
+                            case Proxy.Envoyproxy:
+                                ServerSelectionStrategy.ServerType = ServerType.Envoyproxy;
+                                break;
+                            default:
+                                if (standaloneCount == 0 && sentinelCount > 0)
+                                {
+                                    ServerSelectionStrategy.ServerType = ServerType.Sentinel;
+                                }
+                                else
+                                {
+                                    ServerSelectionStrategy.ServerType = ServerType.Standalone;
+                                }
+                                break;
                         }
 
-                        var preferred = NominatePreferredMaster(log, servers, useTieBreakers, masters);
-                        foreach (var master in masters)
+                        // if multiple masters are detected nominate preferrered master
+                        // does not apply to envoyproxy, envoyproxy will have multiple "masters" and we would
+                        // we want to keep the default round robin behavior
+                        if (ServerSelectionStrategy.ServerType != ServerType.Envoyproxy)
                         {
-                            if (master == preferred || master.IsReplica)
+                            var preferred = NominatePreferredMaster(log, servers, useTieBreakers, masters);
+                            foreach (var master in masters)
                             {
-                                log?.WriteLine($"{Format.ToString(master)}: Clearing as RedundantMaster");
-                                master.ClearUnselectable(UnselectableFlags.RedundantMaster);
-                            }
-                            else
-                            {
-                                log?.WriteLine($"{Format.ToString(master)}: Setting as RedundantMaster");
-                                master.SetUnselectable(UnselectableFlags.RedundantMaster);
+                                if (master == preferred || master.IsReplica)
+                                {
+                                    log?.WriteLine($"{Format.ToString(master)}: Clearing as RedundantMaster");
+                                    master.ClearUnselectable(UnselectableFlags.RedundantMaster);
+                                }
+                                else
+                                {
+                                    log?.WriteLine($"{Format.ToString(master)}: Setting as RedundantMaster");
+                                    master.SetUnselectable(UnselectableFlags.RedundantMaster);
+                                }
                             }
                         }
                     }

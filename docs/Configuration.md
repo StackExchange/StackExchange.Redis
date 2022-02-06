@@ -86,7 +86,7 @@ The `ConfigurationOptions` object has a wide range of properties, all of which a
 | name={string}          | `ClientName`           | `null`                       | Identification for the connection within redis                                                            |
 | password={string}      | `Password`             | `null`                       | Password for the redis server                                                                             |
 | user={string}          | `User`                 | `null`                       | User for the redis server (for use with ACLs on redis 6 and above)                                        |
-| proxy={proxy type}     | `Proxy`                | `Proxy.None`                 | Type of proxy in use (if any); for example "twemproxy"                                                    |
+| proxy={proxy type}     | `Proxy`                | `Proxy.None`                 | Type of proxy in use (if any); for example "twemproxy/envoyproxy"                                         |
 | resolveDns={bool}      | `ResolveDns`           | `false`                      | Specifies that DNS resolution should be explicit and eager, rather than implicit                          |
 | serviceName={string}   | `ServiceName`          | `null`                       | Used for connecting to a sentinel master service                                                          |
 | ssl={bool}             | `Ssl`                  | `false`                      | Specifies that SSL encryption should be used                                                              |
@@ -175,6 +175,15 @@ var options = new ConfigurationOptions
 {
     EndPoints = { "my-server" },
     Proxy = Proxy.Twemproxy
+};
+```
+
+[EnvoyProxy](https://github.com/envoyproxy/envoy) is a tool that allows to front a redis cluster with a set of proxies, with inbuilt discovery and fault tolerance. The feature-set available to Envoyproxy is reduced. To avoid having to configure this manually, the `Proxy` option can be used:
+
+```csharp
+var options = new ConfigurationOptions+{
+    EndPoints = { "my-proxy1", "my-proxy2", "my-proxy3" },
+    Proxy = Proxy.EnvoyProxy
 };
 ```
 

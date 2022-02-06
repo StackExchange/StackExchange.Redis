@@ -109,7 +109,7 @@ namespace StackExchange.Redis
             if (map.IsAvailable(RedisCommand.ECHO))
                 return ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.ECHO, RedisLiterals.PING);
             // as our fallback, we'll do something odd... we'll treat a key like a value, out of sheer desperation
-            // note: this usually means: twemproxy - in which case we're fine anyway, since the proxy does the routing
+            // note: this usually means: twemproxy/envoyproxy - in which case we're fine anyway, since the proxy does the routing
             return ResultProcessor.TimingProcessor.CreateMessage(0, flags, RedisCommand.EXISTS, (RedisValue)multiplexer.UniqueId);
         }
 

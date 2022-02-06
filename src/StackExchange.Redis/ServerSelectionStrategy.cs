@@ -107,9 +107,10 @@ namespace StackExchange.Redis
             switch (ServerType)
             {
                 case ServerType.Cluster:
-                case ServerType.Twemproxy: // strictly speaking twemproxy uses a different hashing algo, but the hash-tag behavior is
-                                           // the same, so this does a pretty good job of spotting illegal commands before sending them
-
+                // strictly speaking envproxy/twemproxy uses a different hashing algo, but the hash-tag behavior is
+                // the same, so this does a pretty good job of spotting illegal commands before sending them
+                case ServerType.Envoyproxy:
+                case ServerType.Twemproxy:
                     slot = message.GetHashSlot(this);
                     if (slot == MultipleSlots) throw ExceptionFactory.MultiSlot(multiplexer.IncludeDetailInExceptions, message);
                     break;

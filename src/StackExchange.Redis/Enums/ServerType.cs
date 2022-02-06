@@ -20,6 +20,10 @@
         /// <summary>
         /// Distributed redis installation via <a href="https://github.com/twitter/twemproxy">twemproxy</a>
         /// </summary>
-        Twemproxy
+        Twemproxy,
+        /// <summary>
+        /// Redis cluster via <a href="https://github.com/envoyproxy/envoy">envoyproxy</a>
+        /// </summary>
+        Envoyproxy
     }
 }
