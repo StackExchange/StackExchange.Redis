@@ -70,7 +70,7 @@ namespace StackExchange.Redis
                                                        | CommandFlags.DemandReplica
                                                        | CommandFlags.PreferMaster
                                                        | CommandFlags.PreferReplica
-#pragma warning disable CS0618
+#pragma warning disable CS0618 // Type or member is obsolete
                                                        | CommandFlags.HighPriority
 #pragma warning restore CS0618
                                                        | CommandFlags.FireAndForget

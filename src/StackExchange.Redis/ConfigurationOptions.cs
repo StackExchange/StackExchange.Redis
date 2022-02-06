@@ -833,7 +833,7 @@ namespace StackExchange.Redis
                         case OptionKeys.WriteBuffer:
 #pragma warning disable CS0618 // Type or member is obsolete
                             WriteBuffer = OptionKeys.ParseInt32(key, value);
-#pragma warning restore CS0618 // Type or member is obsolete
+#pragma warning restore CS0618
                             break;
                         case OptionKeys.Proxy:
                             Proxy = OptionKeys.ParseProxy(key, value);
@@ -841,7 +841,7 @@ namespace StackExchange.Redis
                         case OptionKeys.ResponseTimeout:
 #pragma warning disable CS0618 // Type or member is obsolete
                             ResponseTimeout = OptionKeys.ParseInt32(key, value, minValue: 1);
-#pragma warning restore CS0618 // Type or member is obsolete
+#pragma warning restore CS0618
                             break;
                         case OptionKeys.DefaultDatabase:
                             DefaultDatabase = OptionKeys.ParseInt32(key, value);

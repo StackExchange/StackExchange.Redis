@@ -71,6 +71,9 @@ namespace StackExchange.Redis
         public int HashSlot(in RedisChannel channel)
             => ServerType == ServerType.Standalone || channel.IsNull ? NoSlot : GetClusterSlot((byte[])channel);
 
+        /// <summary>
+        /// Gets the hashslot for a given byte sequence.
+        /// </summary>
         /// <remarks>
         /// HASH_SLOT = CRC16(key) mod 16384
         /// </remarks>
@@ -107,7 +110,7 @@ namespace StackExchange.Redis
             switch (ServerType)
             {
                 case ServerType.Cluster:
-                case ServerType.Twemproxy: // strictly speaking twemproxy uses a different hashing algo, but the hash-tag behavior is
+                case ServerType.Twemproxy: // strictly speaking twemproxy uses a different hashing algorithm, but the hash-tag behavior is
                                            // the same, so this does a pretty good job of spotting illegal commands before sending them
 
                     slot = message.GetHashSlot(this);
@@ -171,13 +174,13 @@ namespace StackExchange.Redis
                         else
                         {
                             message.PrepareToResend(resendVia, isMoved);
-#pragma warning disable CS0618
+#pragma warning disable CS0618 // Type or member is obsolete
                             retry = resendVia.TryWriteSync(message) == WriteResult.Success;
 #pragma warning restore CS0618
                         }
                     }
 
-                    if (isMoved) // update map; note we can still update the map even if we aren't actually goint to resend
+                    if (isMoved) // update map; note we can still update the map even if we aren't actually going to resend
                     {
                         var arr = MapForMutation();
                         var oldServer = arr[hashSlot];

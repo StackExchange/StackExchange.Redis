@@ -41,10 +41,10 @@ namespace StackExchange.Redis
         /// </summary>
         public RedisValue(string value) : this(0, default, value) { }
 
-#pragma warning disable RCS1085 // Use auto-implemented property.
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Roslynator", "RCS1085:Use auto-implemented property.", Justification = "Intentional field ref")]
         internal object DirectObject => _objectOrSentinel;
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Roslynator", "RCS1085:Use auto-implemented property.", Justification = "Intentional field ref")]
         internal long DirectOverlappedBits64 => _overlappedBits64;
-#pragma warning restore RCS1085 // Use auto-implemented property.
 
         private readonly static object Sentinel_SignedInteger = new();
         private readonly static object Sentinel_UnsignedInteger = new();

@@ -1,8 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 
-#pragma warning disable RCS1231
-
 namespace StackExchange.Redis
 {
     /// <summary>

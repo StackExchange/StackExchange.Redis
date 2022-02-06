@@ -671,7 +671,7 @@ namespace StackExchange.Redis
                 var msg = Message.Create(-1, CommandFlags.FireAndForget | CommandFlags.NoRedirect, RedisCommand.INFO, RedisLiterals.replication);
                 msg.SetInternalCall();
                 msg.SetSource(ResultProcessor.AutoConfigure, null);
-#pragma warning disable CS0618
+#pragma warning disable CS0618 // Type or member is obsolete
                 bridge.TryWriteSync(msg, isReplica);
 #pragma warning restore CS0618
                 return true;

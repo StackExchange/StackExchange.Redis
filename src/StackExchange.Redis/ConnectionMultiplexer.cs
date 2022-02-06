@@ -2792,7 +2792,7 @@ namespace StackExchange.Redis
 
             if (message.IsFireAndForget)
             {
-#pragma warning disable CS0618
+#pragma warning disable CS0618 // Type or member is obsolete
                 TryPushMessageToBridgeSync(message, processor, null, ref server);
 #pragma warning restore CS0618
                 Interlocked.Increment(ref fireAndForgets);
@@ -2804,7 +2804,7 @@ namespace StackExchange.Redis
 
                 lock (source)
                 {
-#pragma warning disable CS0618
+#pragma warning disable CS0618 // Type or member is obsolete
                     var result = TryPushMessageToBridgeSync(message, processor, source, ref server);
 #pragma warning restore CS0618
                     if (result != WriteResult.Success)

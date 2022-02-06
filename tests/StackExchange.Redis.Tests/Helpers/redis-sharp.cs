@@ -32,13 +32,11 @@ namespace RedisSharp
             None, String, List, Set
         }
 
-#pragma warning disable RCS1194 // Implement exception constructors.
         public class ResponseException : Exception
         {
             public string Code { get; }
             public ResponseException(string code) : base("Response error") => Code = code;
         }
-#pragma warning restore RCS1194 // Implement exception constructors.
 
         public Redis(string host, int port)
         {

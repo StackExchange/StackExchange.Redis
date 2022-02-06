@@ -1,6 +1,4 @@
-﻿#pragma warning disable RCS1090 // Call 'ConfigureAwait(false)'.
-
-using System;
+﻿using System;
 using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;

@@ -366,7 +366,7 @@ namespace StackExchange.Redis
                 Multiplexer.Trace("Enqueue: " + msg);
                 Multiplexer.OnInfoMessage($"heartbeat ({physical?.LastWriteSecondsAgo}s >= {ServerEndPoint?.WriteEverySeconds}s, {physical?.GetSentAwaitingResponseCount()} waiting) '{msg.CommandAndKey}' on '{PhysicalName}' (v{features.Version})");
                 physical?.UpdateLastWriteTime(); // preemptively
-#pragma warning disable CS0618
+#pragma warning disable CS0618 // Type or member is obsolete
                 var result = TryWriteSync(msg, ServerEndPoint.IsReplica);
 #pragma warning restore CS0618
 
@@ -634,7 +634,7 @@ namespace StackExchange.Redis
                 // deliberately not taking a single lock here; we don't care if
                 // other threads manage to interleave - in fact, it would be desirable
                 // (to avoid a batch monopolising the connection)
-#pragma warning disable CS0618
+#pragma warning disable CS0618 // Type or member is obsolete
                 WriteMessageTakingWriteLockSync(physical, message);
 #pragma warning restore CS0618
                 LogNonPreferred(message.Flags, isReplica);
