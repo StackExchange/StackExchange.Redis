@@ -112,7 +112,7 @@ namespace StackExchange.Redis
         event EventHandler<EndPointEventArgs> ConfigurationChangedBroadcast;
 
         /// <summary>
-        /// Gets all endpoints defined on the server.
+        /// Gets all endpoints defined on the multiplexer.
         /// </summary>
         /// <param name="configuredOnly">Whether to return only the explicitly configured endpoints.</param>
         EndPoint[] GetEndPoints(bool configuredOnly = false);

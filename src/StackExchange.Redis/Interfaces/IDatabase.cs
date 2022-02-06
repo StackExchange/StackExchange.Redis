@@ -623,7 +623,7 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// Create a key associated with a value that is obtained by deserializing the provided serialized value (obtained via DUMP).
-        /// If <paramref name="expiry"/> is 0 the key is created without any expire, otherwise the specified expire time(in milliseconds) is set.
+        /// If <paramref name="expiry"/> is 0 the key is created without any expire, otherwise the specified expire time (in milliseconds) is set.
         /// </summary>
         /// <param name="key">The key to restore.</param>
         /// <param name="value">The value of the key.</param>

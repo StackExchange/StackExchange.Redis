@@ -235,7 +235,7 @@ namespace StackExchange.Redis
             }
             catch
             {
-                // our internal error event failed...whatcha gonna do, exactly?
+                // Our internal error event failed...whatcha gonna do, exactly?
             }
         }
 
@@ -589,7 +589,7 @@ namespace StackExchange.Redis
         internal int AsyncTimeoutMilliseconds { get; }
 
         /// <summary>
-        /// Gets all endpoints defined on the server.
+        /// Gets all endpoints defined on the multiplexer.
         /// </summary>
         /// <param name="configuredOnly">Whether to get only the endpoints specified explicitly in the config.</param>
         public EndPoint[] GetEndPoints(bool configuredOnly = false)
@@ -1423,7 +1423,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Applies common db number defaults and rules.
+        /// Applies common DB number defaults and rules.
         /// </summary>
         internal int ApplyDefaultDatabase(int db)
         {
