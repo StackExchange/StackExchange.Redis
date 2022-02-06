@@ -2145,7 +2145,7 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// Sets the given keys to their respective values.
-        /// If "not exists" is specified, this will not perform any operation at all even if just a single key already exists.
+        /// If <see cref="When.NotExists"/> is specified, this will not perform any operation at all even if just a single key already exists.
         /// </summary>
         /// <param name="values">The keys and values to set.</param>
         /// <param name="when">Which condition to set the value under (defaults to always).</param>
@@ -2191,7 +2191,7 @@ namespace StackExchange.Redis
         Task<bool> KeyTouchAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Alters the last access time of a keys. A key is ignored if it does not exist.
+        /// Alters the last access time of the specified <paramref name="keys"/>. A key is ignored if it does not exist.
         /// </summary>
         /// <param name="keys">The keys to touch.</param>
         /// <param name="flags">The flags to use for this operation.</param>

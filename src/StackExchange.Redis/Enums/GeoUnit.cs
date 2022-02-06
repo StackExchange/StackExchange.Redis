@@ -20,6 +20,6 @@
         /// <summary>
         /// Feet
         /// </summary>
-        Feet
+        Feet,
     }
 }

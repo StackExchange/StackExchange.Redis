@@ -973,7 +973,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Convert to a <see cref="int"/> if possible.
+        /// Convert to an <see cref="int"/> if possible.
         /// </summary>
         /// <param name="val">The <see cref="int"/> value, if conversion was possible.</param>
         /// <returns><see langword="true"/> if successfully parsed, <see langword="false"/> otherwise.</returns>

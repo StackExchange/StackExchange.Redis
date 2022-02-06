@@ -686,7 +686,7 @@ namespace StackExchange.Redis
         /// Sets the processor and box for this message to execute.
         /// </summary>
         /// <remarks>
-        /// Note order here reversed to prevent overload resolution errors
+        /// Note order here is reversed to prevent overload resolution errors.
         /// </remarks>
         internal void SetSource(ResultProcessor resultProcessor, IResultBox resultBox)
         {
@@ -698,7 +698,7 @@ namespace StackExchange.Redis
         /// Sets the box and processor for this message to execute.
         /// </summary>
         /// <remarks>
-        /// Note order here reversed to prevent overload resolution errors
+        /// Note order here is reversed to prevent overload resolution errors.
         /// </remarks>
         internal void SetSource<T>(IResultBox<T> resultBox, ResultProcessor<T> resultProcessor)
         {

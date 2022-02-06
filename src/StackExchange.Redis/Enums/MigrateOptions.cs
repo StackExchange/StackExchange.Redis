@@ -19,6 +19,6 @@ namespace StackExchange.Redis
         /// <summary>
         /// Replace existing key on the remote instance.
         /// </summary>
-        Replace = 2
+        Replace = 2,
     }
 }

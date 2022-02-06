@@ -12,6 +12,6 @@
         /// <summary>
         /// Ordered from high values to low values.
         /// </summary>
-        Descending
+        Descending,
     }
 }

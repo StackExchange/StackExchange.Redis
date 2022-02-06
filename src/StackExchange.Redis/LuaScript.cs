@@ -58,7 +58,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Finalizer, used to prompt cleanups of the script cache when a LuaScript reference goes out of scope.
+        /// Finalizer - used to prompt cleanups of the script cache when a LuaScript reference goes out of scope.
         /// </summary>
         ~LuaScript()
         {
@@ -257,7 +257,7 @@ namespace StackExchange.Redis
         /// <para>Evaluates this LoadedLuaScript against the given database, extracting parameters for the passed in object if any.</para>
         /// <para>
         /// This method sends the SHA1 hash of the ExecutableScript instead of the script itself.
-        /// If the script has not been loaded into the passed Redis instance it will fail.
+        /// If the script has not been loaded into the passed Redis instance, it will fail.
         /// </para>
         /// </summary>
         /// <param name="db">The redis database to evaluate against.</param>
@@ -274,7 +274,7 @@ namespace StackExchange.Redis
         /// <para>Evaluates this LoadedLuaScript against the given database, extracting parameters for the passed in object if any.</para>
         /// <para>
         /// This method sends the SHA1 hash of the ExecutableScript instead of the script itself.
-        /// If the script has not been loaded into the passed Redis instance it will fail.
+        /// If the script has not been loaded into the passed Redis instance, it will fail.
         /// </para>
         /// </summary>
         /// <param name="db">The redis database to evaluate against.</param>

@@ -27,7 +27,7 @@ namespace StackExchange.Redis
         /// <param name="sender">The source of the event.</param>
         /// <param name="endpoint"></param>
         /// <param name="connectionType">Redis connection type.</param>
-        /// <param name="exception">The exception occurred.</param>
+        /// <param name="exception">The exception that occurred.</param>
         /// <param name="origin">Origin.</param>
         public InternalErrorEventArgs(object sender, EndPoint endpoint, ConnectionType connectionType, Exception exception, string origin)
             : this (null, sender, endpoint, connectionType, exception, origin)

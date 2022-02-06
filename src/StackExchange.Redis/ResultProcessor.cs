@@ -739,7 +739,7 @@ namespace StackExchange.Redis
                                 }
                                 if (roleSeen)
                                 {
-                                    // these are in the same section, if present
+                                    // These are in the same section, if present
                                     server.MasterEndPoint = Format.TryParseEndPoint(masterHost, masterPort);
                                 }
                             }
