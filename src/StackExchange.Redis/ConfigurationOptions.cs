@@ -880,7 +880,7 @@ namespace StackExchange.Redis
             }
         }
 
-        ///<summary>Microsoft Azure team wants abortConnect=false by default</summary>
+        ///<summary>Microsoft Azure team wants abortConnect=false by default.</summary>
         private bool GetDefaultAbortOnConnectFailSetting() => !IsAzureEndpoint();
 
         /// <summary>
