@@ -299,7 +299,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Specifies the default database to be used when calling ConnectionMultiplexer.GetDatabase() without any parameters.
+        /// Specifies the default database to be used when calling <see cref="ConnectionMultiplexer.GetDatabase(int, object)"/> without any parameters.
         /// </summary>
         public int? DefaultDatabase { get; set; }
 
