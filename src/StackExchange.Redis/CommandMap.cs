@@ -19,7 +19,7 @@ namespace StackExchange.Redis
         public static CommandMap Default { get; } = CreateImpl(null, null);
 
         /// <summary>
-        /// The commands available to <a href="twemproxy">https://github.com/twitter/twemproxy</a>.
+        /// The commands available to <a href="https://github.com/twitter/twemproxy">https://github.com/twitter/twemproxy</a>.
         /// </summary>
         /// <remarks>https://github.com/twitter/twemproxy/blob/master/notes/redis.md</remarks>
         public static CommandMap Twemproxy { get; } = CreateImpl(null, exclusions: new HashSet<RedisCommand>
@@ -93,7 +93,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Creates a CommandMap by specifying which commands are available or unavailable.
+        /// Creates a <see cref="CommandMap"/> by specifying which commands are available or unavailable.
         /// </summary>
         /// <param name="commands">The commands to specify.</param>
         /// <param name="available">Whether the commands are available or excluded.</param>
