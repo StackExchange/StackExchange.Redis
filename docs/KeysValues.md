@@ -1,9 +1,9 @@
 ﻿Keys, Values and Channels
 ===
 
-In dealing with redis, there is quite an important distinction between *keys* and *everything else*. A key is the unique name of a piece of data (which could be a String, a List, Hash, or any of the other [redis data types](http://redis.io/topics/data-types)) within a database. Keys are never interpreted as... well, anything: they are simply inert names. Further - when dealing with clustered or sharded systems, it is the key that defines the node (or nodes if there are replicas) that contain this data - so keys are crucial for routing commands.
+In dealing with redis, there is quite an important distinction between *keys* and *everything else*. A key is the unique name of a piece of data (which could be a String, a List, Hash, or any of the other [redis data types](https://redis.io/topics/data-types)) within a database. Keys are never interpreted as... well, anything: they are simply inert names. Further - when dealing with clustered or sharded systems, it is the key that defines the node (or nodes if there are replicas) that contain this data - so keys are crucial for routing commands.
 
-This contrasts with *values*; values are the *things that you store* against keys - either individually (for String data) or as groups. Values do not affect command routing <small>(caveat: except for [the `SORT` command](http://redis.io/commands/sort) when `BY` or `GET` is specified, but that is *really* complicated to explain)</small>. Likewise, values are often *interpreted* by redis for the purposes of an operation:
+This contrasts with *values*; values are the *things that you store* against keys - either individually (for String data) or as groups. Values do not affect command routing <small>(caveat: except for [the `SORT` command](https://redis.io/commands/sort) when `BY` or `GET` is specified, but that is *really* complicated to explain)</small>. Likewise, values are often *interpreted* by redis for the purposes of an operation:
 
 - `incr` (and the various similar commands) interpret String values as numeric data
 - sorting can interpret values using either numeric or unicode rules
@@ -90,7 +90,7 @@ Channel names for pub/sub are represented by the `RedisChannel` type; this is la
 Scripting
 ---
 
-[Lua scripting in redis](http://redis.io/commands/EVAL) has two notable features:
+[Lua scripting in redis](https://redis.io/commands/EVAL) has two notable features:
 
 - the inputs must keep keys and values separate (which inside the script become `KEYS` and `ARGV`, respectively)
 - the return format is not defined in advance: it is specific to your script
