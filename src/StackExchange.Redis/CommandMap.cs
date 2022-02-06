@@ -54,11 +54,10 @@ namespace StackExchange.Redis
         });
 
         /// <summary>
-        /// The commands available to <a href="ssdb">http://www.ideawu.com/ssdb/</a>
+        /// The commands available to <a href="https://ssdb.io/">https://ssdb.io/</a>
         /// </summary>
-        /// <remarks>http://www.ideawu.com/ssdb/docs/redis-to-ssdb.html</remarks>
+        /// <remarks>https://ssdb.io/docs/redis-to-ssdb.html</remarks>
         public static CommandMap SSDB { get; } = Create(new HashSet<string> {
-            // see http://www.ideawu.com/ssdb/docs/redis-to-ssdb.html
             "ping",
             "get", "set", "del", "incr", "incrby", "mget", "mset", "keys", "getset", "setnx",
             "hget", "hset", "hdel", "hincrby", "hkeys", "hvals", "hmget", "hmset", "hlen",

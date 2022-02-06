@@ -241,7 +241,7 @@ plans to release `1.2.7`.
 - add: track message status in exceptions (#576)
 - add: `GetDatabase()` optimization for DB 0 and low numbered databases: `IDatabase` instance is retained and recycled (as long as no `asyncState` is provided)
 - improved connection retry policy (#510, #572)
-- add `Execute`/`ExecuteAsync` API to support "modules"; [more info](http://blog.marcgravell.com/2017/04/stackexchangeredis-and-redis-40-modules.html)
+- add `Execute`/`ExecuteAsync` API to support "modules"; [more info](https://blog.marcgravell.com/2017/04/stackexchangeredis-and-redis-40-modules.html)
 - fix: timeout link fixed re /docs change (below)
 - [`NRediSearch`](https://www.nuget.org/packages/NRediSearch/) added as exploration into "modules"
 
