@@ -17,7 +17,7 @@ Azure Cache for Redis currently sends the following notifications:
 
 The library will automatically subscribe to the pub/sub channel to receive notifications from the server, if one exists. For Azure Redis caches, this is the 'AzureRedisEvents' channel. To plug in your maintenance handling logic, you can pass in an event handler via the `ServerMaintenanceEvent` event on your `ConnectionMultiplexer`. For example:
 
-```
+```csharp
 multiplexer.ServerMaintenanceEvent += (object sender, ServerMaintenanceEvent e) =>
 {
     if (e is AzureMaintenanceEvent azureEvent && azureEvent.NotificationType == AzureNotificationType.NodeMaintenanceStart)
