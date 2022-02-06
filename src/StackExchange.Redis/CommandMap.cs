@@ -19,7 +19,7 @@ namespace StackExchange.Redis
         public static CommandMap Default { get; } = CreateImpl(null, null);
 
         /// <summary>
-        /// The commands available to <a href="https://github.com/twitter/twemproxy">https://github.com/twitter/twemproxy</a>.
+        /// The commands available to <a href="https://github.com/twitter/twemproxy">twemproxy</a>.
         /// </summary>
         /// <remarks>https://github.com/twitter/twemproxy/blob/master/notes/redis.md</remarks>
         public static CommandMap Twemproxy { get; } = CreateImpl(null, exclusions: new HashSet<RedisCommand>
@@ -52,7 +52,7 @@ namespace StackExchange.Redis
         });
 
         /// <summary>
-        /// The commands available to <a href="https://ssdb.io/">https://ssdb.io/</a>.
+        /// The commands available to <a href="https://ssdb.io/">SSDB</a>.
         /// </summary>
         /// <remarks>https://ssdb.io/docs/redis-to-ssdb.html</remarks>
         public static CommandMap SSDB { get; } = Create(new HashSet<string> {
@@ -64,7 +64,7 @@ namespace StackExchange.Redis
         }, true);
 
         /// <summary>
-        /// The commands available to <a href="Sentinel">https://redis.io/topics/sentinel</a>.
+        /// The commands available to <a href="https://redis.io/topics/sentinel">Sentinel</a>.
         /// </summary>
         /// <remarks>https://redis.io/topics/sentinel</remarks>
         public static CommandMap Sentinel { get; } = Create(new HashSet<string> {

@@ -1432,7 +1432,7 @@ namespace StackExchange.Redis
 
             if (db != 0 && RawConfig.Proxy == Proxy.Twemproxy)
             {
-                throw new NotSupportedException("Twemproxy only supports database 0");
+                throw new NotSupportedException("twemproxy only supports database 0");
             }
 
             return db;
