@@ -73,7 +73,6 @@ namespace StackExchange.Redis
         public bool HasDatabases => serverType == ServerType.Standalone;
 
         public bool IsConnected => interactive?.IsConnected == true;
-
         public bool IsSubscriberConnected => subscription?.IsConnected == true;
 
         public bool IsConnecting => interactive?.IsConnecting == true;
@@ -142,7 +141,7 @@ namespace StackExchange.Redis
             get
             {
                 var tmp = interactive;
-                return tmp.ConnectionState;
+                return tmp?.ConnectionState ?? State.Disconnected;
             }
         }
 
@@ -553,7 +552,11 @@ namespace StackExchange.Redis
 
         internal bool IsSelectable(RedisCommand command, bool allowDisconnected = false)
         {
-            var bridge = unselectableReasons == 0 ? GetBridge(command, false) : null;
+            // Until we've connected at least once, we're going too have a DidNotRespond unselectable reason present
+            var bridge = unselectableReasons == 0 || (allowDisconnected && unselectableReasons == UnselectableFlags.DidNotRespond)
+                ? GetBridge(command, false)
+                : null;
+
             return bridge != null && (allowDisconnected || bridge.IsConnected);
         }
 
@@ -617,6 +620,9 @@ namespace StackExchange.Redis
                 var bridge = connection?.BridgeCouldBeNull;
                 if (bridge != null)
                 {
+                    // Clear the unselectable flag ASAP since we are open for business
+                    ClearUnselectable(UnselectableFlags.DidNotRespond);
+
                     if (bridge == subscription)
                     {
                         // Note: this MUST be fire and forget, because we might be in the middle of a Sync processing
@@ -841,7 +847,7 @@ namespace StackExchange.Redis
                     }
                     else
                     {
-                        result = bridge.WriteMessageTakingWriteLockAsync(connection, message);
+                        result = bridge.WriteMessageTakingWriteLockAsync(connection, message, bypassBacklog: true);
                     }
                 }
 

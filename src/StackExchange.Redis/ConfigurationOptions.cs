@@ -146,6 +146,8 @@ namespace StackExchange.Redis
 
         private IReconnectRetryPolicy reconnectRetryPolicy;
 
+        private BacklogPolicy backlogPolicy;
+
         /// <summary>
         /// A LocalCertificateSelectionCallback delegate responsible for selecting the certificate used for authentication; note
         /// that this cannot be specified in the configuration-string.
@@ -373,6 +375,15 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
+        /// The backlog policy to be used for commands when a connection is unhealthy.
+        /// </summary>
+        public BacklogPolicy BacklogPolicy
+        {
+            get => backlogPolicy ?? BacklogPolicy.Default;
+            set => backlogPolicy = value;
+        }
+
+        /// <summary>
         /// Indicates whether endpoints should be resolved via DNS before connecting.
         /// If enabled the ConnectionMultiplexer will not re-resolve DNS
         /// when attempting to re-connect after a connection failure.
@@ -541,6 +552,7 @@ namespace StackExchange.Redis
                 responseTimeout = responseTimeout,
                 DefaultDatabase = DefaultDatabase,
                 ReconnectRetryPolicy = reconnectRetryPolicy,
+                BacklogPolicy = backlogPolicy,
                 SslProtocols = SslProtocols,
                 checkCertificateRevocation = checkCertificateRevocation,
             };

@@ -100,7 +100,7 @@ namespace StackExchange.Redis
             }
         }
 
-        public ServerEndPoint Select(Message message)
+        public ServerEndPoint Select(Message message, bool allowDisconnected = false)
         {
             if (message == null) throw new ArgumentNullException(nameof(message));
             int slot = NoSlot;
@@ -114,19 +114,19 @@ namespace StackExchange.Redis
                     if (slot == MultipleSlots) throw ExceptionFactory.MultiSlot(multiplexer.IncludeDetailInExceptions, message);
                     break;
             }
-            return Select(slot, message.Command, message.Flags);
+            return Select(slot, message.Command, message.Flags, allowDisconnected);
         }
 
-        public ServerEndPoint Select(RedisCommand command, in RedisKey key, CommandFlags flags)
+        public ServerEndPoint Select(RedisCommand command, in RedisKey key, CommandFlags flags, bool allowDisconnected = false)
         {
             int slot = ServerType == ServerType.Cluster ? HashSlot(key) : NoSlot;
-            return Select(slot, command, flags);
+            return Select(slot, command, flags, allowDisconnected);
         }
 
-        public ServerEndPoint Select(RedisCommand command, in RedisChannel channel, CommandFlags flags)
+        public ServerEndPoint Select(RedisCommand command, in RedisChannel channel, CommandFlags flags, bool allowDisconnected = false)
         {
             int slot = ServerType == ServerType.Cluster ? HashSlot(channel) : NoSlot;
-            return Select(slot, command, flags);
+            return Select(slot, command, flags, allowDisconnected);
         }
 
         public bool TryResend(int hashSlot, Message message, EndPoint endpoint, bool isMoved)
@@ -240,10 +240,8 @@ namespace StackExchange.Redis
             return -1;
         }
 
-        private ServerEndPoint Any(RedisCommand command, CommandFlags flags)
-        {
-            return multiplexer.AnyConnected(ServerType, (uint)Interlocked.Increment(ref anyStartOffset), command, flags);
-        }
+        private ServerEndPoint Any(RedisCommand command, CommandFlags flags, bool allowDisconnected) =>
+            multiplexer.AnyServer(ServerType, (uint)Interlocked.Increment(ref anyStartOffset), command, flags, allowDisconnected);
 
         private static ServerEndPoint FindMaster(ServerEndPoint endpoint, RedisCommand command)
         {
@@ -286,12 +284,12 @@ namespace StackExchange.Redis
             return arr;
         }
 
-        private ServerEndPoint Select(int slot, RedisCommand command, CommandFlags flags)
+        private ServerEndPoint Select(int slot, RedisCommand command, CommandFlags flags, bool allowDisconnected)
         {
             flags = Message.GetMasterReplicaFlags(flags); // only interested in master/replica preferences
 
             ServerEndPoint[] arr;
-            if (slot == NoSlot || (arr = map) == null) return Any(command, flags);
+            if (slot == NoSlot || (arr = map) == null) return Any(command, flags, allowDisconnected);
 
             ServerEndPoint endpoint = arr[slot], testing;
             // but: ^^^ is the MASTER slots; if we want a replica, we need to do some thinking
@@ -301,21 +299,21 @@ namespace StackExchange.Redis
                 switch (flags)
                 {
                     case CommandFlags.DemandReplica:
-                        return FindReplica(endpoint, command) ?? Any(command, flags);
+                        return FindReplica(endpoint, command) ?? Any(command, flags, allowDisconnected);
                     case CommandFlags.PreferReplica:
                         testing = FindReplica(endpoint, command);
                         if (testing != null) return testing;
                         break;
                     case CommandFlags.DemandMaster:
-                        return FindMaster(endpoint, command) ?? Any(command, flags);
+                        return FindMaster(endpoint, command) ?? Any(command, flags, allowDisconnected);
                     case CommandFlags.PreferMaster:
                         testing = FindMaster(endpoint, command);
                         if (testing != null) return testing;
                         break;
                 }
-                if (endpoint.IsSelectable(command)) return endpoint;
+                if (endpoint.IsSelectable(command, allowDisconnected)) return endpoint;
             }
-            return Any(command, flags);
+            return Any(command, flags, allowDisconnected);
         }
     }
 }
