@@ -12,9 +12,6 @@ namespace StackExchange.Redis.Tests
 
         protected override string GetConfiguration() => TestConfig.Current.MasterServerAndPort + "," + TestConfig.Current.ReplicaServerAndPort;
 
-        // TODO: Sync route testing (e.g. Ping() for TryWriteSync path)
-        // TODO: Specific server calls
-
         [Fact]
         public async Task FailFast()
         {
@@ -199,7 +196,6 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-
         [Fact]
         public async Task QueuesAndFlushesAfterReconnecting()
         {
@@ -293,6 +289,108 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal(0, stats.BacklogMessagesPending);
                 Writer.WriteLine("Test: Awaiting 3 more pings");
                 await Task.WhenAll(pings);
+                Writer.WriteLine("Test: Done");
+            }
+            finally
+            {
+                ClearAmbientFailures();
+            }
+        }
+
+        [Fact]
+        public async Task QueuesAndFlushesAfterReconnectingClusterAsync()
+        {
+            try
+            {
+                var options = ConfigurationOptions.Parse(TestConfig.Current.ClusterServersAndPorts);
+                options.BacklogPolicy = BacklogPolicy.Default;
+                options.AbortOnConnectFail = false;
+                options.ConnectTimeout = 1000;
+                options.ConnectRetry = 2;
+                options.SyncTimeout = 10000;
+                options.KeepAlive = 10000;
+                options.AsyncTimeout = 5000;
+                options.AllowAdmin = true;
+                options.SocketManager = SocketManager.ThreadPool;
+
+                using var muxer = await ConnectionMultiplexer.ConnectAsync(options, Writer);
+                muxer.ErrorMessage += (s, e) => Log($"Error Message {e.EndPoint}: {e.Message}");
+                muxer.InternalError += (s, e) => Log($"Internal Error {e.EndPoint}: {e.Exception.Message}");
+                muxer.ConnectionFailed += (s, a) => Log("Disconnected: " + EndPointCollection.ToString(a.EndPoint));
+                muxer.ConnectionRestored += (s, a) => Log("Reconnected: " + EndPointCollection.ToString(a.EndPoint));
+
+                var db = muxer.GetDatabase();
+                Writer.WriteLine("Test: Initial (connected) ping");
+                await db.PingAsync();
+
+                RedisKey meKey = Me();
+                var getMsg = Message.Create(0, CommandFlags.None, RedisCommand.GET, meKey);
+
+                var server = muxer.SelectServer(getMsg); // Get the server specifically for this message's hash slot
+                var stats = server.GetBridgeStatus(ConnectionType.Interactive);
+                Assert.Equal(0, stats.BacklogMessagesPending); // Everything's normal
+
+                static Task<TimeSpan> PingAsync(ServerEndPoint server, CommandFlags flags = CommandFlags.None)
+                {
+                    var message = ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.PING);
+
+                    server.Multiplexer.CheckMessage(message);
+                    return server.Multiplexer.ExecuteAsyncImpl(message, ResultProcessor.ResponseTimer, null, server);
+                }
+
+                // Fail the connection
+                Writer.WriteLine("Test: Simulating failure");
+                muxer.AllowConnect = false;
+                server.SimulateConnectionFailure(SimulatedFailureType.All);
+                Assert.False(server.IsConnected); // Server isn't connected
+                Assert.True(muxer.IsConnected); // ...but the multiplexer is
+
+                // Queue up some commands
+                Writer.WriteLine("Test: Disconnected pings");
+                var ignoredA = PingAsync(server);
+                var ignoredB = PingAsync(server);
+                var lastPing = PingAsync(server);
+
+                var disconnectedStats = server.GetBridgeStatus(ConnectionType.Interactive);
+                Assert.False(server.IsConnected);
+                Assert.True(muxer.IsConnected);
+                Assert.True(disconnectedStats.BacklogMessagesPending >= 3, $"Expected {nameof(disconnectedStats.BacklogMessagesPending)} > 3, got {disconnectedStats.BacklogMessagesPending}");
+
+                Writer.WriteLine("Test: Allowing reconnect");
+                muxer.AllowConnect = true;
+                Writer.WriteLine("Test: Awaiting reconnect");
+                await UntilCondition(TimeSpan.FromSeconds(3), () => server.IsConnected).ForAwait();
+
+                Writer.WriteLine("Test: Checking reconnected 1");
+                Assert.True(server.IsConnected);
+                Assert.True(muxer.IsConnected);
+
+                Writer.WriteLine("Test: ignoredA Status: " + ignoredA.Status);
+                Writer.WriteLine("Test: ignoredB Status: " + ignoredB.Status);
+                Writer.WriteLine("Test: lastPing Status: " + lastPing.Status);
+                var afterConnectedStats = server.GetBridgeStatus(ConnectionType.Interactive);
+                Writer.WriteLine($"Test: BacklogStatus: {afterConnectedStats.BacklogStatus}, BacklogMessagesPending: {afterConnectedStats.BacklogMessagesPending}, IsWriterActive: {afterConnectedStats.IsWriterActive}, MessagesSinceLastHeartbeat: {afterConnectedStats.MessagesSinceLastHeartbeat}, TotalBacklogMessagesQueued: {afterConnectedStats.TotalBacklogMessagesQueued}");
+
+                Writer.WriteLine("Test: Awaiting lastPing 1");
+                await lastPing;
+
+                Writer.WriteLine("Test: Checking reconnected 2");
+                Assert.True(server.IsConnected);
+                Assert.True(muxer.IsConnected);
+                var reconnectedStats = server.GetBridgeStatus(ConnectionType.Interactive);
+                Assert.Equal(0, reconnectedStats.BacklogMessagesPending);
+
+                Writer.WriteLine("Test: Pinging again...");
+                _ = PingAsync(server);
+                _ = PingAsync(server);
+                Writer.WriteLine("Test: Last Ping issued");
+                lastPing = PingAsync(server); ;
+
+                // We should see none queued
+                Writer.WriteLine("Test: BacklogMessagesPending check");
+                Assert.Equal(0, stats.BacklogMessagesPending);
+                Writer.WriteLine("Test: Awaiting lastPing 2");
+                await lastPing;
                 Writer.WriteLine("Test: Done");
             }
             finally
