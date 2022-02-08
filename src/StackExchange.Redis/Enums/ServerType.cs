@@ -26,9 +26,9 @@
     internal static class ServerTypeExtesions
     {
         /// <summary>
-        /// Whether a server type supports multiple primary servers.
+        /// Whether a server type can have only a single primary, meaning an election if multiple are found.
         /// </summary>
-        public static bool SupportsMultiplePrimaries(this ServerType type) => type switch
+        public static bool HasSinglePrimary(this ServerType type) => type switch
         {
             _ => false
         };

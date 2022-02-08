@@ -1891,7 +1891,7 @@ namespace StackExchange.Redis
                         // If multiple primaries are detected, nominate the preferred one
                         // ...but not if the type of server we're connected to supports and expects multiple primaries
                         // ...for those cases, we want to allow sending to any primary endpoint.
-                        if (!ServerSelectionStrategy.ServerType.SupportsMultiplePrimaries())
+                        if (ServerSelectionStrategy.ServerType.HasSinglePrimary())
                         {
                             var preferred = NominatePreferredMaster(log, servers, useTieBreakers, masters);
                             foreach (var master in masters)
