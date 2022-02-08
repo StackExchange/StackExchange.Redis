@@ -333,9 +333,7 @@ namespace StackExchange.Redis
             log?.WriteLine($"{Format.ToString(this)}: Auto-configuring...");
 
             var commandMap = Multiplexer.CommandMap;
-#pragma warning disable CS0618
-            const CommandFlags flags = CommandFlags.FireAndForget | CommandFlags.HighPriority | CommandFlags.NoRedirect;
-#pragma warning restore CS0618
+            const CommandFlags flags = CommandFlags.FireAndForget | CommandFlags.NoRedirect;
             var features = GetFeatures();
             Message msg;
 
@@ -670,10 +668,11 @@ namespace StackExchange.Redis
             if (version >= RedisFeatures.v2_8_0 && Multiplexer.CommandMap.IsAvailable(RedisCommand.INFO)
                 && (bridge = GetBridge(ConnectionType.Interactive, false)) != null)
             {
-#pragma warning disable CS0618
-                var msg = Message.Create(-1, CommandFlags.FireAndForget | CommandFlags.HighPriority | CommandFlags.NoRedirect, RedisCommand.INFO, RedisLiterals.replication);
+                var msg = Message.Create(-1, CommandFlags.FireAndForget | CommandFlags.NoRedirect, RedisCommand.INFO, RedisLiterals.replication);
                 msg.SetInternalCall();
-                WriteDirectFireAndForgetSync(msg, ResultProcessor.AutoConfigure, bridge);
+                msg.SetSource(ResultProcessor.AutoConfigure, null);
+#pragma warning disable CS0618
+                bridge.TryWriteSync(msg, isReplica);
 #pragma warning restore CS0618
                 return true;
             }
@@ -762,17 +761,6 @@ namespace StackExchange.Redis
                 ConnectionMultiplexer.ThrowFailed(tcs, ex);
             }
             return tcs.Task;
-        }
-
-        [Obsolete("prefer async")]
-        internal void WriteDirectFireAndForgetSync<T>(Message message, ResultProcessor<T> processor, PhysicalBridge bridge = null)
-        {
-            if (message != null)
-            {
-                message.SetSource(processor, null);
-                Multiplexer.Trace("Enqueue: " + message);
-                (bridge ?? GetBridge(message)).TryWriteSync(message, isReplica);
-            }
         }
 
         internal void ReportNextFailure()

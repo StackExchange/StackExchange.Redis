@@ -384,7 +384,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal void MakeMaster(ServerEndPoint server, ReplicationChangeOptions options, LogProxy log)
+        internal async Task MakePrimaryAsync(ServerEndPoint server, ReplicationChangeOptions options, LogProxy log)
         {
             var cmd = server.GetFeatures().ReplicaCommands ? RedisCommand.REPLICAOF : RedisCommand.SLAVEOF;
             CommandMap.AssertAvailable(cmd);
@@ -395,15 +395,13 @@ namespace StackExchange.Redis
             var srv = new RedisServer(this, server, null);
             if (!srv.IsConnected) throw ExceptionFactory.NoConnectionAvailable(this, null, server, GetServerSnapshot(), command: cmd);
 
-#pragma warning disable CS0618
-            const CommandFlags flags = CommandFlags.NoRedirect | CommandFlags.HighPriority;
-#pragma warning restore CS0618
+            const CommandFlags flags = CommandFlags.NoRedirect;
             Message msg;
 
             log?.WriteLine($"Checking {Format.ToString(srv.EndPoint)} is available...");
             try
             {
-                srv.Ping(flags); // if it isn't happy, we're not happy
+                await srv.PingAsync(flags); // if it isn't happy, we're not happy
             }
             catch (Exception ex)
             {
@@ -411,7 +409,7 @@ namespace StackExchange.Redis
                 throw;
             }
 
-            var nodes = GetServerSnapshot();
+            var nodes = GetServerSnapshot().ToArray(); // Have to array because async/await
             RedisValue newMaster = Format.ToString(server.EndPoint);
 
             RedisKey tieBreakerKey = default(RedisKey);
@@ -423,12 +421,14 @@ namespace StackExchange.Redis
 
                 foreach (var node in nodes)
                 {
-                    if (!node.IsConnected) continue;
+                    if (!node.IsConnected || node.IsReplica) continue;
                     log?.WriteLine($"Attempting to set tie-breaker on {Format.ToString(node.EndPoint)}...");
-                    msg = Message.Create(0, flags, RedisCommand.SET, tieBreakerKey, newMaster);
-#pragma warning disable CS0618
-                    node.WriteDirectFireAndForgetSync(msg, ResultProcessor.DemandOK);
-#pragma warning restore CS0618
+                    msg = Message.Create(0, flags | CommandFlags.FireAndForget, RedisCommand.SET, tieBreakerKey, newMaster);
+                    try
+                    {
+                        await node.WriteDirectAsync(msg, ResultProcessor.DemandOK);
+                    }
+                    catch { }
                 }
             }
 
@@ -436,7 +436,7 @@ namespace StackExchange.Redis
             log?.WriteLine($"Making {Format.ToString(srv.EndPoint)} a master...");
             try
             {
-                srv.ReplicaOf(null, flags);
+                await srv.ReplicaOfAsync(null, flags);
             }
             catch (Exception ex)
             {
@@ -445,13 +445,15 @@ namespace StackExchange.Redis
             }
 
             // also, in case it was a replica a moment ago, and hasn't got the tie-breaker yet, we re-send the tie-breaker to this one
-            if (!tieBreakerKey.IsNull)
+            if (!tieBreakerKey.IsNull && !server.IsReplica)
             {
                 log?.WriteLine($"Resending tie-breaker to {Format.ToString(server.EndPoint)}...");
-                msg = Message.Create(0, flags, RedisCommand.SET, tieBreakerKey, newMaster);
-#pragma warning disable CS0618
-                server.WriteDirectFireAndForgetSync(msg, ResultProcessor.DemandOK);
-#pragma warning restore CS0618
+                msg = Message.Create(0, flags | CommandFlags.FireAndForget, RedisCommand.SET, tieBreakerKey, newMaster);
+                try
+                {
+                    await server.WriteDirectAsync(msg, ResultProcessor.DemandOK);
+                }
+                catch { }
             }
 
             // There's an inherent race here in zero-latency environments (e.g. when Redis is on localhost) when a broadcast is specified
@@ -465,7 +467,7 @@ namespace StackExchange.Redis
             // We want everyone possible to pick it up.
             // We broadcast before *and after* the change to remote members, so that they don't go without detecting a change happened.
             // This eliminates the race of pub/sub *then* re-slaving happening, since a method both precedes and follows.
-            void Broadcast(ReadOnlySpan<ServerEndPoint> serverNodes)
+            async Task BroadcastAsync(ServerEndPoint[] serverNodes)
             {
                 if ((options & ReplicationChangeOptions.Broadcast) != 0 && ConfigurationChangedChannel != null
                     && CommandMap.IsAvailable(RedisCommand.PUBLISH))
@@ -475,16 +477,14 @@ namespace StackExchange.Redis
                     {
                         if (!node.IsConnected) continue;
                         log?.WriteLine($"Broadcasting via {Format.ToString(node.EndPoint)}...");
-                        msg = Message.Create(-1, flags, RedisCommand.PUBLISH, channel, newMaster);
-#pragma warning disable CS0618
-                        node.WriteDirectFireAndForgetSync(msg, ResultProcessor.Int64);
-#pragma warning restore CS0618
+                        msg = Message.Create(-1, flags | CommandFlags.FireAndForget, RedisCommand.PUBLISH, channel, newMaster);
+                        await node.WriteDirectAsync(msg, ResultProcessor.Int64);
                     }
                 }
             }
 
             // Send a message before it happens - because afterwards a new replica may be unresponsive
-            Broadcast(nodes);
+            await BroadcastAsync(nodes);
 
             if ((options & ReplicationChangeOptions.ReplicateToOtherEndpoints) != 0)
             {
@@ -494,16 +494,14 @@ namespace StackExchange.Redis
 
                     log?.WriteLine($"Replicating to {Format.ToString(node.EndPoint)}...");
                     msg = RedisServer.CreateReplicaOfMessage(node, server.EndPoint, flags);
-#pragma warning disable CS0618
-                    node.WriteDirectFireAndForgetSync(msg, ResultProcessor.DemandOK);
-#pragma warning restore CS0618
+                    await node.WriteDirectAsync(msg, ResultProcessor.DemandOK);
                 }
             }
 
             // ...and send one after it happens - because the first broadcast may have landed on a secondary client
             // and it can reconfigure before any topology change actually happened. This is most likely to happen
             // in low-latency environments.
-            Broadcast(nodes);
+            await BroadcastAsync(nodes);
 
             // and reconfigure the muxer
             log?.WriteLine("Reconfiguring all endpoints...");
@@ -513,7 +511,7 @@ namespace StackExchange.Redis
             {
                 Interlocked.Exchange(ref activeConfigCause, null);
             }
-            if (!ReconfigureAsync(first: false, reconfigureAll: true, log, srv.EndPoint, "make master").ObserveErrors().Wait(5000))
+            if (!await ReconfigureAsync(first: false, reconfigureAll: true, log, srv.EndPoint, "make master"))
             {
                 log?.WriteLine("Verifying the configuration was incomplete; please verify");
             }

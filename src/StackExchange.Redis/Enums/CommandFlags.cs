@@ -18,7 +18,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// From 2.0, this flag is not used
         /// </summary>
-        [Obsolete("From 2.0, this flag is not used", false)]
+        [Obsolete("From 2.0, this flag is not used, this will be removed in 3.0.", false)]
         HighPriority = 1,
         /// <summary>
         /// The caller is not interested in the result; the caller will immediately receive a default-value
