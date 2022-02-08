@@ -9,6 +9,7 @@ namespace StackExchange.Redis
             ASK = "ASK ",
             authFail_trimmed = CommandBytes.TrimToFit("ERR operation not permitted"),
             backgroundSavingStarted_trimmed = CommandBytes.TrimToFit("Background saving started"),
+            backgroundSavingAOFStarted_trimmed = CommandBytes.TrimToFit("Background append only file rewriting started"),
             databases = "databases",
             loading = "LOADING ",
             MOVED = "MOVED ",
