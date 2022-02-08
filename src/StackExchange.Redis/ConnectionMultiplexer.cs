@@ -569,7 +569,7 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// Raised when nodes are explicitly requested to reconfigure via broadcast.
-        /// This usually means primary/replica changes.
+        /// This usually means primary/replica role changes.
         /// </summary>
         public event EventHandler<EndPointEventArgs> ConfigurationChangedBroadcast;
 
