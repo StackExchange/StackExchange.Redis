@@ -63,7 +63,7 @@ namespace StackExchange.Redis.Tests
         {
             try
             {
-                using (var muxer = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true, shared: false))
+                using (var muxer = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true, shared: false, backlogPolicy: BacklogPolicy.FailFast))
                 {
                     muxer.GetDatabase();
                     muxer.AllowConnect = false;
@@ -156,6 +156,7 @@ namespace StackExchange.Redis.Tests
                 var options = new ConfigurationOptions()
                 {
                     AbortOnConnectFail = abortOnConnect,
+                    BacklogPolicy = BacklogPolicy.FailFast,
                     ConnectTimeout = 1000,
                     SyncTimeout = 500,
                     KeepAlive = 5000
