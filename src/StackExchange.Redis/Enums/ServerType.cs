@@ -30,7 +30,7 @@
         /// </summary>
         public static bool HasSinglePrimary(this ServerType type) => type switch
         {
-            _ => false
+            _ => true
         };
 
         /// <summary>
