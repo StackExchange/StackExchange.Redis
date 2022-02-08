@@ -22,4 +22,24 @@
         /// </summary>
         Twemproxy,
     }
+
+    internal static class ServerTypeExtesions
+    {
+        /// <summary>
+        /// Whether a server type supports multiple primary servers.
+        /// </summary>
+        public static bool SupportsMultiplePrimaries(this ServerType type) => type switch
+        {
+            _ => false
+        };
+
+        /// <summary>
+        /// Whether a server type supports <see cref="ServerEndPoint.AutoConfigureAsync(PhysicalConnection, ConnectionMultiplexer.LogProxy)"/>.
+        /// </summary>
+        public static bool SupportsAutoConfigure(this ServerType type) => type switch
+        {
+            ServerType.Twemproxy => false,
+            _ => true
+        };
+    }
 }
