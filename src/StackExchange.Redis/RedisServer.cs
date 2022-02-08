@@ -336,7 +336,16 @@ namespace StackExchange.Redis
         {
             using (var proxy = LogProxy.TryCreate(log))
             {
-                multiplexer.MakeMaster(server, options, proxy);
+                // Do you believe in magic?
+                multiplexer.MakePrimaryAsync(server, options, proxy).Wait(60000);
+            }
+        }
+
+        public async Task MakePrimaryAsync(ReplicationChangeOptions options, TextWriter log = null)
+        {
+            using (var proxy = LogProxy.TryCreate(log))
+            {
+                await multiplexer.MakePrimaryAsync(server, options, proxy);
             }
         }
 
@@ -571,6 +580,32 @@ namespace StackExchange.Redis
             return Message.Create(-1, flags, sendMessageTo.GetFeatures().ReplicaCommands ? RedisCommand.REPLICAOF : RedisCommand.SLAVEOF, host, port);
         }
 
+        private Message GetTiebreakerRemovalMessage()
+        {
+            var configuration = multiplexer.RawConfig;
+
+            if (!string.IsNullOrWhiteSpace(configuration.TieBreaker) && multiplexer.CommandMap.IsAvailable(RedisCommand.DEL))
+            {
+                var msg = Message.Create(0, CommandFlags.FireAndForget | CommandFlags.NoRedirect, RedisCommand.DEL, (RedisKey)configuration.TieBreaker);
+                msg.SetInternalCall();
+                return msg;
+            }
+            return null;
+        }
+
+        private Message GetConfigChangeMessage()
+        {
+            // attempt to broadcast a reconfigure message to anybody listening to this server
+            var channel = multiplexer.ConfigurationChangedChannel;
+            if (channel != null && multiplexer.CommandMap.IsAvailable(RedisCommand.PUBLISH))
+            {
+                var msg = Message.Create(-1, CommandFlags.FireAndForget | CommandFlags.NoRedirect, RedisCommand.PUBLISH, (RedisValue)channel, RedisLiterals.Wildcard);
+                msg.SetInternalCall();
+                return msg;
+            }
+            return null;
+        }
+
         internal override Task<T> ExecuteAsync<T>(Message message, ResultProcessor<T> processor, ServerEndPoint server = null)
         {   // inject our expected server automatically
             if (server == null) server = this.server;
@@ -614,46 +649,56 @@ namespace StackExchange.Redis
             {
                 throw new ArgumentException("Cannot replicate to self");
             }
-            // prepare the actual replicaof message (not sent yet)
-            var replicaOfMsg = CreateReplicaOfMessage(server, master, flags);
 
-            var configuration = multiplexer.RawConfig;
-
+#pragma warning disable CS0618
             // attempt to cease having an opinion on the master; will resume that when replication completes
             // (note that this may fail; we aren't depending on it)
-            if (!string.IsNullOrWhiteSpace(configuration.TieBreaker)
-                && multiplexer.CommandMap.IsAvailable(RedisCommand.DEL))
+            if (GetTiebreakerRemovalMessage() is Message tieBreakerRemoval)
             {
-                var del = Message.Create(0, CommandFlags.FireAndForget | CommandFlags.NoRedirect, RedisCommand.DEL, (RedisKey)configuration.TieBreaker);
-                del.SetInternalCall();
-#pragma warning disable CS0618
-                server.WriteDirectFireAndForgetSync(del, ResultProcessor.Boolean);
-#pragma warning restore CS0618
+                tieBreakerRemoval.SetSource(ResultProcessor.Boolean, null);
+                server.GetBridge(tieBreakerRemoval).TryWriteSync(tieBreakerRemoval, server.IsReplica);
             }
+
+            var replicaOfMsg = CreateReplicaOfMessage(server, master, flags);
             ExecuteSync(replicaOfMsg, ResultProcessor.DemandOK);
 
             // attempt to broadcast a reconfigure message to anybody listening to this server
-            var channel = multiplexer.ConfigurationChangedChannel;
-            if (channel != null && multiplexer.CommandMap.IsAvailable(RedisCommand.PUBLISH))
+            if (GetConfigChangeMessage() is Message configChangeMessage)
             {
-                var pub = Message.Create(-1, CommandFlags.FireAndForget | CommandFlags.NoRedirect, RedisCommand.PUBLISH, (RedisValue)channel, RedisLiterals.Wildcard);
-                pub.SetInternalCall();
-#pragma warning disable CS0618
-                server.WriteDirectFireAndForgetSync(pub, ResultProcessor.Int64);
-#pragma warning restore CS0618
+                configChangeMessage.SetSource(ResultProcessor.Int64, null);
+                server.GetBridge(configChangeMessage).TryWriteSync(configChangeMessage, server.IsReplica);
             }
+#pragma warning restore CS0618
         }
 
         Task IServer.SlaveOfAsync(EndPoint master, CommandFlags flags) => ReplicaOfAsync(master, flags);
 
-        public Task ReplicaOfAsync(EndPoint master, CommandFlags flags = CommandFlags.None)
+        public async Task ReplicaOfAsync(EndPoint master, CommandFlags flags = CommandFlags.None)
         {
-            var msg = CreateReplicaOfMessage(server, master, flags);
             if (master == server.EndPoint)
             {
                 throw new ArgumentException("Cannot replicate to self");
             }
-            return ExecuteAsync(msg, ResultProcessor.DemandOK);
+
+            // attempt to cease having an opinion on the master; will resume that when replication completes
+            // (note that this may fail; we aren't depending on it)
+            if (GetTiebreakerRemovalMessage() is Message tieBreakerRemoval && !server.IsReplica)
+            {
+                try
+                {
+                    await server.WriteDirectAsync(tieBreakerRemoval, ResultProcessor.Boolean);
+                }
+                catch { }
+            }
+
+            var msg = CreateReplicaOfMessage(server, master, flags);
+            await ExecuteAsync(msg, ResultProcessor.DemandOK);
+
+            // attempt to broadcast a reconfigure message to anybody listening to this server
+            if (GetConfigChangeMessage() is Message configChangeMessage)
+            {
+                await server.WriteDirectAsync(configChangeMessage, ResultProcessor.Int64);
+            }
         }
 
         private static void FixFlags(Message message, ServerEndPoint server)
@@ -684,7 +729,7 @@ namespace StackExchange.Redis
 
         private static ResultProcessor<bool> GetSaveResultProcessor(SaveType type) => type switch
         {
-            SaveType.BackgroundRewriteAppendOnlyFile => ResultProcessor.DemandOK,
+            SaveType.BackgroundRewriteAppendOnlyFile => ResultProcessor.BackgroundSaveAOFStarted,
             SaveType.BackgroundSave => ResultProcessor.BackgroundSaveStarted,
 #pragma warning disable 0618
             SaveType.ForegroundSave => ResultProcessor.DemandOK,

@@ -418,11 +418,19 @@ namespace StackExchange.Redis
         Task<DateTime> LastSaveAsync(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Promote the selected node to be master
+        /// Promote the selected node to be primary.
         /// </summary>
         /// <param name="options">The options to use for this topology change.</param>
         /// <param name="log">The log to write output to.</param>
+        [Obsolete("Please use " + nameof(MakePrimaryAsync) + ", this will be removed in 3.0.")]
         void MakeMaster(ReplicationChangeOptions options, TextWriter log = null);
+
+        /// <summary>
+        /// Promote the selected node to be primary.
+        /// </summary>
+        /// <param name="options">The options to use for this topology change.</param>
+        /// <param name="log">The log to write output to.</param>
+        Task MakePrimaryAsync(ReplicationChangeOptions options, TextWriter log = null);
 
         /// <summary>
         /// Returns the role info for the current server.
@@ -540,7 +548,7 @@ namespace StackExchange.Redis
         /// <param name="master">Endpoint of the new master to replicate from.</param>
         /// <param name="flags">The command flags to use.</param>
         /// <remarks>https://redis.io/commands/replicaof</remarks>
-        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(ReplicaOf) + " instead.")]
+        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(ReplicaOfAsync) + " instead, this will be removed in 3.0.")]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         void SlaveOf(EndPoint master, CommandFlags flags = CommandFlags.None);
 
@@ -550,6 +558,7 @@ namespace StackExchange.Redis
         /// <param name="master">Endpoint of the new master to replicate from.</param>
         /// <param name="flags">The command flags to use.</param>
         /// <remarks>https://redis.io/commands/replicaof</remarks>
+        [Obsolete("Please use " + nameof(ReplicaOfAsync) + ", this will be removed in 3.0.")]
         void ReplicaOf(EndPoint master, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -558,7 +567,7 @@ namespace StackExchange.Redis
         /// <param name="master">Endpoint of the new master to replicate from.</param>
         /// <param name="flags">The command flags to use.</param>
         /// <remarks>https://redis.io/commands/replicaof</remarks>
-        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(ReplicaOfAsync) + " instead.")]
+        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(ReplicaOfAsync) + " instead, this will be removed in 3.0.")]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         Task SlaveOfAsync(EndPoint master, CommandFlags flags = CommandFlags.None);
 
