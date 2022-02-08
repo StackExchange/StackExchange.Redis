@@ -975,10 +975,8 @@ namespace StackExchange.Redis
                 WriteUnifiedSpan(writer, new ReadOnlySpan<byte>(value));
             }
         }
-
-#pragma warning disable RCS1231 // Make parameter ref read-only.
+        
         private static void WriteUnifiedSpan(PipeWriter writer, ReadOnlySpan<byte> value)
-#pragma warning restore RCS1231 // Make parameter ref read-only.
         {
             // ${len}\r\n           = 3 + MaxInt32TextLen
             // {value}\r\n          = 2 + value.Length
@@ -1020,9 +1018,7 @@ namespace StackExchange.Redis
             return WriteCrlf(span, offset);
         }
 
-#pragma warning disable RCS1231 // Make parameter ref read-only. - spans are tiny
         private static int AppendToSpan(Span<byte> span, ReadOnlySpan<byte> value, int offset = 0)
-#pragma warning restore RCS1231 // Make parameter ref read-only.
         {
             offset = WriteRaw(span, value.Length, offset: offset);
             value.CopyTo(span.Slice(offset, value.Length));

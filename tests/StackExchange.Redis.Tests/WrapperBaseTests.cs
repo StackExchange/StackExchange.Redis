@@ -22,12 +22,10 @@ namespace StackExchange.Redis.Tests
             wrapper = new WrapperBase<IDatabaseAsync>(mock.Object, Encoding.UTF8.GetBytes("prefix:"));
         }
 
-#pragma warning disable RCS1047 // Non-asynchronous method name should not end with 'Async'.
-
         [Fact]
-        public void DebugObjectAsync()
+        public async Task DebugObjectAsync()
         {
-            wrapper.DebugObjectAsync("key", CommandFlags.None);
+            await wrapper.DebugObjectAsync("key", CommandFlags.None);
             mock.Verify(_ => _.DebugObjectAsync("prefix:key", CommandFlags.None));
         }
 

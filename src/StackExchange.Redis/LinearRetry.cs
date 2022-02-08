@@ -11,10 +11,8 @@
         /// Initializes a new instance using the specified maximum retry elapsed time allowed.
         /// </summary>
         /// <param name="maxRetryElapsedTimeAllowedMilliseconds">maximum elapsed time in milliseconds to be allowed for it to perform retries.</param>
-        public LinearRetry(int maxRetryElapsedTimeAllowedMilliseconds)
-        {
+        public LinearRetry(int maxRetryElapsedTimeAllowedMilliseconds) =>
             this.maxRetryElapsedTimeAllowedMilliseconds = maxRetryElapsedTimeAllowedMilliseconds;
-        }
 
         /// <summary>
         /// This method is called by the ConnectionMultiplexer to determine if a reconnect operation can be retried now.

@@ -3,7 +3,7 @@ using System.ComponentModel;
 
 namespace StackExchange.Redis
 {
-  /// <summary>
+    /// <summary>
     /// Behaviour markers associated with a given command
     /// </summary>
     [Flags]
@@ -41,7 +41,7 @@ namespace StackExchange.Redis
         /// This operation should be performed on the replica if it is available, but will be performed on
         /// a master if no replicas are available. Suitable for read operations only.
         /// </summary>
-        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(PreferReplica) + " instead.")]
+        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(PreferReplica) + " instead, this will be removed in 3.0.")]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         PreferSlave = 8,
 
@@ -59,7 +59,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// This operation should only be performed on a replica. Suitable for read operations only.
         /// </summary>
-        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(DemandReplica) + " instead.")]
+        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(DemandReplica) + " instead, this will be removed in 3.0.")]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         DemandSlave = 12,
 

@@ -144,9 +144,7 @@ namespace StackExchange.Redis
             return RedisValue.Equals(ConcatenateBytes(keyPrefix0, keyValue0, null), ConcatenateBytes(keyPrefix1, keyValue1, null));
         }
 
-        /// <summary>
-        /// See <see cref="object.GetHashCode"/>.
-        /// </summary>
+        /// <inheritdoc/>
         public override int GetHashCode()
         {
             int chk0 = KeyPrefix == null ? 0 : RedisValue.GetHashCode(KeyPrefix),

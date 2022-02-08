@@ -31,7 +31,7 @@
         /// <summary>
         /// Whether to queue commands while disconnected.
         /// True means queue for attempts up until their timeout.
-        /// False means to fail ASAP and queue nothing.
+        /// <see langword="false"/> means to fail ASAP and queue nothing.
         /// </summary>
         public bool QueueWhileDisconnected { get; init; }
 

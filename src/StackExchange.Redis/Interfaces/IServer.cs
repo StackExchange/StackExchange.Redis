@@ -9,73 +9,75 @@ using System.Threading.Tasks;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// Provides configuration controls of a redis server
+    /// Provides configuration controls of a redis server.
     /// </summary>
     public partial interface IServer : IRedis
     {
         /// <summary>
-        /// Gets the cluster configuration associated with this server, if known
+        /// Gets the cluster configuration associated with this server, if known.
         /// </summary>
         ClusterConfiguration ClusterConfiguration { get; }
 
         /// <summary>
-        /// Gets the address of the connected server
+        /// Gets the address of the connected server.
         /// </summary>
         EndPoint EndPoint { get; }
 
         /// <summary>
-        /// Gets the features available to the connected server
+        /// Gets the features available to the connected server.
         /// </summary>
         RedisFeatures Features { get; }
 
         /// <summary>
-        /// Gets whether the connection to the server is active and usable
+        /// Gets whether the connection to the server is active and usable.
         /// </summary>
         bool IsConnected { get; }
 
         /// <summary>
-        /// Gets whether the connected server is a replica
+        /// Gets whether the connected server is a replica.
         /// </summary>
-        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(IsReplica) + " instead.")]
+        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(IsReplica) + " instead, this will be removed in 3.0.")]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         bool IsSlave { get; }
 
         /// <summary>
-        /// Gets whether the connected server is a replica
+        /// Gets whether the connected server is a replica.
         /// </summary>
         bool IsReplica { get; }
 
         /// <summary>
-        /// Explicitly opt in for replica writes on writable replica
+        /// Explicitly opt in for replica writes on writable replica.
         /// </summary>
-        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(AllowReplicaWrites) + " instead.")]
+        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(AllowReplicaWrites) + " instead, this will be removed in 3.0.")]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         bool AllowSlaveWrites { get; set; }
 
         /// <summary>
-        /// Explicitly opt in for replica writes on writable replica
+        /// Explicitly opt in for replica writes on writable replica.
         /// </summary>
         bool AllowReplicaWrites { get; set; }
 
         /// <summary>
-        /// Gets the operating mode of the connected server
+        /// Gets the operating mode of the connected server.
         /// </summary>
         ServerType ServerType { get; }
 
         /// <summary>
-        /// Gets the version of the connected server
+        /// Gets the version of the connected server.
         /// </summary>
         Version Version { get; }
 
         /// <summary>
-        /// The number of databases supported on this server
+        /// The number of databases supported on this server.
         /// </summary>
         int DatabaseCount { get; }
 
         /// <summary>
         /// The CLIENT KILL command closes a given client connection identified by ip:port.
         /// The ip:port should match a line returned by the CLIENT LIST command.
-        /// Due to the single-threaded nature of Redis, it is not possible to kill a client connection while it is executing a command.From the client point of view, the connection can never be closed in the middle of the execution of a command.However, the client will notice the connection has been closed only when the next command is sent (and results in network error).
+        /// Due to the single-threaded nature of Redis, it is not possible to kill a client connection while it is executing a command.
+        /// From the client point of view, the connection can never be closed in the middle of the execution of a command.
+        /// However, the client will notice the connection has been closed only when the next command is sent (and results in network error).
         /// </summary>
         /// <param name="endpoint">The endpoint of the client to kill.</param>
         /// <param name="flags">The command flags to use.</param>
@@ -85,7 +87,9 @@ namespace StackExchange.Redis
         /// <summary>
         /// The CLIENT KILL command closes a given client connection identified by ip:port.
         /// The ip:port should match a line returned by the CLIENT LIST command.
-        /// Due to the single-threaded nature of Redis, it is not possible to kill a client connection while it is executing a command.From the client point of view, the connection can never be closed in the middle of the execution of a command.However, the client will notice the connection has been closed only when the next command is sent (and results in network error).
+        /// Due to the single-threaded nature of Redis, it is not possible to kill a client connection while it is executing a command.
+        /// From the client point of view, the connection can never be closed in the middle of the execution of a command.
+        /// However, the client will notice the connection has been closed only when the next command is sent (and results in network error).
         /// </summary>
         /// <param name="endpoint">The endpoint of the client to kill.</param>
         /// <param name="flags">The command flags to use.</param>
@@ -93,24 +97,24 @@ namespace StackExchange.Redis
         Task ClientKillAsync(EndPoint endpoint, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// The CLIENT KILL command closes multiple connections that match the specified filters
+        /// The CLIENT KILL command closes multiple connections that match the specified filters.
         /// </summary>
         /// <param name="id">The ID of the client to kill.</param>
         /// <param name="clientType">The type of client.</param>
         /// <param name="endpoint">The endpoint to kill.</param>
-        /// <param name="skipMe">Whether to kskip the current connection.</param>
+        /// <param name="skipMe">Whether to skip the current connection.</param>
         /// <param name="flags">The command flags to use.</param>
         /// <returns>the number of clients killed.</returns>
         /// <remarks>https://redis.io/commands/client-kill</remarks>
         long ClientKill(long? id = null, ClientType? clientType = null, EndPoint endpoint = null, bool skipMe = true, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// The CLIENT KILL command closes multiple connections that match the specified filters
+        /// The CLIENT KILL command closes multiple connections that match the specified filters.
         /// </summary>
         /// <param name="id">The ID of the client to kill.</param>
         /// <param name="clientType">The type of client.</param>
         /// <param name="endpoint">The endpoint to kill.</param>
-        /// <param name="skipMe">Whether to kskip the current connection.</param>
+        /// <param name="skipMe">Whether to skip the current connection.</param>
         /// <param name="flags">The command flags to use.</param>
         /// <returns>the number of clients killed.</returns>
         /// <remarks>https://redis.io/commands/client-kill</remarks>
@@ -131,25 +135,25 @@ namespace StackExchange.Redis
         Task<ClientInfo[]> ClientListAsync(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Obtains the current CLUSTER NODES output from a cluster server
+        /// Obtains the current CLUSTER NODES output from a cluster server.
         /// </summary>
         /// <param name="flags">The command flags to use.</param>
         ClusterConfiguration ClusterNodes(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Obtains the current CLUSTER NODES output from a cluster server
+        /// Obtains the current CLUSTER NODES output from a cluster server.
         /// </summary>
         /// <param name="flags">The command flags to use.</param>
         Task<ClusterConfiguration> ClusterNodesAsync(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Obtains the current raw CLUSTER NODES output from a cluster server
+        /// Obtains the current raw CLUSTER NODES output from a cluster server.
         /// </summary>
         /// <param name="flags">The command flags to use.</param>
         string ClusterNodesRaw(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Obtains the current raw CLUSTER NODES output from a cluster server
+        /// Obtains the current raw CLUSTER NODES output from a cluster server.
         /// </summary>
         /// <param name="flags">The command flags to use.</param>
         Task<string> ClusterNodesRawAsync(CommandFlags flags = CommandFlags.None);
@@ -187,21 +191,26 @@ namespace StackExchange.Redis
         Task ConfigResetStatisticsAsync(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// The CONFIG REWRITE command rewrites the redis.conf file the server was started with, applying the minimal changes needed to make it reflecting the configuration currently used by the server, that may be different compared to the original one because of the use of the CONFIG SET command.
+        /// The CONFIG REWRITE command rewrites the redis.conf file the server was started with,
+        /// applying the minimal changes needed to make it reflecting the configuration currently
+        /// used by the server, that may be different compared to the original one because of the use of the CONFIG SET command.
         /// </summary>
         /// <param name="flags">The command flags to use.</param>
         /// <remarks>https://redis.io/commands/config-rewrite</remarks>
         void ConfigRewrite(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// The CONFIG REWRITE command rewrites the redis.conf file the server was started with, applying the minimal changes needed to make it reflecting the configuration currently used by the server, that may be different compared to the original one because of the use of the CONFIG SET command.
+        /// The CONFIG REWRITE command rewrites the redis.conf file the server was started with,
+        /// applying the minimal changes needed to make it reflecting the configuration currently
+        /// used by the server, that may be different compared to the original one because of the use of the CONFIG SET command.
         /// </summary>
         /// <param name="flags">The command flags to use.</param>
         /// <remarks>https://redis.io/commands/config-rewrite</remarks>
         Task ConfigRewriteAsync(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// The CONFIG SET command is used in order to reconfigure the server at runtime without the need to restart Redis. You can change both trivial parameters or switch from one to another persistence option using this command.
+        /// The CONFIG SET command is used in order to reconfigure the server at runtime without the need to restart Redis.
+        /// You can change both trivial parameters or switch from one to another persistence option using this command.
         /// </summary>
         /// <param name="setting">The setting name.</param>
         /// <param name="value">The new setting value.</param>
@@ -210,7 +219,8 @@ namespace StackExchange.Redis
         void ConfigSet(RedisValue setting, RedisValue value, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// The CONFIG SET command is used in order to reconfigure the server at runtime without the need to restart Redis. You can change both trivial parameters or switch from one to another persistence option using this command.
+        /// The CONFIG SET command is used in order to reconfigure the server at runtime without the need to restart Redis.
+        /// You can change both trivial parameters or switch from one to another persistence option using this command.
         /// </summary>
         /// <param name="setting">The setting name.</param>
         /// <param name="value">The new setting value.</param>
@@ -327,7 +337,7 @@ namespace StackExchange.Redis
         Task FlushDatabaseAsync(int database = -1, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Get summary statistics associates with this server
+        /// Get summary statistics associates with this server.
         /// </summary>
         ServerCounters GetCounters();
 
@@ -376,7 +386,9 @@ namespace StackExchange.Redis
         IEnumerable<RedisKey> Keys(int database, RedisValue pattern, int pageSize, CommandFlags flags);
 
         /// <summary>
-        /// Returns all keys matching pattern; the KEYS or SCAN commands will be used based on the server capabilities; note: to resume an iteration via <i>cursor</i>, cast the original enumerable or enumerator to <i>IScanningCursor</i>.
+        /// Returns all keys matching pattern.
+        /// The KEYS or SCAN commands will be used based on the server capabilities.
+        /// Note: to resume an iteration via <i>cursor</i>, cast the original enumerable or enumerator to <i>IScanningCursor</i>.
         /// </summary>
         /// <param name="database">The database ID.</param>
         /// <param name="pattern">The pattern to use.</param>
@@ -390,7 +402,9 @@ namespace StackExchange.Redis
         IEnumerable<RedisKey> Keys(int database = -1, RedisValue pattern = default(RedisValue), int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Returns all keys matching pattern; the KEYS or SCAN commands will be used based on the server capabilities; note: to resume an iteration via <i>cursor</i>, cast the original enumerable or enumerator to <i>IScanningCursor</i>.
+        /// Returns all keys matching pattern.
+        /// The KEYS or SCAN commands will be used based on the server capabilities.
+        /// Note: to resume an iteration via <i>cursor</i>, cast the original enumerable or enumerator to <i>IScanningCursor</i>.
         /// </summary>
         /// <param name="database">The database ID.</param>
         /// <param name="pattern">The pattern to use.</param>
@@ -404,14 +418,18 @@ namespace StackExchange.Redis
         IAsyncEnumerable<RedisKey> KeysAsync(int database = -1, RedisValue pattern = default(RedisValue), int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Return the time of the last DB save executed with success. A client may check if a BGSAVE command succeeded reading the LASTSAVE value, then issuing a BGSAVE command and checking at regular intervals every N seconds if LASTSAVE changed.
+        /// Return the time of the last DB save executed with success.
+        /// A client may check if a BGSAVE command succeeded reading the LASTSAVE value, then issuing a BGSAVE command
+        /// and checking at regular intervals every N seconds if LASTSAVE changed.
         /// </summary>
         /// <param name="flags">The command flags to use.</param>
         /// <remarks>https://redis.io/commands/lastsave</remarks>
         DateTime LastSave(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Return the time of the last DB save executed with success. A client may check if a BGSAVE command succeeded reading the LASTSAVE value, then issuing a BGSAVE command and checking at regular intervals every N seconds if LASTSAVE changed.
+        /// Return the time of the last DB save executed with success.
+        /// A client may check if a BGSAVE command succeeded reading the LASTSAVE value, then issuing a BGSAVE command
+        /// and checking at regular intervals every N seconds if LASTSAVE changed.
         /// </summary>
         /// <param name="flags">The command flags to use.</param>
         /// <remarks>https://redis.io/commands/lastsave</remarks>
@@ -445,7 +463,7 @@ namespace StackExchange.Redis
         Task<Role> RoleAsync(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Explicitly request the database to persist the current state to disk
+        /// Explicitly request the database to persist the current state to disk.
         /// </summary>
         /// <param name="type">The method of the save (e.g. background or foreground).</param>
         /// <param name="flags">The command flags to use.</param>
@@ -456,7 +474,7 @@ namespace StackExchange.Redis
         void Save(SaveType type, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Explicitly request the database to persist the current state to disk
+        /// Explicitly request the database to persist the current state to disk.
         /// </summary>
         /// <param name="type">The method of the save (e.g. background or foreground).</param>
         /// <param name="flags">The command flags to use.</param>
@@ -467,68 +485,68 @@ namespace StackExchange.Redis
         Task SaveAsync(SaveType type, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Indicates whether the specified script is defined on the server
+        /// Indicates whether the specified script is defined on the server.
         /// </summary>
         /// <param name="script">The text of the script to check for on the server.</param>
         /// <param name="flags">The command flags to use.</param>
         bool ScriptExists(string script, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Indicates whether the specified script hash is defined on the server
+        /// Indicates whether the specified script hash is defined on the server.
         /// </summary>
         /// <param name="sha1">The SHA1 of the script to check for on the server.</param>
         /// <param name="flags">The command flags to use.</param>
         bool ScriptExists(byte[] sha1, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Indicates whether the specified script is defined on the server
+        /// Indicates whether the specified script is defined on the server.
         /// </summary>
         /// <param name="script">The text of the script to check for on the server.</param>
         /// <param name="flags">The command flags to use.</param>
         Task<bool> ScriptExistsAsync(string script, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Indicates whether the specified script hash is defined on the server
+        /// Indicates whether the specified script hash is defined on the server.
         /// </summary>
         /// <param name="sha1">The SHA1 of the script to check for on the server.</param>
         /// <param name="flags">The command flags to use.</param>
         Task<bool> ScriptExistsAsync(byte[] sha1, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Removes all cached scripts on this server
+        /// Removes all cached scripts on this server.
         /// </summary>
         /// <param name="flags">The command flags to use.</param>
         void ScriptFlush(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Removes all cached scripts on this server
+        /// Removes all cached scripts on this server.
         /// </summary>
         /// <param name="flags">The command flags to use.</param>
         Task ScriptFlushAsync(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Explicitly defines a script on the server
+        /// Explicitly defines a script on the server.
         /// </summary>
         /// <param name="script">The script to load.</param>
         /// <param name="flags">The command flags to use.</param>
         byte[] ScriptLoad(string script, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Explicitly defines a script on the server
+        /// Explicitly defines a script on the server.
         /// </summary>
         /// <param name="script">The script to load.</param>
         /// <param name="flags">The command flags to use.</param>
         LoadedLuaScript ScriptLoad(LuaScript script, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Explicitly defines a script on the server
+        /// Explicitly defines a script on the server.
         /// </summary>
         /// <param name="script">The script to load.</param>
         /// <param name="flags">The command flags to use.</param>
         Task<byte[]> ScriptLoadAsync(string script, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Explicitly defines a script on the server
+        /// Explicitly defines a script on the server.
         /// </summary>
         /// <param name="script">The script to load.</param>
         /// <param name="flags">The command flags to use.</param>
@@ -543,7 +561,10 @@ namespace StackExchange.Redis
         void Shutdown(ShutdownMode shutdownMode = ShutdownMode.Default, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// The REPLICAOF command can change the replication settings of a replica on the fly. If a Redis server is already acting as replica, specifying a null master will turn off the replication, turning the Redis server into a MASTER. Specifying a non-null master will make the server a replica of another server listening at the specified hostname and port.
+        /// The REPLICAOF command can change the replication settings of a replica on the fly.
+        /// If a Redis server is already acting as replica, specifying a null master will turn off the replication,
+        /// turning the Redis server into a MASTER. Specifying a non-null master will make the server a replica of
+        /// another server listening at the specified hostname and port.
         /// </summary>
         /// <param name="master">Endpoint of the new master to replicate from.</param>
         /// <param name="flags">The command flags to use.</param>
@@ -553,7 +574,10 @@ namespace StackExchange.Redis
         void SlaveOf(EndPoint master, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// The REPLICAOF command can change the replication settings of a replica on the fly. If a Redis server is already acting as replica, specifying a null master will turn off the replication, turning the Redis server into a MASTER. Specifying a non-null master will make the server a replica of another server listening at the specified hostname and port.
+        /// The REPLICAOF command can change the replication settings of a replica on the fly.
+        /// If a Redis server is already acting as replica, specifying a null master will turn off the replication,
+        /// turning the Redis server into a MASTER. Specifying a non-null master will make the server a replica of
+        /// another server listening at the specified hostname and port.
         /// </summary>
         /// <param name="master">Endpoint of the new master to replicate from.</param>
         /// <param name="flags">The command flags to use.</param>
@@ -562,7 +586,10 @@ namespace StackExchange.Redis
         void ReplicaOf(EndPoint master, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// The REPLICAOF command can change the replication settings of a replica on the fly. If a Redis server is already acting as replica, specifying a null master will turn off the replication, turning the Redis server into a MASTER. Specifying a non-null master will make the server a replica of another server listening at the specified hostname and port.
+        /// The REPLICAOF command can change the replication settings of a replica on the fly.
+        /// If a Redis server is already acting as replica, specifying a null master will turn off the replication,
+        /// turning the Redis server into a MASTER. Specifying a non-null master will make the server a replica of
+        /// another server listening at the specified hostname and port.
         /// </summary>
         /// <param name="master">Endpoint of the new master to replicate from.</param>
         /// <param name="flags">The command flags to use.</param>
@@ -572,7 +599,10 @@ namespace StackExchange.Redis
         Task SlaveOfAsync(EndPoint master, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// The REPLICAOF command can change the replication settings of a replica on the fly. If a Redis server is already acting as replica, specifying a null master will turn off the replication, turning the Redis server into a MASTER. Specifying a non-null master will make the server a replica of another server listening at the specified hostname and port.
+        /// The REPLICAOF command can change the replication settings of a replica on the fly.
+        /// If a Redis server is already acting as replica, specifying a null master will turn off the replication,
+        /// turning the Redis server into a MASTER. Specifying a non-null master will make the server a replica of
+        /// another server listening at the specified hostname and port.
         /// </summary>
         /// <param name="master">Endpoint of the new master to replicate from.</param>
         /// <param name="flags">The command flags to use.</param>
@@ -580,7 +610,8 @@ namespace StackExchange.Redis
         Task ReplicaOfAsync(EndPoint master, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// To read the slow log the SLOWLOG GET command is used, that returns every entry in the slow log. It is possible to return only the N most recent entries passing an additional argument to the command (for instance SLOWLOG GET 10).
+        /// To read the slow log the SLOWLOG GET command is used, that returns every entry in the slow log.
+        /// It is possible to return only the N most recent entries passing an additional argument to the command (for instance SLOWLOG GET 10).
         /// </summary>
         /// <param name="count">The count of items to get.</param>
         /// <param name="flags">The command flags to use.</param>
@@ -588,7 +619,8 @@ namespace StackExchange.Redis
         CommandTrace[] SlowlogGet(int count = 0, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// To read the slow log the SLOWLOG GET command is used, that returns every entry in the slow log. It is possible to return only the N most recent entries passing an additional argument to the command (for instance SLOWLOG GET 10).
+        /// To read the slow log the SLOWLOG GET command is used, that returns every entry in the slow log.
+        /// It is possible to return only the N most recent entries passing an additional argument to the command (for instance SLOWLOG GET 10).
         /// </summary>
         /// <param name="count">The count of items to get.</param>
         /// <param name="flags">The command flags to use.</param>
@@ -610,7 +642,8 @@ namespace StackExchange.Redis
         Task SlowlogResetAsync(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Lists the currently active channels. An active channel is a Pub/Sub channel with one ore more subscribers (not including clients subscribed to patterns).
+        /// Lists the currently active channels.
+        /// An active channel is a Pub/Sub channel with one ore more subscribers (not including clients subscribed to patterns).
         /// </summary>
         /// <param name="pattern">The channel name pattern to get channels for.</param>
         /// <param name="flags">The command flags to use.</param>
@@ -619,7 +652,8 @@ namespace StackExchange.Redis
         RedisChannel[] SubscriptionChannels(RedisChannel pattern = default(RedisChannel), CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Lists the currently active channels. An active channel is a Pub/Sub channel with one ore more subscribers (not including clients subscribed to patterns).
+        /// Lists the currently active channels.
+        /// An active channel is a Pub/Sub channel with one ore more subscribers (not including clients subscribed to patterns).
         /// </summary>
         /// <param name="pattern">The channel name pattern to get channels for.</param>
         /// <param name="flags">The command flags to use.</param>
@@ -628,7 +662,8 @@ namespace StackExchange.Redis
         Task<RedisChannel[]> SubscriptionChannelsAsync(RedisChannel pattern = default(RedisChannel), CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Returns the number of subscriptions to patterns (that are performed using the PSUBSCRIBE command). Note that this is not just the count of clients subscribed to patterns but the total number of patterns all the clients are subscribed to.
+        /// Returns the number of subscriptions to patterns (that are performed using the PSUBSCRIBE command).
+        /// Note that this is not just the count of clients subscribed to patterns but the total number of patterns all the clients are subscribed to.
         /// </summary>
         /// <param name="flags">The command flags to use.</param>
         /// <returns>the number of patterns all the clients are subscribed to.</returns>
@@ -636,7 +671,8 @@ namespace StackExchange.Redis
         long SubscriptionPatternCount(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Returns the number of subscriptions to patterns (that are performed using the PSUBSCRIBE command). Note that this is not just the count of clients subscribed to patterns but the total number of patterns all the clients are subscribed to.
+        /// Returns the number of subscriptions to patterns (that are performed using the PSUBSCRIBE command).
+        /// Note that this is not just the count of clients subscribed to patterns but the total number of patterns all the clients are subscribed to.
         /// </summary>
         /// <param name="flags">The command flags to use.</param>
         /// <returns>the number of patterns all the clients are subscribed to.</returns>
@@ -886,7 +922,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The command flags to use.</param>
         /// <returns>an array of replica state KeyValuePair arrays</returns>
         /// <remarks>https://redis.io/topics/sentinel</remarks>
-        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(SentinelReplicas) + " instead.")]
+        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(SentinelReplicas) + " instead, this will be removed in 3.0.")]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         KeyValuePair<string, string>[][] SentinelSlaves(string serviceName, CommandFlags flags = CommandFlags.None);
 
@@ -906,7 +942,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The command flags to use.</param>
         /// <returns>an array of replica state KeyValuePair arrays</returns>
         /// <remarks>https://redis.io/topics/sentinel</remarks>
-        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(SentinelReplicasAsync) + " instead.")]
+        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(SentinelReplicasAsync) + " instead, this will be removed in 3.0.")]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         Task<KeyValuePair<string, string>[][]> SentinelSlavesAsync(string serviceName, CommandFlags flags = CommandFlags.None);
 

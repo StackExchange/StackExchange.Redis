@@ -32,27 +32,25 @@ namespace StackExchange.Redis
         public RedisValue Value => value;
 
         /// <summary>
-        /// Converts to a key/value pair
+        /// Converts to a key/value pair.
         /// </summary>
         /// <param name="value">The <see cref="NameValueEntry"/> to create a <see cref="KeyValuePair{TKey, TValue}"/> from.</param>
         public static implicit operator KeyValuePair<RedisValue, RedisValue>(NameValueEntry value) =>
             new KeyValuePair<RedisValue, RedisValue>(value.name, value.value);
 
         /// <summary>
-        /// Converts from a key/value pair
+        /// Converts from a key/value pair.
         /// </summary>
         /// <param name="value">The <see cref="KeyValuePair{TKey, TValue}"/> to get a <see cref="NameValueEntry"/> from.</param>
         public static implicit operator NameValueEntry(KeyValuePair<RedisValue, RedisValue> value) =>
             new NameValueEntry(value.Key, value.Value);
 
         /// <summary>
-        /// See Object.ToString()
+        /// The "{name}: {value}" string representation.
         /// </summary>
         public override string ToString() => name + ": " + value;
 
-        /// <summary>
-        /// See Object.GetHashCode()
-        /// </summary>
+        /// <inheritdoc />
         public override int GetHashCode() => name.GetHashCode() ^ value.GetHashCode();
 
         /// <summary>

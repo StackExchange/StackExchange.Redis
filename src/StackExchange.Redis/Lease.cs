@@ -12,7 +12,7 @@ namespace StackExchange.Redis
     public sealed class Lease<T> : IMemoryOwner<T>
     {
         /// <summary>
-        /// A lease of length zero
+        /// A lease of length zero.
         /// </summary>
         public static Lease<T> Empty { get; } = new Lease<T>(System.Array.Empty<T>(), 0);
 

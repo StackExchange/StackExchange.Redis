@@ -19,8 +19,10 @@ namespace StackExchange.Redis
     /// </summary>
     public sealed class LuaScript
     {
-        // Since the mapping of "script text" -> LuaScript doesn't depend on any particular details of
-        // the redis connection itself, this cache is global.
+        /// <summary>
+        /// Since the mapping of "script text" -> LuaScript doesn't depend on any particular details of
+        /// the redis connection itself, this cache is global.
+        /// </summary>
         private static readonly ConcurrentDictionary<string, WeakReference> Cache = new();
 
         /// <summary>
@@ -56,8 +58,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Finalizer, used to prompt cleanups of the script cache when
-        /// a LuaScript reference goes out of scope.
+        /// Finalizer - used to prompt cleanups of the script cache when a LuaScript reference goes out of scope.
         /// </summary>
         ~LuaScript()
         {
@@ -255,8 +256,8 @@ namespace StackExchange.Redis
         /// <summary>
         /// <para>Evaluates this LoadedLuaScript against the given database, extracting parameters for the passed in object if any.</para>
         /// <para>
-        /// This method sends the SHA1 hash of the ExecutableScript instead of the script itself.  If the script has not
-        /// been loaded into the passed Redis instance it will fail.
+        /// This method sends the SHA1 hash of the ExecutableScript instead of the script itself.
+        /// If the script has not been loaded into the passed Redis instance, it will fail.
         /// </para>
         /// </summary>
         /// <param name="db">The redis database to evaluate against.</param>
@@ -272,8 +273,8 @@ namespace StackExchange.Redis
         /// <summary>
         /// <para>Evaluates this LoadedLuaScript against the given database, extracting parameters for the passed in object if any.</para>
         /// <para>
-        /// This method sends the SHA1 hash of the ExecutableScript instead of the script itself.  If the script has not
-        /// been loaded into the passed Redis instance it will fail.
+        /// This method sends the SHA1 hash of the ExecutableScript instead of the script itself.
+        /// If the script has not been loaded into the passed Redis instance, it will fail.
         /// </para>
         /// </summary>
         /// <param name="db">The redis database to evaluate against.</param>

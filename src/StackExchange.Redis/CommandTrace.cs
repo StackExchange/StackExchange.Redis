@@ -3,7 +3,7 @@
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// Represents the information known about long-running commands
+    /// Represents the information known about long-running commands.
     /// </summary>
     public sealed class CommandTrace
     {
@@ -26,7 +26,7 @@ namespace StackExchange.Redis
         public RedisValue[] Arguments { get; }
 
         /// <summary>
-        /// The amount of time needed for its execution
+        /// The amount of time needed for its execution.
         /// </summary>
         public TimeSpan Duration { get; }
 

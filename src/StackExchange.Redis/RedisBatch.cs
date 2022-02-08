@@ -86,10 +86,8 @@ namespace StackExchange.Redis
             return task;
         }
 
-        internal override T ExecuteSync<T>(Message message, ResultProcessor<T> processor, ServerEndPoint server = null)
-        {
+        internal override T ExecuteSync<T>(Message message, ResultProcessor<T> processor, ServerEndPoint server = null) =>
             throw new NotSupportedException("ExecuteSync cannot be used inside a batch");
-        }
 
         private static void FailNoServer(List<Message> messages)
         {

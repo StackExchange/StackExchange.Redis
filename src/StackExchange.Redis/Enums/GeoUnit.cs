@@ -1,10 +1,7 @@
-using System;
-using System.ComponentModel;
-
-namespace StackExchange.Redis
+﻿namespace StackExchange.Redis
 {
     /// <summary>
-    /// Units associated with Geo Commands
+    /// Units associated with Geo Commands.
     /// </summary>
     public enum GeoUnit
     {
@@ -23,6 +20,6 @@ namespace StackExchange.Redis
         /// <summary>
         /// Feet
         /// </summary>
-        Feet
+        Feet,
     }
 }

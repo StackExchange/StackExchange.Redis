@@ -156,9 +156,7 @@ namespace StackExchange.Redis
             return ex;
         }
 
-#pragma warning disable RCS1231 // Make parameter ref read-only. - spans are tiny!
         internal static Exception PopulateInnerExceptions(ReadOnlySpan<ServerEndPoint> serverSnapshot)
-#pragma warning restore RCS1231 // Make parameter ref read-only.
         {
             var innerExceptions = new List<Exception>();
 

@@ -3,7 +3,7 @@
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// Illustrates the counters associated with an individual connection
+    /// Illustrates the counters associated with an individual connection.
     /// </summary>
     public class ConnectionCounters
     {
@@ -13,78 +13,78 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// The number of operations that have been completed asynchronously
+        /// The number of operations that have been completed asynchronously.
         /// </summary>
         public long CompletedAsynchronously { get; internal set; }
 
         /// <summary>
-        /// The number of operations that have been completed synchronously
+        /// The number of operations that have been completed synchronously.
         /// </summary>
         public long CompletedSynchronously { get; internal set; }
 
         /// <summary>
-        /// The type of this connection
+        /// The type of this connection.
         /// </summary>
         public ConnectionType ConnectionType { get; }
 
         /// <summary>
-        /// The number of operations that failed to complete asynchronously
+        /// The number of operations that failed to complete asynchronously.
         /// </summary>
         public long FailedAsynchronously { get; internal set; }
 
         /// <summary>
-        /// Indicates if there are any pending items or failures on this connection
+        /// Indicates if there are any pending items or failures on this connection.
         /// </summary>
         public bool IsEmpty => PendingUnsentItems == 0 && SentItemsAwaitingResponse == 0 && ResponsesAwaitingAsyncCompletion == 0 && FailedAsynchronously == 0;
 
         /// <summary>
-        /// Indicates the total number of messages despatched to a non-preferred endpoint, for example sent to a master
-        /// when the caller stated a preference of replica
+        /// Indicates the total number of messages dispatched to a non-preferred endpoint, for example sent
+        /// to a primary when the caller stated a preference of replica.
         /// </summary>
         public long NonPreferredEndpointCount { get; internal set; }
 
         /// <summary>
-        /// The number of operations performed on this connection
+        /// The number of operations performed on this connection.
         /// </summary>
         public long OperationCount { get; internal set; }
 
         /// <summary>
-        /// Operations that have been requested, but which have not yet been sent to the server
+        /// Operations that have been requested, but which have not yet been sent to the server.
         /// </summary>
         public int PendingUnsentItems { get; internal set; }
 
         /// <summary>
-        /// Operations for which the response has been processed, but which are awaiting asynchronous completion
+        /// Operations for which the response has been processed, but which are awaiting asynchronous completion.
         /// </summary>
         public int ResponsesAwaitingAsyncCompletion { get; internal set; }
 
         /// <summary>
-        /// Operations that have been sent to the server, but which are awaiting a response
+        /// Operations that have been sent to the server, but which are awaiting a response.
         /// </summary>
         public int SentItemsAwaitingResponse { get; internal set; }
 
         /// <summary>
-        /// The number of sockets used by this logical connection (total, including reconnects)
+        /// The number of sockets used by this logical connection (total, including reconnects).
         /// </summary>
         public long SocketCount { get; internal set; }
 
         /// <summary>
-        /// The number of subscriptions (with and without patterns) currently held against this connection
+        /// The number of subscriptions (with and without patterns) currently held against this connection.
         /// </summary>
         public long Subscriptions { get;internal set; }
 
         /// <summary>
-        /// Indicates the total number of outstanding items against this connection
+        /// Indicates the total number of outstanding items against this connection.
         /// </summary>
         public int TotalOutstanding => PendingUnsentItems + SentItemsAwaitingResponse + ResponsesAwaitingAsyncCompletion;
 
         /// <summary>
-        /// Indicates the total number of writers items against this connection
+        /// Indicates the total number of writers items against this connection.
         /// </summary>
         public int WriterCount { get; internal set; }
 
         /// <summary>
-        /// See Object.ToString()
+        /// See <see cref="object.ToString"/>.
         /// </summary>
         public override string ToString()
         {
@@ -109,20 +109,18 @@ namespace StackExchange.Redis
             WriterCount += other.WriterCount;
         }
 
-        internal bool Any()
-        {
-            return CompletedAsynchronously != 0
-                || CompletedSynchronously != 0
-                || FailedAsynchronously != 0
-                || NonPreferredEndpointCount != 0
-                || OperationCount != 0
-                || PendingUnsentItems != 0
-                || ResponsesAwaitingAsyncCompletion != 0
-                || SentItemsAwaitingResponse != 0
-                || SocketCount != 0
-                || Subscriptions != 0
-                || WriterCount != 0;
-        }
+        internal bool Any() =>
+            CompletedAsynchronously != 0
+            || CompletedSynchronously != 0
+            || FailedAsynchronously != 0
+            || NonPreferredEndpointCount != 0
+            || OperationCount != 0
+            || PendingUnsentItems != 0
+            || ResponsesAwaitingAsyncCompletion != 0
+            || SentItemsAwaitingResponse != 0
+            || SocketCount != 0
+            || Subscriptions != 0
+            || WriterCount != 0;
 
         internal void Append(StringBuilder sb)
         {

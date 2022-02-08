@@ -51,9 +51,6 @@ namespace StackExchange.Redis
 
         bool ICompletable.TryComplete(bool isAsync) => ConnectionMultiplexer.TryCompleteHandler(handler, sender, this, isAsync);
 
-        void ICompletable.AppendStormLog(StringBuilder sb)
-        {
-            sb.Append("event, slot-moved: ").Append(HashSlot);
-        }
+        void ICompletable.AppendStormLog(StringBuilder sb) => sb.Append("event, slot-moved: ").Append(HashSlot);
     }
 }

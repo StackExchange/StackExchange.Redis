@@ -111,7 +111,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// See <see cref="object.ToString"/>.
+        /// A "{long} {lat}" string representation of this position.
         /// </summary>
         public override string ToString() => string.Format("{0} {1}", Longitude, Latitude);
 
@@ -190,13 +190,11 @@ namespace StackExchange.Redis
         public double Latitude => Position.Latitude;
 
         /// <summary>
-        /// See <see cref="object.ToString"/>.
+        /// A "({Longitude},{Latitude})={Member}" string representation of this entry.
         /// </summary>
         public override string ToString() => $"({Longitude},{Latitude})={Member}";
 
-        /// <summary>
-        /// See <see cref="object.GetHashCode"/>.
-        /// </summary>
+        /// <inheritdoc/>
         public override int GetHashCode() => Position.GetHashCode() ^ Member.GetHashCode();
 
         /// <summary>

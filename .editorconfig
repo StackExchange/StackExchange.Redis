@@ -89,5 +89,8 @@ csharp_space_after_keywords_in_control_flow_statements = true:suggestion
 # Language settings
 csharp_prefer_simple_default_expression = false:none
 
+# RCS1194: Implement exception constructors.
+dotnet_diagnostic.RCS1194.severity = none
+
 # RCS1229: Use async/await when necessary.
 dotnet_diagnostic.RCS1229.severity = none

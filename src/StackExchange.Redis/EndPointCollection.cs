@@ -7,35 +7,35 @@ using System.Net;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// A list of endpoints
+    /// A list of endpoints.
     /// </summary>
     public sealed class EndPointCollection : Collection<EndPoint>, IEnumerable<EndPoint>
     {
         /// <summary>
-        /// Create a new EndPointCollection
+        /// Create a new <see cref="EndPointCollection"/>.
         /// </summary>
         public EndPointCollection() {}
 
         /// <summary>
-        /// Create a new EndPointCollection
+        /// Create a new <see cref="EndPointCollection"/>.
         /// </summary>
         /// <param name="endpoints">The endpoints to add to the collection.</param>
         public EndPointCollection(IList<EndPoint> endpoints) : base(endpoints) {}
 
         /// <summary>
-        /// Format an endpoint
+        /// Format an <see cref="EndPoint"/>.
         /// </summary>
         /// <param name="endpoint">The endpoint to get a string representation for.</param>
         public static string ToString(EndPoint endpoint) => Format.ToString(endpoint);
 
         /// <summary>
-        /// Attempt to parse a string into an EndPoint
+        /// Attempt to parse a string into an <see cref="EndPoint"/>.
         /// </summary>
         /// <param name="endpoint">The endpoint string to parse.</param>
         public static EndPoint TryParse(string endpoint) => Format.TryParseEndPoint(endpoint);
 
         /// <summary>
-        /// Adds a new endpoint to the list
+        /// Adds a new endpoint to the list.
         /// </summary>
         /// <param name="hostAndPort">The host:port string to add an endpoint for to the collection.</param>
         public void Add(string hostAndPort)
@@ -66,7 +66,7 @@ namespace StackExchange.Redis
         /// Try adding a new endpoint to the list.
         /// </summary>
         /// <param name="endpoint">The endpoint to add.</param>
-        /// <returns>True if the endpoint was added or false if not.</returns>
+        /// <returns><see langword="true"/> if the endpoint was added, <see langword="false"/> if not.</returns>
         public bool TryAdd(EndPoint endpoint)
         {
             if (endpoint == null)
@@ -86,7 +86,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// See Collection&lt;T&gt;.InsertItem()
+        /// See <see cref="Collection{T}.InsertItem(int, T)"/>.
         /// </summary>
         /// <param name="index">The index to add <paramref name="item"/> into the collection at.</param>
         /// <param name="item">The item to insert at <paramref name="index"/>.</param>
@@ -103,8 +103,9 @@ namespace StackExchange.Redis
 
             base.InsertItem(index, item);
         }
+
         /// <summary>
-        /// See Collection&lt;T&gt;.SetItem()
+        /// See <see cref="Collection{T}.SetItem(int, T)"/>.
         /// </summary>
         /// <param name="index">The index to replace an endpoint at.</param>
         /// <param name="item">The item to replace the existing endpoint at <paramref name="index"/>.</param>

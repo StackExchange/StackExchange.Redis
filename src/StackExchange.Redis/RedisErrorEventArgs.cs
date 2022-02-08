@@ -42,10 +42,7 @@ namespace StackExchange.Redis
         /// </summary>
         public string Message { get; }
 
-        void ICompletable.AppendStormLog(StringBuilder sb)
-        {
-            sb.Append("event, error: ").Append(Message);
-        }
+        void ICompletable.AppendStormLog(StringBuilder sb) => sb.Append("event, error: ").Append(Message);
 
         bool ICompletable.TryComplete(bool isAsync) => ConnectionMultiplexer.TryCompleteHandler(handler, sender, this, isAsync);
     }

@@ -10,8 +10,6 @@ using System.Threading.Tasks;
 using Pipelines.Sockets.Unofficial.Arenas;
 using static StackExchange.Redis.ConnectionMultiplexer;
 
-#pragma warning disable RCS1231 // Make parameter ref read-only.
-
 namespace StackExchange.Redis
 {
     internal sealed class RedisServer : RedisBase, IServer
@@ -661,7 +659,7 @@ namespace StackExchange.Redis
                 throw new ArgumentException("Cannot replicate to self");
             }
 
-#pragma warning disable CS0618
+#pragma warning disable CS0618 // Type or member is obsolete
             // attempt to cease having an opinion on the master; will resume that when replication completes
             // (note that this may fail; we aren't depending on it)
             if (GetTiebreakerRemovalMessage() is Message tieBreakerRemoval)
@@ -732,9 +730,9 @@ namespace StackExchange.Redis
         {
             SaveType.BackgroundRewriteAppendOnlyFile => Message.Create(-1, flags, RedisCommand.BGREWRITEAOF),
             SaveType.BackgroundSave => Message.Create(-1, flags, RedisCommand.BGSAVE),
-#pragma warning disable 0618
+#pragma warning disable CS0618 // Type or member is obsolete
             SaveType.ForegroundSave => Message.Create(-1, flags, RedisCommand.SAVE),
-#pragma warning restore 0618
+#pragma warning restore CS0618
             _ => throw new ArgumentOutOfRangeException(nameof(type)),
         };
 
@@ -742,9 +740,9 @@ namespace StackExchange.Redis
         {
             SaveType.BackgroundRewriteAppendOnlyFile => ResultProcessor.BackgroundSaveAOFStarted,
             SaveType.BackgroundSave => ResultProcessor.BackgroundSaveStarted,
-#pragma warning disable 0618
+#pragma warning disable CS0618 // Type or member is obsolete
             SaveType.ForegroundSave => ResultProcessor.DemandOK,
-#pragma warning restore 0618
+#pragma warning restore CS0618
             _ => throw new ArgumentOutOfRangeException(nameof(type)),
         };
 

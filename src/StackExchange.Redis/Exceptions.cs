@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Runtime.Serialization;
 
-#pragma warning disable RCS1194 // Implement exception constructors.
 namespace StackExchange.Redis
 {
     /// <summary>

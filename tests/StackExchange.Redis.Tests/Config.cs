@@ -463,9 +463,9 @@ namespace StackExchange.Redis.Tests
         [Theory]
         [InlineData("myDNS:myPort,password=myPassword,connectRetry=3,connectTimeout=15000,syncTimeout=15000,defaultDatabase=0,abortConnect=false,ssl=true,sslProtocols=Tls12", SslProtocols.Tls12)]
         [InlineData("myDNS:myPort,password=myPassword,abortConnect=false,ssl=true,sslProtocols=Tls12", SslProtocols.Tls12)]
-#pragma warning disable CS0618 // obsolete
+#pragma warning disable CS0618 // Type or member is obsolete
         [InlineData("myDNS:myPort,password=myPassword,abortConnect=false,ssl=true,sslProtocols=Ssl3", SslProtocols.Ssl3)]
-#pragma warning restore CS0618 // obsolete
+#pragma warning restore CS0618
         [InlineData("myDNS:myPort,password=myPassword,abortConnect=false,ssl=true,sslProtocols=Tls12 ", SslProtocols.Tls12)]
         public void ParseTlsWithoutTrailingComma(string configString, SslProtocols expected)
         {

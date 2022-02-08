@@ -5,7 +5,7 @@ using Xunit.Abstractions;
 namespace StackExchange.Redis.Tests
 {
     /// <summary>
-    /// Testing that things we depcreate still parse, but are otherwise defaults.
+    /// Testing that things we deprecate still parse, but are otherwise defaults.
     /// </summary>
     public class Deprecated : TestBase
     {
@@ -52,6 +52,6 @@ namespace StackExchange.Redis.Tests
             options = ConfigurationOptions.Parse("responseTimeout=1000");
             Assert.Equal(0, options.ResponseTimeout);
         }
-#pragma warning restore CS0618 // Type or member is obsolete
+#pragma warning restore CS0618
     }
 }

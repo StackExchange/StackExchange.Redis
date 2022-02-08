@@ -4,7 +4,7 @@ using System.Text;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// Represents a pub/sub channel name
+    /// Represents a pub/sub channel name.
     /// </summary>
     public readonly struct RedisChannel : IEquatable<RedisChannel>
     {
@@ -12,21 +12,21 @@ namespace StackExchange.Redis
         internal readonly bool IsPatternBased;
 
         /// <summary>
-        /// Indicates whether the channel-name is either null or a zero-length value
+        /// Indicates whether the channel-name is either null or a zero-length value.
         /// </summary>
         public bool IsNullOrEmpty => Value == null || Value.Length == 0;
 
         internal bool IsNull => Value == null;
 
         /// <summary>
-        /// Create a new redis channel from a buffer, explicitly controlling the pattern mode
+        /// Create a new redis channel from a buffer, explicitly controlling the pattern mode.
         /// </summary>
         /// <param name="value">The name of the channel to create.</param>
         /// <param name="mode">The mode for name matching.</param>
         public RedisChannel(byte[] value, PatternMode mode) : this(value, DeterminePatternBased(value, mode)) {}
 
         /// <summary>
-        /// Create a new redis channel from a string, explicitly controlling the pattern mode
+        /// Create a new redis channel from a string, explicitly controlling the pattern mode.
         /// </summary>
         /// <param name="value">The string name of the channel to create.</param>
         /// <param name="mode">The mode for name matching.</param>
@@ -47,42 +47,42 @@ namespace StackExchange.Redis
         };
 
         /// <summary>
-        /// Indicate whether two channel names are not equal
+        /// Indicate whether two channel names are not equal.
         /// </summary>
         /// <param name="x">The first <see cref="RedisChannel"/> to compare.</param>
         /// <param name="y">The second <see cref="RedisChannel"/> to compare.</param>
         public static bool operator !=(RedisChannel x, RedisChannel y) => !(x == y);
 
         /// <summary>
-        /// Indicate whether two channel names are not equal
+        /// Indicate whether two channel names are not equal.
         /// </summary>
         /// <param name="x">The first <see cref="RedisChannel"/> to compare.</param>
         /// <param name="y">The second <see cref="RedisChannel"/> to compare.</param>
         public static bool operator !=(string x, RedisChannel y) => !(x == y);
 
         /// <summary>
-        /// Indicate whether two channel names are not equal
+        /// Indicate whether two channel names are not equal.
         /// </summary>
         /// <param name="x">The first <see cref="RedisChannel"/> to compare.</param>
         /// <param name="y">The second <see cref="RedisChannel"/> to compare.</param>
         public static bool operator !=(byte[] x, RedisChannel y) => !(x == y);
 
         /// <summary>
-        /// Indicate whether two channel names are not equal
+        /// Indicate whether two channel names are not equal.
         /// </summary>
         /// <param name="x">The first <see cref="RedisChannel"/> to compare.</param>
         /// <param name="y">The second <see cref="RedisChannel"/> to compare.</param>
         public static bool operator !=(RedisChannel x, string y) => !(x == y);
 
         /// <summary>
-        /// Indicate whether two channel names are not equal
+        /// Indicate whether two channel names are not equal.
         /// </summary>
         /// <param name="x">The first <see cref="RedisChannel"/> to compare.</param>
         /// <param name="y">The second <see cref="RedisChannel"/> to compare.</param>
         public static bool operator !=(RedisChannel x, byte[] y) => !(x == y);
 
         /// <summary>
-        /// Indicate whether two channel names are equal
+        /// Indicate whether two channel names are equal.
         /// </summary>
         /// <param name="x">The first <see cref="RedisChannel"/> to compare.</param>
         /// <param name="y">The second <see cref="RedisChannel"/> to compare.</param>
@@ -90,7 +90,7 @@ namespace StackExchange.Redis
             x.IsPatternBased == y.IsPatternBased && RedisValue.Equals(x.Value, y.Value);
 
         /// <summary>
-        /// Indicate whether two channel names are equal
+        /// Indicate whether two channel names are equal.
         /// </summary>
         /// <param name="x">The first <see cref="RedisChannel"/> to compare.</param>
         /// <param name="y">The second <see cref="RedisChannel"/> to compare.</param>
@@ -98,14 +98,14 @@ namespace StackExchange.Redis
             RedisValue.Equals(x == null ? null : Encoding.UTF8.GetBytes(x), y.Value);
 
         /// <summary>
-        /// Indicate whether two channel names are equal
+        /// Indicate whether two channel names are equal.
         /// </summary>
         /// <param name="x">The first <see cref="RedisChannel"/> to compare.</param>
         /// <param name="y">The second <see cref="RedisChannel"/> to compare.</param>
         public static bool operator ==(byte[] x, RedisChannel y) => RedisValue.Equals(x, y.Value);
 
         /// <summary>
-        /// Indicate whether two channel names are equal
+        /// Indicate whether two channel names are equal.
         /// </summary>
         /// <param name="x">The first <see cref="RedisChannel"/> to compare.</param>
         /// <param name="y">The second <see cref="RedisChannel"/> to compare.</param>
@@ -113,14 +113,14 @@ namespace StackExchange.Redis
             RedisValue.Equals(x.Value, y == null ? null : Encoding.UTF8.GetBytes(y));
 
         /// <summary>
-        /// Indicate whether two channel names are equal
+        /// Indicate whether two channel names are equal.
         /// </summary>
         /// <param name="x">The first <see cref="RedisChannel"/> to compare.</param>
         /// <param name="y">The second <see cref="RedisChannel"/> to compare.</param>
         public static bool operator ==(RedisChannel x, byte[] y) => RedisValue.Equals(x.Value, y);
 
         /// <summary>
-        /// See Object.Equals
+        /// See <see cref="object.Equals(object)"/>.
         /// </summary>
         /// <param name="obj">The <see cref="RedisChannel"/> to compare to.</param>
         public override bool Equals(object obj) => obj switch
@@ -132,18 +132,16 @@ namespace StackExchange.Redis
         };
 
         /// <summary>
-        /// Indicate whether two channel names are equal
+        /// Indicate whether two channel names are equal.
         /// </summary>
         /// <param name="other">The <see cref="RedisChannel"/> to compare to.</param>
         public bool Equals(RedisChannel other) => IsPatternBased == other.IsPatternBased && RedisValue.Equals(Value, other.Value);
 
-        /// <summary>
-        /// See Object.GetHashCode
-        /// </summary>
+        /// <inheritdoc/>
         public override int GetHashCode() => RedisValue.GetHashCode(Value) + (IsPatternBased ? 1 : 0);
 
         /// <summary>
-        /// Obtains a string representation of the channel name
+        /// Obtains a string representation of the channel name.
         /// </summary>
         public override string ToString() => ((string)this) ?? "(null)";
 
@@ -164,20 +162,20 @@ namespace StackExchange.Redis
         internal RedisChannel Clone() => (byte[])Value?.Clone();
 
         /// <summary>
-        /// The matching pattern for this channel
+        /// The matching pattern for this channel.
         /// </summary>
         public enum PatternMode
         {
             /// <summary>
-            /// Will be treated as a pattern if it includes *
+            /// Will be treated as a pattern if it includes *.
             /// </summary>
             Auto = 0,
             /// <summary>
-            /// Never a pattern
+            /// Never a pattern.
             /// </summary>
             Literal = 1,
             /// <summary>
-            /// Always a pattern
+            /// Always a pattern.
             /// </summary>
             Pattern = 2
         }

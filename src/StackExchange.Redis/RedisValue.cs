@@ -11,7 +11,7 @@ using System.Text;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// Represents values that can be stored in redis
+    /// Represents values that can be stored in redis.
     /// </summary>
     public readonly struct RedisValue : IEquatable<RedisValue>, IComparable<RedisValue>, IComparable, IConvertible
     {
@@ -21,7 +21,6 @@ namespace StackExchange.Redis
         private readonly ReadOnlyMemory<byte> _memory;
         private readonly long _overlappedBits64;
 
-        // internal bool IsNullOrDefaultValue {  get { return (valueBlob == null && valueInt64 == 0L) || ((object)valueBlob == (object)NullSentinel); } }
         private RedisValue(long overlappedValue64, ReadOnlyMemory<byte> memory, object objectOrSentinel)
         {
             _overlappedBits64 = overlappedValue64;
@@ -42,10 +41,10 @@ namespace StackExchange.Redis
         /// </summary>
         public RedisValue(string value) : this(0, default, value) { }
 
-#pragma warning disable RCS1085 // Use auto-implemented property.
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Roslynator", "RCS1085:Use auto-implemented property.", Justification = "Intentional field ref")]
         internal object DirectObject => _objectOrSentinel;
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Roslynator", "RCS1085:Use auto-implemented property.", Justification = "Intentional field ref")]
         internal long DirectOverlappedBits64 => _overlappedBits64;
-#pragma warning restore RCS1085 // Use auto-implemented property.
 
         private readonly static object Sentinel_SignedInteger = new();
         private readonly static object Sentinel_UnsignedInteger = new();
@@ -93,7 +92,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Represents the string <c>""</c>
+        /// Represents the string <c>""</c>.
         /// </summary>
         public static RedisValue EmptyString { get; } = new RedisValue(0, default, Sentinel_Raw);
 
@@ -103,22 +102,22 @@ namespace StackExchange.Redis
         static readonly object[] s_CommonInt32 = Enumerable.Range(-1, 22).Select(i => (object)i).ToArray(); // [-1,20] = 22 values
 
         /// <summary>
-        /// A null value
+        /// A null value.
         /// </summary>
         public static RedisValue Null { get; } = new RedisValue(0, default, null);
 
         /// <summary>
-        /// Indicates whether the value is a primitive integer (signed or unsigned)
+        /// Indicates whether the value is a primitive integer (signed or unsigned).
         /// </summary>
         public bool IsInteger => _objectOrSentinel == Sentinel_SignedInteger || _objectOrSentinel == Sentinel_UnsignedInteger;
 
         /// <summary>
-        /// Indicates whether the value should be considered a null value
+        /// Indicates whether the value should be considered a null value.
         /// </summary>
         public bool IsNull => _objectOrSentinel == null;
 
         /// <summary>
-        /// Indicates whether the value is either null or a zero-length value
+        /// Indicates whether the value is either null or a zero-length value.
         /// </summary>
         public bool IsNullOrEmpty
         {
@@ -133,12 +132,12 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Indicates whether the value is greater than zero-length or has an integer value
+        /// Indicates whether the value is greater than zero-length or has an integer value.
         /// </summary>
         public bool HasValue => !IsNullOrEmpty;
 
         /// <summary>
-        /// Indicates whether two RedisValue values are equivalent
+        /// Indicates whether two RedisValue values are equivalent.
         /// </summary>
         /// <param name="x">The first <see cref="RedisValue"/> to compare.</param>
         /// <param name="y">The second <see cref="RedisValue"/> to compare.</param>
@@ -163,7 +162,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Indicates whether two RedisValue values are equivalent
+        /// Indicates whether two RedisValue values are equivalent.
         /// </summary>
         /// <param name="x">The first <see cref="RedisValue"/> to compare.</param>
         /// <param name="y">The second <see cref="RedisValue"/> to compare.</param>
@@ -214,7 +213,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// See Object.Equals()
+        /// See <see cref="object.Equals(object)"/>.
         /// </summary>
         /// <param name="obj">The other <see cref="RedisValue"/> to compare.</param>
         public override bool Equals(object obj)
@@ -226,14 +225,12 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Indicates whether two RedisValue values are equivalent
+        /// Indicates whether two RedisValue values are equivalent.
         /// </summary>
         /// <param name="other">The <see cref="RedisValue"/> to compare to.</param>
         public bool Equals(RedisValue other) => this == other;
 
-        /// <summary>
-        /// See Object.GetHashCode()
-        /// </summary>
+        /// <inheritdoc/>
         public override int GetHashCode() => GetHashCode(this);
         private static int GetHashCode(RedisValue x)
         {
@@ -249,7 +246,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Returns a string representation of the value
+        /// Returns a string representation of the value.
         /// </summary>
         public override string ToString() => (string)this;
 
@@ -341,7 +338,7 @@ namespace StackExchange.Redis
         };
 
         /// <summary>
-        /// Compare against a RedisValue for relative order
+        /// Compare against a RedisValue for relative order.
         /// </summary>
         /// <param name="other">The other <see cref="RedisValue"/> to compare.</param>
         public int CompareTo(RedisValue other) => CompareTo(this, other);
@@ -847,7 +844,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Converts a <see cref="RedisValue"/> to a ReadOnlyMemory
+        /// Converts a <see cref="RedisValue"/> to a <see cref="ReadOnlyMemory{T}"/>.
         /// </summary>
         /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
         public static implicit operator ReadOnlyMemory<byte>(RedisValue value)
@@ -942,10 +939,10 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// <para>Convert to a signed long if possible, returning true.</para>
-        /// <para>Returns false otherwise.</para>
+        /// Convert to a signed <see cref="long"/> if possible.
         /// </summary>
         /// <param name="val">The <see cref="long"/> value, if conversion was possible.</param>
+        /// <returns><see langword="true"/> if successfully parsed, <see langword="false"/> otherwise.</returns>
         public bool TryParse(out long val)
         {
             switch (Type)
@@ -976,10 +973,10 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// <para>Convert to a int if possible, returning true.</para>
-        /// <para>Returns false otherwise.</para>
+        /// Convert to an <see cref="int"/> if possible.
         /// </summary>
         /// <param name="val">The <see cref="int"/> value, if conversion was possible.</param>
+        /// <returns><see langword="true"/> if successfully parsed, <see langword="false"/> otherwise.</returns>
         public bool TryParse(out int val)
         {
             if (!TryParse(out long l) || l > int.MaxValue || l < int.MinValue)
@@ -993,10 +990,10 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// <para>Convert to a double if possible, returning true.</para>
-        /// <para>Returns false otherwise.</para>
+        /// Convert to a <see cref="double"/> if possible.
         /// </summary>
         /// <param name="val">The <see cref="double"/> value, if conversion was possible.</param>
+        /// <returns><see langword="true"/> if successfully parsed, <see langword="false"/> otherwise.</returns>
         public bool TryParse(out double val)
         {
             switch (Type)
@@ -1024,8 +1021,8 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Create a RedisValue from a MemoryStream; it will *attempt* to use the internal buffer
-        /// directly, but if this isn't possible it will fallback to ToArray
+        /// Create a <see cref="RedisValue"/> from a <see cref="MemoryStream"/>.
+        /// It will *attempt* to use the internal buffer directly, but if this isn't possible it will fallback to <see cref="MemoryStream.ToArray"/>.
         /// </summary>
         /// <param name="stream">The <see cref="MemoryStream"/> to create a value from.</param>
         public static RedisValue CreateFrom(MemoryStream stream)
