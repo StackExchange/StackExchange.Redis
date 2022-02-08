@@ -695,7 +695,7 @@ namespace StackExchange.Redis
 
         private static ResultProcessor<bool> GetSaveResultProcessor(SaveType type) => type switch
         {
-            SaveType.BackgroundRewriteAppendOnlyFile => ResultProcessor.DemandOK,
+            SaveType.BackgroundRewriteAppendOnlyFile => ResultProcessor.BackgroundSaveAOFStarted,
             SaveType.BackgroundSave => ResultProcessor.BackgroundSaveStarted,
 #pragma warning disable 0618
             SaveType.ForegroundSave => ResultProcessor.DemandOK,
