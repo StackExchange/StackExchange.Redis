@@ -23,7 +23,7 @@
         Twemproxy,
     }
 
-    internal static class ServerTypeExtesions
+    internal static class ServerTypeExtensions
     {
         /// <summary>
         /// Whether a server type can have only a single primary, meaning an election if multiple are found.

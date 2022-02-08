@@ -88,7 +88,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// The client is a replica in MONITOR mode.
         /// </summary>
-        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(ReplicaMonitor) + " instead.")]
+        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(ReplicaMonitor) + " instead, this will be removed in 3.0.")]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         SlaveMonitor = 1,
         /// <summary>
@@ -98,7 +98,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// The client is a normal replica server.
         /// </summary>
-        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(Replica) + " instead.")]
+        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(Replica) + " instead, this will be removed in 3.0.")]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         Slave = 2,
         /// <summary>

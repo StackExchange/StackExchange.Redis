@@ -15,7 +15,7 @@
         Twemproxy,
     }
 
-    internal static class ProxyExtesions
+    internal static class ProxyExtensions
     {
         /// <summary>
         /// Whether a proxy supports databases (e.g. database > 0).

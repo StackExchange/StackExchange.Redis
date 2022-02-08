@@ -25,7 +25,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Issue a REPLICAOF to all other known nodes, making this primary of all.
         /// </summary>
-        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(ReplicateToOtherEndpoints) + " instead.")]
+        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(ReplicateToOtherEndpoints) + " instead, this will be removed in 3.0.")]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         EnslaveSubordinates = 4,
         /// <summary>

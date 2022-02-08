@@ -21,7 +21,8 @@ namespace StackExchange.Redis
             TrackSubscriptions = new TrackSubscriptionsProcessor(null),
             Tracer = new TracerProcessor(false),
             EstablishConnection = new TracerProcessor(true),
-            BackgroundSaveStarted = new ExpectBasicStringProcessor(CommonReplies.backgroundSavingStarted_trimmed, startsWith: true);
+            BackgroundSaveStarted = new ExpectBasicStringProcessor(CommonReplies.backgroundSavingStarted_trimmed, startsWith: true),
+            BackgroundSaveAOFStarted = new ExpectBasicStringProcessor(CommonReplies.backgroundSavingAOFStarted_trimmed, startsWith: true);
 
         public static readonly ResultProcessor<byte[]>
             ByteArray = new ByteArrayProcessor(),
