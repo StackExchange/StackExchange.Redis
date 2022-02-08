@@ -256,7 +256,6 @@ namespace StackExchange.Redis.Tests
             bool logTransactionData = true,
             bool shared = true,
             int? defaultDatabase = null,
-            BacklogPolicy backlogPolicy = null,
             [CallerMemberName] string caller = null)
         {
             if (Output == null)
@@ -277,8 +276,7 @@ namespace StackExchange.Redis.Tests
                 && tieBreaker == null
                 && defaultDatabase == null
                 && (allowAdmin == null || allowAdmin == true)
-                && expectedFailCount == 0
-                && backlogPolicy == null)
+                && expectedFailCount == 0)
             {
                 configuration = GetConfiguration();
                 if (configuration == _fixture.Configuration)
@@ -296,7 +294,6 @@ namespace StackExchange.Redis.Tests
                 channelPrefix, proxy,
                 configuration ?? GetConfiguration(),
                 logTransactionData, defaultDatabase,
-                backlogPolicy,
                 caller);
             muxer.InternalError += OnInternalError;
             muxer.ConnectionFailed += OnConnectionFailed;
@@ -327,7 +324,6 @@ namespace StackExchange.Redis.Tests
             string configuration = null,
             bool logTransactionData = true,
             int? defaultDatabase = null,
-            BacklogPolicy backlogPolicy = null,
             [CallerMemberName] string caller = null)
         {
             StringWriter localLog = null;
@@ -363,7 +359,6 @@ namespace StackExchange.Redis.Tests
                 if (connectTimeout != null) config.ConnectTimeout = connectTimeout.Value;
                 if (proxy != null) config.Proxy = proxy.Value;
                 if (defaultDatabase != null) config.DefaultDatabase = defaultDatabase.Value;
-                if (backlogPolicy != null) config.BacklogPolicy = backlogPolicy;
                 var watch = Stopwatch.StartNew();
                 var task = ConnectionMultiplexer.ConnectAsync(config, log);
                 if (!task.Wait(config.ConnectTimeout >= (int.MaxValue / 2) ? int.MaxValue : config.ConnectTimeout * 2))

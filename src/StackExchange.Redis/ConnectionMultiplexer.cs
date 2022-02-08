@@ -804,7 +804,7 @@ namespace StackExchange.Redis
         /// <param name="key">The key to get a hash slot ID for.</param>
         public int HashSlot(RedisKey key) => ServerSelectionStrategy.HashSlot(key);
 
-        internal ServerEndPoint AnyServer(ServerType serverType, uint startOffset, RedisCommand command, CommandFlags flags, bool allowDisconnected)
+        internal ServerEndPoint AnyConnected(ServerType serverType, uint startOffset, RedisCommand command, CommandFlags flags)
         {
             var tmp = GetServerSnapshot();
             int len = tmp.Length;
@@ -812,7 +812,7 @@ namespace StackExchange.Redis
             for (int i = 0; i < len; i++)
             {
                 var server = tmp[(int)(((uint)i + startOffset) % len)];
-                if (server != null && server.ServerType == serverType && server.IsSelectable(command, allowDisconnected))
+                if (server != null && server.ServerType == serverType && server.IsSelectable(command))
                 {
                     if (server.IsReplica)
                     {
@@ -2194,12 +2194,6 @@ namespace StackExchange.Redis
             {
                 // Infer a server automatically
                 server = SelectServer(message);
-
-                // If we didn't find one successfully, and we're allowed, queue for any viable server
-                if (server == null && message != null && RawConfig.BacklogPolicy.QueueWhileDisconnected)
-                {
-                    server = ServerSelectionStrategy.Select(message, allowDisconnected: true);
-                }
             }
             else // a server was specified; do we trust their choice, though?
             {
@@ -2217,9 +2211,7 @@ namespace StackExchange.Redis
                         }
                         break;
                 }
-
-                // If we're not allowed to queue while disconnected, we'll bomb out below.
-                if (!server.IsConnected && !RawConfig.BacklogPolicy.QueueWhileDisconnected)
+                if (!server.IsConnected)
                 {
                     // well, that's no use!
                     server = null;

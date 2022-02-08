@@ -10,6 +10,7 @@ using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
@@ -67,7 +68,6 @@ namespace StackExchange.Redis
         }
 
         private IDuplexPipe _ioPipe;
-        internal bool HasOutputPipe => _ioPipe?.Output != null;
 
         private Socket _socket;
         private Socket VolatileSocket => Volatile.Read(ref _socket);
@@ -649,9 +649,7 @@ namespace StackExchange.Redis
                     var timeout = bridge.Multiplexer.AsyncTimeoutMilliseconds;
                     foreach (var msg in _writtenAwaitingResponse)
                     {
-                        // We only handle async timeouts here, synchronous timeouts are handled upstream.
-                        // Those sync timeouts happen in ConnectionMultiplexer.ExecuteSyncImpl() via Monitor.Wait.
-                        if (msg.ResultBoxIsAsync && msg.HasTimedOut(now, timeout, out var elapsed))
+                        if (msg.HasAsyncTimedOut(now, timeout, out var elapsed))
                         {
                             bool haveDeltas = msg.TryGetPhysicalState(out _, out _, out long sentDelta, out var receivedDelta) && sentDelta >= 0 && receivedDelta >= 0;
                             var timeoutEx = ExceptionFactory.Timeout(bridge.Multiplexer, haveDeltas
@@ -1559,7 +1557,7 @@ namespace StackExchange.Redis
             var bridge = BridgeCouldBeNull;
             if (bridge == null || !bridge.Multiplexer.AllowConnect)
             {
-                throw new RedisConnectionException(ConnectionFailureType.InternalFailure, "Aborting (AllowConnect: False)");
+                throw new RedisConnectionException(ConnectionFailureType.InternalFailure, "debugging");
             }
         }
 

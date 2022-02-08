@@ -326,20 +326,8 @@ namespace StackExchange.Redis.Tests
                 }
                 //Assert.True(false, $"There were {privateFailCount} private ambient exceptions.");
             }
-
-            if (_actualConnection != null)
-            {
-                TestBase.Log(output, "Connection Counts: " + _actualConnection.GetCounters().ToString());
-                foreach (var ep in _actualConnection.GetServerSnapshot())
-                {
-                    var interactive = ep.GetBridge(ConnectionType.Interactive);
-                    TestBase.Log(output, $"  {Format.ToString(interactive)}: " + interactive.GetStatus());
-
-                    var subscription = ep.GetBridge(ConnectionType.Subscription);
-                    TestBase.Log(output, $"  {Format.ToString(subscription)}: " + subscription.GetStatus());
-                }
-
-            }
+            var pool = SocketManager.Shared?.SchedulerPool;
+            TestBase.Log(output, $"Service Counts: (Scheduler) By Queue: {pool?.TotalServicedByQueue.ToString()}, By Pool: {pool?.TotalServicedByPool.ToString()}, Workers: {pool?.WorkerCount.ToString()}, Available: {pool?.AvailableCount.ToString()}");
         }
     }
 

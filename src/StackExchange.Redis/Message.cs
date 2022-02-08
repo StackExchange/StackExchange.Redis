@@ -1,10 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 using StackExchange.Redis.Profiling;
 using static StackExchange.Redis.ConnectionMultiplexer;
 
@@ -58,6 +60,7 @@ namespace StackExchange.Redis
 
         private const CommandFlags AskingFlag = (CommandFlags)32,
                                    ScriptUnavailableFlag = (CommandFlags)256,
+                                   NeedsAsyncTimeoutCheckFlag = (CommandFlags)1024,
                                    DemandSubscriptionConnection = (CommandFlags)2048;
 
         private const CommandFlags MaskMasterServerPreference = CommandFlags.DemandMaster
@@ -642,7 +645,10 @@ namespace StackExchange.Redis
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal void SetWriteTime()
         {
-            _writeTickCount = Environment.TickCount; // note this might be reset if we resend a message, cluster-moved etc; I'm OK with that
+            if ((Flags & NeedsAsyncTimeoutCheckFlag) != 0)
+            {
+                _writeTickCount = Environment.TickCount; // note this might be reset if we resend a message, cluster-moved etc; I'm OK with that
+            }
         }
         private int _writeTickCount;
         public int GetWriteTime() => Volatile.Read(ref _writeTickCount);
@@ -656,17 +662,21 @@ namespace StackExchange.Redis
         /// </summary>
         internal void SetForSubscriptionBridge() => Flags |= DemandSubscriptionConnection;
 
-        /// <summary>
-        /// Checks if this message has violated the provided timeout.
-        /// Whether it's a sync operation in a .Wait() or in the backlog queue or written/pending asynchronously, we need to timeout everything.
-        /// ...or we get indefinite Task hangs for completions.
-        /// </summary>
-        internal bool HasTimedOut(int now, int timeoutMilliseconds, out int millisecondsTaken)
+        private void SetNeedsTimeoutCheck() => Flags |= NeedsAsyncTimeoutCheckFlag;
+        internal bool HasAsyncTimedOut(int now, int timeoutMilliseconds, out int millisecondsTaken)
         {
-            millisecondsTaken = unchecked(now - _writeTickCount); // note: we can't just check "if sent < cutoff" because of wrap-around
-            if (millisecondsTaken >= timeoutMilliseconds)
+            if ((Flags & NeedsAsyncTimeoutCheckFlag) != 0)
             {
-                return true;
+                millisecondsTaken = unchecked(now - _writeTickCount); // note: we can't just check "if sent < cutoff" because of wrap-aro
+                if (millisecondsTaken >= timeoutMilliseconds)
+                {
+                    Flags &= ~NeedsAsyncTimeoutCheckFlag; // note: we don't remove it from the queue - still might need to marry it up; but: it is toast
+                    return true;
+                }
+            }
+            else
+            {
+                millisecondsTaken = default;
             }
             return false;
         }
@@ -685,17 +695,16 @@ namespace StackExchange.Redis
         internal void SetPreferReplica() =>
             Flags = (Flags & ~MaskMasterServerPreference) | CommandFlags.PreferReplica;
 
-        /// <remarks>
-        /// Note order here reversed to prevent overload resolution errors
-        /// </remarks>
         internal void SetSource(ResultProcessor resultProcessor, IResultBox resultBox)
-        {
+        { // note order here reversed to prevent overload resolution errors
+            if (resultBox != null && resultBox.IsAsync) SetNeedsTimeoutCheck();
             this.resultBox = resultBox;
             this.resultProcessor = resultProcessor;
         }
 
         internal void SetSource<T>(IResultBox<T> resultBox, ResultProcessor<T> resultProcessor)
         {
+            if (resultBox != null && resultBox.IsAsync) SetNeedsTimeoutCheck();
             this.resultBox = resultBox;
             this.resultProcessor = resultProcessor;
         }

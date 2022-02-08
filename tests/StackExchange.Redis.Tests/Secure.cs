@@ -65,7 +65,6 @@ namespace StackExchange.Redis.Tests
             var config = ConfigurationOptions.Parse(GetConfiguration());
             config.Password = password;
             config.ConnectRetry = 0; // we don't want to retry on closed sockets in this case.
-            config.BacklogPolicy = BacklogPolicy.FailFast;
 
             var ex = await Assert.ThrowsAsync<RedisConnectionException>(async () =>
             {

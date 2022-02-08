@@ -539,9 +539,6 @@ namespace StackExchange.Redis.Tests
                 });
                 await sub.PingAsync().ForAwait();
 
-                // Give a delay between subscriptions and when we try to publish to be safe
-                await Task.Delay(1000).ForAwait();
-
                 lock (syncLock)
                 {
                     for (int i = 0; i < count; i++)
@@ -804,8 +801,8 @@ namespace StackExchange.Redis.Tests
                 Log("Failing connection");
                 // Fail all connections
                 server.SimulateConnectionFailure(SimulatedFailureType.All);
-                // Trigger failure (RedisTimeoutException because of backlog behavior)
-                Assert.Throws<RedisTimeoutException>(() => sub.Ping());
+                // Trigger failure
+                Assert.Throws<RedisConnectionException>(() => sub.Ping());
                 Assert.False(sub.IsConnected(channel));
 
                 // Now reconnect...
