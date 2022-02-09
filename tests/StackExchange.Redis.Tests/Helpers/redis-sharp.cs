@@ -289,7 +289,7 @@ namespace RedisSharp
         }
 
         [Conditional("DEBUG")]
-        private void Log(string fmt, params object[] args)
+        private static void Log(string fmt, params object[] args)
         {
             Console.WriteLine("{0}", string.Format(fmt, args).Trim());
         }
@@ -403,7 +403,7 @@ namespace RedisSharp
             string r = ReadLine();
             Log("R: {0}", r);
             if (r.Length == 0)
-                throw new ResponseException("Zero length respose");
+                throw new ResponseException("Zero length response");
 
             char c = r[0];
             if (c == '-')
@@ -438,7 +438,7 @@ namespace RedisSharp
             if (c == '*')
             {
                 if (int.TryParse(r.Substring(1), out int n))
-                    return n <= 0 ? new byte[0] : ReadData();
+                    return n <= 0 ? Array.Empty<byte>() : ReadData();
 
                 throw new ResponseException("Unexpected length parameter" + r);
             }
@@ -610,7 +610,7 @@ namespace RedisSharp
             {
                 string commandResponse = Encoding.UTF8.GetString(SendExpectData(null, "KEYS *\r\n"));
                 if (commandResponse.Length < 1)
-                    return new string[0];
+                    return Array.Empty<string>();
                 else
                     return commandResponse.Split(' ');
             }
@@ -622,7 +622,7 @@ namespace RedisSharp
                 throw new ArgumentNullException(nameof(pattern));
             var keys = SendExpectData(null, "KEYS {0}\r\n", pattern);
             if (keys.Length == 0)
-                return new string[0];
+                return Array.Empty<string>();
             return Encoding.UTF8.GetString(keys).Split(' ');
         }
 
@@ -631,7 +631,7 @@ namespace RedisSharp
             if (keys == null)
                 throw new ArgumentNullException(nameof(keys));
             if (keys.Length == 0)
-                throw new ArgumentException("keys");
+                throw new ArgumentOutOfRangeException(nameof(keys));
 
             return SendDataCommandExpectMultiBulkReply(null, "MGET {0}\r\n", string.Join(" ", keys));
         }
@@ -746,7 +746,7 @@ namespace RedisSharp
         public byte[][] GetUnionOfSets(params string[] keys)
         {
             if (keys == null)
-                throw new ArgumentNullException();
+                throw new ArgumentNullException(nameof(keys));
 
             return SendDataCommandExpectMultiBulkReply(null, "SUNION " + string.Join(" ", keys) + "\r\n");
         }
@@ -773,7 +773,7 @@ namespace RedisSharp
         public byte[][] GetIntersectionOfSets(params string[] keys)
         {
             if (keys == null)
-                throw new ArgumentNullException();
+                throw new ArgumentNullException(nameof(keys));
 
             return SendDataCommandExpectMultiBulkReply(null, "SINTER " + string.Join(" ", keys) + "\r\n");
         }
@@ -786,7 +786,7 @@ namespace RedisSharp
         public byte[][] GetDifferenceOfSets(params string[] keys)
         {
             if (keys == null)
-                throw new ArgumentNullException();
+                throw new ArgumentNullException(nameof(keys));
 
             return SendDataCommandExpectMultiBulkReply(null, "SDIFF " + string.Join(" ", keys) + "\r\n");
         }

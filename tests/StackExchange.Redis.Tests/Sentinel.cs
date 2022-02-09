@@ -43,7 +43,7 @@ namespace StackExchange.Redis.Tests
             Assert.Equal(expected, value);
 
             // force read from replica, replication has some lag
-            await WaitForReplicationAsync(servers.First(), TimeSpan.FromSeconds(10)).ForAwait();
+            await WaitForReplicationAsync(servers[0], TimeSpan.FromSeconds(10)).ForAwait();
             value = db.StringGet(key, CommandFlags.DemandReplica);
             Assert.Equal(expected, value);
         }
@@ -79,7 +79,7 @@ namespace StackExchange.Redis.Tests
             Assert.Equal(expected, value);
 
             // force read from replica, replication has some lag
-            await WaitForReplicationAsync(servers.First(), TimeSpan.FromSeconds(10)).ForAwait();
+            await WaitForReplicationAsync(servers[0], TimeSpan.FromSeconds(10)).ForAwait();
             value = await db.StringGetAsync(key, CommandFlags.DemandReplica);
             Assert.Equal(expected, value);
         }
@@ -362,7 +362,7 @@ namespace StackExchange.Redis.Tests
         public async Task SentinelReplicasTest()
         {
             // Give previous test run a moment to reset when multi-framework failover is in play.
-            await UntilCondition(TimeSpan.FromSeconds(5), () => SentinelServerA.SentinelReplicas(ServiceName).Length > 0);
+            await UntilConditionAsync(TimeSpan.FromSeconds(5), () => SentinelServerA.SentinelReplicas(ServiceName).Length > 0);
 
             var replicaConfigs = SentinelServerA.SentinelReplicas(ServiceName);
             Assert.True(replicaConfigs.Length > 0, "Has replicaConfigs");
@@ -382,7 +382,7 @@ namespace StackExchange.Redis.Tests
         public async Task SentinelReplicasAsyncTest()
         {
             // Give previous test run a moment to reset when multi-framework failover is in play.
-            await UntilCondition(TimeSpan.FromSeconds(5), () => SentinelServerA.SentinelReplicas(ServiceName).Length > 0);
+            await UntilConditionAsync(TimeSpan.FromSeconds(5), () => SentinelServerA.SentinelReplicas(ServiceName).Length > 0);
 
             var replicaConfigs = await SentinelServerA.SentinelReplicasAsync(ServiceName).ForAwait();
             Assert.True(replicaConfigs.Length > 0, "Has replicaConfigs");
@@ -426,7 +426,7 @@ namespace StackExchange.Redis.Tests
 
             var readonlyConn = await ConnectionMultiplexer.ConnectAsync(config);
 
-            await UntilCondition(TimeSpan.FromSeconds(2), () => readonlyConn.IsConnected);
+            await UntilConditionAsync(TimeSpan.FromSeconds(2), () => readonlyConn.IsConnected);
             Assert.True(readonlyConn.IsConnected);
             var db = readonlyConn.GetDatabase();
             var s = db.StringGet("test");

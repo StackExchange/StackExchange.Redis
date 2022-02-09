@@ -975,7 +975,7 @@ namespace StackExchange.Redis
                 WriteUnifiedSpan(writer, new ReadOnlySpan<byte>(value));
             }
         }
-        
+
         private static void WriteUnifiedSpan(PipeWriter writer, ReadOnlySpan<byte> value)
         {
             // ${len}\r\n           = 3 + MaxInt32TextLen
@@ -1274,7 +1274,7 @@ namespace StackExchange.Redis
                 $"SentAwaitingResponse: {MessagesSentAwaitingResponse}, AvailableOnSocket: {BytesAvailableOnSocket} byte(s), InReadPipe: {BytesInReadPipe} byte(s), InWritePipe: {BytesInWritePipe} byte(s), ReadStatus: {ReadStatus}, WriteStatus: {WriteStatus}";
 
             /// <summary>
-            /// The default connection stats, notable *not* the same as <code>default</code> since initializers don't run.
+            /// The default connection stats, notable *not* the same as <c>default</c> since initializers don't run.
             /// </summary>
             public static ConnectionStatus Default { get; } = new()
             {
@@ -1513,7 +1513,7 @@ namespace StackExchange.Redis
                 if (!_writtenAwaitingResponse.TryDequeue(out msg))
                 {
                     throw new InvalidOperationException("Received response with no message waiting: " + result.ToString());
-                };
+                }
 #else
                 if (_writtenAwaitingResponse.Count == 0)
                 {

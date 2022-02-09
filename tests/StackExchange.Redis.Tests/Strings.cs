@@ -369,7 +369,7 @@ namespace StackExchange.Redis.Tests
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.HashStringLength), r => r.HashStringLength);
                 var database = conn.GetDatabase();
                 var key = Me();
-                var value = "hello world";
+                const string value = "hello world";
                 database.HashSet(key, "field", value);
                 var resAsync = database.HashStringLengthAsync(key, "field");
                 var resNonExistingAsync = database.HashStringLengthAsync(key, "non-existing-field");
@@ -386,7 +386,7 @@ namespace StackExchange.Redis.Tests
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.HashStringLength), r => r.HashStringLength);
                 var database = conn.GetDatabase();
                 var key = Me();
-                var value = "hello world";
+                const string value = "hello world";
                 database.HashSet(key, "field", value);
                 Assert.Equal(value.Length, database.HashStringLength(key, "field"));
                 Assert.Equal(0, database.HashStringLength(key, "non-existing-field"));

@@ -22,7 +22,7 @@ namespace StackExchange.Redis.Tests
             RedisValue emptyString = "";
             CheckNotNull(emptyString);
 
-            RedisValue emptyBlob = new byte[0];
+            RedisValue emptyBlob = Array.Empty<byte>();
             CheckNotNull(emptyBlob);
 
             RedisValue a0 = new string('a', 1);
@@ -77,7 +77,7 @@ namespace StackExchange.Redis.Tests
             Assert.True(x.GetHashCode() == y.GetHashCode(), "GetHashCode");
         }
 
-        private void CheckNotSame(RedisValue x, RedisValue y)
+        private static void CheckNotSame(RedisValue x, RedisValue y)
         {
             Assert.False(Equals(x, y));
             Assert.False(Equals(y, x));
@@ -92,7 +92,7 @@ namespace StackExchange.Redis.Tests
             Assert.False(x.GetHashCode() == y.GetHashCode()); // well, very unlikely
         }
 
-        private void CheckNotNull(RedisValue value)
+        private static void CheckNotNull(RedisValue value)
         {
             Assert.False(value.IsNull);
             Assert.NotNull((byte[])value);

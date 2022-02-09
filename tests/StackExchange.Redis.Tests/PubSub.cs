@@ -30,7 +30,7 @@ namespace StackExchange.Redis.Tests
                 pub.Subscribe("abc*", (x, y) => Interlocked.Increment(ref d));
 
                 pub.Publish("abcd", "efg");
-                await UntilCondition(TimeSpan.FromSeconds(10),
+                await UntilConditionAsync(TimeSpan.FromSeconds(10),
                     () => Thread.VolatileRead(ref b) == 1
                        && Thread.VolatileRead(ref c) == 1
                        && Thread.VolatileRead(ref d) == 1);
@@ -40,7 +40,7 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal(1, Thread.VolatileRead(ref d));
 
                 pub.Publish("*bcd", "efg");
-                await UntilCondition(TimeSpan.FromSeconds(10), () => Thread.VolatileRead(ref a) == 1);
+                await UntilConditionAsync(TimeSpan.FromSeconds(10), () => Thread.VolatileRead(ref a) == 1);
                 Assert.Equal(1, Thread.VolatileRead(ref a));
             }
         }
@@ -90,13 +90,13 @@ namespace StackExchange.Redis.Tests
 
                 await PingAsync(pub, sub, 3).ForAwait();
 
-                await UntilCondition(TimeSpan.FromSeconds(5), () => received.Count == 1);
+                await UntilConditionAsync(TimeSpan.FromSeconds(5), () => received.Count == 1);
                 lock (received)
                 {
                     Assert.Single(received);
                 }
                 // Give handler firing a moment
-                await UntilCondition(TimeSpan.FromSeconds(2), () => Thread.VolatileRead(ref secondHandler) == 1);
+                await UntilConditionAsync(TimeSpan.FromSeconds(2), () => Thread.VolatileRead(ref secondHandler) == 1);
                 Assert.Equal(1, Thread.VolatileRead(ref secondHandler));
 
                 // unsubscribe from first; should still see second
@@ -108,7 +108,7 @@ namespace StackExchange.Redis.Tests
                     Assert.Single(received);
                 }
 
-                await UntilCondition(TimeSpan.FromSeconds(2), () => Thread.VolatileRead(ref secondHandler) == 2);
+                await UntilConditionAsync(TimeSpan.FromSeconds(2), () => Thread.VolatileRead(ref secondHandler) == 2);
 
                 var secondHandlerCount = Thread.VolatileRead(ref secondHandler);
                 Log("Expecting 2 from second handler, got: " + secondHandlerCount);
@@ -166,7 +166,7 @@ namespace StackExchange.Redis.Tests
                 var count = sub.Publish(key, "def", CommandFlags.FireAndForget);
                 await PingAsync(pub, sub).ForAwait();
 
-                await UntilCondition(TimeSpan.FromSeconds(5), () => received.Count == 1);
+                await UntilConditionAsync(TimeSpan.FromSeconds(5), () => received.Count == 1);
                 Log(profiler);
 
                 lock (received)
@@ -235,14 +235,14 @@ namespace StackExchange.Redis.Tests
                 var count = sub.Publish("abc", "def");
                 await PingAsync(pub, sub).ForAwait();
 
-                await UntilCondition(TimeSpan.FromSeconds(5), () => received.Count == 1);
+                await UntilConditionAsync(TimeSpan.FromSeconds(5), () => received.Count == 1);
                 lock (received)
                 {
                     Assert.Single(received);
                 }
 
                 // Give reception a bit, the handler could be delayed under load
-                await UntilCondition(TimeSpan.FromSeconds(2), () => Thread.VolatileRead(ref secondHandler) == 1);
+                await UntilConditionAsync(TimeSpan.FromSeconds(2), () => Thread.VolatileRead(ref secondHandler) == 1);
                 Assert.Equal(1, Thread.VolatileRead(ref secondHandler));
 
                 sub.Unsubscribe("a*c");
@@ -746,7 +746,7 @@ namespace StackExchange.Redis.Tests
 
             using (var connection = await ConnectionMultiplexer.ConnectAsync(options))
             {
-                connection.ServerMaintenanceEvent += (object sender, ServerMaintenanceEvent e) =>
+                connection.ServerMaintenanceEvent += (object _, ServerMaintenanceEvent e) =>
                 {
                     if (e is AzureMaintenanceEvent)
                     {
@@ -812,7 +812,7 @@ namespace StackExchange.Redis.Tests
                 muxer.AllowConnect = true;
                 Log("Waiting on reconnect");
                 // Wait until we're reconnected
-                await UntilCondition(TimeSpan.FromSeconds(10), () => sub.IsConnected(channel));
+                await UntilConditionAsync(TimeSpan.FromSeconds(10), () => sub.IsConnected(channel));
                 Log("Reconnected");
                 // Ensure we're reconnected
                 Assert.True(sub.IsConnected(channel));
@@ -843,7 +843,7 @@ namespace StackExchange.Redis.Tests
 
                 // Give it a few seconds to get our messages
                 Log("Waiting for 2 messages");
-                await UntilCondition(TimeSpan.FromSeconds(5), () => Thread.VolatileRead(ref counter) == 2);
+                await UntilConditionAsync(TimeSpan.FromSeconds(5), () => Thread.VolatileRead(ref counter) == 2);
 
                 var counter2 = Thread.VolatileRead(ref counter);
                 Log($"Expecting 2 messages, got {counter2}");

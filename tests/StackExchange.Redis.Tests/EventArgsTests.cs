@@ -79,46 +79,25 @@ namespace StackExchange.Redis.Tests
                 DiagnosticStub stub = new DiagnosticStub();
 
                 stub.ConfigurationChangedBroadcastHandler
-                    = (obj, args) =>
-                    {
-                        stub.Message = ConfigurationChangedBroadcastHandlerMessage;
-                    };
+                    = (obj, args) => stub.Message = ConfigurationChangedBroadcastHandlerMessage;
 
                 stub.ErrorMessageHandler
-                    = (obj, args) =>
-                    {
-                        stub.Message = ErrorMessageHandlerMessage;
-                    };
+                    = (obj, args) => stub.Message = ErrorMessageHandlerMessage;
 
                 stub.ConnectionFailedHandler
-                    = (obj, args) =>
-                    {
-                        stub.Message = ConnectionFailedHandlerMessage;
-                    };
+                    = (obj, args) => stub.Message = ConnectionFailedHandlerMessage;
 
                 stub.InternalErrorHandler
-                    = (obj, args) =>
-                    {
-                        stub.Message = InternalErrorHandlerMessage;
-                    };
+                    = (obj, args) => stub.Message = InternalErrorHandlerMessage;
 
                 stub.ConnectionRestoredHandler
-                    = (obj, args) =>
-                    {
-                        stub.Message = ConnectionRestoredHandlerMessage;
-                    };
+                    = (obj, args) => stub.Message = ConnectionRestoredHandlerMessage;
 
                 stub.ConfigurationChangedHandler
-                    = (obj, args) =>
-                    {
-                        stub.Message = ConfigurationChangedHandlerMessage;
-                    };
+                    = (obj, args) => stub.Message = ConfigurationChangedHandlerMessage;
 
                 stub.HashSlotMovedHandler
-                    = (obj, args) =>
-                    {
-                        stub.Message = HashSlotMovedHandlerMessage;
-                    };
+                    = (obj, args) => stub.Message = HashSlotMovedHandlerMessage;
 
                 return stub;
             }

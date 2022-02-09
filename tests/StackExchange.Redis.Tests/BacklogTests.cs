@@ -77,7 +77,7 @@ namespace StackExchange.Redis.Tests
                 Writer.WriteLine("Test: Allowing reconnect");
                 muxer.AllowConnect = true;
                 Writer.WriteLine("Test: Awaiting reconnect");
-                await UntilCondition(TimeSpan.FromSeconds(3), () => muxer.IsConnected).ForAwait();
+                await UntilConditionAsync(TimeSpan.FromSeconds(3), () => muxer.IsConnected).ForAwait();
 
                 Writer.WriteLine("Test: Reconnecting");
                 Assert.True(muxer.IsConnected);
@@ -158,7 +158,7 @@ namespace StackExchange.Redis.Tests
                 Writer.WriteLine("Test: Allowing reconnect");
                 muxer.AllowConnect = true;
                 Writer.WriteLine("Test: Awaiting reconnect");
-                await UntilCondition(TimeSpan.FromSeconds(3), () => muxer.IsConnected).ForAwait();
+                await UntilConditionAsync(TimeSpan.FromSeconds(3), () => muxer.IsConnected).ForAwait();
 
                 Writer.WriteLine("Test: Checking reconnected 1");
                 Assert.True(muxer.IsConnected);
@@ -253,7 +253,7 @@ namespace StackExchange.Redis.Tests
 
                 Assert.False(muxer.IsConnected);
                 // Give the tasks time to queue
-                await UntilCondition(TimeSpan.FromSeconds(5), () => server.GetBridgeStatus(ConnectionType.Interactive).BacklogMessagesPending >= 3);
+                await UntilConditionAsync(TimeSpan.FromSeconds(5), () => server.GetBridgeStatus(ConnectionType.Interactive).BacklogMessagesPending >= 3);
 
                 var disconnectedStats = server.GetBridgeStatus(ConnectionType.Interactive);
                 Log($"Test Stats: (BacklogMessagesPending: {disconnectedStats.BacklogMessagesPending}, TotalBacklogMessagesQueued: {disconnectedStats.TotalBacklogMessagesQueued})");
@@ -262,7 +262,7 @@ namespace StackExchange.Redis.Tests
                 Writer.WriteLine("Test: Allowing reconnect");
                 muxer.AllowConnect = true;
                 Writer.WriteLine("Test: Awaiting reconnect");
-                await UntilCondition(TimeSpan.FromSeconds(3), () => muxer.IsConnected).ForAwait();
+                await UntilConditionAsync(TimeSpan.FromSeconds(3), () => muxer.IsConnected).ForAwait();
 
                 Writer.WriteLine("Test: Checking reconnected 1");
                 Assert.True(muxer.IsConnected);
@@ -359,7 +359,7 @@ namespace StackExchange.Redis.Tests
                 Writer.WriteLine("Test: Allowing reconnect");
                 muxer.AllowConnect = true;
                 Writer.WriteLine("Test: Awaiting reconnect");
-                await UntilCondition(TimeSpan.FromSeconds(3), () => server.IsConnected).ForAwait();
+                await UntilConditionAsync(TimeSpan.FromSeconds(3), () => server.IsConnected).ForAwait();
 
                 Writer.WriteLine("Test: Checking reconnected 1");
                 Assert.True(server.IsConnected);
@@ -384,7 +384,7 @@ namespace StackExchange.Redis.Tests
                 _ = PingAsync(server);
                 _ = PingAsync(server);
                 Writer.WriteLine("Test: Last Ping issued");
-                lastPing = PingAsync(server); ;
+                lastPing = PingAsync(server);
 
                 // We should see none queued
                 Writer.WriteLine("Test: BacklogMessagesPending check");

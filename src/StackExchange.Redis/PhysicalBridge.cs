@@ -31,11 +31,12 @@ namespace StackExchange.Redis
         /// We have 1 queue in play on this bridge.
         /// We're bypassing the queue for handshake events that go straight to the socket.
         /// Everything else that's not an internal call goes into the queue if there is a queue.
-        ///
+        /// </summary>
+        /// <remarks>
         /// In a later release we want to remove per-server events from this queue completely and shunt queued messages
         /// to another capable primary connection if one is available to process them faster (order is already hosed).
         /// For now, simplicity in: queue it all, replay or timeout it all.
-        /// </summary>
+        /// </remarks>
         private readonly ConcurrentQueue<Message> _backlog = new();
         private bool BacklogHasItems => !_backlog.IsEmpty;
         private int _backlogProcessorIsRunning = 0;

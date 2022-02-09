@@ -37,7 +37,7 @@ namespace StackExchange.Redis.Tests
                 }
 
                 // Heartbeat should reconnect by now
-                await UntilCondition(TimeSpan.FromSeconds(10), () => server.IsConnected);
+                await UntilConditionAsync(TimeSpan.FromSeconds(10), () => server.IsConnected);
 
                 Log("pinging - expect success");
                 var time = server.Ping();

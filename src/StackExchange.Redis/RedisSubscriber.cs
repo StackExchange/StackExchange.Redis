@@ -167,7 +167,7 @@ namespace StackExchange.Redis
 
                     SubscriptionAction.Subscribe when !isPattern => RedisCommand.SUBSCRIBE,
                     SubscriptionAction.Unsubscribe when !isPattern => RedisCommand.UNSUBSCRIBE,
-                    _ => throw new ArgumentOutOfRangeException("This would be an impressive boolean feat"),
+                    _ => throw new ArgumentOutOfRangeException(nameof(action), "This would be an impressive boolean feat"),
                 };
 
                 // TODO: Consider flags here - we need to pass Fire and Forget, but don't want to intermingle Primary/Replica
@@ -418,7 +418,6 @@ namespace StackExchange.Redis
         void ISubscriber.Unsubscribe(RedisChannel channel, Action<RedisChannel, RedisValue> handler, CommandFlags flags)
             => Unsubscribe(channel, handler, null, flags);
 
-        [SuppressMessage("Style", "IDE0075:Simplify conditional expression", Justification = "The suggestion sucks.")]
         public bool Unsubscribe(in RedisChannel channel, Action<RedisChannel, RedisValue> handler, ChannelMessageQueue queue, CommandFlags flags)
         {
             ThrowIfNull(channel);

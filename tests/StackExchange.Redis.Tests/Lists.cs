@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System;
+using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
@@ -41,7 +42,7 @@ namespace StackExchange.Redis.Tests
                 var db = conn.GetDatabase();
                 RedisKey key = "testlist";
                 db.KeyDelete(key, CommandFlags.FireAndForget);
-                var result = db.ListLeftPush(key, new RedisValue[0], When.Always, CommandFlags.None);
+                var result = db.ListLeftPush(key, Array.Empty<RedisValue>(), When.Always, CommandFlags.None);
                 Assert.Equal(0, result);
             }
         }
@@ -111,7 +112,7 @@ namespace StackExchange.Redis.Tests
                 var db = conn.GetDatabase();
                 RedisKey key = "testlist";
                 db.KeyDelete(key, CommandFlags.FireAndForget);
-                var result = await db.ListLeftPushAsync(key, new RedisValue[0], When.Always, CommandFlags.None);
+                var result = await db.ListLeftPushAsync(key, Array.Empty<RedisValue>(), When.Always, CommandFlags.None);
                 Assert.Equal(0, result);
             }
         }
@@ -181,7 +182,7 @@ namespace StackExchange.Redis.Tests
                 var db = conn.GetDatabase();
                 RedisKey key = "testlist";
                 db.KeyDelete(key, CommandFlags.FireAndForget);
-                var result = db.ListRightPush(key, new RedisValue[0], When.Always, CommandFlags.None);
+                var result = db.ListRightPush(key, Array.Empty<RedisValue>(), When.Always, CommandFlags.None);
                 Assert.Equal(0, result);
             }
         }
@@ -251,7 +252,7 @@ namespace StackExchange.Redis.Tests
                 var db = conn.GetDatabase();
                 RedisKey key = "testlist";
                 db.KeyDelete(key, CommandFlags.FireAndForget);
-                var result = await db.ListRightPushAsync(key, new RedisValue[0], When.Always, CommandFlags.None);
+                var result = await db.ListRightPushAsync(key, Array.Empty<RedisValue>(), When.Always, CommandFlags.None);
                 Assert.Equal(0, result);
             }
         }

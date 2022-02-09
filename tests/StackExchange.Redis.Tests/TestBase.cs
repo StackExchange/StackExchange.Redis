@@ -36,10 +36,16 @@ namespace StackExchange.Redis.Tests
             ClearAmbientFailures();
         }
 
-        /// <summary> Useful to temporarily get extra worker threads for an otherwise synchronous test case which will 'block' the thread, on a synchronous API like Task.Wait() or Task.Result</summary>
-        /// <note> Must NOT be used for test cases which *goes async*, as then the inferred return type will become 'async void', and we will fail to observe the result of  the async part</note>
+        /// <summary>
+        /// Useful to temporarily get extra worker threads for an otherwise synchronous test case which will 'block' the thread,
+        /// on a synchronous API like <see cref="Task.Wait"/> or <see cref="Task.Result"/>.
+        /// </summary>
+        /// <note>
+        /// Must NOT be used for test cases which *goes async*, as then the inferred return type will become 'async void',
+        /// and we will fail to observe the result of  the async part.
+        /// </note>
         /// <remarks>See 'ConnectFailTimeout' class for example usage.</remarks>
-        protected Task RunBlockingSynchronousWithExtraThreadAsync(Action testScenario) => Task.Factory.StartNew(testScenario, CancellationToken.None, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+        protected static Task RunBlockingSynchronousWithExtraThreadAsync(Action testScenario) => Task.Factory.StartNew(testScenario, CancellationToken.None, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
 
         protected void LogNoTime(string message) => LogNoTime(Writer, message);
         internal static void LogNoTime(TextWriter output, string message)
@@ -87,7 +93,7 @@ namespace StackExchange.Redis.Tests
             return profile;
         }
 
-        protected void CollectGarbage()
+        protected static void CollectGarbage()
         {
             GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced);
             GC.WaitForPendingFinalizers();
@@ -99,6 +105,8 @@ namespace StackExchange.Redis.Tests
         {
             _fixture?.Teardown(Writer);
             Teardown();
+            Writer.Dispose();
+            GC.SuppressFinalize(this);
         }
 
 #if VERBOSE
@@ -211,7 +219,7 @@ namespace StackExchange.Redis.Tests
             Log($"Service Counts: (Scheduler) Queue: {pool?.TotalServicedByQueue.ToString()}, Pool: {pool?.TotalServicedByPool.ToString()}, Workers: {pool?.WorkerCount.ToString()}, Available: {pool?.AvailableCount.ToString()}");
         }
 
-        protected IServer GetServer(IConnectionMultiplexer muxer)
+        protected static IServer GetServer(IConnectionMultiplexer muxer)
         {
             EndPoint[] endpoints = muxer.GetEndPoints();
             IServer result = null;
@@ -226,7 +234,7 @@ namespace StackExchange.Redis.Tests
             return result;
         }
 
-        protected IServer GetAnyMaster(IConnectionMultiplexer muxer)
+        protected static IServer GetAnyMaster(IConnectionMultiplexer muxer)
         {
             foreach (var endpoint in muxer.GetEndPoints())
             {
@@ -300,10 +308,7 @@ namespace StackExchange.Redis.Tests
                 caller);
             muxer.InternalError += OnInternalError;
             muxer.ConnectionFailed += OnConnectionFailed;
-            muxer.ConnectionRestored += (s, e) =>
-            {
-                Log($"Connection Restored ({e.ConnectionType},{e.FailureType}): {e.Exception}");
-            };
+            muxer.ConnectionRestored += (s, e) => Log($"Connection Restored ({e.ConnectionType},{e.FailureType}): {e.Exception}");
             return muxer;
         }
 
@@ -479,7 +484,7 @@ namespace StackExchange.Redis.Tests
         }
 
         private static readonly TimeSpan DefaultWaitPerLoop = TimeSpan.FromMilliseconds(50);
-        protected async Task UntilCondition(TimeSpan maxWaitTime, Func<bool> predicate, TimeSpan? waitPerLoop = null)
+        protected static async Task UntilConditionAsync(TimeSpan maxWaitTime, Func<bool> predicate, TimeSpan? waitPerLoop = null)
         {
             TimeSpan spent = TimeSpan.Zero;
             while (spent < maxWaitTime && !predicate())

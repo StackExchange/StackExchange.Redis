@@ -31,7 +31,7 @@ namespace StackExchange.Redis.Tests.Issues
                 Assert.Equal("some value", fullWait.Result);
 
                 // wait for expiry
-                await UntilCondition(TimeSpan.FromSeconds(10), () => !cache.KeyExists(key)).ForAwait();
+                await UntilConditionAsync(TimeSpan.FromSeconds(10), () => !cache.KeyExists(key)).ForAwait();
 
                 // test once expired
                 keyExists = cache.KeyExists(key);

@@ -152,7 +152,7 @@ namespace StackExchange.Redis.Tests
 
         private static byte[] Bytes(string s) => s == null ? null : Encoding.UTF8.GetBytes(s);
 
-        private string LineNumber([CallerLineNumber] int lineNumber = 0) => lineNumber.ToString();
+        private static string LineNumber([CallerLineNumber] int lineNumber = 0) => lineNumber.ToString();
 
         [Fact]
         public void RedisValueStartsWith()
