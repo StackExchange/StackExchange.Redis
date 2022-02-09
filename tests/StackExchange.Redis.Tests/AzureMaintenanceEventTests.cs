@@ -38,7 +38,7 @@ namespace StackExchange.Redis.Tests
             {
                 expectedStartTimeUtc = DateTime.SpecifyKind(startTimeUtc, DateTimeKind.Utc);
             }
-            IPAddress.TryParse(expectedIP, out IPAddress expectedIPAddress);
+            _ = IPAddress.TryParse(expectedIP, out IPAddress expectedIPAddress);
 
             var azureMaintenance = new AzureMaintenanceEvent(message);
 

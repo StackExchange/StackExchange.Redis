@@ -89,6 +89,9 @@ csharp_space_after_keywords_in_control_flow_statements = true:suggestion
 # Language settings
 csharp_prefer_simple_default_expression = false:none
 
+# IDE0090: Use 'new(...)'
+dotnet_diagnostic.IDE0090.severity = silent
+
 # RCS1098: Constant values should be placed on right side of comparisons.
 dotnet_diagnostic.RCS1098.severity = none
 
