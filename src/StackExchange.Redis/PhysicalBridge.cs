@@ -152,7 +152,7 @@ namespace StackExchange.Redis
                 if (message.Command != RedisCommand.QUIT)
                 {
                     message.SetEnqueued(null);
-                    BacklogEnqueue(message, null);
+                    BacklogEnqueue(message);
                     // Note: we don't start a worker on each message here
                     return WriteResult.Success; // Successfully queued, so indicate success
                 }
@@ -784,7 +784,7 @@ namespace StackExchange.Redis
                 return false;
             }
 
-            BacklogEnqueue(message, physical);
+            BacklogEnqueue(message);
 
             // The correct way to decide to start backlog process is not based on previously empty
             // but based on a) not empty now (we enqueued!) and b) no backlog processor already running.
@@ -794,7 +794,7 @@ namespace StackExchange.Redis
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private void BacklogEnqueue(Message message, PhysicalConnection physical)
+        private void BacklogEnqueue(Message message)
         {
             _backlog.Enqueue(message);
             Interlocked.Increment(ref _backlogTotalEnqueued);
@@ -1055,14 +1055,13 @@ namespace StackExchange.Redis
 
             // AVOID REORDERING MESSAGES
             // Prefer to add it to the backlog if this thread can see that there might already be a message backlog.
-            // We do this before attempting to take the writelock, because we won't actually write, we'll just let the backlog get processed in due course
+            // We do this before attempting to take the write lock, because we won't actually write, we'll just let the backlog get processed in due course
             if (TryPushToBacklog(message, onlyIfExists: true, bypassBacklog: bypassBacklog))
             {
                 return new ValueTask<WriteResult>(WriteResult.Success); // queued counts as success
             }
 
             bool releaseLock = true; // fine to default to true, as it doesn't matter until token is a "success"
-            int lockTaken = 0;
 #if NETCOREAPP
             bool gotLock = false;
 #else
@@ -1103,9 +1102,6 @@ namespace StackExchange.Redis
                     if (!token.Success) return new ValueTask<WriteResult>(TimedOutBeforeWrite(message));
 #endif
                 }
-#if DEBUG
-                lockTaken = Environment.TickCount;
-#endif
                 var result = WriteMessageInsideLock(physical, message);
                 if (result == WriteResult.Success)
                 {
@@ -1114,9 +1110,9 @@ namespace StackExchange.Redis
                     {
                         releaseLock = false; // so we don't release prematurely
 #if NETCOREAPP
-                        return CompleteWriteAndReleaseLockAsync(flush, message, lockTaken);
+                        return CompleteWriteAndReleaseLockAsync(flush, message);
 #else
-                        return CompleteWriteAndReleaseLockAsync(token, flush, message, lockTaken);
+                        return CompleteWriteAndReleaseLockAsync(token, flush, message);
 #endif
                     }
 
@@ -1205,8 +1201,7 @@ namespace StackExchange.Redis
             LockToken lockToken,
 #endif
             ValueTask<WriteResult> flush,
-            Message message,
-            int lockTaken)
+            Message message)
         {
 #if !NETCOREAPP
             using (lockToken)

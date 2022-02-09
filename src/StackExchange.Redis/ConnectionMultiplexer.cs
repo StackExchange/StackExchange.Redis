@@ -1473,7 +1473,7 @@ namespace StackExchange.Redis
                 return dbCacheZero ??= new RedisDatabase(this, 0, null);
             }
             var arr = dbCacheLow ??= new IDatabase[MaxCachedDatabaseInstance];
-            return arr[db - 1] ?? (arr[db - 1] = new RedisDatabase(this, db, null));
+            return arr[db - 1] ??= new RedisDatabase(this, db, null);
         }
 
         /// <summary>
@@ -2137,7 +2137,11 @@ namespace StackExchange.Redis
             if (colonPosition > 0)
             {
                 // Has a port specifier
+#if NETCOREAPP
+                return string.Concat(input.AsSpan(0, periodPosition), input.AsSpan(colonPosition));
+#else
                 return input.Substring(0, periodPosition) + input.Substring(colonPosition);
+#endif
             }
             else
             {
@@ -2316,7 +2320,7 @@ namespace StackExchange.Redis
 
             if (sub.SubscribedEndpoint("+switch-master") == null)
             {
-                sub.Subscribe("+switch-master", (channel, message) =>
+                sub.Subscribe("+switch-master", (_, message) =>
                 {
                     string[] messageParts = ((string)message).Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
                     EndPoint switchBlame = Format.TryParseEndPoint(string.Format("{0}:{1}", messageParts[1], messageParts[2]));
@@ -2355,7 +2359,7 @@ namespace StackExchange.Redis
             // Subscribe to new sentinels being added
             if (sub.SubscribedEndpoint("+sentinel") == null)
             {
-                sub.Subscribe("+sentinel", (channel, message) =>
+                sub.Subscribe("+sentinel", (_, message) =>
                 {
                     string[] messageParts = ((string)message).Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
                     UpdateSentinelAddressList(messageParts[0]);

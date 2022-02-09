@@ -107,6 +107,7 @@ namespace StackExchange.Redis
             {
                 _state = State.Disposed;
                 SetComplete();
+                GC.SuppressFinalize(this);
             }
 
             private void SetComplete()
@@ -128,6 +129,7 @@ namespace StackExchange.Redis
             public ValueTask DisposeAsync()
             {
                 Dispose();
+                GC.SuppressFinalize(this);
                 return default;
             }
 

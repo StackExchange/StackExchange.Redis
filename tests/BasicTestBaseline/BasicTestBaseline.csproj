@@ -7,7 +7,6 @@
     <OutputType>Exe</OutputType>
     <PackageId>BasicTestBaseline</PackageId>
     <RuntimeIdentifiers>win7-x64</RuntimeIdentifiers>
-    <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
     <DefineConstants>$(DefineConstants);TEST_BASELINE</DefineConstants>
   </PropertyGroup>
 

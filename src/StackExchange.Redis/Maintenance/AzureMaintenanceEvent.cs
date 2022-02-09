@@ -129,7 +129,7 @@ namespace StackExchange.Redis.Maintenance
                     return;
                 }
 
-                await sub.SubscribeAsync(PubSubChannelName, async (channel, message) =>
+                await sub.SubscribeAsync(PubSubChannelName, async (_, message) =>
                 {
                     var newMessage = new AzureMaintenanceEvent(message);
                     multiplexer.InvokeServerMaintenanceEvent(newMessage);
@@ -180,7 +180,7 @@ namespace StackExchange.Redis.Maintenance
         /// </summary>
         public int NonSslPort { get; }
 
-        private AzureNotificationType ParseNotificationType(string typeString) => typeString switch
+        private static AzureNotificationType ParseNotificationType(string typeString) => typeString switch
         {
             "NodeMaintenanceScheduled" => AzureNotificationType.NodeMaintenanceScheduled,
             "NodeMaintenanceStarting" => AzureNotificationType.NodeMaintenanceStarting,

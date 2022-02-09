@@ -2011,7 +2011,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                 }
 
                 return result.GetItems().ToArray(
-                    (in RawResult item, in StreamProcessorBase<T> obj) => ParseRedisStreamEntry(item), this);
+                    (in RawResult item, in StreamProcessorBase<T> _) => ParseRedisStreamEntry(item), this);
             }
 
             protected static NameValueEntry[] ParseStreamEntryValues(in RawResult result)

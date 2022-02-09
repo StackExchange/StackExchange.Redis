@@ -463,7 +463,7 @@ namespace StackExchange.Redis
         [CLSCompliant(false)]
         public static implicit operator RedisValue(ulong value)
         {
-            const ulong MSB = (1UL) << 63;
+            const ulong MSB = 1UL << 63;
             return (value & MSB) == 0
                 ? new RedisValue((long)value, default, Sentinel_SignedInteger) // prefer signed whenever we can
                 : new RedisValue(unchecked((long)value), default, Sentinel_UnsignedInteger); // with unsigned as the fallback
