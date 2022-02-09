@@ -149,12 +149,15 @@ namespace StackExchange.Redis
 
         private static string defaultClientName;
 
+        /// <summary>
+        /// Gets the client name for a connection, with the library version appended.
+        /// </summary>
         private static string GetDefaultClientName()
         {
-            return defaultClientName ??= TryGetAzureRoleInstanceIdNoThrow()
+            return defaultClientName ??= (TryGetAzureRoleInstanceIdNoThrow()
                     ?? Environment.MachineName
                     ?? Environment.GetEnvironmentVariable("ComputerName")
-                    ?? "StackExchange.Redis";
+                    ?? "StackExchange.Redis") + "(v" + Utils.GetLibVersion() + ")";
         }
 
         /// <summary>

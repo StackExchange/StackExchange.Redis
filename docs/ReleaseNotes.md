@@ -14,6 +14,7 @@
   - Fixes a race in subscribing immediately before a publish
   - Fixes subscription routing on clusters (spreading instead of choosing 1 node)
   - More correctly reconnects subscriptions on connection failures, including to other endpoints
+- Adds "(vX.X.X)" version suffix to the default client ID so server-side `CLIENT LIST` can more easily see what's connected (#1985 via NickCraver)
 
 ## 2.2.88
 
