@@ -243,12 +243,12 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create(allowAdmin: true, caller: null)) // force default naming to kick in
             {
-                Assert.Equal(Environment.MachineName, muxer.ClientName);
+                Assert.Equal($"{Environment.MachineName}(v{Utils.GetLibVersion()})", muxer.ClientName);
                 var conn = muxer.GetDatabase();
                 conn.Ping();
 
                 var name = (string)GetAnyMaster(muxer).Execute("CLIENT", "GETNAME");
-                Assert.Equal(Environment.MachineName, name);
+                Assert.Equal($"{Environment.MachineName}(v{Utils.GetLibVersion()})", name);
             }
         }
 

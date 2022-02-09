@@ -199,17 +199,6 @@ namespace StackExchange.Redis
             return new RedisCommandException("Command cannot be used with a cursor: " + s);
         }
 
-        private static string _libVersion;
-        internal static string GetLibVersion()
-        {
-            if (_libVersion == null)
-            {
-                var assembly = typeof(ConnectionMultiplexer).Assembly;
-                _libVersion = ((AssemblyFileVersionAttribute)Attribute.GetCustomAttribute(assembly, typeof(AssemblyFileVersionAttribute)))?.Version
-                    ?? assembly.GetName().Version.ToString();
-            }
-            return _libVersion;
-        }
         private static void Add(List<Tuple<string, string>> data, StringBuilder sb, string lk, string sk, string v)
         {
             if (v != null)
@@ -365,7 +354,7 @@ namespace StackExchange.Redis
                 Add(data, sb, "Local-CPU", "Local-CPU", PerfCounterHelper.GetSystemCpuPercent());
             }
 
-            Add(data, sb, "Version", "v", GetLibVersion());
+            Add(data, sb, "Version", "v", Utils.GetLibVersion());
         }
 
         private static void AddExceptionDetail(Exception exception, Message message, ServerEndPoint server, string label)

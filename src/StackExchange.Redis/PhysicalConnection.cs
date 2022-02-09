@@ -434,7 +434,7 @@ namespace StackExchange.Redis
                         }
                     }
 
-                    add("Version", "v", ExceptionFactory.GetLibVersion());
+                    add("Version", "v", Utils.GetLibVersion());
 
                     outerException = new RedisConnectionException(failureType, exMessage.ToString(), innerException);
 
