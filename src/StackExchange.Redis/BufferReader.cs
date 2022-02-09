@@ -178,7 +178,6 @@ namespace StackExchange.Redis
                 if (haveTrailingCR)
                 {
                     if (span[0] == '\n') return totalSkipped - 1;
-                    haveTrailingCR = false;
                 }
 
                 int found = span.VectorSafeIndexOfCRLF();
@@ -190,18 +189,6 @@ namespace StackExchange.Redis
             while (reader.FetchNextSegment());
             return -1;
         }
-
-        //internal static bool HasBytes(BufferReader reader, int count) // very deliberately not ref; want snapshot
-        //{
-        //    if (count < 0) throw new ArgumentOutOfRangeException(nameof(count));
-        //    do
-        //    {
-        //        var available = reader.RemainingThisSpan;
-        //        if (count <= available) return true;
-        //        count -= available;
-        //    } while (reader.FetchNextSegment());
-        //    return false;
-        //}
 
         public int ConsumeByte()
         {

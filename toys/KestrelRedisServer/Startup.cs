@@ -17,7 +17,11 @@ namespace KestrelRedisServer
         public void ConfigureServices(IServiceCollection services)
             => services.Add(new ServiceDescriptor(typeof(RespServer), _server));
 
-        public void Dispose() => _server.Dispose();
+        public void Dispose()
+        {
+            _server.Dispose();
+            GC.SuppressFinalize(this);
+        }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env, IHostApplicationLifetime lifetime)

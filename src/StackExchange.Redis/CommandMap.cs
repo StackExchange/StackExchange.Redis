@@ -185,7 +185,6 @@ namespace StackExchange.Redis
             var commands = (RedisCommand[])Enum.GetValues(typeof(RedisCommand));
 
             var map = new CommandBytes[commands.Length];
-            bool haveDelta = false;
             for (int i = 0; i < commands.Length; i++)
             {
                 int idx = (int)commands[i];
@@ -201,14 +200,9 @@ namespace StackExchange.Redis
                     {
                         value = tmp;
                     }
-                    if (value != name) haveDelta = true;
-                    // TODO: bug?
-                    haveDelta = true;
                     map[idx] = new CommandBytes(value);
                 }
             }
-            if (!haveDelta && Default != null) return Default;
-
             return new CommandMap(map);
         }
     }

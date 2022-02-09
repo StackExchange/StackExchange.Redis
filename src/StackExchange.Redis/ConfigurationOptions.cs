@@ -332,7 +332,7 @@ namespace StackExchange.Redis
         /// </summary>
         public int KeepAlive
         {
-            get => keepAlive.GetValueOrDefault(-1);
+            get => keepAlive ?? -1;
             set => keepAlive = value;
         }
 
@@ -443,7 +443,7 @@ namespace StackExchange.Redis
         /// </summary>
         public int SyncTimeout
         {
-            get => syncTimeout.GetValueOrDefault(5000);
+            get => syncTimeout ?? 5000;
             set => syncTimeout = value;
         }
 
@@ -484,7 +484,7 @@ namespace StackExchange.Redis
         /// </summary>
         public int ConfigCheckSeconds
         {
-            get => configCheckSeconds.GetValueOrDefault(60);
+            get => configCheckSeconds ?? 60;
             set => configCheckSeconds = value;
         }
 
@@ -919,7 +919,7 @@ namespace StackExchange.Redis
         {
             var dnsEndpoints = EndPoints.Select(endpoint => endpoint as DnsEndPoint);
             string dnsHost = dnsEndpoints.FirstOrDefault()?.Host;
-            if (dnsEndpoints.All(dnsEndpoint => (dnsEndpoint != null && dnsEndpoint.Host == dnsHost)))
+            if (dnsEndpoints.All(dnsEndpoint => dnsEndpoint != null && dnsEndpoint.Host == dnsHost))
             {
                 return dnsHost;
             }
