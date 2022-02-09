@@ -189,7 +189,7 @@ namespace StackExchange.Redis.Tests
                     Assert.Equal(secondary2.EndPoint, db2.IdentifyEndpoint(key, CommandFlags.DemandReplica));
                 }
 
-                await UntilCondition(TimeSpan.FromSeconds(20), () => !primary.IsReplica && secondary.IsReplica);
+                await UntilConditionAsync(TimeSpan.FromSeconds(20), () => !primary.IsReplica && secondary.IsReplica);
 
                 Assert.False(primary.IsReplica, $"{primary.EndPoint} should be a primary.");
                 Assert.True(secondary.IsReplica, $"{secondary.EndPoint} should be a replica.");
@@ -259,7 +259,7 @@ namespace StackExchange.Redis.Tests
                 Log("  SubA ping: " + subA.Ping());
                 Log("  SubB ping: " + subB.Ping());
                 // If redis is under load due to this suite, it may take a moment to send across.
-                await UntilCondition(TimeSpan.FromSeconds(5), () => Interlocked.Read(ref aCount) == 2 && Interlocked.Read(ref bCount) == 2).ForAwait();
+                await UntilConditionAsync(TimeSpan.FromSeconds(5), () => Interlocked.Read(ref aCount) == 2 && Interlocked.Read(ref bCount) == 2).ForAwait();
 
                 Assert.Equal(2, Interlocked.Read(ref aCount));
                 Assert.Equal(2, Interlocked.Read(ref bCount));
@@ -277,7 +277,7 @@ namespace StackExchange.Redis.Tests
                         Log(sw.ToString());
                     }
                     Log("Waiting for connection B to detect...");
-                    await UntilCondition(TimeSpan.FromSeconds(10), () => b.GetServer(TestConfig.Current.FailoverMasterServerAndPort).IsReplica).ForAwait();
+                    await UntilConditionAsync(TimeSpan.FromSeconds(10), () => b.GetServer(TestConfig.Current.FailoverMasterServerAndPort).IsReplica).ForAwait();
                     subA.Ping();
                     subB.Ping();
                     Log("Failover 2 Attempted. Pausing...");
@@ -294,7 +294,7 @@ namespace StackExchange.Redis.Tests
 
                     Assert.True(a.GetServer(TestConfig.Current.FailoverMasterServerAndPort).IsReplica, $"A Connection: {TestConfig.Current.FailoverMasterServerAndPort} should be a replica");
                     Assert.False(a.GetServer(TestConfig.Current.FailoverReplicaServerAndPort).IsReplica, $"A Connection: {TestConfig.Current.FailoverReplicaServerAndPort} should be a master");
-                    await UntilCondition(TimeSpan.FromSeconds(10), () => b.GetServer(TestConfig.Current.FailoverMasterServerAndPort).IsReplica).ForAwait();
+                    await UntilConditionAsync(TimeSpan.FromSeconds(10), () => b.GetServer(TestConfig.Current.FailoverMasterServerAndPort).IsReplica).ForAwait();
                     var sanityCheck = b.GetServer(TestConfig.Current.FailoverMasterServerAndPort).IsReplica;
                     if (!sanityCheck)
                     {
@@ -329,7 +329,7 @@ namespace StackExchange.Redis.Tests
                     subA.Ping();
                     subB.Ping();
                     Log("Ping Complete. Checking...");
-                    await UntilCondition(TimeSpan.FromSeconds(10), () => Interlocked.Read(ref aCount) == 2 && Interlocked.Read(ref bCount) == 2).ForAwait();
+                    await UntilConditionAsync(TimeSpan.FromSeconds(10), () => Interlocked.Read(ref aCount) == 2 && Interlocked.Read(ref bCount) == 2).ForAwait();
 
                     Log("Counts so far:");
                     Log("  aCount: " + Interlocked.Read(ref aCount));

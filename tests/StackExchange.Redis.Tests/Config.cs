@@ -42,7 +42,7 @@ namespace StackExchange.Redis.Tests
             var options = ConfigurationOptions.Parse($"host,{conString}");
             Assert.Equal(expectedValue, options.CheckCertificateRevocation);
             var toString = options.ToString();
-            Assert.True(toString.IndexOf(conString, StringComparison.CurrentCultureIgnoreCase) >= 0);
+            Assert.Contains(conString, toString, StringComparison.CurrentCultureIgnoreCase);
         }
 
         [Fact]
@@ -514,10 +514,7 @@ namespace StackExchange.Redis.Tests
             Assert.Equal("FooApply", options.ClientName);
 
             var randomName = Guid.NewGuid().ToString();
-            var result = options.Apply(options =>
-            {
-                options.ClientName = randomName;
-            });
+            var result = options.Apply(options => options.ClientName = randomName);
 
             Assert.Equal(randomName, options.ClientName);
             Assert.Equal(randomName, result.ClientName);

@@ -76,7 +76,7 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        private void TestLockOpCountByVersion(IConnectionMultiplexer conn, int expectedOps, bool existFirst)
+        private static void TestLockOpCountByVersion(IConnectionMultiplexer conn, int expectedOps, bool existFirst)
         {
             const int LockDuration = 30;
             RedisKey Key = Me();

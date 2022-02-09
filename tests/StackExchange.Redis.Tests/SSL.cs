@@ -289,12 +289,8 @@ namespace StackExchange.Redis.Tests
                     }
                 }
             }
-            catch (RedisConnectionException ex)
+            catch (RedisConnectionException ex) when (!setEnv && ex.FailureType == ConnectionFailureType.UnableToConnect)
             {
-                if (setEnv || ex.FailureType != ConnectionFailureType.UnableToConnect)
-                {
-                    throw;
-                }
             }
             finally
             {

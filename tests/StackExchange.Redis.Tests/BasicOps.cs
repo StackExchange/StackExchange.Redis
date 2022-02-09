@@ -295,10 +295,10 @@ namespace StackExchange.Redis.Tests
                 var server = GetServer(muxer);
                 server.SimulateConnectionFailure(SimulatedFailureType.All);
                 var watch = Stopwatch.StartNew();
-                await UntilCondition(TimeSpan.FromSeconds(10), () => server.IsConnected);
+                await UntilConditionAsync(TimeSpan.FromSeconds(10), () => server.IsConnected);
                 watch.Stop();
                 Log("Time to re-establish: {0}ms (any order)", watch.ElapsedMilliseconds);
-                await UntilCondition(TimeSpan.FromSeconds(10), () => key == db.StringGet(key));
+                await UntilConditionAsync(TimeSpan.FromSeconds(10), () => key == db.StringGet(key));
                 Debug.WriteLine("Pinging...");
                 Assert.Equal(key, db.StringGet(key));
             }
@@ -394,7 +394,7 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        private void Incr(IDatabase database, RedisKey key, int delta, ref int total)
+        private static void Incr(IDatabase database, RedisKey key, int delta, ref int total)
         {
             database.StringIncrement(key, delta, CommandFlags.FireAndForget);
             total += delta;

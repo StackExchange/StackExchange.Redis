@@ -150,7 +150,11 @@ namespace StackExchange.Redis.Tests
 
         public int DynamicallySkippedTestCount { get; private set; }
 
-        public void Dispose() { }
+        public void Dispose()
+        {
+            InnerBus.Dispose();
+            GC.SuppressFinalize(this);
+        }
 
         public bool QueueMessage(IMessageSinkMessage message)
         {

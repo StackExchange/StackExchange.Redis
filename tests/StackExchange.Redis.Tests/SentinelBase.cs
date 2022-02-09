@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
 using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
@@ -12,8 +11,8 @@ namespace StackExchange.Redis.Tests
 {
     public class SentinelBase : TestBase, IAsyncLifetime
     {
-        protected string ServiceName => TestConfig.Current.SentinelSeviceName;
-        protected ConfigurationOptions ServiceOptions => new ConfigurationOptions { ServiceName = ServiceName, AllowAdmin = true };
+        protected static string ServiceName => TestConfig.Current.SentinelSeviceName;
+        protected static ConfigurationOptions ServiceOptions => new ConfigurationOptions { ServiceName = ServiceName, AllowAdmin = true };
 
         protected ConnectionMultiplexer Conn { get; set; }
         protected IServer SentinelServerA { get; set; }
@@ -148,13 +147,16 @@ namespace StackExchange.Redis.Tests
 
             static void LogEndpoints(IServer master, Action<string> log)
             {
-                var serverEndpoints = (master.Multiplexer as ConnectionMultiplexer).GetServerSnapshot();
-                log("Endpoints:");
-                foreach (var serverEndpoint in serverEndpoints)
+                if (master.Multiplexer is ConnectionMultiplexer muxer)
                 {
-                    log($"  {serverEndpoint}:");
-                    var server = master.Multiplexer.GetServer(serverEndpoint.EndPoint);
-                    log($"     Server: (Connected={server.IsConnected}, Type={server.ServerType}, IsReplica={server.IsReplica}, Unselectable={serverEndpoint.GetUnselectableFlags()})");
+                    var serverEndpoints = muxer.GetServerSnapshot();
+                    log("Endpoints:");
+                    foreach (var serverEndpoint in serverEndpoints)
+                    {
+                        log($"  {serverEndpoint}:");
+                        var server = master.Multiplexer.GetServer(serverEndpoint.EndPoint);
+                        log($"     Server: (Connected={server.IsConnected}, Type={server.ServerType}, IsReplica={server.IsReplica}, Unselectable={serverEndpoint.GetUnselectableFlags()})");
+                    }
                 }
             }
 

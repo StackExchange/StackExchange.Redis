@@ -272,13 +272,12 @@ namespace StackExchange.Redis
             }
         }
 
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0071:Simplify interpolation", Justification = "Allocations (string.Concat vs. string.Format)")]
         public void UpdateNodeRelations(ClusterConfiguration configuration)
         {
             var thisNode = configuration.Nodes.FirstOrDefault(x => x.EndPoint.Equals(EndPoint));
             if (thisNode != null)
             {
-                Multiplexer.Trace($"Updating node relations for {thisNode.EndPoint.ToString()}...");
+                Multiplexer.Trace($"Updating node relations for {Format.ToString(thisNode.EndPoint)}...");
                 List<ServerEndPoint> replicas = null;
                 ServerEndPoint master = null;
                 foreach (var node in configuration.Nodes)

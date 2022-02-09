@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
 using System.Text;
 using Xunit;
 using Xunit.Abstractions;
@@ -24,7 +25,7 @@ namespace StackExchange.Redis.Tests
             Assert.False(n.HasValue);
             Assert.True(n.IsNullOrEmpty);
 
-            RedisValue emptyArr = new byte[0];
+            RedisValue emptyArr = Array.Empty<byte>();
             Assert.False(emptyArr.IsNull);
             Assert.False(emptyArr.IsInteger);
             Assert.False(emptyArr.HasValue);

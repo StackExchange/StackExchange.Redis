@@ -41,7 +41,7 @@ namespace StackExchange.Redis.Tests
                     // should reconnect within 1 keepalive interval
                     muxer.AllowConnect = true;
                     Log("Waiting for reconnect");
-                    await UntilCondition(TimeSpan.FromSeconds(2), () => muxer.IsConnected).ForAwait();
+                    await UntilConditionAsync(TimeSpan.FromSeconds(2), () => muxer.IsConnected).ForAwait();
 
                     Assert.True(muxer.IsConnected);
                 }
@@ -81,7 +81,7 @@ namespace StackExchange.Redis.Tests
                     // should reconnect within 1 keepalive interval
                     muxer.AllowConnect = true;
                     Log("Waiting for reconnect");
-                    await UntilCondition(TimeSpan.FromSeconds(2), () => muxer.IsConnected).ForAwait();
+                    await UntilConditionAsync(TimeSpan.FromSeconds(2), () => muxer.IsConnected).ForAwait();
 
                     Assert.True(muxer.IsConnected);
                 }
@@ -126,7 +126,7 @@ namespace StackExchange.Redis.Tests
                 var server = muxer.GetServer(TestConfig.Current.MasterServerAndPort);
                 server.SimulateConnectionFailure(SimulatedFailureType.All);
 
-                await UntilCondition(TimeSpan.FromSeconds(10), () => Volatile.Read(ref failCount) >= 2 && Volatile.Read(ref restoreCount) >= 2);
+                await UntilConditionAsync(TimeSpan.FromSeconds(10), () => Volatile.Read(ref failCount) >= 2 && Volatile.Read(ref restoreCount) >= 2);
 
                 // interactive+subscriber = 2
                 var failCountSnapshot = Volatile.Read(ref failCount);

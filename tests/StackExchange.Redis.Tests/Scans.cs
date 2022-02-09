@@ -352,7 +352,7 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        private bool GotCursors(IConnectionMultiplexer conn, RedisKey key, int count)
+        private static bool GotCursors(IConnectionMultiplexer conn, RedisKey key, int count)
         {
             var db = conn.GetDatabase();
             db.KeyDelete(key, CommandFlags.FireAndForget);

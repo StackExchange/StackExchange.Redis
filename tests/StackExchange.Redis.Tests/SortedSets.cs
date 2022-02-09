@@ -9,7 +9,7 @@ namespace StackExchange.Redis.Tests
     {
         public SortedSets(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
 
-        public static SortedSetEntry[] entries = new SortedSetEntry[]
+        private static readonly SortedSetEntry[] entries = new SortedSetEntry[]
         {
             new SortedSetEntry("a", 1),
             new SortedSetEntry("b", 2),
