@@ -2,6 +2,7 @@
 using System.Linq;
 using System.Security.Authentication;
 using System.Threading.Tasks;
+using StackExchange.Redis.Configuration;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -166,7 +167,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void TryGetAzureRoleInstanceIdNoThrow()
         {
-            Assert.Null(ConnectionMultiplexer.TryGetAzureRoleInstanceIdNoThrow());
+            Assert.Null(DefaultOptionsProvider.TryGetAzureRoleInstanceIdNoThrow());
         }
 
 #if DEBUG

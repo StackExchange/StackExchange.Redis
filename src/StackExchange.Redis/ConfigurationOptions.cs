@@ -9,6 +9,7 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using StackExchange.Redis.Configuration;
 using static StackExchange.Redis.ConnectionMultiplexer;
 
 namespace StackExchange.Redis
@@ -18,8 +19,6 @@ namespace StackExchange.Redis
     /// </summary>
     public sealed class ConfigurationOptions : ICloneable
     {
-        internal const string DefaultTieBreaker = "__Booksleeve_TieBreak", DefaultConfigurationChannel = "__Booksleeve_MasterChanged";
-
         private static class OptionKeys
         {
             public static int ParseInt32(string key, string value, int minValue = int.MinValue, int maxValue = int.MaxValue)
@@ -132,15 +131,17 @@ namespace StackExchange.Redis
             }
         }
 
+        private DefaultOptionsProvider defaultOptions;
+
         private bool? allowAdmin, abortOnConnectFail, highPrioritySocketThreads, resolveDns, ssl, checkCertificateRevocation;
 
-        private string tieBreaker, sslHost, configChannel;
+        private string clientName, tieBreaker, sslHost, configChannel;
 
         private CommandMap commandMap;
 
         private Version defaultVersion;
 
-        private int? keepAlive, asyncTimeout, syncTimeout, connectTimeout, responseTimeout, writeBuffer, connectRetry, configCheckSeconds;
+        private int? keepAlive, asyncTimeout, syncTimeout, connectTimeout, responseTimeout, connectRetry, configCheckSeconds;
 
         private Proxy? proxy;
 
@@ -163,25 +164,36 @@ namespace StackExchange.Redis
         public event RemoteCertificateValidationCallback CertificateValidation;
 
         /// <summary>
-        /// Gets or sets whether connect/configuration timeouts should be explicitly notified via a TimeoutException
+        /// The default (not explicitly configured) options for this connection, fetched based on our parsed endpoints.
+        /// </summary>
+        public DefaultOptionsProvider Defaults
+        {
+            get => defaultOptions ??= DefaultOptionsProvider.GetForEndpoints(EndPoints);
+            set => defaultOptions = value;
+        }
+
+        internal Func<ConnectionMultiplexer, LogProxy, Task> AfterConnect => Defaults.AfterConnect;
+
+        /// <summary>
+        /// Gets or sets whether connect/configuration timeouts should be explicitly notified via a TimeoutException.
         /// </summary>
         public bool AbortOnConnectFail
         {
-            get => abortOnConnectFail ?? GetDefaultAbortOnConnectFailSetting();
+            get => abortOnConnectFail ?? Defaults.AbortOnConnectFail;
             set => abortOnConnectFail = value;
         }
 
         /// <summary>
-        /// Indicates whether admin operations should be allowed
+        /// Indicates whether admin operations should be allowed.
         /// </summary>
         public bool AllowAdmin
         {
-            get => allowAdmin.GetValueOrDefault();
+            get => allowAdmin ?? Defaults.AllowAdmin;
             set => allowAdmin = value;
         }
 
         /// <summary>
-        /// Specifies the time in milliseconds that the system should allow for asynchronous operations (defaults to SyncTimeout)
+        /// Specifies the time in milliseconds that the system should allow for asynchronous operations (defaults to SyncTimeout).
         /// </summary>
         public int AsyncTimeout
         {
@@ -192,7 +204,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Indicates whether the connection should be encrypted
         /// </summary>
-        [Obsolete("Please use .Ssl instead of .UseSsl"),
+        [Obsolete("Please use .Ssl instead of .UseSsl, will be removed in 3.0."),
          Browsable(false),
          EditorBrowsable(EditorBrowsableState.Never)]
         public bool UseSsl
@@ -211,7 +223,7 @@ namespace StackExchange.Redis
         /// </summary>
         public bool CheckCertificateRevocation
         {
-            get => checkCertificateRevocation ?? true;
+            get => checkCertificateRevocation ?? Defaults.CheckCertificateRevocation;
             set => checkCertificateRevocation = value;
         }
 
@@ -256,14 +268,18 @@ namespace StackExchange.Redis
         /// <summary>
         /// The client name to use for all connections.
         /// </summary>
-        public string ClientName { get; set; }
+        public string ClientName
+        {
+            get => clientName;
+            set => clientName = value;
+        }
 
         /// <summary>
         /// The number of times to repeat the initial connect cycle if no servers respond promptly.
         /// </summary>
         public int ConnectRetry
         {
-            get => connectRetry ?? 3;
+            get => connectRetry ?? Defaults.ConnectRetry;
             set => connectRetry = value;
         }
 
@@ -272,7 +288,7 @@ namespace StackExchange.Redis
         /// </summary>
         public CommandMap CommandMap
         {
-            get => commandMap ?? Proxy switch
+            get => commandMap ?? Defaults.CommandMap ?? Proxy switch
             {
                 Proxy.Twemproxy => CommandMap.Twemproxy,
                 _ => CommandMap.Default,
@@ -285,7 +301,7 @@ namespace StackExchange.Redis
         /// </summary>
         public string ConfigurationChannel
         {
-            get => configChannel ?? DefaultConfigurationChannel;
+            get => configChannel ?? Defaults.ConfigurationChannel;
             set => configChannel = value;
         }
 
@@ -294,7 +310,7 @@ namespace StackExchange.Redis
         /// </summary>
         public int ConnectTimeout
         {
-            get => connectTimeout ?? Math.Max(5000, SyncTimeout);
+            get => connectTimeout ?? ((int?)Defaults.ConnectTimeout?.TotalMilliseconds) ?? Math.Max(5000, SyncTimeout);
             set => connectTimeout = value;
         }
 
@@ -308,7 +324,7 @@ namespace StackExchange.Redis
         /// </summary>
         public Version DefaultVersion
         {
-            get => defaultVersion ?? (IsAzureEndpoint() ? RedisFeatures.v4_0_0 : RedisFeatures.v3_0_0);
+            get => defaultVersion ?? Defaults.DefaultVersion;
             set => defaultVersion = value;
         }
 
@@ -329,10 +345,11 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// Specifies the time in seconds at which connections should be pinged to ensure validity.
+        /// -1 Defaults to 60 Seconds
         /// </summary>
         public int KeepAlive
         {
-            get => keepAlive ?? -1;
+            get => keepAlive ?? (int)Defaults.KeepAliveInterval.TotalSeconds;
             set => keepAlive = value;
         }
 
@@ -361,7 +378,7 @@ namespace StackExchange.Redis
         /// </summary>
         public Proxy Proxy
         {
-            get => proxy.GetValueOrDefault();
+            get => proxy ?? Defaults.Proxy;
             set => proxy = value;
         }
 
@@ -370,7 +387,7 @@ namespace StackExchange.Redis
         /// </summary>
         public IReconnectRetryPolicy ReconnectRetryPolicy
         {
-            get => reconnectRetryPolicy ??= new ExponentialRetry(ConnectTimeout / 2);
+            get => reconnectRetryPolicy ??= Defaults.ReconnectRetryPolicy ?? new ExponentialRetry(ConnectTimeout / 2);
             set => reconnectRetryPolicy = value;
         }
 
@@ -379,18 +396,17 @@ namespace StackExchange.Redis
         /// </summary>
         public BacklogPolicy BacklogPolicy
         {
-            get => backlogPolicy ?? BacklogPolicy.Default;
+            get => backlogPolicy ?? Defaults.BacklogPolicy;
             set => backlogPolicy = value;
         }
 
         /// <summary>
         /// Indicates whether endpoints should be resolved via DNS before connecting.
-        /// If enabled the ConnectionMultiplexer will not re-resolve DNS
-        /// when attempting to re-connect after a connection failure.
+        /// If enabled the ConnectionMultiplexer will not re-resolve DNS when attempting to re-connect after a connection failure.
         /// </summary>
         public bool ResolveDns
         {
-            get => resolveDns.GetValueOrDefault();
+            get => resolveDns ?? Defaults.ResolveDns;
             set => resolveDns = value;
         }
 
@@ -443,7 +459,7 @@ namespace StackExchange.Redis
         /// </summary>
         public int SyncTimeout
         {
-            get => syncTimeout ?? 5000;
+            get => syncTimeout ?? (int)Defaults.SyncTimeout.TotalMilliseconds;
             set => syncTimeout = value;
         }
 
@@ -452,7 +468,7 @@ namespace StackExchange.Redis
         /// </summary>
         public string TieBreaker
         {
-            get => tieBreaker ?? DefaultTieBreaker;
+            get => tieBreaker ?? Defaults.TieBreaker;
             set => tieBreaker = value;
         }
 
@@ -484,7 +500,7 @@ namespace StackExchange.Redis
         /// </summary>
         public int ConfigCheckSeconds
         {
-            get => configCheckSeconds ?? 60;
+            get => configCheckSeconds ?? (int)Defaults.ConfigCheckInterval.TotalSeconds;
             set => configCheckSeconds = value;
         }
 
@@ -533,7 +549,6 @@ namespace StackExchange.Redis
                 User = User,
                 Password = Password,
                 tieBreaker = tieBreaker,
-                writeBuffer = writeBuffer,
                 ssl = ssl,
                 sslHost = sslHost,
                 highPrioritySocketThreads = highPrioritySocketThreads,
@@ -622,7 +637,6 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.User, User);
             Append(sb, OptionKeys.Password, (includePassword || string.IsNullOrEmpty(Password)) ? Password : "*****");
             Append(sb, OptionKeys.TieBreaker, tieBreaker);
-            Append(sb, OptionKeys.WriteBuffer, writeBuffer);
             Append(sb, OptionKeys.Ssl, ssl);
             Append(sb, OptionKeys.SslProtocols, SslProtocols?.ToString().Replace(',', '|'));
             Append(sb, OptionKeys.CheckCertificateRevocation, checkCertificateRevocation);
@@ -720,7 +734,7 @@ namespace StackExchange.Redis
         private void Clear()
         {
             ClientName = ServiceName = User = Password = tieBreaker = sslHost = configChannel = null;
-            keepAlive = syncTimeout = asyncTimeout = connectTimeout = writeBuffer = connectRetry = configCheckSeconds = DefaultDatabase = null;
+            keepAlive = syncTimeout = asyncTimeout = connectTimeout = connectRetry = configCheckSeconds = DefaultDatabase = null;
             allowAdmin = abortOnConnectFail = highPrioritySocketThreads = resolveDns = ssl = null;
             SslProtocols = null;
             defaultVersion = null;
@@ -878,41 +892,6 @@ namespace StackExchange.Redis
             {
                 CommandMap = CommandMap.Create(map);
             }
-        }
-
-        ///<summary>Microsoft Azure team wants abortConnect=false by default.</summary>
-        private bool GetDefaultAbortOnConnectFailSetting() => !IsAzureEndpoint();
-
-        /// <summary>
-        /// List of domains known to be Azure Redis, so we can light up some helpful functionality
-        /// for minimizing downtime during maintenance events and such.
-        /// </summary>
-        private static readonly List<string> azureRedisDomains = new()
-        {
-            ".redis.cache.windows.net",
-            ".redis.cache.chinacloudapi.cn",
-            ".redis.cache.usgovcloudapi.net",
-            ".redis.cache.cloudapi.de",
-            ".redisenterprise.cache.azure.net",
-        };
-
-        internal bool IsAzureEndpoint()
-        {
-            foreach (var ep in EndPoints)
-            {
-                if (ep is DnsEndPoint dnsEp)
-                {
-                    foreach (var host in azureRedisDomains)
-                    {
-                        if (dnsEp.Host.EndsWith(host, StringComparison.InvariantCultureIgnoreCase))
-                        {
-                            return true;
-                        }
-                    }
-                }
-            }
-
-            return false;
         }
 
         private string InferSslHostFromEndpoints()
