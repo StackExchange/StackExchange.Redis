@@ -572,7 +572,7 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// Raised when nodes are explicitly requested to reconfigure via broadcast.
-        /// This usually means primary/replica role changes.
+        /// This usually means primary/replica changes.
         /// </summary>
         public event EventHandler<EndPointEventArgs> ConfigurationChangedBroadcast;
 
@@ -1421,7 +1421,10 @@ namespace StackExchange.Redis
         /// <param name="asyncState">The async state object to pass to the created <see cref="RedisSubscriber"/>.</param>
         public ISubscriber GetSubscriber(object asyncState = null)
         {
-            if (RawConfig.Proxy == Proxy.Twemproxy) throw new NotSupportedException("The pub/sub API is not available via twemproxy");
+            if (!RawConfig.Proxy.SupportsPubSub())
+            {
+                throw new NotSupportedException($"The pub/sub API is not available via {RawConfig.Proxy}");
+            }
             return new RedisSubscriber(this, asyncState);
         }
 
@@ -1439,9 +1442,9 @@ namespace StackExchange.Redis
                 throw new ArgumentOutOfRangeException(nameof(db));
             }
 
-            if (db != 0 && RawConfig.Proxy == Proxy.Twemproxy)
+            if (db != 0 && !RawConfig.Proxy.SupportsDatabases())
             {
-                throw new NotSupportedException("twemproxy only supports database 0");
+                throw new NotSupportedException($"{RawConfig.Proxy} only supports database 0");
             }
 
             return db;
@@ -1509,7 +1512,10 @@ namespace StackExchange.Redis
         public IServer GetServer(EndPoint endpoint, object asyncState = null)
         {
             if (endpoint == null) throw new ArgumentNullException(nameof(endpoint));
-            if (RawConfig.Proxy == Proxy.Twemproxy) throw new NotSupportedException("The server API is not available via twemproxy");
+            if (!RawConfig.Proxy.SupportsServerApi())
+            {
+                throw new NotSupportedException($"The server API is not available via {RawConfig.Proxy}");
+            }
             var server = (ServerEndPoint)servers[endpoint];
             if (server == null) throw new ArgumentException("The specified endpoint is not defined", nameof(endpoint));
             return new RedisServer(this, server, asyncState);
@@ -1885,18 +1891,24 @@ namespace StackExchange.Redis
                             ServerSelectionStrategy.ServerType = ServerType.Standalone;
                         }
 
-                        var preferred = NominatePreferredMaster(log, servers, useTieBreakers, masters);
-                        foreach (var master in masters)
+                        // If multiple primaries are detected, nominate the preferred one
+                        // ...but not if the type of server we're connected to supports and expects multiple primaries
+                        // ...for those cases, we want to allow sending to any primary endpoint.
+                        if (ServerSelectionStrategy.ServerType.HasSinglePrimary())
                         {
-                            if (master == preferred || master.IsReplica)
+                            var preferred = NominatePreferredMaster(log, servers, useTieBreakers, masters);
+                            foreach (var master in masters)
                             {
-                                log?.WriteLine($"{Format.ToString(master)}: Clearing as RedundantMaster");
-                                master.ClearUnselectable(UnselectableFlags.RedundantMaster);
-                            }
-                            else
-                            {
-                                log?.WriteLine($"{Format.ToString(master)}: Setting as RedundantMaster");
-                                master.SetUnselectable(UnselectableFlags.RedundantMaster);
+                                if (master == preferred || master.IsReplica)
+                                {
+                                    log?.WriteLine($"{Format.ToString(master)}: Clearing as RedundantMaster");
+                                    master.ClearUnselectable(UnselectableFlags.RedundantMaster);
+                                }
+                                else
+                                {
+                                    log?.WriteLine($"{Format.ToString(master)}: Setting as RedundantMaster");
+                                    master.SetUnselectable(UnselectableFlags.RedundantMaster);
+                                }
                             }
                         }
                     }

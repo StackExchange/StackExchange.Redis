@@ -22,4 +22,24 @@
         /// </summary>
         Twemproxy,
     }
+
+    internal static class ServerTypeExtensions
+    {
+        /// <summary>
+        /// Whether a server type can have only a single primary, meaning an election if multiple are found.
+        /// </summary>
+        public static bool HasSinglePrimary(this ServerType type) => type switch
+        {
+            _ => true
+        };
+
+        /// <summary>
+        /// Whether a server type supports <see cref="ServerEndPoint.AutoConfigureAsync(PhysicalConnection, ConnectionMultiplexer.LogProxy)"/>.
+        /// </summary>
+        public static bool SupportsAutoConfigure(this ServerType type) => type switch
+        {
+            ServerType.Twemproxy => false,
+            _ => true
+        };
+    }
 }
