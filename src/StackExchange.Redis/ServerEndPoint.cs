@@ -329,10 +329,10 @@ namespace StackExchange.Redis
 
         internal async Task AutoConfigureAsync(PhysicalConnection connection, LogProxy log = null)
         {
-            if (serverType == ServerType.Twemproxy)
+            if (!serverType.SupportsAutoConfigure())
             {
-                // don't try to detect configuration; all the config commands are disabled, and
-                // the fallback master/replica detection won't help
+                // Don't try to detect configuration.
+                // All the config commands are disabled and the fallback primary/replica detection won't help
                 return;
             }
 
