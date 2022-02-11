@@ -68,8 +68,6 @@ namespace StackExchange.Redis
                     databases = 1;
                     serverType = ServerType.Envoyproxy;
                     break;
-                case Proxy.None:
-                    break;
             }
         }
 

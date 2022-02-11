@@ -14,9 +14,9 @@
         /// </summary>
         Twemproxy,
         /// <summary>
-        /// Communication via <a href="https://github.com/envoyproxy/envoy">envoyproxy</a>
+        /// Communication via <a href="https://github.com/envoyproxy/envoy">envoyproxy</a>.
         /// </summary>
-        Envoyproxy
+        Envoyproxy,
     }
 
     internal static class ProxyExtensions
