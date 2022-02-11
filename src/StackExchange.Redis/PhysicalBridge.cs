@@ -668,7 +668,7 @@ namespace StackExchange.Redis
                         // we screwed up; abort; note that WriteMessageToServer already
                         // killed the underlying connection
                         Trace("Unable to write to server");
-                        message.Fail(ConnectionFailureType.ProtocolFailure, null, "failure before write: " + result.ToString());
+                        message.Fail(ConnectionFailureType.ProtocolFailure, null, "failure before write: " + result.ToString(), Multiplexer);
                         message.Complete();
                         return result;
                     }
@@ -1425,7 +1425,7 @@ namespace StackExchange.Redis
             catch (RedisCommandException ex) when (!isQueued)
             {
                 Trace("Write failed: " + ex.Message);
-                message.Fail(ConnectionFailureType.InternalFailure, ex, null);
+                message.Fail(ConnectionFailureType.InternalFailure, ex, null, Multiplexer);
                 message.Complete();
                 // this failed without actually writing; we're OK with that... unless there's a transaction
 
@@ -1440,7 +1440,7 @@ namespace StackExchange.Redis
             catch (Exception ex)
             {
                 Trace("Write failed: " + ex.Message);
-                message.Fail(ConnectionFailureType.InternalFailure, ex, null);
+                message.Fail(ConnectionFailureType.InternalFailure, ex, null, Multiplexer);
                 message.Complete();
 
                 // we're not sure *what* happened here; probably an IOException; kill the connection

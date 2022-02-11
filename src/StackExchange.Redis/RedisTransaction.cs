@@ -523,7 +523,7 @@ namespace StackExchange.Redis
                     {
                         if (op?.Wrapped is Message inner)
                         {
-                            inner.Fail(ConnectionFailureType.ProtocolFailure, null, "Transaction failure");
+                            inner.Fail(ConnectionFailureType.ProtocolFailure, null, "Transaction failure", connection?.BridgeCouldBeNull?.Multiplexer);
                             inner.Complete();
                         }
                     }
