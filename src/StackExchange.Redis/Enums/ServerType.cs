@@ -34,7 +34,7 @@
         /// </summary>
         public static bool HasSinglePrimary(this ServerType type) => type switch
         {
-            ServerType.Envoyproxy => true,
+            ServerType.Envoyproxy => false,
             _ => true
         };
 
