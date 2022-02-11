@@ -110,7 +110,7 @@ namespace StackExchange.Redis
             switch (ServerType)
             {
                 case ServerType.Cluster:
-                // strictly speaking twemproxy uses a different hashing algorithm, but the hash-tag behavior is
+                // strictly speaking some proxies use a different hashing algorithm, but the hash-tag behavior is
                 // the same, so this does a pretty good job of spotting illegal commands before sending them
                 case ServerType.Twemproxy:
                 case ServerType.Envoyproxy:
