@@ -22,9 +22,9 @@
         /// </summary>
         Twemproxy,
         /// <summary>
-        /// Redis cluster via <a href="https://github.com/envoyproxy/envoy">envoyproxy</a>
+        /// Redis cluster via <a href="https://github.com/envoyproxy/envoy">envoyproxy</a>.
         /// </summary>
-        Envoyproxy
+        Envoyproxy,
     }
 
     internal static class ServerTypeExtensions
