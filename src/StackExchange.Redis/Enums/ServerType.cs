@@ -21,6 +21,10 @@
         /// Distributed redis installation via <a href="https://github.com/twitter/twemproxy">twemproxy</a>.
         /// </summary>
         Twemproxy,
+        /// <summary>
+        /// Redis cluster via <a href="https://github.com/envoyproxy/envoy">envoyproxy</a>
+        /// </summary>
+        Envoyproxy
     }
 
     internal static class ServerTypeExtensions
@@ -30,6 +34,7 @@
         /// </summary>
         public static bool HasSinglePrimary(this ServerType type) => type switch
         {
+            ServerType.Envoyproxy => true,
             _ => true
         };
 
@@ -39,6 +44,7 @@
         public static bool SupportsAutoConfigure(this ServerType type) => type switch
         {
             ServerType.Twemproxy => false,
+            ServerType.Envoyproxy => false,
             _ => true
         };
     }
