@@ -52,7 +52,7 @@ namespace StackExchange.Redis
         });
 
         /// <summary>
-        /// The commands available to <a href="https://github.com/envoyproxy/envoy">envoyproxy</a> via
+        /// The commands available to <a href="https://github.com/envoyproxy/envoy">envoyproxy</a>.
         /// </summary>
         public static CommandMap Envoyproxy { get; } = CreateImpl(null, exclusions: new HashSet<RedisCommand>
         {
