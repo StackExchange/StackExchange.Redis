@@ -403,8 +403,17 @@ namespace StackExchange.Redis
         /// </summary>
         public void SetInternalCall() => Flags |= InternalCallFlag;
 
+        /// <summary>
+        /// Gets a string representation of this message: "[{DB}]:{CommandAndKey} ({resultProcessor})"
+        /// </summary>
         public override string ToString() =>
             $"[{Db}]:{CommandAndKey} ({resultProcessor?.GetType().Name ?? "(n/a)"})";
+
+        /// <summary>
+        /// Gets a string representation of this message without the key: "[{DB}]:{Command} ({resultProcessor})"
+        /// </summary>
+        public string ToStringCommandOnly() =>
+            $"[{Db}]:{Command} ({resultProcessor?.GetType().Name ?? "(n/a)"})";
 
         public void SetResponseReceived() => performance?.SetResponseReceived();
 
@@ -562,10 +571,10 @@ namespace StackExchange.Redis
             }
         }
 
-        internal void Fail(ConnectionFailureType failure, Exception innerException, string annotation)
+        internal void Fail(ConnectionFailureType failure, Exception innerException, string annotation, ConnectionMultiplexer muxer)
         {
             PhysicalConnection.IdentifyFailureType(innerException, ref failure);
-            resultProcessor?.ConnectionFail(this, failure, innerException, annotation);
+            resultProcessor?.ConnectionFail(this, failure, innerException, annotation, muxer);
         }
 
         internal virtual void SetExceptionAndComplete(Exception exception, PhysicalBridge bridge)
@@ -717,7 +726,7 @@ namespace StackExchange.Redis
             catch (Exception ex) when (ex is not RedisCommandException) // these have specific meaning; don't wrap
             {
                 physical?.OnInternalError(ex);
-                Fail(ConnectionFailureType.InternalFailure, ex, null);
+                Fail(ConnectionFailureType.InternalFailure, ex, null, physical?.BridgeCouldBeNull?.Multiplexer);
             }
         }
 

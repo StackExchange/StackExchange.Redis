@@ -15,6 +15,7 @@
   - Fixes subscription routing on clusters (spreading instead of choosing 1 node)
   - More correctly reconnects subscriptions on connection failures, including to other endpoints
 - Adds "(vX.X.X)" version suffix to the default client ID so server-side `CLIENT LIST` can more easily see what's connected (#1985 via NickCraver)
+- Fix for including (or not including) key names on some message failures (#1990 via NickCraver)
 - Fixed return of nil results in `LPOP`, `RPOP`, `SRANDMEMBER`, and `SPOP` (#1993 via NickCraver)
 
 ## 2.2.88
