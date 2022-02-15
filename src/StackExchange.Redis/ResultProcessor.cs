@@ -1249,7 +1249,10 @@ namespace StackExchange.Redis
                 {
                     // allow a single item to pass explicitly pretending to be an array; example: SPOP {key} 1
                     case ResultType.BulkString:
-                        var arr = new[] { result.AsRedisValue() };
+                        // If the result is nil, the result should be an empty array
+                        var arr = result.IsNull
+                            ? Array.Empty<RedisValue>()
+                            : new[] { result.AsRedisValue() };
                         SetResult(message, arr);
                         return true;
                     case ResultType.MultiBulk:
