@@ -17,7 +17,7 @@ RUN sh /usr/local/bin/install-envoy.sh
 
 RUN apt-get clean
 
-ADD Envoy/envoy.yaml /envoy
+COPY Envoy/envoy.yaml /envoy/envoy.yaml
 ADD Docker/supervisord.conf /etc/
 
 ENTRYPOINT ["docker-entrypoint.sh"]
