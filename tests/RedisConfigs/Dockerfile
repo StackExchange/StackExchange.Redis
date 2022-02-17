@@ -12,7 +12,7 @@ RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 RUN apt-get -y update && apt-get install -y git gcc make supervisor
 
-COPY Docker/install_envoy.sh /usr/local/bin
+ADD Docker/install_envoy.sh /usr/local/bin
 RUN sh /usr/local/bin/install_envoy.sh
 
 RUN apt-get clean
