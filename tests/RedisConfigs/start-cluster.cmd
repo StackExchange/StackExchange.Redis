@@ -8,3 +8,5 @@ pushd %~dp0\Cluster
 @start "Redis (Cluster): 7004" /min ..\3.0.503\redis-server.exe cluster-7004.conf
 @start "Redis (Cluster): 7005" /min ..\3.0.503\redis-server.exe cluster-7005.conf
 popd
+REM envoy doesnt have an windows image, only a docker
+REM need to explore if we can setup host networking
