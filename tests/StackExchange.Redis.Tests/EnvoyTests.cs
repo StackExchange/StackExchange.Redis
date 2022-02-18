@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Xunit;
+﻿using Xunit;
 using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
@@ -12,15 +7,15 @@ namespace StackExchange.Redis.Tests
     {
         public EnvoyTests(ITestOutputHelper output) : base(output) { }
 
+        protected override string GetConfiguration() => TestConfig.Current.ProxyServerAndPort;
+
         /// <summary>
         /// Tests basic envoy connection with the ability to set and get a key
-        /// NOTE: For running this test locally, please use WSL and run `./start-all.sh` to start all server
-        /// TODO: Local testing for windows
         /// </summary>
         [Fact]
         public void TestBasicEnvoyConnection()
         {
-            using (var muxer = Create(configuration: GetProxyConfiguration(), keepAlive: 1, connectTimeout: 10000, allowAdmin: true, shared: false, proxy: Proxy.Envoyproxy))
+            using (var muxer = Create(configuration: GetConfiguration(), keepAlive: 1, connectTimeout: 2000, allowAdmin: true, shared: false, proxy: Proxy.Envoyproxy, log: Writer))
             {
                 var db = muxer.GetDatabase();
 

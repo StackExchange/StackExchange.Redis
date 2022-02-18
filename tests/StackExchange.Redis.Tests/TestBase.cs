@@ -23,8 +23,6 @@ namespace StackExchange.Redis.Tests
         protected virtual string GetConfiguration() => GetDefaultConfiguration();
         internal static string GetDefaultConfiguration() => TestConfig.Current.MasterServerAndPort;
 
-        internal static string GetProxyConfiguration() => TestConfig.Current.ProxyServerAndPort;
-
         private readonly SharedConnectionFixture _fixture;
 
         protected bool SharedFixtureAvailable => _fixture != null && _fixture.IsEnabled;
