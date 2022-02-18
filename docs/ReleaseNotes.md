@@ -1,10 +1,10 @@
 # Release Notes
 
-## 2.5.x-prerelease
+## 2.5.27 (prerelease)
 
 - Adds a backlog/retry mechanism for commands issued while a connection isn't available (#1912 via NickCraver)
-  - Commands will be queued if a multiplexer isn't yet connected.
-  - Commands will be queued if a connection is lost, for retry when it reconnects.
+  - Commands will be queued if a multiplexer isn't yet connected to a Redis server.
+  - Commands will be queued if a connection is lost and then sent to the server when the connection is restored.
   - All commands queued will only remain in the backlog for the duration of the configured timeout.
   - To revert to previous behavior, a new `ConfigurationOptions.BacklogPolicy` is available - old behavior is configured via `options.BacklogPolicy = BacklogPolicy.FailFast`. This backlogs nothing and fails commands immediately if no connection is available.
 - Makes `StreamEntry` constructor public for better unit test experience (#1923 via WeihanLi)
