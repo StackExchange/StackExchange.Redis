@@ -1,5 +1,8 @@
 # Release Notes
 
+## Unreleased
+- Adds bounds checking for `ExponentialRetry` backoff policy (#1921 via gliljas) 
+
 ## 2.5.27 (prerelease)
 
 - Adds a backlog/retry mechanism for commands issued while a connection isn't available (#1912 via NickCraver)
