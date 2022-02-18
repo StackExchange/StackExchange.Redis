@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Text;
 using System.Text.RegularExpressions;
 using Pipelines.Sockets.Unofficial.Arenas;
 
@@ -18,10 +19,11 @@ namespace StackExchange.Redis
             DemandPONG = new ExpectBasicStringProcessor(CommonReplies.PONG),
             DemandZeroOrOne = new DemandZeroOrOneProcessor(),
             AutoConfigure = new AutoConfigureProcessor(),
-            TrackSubscriptions = new TrackSubscriptionsProcessor(),
+            TrackSubscriptions = new TrackSubscriptionsProcessor(null),
             Tracer = new TracerProcessor(false),
             EstablishConnection = new TracerProcessor(true),
-            BackgroundSaveStarted = new ExpectBasicStringProcessor(CommonReplies.backgroundSavingStarted_trimmed, startsWith: true);
+            BackgroundSaveStarted = new ExpectBasicStringProcessor(CommonReplies.backgroundSavingStarted_trimmed, startsWith: true),
+            BackgroundSaveAOFStarted = new ExpectBasicStringProcessor(CommonReplies.backgroundSavingAOFStarted_trimmed, startsWith: true);
 
         public static readonly ResultProcessor<byte[]>
             ByteArray = new ByteArrayProcessor(),
@@ -121,6 +123,7 @@ namespace StackExchange.Redis
 
         public static readonly ResultProcessor<string>
                             String = new StringProcessor(),
+            TieBreaker = new TieBreakerProcessor(),
             ClusterNodesRaw = new ClusterNodesRawProcessor();
 
         #region Sentinel
@@ -148,16 +151,22 @@ namespace StackExchange.Redis
             HashEntryArray = new HashEntryArrayProcessor();
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Conditionally run on instance")]
-        public void ConnectionFail(Message message, ConnectionFailureType fail, Exception innerException, string annotation)
+        public void ConnectionFail(Message message, ConnectionFailureType fail, Exception innerException, string annotation, ConnectionMultiplexer muxer)
         {
             PhysicalConnection.IdentifyFailureType(innerException, ref fail);
 
-            string exMessage = fail.ToString() + (message == null ? "" : (" on " + (
-                fail == ConnectionFailureType.ProtocolFailure ? message.ToString() : message.CommandAndKey)));
-            if (!string.IsNullOrWhiteSpace(annotation)) exMessage += ", " + annotation;
-
-            var ex = innerException == null ? new RedisConnectionException(fail, exMessage)
-                : new RedisConnectionException(fail, exMessage, innerException);
+            var sb = new StringBuilder(fail.ToString());
+            if (message is not null)
+            {
+                sb.Append(" on ");
+                sb.Append(muxer?.IncludeDetailInExceptions == true ? message.ToString() : message.ToStringCommandOnly());
+            }
+            if (!string.IsNullOrWhiteSpace(annotation))
+            {
+                sb.Append(", ");
+                sb.Append(annotation);
+            }
+            var ex = new RedisConnectionException(fail, sb.ToString(), innerException);
             SetException(message, ex);
         }
 
@@ -195,7 +204,7 @@ namespace StackExchange.Redis
                 var server = bridge.ServerEndPoint;
                 bool log = !message.IsInternalCall;
                 bool isMoved = result.StartsWith(CommonReplies.MOVED);
-                bool wasNoRedirect = ( message.Flags & CommandFlags.NoRedirect ) != 0;
+                bool wasNoRedirect = (message.Flags & CommandFlags.NoRedirect) != 0;
                 string err = string.Empty;
                 bool unableToConnectError = false;
                 if (isMoved || result.StartsWith(CommonReplies.ASK))
@@ -391,6 +400,9 @@ namespace StackExchange.Redis
 
         public sealed class TrackSubscriptionsProcessor : ResultProcessor<bool>
         {
+            private ConnectionMultiplexer.Subscription Subscription { get; }
+            public TrackSubscriptionsProcessor(ConnectionMultiplexer.Subscription sub) => Subscription = sub;
+
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
                 if (result.Type == ResultType.MultiBulk)
@@ -399,9 +411,18 @@ namespace StackExchange.Redis
                     if (items.Length >= 3 && items[2].TryGetInt64(out long count))
                     {
                         connection.SubscriptionCount = count;
+                        SetResult(message, true);
+
+                        var newServer = message.Command switch
+                        {
+                            RedisCommand.SUBSCRIBE or RedisCommand.PSUBSCRIBE => connection.BridgeCouldBeNull?.ServerEndPoint,
+                            _ => null
+                        };
+                        Subscription?.SetCurrentServer(newServer);
                         return true;
                     }
                 }
+                SetResult(message, false);
                 return false;
             }
         }
@@ -498,7 +519,7 @@ namespace StackExchange.Redis
                         byte[] hash = null;
                         if (!message.IsInternalCall)
                         {
-                            hash = ParseSHA1(asciiHash); // external caller wants the hex bytes, not the ascii bytes
+                            hash = ParseSHA1(asciiHash); // external caller wants the hex bytes, not the ASCII bytes
                         }
                         if (message is RedisDatabase.ScriptLoadMessage sl)
                         {
@@ -725,7 +746,8 @@ namespace StackExchange.Redis
                                     }
                                 }
                                 if (roleSeen)
-                                { // these are in the same section, if presnt
+                                {
+                                    // These are in the same section, if present
                                     server.MasterEndPoint = Format.TryParseEndPoint(masterHost, masterPort);
                                 }
                             }
@@ -944,7 +966,7 @@ namespace StackExchange.Redis
                             case 2:
                                 if (arr[0].TryGetInt64(out unixTime) && arr[1].TryGetInt64(out long micros))
                                 {
-                                    var time = RedisBase.UnixEpoch.AddSeconds(unixTime).AddTicks(micros * 10); // datetime ticks are 100ns
+                                    var time = RedisBase.UnixEpoch.AddSeconds(unixTime).AddTicks(micros * 10); // DateTime ticks are 100ns
                                     SetResult(message, time);
                                     return true;
                                 }
@@ -1227,7 +1249,10 @@ namespace StackExchange.Redis
                 {
                     // allow a single item to pass explicitly pretending to be an array; example: SPOP {key} 1
                     case ResultType.BulkString:
-                        var arr = new[] { result.AsRedisValue() };
+                        // If the result is nil, the result should be an empty array
+                        var arr = result.IsNull
+                            ? Array.Empty<RedisValue>()
+                            : new[] { result.AsRedisValue() };
                         SetResult(message, arr);
                         return true;
                     case ResultType.MultiBulk:
@@ -1427,7 +1452,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                             return null;
                         }
                     }
-                }                
+                }
 
                 return new Role.Master(offset, replicas);
             }
@@ -1702,8 +1727,13 @@ The coordinates as a two items x,y array (longitude,latitude).
         private static class KeyValuePairParser
         {
             internal static readonly CommandBytes
-                Name = "name", Consumers = "consumers", Pending = "pending", Idle = "idle", LastDeliveredId = "last-delivered-id",
-                IP = "ip", Port = "port";
+                Name = "name",
+                Consumers = "consumers",
+                Pending = "pending",
+                Idle = "idle",
+                LastDeliveredId = "last-delivered-id",
+                IP = "ip",
+                Port = "port";
 
             internal static bool TryRead(Sequence<RawResult> pairs, in CommandBytes key, ref long value)
             {
@@ -1991,7 +2021,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                 }
 
                 return result.GetItems().ToArray(
-                    (in RawResult item, in StreamProcessorBase<T> obj) => ParseRedisStreamEntry(item), this);
+                    (in RawResult item, in StreamProcessorBase<T> _) => ParseRedisStreamEntry(item), this);
             }
 
             protected static NameValueEntry[] ParseStreamEntryValues(in RawResult result)
@@ -2063,6 +2093,32 @@ The coordinates as a two items x,y array (longitude,latitude).
                             return true;
                         }
                         break;
+                }
+                return false;
+            }
+        }
+
+        private sealed class TieBreakerProcessor : ResultProcessor<string>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                switch (result.Type)
+                {
+                    case ResultType.SimpleString:
+                    case ResultType.BulkString:
+                        var tieBreaker = result.GetString();
+                        SetResult(message, tieBreaker);
+
+                        try
+                        {
+                            if (connection.BridgeCouldBeNull?.ServerEndPoint is ServerEndPoint endpoint)
+                            {
+                                endpoint.TieBreakerResult = tieBreaker;
+                            }
+                        }
+                        catch { }
+
+                        return true;
                 }
                 return false;
             }
@@ -2146,6 +2202,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                 {
                     if (establishConnection)
                     {
+                        // This is what ultimately brings us to complete a connection, by advancing the state forward from a successful tracer after connection.
                         connection.BridgeCouldBeNull?.OnFullyEstablished(connection, $"From command: {message.Command}");
                     }
                     SetResult(message, happy);
@@ -2267,7 +2324,7 @@ The coordinates as a two items x,y array (longitude,latitude).
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
-                if (!(StringPairInterleaved is StringPairInterleavedProcessor innerProcessor))
+                if (StringPairInterleaved is not StringPairInterleavedProcessor innerProcessor)
                 {
                     return false;
                 }

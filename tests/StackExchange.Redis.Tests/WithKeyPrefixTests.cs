@@ -16,7 +16,7 @@ namespace StackExchange.Redis.Tests
             using (var conn = Create())
             {
                 var raw = conn.GetDatabase();
-                var prefixed = raw.WithKeyPrefix(new byte[0]);
+                var prefixed = raw.WithKeyPrefix(Array.Empty<byte>());
                 Assert.Same(raw, prefixed);
             }
         }

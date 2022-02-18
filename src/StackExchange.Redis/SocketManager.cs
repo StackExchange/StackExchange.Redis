@@ -15,19 +15,19 @@ namespace StackExchange.Redis
     public sealed partial class SocketManager : IDisposable
     {
         /// <summary>
-        /// Gets the name of this SocketManager instance
+        /// Gets the name of this SocketManager instance.
         /// </summary>
         public string Name { get; }
 
         /// <summary>
-        /// Creates a new <see cref="SocketManager"/> instance
+        /// Creates a new <see cref="SocketManager"/> instance.
         /// </summary>
         /// <param name="name">The name for this <see cref="SocketManager"/>.</param>
         public SocketManager(string name)
             : this(name, DEFAULT_WORKERS, SocketManagerOptions.None) { }
 
         /// <summary>
-        /// Creates a new <see cref="SocketManager"/> instance
+        /// Creates a new <see cref="SocketManager"/> instance.
         /// </summary>
         /// <param name="name">The name for this <see cref="SocketManager"/>.</param>
         /// <param name="useHighPrioritySocketThreads">Whether this <see cref="SocketManager"/> should use high priority sockets.</param>
@@ -35,7 +35,7 @@ namespace StackExchange.Redis
             : this(name, DEFAULT_WORKERS, UseHighPrioritySocketThreads(useHighPrioritySocketThreads)) { }
 
         /// <summary>
-        /// Creates a new (optionally named) <see cref="SocketManager"/> instance
+        /// Creates a new (optionally named) <see cref="SocketManager"/> instance.
         /// </summary>
         /// <param name="name">The name for this <see cref="SocketManager"/>.</param>
         /// <param name="workerCount">the number of dedicated workers for this <see cref="SocketManager"/>.</param>
@@ -47,13 +47,13 @@ namespace StackExchange.Redis
             => value ? SocketManagerOptions.UseHighPrioritySocketThreads : SocketManagerOptions.None;
 
         /// <summary>
-        /// Additional options for configuring the socket manager
+        /// Additional options for configuring the socket manager.
         /// </summary>
         [Flags]
         public enum SocketManagerOptions
         {
             /// <summary>
-            /// No additional options
+            /// No additional options.
             /// </summary>
             None = 0,
             /// <summary>
@@ -67,7 +67,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Creates a new (optionally named) <see cref="SocketManager"/> instance
+        /// Creates a new (optionally named) <see cref="SocketManager"/> instance.
         /// </summary>
         /// <param name="name">The name for this <see cref="SocketManager"/>.</param>
         /// <param name="workerCount">the number of dedicated workers for this <see cref="SocketManager"/>.</param>
@@ -118,7 +118,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Default / shared socket manager using a dedicated thread-pool
+        /// Default / shared socket manager using a dedicated thread-pool.
         /// </summary>
         public static SocketManager Shared
         {
@@ -139,7 +139,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Shared socket manager using the main thread-pool
+        /// Shared socket manager using the main thread-pool.
         /// </summary>
         public static SocketManager ThreadPool
         {
@@ -159,7 +159,9 @@ namespace StackExchange.Redis
             }
         }
 
-        /// <summary>Returns a string that represents the current object.</summary>
+        /// <summary>
+        /// Returns a string that represents the current object.
+        /// </summary>
         /// <returns>A string that represents the current object.</returns>
         public override string ToString()
         {
@@ -181,11 +183,11 @@ namespace StackExchange.Redis
         private enum CallbackOperation
         {
             Read,
-            Error
+            Error,
         }
 
         /// <summary>
-        /// Releases all resources associated with this instance
+        /// Releases all resources associated with this instance.
         /// </summary>
         public void Dispose()
         {
@@ -205,7 +207,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Releases *appropriate* resources associated with this instance
+        /// Releases *appropriate* resources associated with this instance.
         /// </summary>
         ~SocketManager() => DisposeRefs();
 

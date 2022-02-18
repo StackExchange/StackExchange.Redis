@@ -69,14 +69,14 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void TestOpCountByVersionLocal_UpLevel()
         {
-            using (var conn = Create())
+            using (var conn = Create(shared: false))
             {
                 TestLockOpCountByVersion(conn, 1, false);
                 TestLockOpCountByVersion(conn, 1, true);
             }
         }
 
-        private void TestLockOpCountByVersion(IConnectionMultiplexer conn, int expectedOps, bool existFirst)
+        private static void TestLockOpCountByVersion(IConnectionMultiplexer conn, int expectedOps, bool existFirst)
         {
             const int LockDuration = 30;
             RedisKey Key = Me();
@@ -99,8 +99,8 @@ namespace StackExchange.Redis.Tests
 
             Assert.Equal(!existFirst, taken);
             Assert.Equal(expectedVal, valAfter);
-            Assert.Equal(expectedOps, countAfter - countBefore);
             // note we get a ping from GetCounters
+            Assert.True(countAfter - countBefore >= expectedOps, $"({countAfter} - {countBefore}) >= {expectedOps}");
         }
 
         private IConnectionMultiplexer Create(TestMode mode) => mode switch

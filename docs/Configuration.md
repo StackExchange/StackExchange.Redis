@@ -99,7 +99,8 @@ The `ConfigurationOptions` object has a wide range of properties, all of which a
 |                        | `CheckCertificateRevocation` | `true`                 | A Boolean value that specifies whether the certificate revocation list is checked during authentication.  |
 
 Additional code-only options:
-- ReconnectRetryPolicy (`IReconnectRetryPolicy`) - Default: `ReconnectRetryPolicy = LinearRetry(ConnectTimeout);`
+- ReconnectRetryPolicy (`IReconnectRetryPolicy`) - Default: `ReconnectRetryPolicy = ExponentialRetry(ConnectTimeout / 2);`
+- BacklogPolicy - Default: `BacklogPolicy = BacklogPolicy.Default;`
 
 Tokens in the configuration string are comma-separated; any without an `=` sign are assumed to be redis server endpoints. Endpoints without an explicit port will use 6379 if ssl is not enabled, and 6380 if ssl is enabled.
 Tokens starting with `$` are taken to represent command maps, for example: `$config=cfg`.
@@ -165,10 +166,10 @@ The above is equivalent to (in the connection string):
 $INFO=,$SELECT=use
 ```
 
-Twemproxy
+twemproxy
 ---
 
-[Twemproxy](https://github.com/twitter/twemproxy) is a tool that allows multiple redis instances to be used as though it were a single server, with inbuilt sharding and fault tolerance (much like redis cluster, but implemented separately). The feature-set available to Twemproxy is reduced. To avoid having to configure this manually, the `Proxy` option can be used:
+[twemproxy](https://github.com/twitter/twemproxy) is a tool that allows multiple redis instances to be used as though it were a single server, with inbuilt sharding and fault tolerance (much like redis cluster, but implemented separately). The feature-set available to Twemproxy is reduced. To avoid having to configure this manually, the `Proxy` option can be used:
 
 ```csharp
 var options = new ConfigurationOptions

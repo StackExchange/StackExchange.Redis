@@ -156,9 +156,7 @@ namespace StackExchange.Redis
             return ex;
         }
 
-#pragma warning disable RCS1231 // Make parameter ref read-only. - spans are tiny!
         internal static Exception PopulateInnerExceptions(ReadOnlySpan<ServerEndPoint> serverSnapshot)
-#pragma warning restore RCS1231 // Make parameter ref read-only.
         {
             var innerExceptions = new List<Exception>();
 
@@ -201,17 +199,6 @@ namespace StackExchange.Redis
             return new RedisCommandException("Command cannot be used with a cursor: " + s);
         }
 
-        private static string _libVersion;
-        internal static string GetLibVersion()
-        {
-            if (_libVersion == null)
-            {
-                var assembly = typeof(ConnectionMultiplexer).Assembly;
-                _libVersion = ((AssemblyFileVersionAttribute)Attribute.GetCustomAttribute(assembly, typeof(AssemblyFileVersionAttribute)))?.Version
-                    ?? assembly.GetName().Version.ToString();
-            }
-            return _libVersion;
-        }
         private static void Add(List<Tuple<string, string>> data, StringBuilder sb, string lk, string sk, string v)
         {
             if (v != null)
@@ -244,10 +231,6 @@ namespace StackExchange.Redis
                 Add(data, sb, "Timeout", "timeout", Format.ToString(multiplexer.TimeoutMilliseconds));
                 try
                 {
-#if DEBUG
-                    if (message.QueuePosition >= 0) Add(data, sb, "QueuePosition", null, message.QueuePosition.ToString()); // the position the item was when added to the queue
-                    if ((int)message.ConnectionWriteState >= 0) Add(data, sb, "WriteState", null, message.ConnectionWriteState.ToString()); // what the physical was doing when it was added to the queue
-#endif
                     if (message != null && message.TryGetPhysicalState(out var ws, out var rs, out var sentDelta, out var receivedDelta))
                     {
                         Add(data, sb, "Write-State", null, ws.ToString());
@@ -312,7 +295,7 @@ namespace StackExchange.Redis
             // Add server data, if we have it
             if (server != null && message != null)
             {
-                var bs = server.GetBridgeStatus(message.Command);
+                var bs = server.GetBridgeStatus(message.IsForSubscriptionBridge ? ConnectionType.Subscription: ConnectionType.Interactive);
 
                 switch (bs.Connection.ReadStatus)
                 {
@@ -338,7 +321,7 @@ namespace StackExchange.Redis
 
                 if (multiplexer.StormLogThreshold >= 0 && bs.Connection.MessagesSentAwaitingResponse >= multiplexer.StormLogThreshold && Interlocked.CompareExchange(ref multiplexer.haveStormLog, 1, 0) == 0)
                 {
-                    var log = server.GetStormLog(message.Command);
+                    var log = server.GetStormLog(message);
                     if (string.IsNullOrWhiteSpace(log)) Interlocked.Exchange(ref multiplexer.haveStormLog, 0);
                     else Interlocked.Exchange(ref multiplexer.stormLogSnapshot, log);
                 }
@@ -357,9 +340,13 @@ namespace StackExchange.Redis
                     Add(data, sb, "Key-HashSlot", "PerfCounterHelperkeyHashSlot", message.GetHashSlot(multiplexer.ServerSelectionStrategy).ToString());
                 }
             }
-            int busyWorkerCount = PerfCounterHelper.GetThreadPoolStats(out string iocp, out string worker);
+            int busyWorkerCount = PerfCounterHelper.GetThreadPoolStats(out string iocp, out string worker, out string workItems);
             Add(data, sb, "ThreadPool-IO-Completion", "IOCP", iocp);
             Add(data, sb, "ThreadPool-Workers", "WORKER", worker);
+            if (workItems != null)
+            {
+                Add(data, sb, "ThreadPool-Items", "POOL", workItems);
+            }
             data.Add(Tuple.Create("Busy-Workers", busyWorkerCount.ToString()));
 
             if (multiplexer.IncludePerformanceCountersInExceptions)
@@ -367,7 +354,7 @@ namespace StackExchange.Redis
                 Add(data, sb, "Local-CPU", "Local-CPU", PerfCounterHelper.GetSystemCpuPercent());
             }
 
-            Add(data, sb, "Version", "v", GetLibVersion());
+            Add(data, sb, "Version", "v", Utils.GetLibVersion());
         }
 
         private static void AddExceptionDetail(Exception exception, Message message, ServerEndPoint server, string label)

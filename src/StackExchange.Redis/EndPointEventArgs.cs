@@ -5,7 +5,7 @@ using System.Text;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// Event information related to redis endpoints
+    /// Event information related to redis endpoints.
     /// </summary>
     public class EndPointEventArgs : EventArgs, ICompletable
     {
@@ -29,16 +29,12 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// The endpoint involved in this event (this can be null)
+        /// The endpoint involved in this event (this can be null).
         /// </summary>
         public EndPoint EndPoint { get; }
 
-        void ICompletable.AppendStormLog(StringBuilder sb)
-        {
-            sb.Append("event, endpoint: ");
-            if (EndPoint == null) sb.Append("n/a");
-            else sb.Append(Format.ToString(EndPoint));
-        }
+        void ICompletable.AppendStormLog(StringBuilder sb) =>
+            sb.Append("event, endpoint: ").Append(EndPoint != null ? Format.ToString(EndPoint) : "n/a");
 
         bool ICompletable.TryComplete(bool isAsync) => ConnectionMultiplexer.TryCompleteHandler(handler, sender, this, isAsync);
     }

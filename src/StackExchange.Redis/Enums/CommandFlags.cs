@@ -3,7 +3,7 @@ using System.ComponentModel;
 
 namespace StackExchange.Redis
 {
-  /// <summary>
+    /// <summary>
     /// Behaviour markers associated with a given command
     /// </summary>
     [Flags]
@@ -18,7 +18,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// From 2.0, this flag is not used
         /// </summary>
-        [Obsolete("From 2.0, this flag is not used", false)]
+        [Obsolete("From 2.0, this flag is not used, this will be removed in 3.0.", false)]
         HighPriority = 1,
         /// <summary>
         /// The caller is not interested in the result; the caller will immediately receive a default-value
@@ -37,13 +37,11 @@ namespace StackExchange.Redis
         /// </summary>
         DemandMaster = 4,
 
-
-
         /// <summary>
         /// This operation should be performed on the replica if it is available, but will be performed on
         /// a master if no replicas are available. Suitable for read operations only.
         /// </summary>
-        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(PreferReplica) + " instead.")]
+        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(PreferReplica) + " instead, this will be removed in 3.0.")]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         PreferSlave = 8,
 
@@ -61,7 +59,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// This operation should only be performed on a replica. Suitable for read operations only.
         /// </summary>
-        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(DemandReplica) + " instead.")]
+        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(DemandReplica) + " instead, this will be removed in 3.0.")]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         DemandSlave = 12,
 
@@ -83,6 +81,8 @@ namespace StackExchange.Redis
         /// </summary>
         NoScriptCache = 512,
 
-        // 1024: used for timed-out; never user-specified, so not visible on the public API
+        // 1024: Removed - was used for async timeout checks; never user-specified, so not visible on the public API
+
+        // 2048: Use subscription connection type; never user-specified, so not visible on the public API
     }
 }

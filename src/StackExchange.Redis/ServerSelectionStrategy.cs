@@ -58,19 +58,29 @@ namespace StackExchange.Redis
         internal static int TotalSlots => RedisClusterSlotCount;
 
         /// <summary>
-        /// Computes the hash-slot that would be used by the given key
+        /// Computes the hash-slot that would be used by the given key.
         /// </summary>
         /// <param name="key">The <see cref="RedisKey"/> to determine a slot ID for.</param>
         public int HashSlot(in RedisKey key)
-            => ServerType == ServerType.Standalone ? NoSlot : GetClusterSlot(key);
+            => ServerType == ServerType.Standalone || key.IsNull ? NoSlot : GetClusterSlot((byte[])key);
 
-        private static unsafe int GetClusterSlot(in RedisKey key)
+        /// <summary>
+        /// Computes the hash-slot that would be used by the given channel.
+        /// </summary>
+        /// <param name="channel">The <see cref="RedisChannel"/> to determine a slot ID for.</param>
+        public int HashSlot(in RedisChannel channel)
+            => ServerType == ServerType.Standalone || channel.IsNull ? NoSlot : GetClusterSlot((byte[])channel);
+
+        /// <summary>
+        /// Gets the hashslot for a given byte sequence.
+        /// </summary>
+        /// <remarks>
+        /// HASH_SLOT = CRC16(key) mod 16384
+        /// </remarks>
+        private static unsafe int GetClusterSlot(byte[] blob)
         {
-            //HASH_SLOT = CRC16(key) mod 16384
-            if (key.IsNull) return NoSlot;
             unchecked
             {
-                var blob = (byte[])key;
                 fixed (byte* ptr = blob)
                 {
                     fixed (ushort* crc16tab = s_crc16tab)
@@ -93,27 +103,33 @@ namespace StackExchange.Redis
             }
         }
 
-        public ServerEndPoint Select(Message message)
+        public ServerEndPoint Select(Message message, bool allowDisconnected = false)
         {
             if (message == null) throw new ArgumentNullException(nameof(message));
             int slot = NoSlot;
             switch (ServerType)
             {
                 case ServerType.Cluster:
-                case ServerType.Twemproxy: // strictly speaking twemproxy uses a different hashing algo, but the hash-tag behavior is
+                case ServerType.Twemproxy: // strictly speaking twemproxy uses a different hashing algorithm, but the hash-tag behavior is
                                            // the same, so this does a pretty good job of spotting illegal commands before sending them
 
                     slot = message.GetHashSlot(this);
                     if (slot == MultipleSlots) throw ExceptionFactory.MultiSlot(multiplexer.IncludeDetailInExceptions, message);
                     break;
             }
-            return Select(slot, message.Command, message.Flags);
+            return Select(slot, message.Command, message.Flags, allowDisconnected);
         }
 
-        public ServerEndPoint Select(RedisCommand command, in RedisKey key, CommandFlags flags)
+        public ServerEndPoint Select(RedisCommand command, in RedisKey key, CommandFlags flags, bool allowDisconnected = false)
         {
             int slot = ServerType == ServerType.Cluster ? HashSlot(key) : NoSlot;
-            return Select(slot, command, flags);
+            return Select(slot, command, flags, allowDisconnected);
+        }
+
+        public ServerEndPoint Select(RedisCommand command, in RedisChannel channel, CommandFlags flags, bool allowDisconnected = false)
+        {
+            int slot = ServerType == ServerType.Cluster ? HashSlot(channel) : NoSlot;
+            return Select(slot, command, flags, allowDisconnected);
         }
 
         public bool TryResend(int hashSlot, Message message, EndPoint endpoint, bool isMoved)
@@ -158,13 +174,13 @@ namespace StackExchange.Redis
                         else
                         {
                             message.PrepareToResend(resendVia, isMoved);
-#pragma warning disable CS0618
+#pragma warning disable CS0618 // Type or member is obsolete
                             retry = resendVia.TryWriteSync(message) == WriteResult.Success;
 #pragma warning restore CS0618
                         }
                     }
 
-                    if (isMoved) // update map; note we can still update the map even if we aren't actually goint to resend
+                    if (isMoved) // update map; note we can still update the map even if we aren't actually going to resend
                     {
                         var arr = MapForMutation();
                         var oldServer = arr[hashSlot];
@@ -227,10 +243,8 @@ namespace StackExchange.Redis
             return -1;
         }
 
-        private ServerEndPoint Any(RedisCommand command, CommandFlags flags)
-        {
-            return multiplexer.AnyConnected(ServerType, (uint)Interlocked.Increment(ref anyStartOffset), command, flags);
-        }
+        private ServerEndPoint Any(RedisCommand command, CommandFlags flags, bool allowDisconnected) =>
+            multiplexer.AnyServer(ServerType, (uint)Interlocked.Increment(ref anyStartOffset), command, flags, allowDisconnected);
 
         private static ServerEndPoint FindMaster(ServerEndPoint endpoint, RedisCommand command)
         {
@@ -273,12 +287,12 @@ namespace StackExchange.Redis
             return arr;
         }
 
-        private ServerEndPoint Select(int slot, RedisCommand command, CommandFlags flags)
+        private ServerEndPoint Select(int slot, RedisCommand command, CommandFlags flags, bool allowDisconnected)
         {
-            flags = Message.GetMasterReplicaFlags(flags); // only intersted in master/replica preferences
+            flags = Message.GetMasterReplicaFlags(flags); // only interested in master/replica preferences
 
             ServerEndPoint[] arr;
-            if (slot == NoSlot || (arr = map) == null) return Any(command, flags);
+            if (slot == NoSlot || (arr = map) == null) return Any(command, flags, allowDisconnected);
 
             ServerEndPoint endpoint = arr[slot], testing;
             // but: ^^^ is the MASTER slots; if we want a replica, we need to do some thinking
@@ -288,21 +302,21 @@ namespace StackExchange.Redis
                 switch (flags)
                 {
                     case CommandFlags.DemandReplica:
-                        return FindReplica(endpoint, command) ?? Any(command, flags);
+                        return FindReplica(endpoint, command) ?? Any(command, flags, allowDisconnected);
                     case CommandFlags.PreferReplica:
                         testing = FindReplica(endpoint, command);
                         if (testing != null) return testing;
                         break;
                     case CommandFlags.DemandMaster:
-                        return FindMaster(endpoint, command) ?? Any(command, flags);
+                        return FindMaster(endpoint, command) ?? Any(command, flags, allowDisconnected);
                     case CommandFlags.PreferMaster:
                         testing = FindMaster(endpoint, command);
                         if (testing != null) return testing;
                         break;
                 }
-                if (endpoint.IsSelectable(command)) return endpoint;
+                if (endpoint.IsSelectable(command, allowDisconnected)) return endpoint;
             }
-            return Any(command, flags);
+            return Any(command, flags, allowDisconnected);
         }
     }
 }

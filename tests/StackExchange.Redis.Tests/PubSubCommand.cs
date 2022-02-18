@@ -58,7 +58,7 @@ namespace StackExchange.Redis.Tests
             }
         }
     }
-    static class Util
+    internal static class Util
     {
         public static async Task WithTimeout(this Task task, int timeoutMs,
             [CallerMemberName] string caller = null, [CallerLineNumber] int line = 0)

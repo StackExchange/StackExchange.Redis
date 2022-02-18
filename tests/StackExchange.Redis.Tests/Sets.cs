@@ -25,7 +25,7 @@ namespace StackExchange.Redis.Tests
                 {
                     db.SetAdd(key, i, CommandFlags.FireAndForget);
                     totalUnfiltered += i;
-                    if (i.ToString().Contains("3")) totalFiltered += i;
+                    if (i.ToString().Contains('3')) totalFiltered += i;
                 }
 
                 var unfilteredActual = db.SetScan(key).Select(x => (int)x).Sum();
@@ -50,7 +50,7 @@ namespace StackExchange.Redis.Tests
                 Assert.Throws<ArgumentNullException>(() => db.SetRemove(key, values));
                 await Assert.ThrowsAsync<ArgumentNullException>(async () => await db.SetRemoveAsync(key, values).ForAwait()).ForAwait();
 
-                values = new RedisValue[0];
+                values = Array.Empty<RedisValue>();
                 Assert.Equal(0, db.SetRemove(key, values));
                 Assert.Equal(0, await db.SetRemoveAsync(key, values).ForAwait());
             }
@@ -84,6 +84,7 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal(7, db.SetLength(key));
             }
         }
+
         [Fact]
         public void SetPopMulti_Single()
         {
@@ -200,7 +201,7 @@ namespace StackExchange.Redis.Tests
 
                 db.KeyDelete(key, CommandFlags.FireAndForget);
 
-                var result = db.SetAdd(key, new RedisValue[0]);
+                var result = db.SetAdd(key, Array.Empty<RedisValue>());
                 Assert.Equal(0, result);
 
                 Assert.Equal(0, db.SetLength(key));
@@ -217,12 +218,29 @@ namespace StackExchange.Redis.Tests
 
                 db.KeyDelete(key, CommandFlags.FireAndForget);
 
-                var t = db.SetAddAsync(key, new RedisValue[0]);
+                var t = db.SetAddAsync(key, Array.Empty<RedisValue>());
                 Assert.True(t.IsCompleted); // sync
                 var count = await t;
                 Assert.Equal(0, count);
 
                 Assert.Equal(0, db.SetLength(key));
+            }
+        }
+
+        [Fact]
+        public void SetPopMulti_Nil()
+        {
+            using (var conn = Create())
+            {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SetPopMultiple), r => r.SetPopMultiple);
+
+                var db = conn.GetDatabase();
+                var key = Me();
+
+                db.KeyDelete(key, CommandFlags.FireAndForget);
+
+                var arr = db.SetPop(key, 1);
+                Assert.Empty(arr);
             }
         }
     }

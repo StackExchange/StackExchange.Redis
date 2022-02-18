@@ -35,7 +35,7 @@ namespace StackExchange.Redis.Tests
             AssertEqualGiveOrTakeNaN(value, RedisValue.Unbox(y));
         }
 
-        static void AssertEqualGiveOrTakeNaN(RedisValue expected, RedisValue actual)
+        private static void AssertEqualGiveOrTakeNaN(RedisValue expected, RedisValue actual)
         {
             if (expected.Type == RedisValue.StorageType.Double && actual.Type == expected.Type)
             {

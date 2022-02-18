@@ -1,6 +1,27 @@
 # Release Notes
 
-## Unreleased
+## 2.5.27 (prerelease)
+
+- Adds a backlog/retry mechanism for commands issued while a connection isn't available (#1912 via NickCraver)
+  - Commands will be queued if a multiplexer isn't yet connected to a Redis server.
+  - Commands will be queued if a connection is lost and then sent to the server when the connection is restored.
+  - All commands queued will only remain in the backlog for the duration of the configured timeout.
+  - To revert to previous behavior, a new `ConfigurationOptions.BacklogPolicy` is available - old behavior is configured via `options.BacklogPolicy = BacklogPolicy.FailFast`. This backlogs nothing and fails commands immediately if no connection is available.
+- Makes `StreamEntry` constructor public for better unit test experience (#1923 via WeihanLi)
+- Fix integer overflow error (issue #1926) with 2GiB+ result payloads (#1928 via mgravell)
+- Update assumed redis versions to v2.8 or v4.0 in the Azure case (#1929 via NickCraver)
+- Fix profiler showing `EVAL` instead `EVALSHA` (#1930 via martinpotter)
+- Moved tiebreaker fetching in connections into the handshake phase (streamline + simplification) (#1931 via NickCraver)
+- Fixed potential disposed object usage around Arenas (pulling in [Piplines.Sockets.Unofficial#63](https://github.com/mgravell/Pipelines.Sockets.Unofficial/pull/63) by MarcGravell)
+- Adds thread pool work item stats to exception messages to help diagnose contention (#1964 via NickCraver)
+- Overhauls pub/sub implementation for correctness (#1947 via NickCraver)
+  - Fixes a race in subscribing right after connected
+  - Fixes a race in subscribing immediately before a publish
+  - Fixes subscription routing on clusters (spreading instead of choosing 1 node)
+  - More correctly reconnects subscriptions on connection failures, including to other endpoints
+- Adds "(vX.X.X)" version suffix to the default client ID so server-side `CLIENT LIST` can more easily see what's connected (#1985 via NickCraver)
+- Fix for including (or not including) key names on some message failures (#1990 via NickCraver)
+- Fixed return of nil results in `LPOP`, `RPOP`, `SRANDMEMBER`, and `SPOP` (#1993 via NickCraver)
 
 ## 2.2.88
 
@@ -228,7 +249,7 @@ plans to release `1.2.7`.
 - add: track message status in exceptions (#576)
 - add: `GetDatabase()` optimization for DB 0 and low numbered databases: `IDatabase` instance is retained and recycled (as long as no `asyncState` is provided)
 - improved connection retry policy (#510, #572)
-- add `Execute`/`ExecuteAsync` API to support "modules"; [more info](http://blog.marcgravell.com/2017/04/stackexchangeredis-and-redis-40-modules.html)
+- add `Execute`/`ExecuteAsync` API to support "modules"; [more info](https://blog.marcgravell.com/2017/04/stackexchangeredis-and-redis-40-modules.html)
 - fix: timeout link fixed re /docs change (below)
 - [`NRediSearch`](https://www.nuget.org/packages/NRediSearch/) added as exploration into "modules"
 

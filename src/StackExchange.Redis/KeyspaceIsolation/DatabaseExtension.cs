@@ -9,7 +9,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
     {
         /// <summary>
         ///     Creates a new <see cref="IDatabase"/> instance that provides an isolated key space
-        ///     of the specified underyling database instance.
+        ///     of the specified underlying database instance.
         /// </summary>
         /// <param name="database">
         ///     The underlying database instance that the returned instance shall use.
@@ -20,13 +20,13 @@ namespace StackExchange.Redis.KeyspaceIsolation
         /// <returns>
         ///     A new <see cref="IDatabase"/> instance that invokes the specified underlying
         ///     <paramref name="database"/> but prepends the specified <paramref name="keyPrefix"/>
-        ///     to all key paramters and thus forms a logical key space isolation.
+        ///     to all key parameters and thus forms a logical key space isolation.
         /// </returns>
         /// <remarks>
         /// <para>
         ///     The following methods are not supported in a key space isolated database and
         ///     will throw an <see cref="NotSupportedException"/> when invoked:
-        /// </para>    
+        /// </para>
         /// <list type="bullet">
         ///     <item><see cref="IDatabaseAsync.KeyRandomAsync(CommandFlags)"/></item>
         ///     <item><see cref="IDatabase.KeyRandom(CommandFlags)"/></item>

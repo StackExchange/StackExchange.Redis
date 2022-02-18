@@ -289,12 +289,8 @@ namespace StackExchange.Redis.Tests
                     }
                 }
             }
-            catch (RedisConnectionException ex)
+            catch (RedisConnectionException ex) when (!setEnv && ex.FailureType == ConnectionFailureType.UnableToConnect)
             {
-                if (setEnv || ex.FailureType != ConnectionFailureType.UnableToConnect)
-                {
-                    throw;
-                }
             }
             finally
             {
@@ -464,7 +460,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void ConfigObject_Issue1407_ToStringIncludesSslProtocols()
         {
-            var sslProtocols = SslProtocols.Tls12 | SslProtocols.Tls;
+            const SslProtocols sslProtocols = SslProtocols.Tls12 | SslProtocols.Tls;
             var sourceOptions = new ConfigurationOptions
             {
                 AbortOnConnectFail = false,

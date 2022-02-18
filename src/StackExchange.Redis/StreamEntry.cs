@@ -7,7 +7,10 @@ namespace StackExchange.Redis
     /// </summary>
     public readonly struct StreamEntry
     {
-        internal StreamEntry(RedisValue id, NameValueEntry[] values)
+        /// <summary>
+        /// Creates an stream entry.
+        /// </summary>
+        public StreamEntry(RedisValue id, NameValueEntry[] values)
         {
             Id = id;
             Values = values;
@@ -29,7 +32,7 @@ namespace StackExchange.Redis
         public NameValueEntry[] Values { get; }
 
         /// <summary>
-        /// Search for a specific field by name, returning the value
+        /// Search for a specific field by name, returning the value.
         /// </summary>
         public RedisValue this[RedisValue fieldName]
         {

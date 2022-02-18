@@ -6,7 +6,7 @@ init:
 
 install:
 - cmd: >-
-    choco install dotnet-sdk --version 5.0.100
+    choco install dotnet-sdk --version 6.0.101
 
     cd tests\RedisConfigs\3.0.503
 
@@ -48,6 +48,10 @@ install:
       Start-Service redis-*
     }
 
+branches:
+  only:
+    - main
+    
 skip_branch_with_pr: true
 skip_tags: true
 skip_commits:

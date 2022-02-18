@@ -17,13 +17,9 @@ namespace StackExchange.Redis.Tests
         {
             var connectionString = $"{TestConfig.Current.SentinelServer}:{TestConfig.Current.SentinelPortA},serviceName={ServiceOptions.ServiceName},allowAdmin=true";
             var conn = await ConnectionMultiplexer.ConnectAsync(connectionString);
-            conn.ConfigurationChanged += (s, e) => {
-                Log($"Configuration changed: {e.EndPoint}");
-            };
+            conn.ConfigurationChanged += (s, e) => Log($"Configuration changed: {e.EndPoint}");
             var sub = conn.GetSubscriber();
-            sub.Subscribe("*", (channel, message) => {
-                Log($"Sub: {channel}, message:{message}");
-            });
+            sub.Subscribe("*", (channel, message) => Log($"Sub: {channel}, message:{message}"));
 
             var db = conn.GetDatabase();
             await db.PingAsync();
@@ -52,10 +48,10 @@ namespace StackExchange.Redis.Tests
 
             Log("Waiting for first replication check...");
             // force read from replica, replication has some lag
-            await WaitForReplicationAsync(servers.First()).ForAwait();
+            await WaitForReplicationAsync(servers[0]).ForAwait();
             value = await db.StringGetAsync(key, CommandFlags.DemandReplica);
             Assert.Equal(expected, value);
- 
+
             Log("Waiting for ready pre-failover...");
             await WaitForReadyAsync();
 

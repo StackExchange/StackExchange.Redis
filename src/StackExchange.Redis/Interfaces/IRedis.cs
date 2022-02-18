@@ -3,7 +3,7 @@
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// Common operations available to all redis connections
+    /// Common operations available to all redis connections.
     /// </summary>
     public partial interface IRedis : IRedisAsync
     {

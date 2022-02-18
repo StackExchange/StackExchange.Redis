@@ -11,12 +11,12 @@ using Pipelines.Sockets.Unofficial.Arenas;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// Utility methods
+    /// Utility methods.
     /// </summary>
     public static class ExtensionMethods
     {
         /// <summary>
-        /// Create a dictionary from an array of HashEntry values 
+        /// Create a dictionary from an array of HashEntry values.
         /// </summary>
         /// <param name="hash">The entry to convert to a dictionary.</param>
         public static Dictionary<string,string> ToStringDictionary(this HashEntry[] hash)
@@ -30,8 +30,9 @@ namespace StackExchange.Redis
             }
             return result;
         }
+
         /// <summary>
-        /// Create a dictionary from an array of HashEntry values 
+        /// Create a dictionary from an array of HashEntry values.
         /// </summary>
         /// <param name="hash">The entry to convert to a dictionary.</param>
         public static Dictionary<RedisValue, RedisValue> ToDictionary(this HashEntry[] hash)
@@ -47,7 +48,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Create a dictionary from an array of SortedSetEntry values 
+        /// Create a dictionary from an array of SortedSetEntry values.
         /// </summary>
         /// <param name="sortedSet">The set entries to convert to a dictionary.</param>
         public static Dictionary<string, double> ToStringDictionary(this SortedSetEntry[] sortedSet)
@@ -63,7 +64,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Create a dictionary from an array of SortedSetEntry values 
+        /// Create a dictionary from an array of SortedSetEntry values.
         /// </summary>
         /// <param name="sortedSet">The set entries to convert to a dictionary.</param>
         public static Dictionary<RedisValue, double> ToDictionary(this SortedSetEntry[] sortedSet)
@@ -79,7 +80,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Create a dictionary from an array of key/value pairs
+        /// Create a dictionary from an array of key/value pairs.
         /// </summary>
         /// <param name="pairs">The pairs to convert to a dictionary.</param>
         public static Dictionary<string, string> ToStringDictionary(this KeyValuePair<RedisKey, RedisValue>[] pairs)
@@ -95,7 +96,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Create a dictionary from an array of key/value pairs
+        /// Create a dictionary from an array of key/value pairs.
         /// </summary>
         /// <param name="pairs">The pairs to convert to a dictionary.</param>
         public static Dictionary<RedisKey, RedisValue> ToDictionary(this KeyValuePair<RedisKey, RedisValue>[] pairs)
@@ -111,7 +112,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Create a dictionary from an array of string pairs
+        /// Create a dictionary from an array of string pairs.
         /// </summary>
         /// <param name="pairs">The pairs to convert to a dictionary.</param>
         public static Dictionary<string, string> ToDictionary(this KeyValuePair<string, string>[] pairs)
@@ -129,7 +130,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Create an array of RedisValues from an array of strings.
         /// </summary>
-        /// <param name="values">The string array to convert to RedisValues</param>
+        /// <param name="values">The string array to convert to RedisValues.</param>
         public static RedisValue[] ToRedisValueArray(this string[] values)
         {
             if (values == null) return null;
@@ -138,7 +139,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Create an array of strings from an array of values
+        /// Create an array of strings from an array of values.
         /// </summary>
         /// <param name="values">The values to convert to an array.</param>
         public static string[] ToStringArray(this RedisValue[] values)
@@ -167,10 +168,10 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Represent a byte-Lease as a read-only Stream
+        /// Represent a byte-Lease as a read-only Stream.
         /// </summary>
-        /// <param name="bytes">The lease upon which to base the stream</param>
-        /// <param name="ownsLease">If true, disposing the stream also disposes the lease</param>
+        /// <param name="bytes">The lease upon which to base the stream.</param>
+        /// <param name="ownsLease">If true, disposing the stream also disposes the lease.</param>
         public static Stream AsStream(this Lease<byte> bytes, bool ownsLease = true)
         {
             if (bytes == null) return null; // GIGO
@@ -180,28 +181,28 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Decode a byte-Lease as a String, optionally specifying the encoding (UTF-8 if omitted)
+        /// Decode a byte-Lease as a String, optionally specifying the encoding (UTF-8 if omitted).
         /// </summary>
-        /// <param name="bytes">The bytes to decode</param>
-        /// <param name="encoding">The encoding to use</param>
+        /// <param name="bytes">The bytes to decode.</param>
+        /// <param name="encoding">The encoding to use.</param>
         public static string DecodeString(this Lease<byte> bytes, Encoding encoding = null)
         {
             if (bytes == null) return null;
-            if (encoding == null) encoding = Encoding.UTF8;
+            encoding ??= Encoding.UTF8;
             if (bytes.Length == 0) return "";
             var segment = bytes.ArraySegment;
             return encoding.GetString(segment.Array, segment.Offset, segment.Count);
         }
 
         /// <summary>
-        /// Decode a byte-Lease as a String, optionally specifying the encoding (UTF-8 if omitted)
+        /// Decode a byte-Lease as a String, optionally specifying the encoding (UTF-8 if omitted).
         /// </summary>
-        /// <param name="bytes">The bytes to decode</param>
-        /// <param name="encoding">The encoding to use</param>
+        /// <param name="bytes">The bytes to decode.</param>
+        /// <param name="encoding">The encoding to use.</param>
         public static Lease<char> DecodeLease(this Lease<byte> bytes, Encoding encoding = null)
         {
             if (bytes == null) return null;
-            if (encoding == null) encoding = Encoding.UTF8;
+            encoding ??= Encoding.UTF8;
             if (bytes.Length == 0) return Lease<char>.Empty;
             var bytesSegment = bytes.ArraySegment;
             var charCount = encoding.GetCharCount(bytesSegment.Array, bytesSegment.Offset, bytesSegment.Count);
@@ -235,7 +236,7 @@ namespace StackExchange.Redis
         //     Could not load file or assembly 'System.Numerics.Vectors, Version=4.1.3.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a'
         //     or one of its dependencies.The located assembly's manifest definition does not match the assembly reference. (Exception from HRESULT: 0x80131040)
         //
-        // also; note that the nuget tools *do not* reliably (or even occasionally) produce the correct
+        // also; note that the NuGet tools *do not* reliably (or even occasionally) produce the correct
         // assembly-binding-redirect entries to fix this up, so; it would present an unreasonable support burden
         // otherwise. And yes, I've tried explicitly referencing System.Numerics.Vectors in the manifest to
         // force it... nothing. Nada.

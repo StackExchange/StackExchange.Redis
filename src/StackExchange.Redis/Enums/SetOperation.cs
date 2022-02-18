@@ -1,7 +1,7 @@
 ﻿namespace StackExchange.Redis
 {
     /// <summary>
-    /// Describes an algebraic set operation that can be performed to combine multiple sets
+    /// Describes an algebraic set operation that can be performed to combine multiple sets.
     /// </summary>
     public enum SetOperation
     {
@@ -16,6 +16,6 @@
         /// <summary>
         /// Returns the members of the set resulting from the difference between the first set and all the successive sets.
         /// </summary>
-        Difference
+        Difference,
     }
 }

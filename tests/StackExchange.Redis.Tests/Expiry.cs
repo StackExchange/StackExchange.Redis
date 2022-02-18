@@ -63,7 +63,11 @@ namespace StackExchange.Redis.Tests
                 conn.KeyDelete(key, CommandFlags.FireAndForget);
 
                 var now = utc ? DateTime.UtcNow : DateTime.Now;
-                Log("Now: {0}", now);
+                var serverTime = GetServer(muxer).Time();
+                Log("Server time: {0}", serverTime);
+                var offset = DateTime.UtcNow - serverTime;
+
+                Log("Now (local time): {0}", now);
                 conn.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
                 var a = conn.KeyTimeToLiveAsync(key);
                 conn.KeyExpire(key, now.AddHours(1), CommandFlags.FireAndForget);
@@ -79,6 +83,10 @@ namespace StackExchange.Redis.Tests
 
                 Assert.Null(await a);
                 var time = await b;
+
+                // Adjust for server time offset, if any when checking expectations
+                time -= offset;
+
                 Assert.NotNull(time);
                 Log("Time: {0}, Expected: {1}-{2}", time, TimeSpan.FromMinutes(59), TimeSpan.FromMinutes(60));
                 Assert.True(time >= TimeSpan.FromMinutes(59));

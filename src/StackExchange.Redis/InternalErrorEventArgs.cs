@@ -5,7 +5,7 @@ using System.Text;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// Describes internal errors (mainly intended for debugging)
+    /// Describes internal errors (mainly intended for debugging).
     /// </summary>
     public class InternalErrorEventArgs : EventArgs, ICompletable
     {
@@ -27,7 +27,7 @@ namespace StackExchange.Redis
         /// <param name="sender">The source of the event.</param>
         /// <param name="endpoint"></param>
         /// <param name="connectionType">Redis connection type.</param>
-        /// <param name="exception">The exception occured.</param>
+        /// <param name="exception">The exception that occurred.</param>
         /// <param name="origin">Origin.</param>
         public InternalErrorEventArgs(object sender, EndPoint endpoint, ConnectionType connectionType, Exception exception, string origin)
             : this (null, sender, endpoint, connectionType, exception, origin)
@@ -35,29 +35,32 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Gets the connection-type of the failing connection
+        /// Gets the connection-type of the failing connection.
         /// </summary>
         public ConnectionType ConnectionType { get; }
 
         /// <summary>
-        /// Gets the failing server-endpoint (this can be null)
+        /// Gets the failing server-endpoint (this can be null).
         /// </summary>
         public EndPoint EndPoint { get; }
 
         /// <summary>
-        /// Gets the exception if available (this can be null)
+        /// Gets the exception if available (this can be null).
         /// </summary>
         public Exception Exception { get; }
 
         /// <summary>
-        /// The underlying origin of the error
+        /// The underlying origin of the error.
         /// </summary>
         public string Origin { get; }
 
         void ICompletable.AppendStormLog(StringBuilder sb)
         {
             sb.Append("event, internal-error: ").Append(Origin);
-            if (EndPoint != null) sb.Append(", ").Append(Format.ToString(EndPoint));
+            if (EndPoint != null)
+            {
+                sb.Append(", ").Append(Format.ToString(EndPoint));
+            }
         }
 
         bool ICompletable.TryComplete(bool isAsync) => ConnectionMultiplexer.TryCompleteHandler(handler, sender, this, isAsync);

@@ -23,7 +23,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void CanGetVersion()
         {
-            var libVer = ExceptionFactory.GetLibVersion();
+            var libVer = Utils.GetLibVersion();
             Assert.Matches(@"2\.[0-9]+\.[0-9]+(\.[0-9]+)?", libVer);
         }
 
@@ -63,7 +63,7 @@ namespace StackExchange.Redis.Tests
         {
             try
             {
-                using (var muxer = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true, shared: false))
+                using (var muxer = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true, shared: false, backlogPolicy: BacklogPolicy.FailFast))
                 {
                     muxer.GetDatabase();
                     muxer.AllowConnect = false;
@@ -123,6 +123,11 @@ namespace StackExchange.Redis.Tests
                     Assert.Contains("inst: 0, qu: 0, qs: 0, aw: False, in: 0, in-pipe: 0, out-pipe: 0", ex.Message);
                     Assert.Contains("mc: 1/1/0", ex.Message);
                     Assert.Contains("serverEndpoint: " + server.EndPoint, ex.Message);
+                    Assert.Contains("IOCP: ", ex.Message);
+                    Assert.Contains("WORKER: ", ex.Message);
+#if NETCOREAPP
+                    Assert.Contains("POOL: ", ex.Message);
+#endif
                     Assert.DoesNotContain("Unspecified/", ex.Message);
                     Assert.EndsWith(" (Please take a look at this article for some common client-side issues that can cause timeouts: https://stackexchange.github.io/StackExchange.Redis/Timeouts)", ex.Message);
                     Assert.Null(ex.InnerException);
@@ -151,7 +156,8 @@ namespace StackExchange.Redis.Tests
                 var options = new ConfigurationOptions()
                 {
                     AbortOnConnectFail = abortOnConnect,
-                    ConnectTimeout = 500,
+                    BacklogPolicy = BacklogPolicy.FailFast,
+                    ConnectTimeout = 1000,
                     SyncTimeout = 500,
                     KeepAlive = 5000
                 };
@@ -160,12 +166,12 @@ namespace StackExchange.Redis.Tests
                 if (abortOnConnect)
                 {
                     options.EndPoints.Add(TestConfig.Current.MasterServerAndPort);
-                    muxer = ConnectionMultiplexer.Connect(options);
+                    muxer = ConnectionMultiplexer.Connect(options, Writer);
                 }
                 else
                 {
                     options.EndPoints.Add($"doesnot.exist.{Guid.NewGuid():N}:6379");
-                    muxer = ConnectionMultiplexer.Connect(options);
+                    muxer = ConnectionMultiplexer.Connect(options, Writer);
                 }
 
                 using (muxer)
@@ -205,6 +211,28 @@ namespace StackExchange.Redis.Tests
             {
                 ClearAmbientFailures();
             }
+        }
+
+        [Theory]
+        [InlineData(true, ConnectionFailureType.ProtocolFailure, "ProtocolFailure on [0]:GET myKey (StringProcessor), my annotation")]
+        [InlineData(true, ConnectionFailureType.ConnectionDisposed, "ConnectionDisposed on [0]:GET myKey (StringProcessor), my annotation")]
+        [InlineData(false, ConnectionFailureType.ProtocolFailure, "ProtocolFailure on [0]:GET (StringProcessor), my annotation")]
+        [InlineData(false, ConnectionFailureType.ConnectionDisposed, "ConnectionDisposed on [0]:GET (StringProcessor), my annotation")]
+        public void MessageFail(bool includeDetail, ConnectionFailureType failType, string messageStart)
+        {
+            using var muxer = Create(shared: false);
+            muxer.IncludeDetailInExceptions = includeDetail;
+
+            var message = Message.Create(0, CommandFlags.None, RedisCommand.GET, (RedisKey)"myKey");
+            var resultBox = SimpleResultBox<string>.Create();
+            message.SetSource(ResultProcessor.String, resultBox);
+
+            message.Fail(failType, null, "my annotation", muxer as ConnectionMultiplexer);
+
+            resultBox.GetResult(out var ex);
+            Assert.NotNull(ex);
+
+            Assert.StartsWith(messageStart, ex.Message);
         }
     }
 }

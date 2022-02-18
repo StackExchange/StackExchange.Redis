@@ -20,8 +20,10 @@ using StackExchange.Redis.Profiling;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// Represents an inter-related group of connections to redis servers
+    /// Represents an inter-related group of connections to redis servers.
+    /// A reference to this should be held and re-used.
     /// </summary>
+    /// <remarks>https://stackexchange.github.io/StackExchange.Redis/PipelinesMultiplexers</remarks>
     public sealed partial class ConnectionMultiplexer : IInternalConnectionMultiplexer // implies : IConnectionMultiplexer and : IDisposable
     {
         [Flags]
@@ -34,7 +36,8 @@ namespace StackExchange.Redis
         private static FeatureFlags s_featureFlags;
 
         /// <summary>
-        /// Enables or disables a feature flag; this should only be used under support guidance, and should not be rapidly toggled
+        /// Enables or disables a feature flag.
+        /// This should only be used under support guidance, and should not be rapidly toggled.
         /// </summary>
         [EditorBrowsable(EditorBrowsableState.Never)]
         [Browsable(false)]
@@ -60,7 +63,8 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Returns the state of a feature flag; this should only be used under support guidance
+        /// Returns the state of a feature flag.
+        /// This should only be used under support guidance.
         /// </summary>
         [EditorBrowsable(EditorBrowsableState.Never)]
         [Browsable(false)]
@@ -70,14 +74,13 @@ namespace StackExchange.Redis
 
         internal static bool PreventThreadTheft => (s_featureFlags & FeatureFlags.PreventThreadTheft) != 0;
 
-
         private static TaskFactory _factory = null;
 
 #if DEBUG
         private static int _collectedWithoutDispose;
         internal static int CollectedWithoutDispose => Thread.VolatileRead(ref _collectedWithoutDispose);
         /// <summary>
-        /// Invoked by the garbage collector
+        /// Invoked by the garbage collector.
         /// </summary>
         ~ConnectionMultiplexer()
         {
@@ -98,24 +101,26 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// For debugging: when not enabled, servers cannot connect
+        /// For debugging: when not enabled, servers cannot connect.
         /// </summary>
         internal volatile bool AllowConnect = true;
 
         /// <summary>
-        /// For debugging: when not enabled, end-connect is silently ignored (to simulate a long-running connect)
+        /// For debugging: when not enabled, end-connect is silently ignored (to simulate a long-running connect).
         /// </summary>
         internal volatile bool IgnoreConnect;
 
         /// <summary>
-        /// Tracks overall connection multiplexer counts
+        /// Tracks overall connection multiplexer counts.
         /// </summary>
         internal int _connectAttemptCount = 0, _connectCompletedCount = 0, _connectionCloseCount = 0;
 
         /// <summary>
-        /// Provides a way of overriding the default Task Factory. If not set, it will use the default Task.Factory.
+        /// Provides a way of overriding the default Task Factory.
+        /// If not set, it will use the default <see cref="Task.Factory"/>.
         /// Useful when top level code sets it's own factory which may interfere with Redis queries.
         /// </summary>
+        [Obsolete("No longer used, will be removed in 3.0.")]
         public static TaskFactory Factory
         {
             get => _factory ?? Task.Factory;
@@ -123,7 +128,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Get summary statistics associates with this server
+        /// Get summary statistics associated with all servers in this multiplexer.
         /// </summary>
         public ServerCounters GetCounters()
         {
@@ -138,23 +143,26 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Gets the client-name that will be used on all new connections
+        /// Gets the client-name that will be used on all new connections.
         /// </summary>
         public string ClientName => RawConfig.ClientName ?? GetDefaultClientName();
 
         private static string defaultClientName;
 
+        /// <summary>
+        /// Gets the client name for a connection, with the library version appended.
+        /// </summary>
         private static string GetDefaultClientName()
         {
-            return defaultClientName ??= TryGetAzureRoleInstanceIdNoThrow()
+            return defaultClientName ??= (TryGetAzureRoleInstanceIdNoThrow()
                     ?? Environment.MachineName
                     ?? Environment.GetEnvironmentVariable("ComputerName")
-                    ?? "StackExchange.Redis";
+                    ?? "StackExchange.Redis") + "(v" + Utils.GetLibVersion() + ")";
         }
 
         /// <summary>
-        /// Tries to get the Roleinstance Id if Microsoft.WindowsAzure.ServiceRuntime is loaded.
-        /// In case of any failure, swallows the exception and returns null
+        /// Tries to get the RoleInstance Id if Microsoft.WindowsAzure.ServiceRuntime is loaded.
+        /// In case of any failure, swallows the exception and returns null.
         /// </summary>
         internal static string TryGetAzureRoleInstanceIdNoThrow()
         {
@@ -198,7 +206,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Gets the configuration of the connection
+        /// Gets the configuration of the connection.
         /// </summary>
         public string Configuration => RawConfig.ToString();
 
@@ -208,8 +216,7 @@ namespace StackExchange.Redis
             var handler = ConnectionFailed;
             if (handler != null)
             {
-                ConnectionMultiplexer.CompleteAsWorker(
-                    new ConnectionFailedEventArgs(handler, this, endpoint, connectionType, failureType, exception, physicalName));
+                CompleteAsWorker(new ConnectionFailedEventArgs(handler, this, endpoint, connectionType, failureType, exception, physicalName));
             }
             if (reconfigure)
             {
@@ -226,12 +233,12 @@ namespace StackExchange.Redis
                 var handler = InternalError;
                 if (handler != null)
                 {
-                    ConnectionMultiplexer.CompleteAsWorker(
-                        new InternalErrorEventArgs(handler, this, endpoint, connectionType, exception, origin));
+                    CompleteAsWorker(new InternalErrorEventArgs(handler, this, endpoint, connectionType, exception, origin));
                 }
             }
             catch
-            { // our internal error event failed; whatcha gonna do, exactly?
+            {
+                // Our internal error event failed...whatcha gonna do, exactly?
             }
         }
 
@@ -241,8 +248,7 @@ namespace StackExchange.Redis
             var handler = ConnectionRestored;
             if (handler != null)
             {
-                ConnectionMultiplexer.CompleteAsWorker(
-                    new ConnectionFailedEventArgs(handler, this, endpoint, connectionType, ConnectionFailureType.None, null, physicalName));
+                CompleteAsWorker(new ConnectionFailedEventArgs(handler, this, endpoint, connectionType, ConnectionFailureType.None, null, physicalName));
             }
             ReconfigureIfNeeded(endpoint, false, "connection restored");
         }
@@ -252,7 +258,7 @@ namespace StackExchange.Redis
             if (_isDisposed) return;
             if (handler != null)
             {
-                ConnectionMultiplexer.CompleteAsWorker(new EndPointEventArgs(handler, this, endpoint));
+                CompleteAsWorker(new EndPointEventArgs(handler, this, endpoint));
             }
         }
 
@@ -260,7 +266,7 @@ namespace StackExchange.Redis
         internal void OnConfigurationChangedBroadcast(EndPoint endpoint) => OnEndpointChanged(endpoint, ConfigurationChangedBroadcast);
 
         /// <summary>
-        /// A server replied with an error message;
+        /// Raised when a server replied with an error message.
         /// </summary>
         public event EventHandler<RedisErrorEventArgs> ErrorMessage;
         internal void OnErrorMessage(EndPoint endpoint, string message)
@@ -269,9 +275,7 @@ namespace StackExchange.Redis
             var handler = ErrorMessage;
             if (handler != null)
             {
-                ConnectionMultiplexer.CompleteAsWorker(
-                    new RedisErrorEventArgs(handler, this, endpoint, message)
-                );
+                CompleteAsWorker(new RedisErrorEventArgs(handler, this, endpoint, message));
             }
         }
 
@@ -299,7 +303,7 @@ namespace StackExchange.Redis
             }
         }
         /// <summary>
-        /// Write the configuration of all servers to an output stream
+        /// Write the configuration of all servers to an output stream.
         /// </summary>
         /// <param name="destination">The destination stream to write the export to.</param>
         /// <param name="options">The options to use for this export.</param>
@@ -307,7 +311,7 @@ namespace StackExchange.Redis
         {
             if (destination == null) throw new ArgumentNullException(nameof(destination));
 
-            // what is possible, given the command map?
+            // What is possible, given the command map?
             ExportOptions mask = 0;
             if (CommandMap.IsAvailable(RedisCommand.INFO)) mask |= ExportOptions.Info;
             if (CommandMap.IsAvailable(RedisCommand.CONFIG)) mask |= ExportOptions.Config;
@@ -385,7 +389,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal void MakeMaster(ServerEndPoint server, ReplicationChangeOptions options, LogProxy log)
+        internal async Task MakePrimaryAsync(ServerEndPoint server, ReplicationChangeOptions options, LogProxy log)
         {
             var cmd = server.GetFeatures().ReplicaCommands ? RedisCommand.REPLICAOF : RedisCommand.SLAVEOF;
             CommandMap.AssertAvailable(cmd);
@@ -396,15 +400,13 @@ namespace StackExchange.Redis
             var srv = new RedisServer(this, server, null);
             if (!srv.IsConnected) throw ExceptionFactory.NoConnectionAvailable(this, null, server, GetServerSnapshot(), command: cmd);
 
-#pragma warning disable CS0618
-            const CommandFlags flags = CommandFlags.NoRedirect | CommandFlags.HighPriority;
-#pragma warning restore CS0618
+            const CommandFlags flags = CommandFlags.NoRedirect;
             Message msg;
 
             log?.WriteLine($"Checking {Format.ToString(srv.EndPoint)} is available...");
             try
             {
-                srv.Ping(flags); // if it isn't happy, we're not happy
+                await srv.PingAsync(flags); // if it isn't happy, we're not happy
             }
             catch (Exception ex)
             {
@@ -412,7 +414,7 @@ namespace StackExchange.Redis
                 throw;
             }
 
-            var nodes = GetServerSnapshot();
+            var nodes = GetServerSnapshot().ToArray(); // Have to array because async/await
             RedisValue newMaster = Format.ToString(server.EndPoint);
 
             RedisKey tieBreakerKey = default(RedisKey);
@@ -424,12 +426,14 @@ namespace StackExchange.Redis
 
                 foreach (var node in nodes)
                 {
-                    if (!node.IsConnected) continue;
+                    if (!node.IsConnected || node.IsReplica) continue;
                     log?.WriteLine($"Attempting to set tie-breaker on {Format.ToString(node.EndPoint)}...");
-                    msg = Message.Create(0, flags, RedisCommand.SET, tieBreakerKey, newMaster);
-#pragma warning disable CS0618
-                    node.WriteDirectFireAndForgetSync(msg, ResultProcessor.DemandOK);
-#pragma warning restore CS0618
+                    msg = Message.Create(0, flags | CommandFlags.FireAndForget, RedisCommand.SET, tieBreakerKey, newMaster);
+                    try
+                    {
+                        await node.WriteDirectAsync(msg, ResultProcessor.DemandOK);
+                    }
+                    catch { }
                 }
             }
 
@@ -437,7 +441,7 @@ namespace StackExchange.Redis
             log?.WriteLine($"Making {Format.ToString(srv.EndPoint)} a master...");
             try
             {
-                srv.ReplicaOf(null, flags);
+                await srv.ReplicaOfAsync(null, flags);
             }
             catch (Exception ex)
             {
@@ -446,18 +450,21 @@ namespace StackExchange.Redis
             }
 
             // also, in case it was a replica a moment ago, and hasn't got the tie-breaker yet, we re-send the tie-breaker to this one
-            if (!tieBreakerKey.IsNull)
+            if (!tieBreakerKey.IsNull && !server.IsReplica)
             {
                 log?.WriteLine($"Resending tie-breaker to {Format.ToString(server.EndPoint)}...");
-                msg = Message.Create(0, flags, RedisCommand.SET, tieBreakerKey, newMaster);
-#pragma warning disable CS0618
-                server.WriteDirectFireAndForgetSync(msg, ResultProcessor.DemandOK);
-#pragma warning restore CS0618
+                msg = Message.Create(0, flags | CommandFlags.FireAndForget, RedisCommand.SET, tieBreakerKey, newMaster);
+                try
+                {
+                    await server.WriteDirectAsync(msg, ResultProcessor.DemandOK);
+                }
+                catch { }
             }
 
             // There's an inherent race here in zero-latency environments (e.g. when Redis is on localhost) when a broadcast is specified
             // The broadcast can get back from redis and trigger a reconfigure before we get a chance to get to ReconfigureAsync() below
-            // This results in running an outdated reconfig and the .CompareExchange() (due to already running a reconfig) failing...making our needed reconfig a no-op.
+            // This results in running an outdated reconfiguration and the .CompareExchange() (due to already running a reconfiguration)
+            // failing...making our needed reconfiguration a no-op.
             // If we don't block *that* run, then *our* run (at low latency) gets blocked. Then we're waiting on the
             // ConfigurationOptions.ConfigCheckSeconds interval to identify the current (created by this method call) topology correctly.
             var blockingReconfig = Interlocked.CompareExchange(ref activeConfigCause, "Block: Pending Master Reconfig", null) == null;
@@ -465,8 +472,8 @@ namespace StackExchange.Redis
             // Try and broadcast the fact a change happened to all members
             // We want everyone possible to pick it up.
             // We broadcast before *and after* the change to remote members, so that they don't go without detecting a change happened.
-            // This eliminates the race of pub/sub *then* re-slaving happening, since a method both preceeds and follows.
-            void Broadcast(ReadOnlySpan<ServerEndPoint> serverNodes)
+            // This eliminates the race of pub/sub *then* re-slaving happening, since a method both precedes and follows.
+            async Task BroadcastAsync(ServerEndPoint[] serverNodes)
             {
                 if ((options & ReplicationChangeOptions.Broadcast) != 0 && ConfigurationChangedChannel != null
                     && CommandMap.IsAvailable(RedisCommand.PUBLISH))
@@ -476,16 +483,14 @@ namespace StackExchange.Redis
                     {
                         if (!node.IsConnected) continue;
                         log?.WriteLine($"Broadcasting via {Format.ToString(node.EndPoint)}...");
-                        msg = Message.Create(-1, flags, RedisCommand.PUBLISH, channel, newMaster);
-#pragma warning disable CS0618
-                        node.WriteDirectFireAndForgetSync(msg, ResultProcessor.Int64);
-#pragma warning restore CS0618
+                        msg = Message.Create(-1, flags | CommandFlags.FireAndForget, RedisCommand.PUBLISH, channel, newMaster);
+                        await node.WriteDirectAsync(msg, ResultProcessor.Int64);
                     }
                 }
             }
 
             // Send a message before it happens - because afterwards a new replica may be unresponsive
-            Broadcast(nodes);
+            await BroadcastAsync(nodes);
 
             if ((options & ReplicationChangeOptions.ReplicateToOtherEndpoints) != 0)
             {
@@ -495,16 +500,14 @@ namespace StackExchange.Redis
 
                     log?.WriteLine($"Replicating to {Format.ToString(node.EndPoint)}...");
                     msg = RedisServer.CreateReplicaOfMessage(node, server.EndPoint, flags);
-#pragma warning disable CS0618
-                    node.WriteDirectFireAndForgetSync(msg, ResultProcessor.DemandOK);
-#pragma warning restore CS0618
+                    await node.WriteDirectAsync(msg, ResultProcessor.DemandOK);
                 }
             }
 
             // ...and send one after it happens - because the first broadcast may have landed on a secondary client
             // and it can reconfigure before any topology change actually happened. This is most likely to happen
             // in low-latency environments.
-            Broadcast(nodes);
+            await BroadcastAsync(nodes);
 
             // and reconfigure the muxer
             log?.WriteLine("Reconfiguring all endpoints...");
@@ -514,7 +517,7 @@ namespace StackExchange.Redis
             {
                 Interlocked.Exchange(ref activeConfigCause, null);
             }
-            if (!ReconfigureAsync(first: false, reconfigureAll: true, log, srv.EndPoint, "make master").ObserveErrors().Wait(5000))
+            if (!await ReconfigureAsync(first: false, reconfigureAll: true, log, srv.EndPoint, "make master"))
             {
                 log?.WriteLine("Verifying the configuration was incomplete; please verify");
             }
@@ -526,7 +529,7 @@ namespace StackExchange.Redis
                 throw ExceptionFactory.AdminModeNotEnabled(IncludeDetailInExceptions, message.Command, message, null);
             if (message.Command != RedisCommand.UNKNOWN) CommandMap.AssertAvailable(message.Command);
 
-            // using >= here because we will be adding 1 for the command itself (which is an arg for the purposes of the multi-bulk protocol)
+            // using >= here because we will be adding 1 for the command itself (which is an argument for the purposes of the multi-bulk protocol)
             if (message.ArgCount >= PhysicalConnection.REDIS_MAX_ARGS) throw ExceptionFactory.TooManyArgs(message.CommandAndKey, message.ArgCount);
         }
         private const string NoContent = "(no content)";
@@ -548,28 +551,28 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Raised whenever a physical connection fails
+        /// Raised whenever a physical connection fails.
         /// </summary>
         public event EventHandler<ConnectionFailedEventArgs> ConnectionFailed;
 
         /// <summary>
-        /// Raised whenever an internal error occurs (this is primarily for debugging)
+        /// Raised whenever an internal error occurs (this is primarily for debugging).
         /// </summary>
         public event EventHandler<InternalErrorEventArgs> InternalError;
 
         /// <summary>
-        /// Raised whenever a physical connection is established
+        /// Raised whenever a physical connection is established.
         /// </summary>
         public event EventHandler<ConnectionFailedEventArgs> ConnectionRestored;
 
         /// <summary>
-        /// Raised when configuration changes are detected
+        /// Raised when configuration changes are detected.
         /// </summary>
         public event EventHandler<EndPointEventArgs> ConfigurationChanged;
 
         /// <summary>
-        /// Raised when nodes are explicitly requested to reconfigure via broadcast;
-        /// this usually means master/replica changes
+        /// Raised when nodes are explicitly requested to reconfigure via broadcast.
+        /// This usually means primary/replica changes.
         /// </summary>
         public event EventHandler<EndPointEventArgs> ConfigurationChangedBroadcast;
 
@@ -579,16 +582,17 @@ namespace StackExchange.Redis
         public event EventHandler<ServerMaintenanceEvent> ServerMaintenanceEvent;
 
         /// <summary>
-        /// Gets the synchronous timeout associated with the connections
+        /// Gets the synchronous timeout associated with the connections.
         /// </summary>
         public int TimeoutMilliseconds { get; }
+
         /// <summary>
-        /// Gets the asynchronous timeout associated with the connections
+        /// Gets the asynchronous timeout associated with the connections.
         /// </summary>
         internal int AsyncTimeoutMilliseconds { get; }
 
         /// <summary>
-        /// Gets all endpoints defined on the server
+        /// Gets all endpoints defined on the multiplexer.
         /// </summary>
         /// <param name="configuredOnly">Whether to get only the endpoints specified explicitly in the config.</param>
         public EndPoint[] GetEndPoints(bool configuredOnly = false)
@@ -607,7 +611,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Wait for a given asynchronous operation to complete (or timeout)
+        /// Wait for a given asynchronous operation to complete (or timeout).
         /// </summary>
         /// <param name="task">The task to wait on.</param>
         public void Wait(Task task)
@@ -624,7 +628,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Wait for a given asynchronous operation to complete (or timeout)
+        /// Wait for a given asynchronous operation to complete (or timeout).
         /// </summary>
         /// <typeparam name="T">The type contains in the task to wait on.</typeparam>
         /// <param name="task">The task to wait on.</param>
@@ -649,7 +653,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Wait for the given asynchronous operations to complete (or timeout)
+        /// Wait for the given asynchronous operations to complete (or timeout).
         /// </summary>
         /// <param name="tasks">The tasks to wait on.</param>
         public void WaitAll(params Task[] tasks)
@@ -668,13 +672,12 @@ namespace StackExchange.Redis
             var watch = Stopwatch.StartNew();
             try
             {
-                // if none error, great
+                // If no error, great
                 if (Task.WaitAll(tasks, timeout)) return true;
             }
             catch
             { }
-            // if we get problems, need to give the non-failing ones time to finish
-            // to be fair and reasonable
+            // If we get problems, need to give the non-failing ones time to be fair and reasonable
             for (int i = 0; i < tasks.Length; i++)
             {
                 var task = tasks[i];
@@ -703,8 +706,12 @@ namespace StackExchange.Redis
             {
                 var sb = new StringBuilder();
                 sb.Append(message);
-                busyWorkerCount = PerfCounterHelper.GetThreadPoolStats(out string iocp, out string worker);
+                busyWorkerCount = PerfCounterHelper.GetThreadPoolStats(out string iocp, out string worker, out string workItems);
                 sb.Append(", IOCP: ").Append(iocp).Append(", WORKER: ").Append(worker);
+                if (workItems != null)
+                {
+                    sb.Append(", POOL: ").Append(workItems);
+                }
                 log?.WriteLine(sb.ToString());
             }
         }
@@ -781,7 +788,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Raised when a hash-slot has been relocated
+        /// Raised when a hash-slot has been relocated.
         /// </summary>
         public event EventHandler<HashSlotMovedEventArgs> HashSlotMoved;
 
@@ -790,18 +797,17 @@ namespace StackExchange.Redis
             var handler = HashSlotMoved;
             if (handler != null)
             {
-                ConnectionMultiplexer.CompleteAsWorker(
-                  new HashSlotMovedEventArgs(handler, this, hashSlot, old, @new));
+                CompleteAsWorker(new HashSlotMovedEventArgs(handler, this, hashSlot, old, @new));
             }
         }
 
         /// <summary>
-        /// Compute the hash-slot of a specified key
+        /// Compute the hash-slot of a specified key.
         /// </summary>
         /// <param name="key">The key to get a hash slot ID for.</param>
         public int HashSlot(RedisKey key) => ServerSelectionStrategy.HashSlot(key);
 
-        internal ServerEndPoint AnyConnected(ServerType serverType, uint startOffset, RedisCommand command, CommandFlags flags)
+        internal ServerEndPoint AnyServer(ServerType serverType, uint startOffset, RedisCommand command, CommandFlags flags, bool allowDisconnected)
         {
             var tmp = GetServerSnapshot();
             int len = tmp.Length;
@@ -809,7 +815,7 @@ namespace StackExchange.Redis
             for (int i = 0; i < len; i++)
             {
                 var server = tmp[(int)(((uint)i + startOffset) % len)];
-                if (server != null && server.ServerType == serverType && server.IsSelectable(command))
+                if (server != null && server.ServerType == serverType && server.IsSelectable(command, allowDisconnected))
                 {
                     if (server.IsReplica)
                     {
@@ -844,7 +850,7 @@ namespace StackExchange.Redis
         internal bool IsDisposed => _isDisposed;
 
         /// <summary>
-        /// Create a new ConnectionMultiplexer instance.
+        /// Creates a new <see cref="ConnectionMultiplexer"/> instance.
         /// </summary>
         /// <param name="configuration">The string configuration to use for this multiplexer.</param>
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
@@ -852,7 +858,7 @@ namespace StackExchange.Redis
             ConnectAsync(ConfigurationOptions.Parse(configuration), log);
 
         /// <summary>
-        /// Create a new ConnectionMultiplexer instance.
+        /// Creates a new <see cref="ConnectionMultiplexer"/> instance.
         /// </summary>
         /// <param name="configuration">The string configuration to use for this multiplexer.</param>
         /// <param name="configure">Action to further modify the parsed configuration options.</param>
@@ -861,10 +867,11 @@ namespace StackExchange.Redis
             ConnectAsync(ConfigurationOptions.Parse(configuration).Apply(configure), log);
 
         /// <summary>
-        /// Create a new ConnectionMultiplexer instance.
+        /// Creates a new <see cref="ConnectionMultiplexer"/> instance.
         /// </summary>
         /// <param name="configuration">The configuration options to use for this multiplexer.</param>
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
+        /// <remarks>Note: For Sentinel, do <b>not</b> specify a <see cref="ConfigurationOptions.CommandMap"/> - this is handled automatically.</remarks>
         public static Task<ConnectionMultiplexer> ConnectAsync(ConfigurationOptions configuration, TextWriter log = null)
         {
             SocketConnection.AssertDependencies();
@@ -950,7 +957,7 @@ namespace StackExchange.Redis
             return config;
         }
 
-        internal class LogProxy : IDisposable
+        internal sealed class LogProxy : IDisposable
         {
             public static LogProxy TryCreate(TextWriter writer)
                 => writer == null ? null : new LogProxy(writer);
@@ -1005,12 +1012,12 @@ namespace StackExchange.Redis
             connectHandler = null;
             if (log != null)
             {
-                // create a detachable event-handler to log detailed errors if something happens during connect/handshake
+                // Create a detachable event-handler to log detailed errors if something happens during connect/handshake
                 connectHandler = (_, a) =>
                 {
                     try
                     {
-                        lock (log.SyncLock) // keep the outer and any inner errors contiguous
+                        lock (log.SyncLock) // Keep the outer and any inner errors contiguous
                         {
                             var ex = a.Exception;
                             log?.WriteLine($"connection failed: {Format.ToString(a.EndPoint)} ({a.ConnectionType}, {a.FailureType}): {ex?.Message ?? "(unknown)"}");
@@ -1028,7 +1035,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Create a new ConnectionMultiplexer instance.
+        /// Creates a new <see cref="ConnectionMultiplexer"/> instance.
         /// </summary>
         /// <param name="configuration">The string configuration to use for this multiplexer.</param>
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
@@ -1036,7 +1043,7 @@ namespace StackExchange.Redis
             Connect(ConfigurationOptions.Parse(configuration), log);
 
         /// <summary>
-        /// Create a new ConnectionMultiplexer instance.
+        /// Creates a new <see cref="ConnectionMultiplexer"/> instance.
         /// </summary>
         /// <param name="configuration">The string configuration to use for this multiplexer.</param>
         /// <param name="configure">Action to further modify the parsed configuration options.</param>
@@ -1045,10 +1052,11 @@ namespace StackExchange.Redis
             Connect(ConfigurationOptions.Parse(configuration).Apply(configure), log);
 
         /// <summary>
-        /// Create a new ConnectionMultiplexer instance.
+        /// Creates a new <see cref="ConnectionMultiplexer"/> instance.
         /// </summary>
         /// <param name="configuration">The configuration options to use for this multiplexer.</param>
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
+        /// <remarks>Note: For Sentinel, do <b>not</b> specify a <see cref="ConfigurationOptions.CommandMap"/> - this is handled automatically.</remarks>
         public static ConnectionMultiplexer Connect(ConfigurationOptions configuration, TextWriter log = null)
         {
             SocketConnection.AssertDependencies();
@@ -1062,7 +1070,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Create a new ConnectionMultiplexer instance that connects to a sentinel server
+        /// Create a new <see cref="ConnectionMultiplexer"/> instance that connects to a Sentinel server.
         /// </summary>
         /// <param name="configuration">The string configuration to use for this multiplexer.</param>
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
@@ -1073,7 +1081,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Create a new ConnectionMultiplexer instance that connects to a sentinel server
+        /// Create a new <see cref="ConnectionMultiplexer"/> instance that connects to a Sentinel server.
         /// </summary>
         /// <param name="configuration">The string configuration to use for this multiplexer.</param>
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
@@ -1084,7 +1092,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Create a new ConnectionMultiplexer instance that connects to a sentinel server
+        /// Create a new <see cref="ConnectionMultiplexer"/> instance that connects to a Sentinel server.
         /// </summary>
         /// <param name="configuration">The configuration options to use for this multiplexer.</param>
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
@@ -1095,7 +1103,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Create a new ConnectionMultiplexer instance that connects to a sentinel server
+        /// Create a new <see cref="ConnectionMultiplexer"/> instance that connects to a Sentinel server.
         /// </summary>
         /// <param name="configuration">The configuration options to use for this multiplexer.</param>
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
@@ -1106,8 +1114,8 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Create a new ConnectionMultiplexer instance that connects to a sentinel server, discovers the current master server
-        /// for the specified ServiceName in the config and returns a managed connection to the current master server
+        /// Create a new <see cref="ConnectionMultiplexer"/> instance that connects to a sentinel server, discovers the current primary server
+        /// for the specified <see cref="ConfigurationOptions.ServiceName"/> in the config and returns a managed connection to the current primary server.
         /// </summary>
         /// <param name="configuration">The string configuration to use for this multiplexer.</param>
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
@@ -1117,8 +1125,8 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Create a new ConnectionMultiplexer instance that connects to a sentinel server, discovers the current master server
-        /// for the specified ServiceName in the config and returns a managed connection to the current master server
+        /// Create a new <see cref="ConnectionMultiplexer"/> instance that connects to a sentinel server, discovers the current primary server
+        /// for the specified <see cref="ConfigurationOptions.ServiceName"/> in the config and returns a managed connection to the current primary server.
         /// </summary>
         /// <param name="configuration">The configuration options to use for this multiplexer.</param>
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
@@ -1127,15 +1135,15 @@ namespace StackExchange.Redis
             var sentinelConnection = SentinelConnect(configuration, log);
 
             var muxer = sentinelConnection.GetSentinelMasterConnection(configuration, log);
-            // set reference to sentinel connection so that we can dispose it
+            // Set reference to sentinel connection so that we can dispose it
             muxer.sentinelConnection = sentinelConnection;
 
             return muxer;
         }
 
         /// <summary>
-        /// Create a new ConnectionMultiplexer instance that connects to a sentinel server, discovers the current master server
-        /// for the specified ServiceName in the config and returns a managed connection to the current master server
+        /// Create a new <see cref="ConnectionMultiplexer"/> instance that connects to a sentinel server, discovers the current primary server
+        /// for the specified <see cref="ConfigurationOptions.ServiceName"/> in the config and returns a managed connection to the current primary server.
         /// </summary>
         /// <param name="configuration">The string configuration to use for this multiplexer.</param>
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
@@ -1145,8 +1153,8 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Create a new ConnectionMultiplexer instance that connects to a sentinel server, discovers the current master server
-        /// for the specified ServiceName in the config and returns a managed connection to the current master server
+        /// Create a new <see cref="ConnectionMultiplexer"/> instance that connects to a sentinel server, discovers the current primary server
+        /// for the specified <see cref="ConfigurationOptions.ServiceName"/> in the config and returns a managed connection to the current primary server.
         /// </summary>
         /// <param name="configuration">The configuration options to use for this multiplexer.</param>
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
@@ -1155,7 +1163,7 @@ namespace StackExchange.Redis
             var sentinelConnection = await SentinelConnectAsync(configuration, log).ForAwait();
 
             var muxer = sentinelConnection.GetSentinelMasterConnection(configuration, log);
-            // set reference to sentinel connection so that we can dispose it
+            // Set reference to sentinel connection so that we can dispose it
             muxer.sentinelConnection = sentinelConnection;
 
             return muxer;
@@ -1408,16 +1416,21 @@ namespace StackExchange.Redis
         internal static long LastGlobalHeartbeatSecondsAgo => unchecked(Environment.TickCount - Thread.VolatileRead(ref lastGlobalHeartbeatTicks)) / 1000;
 
         /// <summary>
-        /// Obtain a pub/sub subscriber connection to the specified server
+        /// Obtain a pub/sub subscriber connection to the specified server.
         /// </summary>
         /// <param name="asyncState">The async state object to pass to the created <see cref="RedisSubscriber"/>.</param>
         public ISubscriber GetSubscriber(object asyncState = null)
         {
-            if (RawConfig.Proxy == Proxy.Twemproxy) throw new NotSupportedException("The pub/sub API is not available via twemproxy");
+            if (!RawConfig.Proxy.SupportsPubSub())
+            {
+                throw new NotSupportedException($"The pub/sub API is not available via {RawConfig.Proxy}");
+            }
             return new RedisSubscriber(this, asyncState);
         }
 
-        // applies common db number defaults and rules
+        /// <summary>
+        /// Applies common DB number defaults and rules.
+        /// </summary>
         internal int ApplyDefaultDatabase(int db)
         {
             if (db == -1)
@@ -1429,16 +1442,16 @@ namespace StackExchange.Redis
                 throw new ArgumentOutOfRangeException(nameof(db));
             }
 
-            if (db != 0 && RawConfig.Proxy == Proxy.Twemproxy)
+            if (db != 0 && !RawConfig.Proxy.SupportsDatabases())
             {
-                throw new NotSupportedException("Twemproxy only supports database 0");
+                throw new NotSupportedException($"{RawConfig.Proxy} only supports database 0");
             }
 
             return db;
         }
 
         /// <summary>
-        /// Obtain an interactive connection to a database inside redis
+        /// Obtain an interactive connection to a database inside redis.
         /// </summary>
         /// <param name="db">The ID to get a database for.</param>
         /// <param name="asyncState">The async state to pass into the resulting <see cref="RedisDatabase"/>.</param>
@@ -1453,24 +1466,24 @@ namespace StackExchange.Redis
 
         // DB zero is stored separately, since 0-only is a massively common use-case
         private const int MaxCachedDatabaseInstance = 16; // 17 items - [0,16]
-        // side note: "databases 16" is the default in redis.conf; happy to store one extra to get nice alignment etc
+        // Side note: "databases 16" is the default in redis.conf; happy to store one extra to get nice alignment etc
         private IDatabase dbCacheZero;
         private IDatabase[] dbCacheLow;
         private IDatabase GetCachedDatabaseInstance(int db) // note that we already trust db here; only caller checks range
         {
-            // note we don't need to worry about *always* returning the same instance
-            // - if two threads ask for db 3 at the same time, it is OK for them to get
-            // different instances, one of which (arbitrarily) ends up cached for later use
+            // Note: we don't need to worry about *always* returning the same instance.
+            // If two threads ask for db 3 at the same time, it is OK for them to get
+            // different instances, one of which (arbitrarily) ends up cached for later use.
             if (db == 0)
             {
                 return dbCacheZero ??= new RedisDatabase(this, 0, null);
             }
             var arr = dbCacheLow ??= new IDatabase[MaxCachedDatabaseInstance];
-            return arr[db - 1] ?? (arr[db - 1] = new RedisDatabase(this, db, null));
+            return arr[db - 1] ??= new RedisDatabase(this, db, null);
         }
 
         /// <summary>
-        /// Obtain a configuration API for an individual server
+        /// Obtain a configuration API for an individual server.
         /// </summary>
         /// <param name="host">The host to get a server for.</param>
         /// <param name="port">The port for <paramref name="host"/> to get a server for.</param>
@@ -1478,62 +1491,38 @@ namespace StackExchange.Redis
         public IServer GetServer(string host, int port, object asyncState = null) => GetServer(Format.ParseEndPoint(host, port), asyncState);
 
         /// <summary>
-        /// Obtain a configuration API for an individual server
+        /// Obtain a configuration API for an individual server.
         /// </summary>
         /// <param name="hostAndPort">The "host:port" string to get a server for.</param>
         /// <param name="asyncState">The async state to pass into the resulting <see cref="RedisServer"/>.</param>
         public IServer GetServer(string hostAndPort, object asyncState = null) => GetServer(Format.TryParseEndPoint(hostAndPort), asyncState);
 
         /// <summary>
-        /// Obtain a configuration API for an individual server
+        /// Obtain a configuration API for an individual server.
         /// </summary>
         /// <param name="host">The host to get a server for.</param>
         /// <param name="port">The port for <paramref name="host"/> to get a server for.</param>
         public IServer GetServer(IPAddress host, int port) => GetServer(new IPEndPoint(host, port));
 
         /// <summary>
-        /// Obtain a configuration API for an individual server
+        /// Obtain a configuration API for an individual server.
         /// </summary>
         /// <param name="endpoint">The endpoint to get a server for.</param>
         /// <param name="asyncState">The async state to pass into the resulting <see cref="RedisServer"/>.</param>
         public IServer GetServer(EndPoint endpoint, object asyncState = null)
         {
             if (endpoint == null) throw new ArgumentNullException(nameof(endpoint));
-            if (RawConfig.Proxy == Proxy.Twemproxy) throw new NotSupportedException("The server API is not available via twemproxy");
+            if (!RawConfig.Proxy.SupportsServerApi())
+            {
+                throw new NotSupportedException($"The server API is not available via {RawConfig.Proxy}");
+            }
             var server = (ServerEndPoint)servers[endpoint];
             if (server == null) throw new ArgumentException("The specified endpoint is not defined", nameof(endpoint));
             return new RedisServer(this, server, asyncState);
         }
 
-        [Conditional("VERBOSE")]
-        internal void Trace(string message, [CallerMemberName] string category = null)
-        {
-            OnTrace(message, category);
-        }
-
-        [Conditional("VERBOSE")]
-        internal void Trace(bool condition, string message, [CallerMemberName] string category = null)
-        {
-            if (condition) OnTrace(message, category);
-        }
-
-        partial void OnTrace(string message, string category);
-        static partial void OnTraceWithoutContext(string message, string category);
-
-        [Conditional("VERBOSE")]
-        internal static void TraceWithoutContext(string message, [CallerMemberName] string category = null)
-        {
-            OnTraceWithoutContext(message, category);
-        }
-
-        [Conditional("VERBOSE")]
-        internal static void TraceWithoutContext(bool condition, string message, [CallerMemberName] string category = null)
-        {
-            if (condition) OnTraceWithoutContext(message, category);
-        }
-
         /// <summary>
-        /// The number of operations that have been performed on all connections
+        /// The number of operations that have been performed on all connections.
         /// </summary>
         public long OperationCount
         {
@@ -1570,7 +1559,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Reconfigure the current connections based on the existing configuration
+        /// Reconfigure the current connections based on the existing configuration.
         /// </summary>
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
         public async Task<bool> ConfigureAsync(TextWriter log = null)
@@ -1582,13 +1571,13 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Reconfigure the current connections based on the existing configuration
+        /// Reconfigure the current connections based on the existing configuration.
         /// </summary>
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
         public bool Configure(TextWriter log = null)
         {
-            // note we expect ReconfigureAsync to internally allow [n] duration,
-            // so to avoid near misses, here we wait 2*[n]
+            // Note we expect ReconfigureAsync to internally allow [n] duration,
+            // so to avoid near misses, here we wait 2*[n].
             using (var logProxy = LogProxy.TryCreate(log))
             {
                 var task = ReconfigureAsync(first: false, reconfigureAll: true, logProxy, null, "configure");
@@ -1623,7 +1612,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Provides a text overview of the status of all connections
+        /// Provides a text overview of the status of all connections.
         /// </summary>
         public string GetStatus()
         {
@@ -1635,7 +1624,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Provides a text overview of the status of all connections
+        /// Provides a text overview of the status of all connections.
         /// </summary>
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
         public void GetStatus(TextWriter log)
@@ -1645,6 +1634,7 @@ namespace StackExchange.Redis
                 GetStatus(proxy);
             }
         }
+
         internal void GetStatus(LogProxy log)
         {
             if (log == null) return;
@@ -1666,14 +1656,16 @@ namespace StackExchange.Redis
                 server.Activate(ConnectionType.Interactive, log);
                 if (CommandMap.IsAvailable(RedisCommand.SUBSCRIBE))
                 {
-                    server.Activate(ConnectionType.Subscription, null); // no need to log the SUB stuff
+                    // Intentionally not logging the sub connection
+                    server.Activate(ConnectionType.Subscription, null);
                 }
             }
         }
+
         internal async Task<bool> ReconfigureAsync(bool first, bool reconfigureAll, LogProxy log, EndPoint blame, string cause, bool publishReconfigure = false, CommandFlags publishReconfigureFlags = CommandFlags.None)
         {
             if (_isDisposed) throw new ObjectDisposedException(ToString());
-            bool showStats = log is object;
+            bool showStats = log is not null;
 
             bool ranThisCall = false;
             try
@@ -1719,36 +1711,31 @@ namespace StackExchange.Redis
                     }
                     int standaloneCount = 0, clusterCount = 0, sentinelCount = 0;
                     var endpoints = RawConfig.EndPoints;
-                    log?.WriteLine($"{endpoints.Count} unique nodes specified");
+                    bool useTieBreakers = !string.IsNullOrWhiteSpace(RawConfig.TieBreaker);
+                    log?.WriteLine($"{endpoints.Count} unique nodes specified ({(useTieBreakers ? "with" : "without")} tiebreaker)");
 
                     if (endpoints.Count == 0)
                     {
                         throw new InvalidOperationException("No nodes to consider");
                     }
-#pragma warning disable CS0618
-                    const CommandFlags flags = CommandFlags.NoRedirect | CommandFlags.HighPriority;
-#pragma warning restore CS0618
                     List<ServerEndPoint> masters = new List<ServerEndPoint>(endpoints.Count);
-                    bool useTieBreakers = !string.IsNullOrWhiteSpace(RawConfig.TieBreaker);
 
                     ServerEndPoint[] servers = null;
-                    Task<string>[] tieBreakers = null;
                     bool encounteredConnectedClusterServer = false;
                     Stopwatch watch = null;
 
                     int iterCount = first ? 2 : 1;
-                    // this is fix for https://github.com/StackExchange/StackExchange.Redis/issues/300
+                    // This is fix for https://github.com/StackExchange/StackExchange.Redis/issues/300
                     // auto discoverability of cluster nodes is made synchronous.
-                    // we try to connect to endpoints specified inside the user provided configuration
-                    // and when we encounter one such endpoint to which we are able to successfully connect,
-                    // we get the list of cluster nodes from this endpoint and try to proactively connect
-                    // to these nodes instead of relying on auto configure
+                    // We try to connect to endpoints specified inside the user provided configuration
+                    // and when we encounter an endpoint to which we are able to successfully connect,
+                    // we get the list of cluster nodes from that endpoint and try to proactively connect
+                    // to listed nodes instead of relying on auto configure.
                     for (int iter = 0; iter < iterCount; ++iter)
                     {
                         if (endpoints == null) break;
 
                         var available = new Task<string>[endpoints.Count];
-                        tieBreakers = useTieBreakers ? new Task<string>[endpoints.Count] : null;
                         servers = new ServerEndPoint[available.Length];
 
                         RedisKey tieBreakerKey = useTieBreakers ? (RedisKey)RawConfig.TieBreaker : default(RedisKey);
@@ -1779,7 +1766,7 @@ namespace StackExchange.Redis
                             {
                                 var server = servers[i];
                                 var task = available[i];
-                                var bs = server.GetBridgeStatus(RedisCommand.PING);
+                                var bs = server.GetBridgeStatus(ConnectionType.Interactive);
 
                                 log?.WriteLine($"  Server[{i}] ({Format.ToString(server)}) Status: {task.Status} (inst: {bs.MessagesSinceLastHeartbeat}, qs: {bs.Connection.MessagesSentAwaitingResponse}, in: {bs.Connection.BytesAvailableOnSocket}, qu: {bs.MessagesSinceLastHeartbeat}, aw: {bs.IsWriterActive}, in-pipe: {bs.Connection.BytesInReadPipe}, out-pipe: {bs.Connection.BytesInWritePipe}, bw: {bs.BacklogStatus}, rs: {bs.Connection.ReadStatus}. ws: {bs.Connection.WriteStatus})");
                             }
@@ -1789,22 +1776,6 @@ namespace StackExchange.Redis
                         foreach (var server in servers)
                         {
                             log?.WriteLine($"{Format.ToString(server.EndPoint)}: Endpoint is {server.ConnectionState}");
-                        }
-
-                        // After we've successfully connected (and authenticated), kickoff tie breakers if needed
-                        if (useTieBreakers)
-                        {
-                            log?.WriteLine($"Election: Gathering tie-breakers...");
-                            for (int i = 0; i < available.Length; i++)
-                            {
-                                var server = servers[i];
-
-                                log?.WriteLine($"{Format.ToString(server.EndPoint)}: Requesting tie-break (Key=\"{RawConfig.TieBreaker}\")...");
-                                Message msg = Message.Create(0, flags, RedisCommand.GET, tieBreakerKey);
-                                msg.SetInternalCall();
-                                msg = LoggingMessage.Create(log, msg);
-                                tieBreakers[i] = server.WriteDirectAsync(msg, ResultProcessor.String);
-                            }
                         }
 
                         EndPointCollection updatedClusterEndpointCollection = null;
@@ -1835,7 +1806,7 @@ namespace StackExchange.Redis
                                     server.ClearUnselectable(UnselectableFlags.DidNotRespond);
                                     log?.WriteLine($"{Format.ToString(server)}: Returned with success as {server.ServerType} {(server.IsReplica ? "replica" : "primary")} (Source: {task.Result})");
 
-                                    // count the server types
+                                    // Count the server types
                                     switch (server.ServerType)
                                     {
                                         case ServerType.Twemproxy:
@@ -1852,14 +1823,14 @@ namespace StackExchange.Redis
 
                                     if (clusterCount > 0 && !encounteredConnectedClusterServer)
                                     {
-                                        // we have encountered a connected server with clustertype for the first time.
+                                        // We have encountered a connected server with a cluster type for the first time.
                                         // so we will get list of other nodes from this server using "CLUSTER NODES" command
                                         // and try to connect to these other nodes in the next iteration
                                         encounteredConnectedClusterServer = true;
                                         updatedClusterEndpointCollection = await GetEndpointsFromClusterNodes(server, log).ForAwait();
                                     }
 
-                                    // set the server UnselectableFlags and update masters list
+                                    // Set the server UnselectableFlags and update masters list
                                     switch (server.ServerType)
                                     {
                                         case ServerType.Twemproxy:
@@ -1868,7 +1839,7 @@ namespace StackExchange.Redis
                                         case ServerType.Cluster:
                                             server.ClearUnselectable(UnselectableFlags.ServerType);
                                             if (server.IsReplica)
-                                            { 
+                                            {
                                                 server.ClearUnselectable(UnselectableFlags.RedundantMaster);
                                             }
                                             else
@@ -1900,13 +1871,13 @@ namespace StackExchange.Redis
                         }
                         else
                         {
-                            break; // we do not want to repeat the second iteration
+                            break; // We do not want to repeat the second iteration
                         }
                     }
 
                     if (clusterCount == 0)
                     {
-                        // set the serverSelectionStrategy
+                        // Set the serverSelectionStrategy
                         if (RawConfig.Proxy == Proxy.Twemproxy)
                         {
                             ServerSelectionStrategy.ServerType = ServerType.Twemproxy;
@@ -1920,18 +1891,24 @@ namespace StackExchange.Redis
                             ServerSelectionStrategy.ServerType = ServerType.Standalone;
                         }
 
-                        var preferred = await NominatePreferredMaster(log, servers, useTieBreakers, tieBreakers, masters, timeoutMs: RawConfig.ConnectTimeout - checked((int)watch.ElapsedMilliseconds)).ObserveErrors().ForAwait();
-                        foreach (var master in masters)
+                        // If multiple primaries are detected, nominate the preferred one
+                        // ...but not if the type of server we're connected to supports and expects multiple primaries
+                        // ...for those cases, we want to allow sending to any primary endpoint.
+                        if (ServerSelectionStrategy.ServerType.HasSinglePrimary())
                         {
-                            if (master == preferred || master.IsReplica)
+                            var preferred = NominatePreferredMaster(log, servers, useTieBreakers, masters);
+                            foreach (var master in masters)
                             {
-                                log?.WriteLine($"{Format.ToString(master)}: Clearing as RedundantMaster");
-                                master.ClearUnselectable(UnselectableFlags.RedundantMaster);
-                            }
-                            else
-                            {
-                                log?.WriteLine($"{Format.ToString(master)}: Setting as RedundantMaster");
-                                master.SetUnselectable(UnselectableFlags.RedundantMaster);
+                                if (master == preferred || master.IsReplica)
+                                {
+                                    log?.WriteLine($"{Format.ToString(master)}: Clearing as RedundantMaster");
+                                    master.ClearUnselectable(UnselectableFlags.RedundantMaster);
+                                }
+                                else
+                                {
+                                    log?.WriteLine($"{Format.ToString(master)}: Setting as RedundantMaster");
+                                    master.SetUnselectable(UnselectableFlags.RedundantMaster);
+                                }
                             }
                         }
                     }
@@ -1943,14 +1920,15 @@ namespace StackExchange.Redis
                     }
                     if (!first)
                     {
-                        long subscriptionChanges = ValidateSubscriptions();
+                        // Calling the sync path here because it's all fire and forget
+                        long subscriptionChanges = EnsureSubscriptions(CommandFlags.FireAndForget);
                         if (subscriptionChanges == 0)
                         {
                             log?.WriteLine("No subscription changes necessary");
                         }
                         else
                         {
-                            log?.WriteLine($"Subscriptions reconfigured: {subscriptionChanges}");
+                            log?.WriteLine($"Subscriptions attempting reconnect: {subscriptionChanges}");
                         }
                     }
                     if (showStats)
@@ -2026,7 +2004,6 @@ namespace StackExchange.Redis
                     {
                         serverEndpoint.UpdateNodeRelations(clusterConfig);
                     }
-                    
                 }
                 return clusterEndpoints;
             }
@@ -2050,44 +2027,27 @@ namespace StackExchange.Redis
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Partial - may use instance data")]
         partial void OnTraceLog(LogProxy log, [CallerMemberName] string caller = null);
 
-        private static async Task<ServerEndPoint> NominatePreferredMaster(LogProxy log, ServerEndPoint[] servers, bool useTieBreakers, Task<string>[] tieBreakers, List<ServerEndPoint> masters, int timeoutMs)
+        private static ServerEndPoint NominatePreferredMaster(LogProxy log, ServerEndPoint[] servers, bool useTieBreakers, List<ServerEndPoint> masters)
         {
             Dictionary<string, int> uniques = null;
             if (useTieBreakers)
-            {   // count the votes
+            {
+                // Count the votes
                 uniques = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-                log?.WriteLine("Waiting for tiebreakers...");
-                await WaitAllIgnoreErrorsAsync("tiebreaker", tieBreakers, Math.Max(timeoutMs, 200), log).ForAwait();
-                for (int i = 0; i < tieBreakers.Length; i++)
+                for (int i = 0; i < servers.Length; i++)
                 {
-                    var ep = servers[i].EndPoint;
-                    var status = tieBreakers[i].Status;
-                    switch (status)
+                    var server = servers[i];
+                    string serverResult = server.TieBreakerResult;
+
+                    if (string.IsNullOrWhiteSpace(serverResult))
                     {
-                        case TaskStatus.RanToCompletion:
-                            string s = tieBreakers[i].Result;
-                            if (string.IsNullOrWhiteSpace(s))
-                            {
-                                log?.WriteLine($"Election: {Format.ToString(ep)} had no tiebreaker set");
-                            }
-                            else
-                            {
-                                log?.WriteLine($"Election: {Format.ToString(ep)} nominates: {s}");
-                                if (!uniques.TryGetValue(s, out int count)) count = 0;
-                                uniques[s] = count + 1;
-                            }
-                            break;
-                        case TaskStatus.Faulted:
-                            log?.WriteLine($"Election: {Format.ToString(ep)} failed to nominate ({status})");
-                            foreach (var ex in tieBreakers[i].Exception.InnerExceptions)
-                            {
-                                if (ex.Message.StartsWith("MOVED ") || ex.Message.StartsWith("ASK ")) continue;
-                                log?.WriteLine("> " + ex.Message);
-                            }
-                            break;
-                        default:
-                            log?.WriteLine($"Election: {Format.ToString(ep)} failed to nominate ({status})");
-                            break;
+                        log?.WriteLine($"Election: {Format.ToString(server)} had no tiebreaker set");
+                    }
+                    else
+                    {
+                        log?.WriteLine($"Election: {Format.ToString(server)} nominates: {serverResult}");
+                        if (!uniques.TryGetValue(serverResult, out int count)) count = 0;
+                        uniques[serverResult] = count + 1;
                     }
                 }
             }
@@ -2183,15 +2143,20 @@ namespace StackExchange.Redis
         {
             if (string.IsNullOrWhiteSpace(input)) return input; // GIGO
 
-            if (!char.IsLetter(input[0])) return input; // need first char to be alpha for this to work
+            if (!char.IsLetter(input[0])) return input; // Need first char to be alpha for this to work
 
             int periodPosition = input.IndexOf('.');
-            if (periodPosition <= 0) return input; // no period or starts with a period? nothing useful to split
+            if (periodPosition <= 0) return input; // No period or starts with a period? Then nothing useful to split
 
             int colonPosition = input.IndexOf(':');
             if (colonPosition > 0)
-            { // has a port specifier
+            {
+                // Has a port specifier
+#if NETCOREAPP
+                return string.Concat(input.AsSpan(0, periodPosition), input.AsSpan(colonPosition));
+#else
                 return input.Substring(0, periodPosition) + input.Substring(colonPosition);
+#endif
             }
             else
             {
@@ -2215,26 +2180,31 @@ namespace StackExchange.Redis
 
         private IDisposable pulse;
 
-        internal ServerEndPoint SelectServer(Message message)
-        {
-            if (message == null) return null;
-            return ServerSelectionStrategy.Select(message);
-        }
+        internal ServerEndPoint SelectServer(Message message) =>
+            message == null ? null : ServerSelectionStrategy.Select(message);
 
-        internal ServerEndPoint SelectServer(RedisCommand command, CommandFlags flags, in RedisKey key)
-        {
-            return ServerSelectionStrategy.Select(command, key, flags);
-        }
+        internal ServerEndPoint SelectServer(RedisCommand command, CommandFlags flags, in RedisKey key) =>
+            ServerSelectionStrategy.Select(command, key, flags);
+
+        internal ServerEndPoint SelectServer(RedisCommand command, CommandFlags flags, in RedisChannel channel) =>
+            ServerSelectionStrategy.Select(command, channel, flags);
 
         private bool PrepareToPushMessageToBridge<T>(Message message, ResultProcessor<T> processor, IResultBox<T> resultBox, ref ServerEndPoint server)
         {
             message.SetSource(processor, resultBox);
 
             if (server == null)
-            {   // infer a server automatically
+            {
+                // Infer a server automatically
                 server = SelectServer(message);
+
+                // If we didn't find one successfully, and we're allowed, queue for any viable server
+                if (server == null && message != null && RawConfig.BacklogPolicy.QueueWhileDisconnected)
+                {
+                    server = ServerSelectionStrategy.Select(message, allowDisconnected: true);
+                }
             }
-            else // a server was specified; do we trust their choice, though?
+            else // A server was specified - do we trust their choice, though?
             {
                 if (message.IsMasterOnly() && server.IsReplica)
                 {
@@ -2250,9 +2220,11 @@ namespace StackExchange.Redis
                         }
                         break;
                 }
-                if (!server.IsConnected)
+
+                // If we're not allowed to queue while disconnected, we'll bomb out below.
+                if (!server.IsConnected && !RawConfig.BacklogPolicy.QueueWhileDisconnected)
                 {
-                    // well, that's no use!
+                    // Well, that's no use!
                     server = null;
                 }
             }
@@ -2274,7 +2246,7 @@ namespace StackExchange.Redis
                     }
                 }
 
-                Trace("Queueing on server: " + message);
+                Trace("Queuing on server: " + message);
                 return true;
             }
             Trace("No server or server unavailable - aborting: " + message);
@@ -2288,7 +2260,7 @@ namespace StackExchange.Redis
             => PrepareToPushMessageToBridge(message, processor, resultBox, ref server) ? server.TryWriteSync(message) : WriteResult.NoConnectionAvailable;
 
         /// <summary>
-        /// See Object.ToString()
+        /// Gets the client name for this multiplexer.
         /// </summary>
         public override string ToString()
         {
@@ -2297,13 +2269,13 @@ namespace StackExchange.Redis
             return s;
         }
 
-        internal readonly byte[] ConfigurationChangedChannel; // this gets accessed for every received event; let's make sure we can process it "raw"
-        internal readonly byte[] UniqueId = Guid.NewGuid().ToByteArray(); // unique identifier used when tracing
+        internal readonly byte[] ConfigurationChangedChannel; // This gets accessed for every received event; let's make sure we can process it "raw"
+        internal readonly byte[] UniqueId = Guid.NewGuid().ToByteArray(); // Unique identifier used when tracing
 
         /// <summary>
-        /// Gets or sets whether asynchronous operations should be invoked in a way that guarantees their original delivery order
+        /// Gets or sets whether asynchronous operations should be invoked in a way that guarantees their original delivery order.
         /// </summary>
-        [Obsolete("Not supported; if you require ordered pub/sub, please see " + nameof(ChannelMessageQueue), false)]
+        [Obsolete("Not supported; if you require ordered pub/sub, please see " + nameof(ChannelMessageQueue) + ", will be removed in 3.0", false)]
         public bool PreserveAsyncOrder
         {
             get => false;
@@ -2311,7 +2283,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Indicates whether any servers are connected
+        /// Indicates whether any servers are connected.
         /// </summary>
         public bool IsConnected
         {
@@ -2325,7 +2297,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Indicates whether any servers are currently trying to connect
+        /// Indicates whether any servers are currently trying to connect.
         /// </summary>
         public bool IsConnecting
         {
@@ -2348,11 +2320,9 @@ namespace StackExchange.Redis
         internal ConnectionMultiplexer sentinelConnection = null;
 
         /// <summary>
-        /// Initializes the connection as a Sentinel connection and adds
-        /// the necessary event handlers to track changes to the managed
-        /// masters.
+        /// Initializes the connection as a Sentinel connection and adds the necessary event handlers to track changes to the managed primaries.
         /// </summary>
-        /// <param name="logProxy"></param>
+        /// <param name="logProxy">The writer to log to, if any.</param>
         internal void InitializeSentinel(LogProxy logProxy)
         {
             if (ServerSelectionStrategy.ServerType != ServerType.Sentinel)
@@ -2365,7 +2335,7 @@ namespace StackExchange.Redis
 
             if (sub.SubscribedEndpoint("+switch-master") == null)
             {
-                sub.Subscribe("+switch-master", (channel, message) =>
+                sub.Subscribe("+switch-master", (_, message) =>
                 {
                     string[] messageParts = ((string)message).Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
                     EndPoint switchBlame = Format.TryParseEndPoint(string.Format("{0}:{1}", messageParts[1], messageParts[2]));
@@ -2390,12 +2360,11 @@ namespace StackExchange.Redis
                             }
                         }
                     }
-                });
+                }, CommandFlags.FireAndForget);
             }
 
             // If we lose connection to a sentinel server,
-            // We need to reconfigure to make sure we still have
-            // a subscription to the +switch-master channel.
+            // we need to reconfigure to make sure we still have a subscription to the +switch-master channel
             ConnectionFailed += (sender, e) =>
             {
                 // Reconfigure to get subscriptions back online
@@ -2405,25 +2374,26 @@ namespace StackExchange.Redis
             // Subscribe to new sentinels being added
             if (sub.SubscribedEndpoint("+sentinel") == null)
             {
-                sub.Subscribe("+sentinel", (channel, message) =>
+                sub.Subscribe("+sentinel", (_, message) =>
                 {
                     string[] messageParts = ((string)message).Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
                     UpdateSentinelAddressList(messageParts[0]);
-                });
+                }, CommandFlags.FireAndForget);
             }
         }
 
         /// <summary>
-        /// Returns a managed connection to the master server indicated by
-        /// the ServiceName in the config.
+        /// Returns a managed connection to the primary server indicated by the <see cref="ConfigurationOptions.ServiceName"/> in the config.
         /// </summary>
-        /// <param name="config">the configuration to be used when connecting to the master</param>
-        /// <param name="log"></param>
+        /// <param name="config">The configuration to be used when connecting to the primary.</param>
+        /// <param name="log">The writer to log to, if any.</param>
         public ConnectionMultiplexer GetSentinelMasterConnection(ConfigurationOptions config, TextWriter log = null)
         {
             if (ServerSelectionStrategy.ServerType != ServerType.Sentinel)
+            {
                 throw new RedisConnectionException(ConnectionFailureType.UnableToConnect,
                     "Sentinel: The ConnectionMultiplexer is not a Sentinel connection. Detected as: " + ServerSelectionStrategy.ServerType);
+            }
 
             if (string.IsNullOrEmpty(config.ServiceName))
                 throw new ArgumentException("A ServiceName must be specified.");
@@ -2453,7 +2423,7 @@ namespace StackExchange.Redis
                 EndPoint[] replicaEndPoints = GetReplicasForService(config.ServiceName)
                                            ?? GetReplicasForService(config.ServiceName);
 
-                // Replace the master endpoint, if we found another one
+                // Replace the primary endpoint, if we found another one
                 // If not, assume the last state is the best we have and minimize the race
                 if (config.EndPoints.Count == 1)
                 {
@@ -2506,6 +2476,7 @@ namespace StackExchange.Redis
             return connection;
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Roslynator", "RCS1075:Avoid empty catch clause that catches System.Exception.", Justification = "We don't care.")]
         internal void OnManagedConnectionRestored(object sender, ConnectionFailedEventArgs e)
         {
             ConnectionMultiplexer connection = (ConnectionMultiplexer)sender;
@@ -2515,7 +2486,6 @@ namespace StackExchange.Redis
 
             try
             {
-
                 // Run a switch to make sure we have update-to-date
                 // information about which master we should connect to
                 SwitchMaster(e.EndPoint, connection);
@@ -2547,6 +2517,7 @@ namespace StackExchange.Redis
             }
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Roslynator", "RCS1075:Avoid empty catch clause that catches System.Exception.", Justification = "We don't care.")]
         internal void OnManagedConnectionFailed(object sender, ConnectionFailedEventArgs e)
         {
             ConnectionMultiplexer connection = (ConnectionMultiplexer)sender;
@@ -2602,9 +2573,9 @@ namespace StackExchange.Redis
         /// <summary>
         /// Switches the SentinelMasterConnection over to a new master.
         /// </summary>
-        /// <param name="switchBlame">The endpoint responsible for the switch</param>
-        /// <param name="connection">The connection that should be switched over to a new master endpoint</param>
-        /// <param name="log">Log to write to, if any</param>
+        /// <param name="switchBlame">The endpoint responsible for the switch.</param>
+        /// <param name="connection">The connection that should be switched over to a new master endpoint.</param>
+        /// <param name="log">The writer to log to, if any.</param>
         internal void SwitchMaster(EndPoint switchBlame, ConnectionMultiplexer connection, TextWriter log = null)
         {
             if (log == null) log = TextWriter.Null;
@@ -2656,8 +2627,7 @@ namespace StackExchange.Redis
                                         })
                                         .FirstOrDefault(r => r != null);
 
-            // Ignore errors, as having an updated sentinel list is
-            // not essential
+            // Ignore errors, as having an updated sentinel list is not essential
             if (firstCompleteRequest == null)
                 return;
 
@@ -2676,7 +2646,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Close all connections and release all resources associated with this object
+        /// Close all connections and release all resources associated with this object.
         /// </summary>
         /// <param name="allowCommandsToComplete">Whether to allow all in-queue commands to complete first.</param>
         public void Close(bool allowCommandsToComplete = true)
@@ -2736,7 +2706,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Close all connections and release all resources associated with this object
+        /// Close all connections and release all resources associated with this object.
         /// </summary>
         /// <param name="allowCommandsToComplete">Whether to allow all in-queue commands to complete first.</param>
         public async Task CloseAsync(bool allowCommandsToComplete = true)
@@ -2757,7 +2727,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Release all resources associated with this object
+        /// Release all resources associated with this object.
         /// </summary>
         public void Dispose()
         {
@@ -2840,14 +2810,14 @@ namespace StackExchange.Redis
         {
             if (_isDisposed) throw new ObjectDisposedException(ToString());
 
-            if (message == null) // fire-and forget could involve a no-op, represented by null - for example Increment by 0
+            if (message == null) // Fire-and forget could involve a no-op, represented by null - for example Increment by 0
             {
                 return default(T);
             }
 
             if (message.IsFireAndForget)
             {
-#pragma warning disable CS0618
+#pragma warning disable CS0618 // Type or member is obsolete
                 TryPushMessageToBridgeSync(message, processor, null, ref server);
 #pragma warning restore CS0618
                 Interlocked.Increment(ref fireAndForgets);
@@ -2859,7 +2829,7 @@ namespace StackExchange.Redis
 
                 lock (source)
                 {
-#pragma warning disable CS0618
+#pragma warning disable CS0618 // Type or member is obsolete
                     var result = TryPushMessageToBridgeSync(message, processor, source, ref server);
 #pragma warning restore CS0618
                     if (result != WriteResult.Success)
@@ -2869,17 +2839,17 @@ namespace StackExchange.Redis
 
                     if (Monitor.Wait(source, TimeoutMilliseconds))
                     {
-                        Trace("Timeley response to " + message);
+                        Trace("Timely response to " + message);
                     }
                     else
                     {
                         Trace("Timeout performing " + message);
                         Interlocked.Increment(ref syncTimeouts);
                         throw ExceptionFactory.Timeout(this, null, message, server);
-                        // very important not to return "source" to the pool here
+                        // Very important not to return "source" to the pool here
                     }
                 }
-                // snapshot these so that we can recycle the box
+                // Snapshot these so that we can recycle the box
                 var val = source.GetResult(out var ex, canRecycle: true); // now that we aren't locking it...
                 if (ex != null) throw ex;
                 Trace(message + " received " + val);
@@ -2900,20 +2870,18 @@ namespace StackExchange.Redis
         internal int haveStormLog = 0;
         internal string stormLogSnapshot;
         /// <summary>
-        /// Limit at which to start recording unusual busy patterns (only one log will be retained at a time;
-        /// set to a negative value to disable this feature)
+        /// Limit at which to start recording unusual busy patterns (only one log will be retained at a time).
+        /// Set to a negative value to disable this feature.
         /// </summary>
         public int StormLogThreshold { get; set; } = 15;
 
         /// <summary>
-        /// Obtains the log of unusual busy patterns
+        /// Obtains the log of unusual busy patterns.
         /// </summary>
-        public string GetStormLog()
-        {
-            return Volatile.Read(ref stormLogSnapshot);
-        }
+        public string GetStormLog() => Volatile.Read(ref stormLogSnapshot);
+
         /// <summary>
-        /// Resets the log of unusual busy patterns
+        /// Resets the log of unusual busy patterns.
         /// </summary>
         public void ResetStormLog()
         {
@@ -2926,10 +2894,10 @@ namespace StackExchange.Redis
         internal void OnAsyncTimeout() => Interlocked.Increment(ref asyncTimeouts);
 
         /// <summary>
-        /// Request all compatible clients to reconfigure or reconnect
+        /// Sends request to all compatible clients to reconfigure or reconnect.
         /// </summary>
-        /// <param name="flags">The command flags to use.</param>2
-        /// <returns>The number of instances known to have received the message (however, the actual number can be higher; returns -1 if the operation is pending)</returns>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>The number of instances known to have received the message (however, the actual number can be higher; returns -1 if the operation is pending).</returns>
         public long PublishReconfigure(CommandFlags flags = CommandFlags.None)
         {
             byte[] channel = ConfigurationChangedChannel;
@@ -2952,10 +2920,10 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Request all compatible clients to reconfigure or reconnect
+        /// Sends request to all compatible clients to reconfigure or reconnect.
         /// </summary>
         /// <param name="flags">The command flags to use.</param>
-        /// <returns>The number of instances known to have received the message (however, the actual number can be higher)</returns>
+        /// <returns>The number of instances known to have received the message (however, the actual number can be higher).</returns>
         public Task<long> PublishReconfigureAsync(CommandFlags flags = CommandFlags.None)
         {
             byte[] channel = ConfigurationChangedChannel;
@@ -2965,7 +2933,8 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Get the hash-slot associated with a given key, if applicable; this can be useful for grouping operations
+        /// Get the hash-slot associated with a given key, if applicable.
+        /// This can be useful for grouping operations.
         /// </summary>
         /// <param name="key">The <see cref="RedisKey"/> to determine the hash slot for.</param>
         public int GetHashSlot(RedisKey key) => ServerSelectionStrategy.HashSlot(key);

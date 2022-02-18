@@ -5,7 +5,7 @@ using System.Text;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// Notification of errors from the redis server
+    /// Notification of errors from the redis server.
     /// </summary>
     public class RedisErrorEventArgs : EventArgs, ICompletable
     {
@@ -33,19 +33,16 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// The origin of the message
+        /// The origin of the message.
         /// </summary>
         public EndPoint EndPoint { get; }
 
         /// <summary>
-        /// The message from the server
+        /// The message from the server.
         /// </summary>
         public string Message { get; }
 
-        void ICompletable.AppendStormLog(StringBuilder sb)
-        {
-            sb.Append("event, error: ").Append(Message);
-        }
+        void ICompletable.AppendStormLog(StringBuilder sb) => sb.Append("event, error: ").Append(Message);
 
         bool ICompletable.TryComplete(bool isAsync) => ConnectionMultiplexer.TryCompleteHandler(handler, sender, this, isAsync);
     }

@@ -11,12 +11,13 @@ namespace StackExchange.Redis
     /// the constraint checks have arrived.
     /// </summary>
     /// <remarks>https://redis.io/topics/transactions</remarks>
-    /// <remarks>Note that on a cluster, it may be required that all keys involved in the transaction
-    /// (including constraints) are in the same hash-slot</remarks>
+    /// <remarks>
+    /// Note that on a cluster, it may be required that all keys involved in the transaction (including constraints) are in the same hash-slot.
+    /// </remarks>
     public interface ITransaction : IBatch
     {
         /// <summary>
-        /// Adds a precondition for this transaction
+        /// Adds a precondition for this transaction.
         /// </summary>
         /// <param name="condition">The condition to add to the transaction.</param>
         ConditionResult AddCondition(Condition condition);

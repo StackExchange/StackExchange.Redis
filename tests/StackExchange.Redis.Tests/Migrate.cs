@@ -10,7 +10,7 @@ namespace StackExchange.Redis.Tests
     {
         public Migrate(ITestOutputHelper output) : base (output) { }
 
-        [Fact]
+        [FactLongRunning]
         public async Task Basic()
         {
             var fromConfig = new ConfigurationOptions { EndPoints = { { TestConfig.Current.SecureServer, TestConfig.Current.SecurePort } }, Password = TestConfig.Current.SecurePassword, AllowAdmin = true };
@@ -36,7 +36,7 @@ namespace StackExchange.Redis.Tests
                 // we keep seeing it fail on the CI server where the key has *left* the origin, but
                 // has *not* yet arrived at the destination; adding a pause while we investigate with
                 // the redis folks
-                await UntilCondition(TimeSpan.FromSeconds(15), () => !fromDb.KeyExists(key) && toDb.KeyExists(key));
+                await UntilConditionAsync(TimeSpan.FromSeconds(15), () => !fromDb.KeyExists(key) && toDb.KeyExists(key));
 
                 Assert.False(fromDb.KeyExists(key), "Exists at source");
                 Assert.True(toDb.KeyExists(key), "Exists at destination");
@@ -45,7 +45,7 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        private async Task<bool> IsWindows(ConnectionMultiplexer conn)
+        private static async Task<bool> IsWindows(ConnectionMultiplexer conn)
         {
             var server = conn.GetServer(conn.GetEndPoints().First());
             var section = (await server.InfoAsync("server")).Single();

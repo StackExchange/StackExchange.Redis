@@ -27,13 +27,13 @@ namespace StackExchange.Redis
                 var server = multiplexer.SelectServer(message);
                 if (server == null)
                 {
-                    FailNoServer(snapshot);
+                    FailNoServer(multiplexer, snapshot);
                     throw ExceptionFactory.NoConnectionAvailable(multiplexer, message, server);
                 }
-                var bridge = server.GetBridge(message.Command);
+                var bridge = server.GetBridge(message);
                 if (bridge == null)
                 {
-                    FailNoServer(snapshot);
+                    FailNoServer(multiplexer, snapshot);
                     throw ExceptionFactory.NoConnectionAvailable(multiplexer, message, server);
                 }
 
@@ -58,7 +58,7 @@ namespace StackExchange.Redis
             {
                 if (!pair.Key.TryEnqueue(pair.Value, pair.Key.ServerEndPoint.IsReplica))
                 {
-                    FailNoServer(pair.Value);
+                    FailNoServer(multiplexer, pair.Value);
                 }
             }
         }
@@ -86,17 +86,15 @@ namespace StackExchange.Redis
             return task;
         }
 
-        internal override T ExecuteSync<T>(Message message, ResultProcessor<T> processor, ServerEndPoint server = null)
-        {
+        internal override T ExecuteSync<T>(Message message, ResultProcessor<T> processor, ServerEndPoint server = null) =>
             throw new NotSupportedException("ExecuteSync cannot be used inside a batch");
-        }
 
-        private static void FailNoServer(List<Message> messages)
+        private static void FailNoServer(ConnectionMultiplexer muxer, List<Message> messages)
         {
             if (messages == null) return;
             foreach(var msg in messages)
             {
-                msg.Fail(ConnectionFailureType.UnableToResolvePhysicalConnection, null, "unable to write batch");
+                msg.Fail(ConnectionFailureType.UnableToResolvePhysicalConnection, null, "unable to write batch", muxer);
                 msg.Complete();
             }
         }

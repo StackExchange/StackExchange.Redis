@@ -5,27 +5,27 @@ using System.Threading.Tasks;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// A redis connection used as the subscriber in a pub/sub scenario
+    /// A redis connection used as the subscriber in a pub/sub scenario.
     /// </summary>
     public interface ISubscriber : IRedis
     {
         /// <summary>
-        /// Indicate exactly which redis server we are talking to
+        /// Indicate exactly which redis server we are talking to.
         /// </summary>
         /// <param name="channel">The channel to identify the server endpoint by.</param>
         /// <param name="flags">The command flags to use.</param>
         EndPoint IdentifyEndpoint(RedisChannel channel, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Indicate exactly which redis server we are talking to
+        /// Indicate exactly which redis server we are talking to.
         /// </summary>
         /// <param name="channel">The channel to identify the server endpoint by.</param>
         /// <param name="flags">The command flags to use.</param>
         Task<EndPoint> IdentifyEndpointAsync(RedisChannel channel, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Indicates whether the instance can communicate with the server;
-        /// if a channel is specified, the existing subscription map is queried to
+        /// Indicates whether the instance can communicate with the server.
+        /// If a channel is specified, the existing subscription map is queried to
         /// resolve the server responsible for that subscription - otherwise the
         /// server is chosen arbitrarily from the masters.
         /// </summary>
@@ -38,7 +38,10 @@ namespace StackExchange.Redis
         /// <param name="channel">The channel to publish to.</param>
         /// <param name="message">The message to publish.</param>
         /// <param name="flags">The command flags to use.</param>
-        /// <returns>the number of clients that received the message.</returns>
+        /// <returns>
+        /// The number of clients that received the message *on the destination server*,
+        /// note that this doesn't mean much in a cluster as clients can get the message through other nodes.
+        /// </returns>
         /// <remarks>https://redis.io/commands/publish</remarks>
         long Publish(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None);
 
@@ -48,7 +51,10 @@ namespace StackExchange.Redis
         /// <param name="channel">The channel to publish to.</param>
         /// <param name="message">The message to publish.</param>
         /// <param name="flags">The command flags to use.</param>
-        /// <returns>the number of clients that received the message.</returns>
+        /// <returns>
+        /// The number of clients that received the message *on the destination server*,
+        /// note that this doesn't mean much in a cluster as clients can get the message through other nodes.
+        /// </returns>
         /// <remarks>https://redis.io/commands/publish</remarks>
         Task<long> PublishAsync(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None);
 
@@ -93,16 +99,16 @@ namespace StackExchange.Redis
         Task<ChannelMessageQueue> SubscribeAsync(RedisChannel channel, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Indicate to which redis server we are actively subscribed for a given channel; returns null if
-        /// the channel is not actively subscribed
+        /// Indicate to which redis server we are actively subscribed for a given channel.
         /// </summary>
         /// <param name="channel">The channel to check which server endpoint was subscribed on.</param>
+        /// <returns>The subscribed endpoint for the given <paramref name="channel"/>, <see langword="null"/> if the channel is not actively subscribed.</returns>
         EndPoint SubscribedEndpoint(RedisChannel channel);
 
         /// <summary>
-        /// Unsubscribe from a specified message channel; note; if no handler is specified, the subscription is cancelled regardless
-        /// of the subscribers; if a handler is specified, the subscription is only cancelled if this handler is the
-        /// last handler remaining against the channel
+        /// Unsubscribe from a specified message channel.
+        /// Note: if no handler is specified, the subscription is canceled regardless of the subscribers.
+        /// If a handler is specified, the subscription is only canceled if this handler is the last handler remaining against the channel.
         /// </summary>
         /// <param name="channel">The channel that was subscribed to.</param>
         /// <param name="handler">The handler to no longer invoke when a message is received on <paramref name="channel"/>.</param>
@@ -112,7 +118,7 @@ namespace StackExchange.Redis
         void Unsubscribe(RedisChannel channel, Action<RedisChannel, RedisValue> handler = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Unsubscribe all subscriptions on this instance
+        /// Unsubscribe all subscriptions on this instance.
         /// </summary>
         /// <param name="flags">The command flags to use.</param>
         /// <remarks>https://redis.io/commands/unsubscribe</remarks>
@@ -120,7 +126,7 @@ namespace StackExchange.Redis
         void UnsubscribeAll(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Unsubscribe all subscriptions on this instance
+        /// Unsubscribe all subscriptions on this instance.
         /// </summary>
         /// <param name="flags">The command flags to use.</param>
         /// <remarks>https://redis.io/commands/unsubscribe</remarks>
@@ -128,9 +134,9 @@ namespace StackExchange.Redis
         Task UnsubscribeAllAsync(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Unsubscribe from a specified message channel; note; if no handler is specified, the subscription is cancelled regardless
-        /// of the subscribers; if a handler is specified, the subscription is only cancelled if this handler is the
-        /// last handler remaining against the channel
+        /// Unsubscribe from a specified message channel.
+        /// Note: if no handler is specified, the subscription is canceled regardless of the subscribers.
+        /// If a handler is specified, the subscription is only canceled if this handler is the last handler remaining against the channel.
         /// </summary>
         /// <param name="channel">The channel that was subscribed to.</param>
         /// <param name="handler">The handler to no longer invoke when a message is received on <paramref name="channel"/>.</param>

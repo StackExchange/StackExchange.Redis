@@ -14,6 +14,9 @@ namespace StackExchange.Redis.Tests
 {
     public class Config : TestBase
     {
+        public Version DefaultVersion = new (3, 0, 0);
+        public Version DefaultAzureVersion = new (4, 0, 0);
+
         public Config(ITestOutputHelper output) : base(output) { }
 
         [Fact]
@@ -39,7 +42,7 @@ namespace StackExchange.Redis.Tests
             var options = ConfigurationOptions.Parse($"host,{conString}");
             Assert.Equal(expectedValue, options.CheckCertificateRevocation);
             var toString = options.ToString();
-            Assert.True(toString.IndexOf(conString, StringComparison.CurrentCultureIgnoreCase) >= 0);
+            Assert.Contains(conString, toString, StringComparison.CurrentCultureIgnoreCase);
         }
 
         [Fact]
@@ -63,7 +66,7 @@ namespace StackExchange.Redis.Tests
         public void ConfigurationOptionsDefaultForAzure()
         {
             var options = ConfigurationOptions.Parse("contoso.redis.cache.windows.net");
-            Assert.True(options.DefaultVersion.Equals(new Version(3, 0, 0)));
+            Assert.True(options.DefaultVersion.Equals(DefaultAzureVersion));
             Assert.False(options.AbortOnConnectFail);
         }
 
@@ -80,7 +83,7 @@ namespace StackExchange.Redis.Tests
         {
             // added a few upper case chars to validate comparison
             var options = ConfigurationOptions.Parse("contoso.REDIS.CACHE.chinacloudapi.cn");
-            Assert.True(options.DefaultVersion.Equals(new Version(3, 0, 0)));
+            Assert.True(options.DefaultVersion.Equals(DefaultAzureVersion));
             Assert.False(options.AbortOnConnectFail);
         }
 
@@ -88,7 +91,7 @@ namespace StackExchange.Redis.Tests
         public void ConfigurationOptionsDefaultForAzureGermany()
         {
             var options = ConfigurationOptions.Parse("contoso.redis.cache.cloudapi.de");
-            Assert.True(options.DefaultVersion.Equals(new Version(3, 0, 0)));
+            Assert.True(options.DefaultVersion.Equals(DefaultAzureVersion));
             Assert.False(options.AbortOnConnectFail);
         }
 
@@ -96,7 +99,7 @@ namespace StackExchange.Redis.Tests
         public void ConfigurationOptionsDefaultForAzureUSGov()
         {
             var options = ConfigurationOptions.Parse("contoso.redis.cache.usgovcloudapi.net");
-            Assert.True(options.DefaultVersion.Equals(new Version(3, 0, 0)));
+            Assert.True(options.DefaultVersion.Equals(DefaultAzureVersion));
             Assert.False(options.AbortOnConnectFail);
         }
 
@@ -104,7 +107,7 @@ namespace StackExchange.Redis.Tests
         public void ConfigurationOptionsDefaultForNonAzure()
         {
             var options = ConfigurationOptions.Parse("redis.contoso.com");
-            Assert.True(options.DefaultVersion.Equals(new Version(2, 0, 0)));
+            Assert.True(options.DefaultVersion.Equals(DefaultVersion));
             Assert.True(options.AbortOnConnectFail);
         }
 
@@ -112,7 +115,7 @@ namespace StackExchange.Redis.Tests
         public void ConfigurationOptionsDefaultWhenNoEndpointsSpecifiedYet()
         {
             var options = new ConfigurationOptions();
-            Assert.True(options.DefaultVersion.Equals(new Version(2, 0, 0)));
+            Assert.True(options.DefaultVersion.Equals(DefaultVersion));
             Assert.True(options.AbortOnConnectFail);
         }
 
@@ -240,12 +243,12 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create(allowAdmin: true, caller: null)) // force default naming to kick in
             {
-                Assert.Equal(Environment.MachineName, muxer.ClientName);
+                Assert.Equal($"{Environment.MachineName}(v{Utils.GetLibVersion()})", muxer.ClientName);
                 var conn = muxer.GetDatabase();
                 conn.Ping();
 
                 var name = (string)GetAnyMaster(muxer).Execute("CLIENT", "GETNAME");
-                Assert.Equal(Environment.MachineName, name);
+                Assert.Equal($"{Environment.MachineName}(v{Utils.GetLibVersion()})", name);
             }
         }
 
@@ -454,15 +457,15 @@ namespace StackExchange.Redis.Tests
                 EndPoints = { { IPAddress.Loopback, 6379 } },
             };
             using var muxer = ConnectionMultiplexer.Connect(config);
-            Assert.Same(SocketManager.Shared.Scheduler, muxer.SocketManager.Scheduler);
+            Assert.Same(ConnectionMultiplexer.GetDefaultSocketManager().Scheduler, muxer.SocketManager.Scheduler);
         }
 
         [Theory]
         [InlineData("myDNS:myPort,password=myPassword,connectRetry=3,connectTimeout=15000,syncTimeout=15000,defaultDatabase=0,abortConnect=false,ssl=true,sslProtocols=Tls12", SslProtocols.Tls12)]
         [InlineData("myDNS:myPort,password=myPassword,abortConnect=false,ssl=true,sslProtocols=Tls12", SslProtocols.Tls12)]
-#pragma warning disable CS0618 // obsolete
+#pragma warning disable CS0618 // Type or member is obsolete
         [InlineData("myDNS:myPort,password=myPassword,abortConnect=false,ssl=true,sslProtocols=Ssl3", SslProtocols.Ssl3)]
-#pragma warning restore CS0618 // obsolete
+#pragma warning restore CS0618
         [InlineData("myDNS:myPort,password=myPassword,abortConnect=false,ssl=true,sslProtocols=Tls12 ", SslProtocols.Tls12)]
         public void ParseTlsWithoutTrailingComma(string configString, SslProtocols expected)
         {
@@ -492,7 +495,6 @@ namespace StackExchange.Redis.Tests
             Assert.Equal("flibble", ex.ParamName);
         }
 
-
         [Fact]
         public void NullApply()
         {
@@ -512,10 +514,7 @@ namespace StackExchange.Redis.Tests
             Assert.Equal("FooApply", options.ClientName);
 
             var randomName = Guid.NewGuid().ToString();
-            var result = options.Apply(options =>
-            {
-                options.ClientName = randomName;
-            });
+            var result = options.Apply(options => options.ClientName = randomName);
 
             Assert.Equal(randomName, options.ClientName);
             Assert.Equal(randomName, result.ClientName);

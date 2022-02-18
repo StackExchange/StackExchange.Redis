@@ -5,103 +5,160 @@ using System.Net;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// Represents the state of an individual client connection to redis
+    /// Represents the state of an individual client connection to redis.
     /// </summary>
     public sealed class ClientInfo
     {
         internal static readonly ResultProcessor<ClientInfo[]> Processor = new ClientInfoProcessor();
 
         /// <summary>
-        /// Address (host and port) of the client
+        /// Address (host and port) of the client.
         /// </summary>
         public EndPoint Address { get; private set; }
 
         /// <summary>
-        /// total duration of the connection in seconds
+        /// Total duration of the connection in seconds.
         /// </summary>
         public int AgeSeconds { get; private set; }
 
         /// <summary>
-        /// current database ID
+        /// Current database ID.
         /// </summary>
         public int Database { get; private set; }
 
         /// <summary>
-        /// The flags associated with this connection
+        /// The flags associated with this connection.
         /// </summary>
         public ClientFlags Flags { get; private set; }
 
         /// <summary>
         /// The client flags can be a combination of:
-        ///
-        /// A: connection to be closed ASAP
-        /// b: the client is waiting in a blocking operation
-        /// c: connection to be closed after writing entire reply
-        /// d: a watched keys has been modified - EXEC will fail
-        /// i: the client is waiting for a VM I/O (deprecated)
-        /// M: the client is a master
-        /// N: no specific flag set
-        /// O: the client is a replica in MONITOR mode
-        /// P: the client is a Pub/Sub subscriber
-        /// r: the client is in readonly mode against a cluster node
-        /// S: the client is a normal replica server
-        /// U: the client is connected via a Unix domain socket
-        /// x: the client is in a MULTI/EXEC context
+        /// <list type="table">
+        ///     <item>
+        ///         <term>A</term>
+        ///         <description>Connection to be closed ASAP.</description>
+        ///     </item>
+        ///     <item>
+        ///         <term>b</term>
+        ///         <description>The client is waiting in a blocking operation.</description>
+        ///     </item>
+        ///     <item>
+        ///         <term>c</term>
+        ///         <description>Connection to be closed after writing entire reply.</description>
+        ///     </item>
+        ///     <item>
+        ///         <term>d</term>
+        ///         <description>A watched keys has been modified - EXEC will fail.</description>
+        ///     </item>
+        ///     <item>
+        ///         <term>i</term>
+        ///         <description>The client is waiting for a VM I/O (deprecated).</description>
+        ///     </item>
+        ///     <item>
+        ///         <term>M</term>
+        ///         <description>The client is a primary.</description>
+        ///     </item>
+        ///     <item>
+        ///         <term>N</term>
+        ///         <description>No specific flag set.</description>
+        ///     </item>
+        ///     <item>
+        ///         <term>O</term>
+        ///         <description>The client is a replica in MONITOR mode.</description>
+        ///     </item>
+        ///     <item>
+        ///         <term>P</term>
+        ///         <description>The client is a Pub/Sub subscriber.</description>
+        ///     </item>
+        ///     <item>
+        ///         <term>r</term>
+        ///         <description>The client is in readonly mode against a cluster node.</description>
+        ///     </item>
+        ///     <item>
+        ///         <term>S</term>
+        ///         <description>The client is a normal replica server.</description>
+        ///     </item>
+        ///     <item>
+        ///         <term>u</term>
+        ///         <description>The client is unblocked.</description>
+        ///     </item>
+        ///     <item>
+        ///         <term>U</term>
+        ///         <description>The client is unblocked.</description>
+        ///     </item>
+        ///     <item>
+        ///         <term>x</term>
+        ///         <description>The client is in a MULTI/EXEC context.</description>
+        ///     </item>
+        ///     <item>
+        ///         <term>t</term>
+        ///         <description>The client enabled keys tracking in order to perform client side caching.</description>
+        ///     </item>
+        ///     <item>
+        ///         <term>R</term>
+        ///         <description>The client tracking target client is invalid.</description>
+        ///     </item>
+        ///     <item>
+        ///         <term>B</term>
+        ///         <description>The client enabled broadcast tracking mode.</description>
+        ///     </item>
+        /// </list>
         /// </summary>
+        /// <remarks>https://redis.io/commands/client-list</remarks>
         public string FlagsRaw { get; private set; }
 
         /// <summary>
-        /// The host of the client (typically an IP address)
+        /// The host of the client (typically an IP address).
         /// </summary>
         public string Host => Format.TryGetHostPort(Address, out string host, out _) ? host : null;
 
         /// <summary>
-        /// idle time of the connection in seconds
+        /// Idle time of the connection in seconds.
         /// </summary>
         public int IdleSeconds { get; private set; }
 
         /// <summary>
-        ///  last command played
+        /// Last command played.
         /// </summary>
         public string LastCommand { get; private set; }
 
         /// <summary>
-        /// The name allocated to this connection, if any
+        /// The name allocated to this connection, if any.
         /// </summary>
         public string Name { get; private set; }
 
         /// <summary>
-        /// number of pattern matching subscriptions
+        /// Number of pattern matching subscriptions.
         /// </summary>
         public int PatternSubscriptionCount { get; private set; }
 
         /// <summary>
-        /// The port of the client
+        /// The port of the client.
         /// </summary>
         public int Port => Format.TryGetHostPort(Address, out _, out int port) ? port : 0;
 
         /// <summary>
-        /// The raw content from redis
+        /// The raw content from redis.
         /// </summary>
         public string Raw { get; private set; }
 
         /// <summary>
-        /// number of channel subscriptions
+        /// Number of channel subscriptions.
         /// </summary>
         public int SubscriptionCount { get; private set; }
 
         /// <summary>
-        /// number of commands in a MULTI/EXEC context
+        /// Number of commands in a MULTI/EXEC context.
         /// </summary>
         public int TransactionCommandLength { get; private set; }
 
         /// <summary>
-        /// an unique 64-bit client ID (introduced in Redis 2.8.12).
+        /// A unique 64-bit client ID (introduced in Redis 2.8.12).
         /// </summary>
         public long Id { get;private set; }
 
         /// <summary>
-        /// Format the object as a string
+        /// Format the object as a string.
         /// </summary>
         public override string ToString()
         {
@@ -110,7 +167,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// The class of the connection
+        /// The class of the connection.
         /// </summary>
         public ClientType ClientType
         {
@@ -172,7 +229,11 @@ namespace StackExchange.Redis
                                 AddFlag(ref flags, value, ClientFlags.Unblocked, 'u');
                                 AddFlag(ref flags, value, ClientFlags.UnixDomainSocket, 'U');
                                 AddFlag(ref flags, value, ClientFlags.Transaction, 'x');
-                                
+
+                                AddFlag(ref flags, value, ClientFlags.KeysTracking, 't');
+                                AddFlag(ref flags, value, ClientFlags.TrackingTargetInvalid, 'R');
+                                AddFlag(ref flags, value, ClientFlags.BroadcastTracking, 'B');
+
                                 client.Flags = flags;
                                 break;
                             case "id": client.Id = Format.ParseInt64(value); break;

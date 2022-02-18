@@ -55,6 +55,7 @@ namespace StackExchange.Redis.Profiling
         private long RequestSentTimeStamp;
         private long ResponseReceivedTimeStamp;
         private long CompletedTimeStamp;
+        private ConnectionType? ConnectionType;
 
         private readonly ProfilingSession PushToWhenFinished;
 
@@ -86,7 +87,11 @@ namespace StackExchange.Redis.Profiling
             MessageCreatedTimeStamp = msg.CreatedTimestamp;
         }
 
-        public void SetEnqueued() => SetTimestamp(ref EnqueuedTimeStamp);
+        public void SetEnqueued(ConnectionType? connType)
+        {
+            SetTimestamp(ref EnqueuedTimeStamp);
+            ConnectionType = connType;
+        }
 
         public void SetRequestSent() => SetTimestamp(ref RequestSentTimeStamp);
 
@@ -116,20 +121,11 @@ namespace StackExchange.Redis.Profiling
             }
         }
 
-        public override string ToString()
-        {
-            return
-                $@"EndPoint = {EndPoint}
-Db = {Db}
-Command = {Command}
-CommandCreated = {CommandCreated:u}
-CreationToEnqueued = {CreationToEnqueued}
-EnqueuedToSending = {EnqueuedToSending}
-SentToResponse = {SentToResponse}
-ResponseToCompletion = {ResponseToCompletion}
-ElapsedTime = {ElapsedTime}
-Flags = {Flags}
-RetransmissionOf = ({RetransmissionOf})";
-        }
+        public override string ToString() =>
+$@"{Command} (DB: {Db}, Flags: {Flags})
+     EndPoint = {EndPoint} ({ConnectionType})
+     Created = {CommandCreated:HH:mm:ss.ffff}
+     ElapsedTime = {ElapsedTime.TotalMilliseconds} ms (CreationToEnqueued: {CreationToEnqueued.TotalMilliseconds} ms, EnqueuedToSending: {EnqueuedToSending.TotalMilliseconds} ms, SentToResponse: {SentToResponse.TotalMilliseconds} ms, ResponseToCompletion = {ResponseToCompletion.TotalMilliseconds} ms){(RetransmissionOf != null ? @"
+     RetransmissionOf = " + RetransmissionOf : "")}";
     }
 }

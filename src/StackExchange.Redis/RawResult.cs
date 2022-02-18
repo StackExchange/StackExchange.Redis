@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Buffers;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using System.Text;
 using Pipelines.Sockets.Unofficial.Arenas;
 
@@ -17,7 +16,7 @@ namespace StackExchange.Redis
         internal static readonly RawResult NullMultiBulk = new RawResult(default(Sequence<RawResult>), isNull: true);
         internal static readonly RawResult EmptyMultiBulk = new RawResult(default(Sequence<RawResult>), isNull: false);
         internal static readonly RawResult Nil = default;
-        // note: can't use Memory<RawResult> here - struct recursion breaks runtimr
+        // Note: can't use Memory<RawResult> here - struct recursion breaks runtime
         private readonly Sequence _items;
         private readonly ResultType _type;
 
@@ -59,19 +58,13 @@ namespace StackExchange.Redis
         {
             if (IsNull) return "(null)";
 
-            switch (Type)
+            return Type switch
             {
-                case ResultType.SimpleString:
-                case ResultType.Integer:
-                case ResultType.Error:
-                    return $"{Type}: {GetString()}";
-                case ResultType.BulkString:
-                    return $"{Type}: {Payload.Length} bytes";
-                case ResultType.MultiBulk:
-                    return $"{Type}: {ItemsCount} items";
-                default:
-                    return $"(unknown: {Type})";
-            }
+                ResultType.SimpleString or ResultType.Integer or ResultType.Error => $"{Type}: {GetString()}",
+                ResultType.BulkString => $"{Type}: {Payload.Length} bytes",
+                ResultType.MultiBulk => $"{Type}: {ItemsCount} items",
+                _ => $"(unknown: {Type})",
+            };
         }
 
         public Tokenizer GetInlineTokenizer() => new Tokenizer(Payload);
@@ -145,17 +138,11 @@ namespace StackExchange.Redis
             }
         }
 
-        internal RedisKey AsRedisKey()
+        internal RedisKey AsRedisKey() => Type switch
         {
-            switch (Type)
-            {
-                case ResultType.SimpleString:
-                case ResultType.BulkString:
-                    return (RedisKey)GetBlob();
-                default:
-                    throw new InvalidCastException("Cannot convert to RedisKey: " + Type);
-            }
-        }
+            ResultType.SimpleString or ResultType.BulkString => (RedisKey)GetBlob(),
+            _ => throw new InvalidCastException("Cannot convert to RedisKey: " + Type),
+        };
 
         internal RedisValue AsRedisValue()
         {
@@ -387,4 +374,3 @@ namespace StackExchange.Redis
         }
     }
 }
-

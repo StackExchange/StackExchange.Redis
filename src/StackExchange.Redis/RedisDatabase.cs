@@ -450,7 +450,6 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
-
         public Task<bool> HashSetAsync(RedisKey key, RedisValue hashField, RedisValue value, When when = When.Always, CommandFlags flags = CommandFlags.None)
         {
             WhenAlwaysOrNotExists(when);
@@ -3807,7 +3806,7 @@ namespace StackExchange.Redis
             }
 
             public ScriptEvalMessage(int db, CommandFlags flags, byte[] hash, RedisKey[] keys, RedisValue[] values)
-                : this(db, flags, RedisCommand.EVAL, null, hash, keys, values)
+                : this(db, flags, RedisCommand.EVALSHA, null, hash, keys, values)
             {
                 if (hash == null) throw new ArgumentNullException(nameof(hash));
                 if (hash.Length != ResultProcessor.ScriptLoadProcessor.Sha1HashLength) throw new ArgumentOutOfRangeException(nameof(hash), "Invalid hash length");

@@ -62,7 +62,7 @@ namespace StackExchange.Redis.Tests
 
             public long OperationCount => _inner.OperationCount;
 
-#pragma warning disable CS0618
+#pragma warning disable CS0618 // Type or member is obsolete
             public bool PreserveAsyncOrder { get => _inner.PreserveAsyncOrder; set => _inner.PreserveAsyncOrder = value; }
 #pragma warning restore CS0618
 
@@ -75,222 +75,105 @@ namespace StackExchange.Redis.Tests
 
             public event EventHandler<RedisErrorEventArgs> ErrorMessage
             {
-                add
-                {
-                    _inner.ErrorMessage += value;
-                }
-
-                remove
-                {
-                    _inner.ErrorMessage -= value;
-                }
+                add => _inner.ErrorMessage += value;
+                remove => _inner.ErrorMessage -= value;
             }
 
             public event EventHandler<ConnectionFailedEventArgs> ConnectionFailed
             {
-                add
-                {
-                    _inner.ConnectionFailed += value;
-                }
-
-                remove
-                {
-                    _inner.ConnectionFailed -= value;
-                }
+                add => _inner.ConnectionFailed += value;
+                remove => _inner.ConnectionFailed -= value;
             }
 
             public event EventHandler<InternalErrorEventArgs> InternalError
             {
-                add
-                {
-                    _inner.InternalError += value;
-                }
-
-                remove
-                {
-                    _inner.InternalError -= value;
-                }
+                add => _inner.InternalError += value;
+                remove => _inner.InternalError -= value;
             }
 
             public event EventHandler<ConnectionFailedEventArgs> ConnectionRestored
             {
-                add
-                {
-                    _inner.ConnectionRestored += value;
-                }
-
-                remove
-                {
-                    _inner.ConnectionRestored -= value;
-                }
+                add => _inner.ConnectionRestored += value;
+                remove => _inner.ConnectionRestored -= value;
             }
 
             public event EventHandler<EndPointEventArgs> ConfigurationChanged
             {
-                add
-                {
-                    _inner.ConfigurationChanged += value;
-                }
-
-                remove
-                {
-                    _inner.ConfigurationChanged -= value;
-                }
+                add => _inner.ConfigurationChanged += value;
+                remove => _inner.ConfigurationChanged -= value;
             }
 
             public event EventHandler<EndPointEventArgs> ConfigurationChangedBroadcast
             {
-                add
-                {
-                    _inner.ConfigurationChangedBroadcast += value;
-                }
-
-                remove
-                {
-                    _inner.ConfigurationChangedBroadcast -= value;
-                }
+                add => _inner.ConfigurationChangedBroadcast += value;
+                remove => _inner.ConfigurationChangedBroadcast -= value;
             }
 
             public event EventHandler<HashSlotMovedEventArgs> HashSlotMoved
             {
-                add
-                {
-                    _inner.HashSlotMoved += value;
-                }
-
-                remove
-                {
-                    _inner.HashSlotMoved -= value;
-                }
+                add => _inner.HashSlotMoved += value;
+                remove => _inner.HashSlotMoved -= value;
             }
 
-            public void Close(bool allowCommandsToComplete = true)
-            {
-                _inner.Close(allowCommandsToComplete);
-            }
+            public void Close(bool allowCommandsToComplete = true) => _inner.Close(allowCommandsToComplete);
 
-            public Task CloseAsync(bool allowCommandsToComplete = true)
-            {
-                return _inner.CloseAsync(allowCommandsToComplete);
-            }
+            public Task CloseAsync(bool allowCommandsToComplete = true) => _inner.CloseAsync(allowCommandsToComplete);
 
-            public bool Configure(TextWriter log = null)
-            {
-                return _inner.Configure(log);
-            }
+            public bool Configure(TextWriter log = null) => _inner.Configure(log);
 
-            public Task<bool> ConfigureAsync(TextWriter log = null)
-            {
-                return _inner.ConfigureAsync(log);
-            }
+            public Task<bool> ConfigureAsync(TextWriter log = null) => _inner.ConfigureAsync(log);
 
             public void Dispose() { } // DO NOT call _inner.Dispose();
 
-            public ServerCounters GetCounters()
-            {
-                return _inner.GetCounters();
-            }
+            public ServerCounters GetCounters() => _inner.GetCounters();
 
-            public IDatabase GetDatabase(int db = -1, object asyncState = null)
-            {
-                return _inner.GetDatabase(db, asyncState);
-            }
+            public IDatabase GetDatabase(int db = -1, object asyncState = null) => _inner.GetDatabase(db, asyncState);
 
-            public EndPoint[] GetEndPoints(bool configuredOnly = false)
-            {
-                return _inner.GetEndPoints(configuredOnly);
-            }
+            public EndPoint[] GetEndPoints(bool configuredOnly = false) => _inner.GetEndPoints(configuredOnly);
 
-            public int GetHashSlot(RedisKey key)
-            {
-                return _inner.GetHashSlot(key);
-            }
+            public int GetHashSlot(RedisKey key) => _inner.GetHashSlot(key);
 
-            public IServer GetServer(string host, int port, object asyncState = null)
-            {
-                return _inner.GetServer(host, port, asyncState);
-            }
+            public IServer GetServer(string host, int port, object asyncState = null) => _inner.GetServer(host, port, asyncState);
 
-            public IServer GetServer(string hostAndPort, object asyncState = null)
-            {
-                return _inner.GetServer(hostAndPort, asyncState);
-            }
+            public IServer GetServer(string hostAndPort, object asyncState = null) => _inner.GetServer(hostAndPort, asyncState);
 
-            public IServer GetServer(IPAddress host, int port)
-            {
-                return _inner.GetServer(host, port);
-            }
+            public IServer GetServer(IPAddress host, int port) => _inner.GetServer(host, port);
 
-            public IServer GetServer(EndPoint endpoint, object asyncState = null)
-            {
-                return _inner.GetServer(endpoint, asyncState);
-            }
+            public IServer GetServer(EndPoint endpoint, object asyncState = null) => _inner.GetServer(endpoint, asyncState);
 
-            public string GetStatus()
-            {
-                return _inner.GetStatus();
-            }
+            public string GetStatus() => _inner.GetStatus();
 
-            public void GetStatus(TextWriter log)
-            {
-                _inner.GetStatus(log);
-            }
+            public void GetStatus(TextWriter log) => _inner.GetStatus(log);
 
-            public string GetStormLog()
-            {
-                return _inner.GetStormLog();
-            }
+            public string GetStormLog() => _inner.GetStormLog();
 
-            public ISubscriber GetSubscriber(object asyncState = null)
-            {
-                return _inner.GetSubscriber(asyncState);
-            }
+            public ISubscriber GetSubscriber(object asyncState = null) => _inner.GetSubscriber(asyncState);
 
-            public int HashSlot(RedisKey key)
-            {
-                return _inner.HashSlot(key);
-            }
+            public int HashSlot(RedisKey key) => _inner.HashSlot(key);
 
-            public long PublishReconfigure(CommandFlags flags = CommandFlags.None)
-            {
-                return _inner.PublishReconfigure(flags);
-            }
+            public long PublishReconfigure(CommandFlags flags = CommandFlags.None) => _inner.PublishReconfigure(flags);
 
-            public Task<long> PublishReconfigureAsync(CommandFlags flags = CommandFlags.None)
-            {
-                return _inner.PublishReconfigureAsync(flags);
-            }
+            public Task<long> PublishReconfigureAsync(CommandFlags flags = CommandFlags.None) => _inner.PublishReconfigureAsync(flags);
 
-            public void RegisterProfiler(Func<ProfilingSession> profilingSessionProvider)
-            {
-                _inner.RegisterProfiler(profilingSessionProvider);
-            }
+            public void RegisterProfiler(Func<ProfilingSession> profilingSessionProvider) => _inner.RegisterProfiler(profilingSessionProvider);
 
-            public void ResetStormLog()
-            {
-                _inner.ResetStormLog();
-            }
+            public void ResetStormLog() => _inner.ResetStormLog();
 
-            public void Wait(Task task)
-            {
-                _inner.Wait(task);
-            }
+            public void Wait(Task task) => _inner.Wait(task);
 
-            public T Wait<T>(Task<T> task)
-            {
-                return _inner.Wait(task);
-            }
+            public T Wait<T>(Task<T> task) => _inner.Wait(task);
 
-            public void WaitAll(params Task[] tasks)
-            {
-                _inner.WaitAll(tasks);
-            }
+            public void WaitAll(params Task[] tasks) => _inner.WaitAll(tasks);
 
             public void ExportConfiguration(Stream destination, ExportOptions options = ExportOptions.All)
                 => _inner.ExportConfiguration(destination, options);
         }
 
-        public void Dispose() => _actualConnection.Dispose();
+        public void Dispose()
+        {
+            _actualConnection.Dispose();
+            GC.SuppressFinalize(this);
+        }
 
         protected void OnInternalError(object sender, InternalErrorEventArgs e)
         {
@@ -326,8 +209,19 @@ namespace StackExchange.Redis.Tests
                 }
                 //Assert.True(false, $"There were {privateFailCount} private ambient exceptions.");
             }
-            var pool = SocketManager.Shared?.SchedulerPool;
-            TestBase.Log(output, $"Service Counts: (Scheduler) By Queue: {pool?.TotalServicedByQueue.ToString()}, By Pool: {pool?.TotalServicedByPool.ToString()}, Workers: {pool?.WorkerCount.ToString()}, Available: {pool?.AvailableCount.ToString()}");
+
+            if (_actualConnection != null)
+            {
+                TestBase.Log(output, "Connection Counts: " + _actualConnection.GetCounters().ToString());
+                foreach (var ep in _actualConnection.GetServerSnapshot())
+                {
+                    var interactive = ep.GetBridge(ConnectionType.Interactive);
+                    TestBase.Log(output, $"  {Format.ToString(interactive)}: " + interactive.GetStatus());
+
+                    var subscription = ep.GetBridge(ConnectionType.Subscription);
+                    TestBase.Log(output, $"  {Format.ToString(subscription)}: " + subscription.GetStatus());
+                }
+            }
         }
     }
 

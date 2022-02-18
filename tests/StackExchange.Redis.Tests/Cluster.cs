@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using StackExchange.Redis.Profiling;
@@ -15,14 +14,7 @@ namespace StackExchange.Redis.Tests
     public class Cluster : TestBase
     {
         public Cluster(ITestOutputHelper output) : base (output) { }
-
-        protected override string GetConfiguration()
-        {
-            var server = TestConfig.Current.ClusterServer;
-            return string.Join(",",
-                Enumerable.Range(TestConfig.Current.ClusterStartPort, TestConfig.Current.ClusterServerCount).Select(port => server + ":" + port)
-            ) + ",connectTimeout=10000";
-        }
+        protected override string GetConfiguration() => TestConfig.Current.ClusterServersAndPorts + ",connectTimeout=10000";
 
         [Fact]
         public void ExportConfiguration()
@@ -161,8 +153,8 @@ namespace StackExchange.Redis.Tests
                 var db = conn.GetDatabase();
                 db.KeyDelete(key, CommandFlags.FireAndForget);
                 db.StringSet(key, value, flags: CommandFlags.FireAndForget);
-                servers.First().Ping();
-                var config = servers.First().ClusterConfiguration;
+                servers[0].Ping();
+                var config = servers[0].ClusterConfiguration;
                 Assert.NotNull(config);
                 int slot = conn.HashSlot(key);
                 var rightMasterNode = config.GetBySlot(key);
@@ -434,7 +426,7 @@ namespace StackExchange.Redis.Tests
                 {
                     db.SetAdd(key, i, CommandFlags.FireAndForget);
                     totalUnfiltered += i;
-                    if (i.ToString().Contains("3")) totalFiltered += i;
+                    if (i.ToString().Contains('3')) totalFiltered += i;
                 }
                 var unfilteredActual = db.SetScan(key).Select(x => (int)x).Sum();
                 var filteredActual = db.SetScan(key, "*3*").Select(x => (int)x).Sum();

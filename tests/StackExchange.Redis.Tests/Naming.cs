@@ -237,7 +237,7 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        private void CheckName(MemberInfo member, bool isAsync)
+        private static void CheckName(MemberInfo member, bool isAsync)
         {
             if (isAsync) Assert.True(member.Name.EndsWith("Async"), member.Name + ":Name - end *Async");
             else Assert.False(member.Name.EndsWith("Async"), member.Name + ":Name - don't end *Async");

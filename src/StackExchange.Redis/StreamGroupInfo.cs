@@ -2,7 +2,7 @@
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// Describes a consumer group retrieved using the XINFO GROUPS command. <see cref="IDatabase.StreamGroupInfo"/>
+    /// Describes a consumer group retrieved using the XINFO GROUPS command. <see cref="IDatabase.StreamGroupInfo"/>.
     /// </summary>
     public readonly struct StreamGroupInfo
     {
@@ -31,7 +31,7 @@ namespace StackExchange.Redis
         public int PendingMessageCount { get; }
 
         /// <summary>
-        /// The Id of the last message delivered to the group
+        /// The Id of the last message delivered to the group.
         /// </summary>
         public string LastDeliveredId { get; }
     }

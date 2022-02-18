@@ -10,8 +10,6 @@ using System.Threading.Tasks;
 using Pipelines.Sockets.Unofficial.Arenas;
 using static StackExchange.Redis.ConnectionMultiplexer;
 
-#pragma warning disable RCS1231 // Make parameter ref read-only.
-
 namespace StackExchange.Redis
 {
     internal sealed class RedisServer : RedisBase, IServer
@@ -336,7 +334,16 @@ namespace StackExchange.Redis
         {
             using (var proxy = LogProxy.TryCreate(log))
             {
-                multiplexer.MakeMaster(server, options, proxy);
+                // Do you believe in magic?
+                multiplexer.MakePrimaryAsync(server, options, proxy).Wait(60000);
+            }
+        }
+
+        public async Task MakePrimaryAsync(ReplicationChangeOptions options, TextWriter log = null)
+        {
+            using (var proxy = LogProxy.TryCreate(log))
+            {
+                await multiplexer.MakePrimaryAsync(server, options, proxy);
             }
         }
 
@@ -571,8 +578,35 @@ namespace StackExchange.Redis
             return Message.Create(-1, flags, sendMessageTo.GetFeatures().ReplicaCommands ? RedisCommand.REPLICAOF : RedisCommand.SLAVEOF, host, port);
         }
 
+        private Message GetTiebreakerRemovalMessage()
+        {
+            var configuration = multiplexer.RawConfig;
+
+            if (!string.IsNullOrWhiteSpace(configuration.TieBreaker) && multiplexer.CommandMap.IsAvailable(RedisCommand.DEL))
+            {
+                var msg = Message.Create(0, CommandFlags.FireAndForget | CommandFlags.NoRedirect, RedisCommand.DEL, (RedisKey)configuration.TieBreaker);
+                msg.SetInternalCall();
+                return msg;
+            }
+            return null;
+        }
+
+        private Message GetConfigChangeMessage()
+        {
+            // attempt to broadcast a reconfigure message to anybody listening to this server
+            var channel = multiplexer.ConfigurationChangedChannel;
+            if (channel != null && multiplexer.CommandMap.IsAvailable(RedisCommand.PUBLISH))
+            {
+                var msg = Message.Create(-1, CommandFlags.FireAndForget | CommandFlags.NoRedirect, RedisCommand.PUBLISH, (RedisValue)channel, RedisLiterals.Wildcard);
+                msg.SetInternalCall();
+                return msg;
+            }
+            return null;
+        }
+
         internal override Task<T> ExecuteAsync<T>(Message message, ResultProcessor<T> processor, ServerEndPoint server = null)
-        {   // inject our expected server automatically
+        {
+            // inject our expected server automatically
             if (server == null) server = this.server;
             FixFlags(message, server);
             if (!server.IsConnected)
@@ -580,22 +614,32 @@ namespace StackExchange.Redis
                 if (message == null) return CompletedTask<T>.Default(asyncState);
                 if (message.IsFireAndForget) return CompletedTask<T>.Default(null); // F+F explicitly does not get async-state
 
-                // no need to deny exec-sync here; will be complete before they see if
-                var tcs = TaskSource.Create<T>(asyncState);
-                ConnectionMultiplexer.ThrowFailed(tcs, ExceptionFactory.NoConnectionAvailable(multiplexer, message, server));
-                return tcs.Task;
+                // After the "don't care" cases above, if we can't queue then it's time to error - otherwise call through to queueing.
+                if (!multiplexer.RawConfig.BacklogPolicy.QueueWhileDisconnected)
+                {
+                    // no need to deny exec-sync here; will be complete before they see if
+                    var tcs = TaskSource.Create<T>(asyncState);
+                    ConnectionMultiplexer.ThrowFailed(tcs, ExceptionFactory.NoConnectionAvailable(multiplexer, message, server));
+                    return tcs.Task;
+                }
             }
             return base.ExecuteAsync<T>(message, processor, server);
         }
 
         internal override T ExecuteSync<T>(Message message, ResultProcessor<T> processor, ServerEndPoint server = null)
-        {   // inject our expected server automatically
+        {
+            // inject our expected server automatically
             if (server == null) server = this.server;
             FixFlags(message, server);
             if (!server.IsConnected)
             {
                 if (message == null || message.IsFireAndForget) return default(T);
-                throw ExceptionFactory.NoConnectionAvailable(multiplexer, message, server);
+
+                // After the "don't care" cases above, if we can't queue then it's time to error - otherwise call through to queueing.
+                if (!multiplexer.RawConfig.BacklogPolicy.QueueWhileDisconnected)
+                {
+                    throw ExceptionFactory.NoConnectionAvailable(multiplexer, message, server);
+                }
             }
             return base.ExecuteSync<T>(message, processor, server);
         }
@@ -614,46 +658,56 @@ namespace StackExchange.Redis
             {
                 throw new ArgumentException("Cannot replicate to self");
             }
-            // prepare the actual replicaof message (not sent yet)
-            var replicaOfMsg = CreateReplicaOfMessage(server, master, flags);
 
-            var configuration = multiplexer.RawConfig;
-
+#pragma warning disable CS0618 // Type or member is obsolete
             // attempt to cease having an opinion on the master; will resume that when replication completes
             // (note that this may fail; we aren't depending on it)
-            if (!string.IsNullOrWhiteSpace(configuration.TieBreaker)
-                && multiplexer.CommandMap.IsAvailable(RedisCommand.DEL))
+            if (GetTiebreakerRemovalMessage() is Message tieBreakerRemoval)
             {
-                var del = Message.Create(0, CommandFlags.FireAndForget | CommandFlags.NoRedirect, RedisCommand.DEL, (RedisKey)configuration.TieBreaker);
-                del.SetInternalCall();
-#pragma warning disable CS0618
-                server.WriteDirectFireAndForgetSync(del, ResultProcessor.Boolean);
-#pragma warning restore CS0618
+                tieBreakerRemoval.SetSource(ResultProcessor.Boolean, null);
+                server.GetBridge(tieBreakerRemoval).TryWriteSync(tieBreakerRemoval, server.IsReplica);
             }
+
+            var replicaOfMsg = CreateReplicaOfMessage(server, master, flags);
             ExecuteSync(replicaOfMsg, ResultProcessor.DemandOK);
 
             // attempt to broadcast a reconfigure message to anybody listening to this server
-            var channel = multiplexer.ConfigurationChangedChannel;
-            if (channel != null && multiplexer.CommandMap.IsAvailable(RedisCommand.PUBLISH))
+            if (GetConfigChangeMessage() is Message configChangeMessage)
             {
-                var pub = Message.Create(-1, CommandFlags.FireAndForget | CommandFlags.NoRedirect, RedisCommand.PUBLISH, (RedisValue)channel, RedisLiterals.Wildcard);
-                pub.SetInternalCall();
-#pragma warning disable CS0618
-                server.WriteDirectFireAndForgetSync(pub, ResultProcessor.Int64);
-#pragma warning restore CS0618
+                configChangeMessage.SetSource(ResultProcessor.Int64, null);
+                server.GetBridge(configChangeMessage).TryWriteSync(configChangeMessage, server.IsReplica);
             }
+#pragma warning restore CS0618
         }
 
         Task IServer.SlaveOfAsync(EndPoint master, CommandFlags flags) => ReplicaOfAsync(master, flags);
 
-        public Task ReplicaOfAsync(EndPoint master, CommandFlags flags = CommandFlags.None)
+        public async Task ReplicaOfAsync(EndPoint master, CommandFlags flags = CommandFlags.None)
         {
-            var msg = CreateReplicaOfMessage(server, master, flags);
             if (master == server.EndPoint)
             {
                 throw new ArgumentException("Cannot replicate to self");
             }
-            return ExecuteAsync(msg, ResultProcessor.DemandOK);
+
+            // attempt to cease having an opinion on the master; will resume that when replication completes
+            // (note that this may fail; we aren't depending on it)
+            if (GetTiebreakerRemovalMessage() is Message tieBreakerRemoval && !server.IsReplica)
+            {
+                try
+                {
+                    await server.WriteDirectAsync(tieBreakerRemoval, ResultProcessor.Boolean);
+                }
+                catch { }
+            }
+
+            var msg = CreateReplicaOfMessage(server, master, flags);
+            await ExecuteAsync(msg, ResultProcessor.DemandOK);
+
+            // attempt to broadcast a reconfigure message to anybody listening to this server
+            if (GetConfigChangeMessage() is Message configChangeMessage)
+            {
+                await server.WriteDirectAsync(configChangeMessage, ResultProcessor.Int64);
+            }
         }
 
         private static void FixFlags(Message message, ServerEndPoint server)
@@ -676,19 +730,19 @@ namespace StackExchange.Redis
         {
             SaveType.BackgroundRewriteAppendOnlyFile => Message.Create(-1, flags, RedisCommand.BGREWRITEAOF),
             SaveType.BackgroundSave => Message.Create(-1, flags, RedisCommand.BGSAVE),
-#pragma warning disable 0618
+#pragma warning disable CS0618 // Type or member is obsolete
             SaveType.ForegroundSave => Message.Create(-1, flags, RedisCommand.SAVE),
-#pragma warning restore 0618
+#pragma warning restore CS0618
             _ => throw new ArgumentOutOfRangeException(nameof(type)),
         };
 
         private static ResultProcessor<bool> GetSaveResultProcessor(SaveType type) => type switch
         {
-            SaveType.BackgroundRewriteAppendOnlyFile => ResultProcessor.DemandOK,
+            SaveType.BackgroundRewriteAppendOnlyFile => ResultProcessor.BackgroundSaveAOFStarted,
             SaveType.BackgroundSave => ResultProcessor.BackgroundSaveStarted,
-#pragma warning disable 0618
+#pragma warning disable CS0618 // Type or member is obsolete
             SaveType.ForegroundSave => ResultProcessor.DemandOK,
-#pragma warning restore 0618
+#pragma warning restore CS0618
             _ => throw new ArgumentOutOfRangeException(nameof(type)),
         };
 
@@ -953,7 +1007,6 @@ namespace StackExchange.Redis
                     for (int i = 0; i < eventNames.Length; i++)
                         arr[i + 1] = eventNames[i];
                     return Message.Create(-1, flags, RedisCommand.LATENCY, arr);
-
             }
         }
         public Task<long> LatencyResetAsync(string[] eventNames = null, CommandFlags flags = CommandFlags.None)

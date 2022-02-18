@@ -13,7 +13,7 @@ namespace StackExchange.Redis.Tests
         public async Task NoticesConnectFail()
         {
             SetExpectedAmbientFailureCount(-1);
-            using (var conn = Create(allowAdmin: true))
+            using (var conn = Create(allowAdmin: true, shared: false, backlogPolicy: BacklogPolicy.FailFast))
             {
                 var server = conn.GetServer(conn.GetEndPoints()[0]);
 
@@ -37,7 +37,7 @@ namespace StackExchange.Redis.Tests
                 }
 
                 // Heartbeat should reconnect by now
-                await UntilCondition(TimeSpan.FromSeconds(10), () => server.IsConnected);
+                await UntilConditionAsync(TimeSpan.FromSeconds(10), () => server.IsConnected);
 
                 Log("pinging - expect success");
                 var time = server.Ping();

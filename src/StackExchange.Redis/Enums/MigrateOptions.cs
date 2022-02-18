@@ -3,13 +3,13 @@
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// Additional options for the MIGRATE command
+    /// Additional options for the MIGRATE command.
     /// </summary>
     [Flags]
     public enum MigrateOptions
     {
         /// <summary>
-        /// No options specified
+        /// No options specified.
         /// </summary>
         None = 0,
         /// <summary>
@@ -19,6 +19,6 @@ namespace StackExchange.Redis
         /// <summary>
         /// Replace existing key on the remote instance.
         /// </summary>
-        Replace = 2
+        Replace = 2,
     }
 }

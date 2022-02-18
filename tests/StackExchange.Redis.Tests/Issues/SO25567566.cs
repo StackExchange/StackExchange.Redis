@@ -22,7 +22,7 @@ namespace StackExchange.Redis.Tests.Issues
             }
         }
 
-        private async Task<string> DoStuff(ConnectionMultiplexer conn)
+        private static async Task<string> DoStuff(ConnectionMultiplexer conn)
         {
             var db = conn.GetDatabase();
 

@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// Provides the ability to iterate over a cursor-based sequence of redis data, synchronously or asynchronously
+    /// Provides the ability to iterate over a cursor-based sequence of redis data, synchronously or asynchronously.
     /// </summary>
     internal abstract class CursorEnumerable<T> : IEnumerable<T>, IScanningCursor, IAsyncEnumerable<T>
     {
@@ -35,11 +35,12 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Gets an enumerator for the sequence
+        /// Gets an enumerator for the sequence.
         /// </summary>
         public Enumerator GetEnumerator() => new Enumerator(this, default);
+
         /// <summary>
-        /// Gets an enumerator for the sequence
+        /// Gets an enumerator for the sequence.
         /// </summary>
         public Enumerator GetAsyncEnumerator(CancellationToken cancellationToken) => new Enumerator(this, cancellationToken);
 
@@ -74,7 +75,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Provides the ability to iterate over a cursor-based sequence of redis data, synchronously or asynchronously
+        /// Provides the ability to iterate over a cursor-based sequence of redis data, synchronously or asynchronously.
         /// </summary>
         public class Enumerator : IEnumerator<T>, IScanningCursor, IAsyncEnumerator<T>
         {
@@ -88,7 +89,7 @@ namespace StackExchange.Redis
             }
 
             /// <summary>
-            /// Gets the current value of the enumerator
+            /// Gets the current value of the enumerator.
             /// </summary>
             public T Current {
                 [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -100,12 +101,13 @@ namespace StackExchange.Redis
             }
 
             /// <summary>
-            /// Release all resources associated with this enumerator
+            /// Release all resources associated with this enumerator.
             /// </summary>
             public void Dispose()
             {
                 _state = State.Disposed;
                 SetComplete();
+                GC.SuppressFinalize(this);
             }
 
             private void SetComplete()
@@ -122,14 +124,14 @@ namespace StackExchange.Redis
             }
 
             /// <summary>
-            /// Release all resources associated with this enumerator
+            /// Release all resources associated with this enumerator.
             /// </summary>
             public ValueTask DisposeAsync()
             {
                 Dispose();
+                GC.SuppressFinalize(this);
                 return default;
             }
-            
 
             object IEnumerator.Current => _pageOversized[_pageOffset];
 
@@ -169,7 +171,8 @@ namespace StackExchange.Redis
                 _isPooled = result.IsPooled;
                 _pageCount = result.Count;
                 if (_nextCursor == RedisBase.CursorUtils.Origin)
-                {   // eof
+                {
+                    // EOF
                     _pending = null;
                     _pendingMessage = null;
                 }
@@ -181,11 +184,11 @@ namespace StackExchange.Redis
             }
 
             /// <summary>
-            /// Try to move to the next item in the sequence
+            /// Try to move to the next item in the sequence.
             /// </summary>
             public bool MoveNext() => SimpleNext() || SlowNextSync();
 
-            bool SlowNextSync()
+            private bool SlowNextSync()
             {
                 var pending = SlowNextAsync();
                 if (pending.IsCompletedSuccessfully) return pending.Result;
@@ -199,7 +202,7 @@ namespace StackExchange.Redis
             }
 
             /// <summary>
-            /// Try to move to the next item in the sequence
+            /// Try to move to the next item in the sequence.
             /// </summary>
             public ValueTask<bool> MoveNextAsync()
             {
@@ -285,21 +288,26 @@ namespace StackExchange.Redis
                 return false;
             }
 
-            static void Recycle(ref T[] array, ref bool isPooled)
+            private static void Recycle(ref T[] array, ref bool isPooled)
             {
                 var tmp = array;
                 array = null;
                 if (tmp != null && tmp.Length != 0 && isPooled)
+                {
                     ArrayPool<T>.Shared.Return(tmp);
+                }
                 isPooled = false;
             }
 
             /// <summary>
-            /// Reset the enumerator
+            /// Reset the enumerator.
             /// </summary>
             public void Reset()
             {
-                if (_state == State.Disposed) throw new ObjectDisposedException(GetType().Name);
+                if (_state == State.Disposed)
+                {
+                    throw new ObjectDisposedException(GetType().Name);
+                }
                 _nextCursor = _currentCursor = parent.initialCursor;
                 _pageOffset = parent.initialOffset; // don't -1 here; this makes it look "right" before incremented
                 _state = State.Initial;
@@ -318,25 +326,25 @@ namespace StackExchange.Redis
             int IScanningCursor.PageOffset => _pageOffset;
         }
 
-        long IScanningCursor.Cursor // this may fail on cluster-proxy; I'm OK with this for now
-        {
-            get { var tmp = activeCursor; return tmp?.Cursor ?? (long)initialCursor; }
-        }
+        /// <summary>
+        /// The cursor position.
+        /// </summary>
+        /// <remarks>
+        /// This may fail on cluster-proxy - I'm OK with this for now.
+        /// </remarks>
+        long IScanningCursor.Cursor => activeCursor?.Cursor ?? (long)initialCursor;
 
         int IScanningCursor.PageSize => pageSize;
 
-        int IScanningCursor.PageOffset
-        {
-            get { var tmp = activeCursor; return tmp?.PageOffset ?? initialOffset; }
-        }
+        int IScanningCursor.PageOffset => activeCursor?.PageOffset ?? initialOffset;
 
         internal static CursorEnumerable<T> From(RedisBase redis, ServerEndPoint server, Task<T[]> pending, int pageOffset)
             => new SingleBlockEnumerable(redis, server, pending, pageOffset);
 
-        class SingleBlockEnumerable : CursorEnumerable<T>
+        private class SingleBlockEnumerable : CursorEnumerable<T>
         {
             private readonly Task<T[]> _pending;
-            public SingleBlockEnumerable(RedisBase redis, ServerEndPoint server, 
+            public SingleBlockEnumerable(RedisBase redis, ServerEndPoint server,
                 Task<T[]> pending, int pageOffset) : base(redis, server, 0, int.MaxValue, 0, pageOffset, default)
             {
                 _pending = pending;

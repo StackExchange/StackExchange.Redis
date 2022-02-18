@@ -10,17 +10,19 @@ namespace StackExchange.Redis
         Success,
         NeedMoreData,
     }
+
     internal ref struct BufferReader
     {
+        private long _totalConsumed;
+        public int OffsetThisSpan { get; private set; }
+        public int RemainingThisSpan { get; private set; }
+
         private ReadOnlySequence<byte>.Enumerator _iterator;
         private ReadOnlySpan<byte> _current;
 
         public ReadOnlySpan<byte> OversizedSpan => _current;
 
         public ReadOnlySpan<byte> SlicedSpan => _current.Slice(OffsetThisSpan, RemainingThisSpan);
-        public int OffsetThisSpan { get; private set; }
-        private int TotalConsumed { get; set; } // hide this; callers should use the snapshot-aware methods instead
-        public int RemainingThisSpan { get; private set; }
 
         public bool IsEmpty => RemainingThisSpan == 0;
 
@@ -49,7 +51,7 @@ namespace StackExchange.Redis
             _lastSnapshotBytes = 0;
             _iterator = buffer.GetEnumerator();
             _current = default;
-            OffsetThisSpan = RemainingThisSpan = TotalConsumed = 0;
+            _totalConsumed = OffsetThisSpan = RemainingThisSpan = 0;
 
             FetchNextSegment();
         }
@@ -87,7 +89,7 @@ namespace StackExchange.Redis
                 if (count <= available)
                 {
                     // consume part of this span
-                    TotalConsumed += count;
+                    _totalConsumed += count;
                     RemainingThisSpan -= count;
                     OffsetThisSpan += count;
 
@@ -96,7 +98,7 @@ namespace StackExchange.Redis
                 }
 
                 // consume all of this span
-                TotalConsumed += available;
+                _totalConsumed += available;
                 count -= available;
             } while (FetchNextSegment());
             return false;
@@ -110,14 +112,14 @@ namespace StackExchange.Redis
         // to avoid having to use buffer.Slice on huge ranges
         private SequencePosition SnapshotPosition()
         {
-            var consumed = TotalConsumed;
-            var delta = consumed - _lastSnapshotBytes;
+            var delta = _totalConsumed - _lastSnapshotBytes;
             if (delta == 0) return _lastSnapshotPosition;
 
             var pos = _buffer.GetPosition(delta, _lastSnapshotPosition);
-            _lastSnapshotBytes = consumed;
+            _lastSnapshotBytes = _totalConsumed;
             return _lastSnapshotPosition = pos;
         }
+
         public ReadOnlySequence<byte> ConsumeAsBuffer(int count)
         {
             if (!TryConsumeAsBuffer(count, out var buffer)) throw new EndOfStreamException();
@@ -176,7 +178,6 @@ namespace StackExchange.Redis
                 if (haveTrailingCR)
                 {
                     if (span[0] == '\n') return totalSkipped - 1;
-                    haveTrailingCR = false;
                 }
 
                 int found = span.VectorSafeIndexOfCRLF();
@@ -189,18 +190,6 @@ namespace StackExchange.Redis
             return -1;
         }
 
-        //internal static bool HasBytes(BufferReader reader, int count) // very deliberately not ref; want snapshot
-        //{
-        //    if (count < 0) throw new ArgumentOutOfRangeException(nameof(count));
-        //    do
-        //    {
-        //        var available = reader.RemainingThisSpan;
-        //        if (count <= available) return true;
-        //        count -= available;
-        //    } while (reader.FetchNextSegment());
-        //    return false;
-        //}
-
         public int ConsumeByte()
         {
             if (IsEmpty) return -1;
@@ -208,6 +197,7 @@ namespace StackExchange.Redis
             Consume(1);
             return value;
         }
+
         public int PeekByte() => IsEmpty ? -1 : _current[OffsetThisSpan];
 
         public ReadOnlySequence<byte> SliceFromCurrent()

@@ -41,7 +41,7 @@ namespace StackExchange.Redis.Tests
                     // should reconnect within 1 keepalive interval
                     muxer.AllowConnect = true;
                     Log("Waiting for reconnect");
-                    await UntilCondition(TimeSpan.FromSeconds(2), () => muxer.IsConnected).ForAwait();
+                    await UntilConditionAsync(TimeSpan.FromSeconds(2), () => muxer.IsConnected).ForAwait();
 
                     Assert.True(muxer.IsConnected);
                 }
@@ -81,7 +81,7 @@ namespace StackExchange.Redis.Tests
                     // should reconnect within 1 keepalive interval
                     muxer.AllowConnect = true;
                     Log("Waiting for reconnect");
-                    await UntilCondition(TimeSpan.FromSeconds(2), () => muxer.IsConnected).ForAwait();
+                    await UntilConditionAsync(TimeSpan.FromSeconds(2), () => muxer.IsConnected).ForAwait();
 
                     Assert.True(muxer.IsConnected);
                 }
@@ -97,17 +97,27 @@ namespace StackExchange.Redis.Tests
         {
             var config = ConfigurationOptions.Parse(TestConfig.Current.MasterServerAndPort);
             config.AbortOnConnectFail = true;
-            config.KeepAlive = 10;
+            config.KeepAlive = 1;
             config.SyncTimeout = 1000;
+            config.AsyncTimeout = 1000;
             config.ReconnectRetryPolicy = new ExponentialRetry(5000);
             config.AllowAdmin = true;
+            config.BacklogPolicy = BacklogPolicy.FailFast;
 
             int failCount = 0, restoreCount = 0;
 
             using (var muxer = ConnectionMultiplexer.Connect(config))
             {
-                muxer.ConnectionFailed += delegate { Interlocked.Increment(ref failCount); };
-                muxer.ConnectionRestored += delegate { Interlocked.Increment(ref restoreCount); };
+                muxer.ConnectionFailed += (s, e) =>
+                {
+                    Interlocked.Increment(ref failCount);
+                    Log($"Connection Failed ({e.ConnectionType}, {e.FailureType}): {e.Exception}");
+                };
+                muxer.ConnectionRestored += (s, e) =>
+                {
+                    Interlocked.Increment(ref restoreCount);
+                    Log($"Connection Restored ({e.ConnectionType}, {e.FailureType})");
+                };
 
                 muxer.GetDatabase();
                 Assert.Equal(0, Volatile.Read(ref failCount));
@@ -116,10 +126,14 @@ namespace StackExchange.Redis.Tests
                 var server = muxer.GetServer(TestConfig.Current.MasterServerAndPort);
                 server.SimulateConnectionFailure(SimulatedFailureType.All);
 
-                await UntilCondition(TimeSpan.FromSeconds(10), () => Volatile.Read(ref failCount) + Volatile.Read(ref restoreCount) == 4);
+                await UntilConditionAsync(TimeSpan.FromSeconds(10), () => Volatile.Read(ref failCount) >= 2 && Volatile.Read(ref restoreCount) >= 2);
+
                 // interactive+subscriber = 2
-                Assert.Equal(2, Volatile.Read(ref failCount));
-                Assert.Equal(2, Volatile.Read(ref restoreCount));
+                var failCountSnapshot = Volatile.Read(ref failCount);
+                Assert.True(failCountSnapshot >= 2, $"failCount {failCountSnapshot} >= 2");
+
+                var restoreCountSnapshot = Volatile.Read(ref restoreCount);
+                Assert.True(restoreCountSnapshot >= 2, $"restoreCount ({restoreCountSnapshot}) >= 2");
             }
         }
 
