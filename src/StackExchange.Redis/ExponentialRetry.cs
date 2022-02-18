@@ -27,17 +27,15 @@ namespace StackExchange.Redis
         {
             if (deltaBackOffMilliseconds < 0)
             {
-                throw new ArgumentException("must be greater than or equal to zero", nameof(deltaBackOffMilliseconds));
+                throw new ArgumentOutOfRangeException(nameof(deltaBackOffMilliseconds), $"{nameof(deltaBackOffMilliseconds)} must be greater than or equal to zero");
             }
-
             if (maxDeltaBackOffMilliseconds < 0)
             {
-                throw new ArgumentException("must be greater than or equal to zero", nameof(maxDeltaBackOffMilliseconds));
+                throw new ArgumentOutOfRangeException(nameof(maxDeltaBackOffMilliseconds), $"{nameof(maxDeltaBackOffMilliseconds)} must be greater than or equal to zero");
             }
-
             if (maxDeltaBackOffMilliseconds < deltaBackOffMilliseconds)
             {
-                throw new ArgumentException($"must be greater than or equal to {nameof(deltaBackOffMilliseconds)}", nameof(maxDeltaBackOffMilliseconds));
+                throw new ArgumentOutOfRangeException(nameof(maxDeltaBackOffMilliseconds), $"{nameof(maxDeltaBackOffMilliseconds)} must be greater than or equal to {nameof(deltaBackOffMilliseconds)}");
             }
 
             this.deltaBackOffMilliseconds = deltaBackOffMilliseconds;
