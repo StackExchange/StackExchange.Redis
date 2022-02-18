@@ -82,6 +82,8 @@ namespace StackExchange.Redis
         public bool IsConnected => interactive?.IsConnected == true;
         public bool IsSubscriberConnected => subscription?.IsConnected == true;
 
+        public bool SupportsSubscriptions => Multiplexer.CommandMap.IsAvailable(RedisCommand.SUBSCRIBE);
+
         public bool IsConnecting => interactive?.IsConnecting == true;
 
         private readonly List<TaskCompletionSource<string>> _pendingConnectionMonitors = new List<TaskCompletionSource<string>>();
@@ -636,9 +638,10 @@ namespace StackExchange.Redis
                         // Since we're issuing commands inside a SetResult path in a message, we'd create a deadlock by waiting.
                         Multiplexer.EnsureSubscriptions(CommandFlags.FireAndForget);
                     }
-                    if (IsConnected && IsSubscriberConnected)
+                    if (IsConnected && (IsSubscriberConnected || !SupportsSubscriptions))
                     {
                         // Only connect on the second leg - we can accomplish this by checking both
+                        // Or the first leg, if we're only making 1 connection because subscriptions aren't supported
                         CompletePendingConnectionMonitors(source);
                     }
 
