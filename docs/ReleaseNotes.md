@@ -1,7 +1,12 @@
 # Release Notes
 
-## Unreleased
+## 2.5.x-prerelease
 
+- Adds a backlog/retry mechanism for commands issued while a connection isn't available (#1912 via NickCraver)
+  - Commands will be queued if a multiplexer isn't yet connected.
+  - Commands will be queued if a connection is lost, for retry when it reconnects.
+  - All commands queued will only remain in the backlog for the duration of the configured timeout.
+  - To revert to previous behavior, a new `ConfigurationOptions.BacklogPolicy` is available - old behavior is configured via `options.BacklogPolicy = BacklogPolicy.FailFast`. This backlogs nothing and fails commands immediately if no connection is available.
 - Makes `StreamEntry` constructor public for better unit test experience (#1923 via WeihanLi)
 - Fix integer overflow error (issue #1926) with 2GiB+ result payloads (#1928 via mgravell)
 - Update assumed redis versions to v2.8 or v4.0 in the Azure case (#1929 via NickCraver)
