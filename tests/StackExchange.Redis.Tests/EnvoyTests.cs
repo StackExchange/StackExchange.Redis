@@ -1,4 +1,6 @@
-﻿using Xunit;
+﻿using System;
+using System.Text;
+using Xunit;
 using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
@@ -10,24 +12,32 @@ namespace StackExchange.Redis.Tests
         protected override string GetConfiguration() => TestConfig.Current.ProxyServerAndPort;
 
         /// <summary>
-        /// Tests basic envoy connection with the ability to set and get a key
+        /// Tests basic envoy connection with the ability to set and get a key.
         /// </summary>
         [Fact]
         public void TestBasicEnvoyConnection()
         {
-            using (var muxer = Create(configuration: GetConfiguration(), keepAlive: 1, connectTimeout: 2000, allowAdmin: true, shared: false, proxy: Proxy.Envoyproxy, log: Writer))
+            var sb = new StringBuilder();
+            Writer.EchoTo(sb);
+            try
             {
-                var db = muxer.GetDatabase();
+                using (var muxer = Create(configuration: GetConfiguration(), keepAlive: 1, connectTimeout: 2000, allowAdmin: true, shared: false, proxy: Proxy.Envoyproxy, log: Writer))
+                {
+                    var db = muxer.GetDatabase();
 
-                var key = "foobar";
-                var value = "barfoo";
-                db.StringSet(key, value);
+                    const string key = "foobar";
+                    const string value = "barfoo";
+                    db.StringSet(key, value);
 
-                var expectedVal = db.StringGet(key);
+                    var expectedVal = db.StringGet(key);
 
-                Assert.Equal(expectedVal, value);
+                    Assert.Equal(expectedVal, value);
+                }
+            }
+            catch (TimeoutException) when (sb.ToString().Contains("Returned, but incorrectly"))
+            {
+                Skip.Inconclusive("Envoy server not found.");
             }
         }
-
     }
 }
