@@ -76,6 +76,7 @@ namespace StackExchange.Redis
                 HighPrioritySocketThreads = "highPriorityThreads",
                 KeepAlive = "keepAlive",
                 ClientName = "name",
+                ClientNameSuffix = "nameSuffix",
                 User = "user",
                 Password = "password",
                 PreserveAsyncOrder = "preserveAsyncOrder",
@@ -257,6 +258,12 @@ namespace StackExchange.Redis
         /// The client name to use for all connections.
         /// </summary>
         public string ClientName { get; set; }
+
+        /// <summary>
+        /// A suffix to append onto the client name name for all connections.
+        /// This will be appended to the default generated client name, or to <see cref="ClientName"/> (if specified).
+        /// </summary>
+        public string ClientNameSuffix { get; set; }
 
         /// <summary>
         /// The number of times to repeat the initial connect cycle if no servers respond promptly.
@@ -523,6 +530,7 @@ namespace StackExchange.Redis
             var options = new ConfigurationOptions
             {
                 ClientName = ClientName,
+                ClientNameSuffix = ClientNameSuffix,
                 ServiceName = ServiceName,
                 keepAlive = keepAlive,
                 syncTimeout = syncTimeout,
@@ -612,6 +620,7 @@ namespace StackExchange.Redis
                 Append(sb, Format.ToString(endpoint));
             }
             Append(sb, OptionKeys.ClientName, ClientName);
+            Append(sb, OptionKeys.ClientNameSuffix, ClientNameSuffix);
             Append(sb, OptionKeys.ServiceName, ServiceName);
             Append(sb, OptionKeys.KeepAlive, keepAlive);
             Append(sb, OptionKeys.SyncTimeout, syncTimeout);
@@ -719,7 +728,7 @@ namespace StackExchange.Redis
 
         private void Clear()
         {
-            ClientName = ServiceName = User = Password = tieBreaker = sslHost = configChannel = null;
+            ClientName = ClientNameSuffix = ServiceName = User = Password = tieBreaker = sslHost = configChannel = null;
             keepAlive = syncTimeout = asyncTimeout = connectTimeout = writeBuffer = connectRetry = configCheckSeconds = DefaultDatabase = null;
             allowAdmin = abortOnConnectFail = highPrioritySocketThreads = resolveDns = ssl = null;
             SslProtocols = null;
@@ -790,6 +799,9 @@ namespace StackExchange.Redis
                             break;
                         case OptionKeys.ClientName:
                             ClientName = value;
+                            break;
+                        case OptionKeys.ClientNameSuffix:
+                            ClientNameSuffix = value;
                             break;
                         case OptionKeys.ChannelPrefix:
                             ChannelPrefix = value;

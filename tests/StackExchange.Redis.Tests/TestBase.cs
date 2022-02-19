@@ -246,6 +246,7 @@ namespace StackExchange.Redis.Tests
 
         internal virtual IInternalConnectionMultiplexer Create(
             string clientName = null,
+            string clientNameSuffix = null,
             int? syncTimeout = null,
             bool? allowAdmin = null,
             int? keepAlive = null,
@@ -297,7 +298,7 @@ namespace StackExchange.Redis.Tests
 
             var muxer = CreateDefault(
                 Writer,
-                clientName, syncTimeout, allowAdmin, keepAlive,
+                clientName, clientNameSuffix, syncTimeout, allowAdmin, keepAlive,
                 connectTimeout, password, tieBreaker, log,
                 fail, disabledCommands, enabledCommands,
                 checkConnect, failMessage,
@@ -315,6 +316,7 @@ namespace StackExchange.Redis.Tests
         public static ConnectionMultiplexer CreateDefault(
             TextWriter output,
             string clientName = null,
+            string clientNameSuffix = null,
             int? syncTimeout = null,
             bool? allowAdmin = null,
             int? keepAlive = null,
@@ -362,6 +364,7 @@ namespace StackExchange.Redis.Tests
                 if (password != null) config.Password = string.IsNullOrEmpty(password) ? null : password;
                 if (clientName != null) config.ClientName = clientName;
                 else if (caller != null) config.ClientName = caller;
+                if (clientNameSuffix != null) config.ClientNameSuffix = clientNameSuffix;
                 if (syncTimeout != null) config.SyncTimeout = syncTimeout.Value;
                 if (allowAdmin != null) config.AllowAdmin = allowAdmin.Value;
                 if (keepAlive != null) config.KeepAlive = keepAlive.Value;

@@ -145,7 +145,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Gets the client-name that will be used on all new connections.
         /// </summary>
-        public string ClientName => RawConfig.ClientName ?? GetDefaultClientName();
+        public string ClientName => $"{RawConfig.ClientName ?? GetDefaultClientName()}{RawConfig.ClientNameSuffix ?? string.Empty}";
 
         private static string defaultClientName;
 
@@ -157,7 +157,7 @@ namespace StackExchange.Redis
             return defaultClientName ??= (TryGetAzureRoleInstanceIdNoThrow()
                     ?? Environment.MachineName
                     ?? Environment.GetEnvironmentVariable("ComputerName")
-                    ?? "StackExchange.Redis") + "(v" + Utils.GetLibVersion() + ")";
+                    ?? "StackExchange.Redis") + $"(lib:SER,v{Utils.GetLibVersion()})";
         }
 
         /// <summary>

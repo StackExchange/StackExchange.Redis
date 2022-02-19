@@ -239,16 +239,31 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void DefaultClientName()
+        public void ClientNameSuffix()
         {
-            using (var muxer = Create(allowAdmin: true, caller: null)) // force default naming to kick in
+            using (var muxer = Create(clientName: "Test Rig", clientNameSuffix: ",Test Suffix", allowAdmin: true))
             {
-                Assert.Equal($"{Environment.MachineName}(v{Utils.GetLibVersion()})", muxer.ClientName);
+                Assert.Equal("Test Rig,Test Suffix", muxer.ClientName);
+
                 var conn = muxer.GetDatabase();
                 conn.Ping();
 
                 var name = (string)GetAnyMaster(muxer).Execute("CLIENT", "GETNAME");
-                Assert.Equal($"{Environment.MachineName}(v{Utils.GetLibVersion()})", name);
+                Assert.Equal("TestRig,TestSuffix", name);
+            }
+        }
+
+        [Fact]
+        public void DefaultClientName()
+        {
+            using (var muxer = Create(allowAdmin: true, caller: null)) // force default naming to kick in
+            {
+                Assert.Equal($"{Environment.MachineName}(lib:SER,v{Utils.GetLibVersion()})", muxer.ClientName);
+                var conn = muxer.GetDatabase();
+                conn.Ping();
+
+                var name = (string)GetAnyMaster(muxer).Execute("CLIENT", "GETNAME");
+                Assert.Equal($"{Environment.MachineName}(lib:SER,v{Utils.GetLibVersion()})", name);
             }
         }
 
@@ -510,8 +525,9 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void Apply()
         {
-            var options = ConfigurationOptions.Parse("127.0.0.1,name=FooApply");
+            var options = ConfigurationOptions.Parse("127.0.0.1,name=FooApply,nameSuffix=FooApplySuffix");
             Assert.Equal("FooApply", options.ClientName);
+            Assert.Equal("FooApplySuffix", options.ClientNameSuffix);
 
             var randomName = Guid.NewGuid().ToString();
             var result = options.Apply(options => options.ClientName = randomName);
