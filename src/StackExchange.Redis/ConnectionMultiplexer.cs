@@ -146,7 +146,7 @@ namespace StackExchange.Redis
         /// Gets the client-name that will be used on all new connections.
         /// </summary>
         /// <remarks>
-        /// We null coalesge here instead of in Options so that we don't populate it everywhere (e.g. .ToString()), given it's a default.
+        /// We null coalesce here instead of in Options so that we don't populate it everywhere (e.g. .ToString()), given it's a default.
         /// </remarks>
         public string ClientName => RawConfig.ClientName ?? RawConfig.Defaults.ClientName;
 

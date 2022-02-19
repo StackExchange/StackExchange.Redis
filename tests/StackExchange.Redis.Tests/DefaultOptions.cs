@@ -135,8 +135,7 @@ namespace StackExchange.Redis.Tests
         public async Task ClientNameOverride()
         {
             var options = ConfigurationOptions.Parse(GetConfiguration());
-            var provider = new TestClientNameOptionsProvider();
-            options.Defaults = provider;
+            options.Defaults = new TestClientNameOptionsProvider();
 
             using var muxer = await ConnectionMultiplexer.ConnectAsync(options, Writer);
 
@@ -148,8 +147,7 @@ namespace StackExchange.Redis.Tests
         public async Task ClientNameExplicitWins()
         {
             var options = ConfigurationOptions.Parse(GetConfiguration() + ",name=FooBar");
-            var provider = new TestClientNameOptionsProvider();
-            options.Defaults = provider;
+            options.Defaults = new TestClientNameOptionsProvider();
 
             using var muxer = await ConnectionMultiplexer.ConnectAsync(options, Writer);
 
