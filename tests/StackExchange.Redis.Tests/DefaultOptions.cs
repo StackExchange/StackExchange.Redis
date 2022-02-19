@@ -43,9 +43,6 @@ namespace StackExchange.Redis.Tests
             public bool ShouldRetry(long currentRetryCount, int timeElapsedMillisecondsSinceLastRetry) => false;
         }
 
-        // TODO Testing
-        // DefaultClientName
-
         [Fact]
         public void IsMatchOnDomain()
         {
@@ -127,6 +124,37 @@ namespace StackExchange.Redis.Tests
 
             Assert.True(muxer.IsConnected);
             Assert.Equal(1, provider.Calls);
+        }
+
+        public class TestClientNameOptionsProvider : DefaultOptionsProvider
+        {
+            protected override string GetDefaultClientName() => "Hey there";
+        }
+
+        [Fact]
+        public async Task ClientNameOverride()
+        {
+            var options = ConfigurationOptions.Parse(GetConfiguration());
+            var provider = new TestClientNameOptionsProvider();
+            options.Defaults = provider;
+
+            using var muxer = await ConnectionMultiplexer.ConnectAsync(options, Writer);
+
+            Assert.True(muxer.IsConnected);
+            Assert.Equal("Hey there", muxer.ClientName);
+        }
+
+        [Fact]
+        public async Task ClientNameExplicitWins()
+        {
+            var options = ConfigurationOptions.Parse(GetConfiguration() + ",name=FooBar");
+            var provider = new TestClientNameOptionsProvider();
+            options.Defaults = provider;
+
+            using var muxer = await ConnectionMultiplexer.ConnectAsync(options, Writer);
+
+            Assert.True(muxer.IsConnected);
+            Assert.Equal("FooBar", muxer.ClientName);
         }
     }
 }
