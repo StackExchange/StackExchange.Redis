@@ -110,7 +110,7 @@ namespace StackExchange.Redis.Configuration
         /// <summary>
         /// The retry policy to be used for connection reconnects.
         /// </summary>
-        public virtual IReconnectRetryPolicy ReconnectRetryPolicy { get; internal set; }
+        public virtual IReconnectRetryPolicy ReconnectRetryPolicy => null;
 
         /// <summary>
         /// Indicates whether endpoints should be resolved via DNS before connecting.
