@@ -534,7 +534,7 @@ namespace StackExchange.Redis
         {
             var options = new ConfigurationOptions
             {
-                Defaults = Defaults,
+                defaultOptions = defaultOptions,
                 ClientName = ClientName,
                 ServiceName = ServiceName,
                 keepAlive = keepAlive,
