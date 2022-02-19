@@ -378,7 +378,7 @@ namespace StackExchange.Redis
             sub.SetCurrentServer(null); // we're not appropriately connected, so blank it out for eligible reconnection
             var message = sub.GetMessage(channel, SubscriptionAction.Subscribe, flags, internalCall);
             var selected = multiplexer.SelectServer(message);
-            return multiplexer.ExecuteSyncImpl(message, sub.Processor, selected);
+            return ExecuteSync(message, sub.Processor, selected);
         }
 
         Task ISubscriber.SubscribeAsync(RedisChannel channel, Action<RedisChannel, RedisValue> handler, CommandFlags flags)
