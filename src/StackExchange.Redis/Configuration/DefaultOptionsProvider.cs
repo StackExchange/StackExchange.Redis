@@ -133,8 +133,8 @@ namespace StackExchange.Redis.Configuration
         /// </summary>
         public virtual TimeSpan ConfigCheckInterval => TimeSpan.FromMinutes(1);
 
-        // Note: this is statically backed because it doesn't change.
-        private static string defaultClientName;
+        // We memoize this to reduce cost on re-access
+        private string defaultClientName;
         /// <summary>
         /// The default client name for a connection, with the library version appended.
         /// </summary>
