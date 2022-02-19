@@ -260,8 +260,8 @@ namespace StackExchange.Redis
         public string ClientName { get; set; }
 
         /// <summary>
-        /// A suffix to append onto the client name name for all connections.
-        /// This will be appended to the default generated client name, or to <see cref="ClientName"/> (if specified).
+        /// A suffix to append onto the default client name for all connections.
+        /// If a <see cref="ClientName"/> is specified, this suffix will not be applied.
         /// </summary>
         public string ClientNameSuffix { get; set; }
 

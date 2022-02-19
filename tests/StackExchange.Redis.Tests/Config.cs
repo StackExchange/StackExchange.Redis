@@ -243,13 +243,14 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create(clientName: "Test Rig", clientNameSuffix: ",Test Suffix", allowAdmin: true))
             {
-                Assert.Equal("Test Rig,Test Suffix", muxer.ClientName);
+                // Suffix should not be applied when ClientName is specified
+                Assert.Equal("Test Rig", muxer.ClientName);
 
                 var conn = muxer.GetDatabase();
                 conn.Ping();
 
                 var name = (string)GetAnyMaster(muxer).Execute("CLIENT", "GETNAME");
-                Assert.Equal("TestRig,TestSuffix", name);
+                Assert.Equal("TestRig", name);
             }
         }
 
@@ -264,6 +265,20 @@ namespace StackExchange.Redis.Tests
 
                 var name = (string)GetAnyMaster(muxer).Execute("CLIENT", "GETNAME");
                 Assert.Equal($"{Environment.MachineName}(lib:SER,v{Utils.GetLibVersion()})", name);
+            }
+        }
+
+        [Fact]
+        public void DefaultClientNameSuffix()
+        {
+            using (var muxer = Create(clientNameSuffix: ",Test Suffix", allowAdmin: true, caller: null)) // Null caller forces default naming to kick in
+            {
+                Assert.Equal($"{Environment.MachineName}(lib:SER,v{Utils.GetLibVersion()}),Test Suffix", muxer.ClientName);
+                var conn = muxer.GetDatabase();
+                conn.Ping();
+
+                var name = (string)GetAnyMaster(muxer).Execute("CLIENT", "GETNAME");
+                Assert.Equal($"{Environment.MachineName}(lib:SER,v{Utils.GetLibVersion()}),TestSuffix", name);
             }
         }
 
