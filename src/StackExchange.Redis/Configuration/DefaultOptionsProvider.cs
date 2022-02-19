@@ -151,12 +151,12 @@ namespace StackExchange.Redis.Configuration
         /// <summary>
         /// String version of the StackExchange.Redis library, for use in any options.
         /// </summary>
-        protected string LibraryVersion => Utils.GetLibVersion();
+        protected static string LibraryVersion => Utils.GetLibVersion();
 
         /// <summary>
         /// Name of the machine we're running on, for use in any options.
         /// </summary>
-        protected string ComputerName => Environment.MachineName ?? Environment.GetEnvironmentVariable("ComputerName");
+        protected static string ComputerName => Environment.MachineName ?? Environment.GetEnvironmentVariable("ComputerName");
 
         /// <summary>
         /// Tries to get the RoleInstance Id if Microsoft.WindowsAzure.ServiceRuntime is loaded.
@@ -206,6 +206,11 @@ namespace StackExchange.Redis.Configuration
             return roleInstanceId;
         }
 
-        internal virtual Task AfterConnect(ConnectionMultiplexer muxer, ConnectionMultiplexer.LogProxy logProxy) => Task.CompletedTask;
+        /// <summary>
+        /// The action to perform, if any, immediately after an initial connection completes.
+        /// </summary>
+        /// <param name="multiplexer">The multiplexer that just connected.</param>
+        /// <param name="log">The logger for the connection, to emit to the connection output log.</param>
+        public virtual Task AfterConnectAsync(ConnectionMultiplexer multiplexer, Action<string> log) => Task.CompletedTask;
     }
 }

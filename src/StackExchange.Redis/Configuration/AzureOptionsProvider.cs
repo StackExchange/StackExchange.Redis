@@ -17,7 +17,7 @@ namespace StackExchange.Redis.Configuration
         public override bool AbortOnConnectFail => false;
 
         /// <summary>
-        /// The minimum version of Redis in Azure is 4, so use the widest set of avaialble commands when connecting.
+        /// The minimum version of Redis in Azure is 4, so use the widest set of available commands when connecting.
         /// </summary>
         public override Version DefaultVersion => RedisFeatures.v4_0_0;
 
@@ -50,13 +50,8 @@ namespace StackExchange.Redis.Configuration
             return false;
         }
 
-        internal override Task AfterConnect(ConnectionMultiplexer muxer, ConnectionMultiplexer.LogProxy logProxy)
-        {
-            if (!muxer.CommandMap.IsAvailable(RedisCommand.SUBSCRIBE))
-            {
-                return AzureMaintenanceEvent.AddListenerAsync(muxer, logProxy);
-            }
-            return Task.CompletedTask;
-        }
+        /// <inheritdoc/>
+        public override Task AfterConnectAsync(ConnectionMultiplexer muxer, Action<string> log)
+            => AzureMaintenanceEvent.AddListenerAsync(muxer, log);
     }
 }

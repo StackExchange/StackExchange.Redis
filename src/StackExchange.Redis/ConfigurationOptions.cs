@@ -135,7 +135,7 @@ namespace StackExchange.Redis
 
         private bool? allowAdmin, abortOnConnectFail, highPrioritySocketThreads, resolveDns, ssl, checkCertificateRevocation;
 
-        private string clientName, tieBreaker, sslHost, configChannel;
+        private string tieBreaker, sslHost, configChannel;
 
         private CommandMap commandMap;
 
@@ -172,7 +172,7 @@ namespace StackExchange.Redis
             set => defaultOptions = value;
         }
 
-        internal Func<ConnectionMultiplexer, LogProxy, Task> AfterConnect => Defaults.AfterConnect;
+        internal Func<ConnectionMultiplexer, Action<string>, Task> AfterConnectAsync => Defaults.AfterConnectAsync;
 
         /// <summary>
         /// Gets or sets whether connect/configuration timeouts should be explicitly notified via a TimeoutException.
@@ -268,11 +268,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// The client name to use for all connections.
         /// </summary>
-        public string ClientName
-        {
-            get => clientName;
-            set => clientName = value;
-        }
+        public string ClientName { get; set; }
 
         /// <summary>
         /// The number of times to repeat the initial connect cycle if no servers respond promptly.
@@ -538,6 +534,7 @@ namespace StackExchange.Redis
         {
             var options = new ConfigurationOptions
             {
+                Defaults = Defaults,
                 ClientName = ClientName,
                 ServiceName = ServiceName,
                 keepAlive = keepAlive,

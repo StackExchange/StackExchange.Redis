@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Net;
+using System.Threading;
 using System.Threading.Tasks;
 using StackExchange.Redis.Configuration;
 using Xunit;
@@ -18,7 +19,6 @@ namespace StackExchange.Redis.Tests
             public TestOptionsProvider(string domainSuffix) => _domainSuffix = domainSuffix;
 
             public override bool AbortOnConnectFail => true;
-            internal override Task AfterConnect(ConnectionMultiplexer muxer, ConnectionMultiplexer.LogProxy logProxy) => base.AfterConnect(muxer, logProxy);
             public override TimeSpan? ConnectTimeout => TimeSpan.FromSeconds(123);
             public override bool AllowAdmin => true;
             public override BacklogPolicy BacklogPolicy => BacklogPolicy.FailFast;
@@ -44,7 +44,6 @@ namespace StackExchange.Redis.Tests
         }
 
         // TODO Testing
-        // AfterConnect
         // DefaultClientName
 
         [Fact]
@@ -80,7 +79,7 @@ namespace StackExchange.Redis.Tests
             AssertAllOverrides(options);
         }
 
-        private void AssertAllOverrides(ConfigurationOptions options)
+        private static void AssertAllOverrides(ConfigurationOptions options)
         {
             Assert.True(options.AbortOnConnectFail);
             Assert.Equal(TimeSpan.FromSeconds(123), TimeSpan.FromMilliseconds(options.ConnectTimeout));
@@ -103,7 +102,31 @@ namespace StackExchange.Redis.Tests
             Assert.True(options.ResolveDns);
             Assert.Equal(TimeSpan.FromSeconds(126), TimeSpan.FromMilliseconds(options.SyncTimeout));
             Assert.Equal("TestTiebreaker", options.TieBreaker);
+        }
 
+        public class TestAfterConnectOptionsProvider : DefaultOptionsProvider
+        {
+            public int Calls;
+
+            public override Task AfterConnectAsync(ConnectionMultiplexer muxer, Action<string> log)
+            {
+                Interlocked.Increment(ref Calls);
+                log("TestAfterConnectOptionsProvider.AfterConnectAsync!");
+                return Task.CompletedTask;
+            }
+        }
+
+        [Fact]
+        public async Task AfterConnectAsyncHandler()
+        {
+            var options = ConfigurationOptions.Parse(GetConfiguration());
+            var provider = new TestAfterConnectOptionsProvider();
+            options.Defaults = provider;
+
+            using var muxer = await ConnectionMultiplexer.ConnectAsync(options, Writer);
+
+            Assert.True(muxer.IsConnected);
+            Assert.Equal(1, provider.Calls);
         }
     }
 }

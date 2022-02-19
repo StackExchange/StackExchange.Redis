@@ -855,7 +855,7 @@ namespace StackExchange.Redis
                         muxer.InitializeSentinel(logProxy);
                     }
 
-                    await configuration.AfterConnect(muxer, logProxy).ForAwait();
+                    await configuration.AfterConnectAsync(muxer, logProxy != null ? logProxy.WriteLine : LogProxy.NullWriter).ForAwait();
 
                     return muxer;
                 }
@@ -920,6 +920,7 @@ namespace StackExchange.Redis
                 return s ?? base.ToString();
             }
             private TextWriter _log;
+            internal static Action<string> NullWriter = _ => {};
 
             public object SyncLock => this;
             private LogProxy(TextWriter log) => _log = log;
@@ -1154,7 +1155,7 @@ namespace StackExchange.Redis
                         muxer.InitializeSentinel(logProxy);
                     }
 
-                    configuration.AfterConnect(muxer, logProxy).Wait(muxer.SyncConnectTimeout(true));
+                    configuration.AfterConnectAsync(muxer, logProxy != null ? logProxy.WriteLine : LogProxy.NullWriter).Wait(muxer.SyncConnectTimeout(true));
 
                     return muxer;
                 }
@@ -1606,6 +1607,14 @@ namespace StackExchange.Redis
                 }
             }
         }
+
+        /// <summary>
+        /// Triggers a reconfigure of this multiplexer.
+        /// This re-assessment of all server endpoints to get the current topology and adjust, the same as if we had first connected.
+        /// TODO: Naming?
+        /// </summary>
+        public Task<bool> ReconfigureAsync(string reason) =>
+            ReconfigureAsync(first: false, reconfigureAll: false, log: null, blame: null, cause: reason);
 
         internal async Task<bool> ReconfigureAsync(bool first, bool reconfigureAll, LogProxy log, EndPoint blame, string cause, bool publishReconfigure = false, CommandFlags publishReconfigureFlags = CommandFlags.None)
         {

@@ -31,5 +31,11 @@ namespace StackExchange.Redis.Maintenance
         /// Returns a string representing the maintenance event with all of its properties.
         /// </summary>
         public override string ToString() => RawMessage;
+
+        /// <summary>
+        /// Notifies a ConnectionMultiplexer of this event, for anyone observing its <see cref="ConnectionMultiplexer.ServerMaintenanceEvent"/> handler.
+        /// </summary>
+        protected void NotifyMultiplexer(ConnectionMultiplexer multiplexer)
+            => multiplexer.InvokeServerMaintenanceEvent(this);
     }
 }
