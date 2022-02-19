@@ -26,6 +26,22 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void TestExponentialRetryArgs()
+        {
+            new ExponentialRetry(5000);
+            new ExponentialRetry(5000, 10000);
+
+            var ex = Assert.Throws<ArgumentOutOfRangeException>(() => new ExponentialRetry(-1));
+            Assert.Equal("deltaBackOffMilliseconds", ex.ParamName);
+
+            ex = Assert.Throws<ArgumentOutOfRangeException>(() => new ExponentialRetry(5000, -1));
+            Assert.Equal("maxDeltaBackOffMilliseconds", ex.ParamName);
+
+            ex = Assert.Throws<ArgumentOutOfRangeException>(() => new ExponentialRetry(10000, 5000));
+            Assert.Equal("maxDeltaBackOffMilliseconds", ex.ParamName);
+        }
+
+        [Fact]
         public void TestLinearRetry()
         {
             IReconnectRetryPolicy linearRetry = new LinearRetry(5000);

@@ -1,7 +1,15 @@
 # Release Notes
 
 ## Unreleased
+- Adds bounds checking for `ExponentialRetry` backoff policy (#1921 via gliljas) 
 
+## 2.5.27 (prerelease)
+
+- Adds a backlog/retry mechanism for commands issued while a connection isn't available (#1912 via NickCraver)
+  - Commands will be queued if a multiplexer isn't yet connected to a Redis server.
+  - Commands will be queued if a connection is lost and then sent to the server when the connection is restored.
+  - All commands queued will only remain in the backlog for the duration of the configured timeout.
+  - To revert to previous behavior, a new `ConfigurationOptions.BacklogPolicy` is available - old behavior is configured via `options.BacklogPolicy = BacklogPolicy.FailFast`. This backlogs nothing and fails commands immediately if no connection is available.
 - Makes `StreamEntry` constructor public for better unit test experience (#1923 via WeihanLi)
 - Fix integer overflow error (issue #1926) with 2GiB+ result payloads (#1928 via mgravell)
 - Update assumed redis versions to v2.8 or v4.0 in the Azure case (#1929 via NickCraver)
@@ -15,6 +23,8 @@
   - Fixes subscription routing on clusters (spreading instead of choosing 1 node)
   - More correctly reconnects subscriptions on connection failures, including to other endpoints
 - Adds "(vX.X.X)" version suffix to the default client ID so server-side `CLIENT LIST` can more easily see what's connected (#1985 via NickCraver)
+- Fix for including (or not including) key names on some message failures (#1990 via NickCraver)
+- Fixed return of nil results in `LPOP`, `RPOP`, `SRANDMEMBER`, and `SPOP` (#1993 via NickCraver)
 
 ## 2.2.88
 
