@@ -138,18 +138,32 @@ namespace StackExchange.Redis.Configuration
         /// <summary>
         /// The default client name for a connection, with the library version appended.
         /// </summary>
-        public virtual string ClientName =>
-            defaultClientName ??= (TryGetAzureRoleInstanceIdNoThrow()
-                                    ?? Environment.MachineName
-                                    ?? Environment.GetEnvironmentVariable("ComputerName")
-                                    ?? "StackExchange.Redis") + "(v" + Utils.GetLibVersion() + ")";
+        public string ClientName => defaultClientName ??= GetDefaultClientName();
+
+        /// <summary>
+        /// Gets the default client name for a connection.
+        /// </summary>
+        protected virtual string GetDefaultClientName() =>
+            (TryGetAzureRoleInstanceIdNoThrow()
+             ?? ComputerName
+             ?? "StackExchange.Redis") + "(SE.Redis-v" + LibraryVersion + ")";
+
+        /// <summary>
+        /// String version of the StackExchange.Redis library, for use in any options.
+        /// </summary>
+        protected string LibraryVersion => Utils.GetLibVersion();
+
+        /// <summary>
+        /// Name of the machine we're running on, for use in any options.
+        /// </summary>
+        protected string ComputerName => Environment.MachineName ?? Environment.GetEnvironmentVariable("ComputerName");
 
         /// <summary>
         /// Tries to get the RoleInstance Id if Microsoft.WindowsAzure.ServiceRuntime is loaded.
         /// In case of any failure, swallows the exception and returns null.
         /// </summary>
         /// <remarks>
-        /// Azure, in the default provider? Yes, to maintain existing compat/conveinence.
+        /// Azure, in the default provider? Yes, to maintain existing compatibility/convenience.
         /// Source !=  destination here.
         /// </remarks>
         internal static string TryGetAzureRoleInstanceIdNoThrow()
