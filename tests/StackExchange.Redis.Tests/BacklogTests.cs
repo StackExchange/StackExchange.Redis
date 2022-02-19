@@ -326,7 +326,10 @@ namespace StackExchange.Redis.Tests
                 RedisKey meKey = Me();
                 var getMsg = Message.Create(0, CommandFlags.None, RedisCommand.GET, meKey);
 
-                var server = muxer.SelectServer(getMsg); // Get the server specifically for this message's hash slot
+                ServerEndPoint server = null; // Get the server specifically for this message's hash slot
+                await UntilConditionAsync(TimeSpan.FromSeconds(10), () => (server = muxer.SelectServer(getMsg)) != null);
+
+                Assert.NotNull(server);
                 var stats = server.GetBridgeStatus(ConnectionType.Interactive);
                 Assert.Equal(0, stats.BacklogMessagesPending); // Everything's normal
 
