@@ -1,0 +1,38 @@
+trigger:
+- main
+
+pool:
+  vmImage: ubuntu-latest
+steps:
+- task: UseDotNet@2
+  displayName: 'Install .NET SDK'
+  inputs:
+    packageType: 'sdk'
+    version: '6.x'
+- task: DotNetCoreCLI@2
+  displayName: '.NET Build'
+  inputs:
+    command: 'build'
+    projects: 'Build.csproj'
+    arguments: '-c Release /p:CI=true'
+- task: DockerCompose@0
+  displayName: 'Start Redis Services (docker-compose)'
+  inputs:
+    containerregistrytype: 'Container Registry'
+    dockerComposeFile: './tests/RedisConfigs/docker-compose.yml'
+    action: 'Run a Docker Compose command'
+    currentWorkingDirectory: '$(System.DefaultWorkingDirectory)/tests/RedisConfigs'
+- task: DotNetCoreCLI@2
+  inputs:
+    command: 'test'
+    projects: 'tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj'
+    arguments: '-c Release /p:CI=true'
+    testRunTitle: 'StackExchange.Redis.Tests'
+- task: DotNetCoreCLI@2
+  inputs:
+    command: 'pack'
+    packagesToPack: 'src/StackExchange.Redis/StackExchange.Redis.csproj'
+    nobuild: true
+    versioningScheme: 'off'
+    buildProperties: 'Packing=true;CI=true'
+    verbosityPack: 'Normal'
