@@ -573,7 +573,7 @@ namespace StackExchange.Redis
             }
             int available = serverEndpoint.Databases;
 
-            if (!serverEndpoint.HasDatabases) // only db0 is available on cluster/twemproxy
+            if (!serverEndpoint.HasDatabases) // only db0 is available on cluster/twemproxy/envoyproxy
             {
                 if (targetDatabase != 0)
                 { // should never see this, since the API doesn't allow it; thus not too worried about ExceptionFactory

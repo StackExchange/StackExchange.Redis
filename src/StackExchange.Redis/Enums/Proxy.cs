@@ -13,6 +13,10 @@
         /// Communication via <a href="https://github.com/twitter/twemproxy">twemproxy</a>.
         /// </summary>
         Twemproxy,
+        /// <summary>
+        /// Communication via <a href="https://github.com/envoyproxy/envoy">envoyproxy</a>.
+        /// </summary>
+        Envoyproxy,
     }
 
     internal static class ProxyExtensions
@@ -23,6 +27,7 @@
         public static bool SupportsDatabases(this Proxy proxy) => proxy switch
         {
             Proxy.Twemproxy => false,
+            Proxy.Envoyproxy => false,
             _ => true
         };
 
@@ -32,6 +37,7 @@
         public static bool SupportsPubSub(this Proxy proxy) => proxy switch
         {
             Proxy.Twemproxy => false,
+            Proxy.Envoyproxy => false,
             _ => true
         };
 
@@ -41,6 +47,7 @@
         public static bool SupportsServerApi(this Proxy proxy) => proxy switch
         {
             Proxy.Twemproxy => false,
+            Proxy.Envoyproxy => false,
             _ => true
         };
     }

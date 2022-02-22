@@ -102,6 +102,11 @@ namespace StackExchange.Redis.Tests
 
             public string SSDBServer { get; set; }
             public int SSDBPort { get; set; } = 8888;
+
+            public string ProxyServer { get; set; } = "127.0.0.1";
+            public int ProxyPort { get; set; } = 7015;
+
+            public string ProxyServerAndPort => ProxyServer + ":" + ProxyPort.ToString();
         }
     }
 }

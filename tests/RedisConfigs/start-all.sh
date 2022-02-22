@@ -44,4 +44,13 @@ redis-server sentinel-26380.conf --sentinel &>/dev/null &
 redis-server sentinel-26381.conf --sentinel &>/dev/null &
 popd > /dev/null
 
+#Envoy Servers
+# Installation: https://www.envoyproxy.io/docs/envoy/latest/start/install
+# Use Envoy on Ubuntu Linux to install on WSL2
+echo Starting Envoy: 7015
+pushd Envoy > /dev/null
+echo "${INDENT}Envoy: 7015"
+envoy -c envoy.yaml &> /dev/null &
+popd > /dev/null
+
 echo Servers started.

@@ -26,17 +26,11 @@ namespace StackExchange.Redis
         {
             // see https://github.com/twitter/twemproxy/blob/master/notes/redis.md
             RedisCommand.KEYS, RedisCommand.MIGRATE, RedisCommand.MOVE, RedisCommand.OBJECT, RedisCommand.RANDOMKEY,
-            RedisCommand.RENAME, RedisCommand.RENAMENX, RedisCommand.SORT, RedisCommand.SCAN,
+            RedisCommand.RENAME, RedisCommand.RENAMENX, RedisCommand.SCAN,
 
-            RedisCommand.BITOP, RedisCommand.MSET, RedisCommand.MSETNX,
-
-            RedisCommand.HSCAN,
+            RedisCommand.BITOP, RedisCommand.MSETNX,
 
             RedisCommand.BLPOP, RedisCommand.BRPOP, RedisCommand.BRPOPLPUSH, // yeah, me neither!
-
-            RedisCommand.SSCAN,
-
-            RedisCommand.ZSCAN,
 
             RedisCommand.PSUBSCRIBE, RedisCommand.PUBLISH, RedisCommand.PUNSUBSCRIBE, RedisCommand.SUBSCRIBE, RedisCommand.UNSUBSCRIBE,
 
@@ -44,11 +38,43 @@ namespace StackExchange.Redis
 
             RedisCommand.SCRIPT,
 
-            RedisCommand.ECHO, RedisCommand.PING, RedisCommand.QUIT, RedisCommand.SELECT,
+            RedisCommand.ECHO, RedisCommand.SELECT,
 
             RedisCommand.BGREWRITEAOF, RedisCommand.BGSAVE, RedisCommand.CLIENT, RedisCommand.CLUSTER, RedisCommand.CONFIG, RedisCommand.DBSIZE,
             RedisCommand.DEBUG, RedisCommand.FLUSHALL, RedisCommand.FLUSHDB, RedisCommand.INFO, RedisCommand.LASTSAVE, RedisCommand.MONITOR, RedisCommand.REPLICAOF,
             RedisCommand.SAVE, RedisCommand.SHUTDOWN, RedisCommand.SLAVEOF, RedisCommand.SLOWLOG, RedisCommand.SYNC, RedisCommand.TIME
+        });
+
+        /// <summary>
+        /// The commands available to <a href="https://github.com/envoyproxy/envoy">envoyproxy</a>.
+        /// </summary>
+        public static CommandMap Envoyproxy { get; } = CreateImpl(null, exclusions: new HashSet<RedisCommand>
+        {
+            // see https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/other_protocols/redis.html?highlight=redis
+            RedisCommand.KEYS, RedisCommand.MIGRATE, RedisCommand.MOVE, RedisCommand.OBJECT, RedisCommand.RANDOMKEY,
+            RedisCommand.RENAME, RedisCommand.RENAMENX, RedisCommand.SORT, RedisCommand.SCAN,
+
+            RedisCommand.BITOP, RedisCommand.MSETNX,
+
+            RedisCommand.BLPOP, RedisCommand.BRPOP, RedisCommand.BRPOPLPUSH, // yeah, me neither!
+
+            RedisCommand.PSUBSCRIBE, RedisCommand.PUBLISH, RedisCommand.PUNSUBSCRIBE, RedisCommand.SUBSCRIBE, RedisCommand.UNSUBSCRIBE,
+
+            RedisCommand.DISCARD, RedisCommand.EXEC, RedisCommand.MULTI, RedisCommand.UNWATCH, RedisCommand.WATCH,
+
+            RedisCommand.SCRIPT,
+
+            RedisCommand.ECHO, RedisCommand.QUIT, RedisCommand.SELECT,
+
+            RedisCommand.BGREWRITEAOF, RedisCommand.BGSAVE, RedisCommand.CLIENT, RedisCommand.CLUSTER, RedisCommand.CONFIG, RedisCommand.DBSIZE,
+            RedisCommand.DEBUG, RedisCommand.FLUSHALL, RedisCommand.FLUSHDB, RedisCommand.INFO, RedisCommand.LASTSAVE, RedisCommand.MONITOR, RedisCommand.REPLICAOF,
+            RedisCommand.SAVE, RedisCommand.SHUTDOWN, RedisCommand.SLAVEOF, RedisCommand.SLOWLOG, RedisCommand.SYNC, RedisCommand.TIME,
+
+            // supported by envoy but not enabled by stack exchange
+            // RedisCommand.BITFIELD,
+            //
+            // RedisCommand.GEORADIUS_RO,
+            // RedisCommand.GEORADIUSBYMEMBER_RO,
         });
 
         /// <summary>
