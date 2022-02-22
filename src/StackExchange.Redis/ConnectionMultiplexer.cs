@@ -1654,7 +1654,7 @@ namespace StackExchange.Redis
             foreach (var server in GetServerSnapshot())
             {
                 server.Activate(ConnectionType.Interactive, log);
-                if (CommandMap.IsAvailable(RedisCommand.SUBSCRIBE))
+                if (server.SupportsSubscriptions)
                 {
                     // Intentionally not logging the sub connection
                     server.Activate(ConnectionType.Subscription, null);

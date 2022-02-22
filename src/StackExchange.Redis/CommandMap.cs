@@ -26,17 +26,11 @@ namespace StackExchange.Redis
         {
             // see https://github.com/twitter/twemproxy/blob/master/notes/redis.md
             RedisCommand.KEYS, RedisCommand.MIGRATE, RedisCommand.MOVE, RedisCommand.OBJECT, RedisCommand.RANDOMKEY,
-            RedisCommand.RENAME, RedisCommand.RENAMENX, RedisCommand.SORT, RedisCommand.SCAN,
+            RedisCommand.RENAME, RedisCommand.RENAMENX, RedisCommand.SCAN,
 
-            RedisCommand.BITOP, RedisCommand.MSET, RedisCommand.MSETNX,
-
-            RedisCommand.HSCAN,
+            RedisCommand.BITOP, RedisCommand.MSETNX,
 
             RedisCommand.BLPOP, RedisCommand.BRPOP, RedisCommand.BRPOPLPUSH, // yeah, me neither!
-
-            RedisCommand.SSCAN,
-
-            RedisCommand.ZSCAN,
 
             RedisCommand.PSUBSCRIBE, RedisCommand.PUBLISH, RedisCommand.PUNSUBSCRIBE, RedisCommand.SUBSCRIBE, RedisCommand.UNSUBSCRIBE,
 
@@ -44,7 +38,7 @@ namespace StackExchange.Redis
 
             RedisCommand.SCRIPT,
 
-            RedisCommand.ECHO, RedisCommand.PING, RedisCommand.QUIT, RedisCommand.SELECT,
+            RedisCommand.ECHO, RedisCommand.PING, RedisCommand.SELECT,
 
             RedisCommand.BGREWRITEAOF, RedisCommand.BGSAVE, RedisCommand.CLIENT, RedisCommand.CLUSTER, RedisCommand.CONFIG, RedisCommand.DBSIZE,
             RedisCommand.DEBUG, RedisCommand.FLUSHALL, RedisCommand.FLUSHDB, RedisCommand.INFO, RedisCommand.LASTSAVE, RedisCommand.MONITOR, RedisCommand.REPLICAOF,
