@@ -46,7 +46,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void IsMatchOnDomain()
         {
-            DefaultOptionsProvider.KnownProviders.Insert(0, new TestOptionsProvider(".testdomain"));
+            DefaultOptionsProvider.AddProvider(new TestOptionsProvider(".testdomain"));
 
             var epc = new EndPointCollection(new List<EndPoint>() { new DnsEndPoint("local.testdomain", 0) });
             var provider = DefaultOptionsProvider.GetForEndpoints(epc);
@@ -70,7 +70,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void AllOverridesFromEndpointsParse()
         {
-            DefaultOptionsProvider.KnownProviders.Insert(0, new TestOptionsProvider(".parse"));
+            DefaultOptionsProvider.AddProvider(new TestOptionsProvider(".parse"));
             var options = ConfigurationOptions.Parse("localhost.parse:6379");
             Assert.IsType<TestOptionsProvider>(options.Defaults);
             AssertAllOverrides(options);

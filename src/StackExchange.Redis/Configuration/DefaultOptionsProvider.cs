@@ -18,6 +18,19 @@ namespace StackExchange.Redis.Configuration
     /// </remarks>
     public class DefaultOptionsProvider
     {
+        private static readonly List<DefaultOptionsProvider> BuiltInProviders = new()
+        {
+            new AzureOptionsProvider()
+        };
+        private static LinkedList<DefaultOptionsProvider> KnownProviders { get; } = new (BuiltInProviders);
+
+        /// <summary>
+        /// Adds a provider to match endpoints against. The last provider added has the highest priority.
+        /// If you want your provider to match everything, implement <see cref="IsMatch(EndPoint)"/> as <c>return true;</c>.
+        /// </summary>
+        /// <param name="provider">The provider to add.</param>
+        public static void AddProvider(DefaultOptionsProvider provider) => KnownProviders.AddFirst(provider);
+
         /// <summary>
         /// Whether this options provider matches a given endpoint, for automatically selecting a provider based on what's being connected to.
         /// </summary>
@@ -40,15 +53,6 @@ namespace StackExchange.Redis.Configuration
             }
 
             return new DefaultOptionsProvider();
-        };
-
-        /// <summary>
-        /// Known providers to match - this is intentionally modifiable for expert users and wrapper libraries.
-        /// </summary>
-        public static List<DefaultOptionsProvider> KnownProviders { get; set; } = new()
-        {
-            new AzureOptionsProvider(),
-            new DefaultOptionsProvider()
         };
 
         /// <summary>
