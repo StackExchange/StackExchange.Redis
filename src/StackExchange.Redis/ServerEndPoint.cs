@@ -56,11 +56,18 @@ namespace StackExchange.Redis
             writeEverySeconds = config.KeepAlive > 0 ? config.KeepAlive : 60;
             serverType = ServerType.Standalone;
             ConfigCheckSeconds = Multiplexer.RawConfig.ConfigCheckSeconds;
-            // overrides for twemproxy
-            if (multiplexer.RawConfig.Proxy == Proxy.Twemproxy)
+
+            // overrides for twemproxy/envoyproxy
+            switch (multiplexer.RawConfig.Proxy)
             {
-                databases = 1;
-                serverType = ServerType.Twemproxy;
+                case Proxy.Twemproxy:
+                    databases = 1;
+                    serverType = ServerType.Twemproxy;
+                    break;
+                case Proxy.Envoyproxy:
+                    databases = 1;
+                    serverType = ServerType.Envoyproxy;
+                    break;
             }
         }
 
@@ -74,6 +81,8 @@ namespace StackExchange.Redis
 
         public bool IsConnected => interactive?.IsConnected == true;
         public bool IsSubscriberConnected => subscription?.IsConnected == true;
+
+        public bool SupportsSubscriptions => Multiplexer.CommandMap.IsAvailable(RedisCommand.SUBSCRIBE);
 
         public bool IsConnecting => interactive?.IsConnecting == true;
 
@@ -629,9 +638,10 @@ namespace StackExchange.Redis
                         // Since we're issuing commands inside a SetResult path in a message, we'd create a deadlock by waiting.
                         Multiplexer.EnsureSubscriptions(CommandFlags.FireAndForget);
                     }
-                    if (IsConnected && IsSubscriberConnected)
+                    if (IsConnected && (IsSubscriberConnected || !SupportsSubscriptions))
                     {
                         // Only connect on the second leg - we can accomplish this by checking both
+                        // Or the first leg, if we're only making 1 connection because subscriptions aren't supported
                         CompletePendingConnectionMonitors(source);
                     }
 
