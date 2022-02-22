@@ -4,6 +4,7 @@
 - Adds bounds checking for `ExponentialRetry` backoff policy (#1921 via gliljas) 
 - Adds Envoy proxy support (#1989 via rkarthick)
 - When `SUBSCRIBE` is disabled, give proper errors and connect faster (#2001 via NickCraver)
+- Adds `GET` on `SET` command support (present in Redis 6.2+ - #2003 via martinekvili)
 
 ## 2.5.27 (prerelease)
 
