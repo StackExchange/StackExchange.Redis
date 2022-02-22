@@ -2211,6 +2211,7 @@ namespace StackExchange.Redis
         /// <param name="when">Which condition to set the value under (defaults to <see cref="When.Always"/>).</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The previous value stored at <paramref name="key"/>, or nil when key did not exist.</returns>
+        /// <remarks>This method uses the SET command with the GET option introduced in Redis 6.2.0 instead of the deprecated GETSET command.</remarks>
         /// <remarks>https://redis.io/commands/set</remarks>
         RedisValue StringSetAndGet(RedisKey key, RedisValue value, TimeSpan? expiry = null, When when = When.Always, CommandFlags flags = CommandFlags.None);
 
