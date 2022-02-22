@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Text;
 using System.Text.RegularExpressions;
 using Pipelines.Sockets.Unofficial.Arenas;
 
@@ -150,16 +151,22 @@ namespace StackExchange.Redis
             HashEntryArray = new HashEntryArrayProcessor();
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Conditionally run on instance")]
-        public void ConnectionFail(Message message, ConnectionFailureType fail, Exception innerException, string annotation)
+        public void ConnectionFail(Message message, ConnectionFailureType fail, Exception innerException, string annotation, ConnectionMultiplexer muxer)
         {
             PhysicalConnection.IdentifyFailureType(innerException, ref fail);
 
-            string exMessage = fail.ToString() + (message == null ? "" : (" on " + (
-                fail == ConnectionFailureType.ProtocolFailure ? message.ToString() : message.CommandAndKey)));
-            if (!string.IsNullOrWhiteSpace(annotation)) exMessage += ", " + annotation;
-
-            var ex = innerException == null ? new RedisConnectionException(fail, exMessage)
-                : new RedisConnectionException(fail, exMessage, innerException);
+            var sb = new StringBuilder(fail.ToString());
+            if (message is not null)
+            {
+                sb.Append(" on ");
+                sb.Append(muxer?.IncludeDetailInExceptions == true ? message.ToString() : message.ToStringCommandOnly());
+            }
+            if (!string.IsNullOrWhiteSpace(annotation))
+            {
+                sb.Append(", ");
+                sb.Append(annotation);
+            }
+            var ex = new RedisConnectionException(fail, sb.ToString(), innerException);
             SetException(message, ex);
         }
 
@@ -1242,7 +1249,10 @@ namespace StackExchange.Redis
                 {
                     // allow a single item to pass explicitly pretending to be an array; example: SPOP {key} 1
                     case ResultType.BulkString:
-                        var arr = new[] { result.AsRedisValue() };
+                        // If the result is nil, the result should be an empty array
+                        var arr = result.IsNull
+                            ? Array.Empty<RedisValue>()
+                            : new[] { result.AsRedisValue() };
                         SetResult(message, arr);
                         return true;
                     case ResultType.MultiBulk:

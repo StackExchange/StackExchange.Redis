@@ -212,5 +212,27 @@ namespace StackExchange.Redis.Tests
                 ClearAmbientFailures();
             }
         }
+
+        [Theory]
+        [InlineData(true, ConnectionFailureType.ProtocolFailure, "ProtocolFailure on [0]:GET myKey (StringProcessor), my annotation")]
+        [InlineData(true, ConnectionFailureType.ConnectionDisposed, "ConnectionDisposed on [0]:GET myKey (StringProcessor), my annotation")]
+        [InlineData(false, ConnectionFailureType.ProtocolFailure, "ProtocolFailure on [0]:GET (StringProcessor), my annotation")]
+        [InlineData(false, ConnectionFailureType.ConnectionDisposed, "ConnectionDisposed on [0]:GET (StringProcessor), my annotation")]
+        public void MessageFail(bool includeDetail, ConnectionFailureType failType, string messageStart)
+        {
+            using var muxer = Create(shared: false);
+            muxer.IncludeDetailInExceptions = includeDetail;
+
+            var message = Message.Create(0, CommandFlags.None, RedisCommand.GET, (RedisKey)"myKey");
+            var resultBox = SimpleResultBox<string>.Create();
+            message.SetSource(ResultProcessor.String, resultBox);
+
+            message.Fail(failType, null, "my annotation", muxer as ConnectionMultiplexer);
+
+            resultBox.GetResult(out var ex);
+            Assert.NotNull(ex);
+
+            Assert.StartsWith(messageStart, ex.Message);
+        }
     }
 }

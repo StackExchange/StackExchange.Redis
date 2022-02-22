@@ -84,6 +84,7 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal(7, db.SetLength(key));
             }
         }
+
         [Fact]
         public void SetPopMulti_Single()
         {
@@ -223,6 +224,23 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal(0, count);
 
                 Assert.Equal(0, db.SetLength(key));
+            }
+        }
+
+        [Fact]
+        public void SetPopMulti_Nil()
+        {
+            using (var conn = Create())
+            {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SetPopMultiple), r => r.SetPopMultiple);
+
+                var db = conn.GetDatabase();
+                var key = Me();
+
+                db.KeyDelete(key, CommandFlags.FireAndForget);
+
+                var arr = db.SetPop(key, 1);
+                Assert.Empty(arr);
             }
         }
     }

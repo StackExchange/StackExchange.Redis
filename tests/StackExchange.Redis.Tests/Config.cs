@@ -264,6 +264,21 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void ConnectWithSubscribeDisabled()
+        {
+            using (var muxer = Create(allowAdmin: true, disabledCommands: new[] { "subscribe" }))
+            {
+                Assert.True(muxer.IsConnected);
+                var servers = muxer.GetServerSnapshot();
+                Assert.True(servers[0].IsConnected);
+                Assert.False(servers[0].IsSubscriberConnected);
+
+                var ex = Assert.Throws<RedisCommandException>(() => muxer.GetSubscriber().Subscribe(Me(), (_, _) => GC.KeepAlive(this)));
+                Assert.Equal("This operation has been disabled in the command-map and cannot be used: SUBSCRIBE", ex.Message);
+            }
+        }
+
+        [Fact]
         public void ReadConfig()
         {
             using (var muxer = Create(allowAdmin: true))

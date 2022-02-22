@@ -38,7 +38,7 @@ namespace StackExchange.Redis
 
             RedisCommand.SCRIPT,
 
-            RedisCommand.ECHO, RedisCommand.PING, RedisCommand.SELECT,
+            RedisCommand.ECHO, RedisCommand.SELECT,
 
             RedisCommand.BGREWRITEAOF, RedisCommand.BGSAVE, RedisCommand.CLIENT, RedisCommand.CLUSTER, RedisCommand.CONFIG, RedisCommand.DBSIZE,
             RedisCommand.DEBUG, RedisCommand.FLUSHALL, RedisCommand.FLUSHDB, RedisCommand.INFO, RedisCommand.LASTSAVE, RedisCommand.MONITOR, RedisCommand.REPLICAOF,
@@ -89,15 +89,6 @@ namespace StackExchange.Redis
             "llen", "lpush", "rpush", "lpop", "rpop", "lrange", "lindex"
         }, true);
 
-        /// <summary>
-        /// The commands available to <a href="https://redis.io/topics/sentinel">Sentinel</a>.
-        /// </summary>
-        /// <remarks>https://redis.io/topics/sentinel</remarks>
-        public static CommandMap Sentinel { get; } = Create(new HashSet<string> {
-            // see https://redis.io/topics/sentinel
-            "auth", "ping", "info", "role", "sentinel", "subscribe", "shutdown", "psubscribe", "unsubscribe", "punsubscribe" }, true);
-
-        /// <summary>
         /// Create a new <see cref="CommandMap"/>, customizing some commands.
         /// </summary>
         /// <param name="overrides">The commands to override.</param>

@@ -99,7 +99,8 @@ The `ConfigurationOptions` object has a wide range of properties, all of which a
 |                        | `CheckCertificateRevocation` | `true`                 | A Boolean value that specifies whether the certificate revocation list is checked during authentication.  |
 
 Additional code-only options:
-- ReconnectRetryPolicy (`IReconnectRetryPolicy`) - Default: `ReconnectRetryPolicy = LinearRetry(ConnectTimeout);`
+- ReconnectRetryPolicy (`IReconnectRetryPolicy`) - Default: `ReconnectRetryPolicy = ExponentialRetry(ConnectTimeout / 2);`
+- BacklogPolicy - Default: `BacklogPolicy = BacklogPolicy.Default;`
 
 Tokens in the configuration string are comma-separated; any without an `=` sign are assumed to be redis server endpoints. Endpoints without an explicit port will use 6379 if ssl is not enabled, and 6380 if ssl is enabled.
 Tokens starting with `$` are taken to represent command maps, for example: `$config=cfg`.
