@@ -56,11 +56,18 @@ namespace StackExchange.Redis
             writeEverySeconds = config.KeepAlive > 0 ? config.KeepAlive : 60;
             serverType = ServerType.Standalone;
             ConfigCheckSeconds = Multiplexer.RawConfig.ConfigCheckSeconds;
-            // overrides for twemproxy
-            if (multiplexer.RawConfig.Proxy == Proxy.Twemproxy)
+
+            // overrides for twemproxy/envoyproxy
+            switch (multiplexer.RawConfig.Proxy)
             {
-                databases = 1;
-                serverType = ServerType.Twemproxy;
+                case Proxy.Twemproxy:
+                    databases = 1;
+                    serverType = ServerType.Twemproxy;
+                    break;
+                case Proxy.Envoyproxy:
+                    databases = 1;
+                    serverType = ServerType.Envoyproxy;
+                    break;
             }
         }
 

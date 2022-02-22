@@ -275,6 +275,7 @@ namespace StackExchange.Redis
             get => commandMap ?? Proxy switch
             {
                 Proxy.Twemproxy => CommandMap.Twemproxy,
+                Proxy.Envoyproxy => CommandMap.Envoyproxy,
                 _ => CommandMap.Default,
             };
             set => commandMap = value ?? throw new ArgumentNullException(nameof(value));

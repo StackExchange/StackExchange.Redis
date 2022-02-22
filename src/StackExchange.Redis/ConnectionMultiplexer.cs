@@ -1810,6 +1810,7 @@ namespace StackExchange.Redis
                                     switch (server.ServerType)
                                     {
                                         case ServerType.Twemproxy:
+                                        case ServerType.Envoyproxy:
                                         case ServerType.Standalone:
                                             standaloneCount++;
                                             break;
@@ -1834,6 +1835,7 @@ namespace StackExchange.Redis
                                     switch (server.ServerType)
                                     {
                                         case ServerType.Twemproxy:
+                                        case ServerType.Envoyproxy:
                                         case ServerType.Sentinel:
                                         case ServerType.Standalone:
                                         case ServerType.Cluster:
@@ -1881,6 +1883,10 @@ namespace StackExchange.Redis
                         if (RawConfig.Proxy == Proxy.Twemproxy)
                         {
                             ServerSelectionStrategy.ServerType = ServerType.Twemproxy;
+                        }
+                        else if (RawConfig.Proxy == Proxy.Envoyproxy)
+                        {
+                            ServerSelectionStrategy.ServerType = ServerType.Envoyproxy;
                         }
                         else if (standaloneCount == 0 && sentinelCount > 0)
                         {
