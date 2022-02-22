@@ -363,7 +363,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Specifies whether asynchronous operations should be invoked in a way that guarantees their original delivery order.
         /// </summary>
-        [Obsolete("Not supported; if you require ordered pub/sub, please see " + nameof(ChannelMessageQueue), false)]
+        [Obsolete("Not supported; if you require ordered pub/sub, please see " + nameof(ChannelMessageQueue) + ", will be removed in 3.0.", false)]
         public bool PreserveAsyncOrder
         {
             get => false;
@@ -410,7 +410,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Specifies the time in milliseconds that the system should allow for responses before concluding that the socket is unhealthy.
         /// </summary>
-        [Obsolete("This setting no longer has any effect, and should not be used")]
+        [Obsolete("This setting no longer has any effect, and should not be used - will be removed in 3.0.")]
         public int ResponseTimeout
         {
             get => 0;
@@ -472,7 +472,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// The size of the output buffer to use.
         /// </summary>
-        [Obsolete("This setting no longer has any effect, and should not be used")]
+        [Obsolete("This setting no longer has any effect, and should not be used - will be removed in 3.0.")]
         public int WriteBuffer
         {
             get => 0;
@@ -507,12 +507,7 @@ namespace StackExchange.Redis
         /// <param name="configuration">The configuration string to parse.</param>
         /// <exception cref="ArgumentNullException"><paramref name="configuration"/> is <see langword="null"/>.</exception>
         /// <exception cref="ArgumentException"><paramref name="configuration"/> is empty.</exception>
-        public static ConfigurationOptions Parse(string configuration)
-        {
-            var options = new ConfigurationOptions();
-            options.DoParse(configuration, false);
-            return options;
-        }
+        public static ConfigurationOptions Parse(string configuration) => Parse(configuration, false);
 
         /// <summary>
         /// Parse the configuration from a comma-delimited configuration string.
@@ -521,12 +516,8 @@ namespace StackExchange.Redis
         /// <param name="ignoreUnknown">Whether to ignore unknown elements in <paramref name="configuration"/>.</param>
         /// <exception cref="ArgumentNullException"><paramref name="configuration"/> is <see langword="null"/>.</exception>
         /// <exception cref="ArgumentException"><paramref name="configuration"/> is empty.</exception>
-        public static ConfigurationOptions Parse(string configuration, bool ignoreUnknown)
-        {
-            var options = new ConfigurationOptions();
-            options.DoParse(configuration, ignoreUnknown);
-            return options;
-        }
+        public static ConfigurationOptions Parse(string configuration, bool ignoreUnknown) =>
+            new ConfigurationOptions().DoParse(configuration, ignoreUnknown);
 
         /// <summary>
         /// Create a copy of the configuration.
@@ -741,13 +732,13 @@ namespace StackExchange.Redis
 
             CertificateSelection = null;
             CertificateValidation = null;
-            ChannelPrefix = default(RedisChannel);
+            ChannelPrefix = default;
             SocketManager = null;
         }
 
         object ICloneable.Clone() => Clone();
 
-        private void DoParse(string configuration, bool ignoreUnknown)
+        private ConfigurationOptions DoParse(string configuration, bool ignoreUnknown)
         {
             if (configuration == null)
             {
@@ -756,7 +747,7 @@ namespace StackExchange.Redis
 
             if (string.IsNullOrWhiteSpace(configuration))
             {
-                throw new ArgumentException("is empty", configuration);
+                throw new ArgumentException("is empty", nameof(configuration));
             }
 
             Clear();
@@ -842,26 +833,19 @@ namespace StackExchange.Redis
                         case OptionKeys.HighPrioritySocketThreads:
                             HighPrioritySocketThreads = OptionKeys.ParseBoolean(key, value);
                             break;
-                        case OptionKeys.WriteBuffer:
-#pragma warning disable CS0618 // Type or member is obsolete
-                            WriteBuffer = OptionKeys.ParseInt32(key, value);
-#pragma warning restore CS0618
-                            break;
                         case OptionKeys.Proxy:
                             Proxy = OptionKeys.ParseProxy(key, value);
-                            break;
-                        case OptionKeys.ResponseTimeout:
-#pragma warning disable CS0618 // Type or member is obsolete
-                            ResponseTimeout = OptionKeys.ParseInt32(key, value, minValue: 1);
-#pragma warning restore CS0618
                             break;
                         case OptionKeys.DefaultDatabase:
                             DefaultDatabase = OptionKeys.ParseInt32(key, value);
                             break;
-                        case OptionKeys.PreserveAsyncOrder:
-                            break;
                         case OptionKeys.SslProtocols:
                             SslProtocols = OptionKeys.ParseSslProtocols(key, value);
+                            break;
+                        // Deprecated options we ignore...
+                        case OptionKeys.PreserveAsyncOrder:
+                        case OptionKeys.ResponseTimeout:
+                        case OptionKeys.WriteBuffer:
                             break;
                         default:
                             if (!string.IsNullOrEmpty(key) && key[0] == '$')
@@ -869,7 +853,7 @@ namespace StackExchange.Redis
                                 var cmdName = option.Substring(1, idx - 1);
                                 if (Enum.TryParse(cmdName, true, out RedisCommand cmd))
                                 {
-                                    if (map == null) map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                                    map ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                                     map[cmdName] = value;
                                 }
                             }
@@ -890,6 +874,7 @@ namespace StackExchange.Redis
             {
                 CommandMap = CommandMap.Create(map);
             }
+            return this;
         }
 
         private string InferSslHostFromEndpoints()
