@@ -41,9 +41,9 @@ namespace StackExchange.Redis.Configuration
         /// </summary>
         internal static Func<EndPointCollection, DefaultOptionsProvider> GetForEndpoints { get; } = (endpoints) =>
         {
-            foreach (var endpoint in endpoints)
+            foreach (var provider in KnownProviders)
             {
-                foreach (var provider in KnownProviders)
+                foreach (var endpoint in endpoints)
                 {
                     if (provider.IsMatch(endpoint))
                     {
