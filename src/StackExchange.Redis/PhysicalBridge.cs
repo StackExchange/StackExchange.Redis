@@ -113,6 +113,7 @@ namespace StackExchange.Redis
         public void Dispose()
         {
             isDisposed = true;
+            _backlogAutoReset?.Dispose();
             using (var tmp = physical)
             {
                 physical = null;
@@ -913,7 +914,7 @@ namespace StackExchange.Redis
                     // TODO: vNext handoff this backlog to another primary ("can handle everything") connection
                     // and remove any per-server commands. This means we need to track a bit of whether something
                     // was server-endpoint-specific in PrepareToPushMessageToBridge (was the server ref null or not)
-                    await ProcessBridgeBacklogAsync().ConfigureAwait(false); // Needs handoff
+                    await ProcessBridgeBacklogAsync().ForAwait(); // Needs handoff
                 }
             }
             catch
@@ -976,10 +977,10 @@ namespace StackExchange.Redis
 
                     // try and get the lock; if unsuccessful, retry
 #if NETCOREAPP
-                    gotLock = await _singleWriterMutex.WaitAsync(TimeoutMilliseconds).ConfigureAwait(false);
+                    gotLock = await _singleWriterMutex.WaitAsync(TimeoutMilliseconds).ForAwait();
                     if (gotLock) break; // got the lock; now go do something with it
 #else
-                    token = await _singleWriterMutex.TryWaitAsync().ConfigureAwait(false);
+                    token = await _singleWriterMutex.TryWaitAsync().ForAwait();
                     if (token.Success) break; // got the lock; now go do something with it
 #endif
                 }
@@ -1021,7 +1022,7 @@ namespace StackExchange.Redis
                         if (result == WriteResult.Success)
                         {
                             _backlogStatus = BacklogStatus.Flushing;
-                            result = await physical.FlushAsync(false).ConfigureAwait(false);
+                            result = await physical.FlushAsync(false).ForAwait();
                         }
 
                         _backlogStatus = BacklogStatus.MarkingInactive;
