@@ -20,8 +20,7 @@ steps:
   inputs:
     containerregistrytype: 'Container Registry'
     dockerComposeFile: './tests/RedisConfigs/docker-compose.yml'
-    action: 'Run a Docker Compose command'
-    dockerComposeCommand: 'up'
+    action: 'Run services'
     currentWorkingDirectory: '$(System.DefaultWorkingDirectory)/tests/RedisConfigs'
 - task: DotNetCoreCLI@2
   inputs:
