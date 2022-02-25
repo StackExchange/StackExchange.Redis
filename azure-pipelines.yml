@@ -2,7 +2,7 @@ trigger:
 - main
 
 pool:
-  vmImage: ubuntu-latest
+  vmImage: windows-latest
 steps:
 - task: UseDotNet@2
   displayName: 'Install .NET SDK'
@@ -23,12 +23,14 @@ steps:
     action: 'Run services'
     currentWorkingDirectory: '$(System.DefaultWorkingDirectory)/tests/RedisConfigs'
 - task: DotNetCoreCLI@2
+  displayName: 'Run Tests'
   inputs:
     command: 'test'
     projects: 'tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj'
     arguments: '-c Release /p:CI=true'
     testRunTitle: 'StackExchange.Redis.Tests'
 - task: DotNetCoreCLI@2
+  displayName: '.NET Pack'
   inputs:
     command: 'pack'
     packagesToPack: 'src/StackExchange.Redis/StackExchange.Redis.csproj'
