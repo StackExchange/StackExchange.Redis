@@ -26,6 +26,24 @@ namespace StackExchange.Redis.Tests
             Assert.True(db.IsConnected(default(RedisKey)));
         }
 
+        [Theory]
+        [InlineData("config")]
+        [InlineData("info")]
+        [InlineData("get")]
+        [InlineData("cluster")]
+        [InlineData("config,get")]
+        [InlineData("info,get")]
+        [InlineData("config,info,get")]
+        [InlineData("config,info,get,cluster")]
+        public void DisabledCommandsStillConnectCluster(string disabledCommands)
+        {
+            using var muxer = Create(allowAdmin: true, configuration: TestConfig.Current.ClusterServersAndPorts, disabledCommands: disabledCommands.Split(','), log: Writer);
+
+            var db = muxer.GetDatabase();
+            db.Ping();
+            Assert.True(db.IsConnected(default(RedisKey)));
+        }
+
         [Fact]
         public void TieBreakerIntact()
         {
