@@ -867,6 +867,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.StringSetAsync(ToInner(key), value, expiry, when, flags);
         }
 
+        public Task<RedisValue> StringSetAndGetAsync(RedisKey key, RedisValue value, TimeSpan? expiry = null, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.StringSetAndGetAsync(ToInner(key), value, expiry, when, flags);
+        }
+
         public Task<bool> StringSetBitAsync(RedisKey key, long offset, bool bit, CommandFlags flags = CommandFlags.None)
         {
             return Inner.StringSetBitAsync(ToInner(key), offset, bit, flags);
