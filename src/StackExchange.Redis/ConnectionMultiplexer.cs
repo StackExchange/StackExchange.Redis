@@ -1822,7 +1822,7 @@ namespace StackExchange.Redis
                                             break;
                                     }
 
-                                    if (clusterCount > 0 && !encounteredConnectedClusterServer)
+                                    if (clusterCount > 0 && !encounteredConnectedClusterServer && CommandMap.IsAvailable(RedisCommand.Cluster))
                                     {
                                         // We have encountered a connected server with a cluster type for the first time.
                                         // so we will get list of other nodes from this server using "CLUSTER NODES" command
