@@ -195,6 +195,99 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public async Task SetAndGet()
+        {
+            using (var muxer = Create())
+            {
+                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.SetAndGet), r => r.SetAndGet);
+
+                var conn = muxer.GetDatabase();
+                var prefix = Me();
+                conn.KeyDelete(prefix + "1", CommandFlags.FireAndForget);
+                conn.KeyDelete(prefix + "2", CommandFlags.FireAndForget);
+                conn.KeyDelete(prefix + "3", CommandFlags.FireAndForget);
+                conn.KeyDelete(prefix + "4", CommandFlags.FireAndForget);
+                conn.KeyDelete(prefix + "5", CommandFlags.FireAndForget);
+                conn.KeyDelete(prefix + "6", CommandFlags.FireAndForget);
+                conn.KeyDelete(prefix + "7", CommandFlags.FireAndForget);
+                conn.KeyDelete(prefix + "8", CommandFlags.FireAndForget);
+                conn.KeyDelete(prefix + "9", CommandFlags.FireAndForget);
+                conn.StringSet(prefix + "1", "abc", flags: CommandFlags.FireAndForget);
+                conn.StringSet(prefix + "2", "abc", flags: CommandFlags.FireAndForget);
+                conn.StringSet(prefix + "4", "abc", flags: CommandFlags.FireAndForget);
+                conn.StringSet(prefix + "6", "abc", flags: CommandFlags.FireAndForget);
+                conn.StringSet(prefix + "7", "abc", flags: CommandFlags.FireAndForget);
+                conn.StringSet(prefix + "8", "abc", flags: CommandFlags.FireAndForget);
+                conn.StringSet(prefix + "9", "abc", flags: CommandFlags.FireAndForget);
+
+                var x0 = conn.StringSetAndGetAsync(prefix + "1", RedisValue.Null);
+                var x1 = conn.StringSetAndGetAsync(prefix + "2", "def");
+                var x2 = conn.StringSetAndGetAsync(prefix + "3", "def");
+                var x3 = conn.StringSetAndGetAsync(prefix + "4", "def", when: When.Exists);
+                var x4 = conn.StringSetAndGetAsync(prefix + "5", "def", when: When.Exists);
+                var x5 = conn.StringSetAndGetAsync(prefix + "6", "def", expiry: TimeSpan.FromSeconds(4));
+                var x6 = conn.StringSetAndGetAsync(prefix + "7", "def", expiry: TimeSpan.FromMilliseconds(4001));
+                var x7 = conn.StringSetAndGetAsync(prefix + "8", "def", expiry: TimeSpan.FromSeconds(4), when: When.Exists);
+                var x8 = conn.StringSetAndGetAsync(prefix + "9", "def", expiry: TimeSpan.FromMilliseconds(4001), when: When.Exists);
+
+                var s0 = conn.StringGetAsync(prefix + "1");
+                var s1 = conn.StringGetAsync(prefix + "2");
+                var s2 = conn.StringGetAsync(prefix + "3");
+                var s3 = conn.StringGetAsync(prefix + "4");
+                var s4 = conn.StringGetAsync(prefix + "5");
+
+                Assert.Equal("abc", await x0);
+                Assert.Equal("abc", await x1);
+                Assert.Equal(RedisValue.Null, await x2);
+                Assert.Equal("abc", await x3);
+                Assert.Equal(RedisValue.Null, await x4);
+                Assert.Equal("abc", await x5);
+                Assert.Equal("abc", await x6);
+                Assert.Equal("abc", await x7);
+                Assert.Equal("abc", await x8);
+
+                Assert.Equal(RedisValue.Null, await s0);
+                Assert.Equal("def", await s1);
+                Assert.Equal("def", await s2);
+                Assert.Equal("def", await s3);
+                Assert.Equal(RedisValue.Null, await s4);
+            }
+        }
+
+        [Fact]
+        public async Task SetNotExistsAndGet()
+        {
+            using (var muxer = Create())
+            {
+                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.SetNotExistsAndGet), r => r.SetNotExistsAndGet);
+
+                var conn = muxer.GetDatabase();
+                var prefix = Me();
+                conn.KeyDelete(prefix + "1", CommandFlags.FireAndForget);
+                conn.KeyDelete(prefix + "2", CommandFlags.FireAndForget);
+                conn.KeyDelete(prefix + "3", CommandFlags.FireAndForget);
+                conn.KeyDelete(prefix + "4", CommandFlags.FireAndForget);
+                conn.StringSet(prefix + "1", "abc", flags: CommandFlags.FireAndForget);
+
+                var x0 = conn.StringSetAndGetAsync(prefix + "1", "def", when: When.NotExists);
+                var x1 = conn.StringSetAndGetAsync(prefix + "2", "def", when: When.NotExists);
+                var x2 = conn.StringSetAndGetAsync(prefix + "3", "def", expiry: TimeSpan.FromSeconds(4), when: When.NotExists);
+                var x3 = conn.StringSetAndGetAsync(prefix + "4", "def", expiry: TimeSpan.FromMilliseconds(4001), when: When.NotExists);
+
+                var s0 = conn.StringGetAsync(prefix + "1");
+                var s1 = conn.StringGetAsync(prefix + "2");
+
+                Assert.Equal("abc", await x0);
+                Assert.Equal(RedisValue.Null, await x1);
+                Assert.Equal(RedisValue.Null, await x2);
+                Assert.Equal(RedisValue.Null, await x3);
+
+                Assert.Equal("abc", await s0);
+                Assert.Equal("def", await s1);
+            }
+        }
+
+        [Fact]
         public async Task Ranges()
         {
             using (var muxer = Create())
