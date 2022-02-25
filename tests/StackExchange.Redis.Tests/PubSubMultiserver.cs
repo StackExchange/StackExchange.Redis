@@ -155,13 +155,13 @@ namespace StackExchange.Redis.Tests
             else
             {
                 // This subscription shouldn't be able to reconnect by flags (demanding an unavailable server)
-                await UntilConditionAsync(TimeSpan.FromSeconds(2), () => subscription.IsConnected);
+                await UntilConditionAsync(TimeSpan.FromSeconds(5), () => subscription.IsConnected);
                 Assert.False(subscription.IsConnected);
                 Log("Unable to reconnect (as expected)");
 
                 // Allow connecting back to the original
                 muxer.AllowConnect = true;
-                await UntilConditionAsync(TimeSpan.FromSeconds(2), () => subscription.IsConnected);
+                await UntilConditionAsync(TimeSpan.FromSeconds(5), () => subscription.IsConnected);
                 Assert.True(subscription.IsConnected);
 
                 var newServer = subscription.GetCurrentServer();
