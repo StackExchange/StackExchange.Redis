@@ -887,6 +887,7 @@ namespace StackExchange.Redis
             Starting,
             Started,
             CheckingForWork,
+            SpinningDown,
             CheckingForTimeout,
             CheckingForTimeoutComplete,
             RecordingTimeout,
@@ -909,12 +910,25 @@ namespace StackExchange.Redis
             _backlogStatus = BacklogStatus.Starting;
             try
             {
-                if (!_backlog.IsEmpty)
+                while (true)
                 {
-                    // TODO: vNext handoff this backlog to another primary ("can handle everything") connection
-                    // and remove any per-server commands. This means we need to track a bit of whether something
-                    // was server-endpoint-specific in PrepareToPushMessageToBridge (was the server ref null or not)
-                    await ProcessBridgeBacklogAsync().ForAwait(); // Needs handoff
+                    if (!_backlog.IsEmpty)
+                    {
+                        // TODO: vNext handoff this backlog to another primary ("can handle everything") connection
+                        // and remove any per-server commands. This means we need to track a bit of whether something
+                        // was server-endpoint-specific in PrepareToPushMessageToBridge (was the server ref null or not)
+                        await ProcessBridgeBacklogAsync().ForAwait();
+                    }
+
+                    // The cost of starting a new thread is high, and we can bounce in and out of the backlog a lot.
+                    // So instead of just exiting, keep this thread waiting for 5 seconds to see if we got another backlog item.
+                    _backlogStatus = BacklogStatus.SpinningDown;
+                    // Note this is happening *outside* the lock
+                    var gotMore = _backlogAutoReset.WaitOne(5000);
+                    if (!gotMore)
+                    {
+                        break;
+                    }
                 }
             }
             catch
@@ -1000,17 +1014,7 @@ namespace StackExchange.Redis
                         // If there's nothing left in queue, we're done.
                         if (!BacklogTryDequeue(out message))
                         {
-                            // The cost of starting a new thread is high, and we can bounce in and out of the backlog a lot.
-                            // So instead of just exiting, keep this thread waiting for 5 seconds to see if we got another backlog item.
-                            var gotMore = _backlogAutoReset.WaitOne(5000);
-                            if (gotMore)
-                            {
-                                continue;
-                            }
-                            else
-                            {
-                                break;
-                            }
+                            break;
                         }
                     }
 

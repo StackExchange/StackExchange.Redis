@@ -26,7 +26,7 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void RapidDispose()
+        public async Task RapidDispose()
         {
             RedisKey key = Me();
             using (var primary = Create())
@@ -41,6 +41,8 @@ namespace StackExchange.Redis.Tests
                         secondary.GetDatabase().StringIncrement(key, flags: CommandFlags.FireAndForget);
                     }
                 }
+                // Give it a moment to get through the pipe...they were fire and forget
+                await UntilConditionAsync(TimeSpan.FromSeconds(5), () => 10 == (int)conn.StringGet(key));
                 Assert.Equal(10, (int)conn.StringGet(key));
             }
         }
