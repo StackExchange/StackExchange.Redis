@@ -42,7 +42,7 @@ namespace StackExchange.Redis.Tests
                     }
                 }
                 // Give it a moment to get through the pipe...they were fire and forget
-                await UntilConditionAsync(TimeSpan.FromSeconds(2), () => 10 == (int)conn.StringGet(key));
+                await UntilConditionAsync(TimeSpan.FromSeconds(5), () => 10 == (int)conn.StringGet(key));
                 Assert.Equal(10, (int)conn.StringGet(key));
             }
         }
