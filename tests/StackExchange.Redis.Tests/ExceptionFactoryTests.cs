@@ -120,7 +120,7 @@ namespace StackExchange.Redis.Tests
                     Assert.StartsWith("Test Timeout, command=PING", ex.Message);
                     Assert.Contains("clientName: " + nameof(TimeoutException), ex.Message);
                     // Ensure our pipe numbers are in place
-                    Assert.Contains("inst: 0, qu: 0, qs: 0, aw: False, in: 0, in-pipe: 0, out-pipe: 0", ex.Message);
+                    Assert.Contains("inst: 0, qu: 0, qs: 0, aw: False, bw: Inactive, in: 0, in-pipe: 0, out-pipe: 0", ex.Message);
                     Assert.Contains("mc: 1/1/0", ex.Message);
                     Assert.Contains("serverEndpoint: " + server.EndPoint, ex.Message);
                     Assert.Contains("IOCP: ", ex.Message);
@@ -194,13 +194,13 @@ namespace StackExchange.Redis.Tests
                     // Ensure our pipe numbers are in place if they should be
                     if (hasDetail)
                     {
-                        Assert.Contains("inst: 0, qu: 0, qs: 0, aw: False, in: 0, in-pipe: 0, out-pipe: 0", ex.Message);
+                        Assert.Contains("inst: 0, qu: 0, qs: 0, aw: False, bw: Inactive, in: 0, in-pipe: 0, out-pipe: 0", ex.Message);
                         Assert.Contains($"mc: {connCount}/{completeCount}/0", ex.Message);
                         Assert.Contains("serverEndpoint: " + server.EndPoint.ToString().Replace("Unspecified/", ""), ex.Message);
                     }
                     else
                     {
-                        Assert.DoesNotContain("inst: 0, qu: 0, qs: 0, aw: False, in: 0, in-pipe: 0, out-pipe: 0", ex.Message);
+                        Assert.DoesNotContain("inst: 0, qu: 0, qs: 0, aw: False, bw: Inactive, in: 0, in-pipe: 0, out-pipe: 0", ex.Message);
                         Assert.DoesNotContain($"mc: {connCount}/{completeCount}/0", ex.Message);
                         Assert.DoesNotContain("serverEndpoint: " + server.EndPoint.ToString().Replace("Unspecified/", ""), ex.Message);
                     }
