@@ -53,5 +53,29 @@ namespace StackExchange.Redis.Configuration
         /// <inheritdoc/>
         public override Task AfterConnectAsync(ConnectionMultiplexer muxer, Action<string> log)
             => AzureMaintenanceEvent.AddListenerAsync(muxer, log);
+
+        /// <inheritdoc/>
+        public override bool GetDefaultSsl(EndPointCollection endPoints)
+        {
+            foreach (var ep in endPoints)
+            {
+                switch (ep)
+                {
+                    case DnsEndPoint dns:
+                        if (dns.Port == 6380)
+                        {
+                            return true;
+                        }
+                        break;
+                    case IPEndPoint ip:
+                        if (ip.Port == 6380)
+                        {
+                            return true;
+                        }
+                        break;
+                }
+            }
+            return false;
+        }
     }
 }

@@ -216,5 +216,36 @@ namespace StackExchange.Redis.Configuration
         /// <param name="multiplexer">The multiplexer that just connected.</param>
         /// <param name="log">The logger for the connection, to emit to the connection output log.</param>
         public virtual Task AfterConnectAsync(ConnectionMultiplexer multiplexer, Action<string> log) => Task.CompletedTask;
+
+        /// <summary>
+        /// Gets the default SSL "enabled or not" based on a set of endpoints.
+        /// Note: this setting then applies for *all* endpoints.
+        /// </summary>
+        /// <param name="endPoints">The configured endpoints to determine SSL usage from (e.g. from the port).</param>
+        /// <returns>Whether to enable SSL for connections (unless excplicitly overriden in a direct <see cref="ConfigurationOptions.Ssl"/> set).</returns>
+        public virtual bool GetDefaultSsl(EndPointCollection endPoints) => false;
+
+        /// <summary>
+        /// Gets the SSL Host to check for when connecting to endpoints (customizable in case of internal certificate shenanigans.
+        /// </summary>
+        /// <param name="endPoints">The configured endpoints to determine SSL host from (e.g. from the port).</param>
+        /// <returns>The common host, if any, detected from the endpoint collection.</returns>
+        public virtual string GetSslHostFromEndpoints(EndPointCollection endPoints)
+        {
+            string commonHost = null;
+            foreach (var endpoint in endPoints)
+            {
+                if (endpoint is DnsEndPoint dnsEndpoint)
+                {
+                    commonHost ??= dnsEndpoint.Host;
+                    // Mismatch detected, no assumptions.
+                    if (dnsEndpoint.Host != commonHost)
+                    {
+                        return null;
+                    }
+                }
+            }
+            return commonHost;
+        }
     }
 }

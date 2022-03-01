@@ -433,7 +433,7 @@ namespace StackExchange.Redis
         /// </summary>
         public bool Ssl
         {
-            get => ssl.GetValueOrDefault();
+            get => ssl ?? Defaults.GetDefaultSsl(EndPoints);
             set => ssl = value;
         }
 
@@ -442,7 +442,7 @@ namespace StackExchange.Redis
         /// </summary>
         public string SslHost
         {
-            get => sslHost ?? InferSslHostFromEndpoints();
+            get => sslHost ?? Defaults.GetSslHostFromEndpoints(EndPoints);
             set => sslHost = value;
         }
 
@@ -875,18 +875,6 @@ namespace StackExchange.Redis
                 CommandMap = CommandMap.Create(map);
             }
             return this;
-        }
-
-        private string InferSslHostFromEndpoints()
-        {
-            var dnsEndpoints = EndPoints.Select(endpoint => endpoint as DnsEndPoint);
-            string dnsHost = dnsEndpoints.FirstOrDefault()?.Host;
-            if (dnsEndpoints.All(dnsEndpoint => dnsEndpoint != null && dnsEndpoint.Host == dnsHost))
-            {
-                return dnsHost;
-            }
-
-            return null;
         }
     }
 }
