@@ -9,6 +9,7 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using StackExchange.Redis.Interfaces;
 using static StackExchange.Redis.ConnectionMultiplexer;
 
 namespace StackExchange.Redis
@@ -340,12 +341,20 @@ namespace StackExchange.Redis
         /// <summary>
         /// The user to use to authenticate with the server.
         /// </summary>
-        public string User { get; set; }
+        public string User { get => CredentialsProvider?.getUser(); set
+            {
+                CredentialsProvider = new ConstantCredentialsProvider(value, Password);
+            }
+        }
 
         /// <summary>
         /// The password to use to authenticate with the server.
         /// </summary>
-        public string Password { get; set; }
+        public string Password { get => CredentialsProvider?.getPassword(); set
+            {
+                CredentialsProvider = new ConstantCredentialsProvider(User, value);
+            }
+        }
 
         /// <summary>
         /// Specifies whether asynchronous operations should be invoked in a way that guarantees their original delivery order.
@@ -490,6 +499,11 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
+        /// A provider for authentication credentials.
+        /// </summary>
+        public ICredentialsProvider CredentialsProvider { get; set; }
+
+        /// <summary>
         /// Parse the configuration from a comma-delimited configuration string.
         /// </summary>
         /// <param name="configuration">The configuration string to parse.</param>
@@ -531,8 +545,7 @@ namespace StackExchange.Redis
                 allowAdmin = allowAdmin,
                 defaultVersion = defaultVersion,
                 connectTimeout = connectTimeout,
-                User = User,
-                Password = Password,
+                CredentialsProvider = CredentialsProvider,
                 tieBreaker = tieBreaker,
                 writeBuffer = writeBuffer,
                 ssl = ssl,
@@ -720,7 +733,8 @@ namespace StackExchange.Redis
 
         private void Clear()
         {
-            ClientName = ServiceName = User = Password = tieBreaker = sslHost = configChannel = null;
+            ClientName = ServiceName = tieBreaker = sslHost = configChannel = null;
+            CredentialsProvider = null;
             keepAlive = syncTimeout = asyncTimeout = connectTimeout = writeBuffer = connectRetry = configCheckSeconds = DefaultDatabase = null;
             allowAdmin = abortOnConnectFail = highPrioritySocketThreads = resolveDns = ssl = null;
             SslProtocols = null;
