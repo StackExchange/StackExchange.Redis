@@ -1971,7 +1971,7 @@ namespace StackExchange.Redis
                     {
                         log?.WriteLine("Resetting failing connections to retry...");
                         ResetAllNonConnected();
-                        log?.WriteLine($"  Retrying; attempts left: {attemptsLeft}...");
+                        log?.WriteLine($"  Retrying - attempts left: {attemptsLeft}...");
                     }
                     //WTF("?: " + attempts);
                 } while (first && !healthy && attemptsLeft > 0);
