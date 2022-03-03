@@ -308,10 +308,7 @@ namespace StackExchange.Redis
                 Add(data, sb, "Queue-Awaiting-Write", "qu", bs.BacklogMessagesPending.ToString());
                 Add(data, sb, "Queue-Awaiting-Response", "qs", bs.Connection.MessagesSentAwaitingResponse.ToString());
                 Add(data, sb, "Active-Writer", "aw", bs.IsWriterActive.ToString());
-                if (bs.BacklogMessagesPending != 0)
-                {
-                    Add(data, sb, "Backlog-Writer", "bw", bs.BacklogStatus.ToString());
-                }
+                Add(data, sb, "Backlog-Writer", "bw", bs.BacklogStatus.ToString());
                 if (bs.Connection.ReadStatus != PhysicalConnection.ReadStatus.NA) Add(data, sb, "Read-State", "rs", bs.Connection.ReadStatus.ToString());
                 if (bs.Connection.WriteStatus != PhysicalConnection.WriteStatus.NA) Add(data, sb, "Write-State", "ws", bs.Connection.WriteStatus.ToString());
 

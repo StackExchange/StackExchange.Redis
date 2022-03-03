@@ -113,6 +113,7 @@ namespace StackExchange.Redis
         public void Dispose()
         {
             isDisposed = true;
+            _backlogAutoReset?.Dispose();
             using (var tmp = physical)
             {
                 physical = null;
@@ -836,6 +837,10 @@ namespace StackExchange.Redis
                 thread.Start(this);
 #endif
             }
+            else
+            {
+                _backlogAutoReset.Set();
+            }
         }
 
         /// <summary>
@@ -882,6 +887,7 @@ namespace StackExchange.Redis
             Starting,
             Started,
             CheckingForWork,
+            SpinningDown,
             CheckingForTimeout,
             CheckingForTimeoutComplete,
             RecordingTimeout,
@@ -904,12 +910,25 @@ namespace StackExchange.Redis
             _backlogStatus = BacklogStatus.Starting;
             try
             {
-                if (!_backlog.IsEmpty)
+                while (true)
                 {
-                    // TODO: vNext handoff this backlog to another primary ("can handle everything") connection
-                    // and remove any per-server commands. This means we need to track a bit of whether something
-                    // was server-endpoint-specific in PrepareToPushMessageToBridge (was the server ref null or not)
-                    await ProcessBridgeBacklogAsync(); // Needs handoff
+                    if (!_backlog.IsEmpty)
+                    {
+                        // TODO: vNext handoff this backlog to another primary ("can handle everything") connection
+                        // and remove any per-server commands. This means we need to track a bit of whether something
+                        // was server-endpoint-specific in PrepareToPushMessageToBridge (was the server ref null or not)
+                        await ProcessBridgeBacklogAsync().ForAwait();
+                    }
+
+                    // The cost of starting a new thread is high, and we can bounce in and out of the backlog a lot.
+                    // So instead of just exiting, keep this thread waiting for 5 seconds to see if we got another backlog item.
+                    _backlogStatus = BacklogStatus.SpinningDown;
+                    // Note this is happening *outside* the lock
+                    var gotMore = _backlogAutoReset.WaitOne(5000);
+                    if (!gotMore)
+                    {
+                        break;
+                    }
                 }
             }
             catch
@@ -938,6 +957,13 @@ namespace StackExchange.Redis
             }
         }
 
+        /// <summary>
+        /// Reset event for monitoring backlog additions mid-run.
+        /// This allows us to keep the thread around for a full flush and prevent "feathering the throttle" trying
+        /// to flush it. In short, we don't start and stop so many threads with a bit of linger.
+        /// </summary>
+        private readonly AutoResetEvent _backlogAutoReset = new AutoResetEvent(false);
+
         private async Task ProcessBridgeBacklogAsync()
         {
             // Importantly: don't assume we have a physical connection here
@@ -947,6 +973,7 @@ namespace StackExchange.Redis
 #else
             LockToken token = default;
 #endif
+            _backlogAutoReset.Reset();
             try
             {
                 _backlogStatus = BacklogStatus.Starting;
@@ -964,10 +991,10 @@ namespace StackExchange.Redis
 
                     // try and get the lock; if unsuccessful, retry
 #if NETCOREAPP
-                    gotLock = await _singleWriterMutex.WaitAsync(TimeoutMilliseconds).ConfigureAwait(false);
+                    gotLock = await _singleWriterMutex.WaitAsync(TimeoutMilliseconds).ForAwait();
                     if (gotLock) break; // got the lock; now go do something with it
 #else
-                    token = await _singleWriterMutex.TryWaitAsync().ConfigureAwait(false);
+                    token = await _singleWriterMutex.TryWaitAsync().ForAwait();
                     if (token.Success) break; // got the lock; now go do something with it
 #endif
                 }
@@ -985,7 +1012,10 @@ namespace StackExchange.Redis
                     {
                         // Note that we're actively taking it off the queue here, not peeking
                         // If there's nothing left in queue, we're done.
-                        if (!BacklogTryDequeue(out message)) break;
+                        if (!BacklogTryDequeue(out message))
+                        {
+                            break;
+                        }
                     }
 
                     try
@@ -996,7 +1026,7 @@ namespace StackExchange.Redis
                         if (result == WriteResult.Success)
                         {
                             _backlogStatus = BacklogStatus.Flushing;
-                            result = await physical.FlushAsync(false).ConfigureAwait(false);
+                            result = await physical.FlushAsync(false).ForAwait();
                         }
 
                         _backlogStatus = BacklogStatus.MarkingInactive;

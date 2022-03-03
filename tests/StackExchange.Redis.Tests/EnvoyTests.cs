@@ -38,6 +38,14 @@ namespace StackExchange.Redis.Tests
             {
                 Skip.Inconclusive("Envoy server not found.");
             }
+            catch (AggregateException)
+            {
+                Skip.Inconclusive("Envoy server not found.");
+            }
+            catch (RedisConnectionException) when (sb.ToString().Contains("It was not possible to connect to the redis server(s)"))
+            {
+                Skip.Inconclusive("Envoy server not found.");
+            }
         }
     }
 }

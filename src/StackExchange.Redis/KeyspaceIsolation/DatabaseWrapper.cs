@@ -876,6 +876,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.StringSet(ToInner(key), value, expiry, when, flags);
         }
 
+        public RedisValue StringSetAndGet(RedisKey key, RedisValue value, TimeSpan? expiry = null, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.StringSetAndGet(ToInner(key), value, expiry, when, flags);
+        }
+
         public bool StringSetBit(RedisKey key, long offset, bool bit, CommandFlags flags = CommandFlags.None)
         {
             return Inner.StringSetBit(ToInner(key), offset, bit, flags);

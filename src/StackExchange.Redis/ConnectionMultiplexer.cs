@@ -614,7 +614,7 @@ namespace StackExchange.Redis
         {
             if (tasks == null) throw new ArgumentNullException(nameof(tasks));
             if (tasks.Length == 0) return true;
-            var watch = Stopwatch.StartNew();
+            var watch = ValueStopwatch.StartNew();
             try
             {
                 // If no error, great
@@ -628,7 +628,7 @@ namespace StackExchange.Redis
                 var task = tasks[i];
                 if (!task.IsCanceled && !task.IsCompleted && !task.IsFaulted)
                 {
-                    var remaining = timeout - checked((int)watch.ElapsedMilliseconds);
+                    var remaining = timeout - watch.ElapsedMilliseconds;
                     if (remaining <= 0) return false;
                     try
                     {
@@ -687,12 +687,12 @@ namespace StackExchange.Redis
                 return true;
             }
 
-            var watch = Stopwatch.StartNew();
+            var watch = ValueStopwatch.StartNew();
             LogWithThreadPoolStats(log, $"Awaiting {tasks.Length} {name} task completion(s) for {timeoutMilliseconds}ms", out _);
             try
             {
                 // if none error, great
-                var remaining = timeoutMilliseconds - checked((int)watch.ElapsedMilliseconds);
+                var remaining = timeoutMilliseconds - watch.ElapsedMilliseconds;
                 if (remaining <= 0)
                 {
                     LogWithThreadPoolStats(log, "Timeout before awaiting for tasks", out _);
@@ -714,7 +714,7 @@ namespace StackExchange.Redis
                 var task = tasks[i];
                 if (!task.IsCanceled && !task.IsCompleted && !task.IsFaulted)
                 {
-                    var remaining = timeoutMilliseconds - checked((int)watch.ElapsedMilliseconds);
+                    var remaining = timeoutMilliseconds - watch.ElapsedMilliseconds;
                     if (remaining <= 0)
                     {
                         LogWithThreadPoolStats(log, "Timeout awaiting tasks", out _);
@@ -836,7 +836,8 @@ namespace StackExchange.Redis
             {
                 try
                 {
-                    log?.WriteLine($"Connecting (async) on {RuntimeInformation.FrameworkDescription}");
+                    var sw = ValueStopwatch.StartNew();
+                    logProxy?.WriteLine($"Connecting (async) on {RuntimeInformation.FrameworkDescription} (StackExchange.Redis: v{Utils.GetLibVersion()})");
 
                     muxer = CreateMultiplexer(configuration, logProxy, out connectHandler);
                     killMe = muxer;
@@ -856,6 +857,8 @@ namespace StackExchange.Redis
                     }
 
                     await configuration.AfterConnectAsync(muxer, logProxy != null ? logProxy.WriteLine : LogProxy.NullWriter).ForAwait();
+
+                    logProxy?.WriteLine($"Total connect time: {sw.ElapsedMilliseconds:n0} ms");
 
                     return muxer;
                 }
@@ -944,6 +947,16 @@ namespace StackExchange.Redis
                     }
                 }
             }
+            public void WriteLine(string prefix, string message)
+            {
+                if (_log != null) // note: double-checked
+                {
+                    lock (SyncLock)
+                    {
+                        _log?.WriteLine($"{DateTime.UtcNow:HH:mm:ss.ffff}: {prefix}{message}");
+                    }
+                }
+            }
             public void Dispose()
             {
                 if (_log != null) // note: double-checked
@@ -966,7 +979,7 @@ namespace StackExchange.Redis
                         lock (log.SyncLock) // Keep the outer and any inner errors contiguous
                         {
                             var ex = a.Exception;
-                            log?.WriteLine($"connection failed: {Format.ToString(a.EndPoint)} ({a.ConnectionType}, {a.FailureType}): {ex?.Message ?? "(unknown)"}");
+                            log?.WriteLine($"Connection failed: {Format.ToString(a.EndPoint)} ({a.ConnectionType}, {a.FailureType}): {ex?.Message ?? "(unknown)"}");
                             while ((ex = ex.InnerException) != null)
                             {
                                 log?.WriteLine($"> {ex.Message}");
@@ -1124,7 +1137,8 @@ namespace StackExchange.Redis
             {
                 try
                 {
-                    log?.WriteLine($"Connecting (sync) on {RuntimeInformation.FrameworkDescription}");
+                    var sw = ValueStopwatch.StartNew();
+                    logProxy?.WriteLine($"Connecting (sync) on {RuntimeInformation.FrameworkDescription} (StackExchange.Redis: v{Utils.GetLibVersion()})");
 
                     muxer = CreateMultiplexer(configuration, logProxy, out connectHandler);
                     killMe = muxer;
@@ -1156,6 +1170,8 @@ namespace StackExchange.Redis
                     }
 
                     configuration.AfterConnectAsync(muxer, logProxy != null ? logProxy.WriteLine : LogProxy.NullWriter).Wait(muxer.SyncConnectTimeout(true));
+
+                    logProxy?.WriteLine($"Total connect time: {sw.ElapsedMilliseconds:n0} ms");
 
                     return muxer;
                 }
@@ -1586,11 +1602,12 @@ namespace StackExchange.Redis
             if (log == null) return;
 
             var tmp = GetServerSnapshot();
+            log?.WriteLine("Endpoint Summary:");
             foreach (var server in tmp)
             {
-                log?.WriteLine(server.Summary());
-                log?.WriteLine(server.GetCounters().ToString());
-                log?.WriteLine(server.GetProfile());
+                log?.WriteLine(prefix: "  ", message: server.Summary());
+                log?.WriteLine(prefix: "  ", message: server.GetCounters().ToString());
+                log?.WriteLine(prefix: "  ", message: server.GetProfile());
             }
             log?.WriteLine($"Sync timeouts: {Interlocked.Read(ref syncTimeouts)}; async timeouts: {Interlocked.Read(ref asyncTimeouts)}; fire and forget: {Interlocked.Read(ref fireAndForgets)}; last heartbeat: {LastHeartbeatSecondsAgo}s ago");
         }
@@ -1676,7 +1693,7 @@ namespace StackExchange.Redis
 
                     ServerEndPoint[] servers = null;
                     bool encounteredConnectedClusterServer = false;
-                    Stopwatch watch = null;
+                    ValueStopwatch? watch = null;
 
                     int iterCount = first ? 2 : 1;
                     // This is fix for https://github.com/StackExchange/StackExchange.Redis/issues/300
@@ -1707,8 +1724,8 @@ namespace StackExchange.Redis
                             available[i] = server.OnConnectedAsync(log, sendTracerIfConnected: true, autoConfigureIfConnected: reconfigureAll);
                         }
 
-                        watch ??= Stopwatch.StartNew();
-                        var remaining = RawConfig.ConnectTimeout - checked((int)watch.ElapsedMilliseconds);
+                        watch ??= ValueStopwatch.StartNew();
+                        var remaining = RawConfig.ConnectTimeout - watch.Value.ElapsedMilliseconds;
                         log?.WriteLine($"Allowing {available.Length} endpoint(s) {TimeSpan.FromMilliseconds(remaining)} to respond...");
                         Trace("Allowing endpoints " + TimeSpan.FromMilliseconds(remaining) + " to respond...");
                         var allConnected = await WaitAllIgnoreErrorsAsync("available", available, remaining, log).ForAwait();
@@ -1726,10 +1743,11 @@ namespace StackExchange.Redis
                             }
                         }
 
+                        log?.WriteLine($"Endpoint summary:");
                         // Log current state after await
                         foreach (var server in servers)
                         {
-                            log?.WriteLine($"{Format.ToString(server.EndPoint)}: Endpoint is {server.ConnectionState}");
+                            log?.WriteLine($"  {Format.ToString(server.EndPoint)}: Endpoint is {server.ConnectionState}");
                         }
 
                         EndPointCollection updatedClusterEndpointCollection = null;
@@ -1744,21 +1762,21 @@ namespace StackExchange.Redis
                                 var aex = task.Exception;
                                 foreach (var ex in aex.InnerExceptions)
                                 {
-                                    log?.WriteLine($"{Format.ToString(server)}: Faulted: {ex.Message}");
+                                    log?.WriteLine($"  {Format.ToString(server)}: Faulted: {ex.Message}");
                                     failureMessage = ex.Message;
                                 }
                             }
                             else if (task.IsCanceled)
                             {
                                 server.SetUnselectable(UnselectableFlags.DidNotRespond);
-                                log?.WriteLine($"{Format.ToString(server)}: Connect task canceled");
+                                log?.WriteLine($"  {Format.ToString(server)}: Connect task canceled");
                             }
                             else if (task.IsCompleted)
                             {
                                 if (task.Result != "Disconnected")
                                 {
                                     server.ClearUnselectable(UnselectableFlags.DidNotRespond);
-                                    log?.WriteLine($"{Format.ToString(server)}: Returned with success as {server.ServerType} {(server.IsReplica ? "replica" : "primary")} (Source: {task.Result})");
+                                    log?.WriteLine($"  {Format.ToString(server)}: Returned with success as {server.ServerType} {(server.IsReplica ? "replica" : "primary")} (Source: {task.Result})");
 
                                     // Count the server types
                                     switch (server.ServerType)
@@ -1776,7 +1794,7 @@ namespace StackExchange.Redis
                                             break;
                                     }
 
-                                    if (clusterCount > 0 && !encounteredConnectedClusterServer)
+                                    if (clusterCount > 0 && !encounteredConnectedClusterServer && CommandMap.IsAvailable(RedisCommand.CLUSTER))
                                     {
                                         // We have encountered a connected server with a cluster type for the first time.
                                         // so we will get list of other nodes from this server using "CLUSTER NODES" command
@@ -1811,13 +1829,13 @@ namespace StackExchange.Redis
                                 else
                                 {
                                     server.SetUnselectable(UnselectableFlags.DidNotRespond);
-                                    log?.WriteLine($"{Format.ToString(server)}: Returned, but incorrectly");
+                                    log?.WriteLine($"  {Format.ToString(server)}: Returned, but incorrectly");
                                 }
                             }
                             else
                             {
                                 server.SetUnselectable(UnselectableFlags.DidNotRespond);
-                                log?.WriteLine($"{Format.ToString(server)}: Did not respond");
+                                log?.WriteLine($"  {Format.ToString(server)}: Did not respond");
                             }
                         }
 
@@ -1905,9 +1923,9 @@ namespace StackExchange.Redis
                     healthy = standaloneCount != 0 || clusterCount != 0 || sentinelCount != 0;
                     if (first && !healthy && attemptsLeft > 0)
                     {
-                        log?.WriteLine("resetting failing connections to retry...");
+                        log?.WriteLine("Resetting failing connections to retry...");
                         ResetAllNonConnected();
-                        log?.WriteLine($"retrying; attempts left: {attemptsLeft}...");
+                        log?.WriteLine($"  Retrying - attempts left: {attemptsLeft}...");
                     }
                     //WTF("?: " + attempts);
                 } while (first && !healthy && attemptsLeft > 0);
@@ -1989,6 +2007,8 @@ namespace StackExchange.Redis
 
         private static ServerEndPoint NominatePreferredMaster(LogProxy log, ServerEndPoint[] servers, bool useTieBreakers, List<ServerEndPoint> masters)
         {
+            log?.WriteLine("Election summary:");
+
             Dictionary<string, int> uniques = null;
             if (useTieBreakers)
             {
@@ -2001,11 +2021,11 @@ namespace StackExchange.Redis
 
                     if (string.IsNullOrWhiteSpace(serverResult))
                     {
-                        log?.WriteLine($"Election: {Format.ToString(server)} had no tiebreaker set");
+                        log?.WriteLine($"  Election: {Format.ToString(server)} had no tiebreaker set");
                     }
                     else
                     {
-                        log?.WriteLine($"Election: {Format.ToString(server)} nominates: {serverResult}");
+                        log?.WriteLine($"  Election: {Format.ToString(server)} nominates: {serverResult}");
                         if (!uniques.TryGetValue(serverResult, out int count)) count = 0;
                         uniques[serverResult] = count + 1;
                     }
@@ -2015,37 +2035,37 @@ namespace StackExchange.Redis
             switch (masters.Count)
             {
                 case 0:
-                    log?.WriteLine("Election: No masters detected");
+                    log?.WriteLine("  Election: No masters detected");
                     return null;
                 case 1:
-                    log?.WriteLine($"Election: Single master detected: {Format.ToString(masters[0].EndPoint)}");
+                    log?.WriteLine($"  Election: Single master detected: {Format.ToString(masters[0].EndPoint)}");
                     return masters[0];
                 default:
-                    log?.WriteLine("Election: Multiple masters detected...");
+                    log?.WriteLine("  Election: Multiple masters detected...");
                     if (useTieBreakers && uniques != null)
                     {
                         switch (uniques.Count)
                         {
                             case 0:
-                                log?.WriteLine("Election: No nominations by tie-breaker");
+                                log?.WriteLine("  Election: No nominations by tie-breaker");
                                 break;
                             case 1:
                                 string unanimous = uniques.Keys.Single();
-                                log?.WriteLine($"Election: Tie-breaker unanimous: {unanimous}");
+                                log?.WriteLine($"  Election: Tie-breaker unanimous: {unanimous}");
                                 var found = SelectServerByElection(servers, unanimous, log);
                                 if (found != null)
                                 {
-                                    log?.WriteLine($"Election: Elected: {Format.ToString(found.EndPoint)}");
+                                    log?.WriteLine($"  Election: Elected: {Format.ToString(found.EndPoint)}");
                                     return found;
                                 }
                                 break;
                             default:
-                                log?.WriteLine("Election is contested:");
+                                log?.WriteLine("  Election is contested:");
                                 ServerEndPoint highest = null;
                                 bool arbitrary = false;
                                 foreach (var pair in uniques.OrderByDescending(x => x.Value))
                                 {
-                                    log?.WriteLine($"Election: {pair.Key} has {pair.Value} votes");
+                                    log?.WriteLine($"    Election: {pair.Key} has {pair.Value} votes");
                                     if (highest == null)
                                     {
                                         highest = SelectServerByElection(servers, pair.Key, log);
@@ -2060,11 +2080,11 @@ namespace StackExchange.Redis
                                 {
                                     if (arbitrary)
                                     {
-                                        log?.WriteLine($"Election: Choosing master arbitrarily: {Format.ToString(highest.EndPoint)}");
+                                        log?.WriteLine($"  Election: Choosing master arbitrarily: {Format.ToString(highest.EndPoint)}");
                                     }
                                     else
                                     {
-                                        log?.WriteLine($"Election: Elected: {Format.ToString(highest.EndPoint)}");
+                                        log?.WriteLine($"  Election: Elected: {Format.ToString(highest.EndPoint)}");
                                     }
                                     return highest;
                                 }
@@ -2074,7 +2094,7 @@ namespace StackExchange.Redis
                     break;
             }
 
-            log?.WriteLine($"Election: Choosing master arbitrarily: {Format.ToString(masters[0].EndPoint)}");
+            log?.WriteLine($"  Election: Choosing master arbitrarily: {Format.ToString(masters[0].EndPoint)}");
             return masters[0];
         }
 
@@ -2367,7 +2387,7 @@ namespace StackExchange.Redis
             bool success = false;
             ConnectionMultiplexer connection = null;
 
-            var sw = Stopwatch.StartNew();
+            var sw = ValueStopwatch.StartNew();
             do
             {
                 // Get an initial endpoint - try twice

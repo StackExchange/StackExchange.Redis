@@ -2203,6 +2203,19 @@ namespace StackExchange.Redis
         bool StringSet(KeyValuePair<RedisKey, RedisValue>[] values, When when = When.Always, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Atomically sets key to value and returns the previous value (if any) stored at <paramref name="key"/>.
+        /// </summary>
+        /// <param name="key">The key of the string.</param>
+        /// <param name="value">The value to set.</param>
+        /// <param name="expiry">The expiry to set.</param>
+        /// <param name="when">Which condition to set the value under (defaults to <see cref="When.Always"/>).</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The previous value stored at <paramref name="key"/>, or nil when key did not exist.</returns>
+        /// <remarks>This method uses the SET command with the GET option introduced in Redis 6.2.0 instead of the deprecated GETSET command.</remarks>
+        /// <remarks>https://redis.io/commands/set</remarks>
+        RedisValue StringSetAndGet(RedisKey key, RedisValue value, TimeSpan? expiry = null, When when = When.Always, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Sets or clears the bit at offset in the string value stored at key.
         /// The bit is either set or cleared depending on value, which can be either 0 or 1.
         /// When key does not exist, a new string value is created.The string is grown to make sure it can hold a bit at offset.
