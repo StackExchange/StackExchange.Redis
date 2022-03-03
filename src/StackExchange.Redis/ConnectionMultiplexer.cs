@@ -145,65 +145,10 @@ namespace StackExchange.Redis
         /// <summary>
         /// Gets the client-name that will be used on all new connections.
         /// </summary>
-        public string ClientName => RawConfig.ClientName ?? GetDefaultClientName();
-
-        private static string defaultClientName;
-
-        /// <summary>
-        /// Gets the client name for a connection, with the library version appended.
-        /// </summary>
-        private static string GetDefaultClientName()
-        {
-            return defaultClientName ??= (TryGetAzureRoleInstanceIdNoThrow()
-                    ?? Environment.MachineName
-                    ?? Environment.GetEnvironmentVariable("ComputerName")
-                    ?? "StackExchange.Redis") + "(v" + Utils.GetLibVersion() + ")";
-        }
-
-        /// <summary>
-        /// Tries to get the RoleInstance Id if Microsoft.WindowsAzure.ServiceRuntime is loaded.
-        /// In case of any failure, swallows the exception and returns null.
-        /// </summary>
-        internal static string TryGetAzureRoleInstanceIdNoThrow()
-        {
-            string roleInstanceId;
-            // TODO: CoreCLR port pending https://github.com/dotnet/coreclr/issues/919
-            try
-            {
-                Assembly asm = null;
-                foreach (var asmb in AppDomain.CurrentDomain.GetAssemblies())
-                {
-                    if (asmb.GetName().Name.Equals("Microsoft.WindowsAzure.ServiceRuntime"))
-                    {
-                        asm = asmb;
-                        break;
-                    }
-                }
-                if (asm == null)
-                    return null;
-
-                var type = asm.GetType("Microsoft.WindowsAzure.ServiceRuntime.RoleEnvironment");
-
-                // https://msdn.microsoft.com/en-us/library/microsoft.windowsazure.serviceruntime.roleenvironment.isavailable.aspx
-                if (!(bool)type.GetProperty("IsAvailable").GetValue(null, null))
-                    return null;
-
-                var currentRoleInstanceProp = type.GetProperty("CurrentRoleInstance");
-                var currentRoleInstanceId = currentRoleInstanceProp.GetValue(null, null);
-                roleInstanceId = currentRoleInstanceId.GetType().GetProperty("Id").GetValue(currentRoleInstanceId, null).ToString();
-
-                if (string.IsNullOrEmpty(roleInstanceId))
-                {
-                    roleInstanceId = null;
-                }
-            }
-            catch (Exception)
-            {
-                //silently ignores the exception
-                roleInstanceId = null;
-            }
-            return roleInstanceId;
-        }
+        /// <remarks>
+        /// We null coalesce here instead of in Options so that we don't populate it everywhere (e.g. .ToString()), given it's a default.
+        /// </remarks>
+        public string ClientName => RawConfig.ClientName ?? RawConfig.Defaults.ClientName;
 
         /// <summary>
         /// Gets the configuration of the connection.
@@ -911,7 +856,7 @@ namespace StackExchange.Redis
                         muxer.InitializeSentinel(logProxy);
                     }
 
-                    await Maintenance.ServerMaintenanceEvent.AddListenersAsync(muxer, logProxy).ForAwait();
+                    await configuration.AfterConnectAsync(muxer, logProxy != null ? logProxy.WriteLine : LogProxy.NullWriter).ForAwait();
 
                     logProxy?.WriteLine($"Total connect time: {sw.ElapsedMilliseconds:n0} ms");
 
@@ -978,6 +923,7 @@ namespace StackExchange.Redis
                 return s ?? base.ToString();
             }
             private TextWriter _log;
+            internal static Action<string> NullWriter = _ => {};
 
             public object SyncLock => this;
             private LogProxy(TextWriter log) => _log = log;
@@ -1223,7 +1169,7 @@ namespace StackExchange.Redis
                         muxer.InitializeSentinel(logProxy);
                     }
 
-                    Maintenance.ServerMaintenanceEvent.AddListenersAsync(muxer, logProxy).Wait(muxer.SyncConnectTimeout(true));
+                    configuration.AfterConnectAsync(muxer, logProxy != null ? logProxy.WriteLine : LogProxy.NullWriter).Wait(muxer.SyncConnectTimeout(true));
 
                     logProxy?.WriteLine($"Total connect time: {sw.ElapsedMilliseconds:n0} ms");
 
@@ -1678,6 +1624,14 @@ namespace StackExchange.Redis
                 }
             }
         }
+
+        /// <summary>
+        /// Triggers a reconfigure of this multiplexer.
+        /// This re-assessment of all server endpoints to get the current topology and adjust, the same as if we had first connected.
+        /// TODO: Naming?
+        /// </summary>
+        public Task<bool> ReconfigureAsync(string reason) =>
+            ReconfigureAsync(first: false, reconfigureAll: false, log: null, blame: null, cause: reason);
 
         internal async Task<bool> ReconfigureAsync(bool first, bool reconfigureAll, LogProxy log, EndPoint blame, string cause, bool publishReconfigure = false, CommandFlags publishReconfigureFlags = CommandFlags.None)
         {

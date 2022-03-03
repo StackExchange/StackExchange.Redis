@@ -28,8 +28,8 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void TestExponentialRetryArgs()
         {
-            new ExponentialRetry(5000);
-            new ExponentialRetry(5000, 10000);
+            _ = new ExponentialRetry(5000);
+            _ = new ExponentialRetry(5000, 10000);
 
             var ex = Assert.Throws<ArgumentOutOfRangeException>(() => new ExponentialRetry(-1));
             Assert.Equal("deltaBackOffMilliseconds", ex.ParamName);

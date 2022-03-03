@@ -122,7 +122,7 @@ namespace StackExchange.Redis
             else if (!multiplexer.RawConfig.AbortOnConnectFail && attempts > multiplexer.RawConfig.ConnectRetry && completions == 0)
             {
                 // Attempted use after a full initial retry connect count # of failures
-                // This can happen in Azure often, where user disables abort and has the wrong config
+                // This can happen in cloud environments often, where user disables abort and has the wrong config
                 initialMessage = $"Connection to Redis never succeeded (attempts: {attempts} - check your config), unable to service operation: ";
             }
             else

@@ -80,8 +80,6 @@ namespace StackExchange.Redis.Maintenance
                             case var _ when key.SequenceEqual("NonSSLPort".AsSpan()) && Format.TryParseInt32(value, out var nonsslport):
                                 NonSslPort = nonsslport;
                                 break;
-                            default:
-                                break;
                         }
 #else
                         switch (key)
@@ -105,8 +103,6 @@ namespace StackExchange.Redis.Maintenance
                             case var _ when key.SequenceEqual("NonSSLPort".AsSpan()) && Format.TryParseInt32(value.ToString(), out var nonsslport):
                                 NonSslPort = nonsslport;
                                 break;
-                            default:
-                                break;
                         }
 #endif
                     }
@@ -118,35 +114,40 @@ namespace StackExchange.Redis.Maintenance
             }
         }
 
-        internal async static Task AddListenerAsync(ConnectionMultiplexer multiplexer, ConnectionMultiplexer.LogProxy logProxy)
+        internal async static Task AddListenerAsync(ConnectionMultiplexer multiplexer, Action<string> log = null)
         {
+            if (!multiplexer.CommandMap.IsAvailable(RedisCommand.SUBSCRIBE))
+            {
+                return;
+            }
+
             try
             {
                 var sub = multiplexer.GetSubscriber();
                 if (sub == null)
                 {
-                    logProxy?.WriteLine("Failed to GetSubscriber for AzureRedisEvents");
+                    log?.Invoke("Failed to GetSubscriber for AzureRedisEvents");
                     return;
                 }
 
                 await sub.SubscribeAsync(PubSubChannelName, async (_, message) =>
                 {
                     var newMessage = new AzureMaintenanceEvent(message);
-                    multiplexer.InvokeServerMaintenanceEvent(newMessage);
+                    newMessage.NotifyMultiplexer(multiplexer);
 
                     switch (newMessage.NotificationType)
                     {
                         case AzureNotificationType.NodeMaintenanceEnded:
                         case AzureNotificationType.NodeMaintenanceFailoverComplete:
                         case AzureNotificationType.NodeMaintenanceScaleComplete:
-                            await multiplexer.ReconfigureAsync(first: false, reconfigureAll: true, log: logProxy, blame: null, cause: $"Azure Event: {newMessage.NotificationType}").ForAwait();
+                            await multiplexer.ReconfigureAsync($"Azure Event: {newMessage.NotificationType}").ForAwait();
                             break;
                     }
                 }).ForAwait();
             }
             catch (Exception e)
             {
-                logProxy?.WriteLine($"Encountered exception: {e}");
+                log?.Invoke($"Encountered exception: {e}");
             }
         }
 
