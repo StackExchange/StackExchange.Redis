@@ -7,6 +7,7 @@
 - Adds `GET` on `SET` command support (present in Redis 6.2+ - #2003 via martinekvili)
 - Improves concurrent load performance when backlogs are utilized (#2008 via NickCraver)
 - Improves cluster connections when `CLUSTER` command is disabled (#2014 via tylerohlsen)
+- Improves connection logging and adds overall timing to it (#2019 via NickCraver)
 
 ## 2.5.27 (prerelease)
 
