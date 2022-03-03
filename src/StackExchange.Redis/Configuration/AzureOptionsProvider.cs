@@ -25,7 +25,7 @@ namespace StackExchange.Redis.Configuration
         /// List of domains known to be Azure Redis, so we can light up some helpful functionality
         /// for minimizing downtime during maintenance events and such.
         /// </summary>
-        private static readonly List<string> azureRedisDomains = new()
+        private static readonly string[] azureRedisDomains = new[]
         {
             ".redis.cache.windows.net",
             ".redis.cache.chinacloudapi.cn",

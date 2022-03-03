@@ -18,10 +18,18 @@ namespace StackExchange.Redis.Configuration
     /// </remarks>
     public class DefaultOptionsProvider
     {
+        /// <summary>
+        /// The known providers to match against (built into the lbirary) - the default set.
+        /// If none of these match, <see cref="DefaultOptionsProvider"/> is used.
+        /// </summary>
         private static readonly List<DefaultOptionsProvider> BuiltInProviders = new()
         {
             new AzureOptionsProvider()
         };
+
+        /// <summary>
+        /// The current list of providers to match (potentially modified from defaults via <see cref="AddProvider(DefaultOptionsProvider)"/>.
+        /// </summary>
         private static LinkedList<DefaultOptionsProvider> KnownProviders { get; } = new (BuiltInProviders);
 
         /// <summary>
