@@ -669,7 +669,7 @@ namespace StackExchange.Redis
         {
             if (tasks == null) throw new ArgumentNullException(nameof(tasks));
             if (tasks.Length == 0) return true;
-            var watch = Stopwatch.StartNew();
+            var watch = ValueStopwatch.StartNew();
             try
             {
                 // If no error, great
@@ -683,7 +683,7 @@ namespace StackExchange.Redis
                 var task = tasks[i];
                 if (!task.IsCanceled && !task.IsCompleted && !task.IsFaulted)
                 {
-                    var remaining = timeout - checked((int)watch.ElapsedMilliseconds);
+                    var remaining = timeout - watch.ElapsedMilliseconds;
                     if (remaining <= 0) return false;
                     try
                     {
@@ -742,12 +742,12 @@ namespace StackExchange.Redis
                 return true;
             }
 
-            var watch = Stopwatch.StartNew();
+            var watch = ValueStopwatch.StartNew();
             LogWithThreadPoolStats(log, $"Awaiting {tasks.Length} {name} task completion(s) for {timeoutMilliseconds}ms", out _);
             try
             {
                 // if none error, great
-                var remaining = timeoutMilliseconds - checked((int)watch.ElapsedMilliseconds);
+                var remaining = timeoutMilliseconds - watch.ElapsedMilliseconds;
                 if (remaining <= 0)
                 {
                     LogWithThreadPoolStats(log, "Timeout before awaiting for tasks", out _);
@@ -769,7 +769,7 @@ namespace StackExchange.Redis
                 var task = tasks[i];
                 if (!task.IsCanceled && !task.IsCompleted && !task.IsFaulted)
                 {
-                    var remaining = timeoutMilliseconds - checked((int)watch.ElapsedMilliseconds);
+                    var remaining = timeoutMilliseconds - watch.ElapsedMilliseconds;
                     if (remaining <= 0)
                     {
                         LogWithThreadPoolStats(log, "Timeout awaiting tasks", out _);
@@ -891,7 +891,8 @@ namespace StackExchange.Redis
             {
                 try
                 {
-                    log?.WriteLine($"Connecting (async) on {RuntimeInformation.FrameworkDescription} (StackExchange.Redis: v{Utils.GetLibVersion()})");
+                    var sw = ValueStopwatch.StartNew();
+                    logProxy?.WriteLine($"Connecting (async) on {RuntimeInformation.FrameworkDescription} (StackExchange.Redis: v{Utils.GetLibVersion()})");
 
                     muxer = CreateMultiplexer(configuration, logProxy, out connectHandler);
                     killMe = muxer;
@@ -911,6 +912,8 @@ namespace StackExchange.Redis
                     }
 
                     await Maintenance.ServerMaintenanceEvent.AddListenersAsync(muxer, logProxy).ForAwait();
+
+                    logProxy?.WriteLine($"Total connect time: {sw.ElapsedMilliseconds:n0} ms");
 
                     return muxer;
                 }
@@ -1188,7 +1191,8 @@ namespace StackExchange.Redis
             {
                 try
                 {
-                    log?.WriteLine($"Connecting (sync) on {RuntimeInformation.FrameworkDescription} (StackExchange.Redis: v{Utils.GetLibVersion()})");
+                    var sw = ValueStopwatch.StartNew();
+                    logProxy?.WriteLine($"Connecting (sync) on {RuntimeInformation.FrameworkDescription} (StackExchange.Redis: v{Utils.GetLibVersion()})");
 
                     muxer = CreateMultiplexer(configuration, logProxy, out connectHandler);
                     killMe = muxer;
@@ -1220,6 +1224,8 @@ namespace StackExchange.Redis
                     }
 
                     Maintenance.ServerMaintenanceEvent.AddListenersAsync(muxer, logProxy).Wait(muxer.SyncConnectTimeout(true));
+
+                    logProxy?.WriteLine($"Total connect time: {sw.ElapsedMilliseconds:n0} ms");
 
                     return muxer;
                 }
@@ -1733,7 +1739,7 @@ namespace StackExchange.Redis
 
                     ServerEndPoint[] servers = null;
                     bool encounteredConnectedClusterServer = false;
-                    Stopwatch watch = null;
+                    ValueStopwatch? watch = null;
 
                     int iterCount = first ? 2 : 1;
                     // This is fix for https://github.com/StackExchange/StackExchange.Redis/issues/300
@@ -1764,8 +1770,8 @@ namespace StackExchange.Redis
                             available[i] = server.OnConnectedAsync(log, sendTracerIfConnected: true, autoConfigureIfConnected: reconfigureAll);
                         }
 
-                        watch ??= Stopwatch.StartNew();
-                        var remaining = RawConfig.ConnectTimeout - checked((int)watch.ElapsedMilliseconds);
+                        watch ??= ValueStopwatch.StartNew();
+                        var remaining = RawConfig.ConnectTimeout - watch.Value.ElapsedMilliseconds;
                         log?.WriteLine($"Allowing {available.Length} endpoint(s) {TimeSpan.FromMilliseconds(remaining)} to respond...");
                         Trace("Allowing endpoints " + TimeSpan.FromMilliseconds(remaining) + " to respond...");
                         var allConnected = await WaitAllIgnoreErrorsAsync("available", available, remaining, log).ForAwait();
@@ -2427,7 +2433,7 @@ namespace StackExchange.Redis
             bool success = false;
             ConnectionMultiplexer connection = null;
 
-            var sw = Stopwatch.StartNew();
+            var sw = ValueStopwatch.StartNew();
             do
             {
                 // Get an initial endpoint - try twice
