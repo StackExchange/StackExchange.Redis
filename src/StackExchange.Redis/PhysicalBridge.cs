@@ -1372,7 +1372,7 @@ namespace StackExchange.Redis
                 LastCommand = cmd;
                 bool isMasterOnly = message.IsMasterOnly();
 
-                if (isMasterOnly && ServerEndPoint.IsReplica && (ServerEndPoint.ReplicaReadOnly || !ServerEndPoint.AllowReplicaWrites))
+                if (isMasterOnly && !ServerEndPoint.SupportsPrimaryWrites)
                 {
                     throw ExceptionFactory.MasterOnly(Multiplexer.IncludeDetailInExceptions, message.Command, message, ServerEndPoint);
                 }
@@ -1447,7 +1447,10 @@ namespace StackExchange.Redis
                     case RedisCommand.UNKNOWN:
                     case RedisCommand.DISCARD:
                     case RedisCommand.EXEC:
-                        connection.SetUnknownDatabase();
+                        if (ServerEndPoint.SupportsDatabases)
+                        {
+                            connection.SetUnknownDatabase();
+                        }
                         break;
                 }
                 return WriteResult.Success;
