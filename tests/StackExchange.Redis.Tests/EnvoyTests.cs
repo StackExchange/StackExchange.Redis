@@ -34,7 +34,7 @@ namespace StackExchange.Redis.Tests
                     Assert.Equal(expectedVal, value);
                 }
             }
-            catch (TimeoutException) when (sb.ToString().Contains("Returned, but incorrectly"))
+            catch (TimeoutException ex) when (ex.Message == "Connect timeout" || sb.ToString().Contains("Returned, but incorrectly"))
             {
                 Skip.Inconclusive("Envoy server not found.");
             }

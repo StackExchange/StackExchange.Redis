@@ -10,7 +10,6 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using StackExchange.Redis.Configuration;
-using static StackExchange.Redis.ConnectionMultiplexer;
 
 namespace StackExchange.Redis
 {

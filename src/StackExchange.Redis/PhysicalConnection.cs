@@ -17,7 +17,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Pipelines.Sockets.Unofficial;
 using Pipelines.Sockets.Unofficial.Arenas;
-using static StackExchange.Redis.ConnectionMultiplexer;
 
 namespace StackExchange.Redis
 {
@@ -211,7 +210,7 @@ namespace StackExchange.Redis
         {
             NotSpecified,
             ReadOnly,
-            ReadWrite
+            ReadWrite,
         }
 
         private readonly WeakReference _bridge;
@@ -242,7 +241,6 @@ namespace StackExchange.Redis
                 try { ioPipe.Input?.Complete(); } catch { }
                 try { ioPipe.Output?.CancelPendingFlush(); } catch { }
                 try { ioPipe.Output?.Complete(); } catch { }
-
                 try { using (ioPipe as IDisposable) { } } catch { }
             }
 
@@ -283,7 +281,10 @@ namespace StackExchange.Redis
             {
                 _writeStatus = WriteStatus.Flushing;
                 var flush = tmp.FlushAsync();
-                if (!flush.IsCompletedSuccessfully) return AwaitedFlush(flush);
+                if (!flush.IsCompletedSuccessfully)
+                {
+                    return AwaitedFlush(flush);
+                }
                 _writeStatus = WriteStatus.Flushed;
                 UpdateLastWriteTime();
             }
@@ -577,7 +578,8 @@ namespace StackExchange.Redis
             if (!serverEndpoint.SupportsDatabases)
             {
                 if (targetDatabase != 0)
-                { // should never see this, since the API doesn't allow it; thus not too worried about ExceptionFactory
+                {
+                    // We should never see this, since the API doesn't allow it; thus not too worried about ExceptionFactory
                     throw new RedisCommandException("Multiple databases are not supported on this server; cannot switch to database: " + targetDatabase);
                 }
                 return null;
@@ -585,7 +587,7 @@ namespace StackExchange.Redis
 
             if (message.Command == RedisCommand.SELECT)
             {
-                // this could come from an EVAL/EVALSHA inside a transaction, for example; we'll accept it
+                // This could come from an EVAL/EVALSHA inside a transaction, for example; we'll accept it
                 BridgeCouldBeNull?.Trace("Switching database: " + targetDatabase);
                 currentDatabase = targetDatabase;
                 return null;
@@ -593,11 +595,12 @@ namespace StackExchange.Redis
 
             if (TransactionActive)
             {
-                // should never see this, since the API doesn't allow it; thus not too worried about ExceptionFactory
+                // Should never see this, since the API doesn't allow it, thus not too worried about ExceptionFactory
                 throw new RedisCommandException("Multiple databases inside a transaction are not currently supported: " + targetDatabase);
             }
 
-            if (available != 0 && targetDatabase >= available) // we positively know it is out of range
+            // We positively know it is out of range
+            if (available != 0 && targetDatabase >= available)
             {
                 throw ExceptionFactory.DatabaseOutfRange(IncludeDetailInExceptions, targetDatabase, message, serverEndpoint);
             }
@@ -609,8 +612,8 @@ namespace StackExchange.Redis
         internal static Message GetSelectDatabaseCommand(int targetDatabase)
         {
             return targetDatabase < DefaultRedisDatabaseCount
-                    ? ReusableChangeDatabaseCommands[targetDatabase] // 0-15 by default
-                        : Message.Create(targetDatabase, CommandFlags.FireAndForget, RedisCommand.SELECT);
+                   ? ReusableChangeDatabaseCommands[targetDatabase] // 0-15 by default
+                   : Message.Create(targetDatabase, CommandFlags.FireAndForget, RedisCommand.SELECT);
         }
 
         internal int GetSentAwaitingResponseCount()

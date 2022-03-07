@@ -8,7 +8,6 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
-using static StackExchange.Redis.ConnectionMultiplexer;
 using static StackExchange.Redis.PhysicalBridge;
 
 namespace StackExchange.Redis
@@ -19,7 +18,7 @@ namespace StackExchange.Redis
         None = 0,
         RedundantMaster = 1,
         DidNotRespond = 2,
-        ServerType = 4
+        ServerType = 4,
     }
 
     internal sealed partial class ServerEndPoint : IDisposable
@@ -71,11 +70,10 @@ namespace StackExchange.Redis
             }
         }
 
+        public EndPoint EndPoint { get; }
+
         public ClusterConfiguration ClusterConfiguration { get; private set; }
 
-        public int Databases { get { return databases; } set { SetConfig(ref databases, value); } }
-
-        public EndPoint EndPoint { get; }
         /// <summary>
         /// Whether this endpoint supports databases at all.
         /// Note that some servers are cluster but present as standalone (e.g. Redis Enterprise), so we respect
@@ -87,13 +85,17 @@ namespace StackExchange.Redis
         public bool SupportsDatabases =>
             supportsDatabases ??= (serverType == ServerType.Standalone && Multiplexer.RawConfig.CommandMap.IsAvailable(RedisCommand.SELECT));
 
+        public int Databases
+        {
+            get => databases;
+            set => SetConfig(ref databases, value);
+        }
 
+        public bool IsConnecting => interactive?.IsConnecting == true;
         public bool IsConnected => interactive?.IsConnected == true;
         public bool IsSubscriberConnected => subscription?.IsConnected == true;
 
         public bool SupportsSubscriptions => Multiplexer.CommandMap.IsAvailable(RedisCommand.SUBSCRIBE);
-
-        public bool IsConnecting => interactive?.IsConnecting == true;
         public bool SupportsPrimaryWrites => supportsPrimaryWrites ??= (!IsReplica || !ReplicaReadOnly || AllowReplicaWrites);
 
         private readonly List<TaskCompletionSource<string>> _pendingConnectionMonitors = new List<TaskCompletionSource<string>>();
@@ -157,20 +159,7 @@ namespace StackExchange.Redis
 
         internal State ConnectionState => interactive?.ConnectionState ?? State.Disconnected;
 
-        public bool IsReplica { get { return isReplica; } set { SetConfig(ref isReplica, value); } }
-
-        public long OperationCount
-        {
-            get
-            {
-                long total = 0;
-                var tmp = interactive;
-                if (tmp != null) total += tmp.OperationCount;
-                tmp = subscription;
-                if (tmp != null) total += tmp.OperationCount;
-                return total;
-            }
-        }
+        public long OperationCount => interactive?.OperationCount ?? 0 + subscription?.OperationCount ?? 0;
 
         public bool RequiresReadMode => serverType == ServerType.Cluster && IsReplica;
 
@@ -178,6 +167,12 @@ namespace StackExchange.Redis
         {
             get => serverType;
             set => SetConfig(ref serverType, value);
+        }
+
+        public bool IsReplica
+        {
+            get => isReplica;
+            set => SetConfig(ref isReplica, value);
         }
 
         public bool ReplicaReadOnly
@@ -209,19 +204,6 @@ namespace StackExchange.Redis
         }
 
         internal ConnectionMultiplexer Multiplexer { get; }
-
-        public void ClearUnselectable(UnselectableFlags flags)
-        {
-            var oldFlags = unselectableReasons;
-            if (oldFlags != 0)
-            {
-                unselectableReasons &= ~flags;
-                if (unselectableReasons != oldFlags)
-                {
-                    Multiplexer.Trace(unselectableReasons == 0 ? "Now usable" : ("Now unusable: " + flags), ToString());
-                }
-            }
-        }
 
         public void Dispose()
         {
@@ -336,6 +318,19 @@ namespace StackExchange.Redis
             }
         }
 
+        public void ClearUnselectable(UnselectableFlags flags)
+        {
+            var oldFlags = unselectableReasons;
+            if (oldFlags != 0)
+            {
+                unselectableReasons &= ~flags;
+                if (unselectableReasons != oldFlags)
+                {
+                    Multiplexer.Trace(unselectableReasons == 0 ? "Now usable" : ("Now unusable: " + flags), ToString());
+                }
+            }
+        }
+
         public override string ToString() => Format.ToString(EndPoint);
 
         [Obsolete("prefer async")]
@@ -414,10 +409,11 @@ namespace StackExchange.Redis
             }
             else if (commandMap.IsAvailable(RedisCommand.SET))
             {
-                // this is a nasty way to find if we are a replica, and it will only work on up-level servers, but...
+                // This is a nasty way to find if we are a replica, and it will only work on up-level servers, but...
                 RedisKey key = Multiplexer.UniqueId;
-                // the actual value here doesn't matter (we detect the error code if it fails); the value here is to at least give some
-                // indication to anyone watching via "monitor", but we could send two guids (key/value) and it would work the same
+                // The actual value here doesn't matter (we detect the error code if it fails).
+                // The value here is to at least give some indication to anyone watching via "monitor",
+                // but we could send two GUIDs (key/value) and it would work the same.
                 msg = Message.Create(0, flags, RedisCommand.SET, key, RedisLiterals.replica_read_only, RedisLiterals.PX, 1, RedisLiterals.NX);
                 msg.SetInternalCall();
                 await WriteDirectOrQueueFireAndForgetAsync(connection, msg, autoConfigProcessor).ForAwait();
@@ -442,7 +438,10 @@ namespace StackExchange.Redis
         }
 
         private int _nextReplicaOffset;
-        internal uint NextReplicaOffset() // used to round-robin between multiple replicas
+        /// <summary>
+        /// Used to round-robin between multiple replicas
+        /// </summary>
+        internal uint NextReplicaOffset()
             => (uint)Interlocked.Increment(ref _nextReplicaOffset);
 
         internal Task Close(ConnectionType connectionType)
@@ -476,15 +475,18 @@ namespace StackExchange.Redis
         private string runId;
         internal string RunId
         {
-            get { return runId; }
+            get => runId;
             set
             {
-                if (value != runId) // we only care about changes
+                // We only care about changes
+                if (value != runId)
                 {
-                    // if we had an old run-id, and it has changed, then the
-                    // server has been restarted; which means the script cache
-                    // is toast
-                    if (runId != null) FlushScriptCache();
+                    // If we had an old run-id, and it has changed, then the server has been restarted
+                    // ...which means the script cache is toast
+                    if (runId != null)
+                    {
+                        FlushScriptCache();
+                    }
                     runId = value;
                 }
             }
@@ -527,7 +529,7 @@ namespace StackExchange.Redis
             var found = (byte[])knownScripts[script];
             if (found == null && command == RedisCommand.EVALSHA)
             {
-                // the script provided is a hex sha; store and re-use the ascii for that
+                // The script provided is a hex SHA - store and re-use the ASCii for that
                 found = Encoding.ASCII.GetBytes(script);
                 lock (knownScripts)
                 {
@@ -541,10 +543,10 @@ namespace StackExchange.Redis
 
         internal Message GetTracerMessage(bool assertIdentity)
         {
-            // different configurations block certain commands, as can ad-hoc local configurations, so
-            // we'll do the best with what we have available.
-            // note that the muxer-ctor asserts that one of ECHO, PING, TIME of GET is available
-            // see also: TracerProcessor
+            // Different configurations block certain commands, as can ad-hoc local configurations, so
+            //   we'll do the best with what we have available.
+            // Note: muxer-ctor asserts that one of ECHO, PING, TIME of GET is available
+            // See also: TracerProcessor
             var map = Multiplexer.CommandMap;
             Message msg;
             const CommandFlags flags = CommandFlags.NoRedirect | CommandFlags.FireAndForget;
@@ -562,7 +564,7 @@ namespace StackExchange.Redis
             }
             else if (!assertIdentity && map.IsAvailable(RedisCommand.ECHO))
             {
-                // we'll use echo as a PING substitute if it is all we have (in preference to EXISTS)
+                // We'll use echo as a PING substitute if it is all we have (in preference to EXISTS)
                 msg = Message.Create(-1, flags, RedisCommand.ECHO, (RedisValue)Multiplexer.UniqueId);
             }
             else
@@ -578,7 +580,7 @@ namespace StackExchange.Redis
 
         internal bool IsSelectable(RedisCommand command, bool allowDisconnected = false)
         {
-            // Until we've connected at least once, we're going too have a DidNotRespond unselectable reason present
+            // Until we've connected at least once, we're going to have a DidNotRespond unselectable reason present
             var bridge = unselectableReasons == 0 || (allowDisconnected && unselectableReasons == UnselectableFlags.DidNotRespond)
                 ? GetBridge(command, false)
                 : null;
@@ -612,6 +614,18 @@ namespace StackExchange.Redis
 
         internal Task OnEstablishingAsync(PhysicalConnection connection, LogProxy log)
         {
+            static async Task OnEstablishingAsyncAwaited(PhysicalConnection connection, Task handshake)
+            {
+                try
+                {
+                    await handshake.ForAwait();
+                }
+                catch (Exception ex)
+                {
+                    connection.RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
+                }
+            }
+
             try
             {
                 if (connection == null) return Task.CompletedTask;
@@ -625,18 +639,6 @@ namespace StackExchange.Redis
                 connection.RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
             }
             return Task.CompletedTask;
-        }
-
-        private static async Task OnEstablishingAsyncAwaited(PhysicalConnection connection, Task handshake)
-        {
-            try
-            {
-                await handshake.ForAwait();
-            }
-            catch (Exception ex)
-            {
-                connection.RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
-            }
         }
 
         internal void OnFullyEstablished(PhysicalConnection connection, string source)
@@ -691,9 +693,9 @@ namespace StackExchange.Redis
         {
             lastInfoReplicationCheckTicks = Environment.TickCount;
             ResetExponentiallyReplicationCheck();
-            PhysicalBridge bridge;
+
             if (version >= RedisFeatures.v2_8_0 && Multiplexer.CommandMap.IsAvailable(RedisCommand.INFO)
-                && (bridge = GetBridge(ConnectionType.Interactive, false)) != null)
+                && GetBridge(ConnectionType.Interactive, false) is PhysicalBridge bridge)
             {
                 var msg = Message.Create(-1, CommandFlags.FireAndForget | CommandFlags.NoRedirect, RedisCommand.INFO, RedisLiterals.replication);
                 msg.SetInternalCall();
@@ -711,10 +713,12 @@ namespace StackExchange.Redis
         [ThreadStatic]
         private static Random r;
 
-        // Forces frequent replication check starting from 1 second up to max ConfigCheckSeconds with an exponential increment
+        /// <summary>
+        /// Forces frequent replication check starting from 1 second up to max ConfigCheckSeconds with an exponential increment.
+        /// </summary>
         internal void ForceExponentialBackoffReplicationCheck()
         {
-            ConfigCheckSeconds = 1;  // start checking info replication more frequently
+            ConfigCheckSeconds = 1;
         }
 
         private void ResetExponentiallyReplicationCheck()
@@ -732,6 +736,7 @@ namespace StackExchange.Redis
         internal void OnHeartbeat()
         {
             // don't overlap operations on an endpoint
+            // Don't overlap heartbeat operations on an endpoint
             if (Interlocked.CompareExchange(ref _heartBeatActive, 1, 0) == 0)
             {
                 try
@@ -892,7 +897,7 @@ namespace StackExchange.Redis
                 return;
             }
             Message msg;
-            // note that we need "" (not null) for password in the case of 'nopass' logins
+            // Note that we need "" (not null) for password in the case of 'nopass' logins
             string user = Multiplexer.RawConfig.User, password = Multiplexer.RawConfig.Password ?? "";
             if (!string.IsNullOrWhiteSpace(user))
             {

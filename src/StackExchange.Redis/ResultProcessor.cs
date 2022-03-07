@@ -648,8 +648,8 @@ namespace StackExchange.Redis
 
         internal sealed class AutoConfigureProcessor : ResultProcessor<bool>
         {
-            private ConnectionMultiplexer.LogProxy Log { get; }
-            public AutoConfigureProcessor(ConnectionMultiplexer.LogProxy log = null) => Log = log;
+            private LogProxy Log { get; }
+            public AutoConfigureProcessor(LogProxy log = null) => Log = log;
 
             public override bool SetResult(PhysicalConnection connection, Message message, in RawResult result)
             {

@@ -39,7 +39,7 @@
         };
 
         /// <summary>
-        /// Whether a server type supports <see cref="ServerEndPoint.AutoConfigureAsync(PhysicalConnection, ConnectionMultiplexer.LogProxy)"/>.
+        /// Whether a server type supports <see cref="ServerEndPoint.AutoConfigureAsync(PhysicalConnection, LogProxy)"/>.
         /// </summary>
         public static bool SupportsAutoConfigure(this ServerType type) => type switch
         {
