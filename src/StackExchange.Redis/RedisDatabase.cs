@@ -517,8 +517,8 @@ namespace StackExchange.Redis
         {
             var features = GetFeatures(key, flags, out ServerEndPoint server);
             var cmd = Message.Create(Database, flags, RedisCommand.PFCOUNT, key);
-            // technically a write / master-only command until 2.8.18
-            if (server != null && !features.HyperLogLogCountReplicaSafe) cmd.SetMasterOnly();
+            // technically a write / primary-only command until 2.8.18
+            if (server != null && !features.HyperLogLogCountReplicaSafe) cmd.SetPrimaryOnly();
             return ExecuteSync(cmd, ResultProcessor.Int64, server);
         }
 
@@ -530,8 +530,8 @@ namespace StackExchange.Redis
             if (keys.Length != 0)
             {
                 var features = GetFeatures(keys[0], flags, out server);
-                // technically a write / master-only command until 2.8.18
-                if (server != null && !features.HyperLogLogCountReplicaSafe) cmd.SetMasterOnly();
+                // technically a write / primary-only command until 2.8.18
+                if (server != null && !features.HyperLogLogCountReplicaSafe) cmd.SetPrimaryOnly();
             }
             return ExecuteSync(cmd, ResultProcessor.Int64, server);
         }
@@ -540,8 +540,8 @@ namespace StackExchange.Redis
         {
             var features = GetFeatures(key, flags, out ServerEndPoint server);
             var cmd = Message.Create(Database, flags, RedisCommand.PFCOUNT, key);
-            // technically a write / master-only command until 2.8.18
-            if (server != null && !features.HyperLogLogCountReplicaSafe) cmd.SetMasterOnly();
+            // technically a write / primary-only command until 2.8.18
+            if (server != null && !features.HyperLogLogCountReplicaSafe) cmd.SetPrimaryOnly();
             return ExecuteAsync(cmd, ResultProcessor.Int64, server);
         }
 
@@ -553,8 +553,8 @@ namespace StackExchange.Redis
             if (keys.Length != 0)
             {
                 var features = GetFeatures(keys[0], flags, out server);
-                // technically a write / master-only command until 2.8.18
-                if (server != null && !features.HyperLogLogCountReplicaSafe) cmd.SetMasterOnly();
+                // technically a write / primary-only command until 2.8.18
+                if (server != null && !features.HyperLogLogCountReplicaSafe) cmd.SetPrimaryOnly();
             }
             return ExecuteAsync(cmd, ResultProcessor.Int64, server);
         }
@@ -3012,12 +3012,12 @@ namespace StackExchange.Redis
             }
             if (destination.IsNull) return Message.Create(Database, flags, RedisCommand.SORT, key, values.ToArray());
 
-            // because we are using STORE, we need to push this to a master
-            if (Message.GetMasterReplicaFlags(flags) == CommandFlags.DemandReplica)
+            // Because we are using STORE, we need to push this to a primary
+            if (Message.GetPrimaryReplicaFlags(flags) == CommandFlags.DemandReplica)
             {
-                throw ExceptionFactory.MasterOnly(multiplexer.IncludeDetailInExceptions, RedisCommand.SORT, null, null);
+                throw ExceptionFactory.PrimaryOnly(multiplexer.IncludeDetailInExceptions, RedisCommand.SORT, null, null);
             }
-            flags = Message.SetMasterReplicaFlags(flags, CommandFlags.DemandMaster);
+            flags = Message.SetPrimaryReplicaFlags(flags, CommandFlags.DemandMaster);
             values.Add(RedisLiterals.STORE);
             return Message.Create(Database, flags, RedisCommand.SORT, key, values.ToArray(), destination);
         }

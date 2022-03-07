@@ -14,7 +14,7 @@ namespace StackExchange.Redis.Tests
         public async Task Basic()
         {
             var fromConfig = new ConfigurationOptions { EndPoints = { { TestConfig.Current.SecureServer, TestConfig.Current.SecurePort } }, Password = TestConfig.Current.SecurePassword, AllowAdmin = true };
-            var toConfig = new ConfigurationOptions { EndPoints = { { TestConfig.Current.MasterServer, TestConfig.Current.MasterPort } }, AllowAdmin = true };
+            var toConfig = new ConfigurationOptions { EndPoints = { { TestConfig.Current.PrimaryServer, TestConfig.Current.PrimaryPort } }, AllowAdmin = true };
             using (var from = ConnectionMultiplexer.Connect(fromConfig, Writer))
             using (var to = ConnectionMultiplexer.Connect(toConfig, Writer))
             {

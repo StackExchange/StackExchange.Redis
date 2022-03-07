@@ -99,7 +99,7 @@ namespace StackExchange.Redis.Tests
         [InlineData(CommandFlags.DemandReplica, false)]
         public async Task PrimaryReplicaSubscriptionFailover(CommandFlags flags, bool expectSuccess)
         {
-            var config = TestConfig.Current.MasterServerAndPort + "," + TestConfig.Current.ReplicaServerAndPort;
+            var config = TestConfig.Current.PrimaryServerAndPort + "," + TestConfig.Current.ReplicaServerAndPort;
             Log("Connecting...");
             using var muxer = Create(configuration: config, shared: false, allowAdmin: true) as ConnectionMultiplexer;
             var sub = muxer.GetSubscriber();

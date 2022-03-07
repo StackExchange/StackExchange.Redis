@@ -27,7 +27,7 @@ namespace StackExchange.Redis
         /// Indicates whether the instance can communicate with the server.
         /// If a channel is specified, the existing subscription map is queried to
         /// resolve the server responsible for that subscription - otherwise the
-        /// server is chosen arbitrarily from the masters.
+        /// server is chosen arbitrarily from the primaries.
         /// </summary>
         /// <param name="channel">The channel to identify the server endpoint by.</param>
         bool IsConnected(RedisChannel channel = default(RedisChannel));

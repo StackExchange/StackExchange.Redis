@@ -4,8 +4,8 @@ echo "Starting Redis servers for testing..."
 #Basic Servers
 echo "Starting Basic: 6379-6382"
 pushd Basic > /dev/null
-echo "${INDENT}Master: 6379"
-redis-server master-6379.conf &>/dev/null &
+echo "${INDENT}Primary: 6379"
+redis-server primary-6379.conf &>/dev/null &
 echo "${INDENT}Replica: 6380"
 redis-server replica-6380.conf &>/dev/null &
 echo "${INDENT}Secure: 6381"
@@ -15,8 +15,8 @@ popd > /dev/null
 #Failover Servers
 echo Starting Failover: 6382-6383
 pushd Failover > /dev/null
-echo "${INDENT}Master: 6382"
-redis-server master-6382.conf &>/dev/null &
+echo "${INDENT}Primary: 6382"
+redis-server primary-6382.conf &>/dev/null &
 echo "${INDENT}Replica: 6383"
 redis-server replica-6383.conf &>/dev/null &
 popd > /dev/null

@@ -149,11 +149,11 @@ namespace StackExchange.Redis
                         message.SetNoRedirect(); // once is enough
                         if (isMoved) message.SetInternalCall();
 
-                        // note that everything so far is talking about MASTER nodes; we might be
-                        // wanting a REPLICA, so we'll check
+                        // Note that everything so far is talking about PRIMARY nodes
+                        // We might be wanting a REPLICA, so we'll check
                         ServerEndPoint resendVia = null;
                         var command = message.Command;
-                        switch (Message.GetMasterReplicaFlags(message.Flags))
+                        switch (Message.GetPrimaryReplicaFlags(message.Flags))
                         {
                             case CommandFlags.DemandMaster:
                                 resendVia = server.IsSelectable(command, isMoved) ? server : null;
@@ -247,14 +247,14 @@ namespace StackExchange.Redis
         private ServerEndPoint Any(RedisCommand command, CommandFlags flags, bool allowDisconnected) =>
             multiplexer.AnyServer(ServerType, (uint)Interlocked.Increment(ref anyStartOffset), command, flags, allowDisconnected);
 
-        private static ServerEndPoint FindMaster(ServerEndPoint endpoint, RedisCommand command)
+        private static ServerEndPoint FindPrimary(ServerEndPoint endpoint, RedisCommand command)
         {
             int max = 5;
             do
             {
                 if (!endpoint.IsReplica && endpoint.IsSelectable(command)) return endpoint;
 
-                endpoint = endpoint.Master;
+                endpoint = endpoint.Primary;
             } while (endpoint != null && --max != 0);
             return null;
         }
@@ -290,13 +290,14 @@ namespace StackExchange.Redis
 
         private ServerEndPoint Select(int slot, RedisCommand command, CommandFlags flags, bool allowDisconnected)
         {
-            flags = Message.GetMasterReplicaFlags(flags); // only interested in master/replica preferences
+            // Only interested in primary/replica preferences
+            flags = Message.GetPrimaryReplicaFlags(flags);
 
             ServerEndPoint[] arr;
             if (slot == NoSlot || (arr = map) == null) return Any(command, flags, allowDisconnected);
 
             ServerEndPoint endpoint = arr[slot], testing;
-            // but: ^^^ is the MASTER slots; if we want a replica, we need to do some thinking
+            // but: ^^^ is the PRIMARY slots; if we want a replica, we need to do some thinking
 
             if (endpoint != null)
             {
@@ -309,9 +310,9 @@ namespace StackExchange.Redis
                         if (testing != null) return testing;
                         break;
                     case CommandFlags.DemandMaster:
-                        return FindMaster(endpoint, command) ?? Any(command, flags, allowDisconnected);
+                        return FindPrimary(endpoint, command) ?? Any(command, flags, allowDisconnected);
                     case CommandFlags.PreferMaster:
-                        testing = FindMaster(endpoint, command);
+                        testing = FindPrimary(endpoint, command);
                         if (testing != null) return testing;
                         break;
                 }

@@ -48,9 +48,9 @@ namespace StackExchange.Redis.Tests
             public bool RunLongRunning { get; set; }
             public bool LogToConsole { get; set; }
 
-            public string MasterServer { get; set; } = "127.0.0.1";
-            public int MasterPort { get; set; } = 6379;
-            public string MasterServerAndPort => MasterServer + ":" + MasterPort.ToString();
+            public string PrimaryServer { get; set; } = "127.0.0.1";
+            public int PrimaryPort { get; set; } = 6379;
+            public string PrimaryServerAndPort => PrimaryServer + ":" + PrimaryPort.ToString();
 
             public string ReplicaServer { get; set; } = "127.0.0.1";
             public int ReplicaPort { get; set; } = 6380;
@@ -62,9 +62,9 @@ namespace StackExchange.Redis.Tests
             public string SecureServerAndPort => SecureServer + ":" + SecurePort.ToString();
 
             // Separate servers for failover tests, so they don't wreak havoc on all others
-            public string FailoverMasterServer { get; set; } = "127.0.0.1";
-            public int FailoverMasterPort { get; set; } = 6382;
-            public string FailoverMasterServerAndPort => FailoverMasterServer + ":" + FailoverMasterPort.ToString();
+            public string FailoverPrimaryServer { get; set; } = "127.0.0.1";
+            public int FailoverPrimaryPort { get; set; } = 6382;
+            public string FailoverPrimaryServerAndPort => FailoverPrimaryServer + ":" + FailoverPrimaryPort.ToString();
 
             public string FailoverReplicaServer { get; set; } = "127.0.0.1";
             public int FailoverReplicaPort { get; set; } = 6383;
@@ -83,7 +83,7 @@ namespace StackExchange.Redis.Tests
             public int SentinelPortA { get; set; } = 26379;
             public int SentinelPortB { get; set; } = 26380;
             public int SentinelPortC { get; set; } = 26381;
-            public string SentinelSeviceName { get; set; } = "mymaster";
+            public string SentinelSeviceName { get; set; } = "myprimary";
 
             public string ClusterServer { get; set; } = "127.0.0.1";
             public int ClusterStartPort { get; set; } = 7000;

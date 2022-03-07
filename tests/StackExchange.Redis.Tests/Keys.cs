@@ -19,7 +19,7 @@ namespace StackExchange.Redis.Tests
             {
                 var dbId = TestConfig.GetDedicatedDB();
                 var db = muxer.GetDatabase(dbId);
-                var server = GetAnyMaster(muxer);
+                var server = GetAnyPrimary(muxer);
                 var prefix = Me();
                 server.FlushDatabase(dbId, flags: CommandFlags.FireAndForget);
 
@@ -41,7 +41,7 @@ namespace StackExchange.Redis.Tests
                 Skip.IfMissingDatabase(conn, dbId);
                 var db = conn.GetDatabase(dbId);
                 var prefix = Me();
-                conn.GetServer(TestConfig.Current.MasterServerAndPort).FlushDatabase(dbId, CommandFlags.FireAndForget);
+                conn.GetServer(TestConfig.Current.PrimaryServerAndPort).FlushDatabase(dbId, CommandFlags.FireAndForget);
                 string anyKey = db.KeyRandom();
 
                 Assert.Null(anyKey);

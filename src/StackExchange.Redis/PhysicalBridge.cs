@@ -436,7 +436,7 @@ namespace StackExchange.Redis
                 physical = null;
                 if (oldState == State.ConnectedEstablished && !ServerEndPoint.IsReplica)
                 {
-                    // if the disconnected endpoint was a master endpoint run info replication
+                    // if the disconnected endpoint was a primary endpoint run info replication
                     // more frequently on it's replica with exponential increments
                     foreach (var r in ServerEndPoint.Replicas)
                     {
@@ -1324,12 +1324,12 @@ namespace StackExchange.Redis
             {
                 if (isReplica)
                 {
-                    if (Message.GetMasterReplicaFlags(flags) == CommandFlags.PreferMaster)
+                    if (Message.GetPrimaryReplicaFlags(flags) == CommandFlags.PreferMaster)
                         Interlocked.Increment(ref nonPreferredEndpointCount);
                 }
                 else
                 {
-                    if (Message.GetMasterReplicaFlags(flags) == CommandFlags.PreferReplica)
+                    if (Message.GetPrimaryReplicaFlags(flags) == CommandFlags.PreferReplica)
                         Interlocked.Increment(ref nonPreferredEndpointCount);
                 }
             }
@@ -1368,11 +1368,11 @@ namespace StackExchange.Redis
             {
                 var cmd = message.Command;
                 LastCommand = cmd;
-                bool isMasterOnly = message.IsMasterOnly();
+                bool isPrimaryOnly = message.IsPrimaryOnly();
 
-                if (isMasterOnly && !ServerEndPoint.SupportsPrimaryWrites)
+                if (isPrimaryOnly && !ServerEndPoint.SupportsPrimaryWrites)
                 {
-                    throw ExceptionFactory.MasterOnly(Multiplexer.IncludeDetailInExceptions, message.Command, message, ServerEndPoint);
+                    throw ExceptionFactory.PrimaryOnly(Multiplexer.IncludeDetailInExceptions, message.Command, message, ServerEndPoint);
                 }
                 switch(cmd)
                 {
@@ -1393,7 +1393,7 @@ namespace StackExchange.Redis
                     // we run it as Fire and Forget. 
                     if (cmd != RedisCommand.AUTH)
                     {
-                        var readmode = connection.GetReadModeCommand(isMasterOnly);
+                        var readmode = connection.GetReadModeCommand(isPrimaryOnly);
                         if (readmode != null)
                         {
                             connection.EnqueueInsideWriteLock(readmode);

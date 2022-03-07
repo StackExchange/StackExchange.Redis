@@ -19,7 +19,7 @@ namespace StackExchange.Redis
         private Role(string role) => Value = role;
 
         /// <summary>
-        /// Result of the ROLE command for a master node.
+        /// Result of the ROLE command for a primary node.
         /// </summary>
         /// <remarks>https://redis.io/commands/role#master-output</remarks>
         public sealed class Master : Role
@@ -76,12 +76,12 @@ namespace StackExchange.Redis
         public sealed class Replica : Role
         {
             /// <summary>
-            /// The IP address of the master node for this replica.
+            /// The IP address of the primary node for this replica.
             /// </summary>
             public string MasterIp { get; }
 
             /// <summary>
-            /// The port number of the master node for this replica.
+            /// The port number of the primary node for this replica.
             /// </summary>
             public int MasterPort { get; }
 
@@ -111,13 +111,13 @@ namespace StackExchange.Redis
         public sealed class Sentinel : Role
         {
             /// <summary>
-            /// Master names monitored by this sentinel node.
+            /// Primary names monitored by this sentinel node.
             /// </summary>
             public ICollection<string> MonitoredMasters { get; }
 
-            internal Sentinel(ICollection<string> masters) : base(RedisLiterals.sentinel)
+            internal Sentinel(ICollection<string> primaries) : base(RedisLiterals.sentinel)
             {
-                MonitoredMasters = masters;
+                MonitoredMasters = primaries;
             }
         }
 

@@ -56,7 +56,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create(channelPrefix: channelPrefix, shared: false, log: Writer))
             {
-                var pub = GetAnyMaster(muxer);
+                var pub = GetAnyPrimary(muxer);
                 var sub = muxer.GetSubscriber();
                 await PingAsync(pub, sub).ForAwait();
                 HashSet<string> received = new();
@@ -136,7 +136,7 @@ namespace StackExchange.Redis.Tests
             using (var muxer = Create(shared: false, log: Writer))
             {
                 var profiler = muxer.AddProfiler();
-                var pub = GetAnyMaster(muxer);
+                var pub = GetAnyPrimary(muxer);
                 var sub = muxer.GetSubscriber();
 
                 RedisChannel key = Me() + Guid.NewGuid();
@@ -208,7 +208,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create(shared: false, log: Writer))
             {
-                var pub = GetAnyMaster(muxer);
+                var pub = GetAnyPrimary(muxer);
                 var sub = muxer.GetSubscriber();
 
                 HashSet<string> received = new();

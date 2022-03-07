@@ -16,7 +16,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                var server = GetAnyMaster(conn);
+                var server = GetAnyPrimary(conn);
 
                 RedisKey key = Me();
                 var db = conn.GetDatabase();

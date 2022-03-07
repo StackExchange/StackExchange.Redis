@@ -13,7 +13,7 @@ namespace StackExchange.Redis.Tests
         public SentinelFailover(ITestOutputHelper output) : base(output) { }
 
         [Fact]
-        public async Task ManagedMasterConnectionEndToEndWithFailoverTest()
+        public async Task ManagedPrimaryConnectionEndToEndWithFailoverTest()
         {
             var connectionString = $"{TestConfig.Current.SentinelServer}:{TestConfig.Current.SentinelPortA},serviceName={ServiceOptions.ServiceName},allowAdmin=true";
             var conn = await ConnectionMultiplexer.ConnectAsync(connectionString);
@@ -30,13 +30,13 @@ namespace StackExchange.Redis.Tests
             var servers = endpoints.Select(e => conn.GetServer(e)).ToArray();
             Assert.Equal(2, servers.Length);
 
-            var master = servers.FirstOrDefault(s => !s.IsReplica);
-            Assert.NotNull(master);
+            var primary = servers.FirstOrDefault(s => !s.IsReplica);
+            Assert.NotNull(primary);
             var replica = servers.FirstOrDefault(s => s.IsReplica);
             Assert.NotNull(replica);
-            Assert.NotEqual(master.EndPoint.ToString(), replica.EndPoint.ToString());
+            Assert.NotEqual(primary.EndPoint.ToString(), replica.EndPoint.ToString());
 
-            // set string value on current master
+            // Set string value on current primary
             var expected = DateTime.Now.Ticks.ToString();
             Log("Tick Key: " + expected);
             var key = Me();
@@ -63,7 +63,7 @@ namespace StackExchange.Redis.Tests
             SentinelServerA.SentinelFailover(ServiceName);
 
             // There's no point in doing much for 10 seconds - this is a built-in delay of how Sentinel works.
-            // The actual completion invoking the replication of the former master is handled via
+            // The actual completion invoking the replication of the former primary is handled via
             // https://github.com/redis/redis/blob/f233c4c59d24828c77eb1118f837eaee14695f7f/src/sentinel.c#L4799-L4808
             // ...which is invoked by INFO polls every 10 seconds (https://github.com/redis/redis/blob/f233c4c59d24828c77eb1118f837eaee14695f7f/src/sentinel.c#L81)
             // ...which is calling https://github.com/redis/redis/blob/f233c4c59d24828c77eb1118f837eaee14695f7f/src/sentinel.c#L2666
@@ -71,9 +71,9 @@ namespace StackExchange.Redis.Tests
             // So...we're waiting 10 seconds, no matter what. Might as well just idle to be more stable.
             await Task.Delay(TimeSpan.FromSeconds(10));
 
-            // wait until the replica becomes the master
+            // wait until the replica becomes the primary
             Log("Waiting for ready post-failover...");
-            await WaitForReadyAsync(expectedMaster: replicas[0]);
+            await WaitForReadyAsync(expectedPrimary: replicas[0]);
             Log($"Time to failover: {sw.Elapsed}");
 
             endpoints = conn.GetEndPoints();
@@ -82,20 +82,20 @@ namespace StackExchange.Redis.Tests
             servers = endpoints.Select(e => conn.GetServer(e)).ToArray();
             Assert.Equal(2, servers.Length);
 
-            var newMaster = servers.FirstOrDefault(s => !s.IsReplica);
-            Assert.NotNull(newMaster);
-            Assert.Equal(replica.EndPoint.ToString(), newMaster.EndPoint.ToString());
+            var newPrimary = servers.FirstOrDefault(s => !s.IsReplica);
+            Assert.NotNull(newPrimary);
+            Assert.Equal(replica.EndPoint.ToString(), newPrimary.EndPoint.ToString());
             var newReplica = servers.FirstOrDefault(s => s.IsReplica);
             Assert.NotNull(newReplica);
-            Assert.Equal(master.EndPoint.ToString(), newReplica.EndPoint.ToString());
-            Assert.NotEqual(master.EndPoint.ToString(), replica.EndPoint.ToString());
+            Assert.Equal(primary.EndPoint.ToString(), newReplica.EndPoint.ToString());
+            Assert.NotEqual(primary.EndPoint.ToString(), replica.EndPoint.ToString());
 
             value = await db.StringGetAsync(key);
             Assert.Equal(expected, value);
 
             Log("Waiting for second replication check...");
             // force read from replica, replication has some lag
-            await WaitForReplicationAsync(newMaster).ForAwait();
+            await WaitForReplicationAsync(newPrimary).ForAwait();
             value = await db.StringGetAsync(key, CommandFlags.DemandReplica);
             Assert.Equal(expected, value);
         }

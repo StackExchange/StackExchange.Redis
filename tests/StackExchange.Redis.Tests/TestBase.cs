@@ -21,7 +21,7 @@ namespace StackExchange.Redis.Tests
         protected TextWriterOutputHelper Writer { get; }
         protected static bool RunningInCI { get; } = Environment.GetEnvironmentVariable("APPVEYOR") != null;
         protected virtual string GetConfiguration() => GetDefaultConfiguration();
-        internal static string GetDefaultConfiguration() => TestConfig.Current.MasterServerAndPort;
+        internal static string GetDefaultConfiguration() => TestConfig.Current.PrimaryServerAndPort;
 
         private readonly SharedConnectionFixture _fixture;
 
@@ -227,21 +227,21 @@ namespace StackExchange.Redis.Tests
             {
                 var server = muxer.GetServer(endpoint);
                 if (server.IsReplica || !server.IsConnected) continue;
-                if (result != null) throw new InvalidOperationException("Requires exactly one master endpoint (found " + server.EndPoint + " and " + result.EndPoint + ")");
+                if (result != null) throw new InvalidOperationException("Requires exactly one primary endpoint (found " + server.EndPoint + " and " + result.EndPoint + ")");
                 result = server;
             }
-            if (result == null) throw new InvalidOperationException("Requires exactly one master endpoint (found none)");
+            if (result == null) throw new InvalidOperationException("Requires exactly one primary endpoint (found none)");
             return result;
         }
 
-        protected static IServer GetAnyMaster(IConnectionMultiplexer muxer)
+        protected static IServer GetAnyPrimary(IConnectionMultiplexer muxer)
         {
             foreach (var endpoint in muxer.GetEndPoints())
             {
                 var server = muxer.GetServer(endpoint);
                 if (!server.IsReplica) return server;
             }
-            throw new InvalidOperationException("Requires a master endpoint (found none)");
+            throw new InvalidOperationException("Requires a primary endpoint (found none)");
         }
 
         internal virtual IInternalConnectionMultiplexer Create(

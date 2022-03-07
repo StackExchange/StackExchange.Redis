@@ -10,13 +10,13 @@ install:
 
     cd tests\RedisConfigs\3.0.503
 
-    redis-server.exe --service-install --service-name "redis-6379" "..\Basic\master-6379.conf"
+    redis-server.exe --service-install --service-name "redis-6379" "..\Basic\primary-6379.conf"
 
     redis-server.exe --service-install --service-name "redis-6380" "..\Basic\replica-6380.conf"
 
     redis-server.exe --service-install --service-name "redis-6381" "..\Basic\secure-6381.conf"
 
-    redis-server.exe --service-install --service-name "redis-6382" "..\Failover\master-6382.conf"
+    redis-server.exe --service-install --service-name "redis-6382" "..\Failover\primary-6382.conf"
 
     redis-server.exe --service-install --service-name "redis-6383" "..\Failover\replica-6383.conf"
 

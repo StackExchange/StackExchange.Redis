@@ -68,7 +68,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Cluster", "Cluster", "{A3B4
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Basic", "Basic", "{38BDEEED-7BEB-4B1F-9CE0-256D63F9C502}"
 	ProjectSection(SolutionItems) = preProject
-		tests\RedisConfigs\Basic\master-6379.conf = tests\RedisConfigs\Basic\master-6379.conf
+		tests\RedisConfigs\Basic\primary-6379.conf = tests\RedisConfigs\Basic\primary-6379.conf
 		tests\RedisConfigs\Basic\replica-6380.conf = tests\RedisConfigs\Basic\replica-6380.conf
 		tests\RedisConfigs\Basic\secure-6381.conf = tests\RedisConfigs\Basic\secure-6381.conf
 	EndProjectSection
@@ -79,7 +79,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TestConsole", "toys\TestCon
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Failover", "Failover", "{D082703F-1652-4C35-840D-7D377F6B9979}"
 	ProjectSection(SolutionItems) = preProject
-		tests\RedisConfigs\Failover\master-6382.conf = tests\RedisConfigs\Failover\master-6382.conf
+		tests\RedisConfigs\Failover\primary-6382.conf = tests\RedisConfigs\Failover\primary-6382.conf
 		tests\RedisConfigs\Failover\replica-6383.conf = tests\RedisConfigs\Failover\replica-6383.conf
 	EndProjectSection
 EndProject

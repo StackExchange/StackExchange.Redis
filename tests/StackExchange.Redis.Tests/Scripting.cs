@@ -411,7 +411,7 @@ return timeTaken
                 Skip.IfMissingFeature(conn0, nameof(RedisFeatures.Scripting), f => f.Scripting);
                 // note that these are on different connections (so we wouldn't expect
                 // the flush to drop the local cache - assume it is a surprise!)
-                var server = conn0.GetServer(TestConfig.Current.MasterServerAndPort);
+                var server = conn0.GetServer(TestConfig.Current.PrimaryServerAndPort);
                 var db = conn1.GetDatabase();
                 const string script = "return 1;";
 
@@ -460,7 +460,7 @@ return timeTaken
             using (var conn = Create(allowAdmin: true))
             {
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
-                var server = conn.GetServer(TestConfig.Current.MasterServerAndPort);
+                var server = conn.GetServer(TestConfig.Current.PrimaryServerAndPort);
                 server.ScriptFlush();
 
                 server.ScriptLoad(Script);
@@ -511,7 +511,7 @@ return timeTaken
             using (var conn = Create(allowAdmin: true))
             {
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
-                var server = conn.GetServer(TestConfig.Current.MasterServerAndPort);
+                var server = conn.GetServer(TestConfig.Current.PrimaryServerAndPort);
                 server.ScriptFlush();
 
                 byte[] hash = server.ScriptLoad(Script);
@@ -540,7 +540,7 @@ return timeTaken
             using (var conn = Create(allowAdmin: true))
             {
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
-                var server = conn.GetServer(TestConfig.Current.MasterServerAndPort);
+                var server = conn.GetServer(TestConfig.Current.PrimaryServerAndPort);
                 server.ScriptFlush();
 
                 var prepared = LuaScript.Prepare(Script);
@@ -592,7 +592,7 @@ return timeTaken
             using (var conn = Create(allowAdmin: true))
             {
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
-                var server = conn.GetServer(TestConfig.Current.MasterServerAndPort);
+                var server = conn.GetServer(TestConfig.Current.PrimaryServerAndPort);
                 server.ScriptFlush();
 
                 var db = conn.GetDatabase();
@@ -642,7 +642,7 @@ return timeTaken
             using (var conn = Create(allowAdmin: true))
             {
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
-                var server = conn.GetServer(TestConfig.Current.MasterServerAndPort);
+                var server = conn.GetServer(TestConfig.Current.PrimaryServerAndPort);
                 server.ScriptFlush();
 
                 var script = LuaScript.Prepare(Script);
@@ -672,7 +672,7 @@ return timeTaken
             using (var conn = Create(allowAdmin: true))
             {
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
-                var server = conn.GetServer(TestConfig.Current.MasterServerAndPort);
+                var server = conn.GetServer(TestConfig.Current.PrimaryServerAndPort);
                 server.ScriptFlush();
 
                 var script = LuaScript.Prepare(Script);
@@ -708,7 +708,7 @@ return timeTaken
             using (var conn = Create(allowAdmin: true))
             {
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
-                var server = conn.GetServer(TestConfig.Current.MasterServerAndPort);
+                var server = conn.GetServer(TestConfig.Current.PrimaryServerAndPort);
                 server.ScriptFlush();
 
                 var prepared = LuaScript.Prepare(Script);
@@ -761,7 +761,7 @@ return timeTaken
             using (var conn = Create(allowAdmin: true))
             {
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
-                var server = conn.GetServer(TestConfig.Current.MasterServerAndPort);
+                var server = conn.GetServer(TestConfig.Current.PrimaryServerAndPort);
                 server.ScriptFlush();
 
                 var script = LuaScript.Prepare(Script);

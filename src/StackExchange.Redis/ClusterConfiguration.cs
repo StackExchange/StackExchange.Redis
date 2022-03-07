@@ -171,7 +171,7 @@ namespace StackExchange.Redis
                     if (string.IsNullOrWhiteSpace(line)) continue;
                     var node = new ClusterNode(this, line, origin);
 
-                    // Be resilient to ":0 {master,replica},fail,noaddr" nodes, and nodes where the endpoint doesn't parse
+                    // Be resilient to ":0 {primary,replica},fail,noaddr" nodes, and nodes where the endpoint doesn't parse
                     if (node.IsNoAddr || node.EndPoint == null)
                         continue;
 
@@ -419,9 +419,9 @@ namespace StackExchange.Redis
         {
             if (other == null) return -1;
 
-            if (IsReplica != other.IsReplica) return IsReplica ? 1 : -1; // masters first
+            if (IsReplica != other.IsReplica) return IsReplica ? 1 : -1; // primaries first
 
-            if (IsReplica) // both replicas? compare by parent, so we get masters A, B, C and then replicas of A, B, C
+            if (IsReplica) // both replicas? compare by parent, so we get primaries A, B, C and then replicas of A, B, C
             {
                 int i = string.CompareOrdinal(ParentNodeId, other.ParentNodeId);
                 if (i != 0) return i;

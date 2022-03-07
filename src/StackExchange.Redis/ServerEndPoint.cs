@@ -16,14 +16,14 @@ namespace StackExchange.Redis
     internal enum UnselectableFlags
     {
         None = 0,
-        RedundantMaster = 1,
+        RedundantPrimary = 1,
         DidNotRespond = 2,
         ServerType = 4,
     }
 
     internal sealed partial class ServerEndPoint : IDisposable
     {
-        internal volatile ServerEndPoint Master;
+        internal volatile ServerEndPoint Primary;
         internal volatile ServerEndPoint[] Replicas = Array.Empty<ServerEndPoint>();
         private static readonly Regex nameSanitizer = new Regex("[^!-~]", RegexOptions.Compiled);
 
@@ -288,19 +288,19 @@ namespace StackExchange.Redis
             {
                 Multiplexer.Trace($"Updating node relations for {Format.ToString(thisNode.EndPoint)}...");
                 List<ServerEndPoint> replicas = null;
-                ServerEndPoint master = null;
+                ServerEndPoint primary = null;
                 foreach (var node in configuration.Nodes)
                 {
                     if (node.NodeId == thisNode.ParentNodeId)
                     {
-                        master = Multiplexer.GetServerEndPoint(node.EndPoint);
+                        primary = Multiplexer.GetServerEndPoint(node.EndPoint);
                     }
                     else if (node.ParentNodeId == thisNode.NodeId)
                     {
                         (replicas ??= new List<ServerEndPoint>()).Add(Multiplexer.GetServerEndPoint(node.EndPoint));
                     }
                 }
-                Master = master;
+                Primary = primary;
                 Replicas = replicas?.ToArray() ?? Array.Empty<ServerEndPoint>();
             }
         }
@@ -677,11 +677,11 @@ namespace StackExchange.Redis
         internal int LastInfoReplicationCheckSecondsAgo =>
             unchecked(Environment.TickCount - Thread.VolatileRead(ref lastInfoReplicationCheckTicks)) / 1000;
 
-        private EndPoint masterEndPoint;
-        public EndPoint MasterEndPoint
+        private EndPoint primaryEndPoint;
+        public EndPoint PrimaryEndPoint
         {
-            get => masterEndPoint;
-            set => SetConfig(ref masterEndPoint, value);
+            get => primaryEndPoint;
+            set => SetConfig(ref primaryEndPoint, value);
         }
 
         /// <summary>
@@ -735,7 +735,6 @@ namespace StackExchange.Redis
         private int _heartBeatActive;
         internal void OnHeartbeat()
         {
-            // don't overlap operations on an endpoint
             // Don't overlap heartbeat operations on an endpoint
             if (Interlocked.CompareExchange(ref _heartBeatActive, 1, 0) == 0)
             {
@@ -811,7 +810,7 @@ namespace StackExchange.Redis
         internal string Summary()
         {
             var sb = new StringBuilder(Format.ToString(EndPoint))
-                .Append(": ").Append(serverType).Append(" v").Append(version).Append(", ").Append(isReplica ? "replica" : "master");
+                .Append(": ").Append(serverType).Append(" v").Append(version).Append(", ").Append(isReplica ? "replica" : "primary");
 
             if (databases > 0) sb.Append("; ").Append(databases).Append(" databases");
             if (writeEverySeconds > 0)

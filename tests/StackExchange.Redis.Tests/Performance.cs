@@ -50,7 +50,7 @@ namespace StackExchange.Redis.Tests
                 }
             }
 
-            using (var conn = new RedisSharp.Redis(TestConfig.Current.MasterServer, TestConfig.Current.MasterPort))
+            using (var conn = new RedisSharp.Redis(TestConfig.Current.PrimaryServer, TestConfig.Current.PrimaryPort))
             {
                 // do these outside the timings, just to ensure the core methods are JITted etc
                 for (int db = 0; db < 5; db++)

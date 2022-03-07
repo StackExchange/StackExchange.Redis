@@ -13,7 +13,7 @@ namespace StackExchange.Redis.Tests
         public Sentinel(ITestOutputHelper output) : base(output) { }
 
         [Fact]
-        public async Task MasterConnectTest()
+        public async Task PrimaryConnectTest()
         {
             var connectionString = $"{TestConfig.Current.SentinelServer},serviceName={ServiceOptions.ServiceName},allowAdmin=true";
             var conn = ConnectionMultiplexer.Connect(connectionString);
@@ -27,11 +27,11 @@ namespace StackExchange.Redis.Tests
             var servers = endpoints.Select(e => conn.GetServer(e)).ToArray();
             Assert.Equal(2, servers.Length);
 
-            var master = servers.FirstOrDefault(s => !s.IsReplica);
-            Assert.NotNull(master);
+            var primary = servers.FirstOrDefault(s => !s.IsReplica);
+            Assert.NotNull(primary);
             var replica = servers.FirstOrDefault(s => s.IsReplica);
             Assert.NotNull(replica);
-            Assert.NotEqual(master.EndPoint.ToString(), replica.EndPoint.ToString());
+            Assert.NotEqual(primary.EndPoint.ToString(), replica.EndPoint.ToString());
 
             var expected = DateTime.Now.Ticks.ToString();
             Log("Tick Key: " + expected);
@@ -49,7 +49,7 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public async Task MasterConnectAsyncTest()
+        public async Task PrimaryConnectAsyncTest()
         {
             var connectionString = $"{TestConfig.Current.SentinelServer},serviceName={ServiceOptions.ServiceName},allowAdmin=true";
             var conn = await ConnectionMultiplexer.ConnectAsync(connectionString);
@@ -63,11 +63,11 @@ namespace StackExchange.Redis.Tests
             var servers = endpoints.Select(e => conn.GetServer(e)).ToArray();
             Assert.Equal(2, servers.Length);
 
-            var master = servers.FirstOrDefault(s => !s.IsReplica);
-            Assert.NotNull(master);
+            var primary = servers.FirstOrDefault(s => !s.IsReplica);
+            Assert.NotNull(primary);
             var replica = servers.FirstOrDefault(s => s.IsReplica);
             Assert.NotNull(replica);
-            Assert.NotEqual(master.EndPoint.ToString(), replica.EndPoint.ToString());
+            Assert.NotEqual(primary.EndPoint.ToString(), replica.EndPoint.ToString());
 
             var expected = DateTime.Now.Ticks.ToString();
             Log("Tick Key: " + expected);
@@ -139,33 +139,33 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void SentinelGetMasterAddressByNameTest()
+        public void SentinelGetPriimaryAddressByNameTest()
         {
             foreach (var server in SentinelsServers)
             {
-                var master = server.SentinelMaster(ServiceName);
+                var primary = server.SentinelMaster(ServiceName);
                 var endpoint = server.SentinelGetMasterAddressByName(ServiceName);
                 Assert.NotNull(endpoint);
                 var ipEndPoint = endpoint as IPEndPoint;
                 Assert.NotNull(ipEndPoint);
-                Assert.Equal(master.ToDictionary()["ip"], ipEndPoint.Address.ToString());
-                Assert.Equal(master.ToDictionary()["port"], ipEndPoint.Port.ToString());
+                Assert.Equal(primary.ToDictionary()["ip"], ipEndPoint.Address.ToString());
+                Assert.Equal(primary.ToDictionary()["port"], ipEndPoint.Port.ToString());
                 Log("{0}:{1}", ipEndPoint.Address, ipEndPoint.Port);
             }
         }
 
         [Fact]
-        public async Task SentinelGetMasterAddressByNameAsyncTest()
+        public async Task SentinelGetPrimaryAddressByNameAsyncTest()
         {
             foreach (var server in SentinelsServers)
             {
-                var master = server.SentinelMaster(ServiceName);
+                var primary = server.SentinelMaster(ServiceName);
                 var endpoint = await server.SentinelGetMasterAddressByNameAsync(ServiceName).ForAwait();
                 Assert.NotNull(endpoint);
                 var ipEndPoint = endpoint as IPEndPoint;
                 Assert.NotNull(ipEndPoint);
-                Assert.Equal(master.ToDictionary()["ip"], ipEndPoint.Address.ToString());
-                Assert.Equal(master.ToDictionary()["port"], ipEndPoint.Port.ToString());
+                Assert.Equal(primary.ToDictionary()["ip"], ipEndPoint.Address.ToString());
+                Assert.Equal(primary.ToDictionary()["port"], ipEndPoint.Port.ToString());
                 Log("{0}:{1}", ipEndPoint.Address, ipEndPoint.Port);
             }
         }
@@ -191,7 +191,7 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void SentinelMasterTest()
+        public void SentinelPrimaryTest()
         {
             foreach (var server in SentinelsServers)
             {
@@ -206,7 +206,7 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public async Task SentinelMasterAsyncTest()
+        public async Task SentinelPrimaryAsyncTest()
         {
             foreach (var server in SentinelsServers)
             {
@@ -325,14 +325,14 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void SentinelMastersTest()
+        public void SentinelPrimariesTest()
         {
-            var masterConfigs = SentinelServerA.SentinelMasters();
-            Assert.Single(masterConfigs);
-            Assert.True(masterConfigs[0].ToDictionary().ContainsKey("name"), "replicaConfigs contains 'name'");
-            Assert.Equal(ServiceName, masterConfigs[0].ToDictionary()["name"]);
-            Assert.StartsWith("master", masterConfigs[0].ToDictionary()["flags"]);
-            foreach (var config in masterConfigs)
+            var primaryConfigs = SentinelServerA.SentinelMasters();
+            Assert.Single(primaryConfigs);
+            Assert.True(primaryConfigs[0].ToDictionary().ContainsKey("name"), "replicaConfigs contains 'name'");
+            Assert.Equal(ServiceName, primaryConfigs[0].ToDictionary()["name"]);
+            Assert.StartsWith("master", primaryConfigs[0].ToDictionary()["flags"]);
+            foreach (var config in primaryConfigs)
             {
                 foreach (var kvp in config)
                 {
@@ -342,14 +342,14 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public async Task SentinelMastersAsyncTest()
+        public async Task SentinelPrimariesAsyncTest()
         {
-            var masterConfigs = await SentinelServerA.SentinelMastersAsync().ForAwait();
-            Assert.Single(masterConfigs);
-            Assert.True(masterConfigs[0].ToDictionary().ContainsKey("name"), "replicaConfigs contains 'name'");
-            Assert.Equal(ServiceName, masterConfigs[0].ToDictionary()["name"]);
-            Assert.StartsWith("master", masterConfigs[0].ToDictionary()["flags"]);
-            foreach (var config in masterConfigs)
+            var primaryConfigs = await SentinelServerA.SentinelMastersAsync().ForAwait();
+            Assert.Single(primaryConfigs);
+            Assert.True(primaryConfigs[0].ToDictionary().ContainsKey("name"), "replicaConfigs contains 'name'");
+            Assert.Equal(ServiceName, primaryConfigs[0].ToDictionary()["name"]);
+            Assert.StartsWith("master", primaryConfigs[0].ToDictionary()["flags"]);
+            foreach (var config in primaryConfigs)
             {
                 foreach (var kvp in config)
                 {

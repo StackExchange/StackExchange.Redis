@@ -360,7 +360,7 @@ namespace StackExchange.Redis
             }
 
             var nodes = GetServerSnapshot().ToArray(); // Have to array because async/await
-            RedisValue newMaster = Format.ToString(server.EndPoint);
+            RedisValue newPrimary = Format.ToString(server.EndPoint);
 
             RedisKey tieBreakerKey = default(RedisKey);
             // try and write this everywhere; don't worry if some folks reject our advances
@@ -373,7 +373,7 @@ namespace StackExchange.Redis
                 {
                     if (!node.IsConnected || node.IsReplica) continue;
                     log?.WriteLine($"Attempting to set tie-breaker on {Format.ToString(node.EndPoint)}...");
-                    msg = Message.Create(0, flags | CommandFlags.FireAndForget, RedisCommand.SET, tieBreakerKey, newMaster);
+                    msg = Message.Create(0, flags | CommandFlags.FireAndForget, RedisCommand.SET, tieBreakerKey, newPrimary);
                     try
                     {
                         await node.WriteDirectAsync(msg, ResultProcessor.DemandOK);
@@ -383,7 +383,7 @@ namespace StackExchange.Redis
             }
 
             // stop replicating, promote to a standalone primary
-            log?.WriteLine($"Making {Format.ToString(srv.EndPoint)} a master...");
+            log?.WriteLine($"Making {Format.ToString(srv.EndPoint)} a primary...");
             try
             {
                 await srv.ReplicaOfAsync(null, flags);
@@ -398,7 +398,7 @@ namespace StackExchange.Redis
             if (!tieBreakerKey.IsNull && !server.IsReplica)
             {
                 log?.WriteLine($"Resending tie-breaker to {Format.ToString(server.EndPoint)}...");
-                msg = Message.Create(0, flags | CommandFlags.FireAndForget, RedisCommand.SET, tieBreakerKey, newMaster);
+                msg = Message.Create(0, flags | CommandFlags.FireAndForget, RedisCommand.SET, tieBreakerKey, newPrimary);
                 try
                 {
                     await server.WriteDirectAsync(msg, ResultProcessor.DemandOK);
@@ -412,7 +412,7 @@ namespace StackExchange.Redis
             // failing...making our needed reconfiguration a no-op.
             // If we don't block *that* run, then *our* run (at low latency) gets blocked. Then we're waiting on the
             // ConfigurationOptions.ConfigCheckSeconds interval to identify the current (created by this method call) topology correctly.
-            var blockingReconfig = Interlocked.CompareExchange(ref activeConfigCause, "Block: Pending Master Reconfig", null) == null;
+            var blockingReconfig = Interlocked.CompareExchange(ref activeConfigCause, "Block: Pending Primary Reconfig", null) == null;
 
             // Try and broadcast the fact a change happened to all members
             // We want everyone possible to pick it up.
@@ -428,7 +428,7 @@ namespace StackExchange.Redis
                     {
                         if (!node.IsConnected) continue;
                         log?.WriteLine($"Broadcasting via {Format.ToString(node.EndPoint)}...");
-                        msg = Message.Create(-1, flags | CommandFlags.FireAndForget, RedisCommand.PUBLISH, channel, newMaster);
+                        msg = Message.Create(-1, flags | CommandFlags.FireAndForget, RedisCommand.PUBLISH, channel, newPrimary);
                         await node.WriteDirectAsync(msg, ResultProcessor.Int64);
                     }
                 }
@@ -462,7 +462,7 @@ namespace StackExchange.Redis
             {
                 Interlocked.Exchange(ref activeConfigCause, null);
             }
-            if (!await ReconfigureAsync(first: false, reconfigureAll: true, log, srv.EndPoint, "make master"))
+            if (!await ReconfigureAsync(first: false, reconfigureAll: true, log, srv.EndPoint, cause: nameof(MakePrimaryAsync)))
             {
                 log?.WriteLine("Verifying the configuration was incomplete; please verify");
             }
@@ -822,7 +822,7 @@ namespace StackExchange.Redis
             SocketConnection.AssertDependencies();
 
             if (IsSentinel(configuration))
-                return SentinelMasterConnectAsync(configuration, log);
+                return SentinelPrimaryConnectAsync(configuration, log);
 
             return ConnectImplAsync(PrepareConfig(configuration), log);
         }
@@ -961,7 +961,7 @@ namespace StackExchange.Redis
 
             if (IsSentinel(configuration))
             {
-                return SentinelMasterConnect(configuration, log);
+                return SentinelPrimaryConnect(configuration, log);
             }
 
             return ConnectImpl(PrepareConfig(configuration), log);
@@ -1017,9 +1017,9 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="configuration">The string configuration to use for this multiplexer.</param>
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
-        private static ConnectionMultiplexer SentinelMasterConnect(string configuration, TextWriter log = null)
+        private static ConnectionMultiplexer SentinelPrimaryConnect(string configuration, TextWriter log = null)
         {
-            return SentinelMasterConnect(PrepareConfig(configuration, sentinel: true), log);
+            return SentinelPrimaryConnect(PrepareConfig(configuration, sentinel: true), log);
         }
 
         /// <summary>
@@ -1028,7 +1028,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="configuration">The configuration options to use for this multiplexer.</param>
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
-        private static ConnectionMultiplexer SentinelMasterConnect(ConfigurationOptions configuration, TextWriter log = null)
+        private static ConnectionMultiplexer SentinelPrimaryConnect(ConfigurationOptions configuration, TextWriter log = null)
         {
             var sentinelConnection = SentinelConnect(configuration, log);
 
@@ -1045,9 +1045,9 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="configuration">The string configuration to use for this multiplexer.</param>
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
-        private static Task<ConnectionMultiplexer> SentinelMasterConnectAsync(string configuration, TextWriter log = null)
+        private static Task<ConnectionMultiplexer> SentinelPrimaryConnectAsync(string configuration, TextWriter log = null)
         {
-            return SentinelMasterConnectAsync(PrepareConfig(configuration, sentinel: true), log);
+            return SentinelPrimaryConnectAsync(PrepareConfig(configuration, sentinel: true), log);
         }
 
         /// <summary>
@@ -1056,7 +1056,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="configuration">The configuration options to use for this multiplexer.</param>
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
-        private static async Task<ConnectionMultiplexer> SentinelMasterConnectAsync(ConfigurationOptions configuration, TextWriter log = null)
+        private static async Task<ConnectionMultiplexer> SentinelPrimaryConnectAsync(ConfigurationOptions configuration, TextWriter log = null)
         {
             var sentinelConnection = await SentinelConnectAsync(configuration, log).ForAwait();
 
@@ -1628,7 +1628,7 @@ namespace StackExchange.Redis
                     {
                         throw new InvalidOperationException("No nodes to consider");
                     }
-                    List<ServerEndPoint> masters = new List<ServerEndPoint>(endpoints.Count);
+                    List<ServerEndPoint> primaries = new List<ServerEndPoint>(endpoints.Count);
 
                     ServerEndPoint[] servers = null;
                     bool encounteredConnectedClusterServer = false;
@@ -1742,7 +1742,7 @@ namespace StackExchange.Redis
                                         updatedClusterEndpointCollection = await GetEndpointsFromClusterNodes(server, log).ForAwait();
                                     }
 
-                                    // Set the server UnselectableFlags and update masters list
+                                    // Set the server UnselectableFlags and update primaries list
                                     switch (server.ServerType)
                                     {
                                         case ServerType.Twemproxy:
@@ -1753,11 +1753,11 @@ namespace StackExchange.Redis
                                             server.ClearUnselectable(UnselectableFlags.ServerType);
                                             if (server.IsReplica)
                                             {
-                                                server.ClearUnselectable(UnselectableFlags.RedundantMaster);
+                                                server.ClearUnselectable(UnselectableFlags.RedundantPrimary);
                                             }
                                             else
                                             {
-                                                masters.Add(server);
+                                                primaries.Add(server);
                                             }
                                             break;
                                         default:
@@ -1813,18 +1813,18 @@ namespace StackExchange.Redis
                         // ...for those cases, we want to allow sending to any primary endpoint.
                         if (ServerSelectionStrategy.ServerType.HasSinglePrimary())
                         {
-                            var preferred = NominatePreferredMaster(log, servers, useTieBreakers, masters);
-                            foreach (var master in masters)
+                            var preferred = NominatePreferredPrimary(log, servers, useTieBreakers, primaries);
+                            foreach (var primary in primaries)
                             {
-                                if (master == preferred || master.IsReplica)
+                                if (primary == preferred || primary.IsReplica)
                                 {
-                                    log?.WriteLine($"{Format.ToString(master)}: Clearing as RedundantMaster");
-                                    master.ClearUnselectable(UnselectableFlags.RedundantMaster);
+                                    log?.WriteLine($"{Format.ToString(primary)}: Clearing as RedundantPrimary");
+                                    primary.ClearUnselectable(UnselectableFlags.RedundantPrimary);
                                 }
                                 else
                                 {
-                                    log?.WriteLine($"{Format.ToString(master)}: Setting as RedundantMaster");
-                                    master.SetUnselectable(UnselectableFlags.RedundantMaster);
+                                    log?.WriteLine($"{Format.ToString(primary)}: Setting as RedundantPrimary");
+                                    primary.SetUnselectable(UnselectableFlags.RedundantPrimary);
                                 }
                             }
                         }
@@ -1944,7 +1944,7 @@ namespace StackExchange.Redis
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Partial - may use instance data")]
         partial void OnTraceLog(LogProxy log, [CallerMemberName] string caller = null);
 
-        private static ServerEndPoint NominatePreferredMaster(LogProxy log, ServerEndPoint[] servers, bool useTieBreakers, List<ServerEndPoint> masters)
+        private static ServerEndPoint NominatePreferredPrimary(LogProxy log, ServerEndPoint[] servers, bool useTieBreakers, List<ServerEndPoint> primaries)
         {
             log?.WriteLine("Election summary:");
 
@@ -1971,16 +1971,16 @@ namespace StackExchange.Redis
                 }
             }
 
-            switch (masters.Count)
+            switch (primaries.Count)
             {
                 case 0:
-                    log?.WriteLine("  Election: No masters detected");
+                    log?.WriteLine("  Election: No primaries detected");
                     return null;
                 case 1:
-                    log?.WriteLine($"  Election: Single master detected: {Format.ToString(masters[0].EndPoint)}");
-                    return masters[0];
+                    log?.WriteLine($"  Election: Single primary detected: {Format.ToString(primaries[0].EndPoint)}");
+                    return primaries[0];
                 default:
-                    log?.WriteLine("  Election: Multiple masters detected...");
+                    log?.WriteLine("  Election: Multiple primaries detected...");
                     if (useTieBreakers && uniques != null)
                     {
                         switch (uniques.Count)
@@ -2019,7 +2019,7 @@ namespace StackExchange.Redis
                                 {
                                     if (arbitrary)
                                     {
-                                        log?.WriteLine($"  Election: Choosing master arbitrarily: {Format.ToString(highest.EndPoint)}");
+                                        log?.WriteLine($"  Election: Choosing primary arbitrarily: {Format.ToString(highest.EndPoint)}");
                                     }
                                     else
                                     {
@@ -2033,8 +2033,8 @@ namespace StackExchange.Redis
                     break;
             }
 
-            log?.WriteLine($"  Election: Choosing master arbitrarily: {Format.ToString(masters[0].EndPoint)}");
-            return masters[0];
+            log?.WriteLine($"  Election: Choosing primary arbitrarily: {Format.ToString(primaries[0].EndPoint)}");
+            return primaries[0];
         }
 
         private static ServerEndPoint SelectServerByElection(ServerEndPoint[] servers, string endpoint, LogProxy log)
@@ -2125,9 +2125,9 @@ namespace StackExchange.Redis
             }
             else // A server was specified - do we trust their choice, though?
             {
-                if (message.IsMasterOnly() && server.IsReplica)
+                if (message.IsPrimaryOnly() && server.IsReplica)
                 {
-                    throw ExceptionFactory.MasterOnly(IncludeDetailInExceptions, message.Command, message, server);
+                    throw ExceptionFactory.PrimaryOnly(IncludeDetailInExceptions, message.Command, message, server);
                 }
 
                 switch (server.ServerType)
@@ -2233,7 +2233,7 @@ namespace StackExchange.Redis
 
         internal ServerSelectionStrategy ServerSelectionStrategy { get; }
 
-        internal Timer sentinelMasterReconnectTimer;
+        internal Timer sentinelPrimaryReconnectTimer;
 
         internal Dictionary<string, ConnectionMultiplexer> sentinelConnectionChildren = new Dictionary<string, ConnectionMultiplexer>();
         internal ConnectionMultiplexer sentinelConnection = null;
@@ -2261,7 +2261,7 @@ namespace StackExchange.Redis
 
                     lock (sentinelConnectionChildren)
                     {
-                        // Switch the master if we have connections for that service
+                        // Switch the primary if we have connections for that service
                         if (sentinelConnectionChildren.ContainsKey(messageParts[0]))
                         {
                             ConnectionMultiplexer child = sentinelConnectionChildren[messageParts[0]];
@@ -2275,7 +2275,7 @@ namespace StackExchange.Redis
                             }
                             else
                             {
-                                SwitchMaster(switchBlame, sentinelConnectionChildren[messageParts[0]]);
+                                SwitchPrimary(switchBlame, sentinelConnectionChildren[messageParts[0]]);
                             }
                         }
                     }
@@ -2330,13 +2330,13 @@ namespace StackExchange.Redis
             do
             {
                 // Get an initial endpoint - try twice
-                EndPoint newMasterEndPoint = GetConfiguredMasterForService(config.ServiceName)
-                                             ?? GetConfiguredMasterForService(config.ServiceName);
+                EndPoint newPrimaryEndPoint = GetConfiguredPrimaryForService(config.ServiceName)
+                                             ?? GetConfiguredPrimaryForService(config.ServiceName);
 
-                if (newMasterEndPoint == null)
+                if (newPrimaryEndPoint == null)
                 {
                     throw new RedisConnectionException(ConnectionFailureType.UnableToConnect,
-                        $"Sentinel: Failed connecting to configured master for service: {config.ServiceName}");
+                        $"Sentinel: Failed connecting to configured primary for service: {config.ServiceName}");
                 }
 
                 EndPoint[] replicaEndPoints = GetReplicasForService(config.ServiceName)
@@ -2346,12 +2346,12 @@ namespace StackExchange.Redis
                 // If not, assume the last state is the best we have and minimize the race
                 if (config.EndPoints.Count == 1)
                 {
-                    config.EndPoints[0] = newMasterEndPoint;
+                    config.EndPoints[0] = newPrimaryEndPoint;
                 }
                 else
                 {
                     config.EndPoints.Clear();
-                    config.EndPoints.TryAdd(newMasterEndPoint);
+                    config.EndPoints.TryAdd(newPrimaryEndPoint);
                 }
 
                 foreach (var replicaEndPoint in replicaEndPoints)
@@ -2361,9 +2361,9 @@ namespace StackExchange.Redis
 
                 connection = ConnectImpl(config, log);
 
-                // verify role is master according to:
+                // verify role is primary according to:
                 // https://redis.io/topics/sentinel-clients
-                if (connection.GetServer(newMasterEndPoint)?.Role().Value == RedisLiterals.master)
+                if (connection.GetServer(newPrimaryEndPoint)?.Role().Value == RedisLiterals.master)
                 {
                     success = true;
                     break;
@@ -2375,13 +2375,13 @@ namespace StackExchange.Redis
             if (!success)
             {
                 throw new RedisConnectionException(ConnectionFailureType.UnableToConnect,
-                    $"Sentinel: Failed connecting to configured master for service: {config.ServiceName}");
+                    $"Sentinel: Failed connecting to configured primary for service: {config.ServiceName}");
             }
 
-            // Attach to reconnect event to ensure proper connection to the new master
+            // Attach to reconnect event to ensure proper connection to the new primary
             connection.ConnectionRestored += OnManagedConnectionRestored;
 
-            // If we lost the connection, run a switch to a least try and get updated info about the master
+            // If we lost the connection, run a switch to a least try and get updated info about the primary
             connection.ConnectionFailed += OnManagedConnectionFailed;
 
             lock (sentinelConnectionChildren)
@@ -2390,7 +2390,7 @@ namespace StackExchange.Redis
             }
 
             // Perform the initial switchover
-            SwitchMaster(RawConfig.EndPoints[0], connection, log);
+            SwitchPrimary(RawConfig.EndPoints[0], connection, log);
 
             return connection;
         }
@@ -2400,33 +2400,33 @@ namespace StackExchange.Redis
         {
             ConnectionMultiplexer connection = (ConnectionMultiplexer)sender;
 
-            var oldTimer = Interlocked.Exchange(ref connection.sentinelMasterReconnectTimer, null);
+            var oldTimer = Interlocked.Exchange(ref connection.sentinelPrimaryReconnectTimer, null);
             oldTimer?.Dispose();
 
             try
             {
                 // Run a switch to make sure we have update-to-date
-                // information about which master we should connect to
-                SwitchMaster(e.EndPoint, connection);
+                // information about which primary we should connect to
+                SwitchPrimary(e.EndPoint, connection);
 
                 try
                 {
-                    // Verify that the reconnected endpoint is a master,
+                    // Verify that the reconnected endpoint is a primary,
                     // and the correct one otherwise we should reconnect
-                    if (connection.GetServer(e.EndPoint).IsReplica || e.EndPoint != connection.currentSentinelMasterEndPoint)
+                    if (connection.GetServer(e.EndPoint).IsReplica || e.EndPoint != connection.currentSentinelPrimaryEndPoint)
                     {
-                        // This isn't a master, so try connecting again
-                        SwitchMaster(e.EndPoint, connection);
+                        // This isn't a primary, so try connecting again
+                        SwitchPrimary(e.EndPoint, connection);
                     }
                 }
                 catch (Exception)
                 {
                     // If we get here it means that we tried to reconnect to a server that is no longer
-                    // considered a master by Sentinel and was removed from the list of endpoints.
+                    // considered a primary by Sentinel and was removed from the list of endpoints.
 
                     // If we caught an exception, we may have gotten a stale endpoint
                     // we are not aware of, so retry
-                    SwitchMaster(e.EndPoint, connection);
+                    SwitchPrimary(e.EndPoint, connection);
                 }
             }
             catch (Exception)
@@ -2440,30 +2440,30 @@ namespace StackExchange.Redis
         internal void OnManagedConnectionFailed(object sender, ConnectionFailedEventArgs e)
         {
             ConnectionMultiplexer connection = (ConnectionMultiplexer)sender;
-            // Periodically check to see if we can reconnect to the proper master.
+            // Periodically check to see if we can reconnect to the proper primary.
             // This is here in case we lost our subscription to a good sentinel instance
-            // or if we miss the published master change
-            if (connection.sentinelMasterReconnectTimer == null)
+            // or if we miss the published primary change.
+            if (connection.sentinelPrimaryReconnectTimer == null)
             {
-                connection.sentinelMasterReconnectTimer = new Timer(_ =>
+                connection.sentinelPrimaryReconnectTimer = new Timer(_ =>
                 {
                     try
                     {
                         // Attempt, but do not fail here
-                        SwitchMaster(e.EndPoint, connection);
+                        SwitchPrimary(e.EndPoint, connection);
                     }
                     catch (Exception)
                     {
                     }
                     finally
                     {
-                        connection.sentinelMasterReconnectTimer?.Change(TimeSpan.FromSeconds(1), Timeout.InfiniteTimeSpan);
+                        connection.sentinelPrimaryReconnectTimer?.Change(TimeSpan.FromSeconds(1), Timeout.InfiniteTimeSpan);
                     }
                 }, null, TimeSpan.Zero, Timeout.InfiniteTimeSpan);
             }
         }
 
-        internal EndPoint GetConfiguredMasterForService(string serviceName) =>
+        internal EndPoint GetConfiguredPrimaryForService(string serviceName) =>
             GetServerSnapshot()
                 .ToArray()
                 .Where(s => s.ServerType == ServerType.Sentinel)
@@ -2475,7 +2475,7 @@ namespace StackExchange.Redis
                 })
                 .FirstOrDefault(r => r != null);
 
-        internal EndPoint currentSentinelMasterEndPoint;
+        internal EndPoint currentSentinelPrimaryEndPoint;
 
         internal EndPoint[] GetReplicasForService(string serviceName) =>
             GetServerSnapshot()
@@ -2490,12 +2490,12 @@ namespace StackExchange.Redis
                 .FirstOrDefault(r => r != null);
 
         /// <summary>
-        /// Switches the SentinelMasterConnection over to a new master.
+        /// Switches the SentinelMasterConnection over to a new primary.
         /// </summary>
         /// <param name="switchBlame">The endpoint responsible for the switch.</param>
-        /// <param name="connection">The connection that should be switched over to a new master endpoint.</param>
+        /// <param name="connection">The connection that should be switched over to a new primary endpoint.</param>
         /// <param name="log">The writer to log to, if any.</param>
-        internal void SwitchMaster(EndPoint switchBlame, ConnectionMultiplexer connection, TextWriter log = null)
+        internal void SwitchPrimary(EndPoint switchBlame, ConnectionMultiplexer connection, TextWriter log = null)
         {
             if (log == null) log = TextWriter.Null;
 
@@ -2503,30 +2503,30 @@ namespace StackExchange.Redis
             {
                 string serviceName = connection.RawConfig.ServiceName;
 
-                // Get new master - try twice
-                EndPoint newMasterEndPoint = GetConfiguredMasterForService(serviceName)
-                                          ?? GetConfiguredMasterForService(serviceName)
-                                          ?? throw new RedisConnectionException(ConnectionFailureType.UnableToConnect,
-                                                $"Sentinel: Failed connecting to switch master for service: {serviceName}");
+                // Get new primary - try twice
+                EndPoint newPrimaryEndPoint = GetConfiguredPrimaryForService(serviceName)
+                                           ?? GetConfiguredPrimaryForService(serviceName)
+                                           ?? throw new RedisConnectionException(ConnectionFailureType.UnableToConnect,
+                                                $"Sentinel: Failed connecting to switch primary for service: {serviceName}");
 
-                connection.currentSentinelMasterEndPoint = newMasterEndPoint;
+                connection.currentSentinelPrimaryEndPoint = newPrimaryEndPoint;
 
-                if (!connection.servers.Contains(newMasterEndPoint))
+                if (!connection.servers.Contains(newPrimaryEndPoint))
                 {
                     EndPoint[] replicaEndPoints = GetReplicasForService(serviceName)
                                                ?? GetReplicasForService(serviceName);
 
                     connection.servers.Clear();
                     connection.RawConfig.EndPoints.Clear();
-                    connection.RawConfig.EndPoints.TryAdd(newMasterEndPoint);
+                    connection.RawConfig.EndPoints.TryAdd(newPrimaryEndPoint);
                     foreach (var replicaEndPoint in replicaEndPoints)
                     {
                         connection.RawConfig.EndPoints.TryAdd(replicaEndPoint);
                     }
-                    Trace(string.Format("Switching master to {0}", newMasterEndPoint));
+                    Trace($"Switching primary to {newPrimaryEndPoint}");
                     // Trigger a reconfigure
                     connection.ReconfigureAsync(first: false, reconfigureAll: false, logProxy, switchBlame,
-                        string.Format("master switch {0}", serviceName), false, CommandFlags.PreferMaster).Wait();
+                        $"Primary switch {serviceName}", false, CommandFlags.PreferMaster).Wait();
 
                     UpdateSentinelAddressList(serviceName);
                 }
@@ -2653,7 +2653,7 @@ namespace StackExchange.Redis
             GC.SuppressFinalize(this);
             Close(!_isDisposed);
             sentinelConnection?.Dispose();
-            var oldTimer = Interlocked.Exchange(ref sentinelMasterReconnectTimer, null);
+            var oldTimer = Interlocked.Exchange(ref sentinelPrimaryReconnectTimer, null);
             oldTimer?.Dispose();
         }
 

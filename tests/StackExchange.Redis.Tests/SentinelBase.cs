@@ -54,7 +54,7 @@ namespace StackExchange.Redis.Tests
             SentinelServerC = Conn.GetServer(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortC);
             SentinelsServers = new[] { SentinelServerA, SentinelServerB, SentinelServerC };
 
-            // wait until we are in a state of a single master and replica
+            // Wait until we are in a state of a single primary and replica
             await WaitForReadyAsync();
         }
 
@@ -67,23 +67,23 @@ namespace StackExchange.Redis.Tests
             public int GetHashCode(string obj) => obj.GetHashCode();
         }
 
-        protected async Task WaitForReadyAsync(EndPoint expectedMaster = null, bool waitForReplication = false, TimeSpan? duration = null)
+        protected async Task WaitForReadyAsync(EndPoint expectedPrimary = null, bool waitForReplication = false, TimeSpan? duration = null)
         {
             duration ??= TimeSpan.FromSeconds(30);
 
             var sw = Stopwatch.StartNew();
 
-            // wait until we have 1 master and 1 replica and have verified their roles
-            var master = SentinelServerA.SentinelGetMasterAddressByName(ServiceName);
-            if (expectedMaster != null && expectedMaster.ToString() != master.ToString())
+            // wait until we have 1 primary and 1 replica and have verified their roles
+            var primary = SentinelServerA.SentinelGetMasterAddressByName(ServiceName);
+            if (expectedPrimary != null && expectedPrimary.ToString() != primary.ToString())
             {
                 while (sw.Elapsed < duration.Value)
                 {
                     await Task.Delay(1000).ForAwait();
                     try
                     {
-                        master = SentinelServerA.SentinelGetMasterAddressByName(ServiceName);
-                        if (expectedMaster.ToString() == master.ToString())
+                        primary = SentinelServerA.SentinelGetMasterAddressByName(ServiceName);
+                        if (expectedPrimary.ToString() == primary.ToString())
                             break;
                     }
                     catch (Exception)
@@ -92,13 +92,13 @@ namespace StackExchange.Redis.Tests
                     }
                 }
             }
-            if (expectedMaster != null && expectedMaster.ToString() != master.ToString())
-                throw new RedisException($"Master was expected to be {expectedMaster}");
-            Log($"Master is {master}");
+            if (expectedPrimary != null && expectedPrimary.ToString() != primary.ToString())
+                throw new RedisException($"Primary was expected to be {expectedPrimary}");
+            Log($"Primary is {primary}");
 
             using var checkConn = Conn.GetSentinelMasterConnection(ServiceOptions);
 
-            await WaitForRoleAsync(checkConn.GetServer(master), "master", duration.Value.Subtract(sw.Elapsed)).ForAwait();
+            await WaitForRoleAsync(checkConn.GetServer(primary), "master", duration.Value.Subtract(sw.Elapsed)).ForAwait();
 
             var replicas = SentinelServerA.SentinelGetReplicaAddresses(ServiceName);
             if (replicas.Length > 0)
@@ -110,7 +110,7 @@ namespace StackExchange.Redis.Tests
 
             if (waitForReplication)
             {
-                await WaitForReplicationAsync(checkConn.GetServer(master), duration.Value.Subtract(sw.Elapsed)).ForAwait();
+                await WaitForReplicationAsync(checkConn.GetServer(primary), duration.Value.Subtract(sw.Elapsed)).ForAwait();
             }
         }
 
@@ -141,48 +141,48 @@ namespace StackExchange.Redis.Tests
             throw new RedisException($"Timeout waiting for server ({server.EndPoint}) to have expected role (\"{role}\") assigned");
         }
 
-        protected async Task WaitForReplicationAsync(IServer master, TimeSpan? duration = null)
+        protected async Task WaitForReplicationAsync(IServer primary, TimeSpan? duration = null)
         {
             duration ??= TimeSpan.FromSeconds(10);
 
-            static void LogEndpoints(IServer master, Action<string> log)
+            static void LogEndpoints(IServer primary, Action<string> log)
             {
-                if (master.Multiplexer is ConnectionMultiplexer muxer)
+                if (primary.Multiplexer is ConnectionMultiplexer muxer)
                 {
                     var serverEndpoints = muxer.GetServerSnapshot();
                     log("Endpoints:");
                     foreach (var serverEndpoint in serverEndpoints)
                     {
                         log($"  {serverEndpoint}:");
-                        var server = master.Multiplexer.GetServer(serverEndpoint.EndPoint);
+                        var server = primary.Multiplexer.GetServer(serverEndpoint.EndPoint);
                         log($"     Server: (Connected={server.IsConnected}, Type={server.ServerType}, IsReplica={server.IsReplica}, Unselectable={serverEndpoint.GetUnselectableFlags()})");
                     }
                 }
             }
 
-            Log("Waiting for master/replica replication to be in sync...");
+            Log("Waiting for primary/replica replication to be in sync...");
             var sw = Stopwatch.StartNew();
             while (sw.Elapsed < duration.Value)
             {
-                var info = master.Info("replication");
+                var info = primary.Info("replication");
                 var replicationInfo = info.FirstOrDefault(f => f.Key == "Replication")?.ToArray().ToDictionary();
                 var replicaInfo = replicationInfo?.FirstOrDefault(i => i.Key.StartsWith("slave")).Value?.Split(',').ToDictionary(i => i.Split('=').First(), i => i.Split('=').Last());
                 var replicaOffset = replicaInfo?["offset"];
-                var masterOffset = replicationInfo?["master_repl_offset"];
+                var primaryOffset = replicationInfo?["master_repl_offset"];
 
-                if (replicaOffset == masterOffset)
+                if (replicaOffset == primaryOffset)
                 {
-                    Log($"Done waiting for master ({masterOffset}) / replica ({replicaOffset}) replication to be in sync");
-                    LogEndpoints(master, Log);
+                    Log($"Done waiting for primary ({primaryOffset}) / replica ({replicaOffset}) replication to be in sync");
+                    LogEndpoints(primary, Log);
                     return;
                 }
 
-                Log($"Waiting for master ({masterOffset}) / replica ({replicaOffset}) replication to be in sync...");
+                Log($"Waiting for primary ({primaryOffset}) / replica ({replicaOffset}) replication to be in sync...");
 
                 await Task.Delay(250).ForAwait();
             }
 
-            throw new RedisException("Timeout waiting for test servers master/replica replication to be in sync.");
+            throw new RedisException("Timeout waiting for test servers primary/replica replication to be in sync.");
         }
     }
 }
