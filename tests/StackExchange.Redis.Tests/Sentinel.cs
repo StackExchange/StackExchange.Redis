@@ -139,7 +139,7 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void SentinelGetPriimaryAddressByNameTest()
+        public void SentinelGetPrimaryAddressByNameTest()
         {
             foreach (var server in SentinelsServers)
             {

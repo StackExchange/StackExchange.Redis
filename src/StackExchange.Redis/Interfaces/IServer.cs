@@ -916,7 +916,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="serviceName">The sentinel service name.</param>
         /// <param name="flags">The command flags to use.</param>
-        /// <returns>an array of replica state KeyValuePair arrays.</returns>
+        /// <returns>An array of replica state KeyValuePair arrays.</returns>
         /// <remarks>https://redis.io/topics/sentinel</remarks>
         [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(SentinelReplicas) + " instead, this will be removed in 3.0.")]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
