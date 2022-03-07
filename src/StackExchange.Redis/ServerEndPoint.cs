@@ -32,9 +32,9 @@ namespace StackExchange.Redis
 
         private int databases, writeEverySeconds;
         private PhysicalBridge interactive, subscription;
-        private bool isDisposed;
+        private bool isDisposed, replicaReadOnly, isReplica, allowReplicaWrites;
+        private bool? supportsDatabases, supportsPrimaryWrites;
         private ServerType serverType;
-        private bool replicaReadOnly, isReplica;
         private volatile UnselectableFlags unselectableReasons;
         private Version version;
 
@@ -76,8 +76,17 @@ namespace StackExchange.Redis
         public int Databases { get { return databases; } set { SetConfig(ref databases, value); } }
 
         public EndPoint EndPoint { get; }
+        /// <summary>
+        /// Whether this endpoint supports databases at all.
+        /// Note that some servers are cluster but present as standalone (e.g. Redis Enterprise), so we respect
+        /// <see cref="RedisCommand.SELECT"/> being disabled here as a performance workaround.
+        /// </summary>
+        /// <remarks>
+        /// This is memoized because it's accessed on hot paths inside the write lock.
+        /// </remarks>
+        public bool SupportsDatabases =>
+            supportsDatabases ??= (serverType == ServerType.Standalone && Multiplexer.RawConfig.CommandMap.IsAvailable(RedisCommand.SELECT));
 
-        public bool HasDatabases => serverType == ServerType.Standalone;
 
         public bool IsConnected => interactive?.IsConnected == true;
         public bool IsSubscriberConnected => subscription?.IsConnected == true;
@@ -85,6 +94,7 @@ namespace StackExchange.Redis
         public bool SupportsSubscriptions => Multiplexer.CommandMap.IsAvailable(RedisCommand.SUBSCRIBE);
 
         public bool IsConnecting => interactive?.IsConnecting == true;
+        public bool SupportsPrimaryWrites => supportsPrimaryWrites ??= (!IsReplica || !ReplicaReadOnly || AllowReplicaWrites);
 
         private readonly List<TaskCompletionSource<string>> _pendingConnectionMonitors = new List<TaskCompletionSource<string>>();
 
@@ -176,7 +186,15 @@ namespace StackExchange.Redis
             set => SetConfig(ref replicaReadOnly, value);
         }
 
-        public bool AllowReplicaWrites { get; set; }
+        public bool AllowReplicaWrites
+        {
+            get => allowReplicaWrites;
+            set
+            {
+                allowReplicaWrites = value;
+                ClearMemoized();
+            }
+        }
 
         public Version Version
         {
@@ -946,8 +964,15 @@ namespace StackExchange.Redis
             {
                 Multiplexer.Trace(caller + " changed from " + field + " to " + value, "Configuration");
                 field = value;
+                ClearMemoized();
                 Multiplexer.ReconfigureIfNeeded(EndPoint, false, caller);
             }
+        }
+
+        private void ClearMemoized()
+        {
+            supportsDatabases = null;
+            supportsPrimaryWrites = null;
         }
 
         /// <summary>

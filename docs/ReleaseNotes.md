@@ -1,5 +1,9 @@
 # Release Notes
 
+## Unreleased
+
+- Fix [#1988](https://github.com/StackExchange/StackExchange.Redis/issues/1988): Don't issue `SELECT` commands if explicitly disabled ([#2023 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2023))
+
 ## 2.5.43
 
 - Adds: Bounds checking for `ExponentialRetry` backoff policy ([#1921 by gliljas](https://github.com/StackExchange/StackExchange.Redis/pull/1921)) 
