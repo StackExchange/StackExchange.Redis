@@ -5,9 +5,7 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
-using System.Threading.Channels;
 using System.Threading.Tasks;
-using static StackExchange.Redis.ConnectionMultiplexer;
 #if !NETCOREAPP
 using Pipelines.Sockets.Unofficial.Threading;
 using static Pipelines.Sockets.Unofficial.Threading.MutexSlim;
@@ -1433,8 +1431,8 @@ namespace StackExchange.Redis
                 message.SetRequestSent();
                 IncrementOpCount();
 
-                // some commands smash our ability to trust the database; some commands
-                // demand an immediate flush
+                // Some commands smash our ability to trust the database
+                // and some commands demand an immediate flush
                 switch (cmd)
                 {
                     case RedisCommand.EVAL:
@@ -1460,11 +1458,11 @@ namespace StackExchange.Redis
                 Trace("Write failed: " + ex.Message);
                 message.Fail(ConnectionFailureType.InternalFailure, ex, null, Multiplexer);
                 message.Complete();
-                // this failed without actually writing; we're OK with that... unless there's a transaction
+                // This failed without actually writing; we're OK with that... unless there's a transaction
 
                 if (connection?.TransactionActive == true)
                 {
-                    // we left it in a broken state; need to kill the connection
+                    // We left it in a broken state - need to kill the connection
                     connection.RecordConnectionFailed(ConnectionFailureType.ProtocolFailure, ex);
                     return WriteResult.WriteFailure;
                 }
@@ -1476,7 +1474,7 @@ namespace StackExchange.Redis
                 message.Fail(ConnectionFailureType.InternalFailure, ex, null, Multiplexer);
                 message.Complete();
 
-                // we're not sure *what* happened here; probably an IOException; kill the connection
+                // We're not sure *what* happened here - probably an IOException; kill the connection
                 connection?.RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
                 return WriteResult.WriteFailure;
             }

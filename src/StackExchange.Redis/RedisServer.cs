@@ -8,7 +8,6 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using Pipelines.Sockets.Unofficial.Arenas;
-using static StackExchange.Redis.ConnectionMultiplexer;
 
 namespace StackExchange.Redis
 {

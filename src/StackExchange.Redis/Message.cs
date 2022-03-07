@@ -6,7 +6,6 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using StackExchange.Redis.Profiling;
-using static StackExchange.Redis.ConnectionMultiplexer;
 
 namespace StackExchange.Redis
 {
