@@ -536,11 +536,11 @@ namespace StackExchange.Redis
             counters.Subscriptions = SubscriptionCount;
         }
 
-        internal Message GetReadModeCommand(bool isMasterOnly)
+        internal Message GetReadModeCommand(bool isPrimaryOnly)
         {
             if (BridgeCouldBeNull?.ServerEndPoint?.RequiresReadMode == true)
             {
-                ReadMode requiredReadMode = isMasterOnly ? ReadMode.ReadWrite : ReadMode.ReadOnly;
+                ReadMode requiredReadMode = isPrimaryOnly ? ReadMode.ReadWrite : ReadMode.ReadOnly;
                 if (requiredReadMode != currentReadMode)
                 {
                     currentReadMode = requiredReadMode;

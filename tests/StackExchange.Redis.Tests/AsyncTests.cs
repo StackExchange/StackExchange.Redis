@@ -12,7 +12,7 @@ namespace StackExchange.Redis.Tests
     {
         public AsyncTests(ITestOutputHelper output) : base(output) { }
 
-        protected override string GetConfiguration() => TestConfig.Current.MasterServerAndPort;
+        protected override string GetConfiguration() => TestConfig.Current.PrimaryServerAndPort;
 
         [Fact]
         public void AsyncTasksReportFailureIfServerUnavailable()
@@ -21,7 +21,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create(allowAdmin: true, shared: false, backlogPolicy: BacklogPolicy.FailFast))
             {
-                var server = conn.GetServer(TestConfig.Current.MasterServer, TestConfig.Current.MasterPort);
+                var server = conn.GetServer(TestConfig.Current.PrimaryServer, TestConfig.Current.PrimaryPort);
 
                 RedisKey key = Me();
                 var db = conn.GetDatabase();

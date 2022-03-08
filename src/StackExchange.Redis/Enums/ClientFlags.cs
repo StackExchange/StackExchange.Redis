@@ -106,7 +106,7 @@ namespace StackExchange.Redis
         /// </summary>
         Replica = 2, // as an implementation detail, note that enum.ToString on [Flags] prefers *later* options when naming Flags
         /// <summary>
-        /// The client is a master.
+        /// The client is a primary.
         /// </summary>
         Master = 4,
         /// <summary>

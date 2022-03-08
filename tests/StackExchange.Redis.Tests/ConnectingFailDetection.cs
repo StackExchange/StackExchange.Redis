@@ -10,7 +10,7 @@ namespace StackExchange.Redis.Tests
     {
         public ConnectingFailDetection(ITestOutputHelper output) : base (output) { }
 
-        protected override string GetConfiguration() => TestConfig.Current.MasterServerAndPort + "," + TestConfig.Current.ReplicaServerAndPort;
+        protected override string GetConfiguration() => TestConfig.Current.PrimaryServerAndPort + "," + TestConfig.Current.ReplicaServerAndPort;
 
         [Fact]
         public async Task FastNoticesFailOnConnectingSyncCompletion()
@@ -95,7 +95,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task Issue922_ReconnectRaised()
         {
-            var config = ConfigurationOptions.Parse(TestConfig.Current.MasterServerAndPort);
+            var config = ConfigurationOptions.Parse(TestConfig.Current.PrimaryServerAndPort);
             config.AbortOnConnectFail = true;
             config.KeepAlive = 1;
             config.SyncTimeout = 1000;
@@ -123,7 +123,7 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal(0, Volatile.Read(ref failCount));
                 Assert.Equal(0, Volatile.Read(ref restoreCount));
 
-                var server = muxer.GetServer(TestConfig.Current.MasterServerAndPort);
+                var server = muxer.GetServer(TestConfig.Current.PrimaryServerAndPort);
                 server.SimulateConnectionFailure(SimulatedFailureType.All);
 
                 await UntilConditionAsync(TimeSpan.FromSeconds(10), () => Volatile.Read(ref failCount) >= 2 && Volatile.Read(ref restoreCount) >= 2);

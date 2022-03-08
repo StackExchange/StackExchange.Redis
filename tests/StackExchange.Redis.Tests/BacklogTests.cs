@@ -10,7 +10,7 @@ namespace StackExchange.Redis.Tests
     {
         public BacklogTests(ITestOutputHelper output) : base (output) { }
 
-        protected override string GetConfiguration() => TestConfig.Current.MasterServerAndPort + "," + TestConfig.Current.ReplicaServerAndPort;
+        protected override string GetConfiguration() => TestConfig.Current.PrimaryServerAndPort + "," + TestConfig.Current.ReplicaServerAndPort;
 
         [Fact]
         public async Task FailFast()
@@ -48,7 +48,7 @@ namespace StackExchange.Redis.Tests
                     AsyncTimeout = 5000,
                     AllowAdmin = true,
                 };
-                options.EndPoints.Add(TestConfig.Current.MasterServerAndPort);
+                options.EndPoints.Add(TestConfig.Current.PrimaryServerAndPort);
 
                 using var muxer = await ConnectionMultiplexer.ConnectAsync(options, Writer);
 
@@ -121,7 +121,7 @@ namespace StackExchange.Redis.Tests
                     AllowAdmin = true,
                     SocketManager = SocketManager.ThreadPool,
                 };
-                options.EndPoints.Add(TestConfig.Current.MasterServerAndPort);
+                options.EndPoints.Add(TestConfig.Current.PrimaryServerAndPort);
 
                 using var muxer = await ConnectionMultiplexer.ConnectAsync(options, Writer);
                 muxer.ErrorMessage += (s, e) => Log($"Error Message {e.EndPoint}: {e.Message}");
@@ -213,7 +213,7 @@ namespace StackExchange.Redis.Tests
                     AllowAdmin = true,
                     SocketManager = SocketManager.ThreadPool,
                 };
-                options.EndPoints.Add(TestConfig.Current.MasterServerAndPort);
+                options.EndPoints.Add(TestConfig.Current.PrimaryServerAndPort);
 
                 using var muxer = await ConnectionMultiplexer.ConnectAsync(options, Writer);
                 muxer.ErrorMessage += (s, e) => Log($"Error Message {e.EndPoint}: {e.Message}");

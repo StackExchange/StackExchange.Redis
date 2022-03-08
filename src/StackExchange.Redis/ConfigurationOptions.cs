@@ -460,7 +460,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Tie-breaker used to choose between masters (must match the endpoint exactly).
+        /// Tie-breaker used to choose between primaries (must match the endpoint exactly).
         /// </summary>
         public string TieBreaker
         {

@@ -21,7 +21,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var mutex = Create())
             {
-                var shouldBePrimary = mutex.GetServer(TestConfig.Current.FailoverMasterServerAndPort);
+                var shouldBePrimary = mutex.GetServer(TestConfig.Current.FailoverPrimaryServerAndPort);
                 if (shouldBePrimary.IsReplica)
                 {
                     Log(shouldBePrimary.EndPoint + " should be primary, fixing...");
@@ -46,7 +46,7 @@ namespace StackExchange.Redis.Tests
                 SyncTimeout = 100000,
                 EndPoints =
                 {
-                    { TestConfig.Current.FailoverMasterServer, TestConfig.Current.FailoverMasterPort },
+                    { TestConfig.Current.FailoverPrimaryServer, TestConfig.Current.FailoverPrimaryPort },
                     { TestConfig.Current.FailoverReplicaServer, TestConfig.Current.FailoverReplicaPort },
                 }
             };
@@ -117,7 +117,7 @@ namespace StackExchange.Redis.Tests
             config.ConfigCheckSeconds = 5;
             using (var conn = ConnectionMultiplexer.Connect(config))
             {
-                var primary = conn.GetServer(TestConfig.Current.FailoverMasterServerAndPort);
+                var primary = conn.GetServer(TestConfig.Current.FailoverPrimaryServerAndPort);
                 var secondary = conn.GetServer(TestConfig.Current.FailoverReplicaServerAndPort);
 
                 primary.Ping();
@@ -136,7 +136,7 @@ namespace StackExchange.Redis.Tests
                     conn.Configure(writer);
                     string log = writer.ToString();
                     Writer.WriteLine(log);
-                    bool isUnanimous = log.Contains("tie-break is unanimous at " + TestConfig.Current.FailoverMasterServerAndPort);
+                    bool isUnanimous = log.Contains("tie-break is unanimous at " + TestConfig.Current.FailoverPrimaryServerAndPort);
                     if (!isUnanimous) Skip.Inconclusive("this is timing sensitive; unable to verify this time");
                 }
                 // k, so we know everyone loves 6379; is that what we get?
@@ -172,7 +172,7 @@ namespace StackExchange.Redis.Tests
                 Writer.WriteLine("Connecting to secondary validation connection.");
                 using (var conn2 = ConnectionMultiplexer.Connect(config))
                 {
-                    var primary2 = conn2.GetServer(TestConfig.Current.FailoverMasterServerAndPort);
+                    var primary2 = conn2.GetServer(TestConfig.Current.FailoverPrimaryServerAndPort);
                     var secondary2 = conn2.GetServer(TestConfig.Current.FailoverReplicaServerAndPort);
 
                     Writer.WriteLine($"Check: {primary2.EndPoint}: {primary2.ServerType}, Mode: {(primary2.IsReplica ? "Replica" : "Primary")}");
@@ -240,13 +240,13 @@ namespace StackExchange.Redis.Tests
                     Interlocked.Increment(ref bCount);
                 });
 
-                Assert.False(a.GetServer(TestConfig.Current.FailoverMasterServerAndPort).IsReplica, $"A Connection: {TestConfig.Current.FailoverMasterServerAndPort} should be a master");
+                Assert.False(a.GetServer(TestConfig.Current.FailoverPrimaryServerAndPort).IsReplica, $"A Connection: {TestConfig.Current.FailoverPrimaryServerAndPort} should be a primary");
                 if (!a.GetServer(TestConfig.Current.FailoverReplicaServerAndPort).IsReplica)
                 {
                     TopologyFail();
                 }
                 Assert.True(a.GetServer(TestConfig.Current.FailoverReplicaServerAndPort).IsReplica, $"A Connection: {TestConfig.Current.FailoverReplicaServerAndPort} should be a replica");
-                Assert.False(b.GetServer(TestConfig.Current.FailoverMasterServerAndPort).IsReplica, $"B Connection: {TestConfig.Current.FailoverMasterServerAndPort} should be a master");
+                Assert.False(b.GetServer(TestConfig.Current.FailoverPrimaryServerAndPort).IsReplica, $"B Connection: {TestConfig.Current.FailoverPrimaryServerAndPort} should be a primary");
                 Assert.True(b.GetServer(TestConfig.Current.FailoverReplicaServerAndPort).IsReplica, $"B Connection: {TestConfig.Current.FailoverReplicaServerAndPort} should be a replica");
 
                 Log("Failover 1 Complete");
@@ -277,25 +277,25 @@ namespace StackExchange.Redis.Tests
                         Log(sw.ToString());
                     }
                     Log("Waiting for connection B to detect...");
-                    await UntilConditionAsync(TimeSpan.FromSeconds(10), () => b.GetServer(TestConfig.Current.FailoverMasterServerAndPort).IsReplica).ForAwait();
+                    await UntilConditionAsync(TimeSpan.FromSeconds(10), () => b.GetServer(TestConfig.Current.FailoverPrimaryServerAndPort).IsReplica).ForAwait();
                     subA.Ping();
                     subB.Ping();
                     Log("Failover 2 Attempted. Pausing...");
-                    Log("  A " + TestConfig.Current.FailoverMasterServerAndPort + " status: " + (a.GetServer(TestConfig.Current.FailoverMasterServerAndPort).IsReplica ? "Replica" : "Primary"));
+                    Log("  A " + TestConfig.Current.FailoverPrimaryServerAndPort + " status: " + (a.GetServer(TestConfig.Current.FailoverPrimaryServerAndPort).IsReplica ? "Replica" : "Primary"));
                     Log("  A " + TestConfig.Current.FailoverReplicaServerAndPort + " status: " + (a.GetServer(TestConfig.Current.FailoverReplicaServerAndPort).IsReplica ? "Replica" : "Primary"));
-                    Log("  B " + TestConfig.Current.FailoverMasterServerAndPort + " status: " + (b.GetServer(TestConfig.Current.FailoverMasterServerAndPort).IsReplica ? "Replica" : "Primary"));
+                    Log("  B " + TestConfig.Current.FailoverPrimaryServerAndPort + " status: " + (b.GetServer(TestConfig.Current.FailoverPrimaryServerAndPort).IsReplica ? "Replica" : "Primary"));
                     Log("  B " + TestConfig.Current.FailoverReplicaServerAndPort + " status: " + (b.GetServer(TestConfig.Current.FailoverReplicaServerAndPort).IsReplica ? "Replica" : "Primary"));
 
-                    if (!a.GetServer(TestConfig.Current.FailoverMasterServerAndPort).IsReplica)
+                    if (!a.GetServer(TestConfig.Current.FailoverPrimaryServerAndPort).IsReplica)
                     {
                         TopologyFail();
                     }
                     Log("Failover 2 Complete.");
 
-                    Assert.True(a.GetServer(TestConfig.Current.FailoverMasterServerAndPort).IsReplica, $"A Connection: {TestConfig.Current.FailoverMasterServerAndPort} should be a replica");
-                    Assert.False(a.GetServer(TestConfig.Current.FailoverReplicaServerAndPort).IsReplica, $"A Connection: {TestConfig.Current.FailoverReplicaServerAndPort} should be a master");
-                    await UntilConditionAsync(TimeSpan.FromSeconds(10), () => b.GetServer(TestConfig.Current.FailoverMasterServerAndPort).IsReplica).ForAwait();
-                    var sanityCheck = b.GetServer(TestConfig.Current.FailoverMasterServerAndPort).IsReplica;
+                    Assert.True(a.GetServer(TestConfig.Current.FailoverPrimaryServerAndPort).IsReplica, $"A Connection: {TestConfig.Current.FailoverPrimaryServerAndPort} should be a replica");
+                    Assert.False(a.GetServer(TestConfig.Current.FailoverReplicaServerAndPort).IsReplica, $"A Connection: {TestConfig.Current.FailoverReplicaServerAndPort} should be a primary");
+                    await UntilConditionAsync(TimeSpan.FromSeconds(10), () => b.GetServer(TestConfig.Current.FailoverPrimaryServerAndPort).IsReplica).ForAwait();
+                    var sanityCheck = b.GetServer(TestConfig.Current.FailoverPrimaryServerAndPort).IsReplica;
                     if (!sanityCheck)
                     {
                         Log("FAILURE: B has not detected the topology change.");
@@ -308,8 +308,8 @@ namespace StackExchange.Redis.Tests
                         }
                         //Skip.Inconclusive("Not enough latency.");
                     }
-                    Assert.True(sanityCheck, $"B Connection: {TestConfig.Current.FailoverMasterServerAndPort} should be a replica");
-                    Assert.False(b.GetServer(TestConfig.Current.FailoverReplicaServerAndPort).IsReplica, $"B Connection: {TestConfig.Current.FailoverReplicaServerAndPort} should be a master");
+                    Assert.True(sanityCheck, $"B Connection: {TestConfig.Current.FailoverPrimaryServerAndPort} should be a replica");
+                    Assert.False(b.GetServer(TestConfig.Current.FailoverReplicaServerAndPort).IsReplica, $"B Connection: {TestConfig.Current.FailoverReplicaServerAndPort} should be a primary");
 
                     Log("Pause complete");
                     Log("  A outstanding: " + a.GetCounters().TotalOutstanding);
@@ -353,7 +353,7 @@ namespace StackExchange.Redis.Tests
                     Log("Restoring configuration...");
                     try
                     {
-                        await a.GetServer(TestConfig.Current.FailoverMasterServerAndPort).MakePrimaryAsync(ReplicationChangeOptions.All);
+                        await a.GetServer(TestConfig.Current.FailoverPrimaryServerAndPort).MakePrimaryAsync(ReplicationChangeOptions.All);
                         await Task.Delay(1000).ForAwait();
                     }
                     catch { /* Don't bomb here */ }

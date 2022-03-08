@@ -129,7 +129,7 @@ namespace StackExchange.Redis
         #region Sentinel
 
         public static readonly ResultProcessor<EndPoint>
-            SentinelMasterEndpoint = new SentinelGetMasterAddressByNameProcessor();
+            SentinelPrimaryEndpoint = new SentinelGetPrimaryAddressByNameProcessor();
 
         public static readonly ResultProcessor<EndPoint[]>
             SentinelAddressesEndPoints = new SentinelGetSentinelAddressesProcessor();
@@ -681,7 +681,7 @@ namespace StackExchange.Redis
                                 SetResult(message, true);
                                 return true;
                             }
-                            string masterHost = null, masterPort = null;
+                            string primaryHost = null, primaryPort = null;
                             bool roleSeen = false;
                             using (var reader = new StringReader(info))
                             {
@@ -697,7 +697,7 @@ namespace StackExchange.Redis
                                         {
                                             case "master":
                                                 server.IsReplica = false;
-                                                Log?.WriteLine($"{Format.ToString(server)}: Auto-configured (INFO) role: master");
+                                                Log?.WriteLine($"{Format.ToString(server)}: Auto-configured (INFO) role: primary");
                                                 break;
                                             case "replica":
                                             case "slave":
@@ -708,11 +708,11 @@ namespace StackExchange.Redis
                                     }
                                     else if ((val = Extract(line, "master_host:")) != null)
                                     {
-                                        masterHost = val;
+                                        primaryHost = val;
                                     }
                                     else if ((val = Extract(line, "master_port:")) != null)
                                     {
-                                        masterPort = val;
+                                        primaryPort = val;
                                     }
                                     else if ((val = Extract(line, "redis_version:")) != null)
                                     {
@@ -748,7 +748,7 @@ namespace StackExchange.Redis
                                 if (roleSeen)
                                 {
                                     // These are in the same section, if present
-                                    server.MasterEndPoint = Format.TryParseEndPoint(masterHost, masterPort);
+                                    server.PrimaryEndPoint = Format.TryParseEndPoint(primaryHost, primaryPort);
                                 }
                             }
                         }
@@ -1409,7 +1409,7 @@ The coordinates as a two items x,y array (longitude,latitude).
 
                 ref var val = ref items[0];
                 Role role;
-                if (val.IsEqual(RedisLiterals.master)) role = ParseMaster(items);
+                if (val.IsEqual(RedisLiterals.master)) role = ParsePrimary(items);
                 else if (val.IsEqual(RedisLiterals.slave)) role = ParseReplica(items, RedisLiterals.slave);
                 else if (val.IsEqual(RedisLiterals.replica)) role = ParseReplica(items, RedisLiterals.replica); // for when "slave" is deprecated
                 else if (val.IsEqual(RedisLiterals.sentinel)) role = ParseSentinel(items);
@@ -1420,7 +1420,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                 return true;
             }
 
-            private static Role ParseMaster(in Sequence<RawResult> items)
+            private static Role ParsePrimary(in Sequence<RawResult> items)
             {
                 if (items.Length < 3)
                 {
@@ -1443,7 +1443,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                     replicas = new List<Role.Master.Replica>((int)replicaItems.Length);
                     for (int i = 0; i < replicaItems.Length; i++)
                     {
-                        if (TryParseMasterReplica(replicaItems[i].GetItems(), out var replica))
+                        if (TryParsePrimaryReplica(replicaItems[i].GetItems(), out var replica))
                         {
                             replicas.Add(replica);
                         }
@@ -1457,7 +1457,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                 return new Role.Master(offset, replicas);
             }
 
-            private static bool TryParseMasterReplica(in Sequence<RawResult> items, out Role.Master.Replica replica)
+            private static bool TryParsePrimaryReplica(in Sequence<RawResult> items, out Role.Master.Replica replica)
             {
                 if (items.Length < 3)
                 {
@@ -1465,9 +1465,9 @@ The coordinates as a two items x,y array (longitude,latitude).
                     return false;
                 }
 
-                var masterIp = items[0].GetString();
+                var primaryIp = items[0].GetString();
 
-                if (!items[1].TryGetInt64(out var masterPort) || masterPort > int.MaxValue)
+                if (!items[1].TryGetInt64(out var primaryPort) || primaryPort > int.MaxValue)
                 {
                     replica = default;
                     return false;
@@ -1479,7 +1479,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                     return false;
                 }
 
-                replica = new Role.Master.Replica(masterIp, (int)masterPort, replicationOffset);
+                replica = new Role.Master.Replica(primaryIp, (int)primaryPort, replicationOffset);
                 return true;
             }
 
@@ -1490,9 +1490,9 @@ The coordinates as a two items x,y array (longitude,latitude).
                     return null;
                 }
 
-                var masterIp = items[1].GetString();
+                var primaryIp = items[1].GetString();
 
-                if (!items[2].TryGetInt64(out var masterPort) || masterPort > int.MaxValue)
+                if (!items[2].TryGetInt64(out var primaryPort) || primaryPort > int.MaxValue)
                 {
                     return null;
                 }
@@ -1512,7 +1512,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                     return null;
                 }
 
-                return new Role.Replica(role, masterIp, (int)masterPort, replicationState, replicationOffset);
+                return new Role.Replica(role, primaryIp, (int)primaryPort, replicationState, replicationOffset);
             }
 
             private static Role ParseSentinel(in Sequence<RawResult> items)
@@ -1521,8 +1521,8 @@ The coordinates as a two items x,y array (longitude,latitude).
                 {
                     return null;
                 }
-                var masters = items[1].GetItemsAsStrings();
-                return new Role.Sentinel(masters);
+                var primaries = items[1].GetItemsAsStrings();
+                return new Role.Sentinel(primaries);
             }
         }
 
@@ -2219,7 +2219,7 @@ The coordinates as a two items x,y array (longitude,latitude).
 
         #region Sentinel
 
-        private sealed class SentinelGetMasterAddressByNameProcessor : ResultProcessor<EndPoint>
+        private sealed class SentinelGetPrimaryAddressByNameProcessor : ResultProcessor<EndPoint>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
@@ -2271,7 +2271,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                         return true;
 
                     case ResultType.SimpleString:
-                        //We don't want to blow up if the master is not found
+                        // We don't want to blow up if the primary is not found
                         if (result.IsNull)
                             return true;
                         break;
@@ -2304,7 +2304,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                         break;
 
                     case ResultType.SimpleString:
-                        //We don't want to blow up if the master is not found
+                        // We don't want to blow up if the primary is not found
                         if (result.IsNull)
                             return true;
                         break;

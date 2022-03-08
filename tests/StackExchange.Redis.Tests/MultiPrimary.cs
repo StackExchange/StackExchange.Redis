@@ -1,5 +1,4 @@
 ﻿using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Text;
 using Xunit;
@@ -7,11 +6,11 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
-    public class MultiMaster : TestBase
+    public class MultiPrimary : TestBase
     {
         protected override string GetConfiguration() =>
-            TestConfig.Current.MasterServerAndPort + "," + TestConfig.Current.SecureServerAndPort + ",password=" + TestConfig.Current.SecurePassword;
-        public MultiMaster(ITestOutputHelper output) : base (output) { }
+            TestConfig.Current.PrimaryServerAndPort + "," + TestConfig.Current.SecureServerAndPort + ",password=" + TestConfig.Current.SecurePassword;
+        public MultiPrimary(ITestOutputHelper output) : base (output) { }
 
         [Fact]
         public void CannotFlushReplica()
@@ -36,19 +35,19 @@ namespace StackExchange.Redis.Tests
             Writer.EchoTo(log);
             using (Create(log: Writer, tieBreaker: ""))
             {
-                Assert.Contains("Choosing master arbitrarily", log.ToString());
+                Assert.Contains("Choosing primary arbitrarily", log.ToString());
             }
         }
 
         public static IEnumerable<object[]> GetConnections()
         {
-            yield return new object[] { TestConfig.Current.MasterServerAndPort, TestConfig.Current.MasterServerAndPort, TestConfig.Current.MasterServerAndPort };
+            yield return new object[] { TestConfig.Current.PrimaryServerAndPort, TestConfig.Current.PrimaryServerAndPort, TestConfig.Current.PrimaryServerAndPort };
             yield return new object[] { TestConfig.Current.SecureServerAndPort, TestConfig.Current.SecureServerAndPort, TestConfig.Current.SecureServerAndPort };
-            yield return new object[] { TestConfig.Current.SecureServerAndPort, TestConfig.Current.MasterServerAndPort, null };
-            yield return new object[] { TestConfig.Current.MasterServerAndPort, TestConfig.Current.SecureServerAndPort, null };
+            yield return new object[] { TestConfig.Current.SecureServerAndPort, TestConfig.Current.PrimaryServerAndPort, null };
+            yield return new object[] { TestConfig.Current.PrimaryServerAndPort, TestConfig.Current.SecureServerAndPort, null };
 
-            yield return new object[] { null, TestConfig.Current.MasterServerAndPort, TestConfig.Current.MasterServerAndPort };
-            yield return new object[] { TestConfig.Current.MasterServerAndPort, null, TestConfig.Current.MasterServerAndPort };
+            yield return new object[] { null, TestConfig.Current.PrimaryServerAndPort, TestConfig.Current.PrimaryServerAndPort };
+            yield return new object[] { TestConfig.Current.PrimaryServerAndPort, null, TestConfig.Current.PrimaryServerAndPort };
             yield return new object[] { null, TestConfig.Current.SecureServerAndPort, TestConfig.Current.SecureServerAndPort };
             yield return new object[] { TestConfig.Current.SecureServerAndPort, null, TestConfig.Current.SecureServerAndPort };
             yield return new object[] { null, null, null };
@@ -59,7 +58,7 @@ namespace StackExchange.Redis.Tests
         {
             const string TieBreak = "__tie__";
             // set the tie-breakers to the expected state
-            using (var aConn = ConnectionMultiplexer.Connect(TestConfig.Current.MasterServerAndPort))
+            using (var aConn = ConnectionMultiplexer.Connect(TestConfig.Current.PrimaryServerAndPort))
             {
                 aConn.GetDatabase().StringSet(TieBreak, a);
             }
@@ -84,12 +83,12 @@ namespace StackExchange.Redis.Tests
                 if ((a == b && nullCount == 0) || nullCount == 1)
                 {
                     Assert.True(text.Contains("Election: Tie-breaker unanimous"), "unanimous");
-                    Assert.False(text.Contains("Election: Choosing master arbitrarily"), "arbitrarily");
+                    Assert.False(text.Contains("Election: Choosing primary arbitrarily"), "arbitrarily");
                 }
                 else
                 {
                     Assert.False(text.Contains("Election: Tie-breaker unanimous"), "unanimous");
-                    Assert.True(text.Contains("Election: Choosing master arbitrarily"), "arbitrarily");
+                    Assert.True(text.Contains("Election: Choosing primary arbitrarily"), "arbitrarily");
                 }
             }
         }

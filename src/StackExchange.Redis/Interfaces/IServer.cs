@@ -562,11 +562,11 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// The REPLICAOF command can change the replication settings of a replica on the fly.
-        /// If a Redis server is already acting as replica, specifying a null master will turn off the replication,
-        /// turning the Redis server into a MASTER. Specifying a non-null master will make the server a replica of
+        /// If a Redis server is already acting as replica, specifying a null primary will turn off the replication,
+        /// turning the Redis server into a PRIMARY. Specifying a non-null primary will make the server a replica of
         /// another server listening at the specified hostname and port.
         /// </summary>
-        /// <param name="master">Endpoint of the new master to replicate from.</param>
+        /// <param name="master">Endpoint of the new primary to replicate from.</param>
         /// <param name="flags">The command flags to use.</param>
         /// <remarks>https://redis.io/commands/replicaof</remarks>
         [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(ReplicaOfAsync) + " instead, this will be removed in 3.0.")]
@@ -575,11 +575,11 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// The REPLICAOF command can change the replication settings of a replica on the fly.
-        /// If a Redis server is already acting as replica, specifying a null master will turn off the replication,
-        /// turning the Redis server into a MASTER. Specifying a non-null master will make the server a replica of
+        /// If a Redis server is already acting as replica, specifying a null primary will turn off the replication,
+        /// turning the Redis server into a PRIMARY. Specifying a non-null primary will make the server a replica of
         /// another server listening at the specified hostname and port.
         /// </summary>
-        /// <param name="master">Endpoint of the new master to replicate from.</param>
+        /// <param name="master">Endpoint of the new primary to replicate from.</param>
         /// <param name="flags">The command flags to use.</param>
         /// <remarks>https://redis.io/commands/replicaof</remarks>
         [Obsolete("Please use " + nameof(ReplicaOfAsync) + ", this will be removed in 3.0.")]
@@ -587,11 +587,11 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// The REPLICAOF command can change the replication settings of a replica on the fly.
-        /// If a Redis server is already acting as replica, specifying a null master will turn off the replication,
-        /// turning the Redis server into a MASTER. Specifying a non-null master will make the server a replica of
+        /// If a Redis server is already acting as replica, specifying a null primary will turn off the replication,
+        /// turning the Redis server into a PRIMARY. Specifying a non-null primary will make the server a replica of
         /// another server listening at the specified hostname and port.
         /// </summary>
-        /// <param name="master">Endpoint of the new master to replicate from.</param>
+        /// <param name="master">Endpoint of the new primary to replicate from.</param>
         /// <param name="flags">The command flags to use.</param>
         /// <remarks>https://redis.io/commands/replicaof</remarks>
         [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(ReplicaOfAsync) + " instead, this will be removed in 3.0.")]
@@ -600,11 +600,11 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// The REPLICAOF command can change the replication settings of a replica on the fly.
-        /// If a Redis server is already acting as replica, specifying a null master will turn off the replication,
-        /// turning the Redis server into a MASTER. Specifying a non-null master will make the server a replica of
+        /// If a Redis server is already acting as replica, specifying a null primary will turn off the replication,
+        /// turning the Redis server into a PRIMARY. Specifying a non-null primary will make the server a replica of
         /// another server listening at the specified hostname and port.
         /// </summary>
-        /// <param name="master">Endpoint of the new master to replicate from.</param>
+        /// <param name="master">Endpoint of the new primary to replicate from.</param>
         /// <param name="flags">The command flags to use.</param>
         /// <remarks>https://redis.io/commands/replicaof</remarks>
         Task ReplicaOfAsync(EndPoint master, CommandFlags flags = CommandFlags.None);
@@ -826,137 +826,133 @@ namespace StackExchange.Redis
         #region Sentinel
 
         /// <summary>
-        /// Returns the ip and port number of the master with that name.
-        /// If a failover is in progress or terminated successfully for this master it returns the address and port of the promoted replica.
+        /// Returns the IP and port number of the primary with that name.
+        /// If a failover is in progress or terminated successfully for this primary it returns the address and port of the promoted replica.
         /// </summary>
         /// <param name="serviceName">The sentinel service name.</param>
         /// <param name="flags">The command flags to use.</param>
-        /// <returns>the master ip and port</returns>
+        /// <returns>The primary IP and port.</returns>
         /// <remarks>https://redis.io/topics/sentinel</remarks>
         EndPoint SentinelGetMasterAddressByName(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Returns the ip and port number of the master with that name.
-        /// If a failover is in progress or terminated successfully for this master it returns the address and port of the promoted replica.
+        /// Returns the IP and port number of the primary with that name.
+        /// If a failover is in progress or terminated successfully for this primary it returns the address and port of the promoted replica.
         /// </summary>
         /// <param name="serviceName">The sentinel service name.</param>
         /// <param name="flags">The command flags to use.</param>
-        /// <returns>the master ip and port</returns>
+        /// <returns>The primary IP and port.</returns>
         /// <remarks>https://redis.io/topics/sentinel</remarks>
         Task<EndPoint> SentinelGetMasterAddressByNameAsync(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Returns the ip and port numbers of all known Sentinels
-        /// for the given service name.
-        /// </summary>
-        /// <param name="serviceName">the sentinel service name</param>
-        /// <param name="flags">The command flags to use.</param>
-        /// <returns>a list of the sentinel ips and ports</returns>
-        EndPoint[] SentinelGetSentinelAddresses(string serviceName, CommandFlags flags = CommandFlags.None);
-
-        /// <summary>
-        /// Returns the ip and port numbers of all known Sentinels
-        /// for the given service name.
-        /// </summary>
-        /// <param name="serviceName">the sentinel service name</param>
-        /// <param name="flags">The command flags to use.</param>
-        /// <returns>a list of the sentinel ips and ports</returns>
-        Task<EndPoint[]> SentinelGetSentinelAddressesAsync(string serviceName, CommandFlags flags = CommandFlags.None);
-
-        /// <summary>
-        /// Returns the ip and port numbers of all known Sentinel replicas
-        /// for the given service name.
-        /// </summary>
-        /// <param name="serviceName">the sentinel service name</param>
-        /// <param name="flags">The command flags to use.</param>
-        /// <returns>a list of the replica ips and ports</returns>
-        EndPoint[] SentinelGetReplicaAddresses(string serviceName, CommandFlags flags = CommandFlags.None);
-
-        /// <summary>
-        /// Returns the ip and port numbers of all known Sentinel replicas
-        /// for the given service name.
-        /// </summary>
-        /// <param name="serviceName">the sentinel service name</param>
-        /// <param name="flags">The command flags to use.</param>
-        /// <returns>a list of the replica ips and ports</returns>
-        Task<EndPoint[]> SentinelGetReplicaAddressesAsync(string serviceName, CommandFlags flags = CommandFlags.None);
-
-        /// <summary>
-        /// Show the state and info of the specified master.
+        /// Returns the IP and port numbers of all known Sentinels for the given service name.
         /// </summary>
         /// <param name="serviceName">The sentinel service name.</param>
         /// <param name="flags">The command flags to use.</param>
-        /// <returns>the master state as KeyValuePairs</returns>
+        /// <returns>A list of the sentinel IPs and ports.</returns>
+        EndPoint[] SentinelGetSentinelAddresses(string serviceName, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Returns the IP and port numbers of all known Sentinels for the given service name.
+        /// </summary>
+        /// <param name="serviceName">The sentinel service name.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>A list of the sentinel IPs and ports.</returns>
+        Task<EndPoint[]> SentinelGetSentinelAddressesAsync(string serviceName, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Returns the IP and port numbers of all known Sentinel replicas for the given service name.
+        /// </summary>
+        /// <param name="serviceName">The sentinel service name.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>A list of the replica IPs and ports.</returns>
+        EndPoint[] SentinelGetReplicaAddresses(string serviceName, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Returns the IP and port numbers of all known Sentinel replicas for the given service name.
+        /// </summary>
+        /// <param name="serviceName">The sentinel service name.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>A list of the replica IPs and ports.</returns>
+        Task<EndPoint[]> SentinelGetReplicaAddressesAsync(string serviceName, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Show the state and info of the specified primary.
+        /// </summary>
+        /// <param name="serviceName">The sentinel service name.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>The primaries state as KeyValuePairs.</returns>
         /// <remarks>https://redis.io/topics/sentinel</remarks>
         KeyValuePair<string, string>[] SentinelMaster(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Show the state and info of the specified master.
+        /// Show the state and info of the specified primary.
         /// </summary>
         /// <param name="serviceName">The sentinel service name.</param>
         /// <param name="flags">The command flags to use.</param>
-        /// <returns>the master state as KeyValuePairs</returns>
+        /// <returns>The primaries state as KeyValuePairs.</returns>
         /// <remarks>https://redis.io/topics/sentinel</remarks>
         Task<KeyValuePair<string, string>[]> SentinelMasterAsync(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Show a list of monitored masters and their state.
+        /// Show a list of monitored primaries and their state.
         /// </summary>
         /// <param name="flags">The command flags to use.</param>
-        /// <returns>an array of master state KeyValuePair arrays</returns>
+        /// <returns>An array of primaries state KeyValuePair arrays.</returns>
         /// <remarks>https://redis.io/topics/sentinel</remarks>
         KeyValuePair<string, string>[][] SentinelMasters(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Show a list of monitored masters and their state.
+        /// Show a list of monitored primaries and their state.
         /// </summary>
         /// <param name="flags">The command flags to use.</param>
-        /// <returns>an array of master state KeyValuePair arrays</returns>
+        /// <returns>An array of primaries state KeyValuePair arrays.</returns>
         /// <remarks>https://redis.io/topics/sentinel</remarks>
         Task<KeyValuePair<string, string>[][]> SentinelMastersAsync(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Show a list of replicas for this master, and their state.
+        /// Show a list of replicas for this primary, and their state.
         /// </summary>
         /// <param name="serviceName">The sentinel service name.</param>
         /// <param name="flags">The command flags to use.</param>
-        /// <returns>an array of replica state KeyValuePair arrays</returns>
+        /// <returns>An array of replica state KeyValuePair arrays.</returns>
         /// <remarks>https://redis.io/topics/sentinel</remarks>
         [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(SentinelReplicas) + " instead, this will be removed in 3.0.")]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         KeyValuePair<string, string>[][] SentinelSlaves(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Show a list of replicas for this master, and their state.
+        /// Show a list of replicas for this primary, and their state.
         /// </summary>
         /// <param name="serviceName">The sentinel service name.</param>
         /// <param name="flags">The command flags to use.</param>
-        /// <returns>an array of replica state KeyValuePair arrays</returns>
+        /// <returns>An array of replica state KeyValuePair arrays.</returns>
         /// <remarks>https://redis.io/topics/sentinel</remarks>
         KeyValuePair<string, string>[][] SentinelReplicas(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Show a list of replicas for this master, and their state.
+        /// Show a list of replicas for this primary, and their state.
         /// </summary>
         /// <param name="serviceName">The sentinel service name.</param>
         /// <param name="flags">The command flags to use.</param>
-        /// <returns>an array of replica state KeyValuePair arrays</returns>
+        /// <returns>An array of replica state KeyValuePair arrays.</returns>
         /// <remarks>https://redis.io/topics/sentinel</remarks>
         [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(SentinelReplicasAsync) + " instead, this will be removed in 3.0.")]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         Task<KeyValuePair<string, string>[][]> SentinelSlavesAsync(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Show a list of replicas for this master, and their state.
+        /// Show a list of replicas for this primary, and their state.
         /// </summary>
         /// <param name="serviceName">The sentinel service name.</param>
         /// <param name="flags">The command flags to use.</param>
-        /// <returns>an array of replica state KeyValuePair arrays</returns>
+        /// <returns>An array of replica state KeyValuePair arrays.</returns>
         /// <remarks>https://redis.io/topics/sentinel</remarks>
         Task<KeyValuePair<string, string>[][]> SentinelReplicasAsync(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Force a failover as if the master was not reachable, and without asking for agreement to other Sentinels
+        /// Force a failover as if the primary was not reachable, and without asking for agreement to other Sentinels
         /// (however a new version of the configuration will be published so that the other Sentinels will update their configurations).
         /// </summary>
         /// <param name="serviceName">The sentinel service name.</param>
@@ -965,7 +961,7 @@ namespace StackExchange.Redis
         void SentinelFailover(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Force a failover as if the master was not reachable, and without asking for agreement to other Sentinels
+        /// Force a failover as if the primary was not reachable, and without asking for agreement to other Sentinels
         /// (however a new version of the configuration will be published so that the other Sentinels will update their configurations).
         /// </summary>
         /// <param name="serviceName">The sentinel service name.</param>
@@ -974,7 +970,7 @@ namespace StackExchange.Redis
         Task SentinelFailoverAsync(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Show a list of sentinels for a master, and their state.
+        /// Show a list of sentinels for a primary, and their state.
         /// </summary>
         /// <param name="serviceName">The sentinel service name.</param>
         /// <param name="flags">The command flags to use.</param>
@@ -982,7 +978,7 @@ namespace StackExchange.Redis
         KeyValuePair<string, string>[][] SentinelSentinels(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Show a list of sentinels for a master, and their state.
+        /// Show a list of sentinels for a primary, and their state.
         /// </summary>
         /// <param name="serviceName">The sentinel service name.</param>
         /// <param name="flags">The command flags to use.</param>

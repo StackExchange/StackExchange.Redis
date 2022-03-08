@@ -136,7 +136,7 @@ namespace StackExchange.Redis.Configuration
         public virtual TimeSpan SyncTimeout => TimeSpan.FromSeconds(5);
 
         /// <summary>
-        /// Tie-breaker used to choose between masters (must match the endpoint exactly).
+        /// Tie-breaker used to choose between primaries (must match the endpoint exactly).
         /// </summary>
         public virtual string TieBreaker => "__Booksleeve_TieBreak";
 

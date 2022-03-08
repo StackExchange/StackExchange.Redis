@@ -4,7 +4,7 @@ using System.ComponentModel;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// Additional operations to perform when making a server a master.
+    /// Additional operations to perform when making a server a primary.
     /// </summary>
     [Flags]
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1069:Enums values should not be duplicated", Justification = "Compatibility")]
@@ -15,7 +15,7 @@ namespace StackExchange.Redis
         /// </summary>
         None = 0,
         /// <summary>
-        /// Set the tie-breaker key on all available masters, to specify this server.
+        /// Set the tie-breaker key on all available primaries, to specify this server.
         /// </summary>
         SetTiebreaker = 1,
         /// <summary>

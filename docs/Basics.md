@@ -12,13 +12,13 @@ ConnectionMultiplexer redis = ConnectionMultiplexer.Connect("localhost");
 
 Note that `ConnectionMultiplexer` implements `IDisposable` and can be disposed when no longer required. This is deliberately not showing `using` statement usage, because it is exceptionally rare that you would want to use a `ConnectionMultiplexer` briefly, as the idea is to re-use this object.
 
-A more complicated scenario might involve a master/replica setup; for this usage, simply specify all the desired nodes that make up that logical redis tier (it will automatically identify the master):
+A more complicated scenario might involve a primary/replica setup; for this usage, simply specify all the desired nodes that make up that logical redis tier (it will automatically identify the primary):
 
 ```csharp
 ConnectionMultiplexer redis = ConnectionMultiplexer.Connect("server1:6379,server2:6379");
 ```
 
-If it finds both nodes are masters, a tie-breaker key can optionally be specified that can be used to resolve the issue, however such a condition is fortunately very rare.
+If it finds both nodes are primaries, a tie-breaker key can optionally be specified that can be used to resolve the issue, however such a condition is fortunately very rare.
 
 Once you have a `ConnectionMultiplexer`, there are 3 main things you might want to do:
 

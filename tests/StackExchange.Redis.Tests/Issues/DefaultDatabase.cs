@@ -28,7 +28,7 @@ namespace StackExchange.Redis.Tests.Issues
             var log = new StringWriter();
             try
             {
-                using (var conn = ConnectionMultiplexer.Connect(TestConfig.Current.MasterServerAndPort, log)) {
+                using (var conn = ConnectionMultiplexer.Connect(TestConfig.Current.PrimaryServerAndPort, log)) {
                     var db = conn.GetDatabase();
                     Assert.Equal(0, db.Database);
                 }
@@ -45,7 +45,7 @@ namespace StackExchange.Redis.Tests.Issues
             var log = new StringWriter();
             try
             {
-                using (var conn = ConnectionMultiplexer.Connect($"{TestConfig.Current.MasterServerAndPort},defaultDatabase=3", log)) {
+                using (var conn = ConnectionMultiplexer.Connect($"{TestConfig.Current.PrimaryServerAndPort},defaultDatabase=3", log)) {
                     var db = conn.GetDatabase();
                     Assert.Equal(3, db.Database);
                 }

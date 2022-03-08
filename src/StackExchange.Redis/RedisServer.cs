@@ -554,24 +554,24 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.DateTime);
         }
 
-        internal static Message CreateReplicaOfMessage(ServerEndPoint sendMessageTo, EndPoint masterEndpoint, CommandFlags flags = CommandFlags.None)
+        internal static Message CreateReplicaOfMessage(ServerEndPoint sendMessageTo, EndPoint primaryEndpoint, CommandFlags flags = CommandFlags.None)
         {
             RedisValue host, port;
-            if (masterEndpoint == null)
+            if (primaryEndpoint == null)
             {
                 host = "NO";
                 port = "ONE";
             }
             else
             {
-                if (Format.TryGetHostPort(masterEndpoint, out string hostRaw, out int portRaw))
+                if (Format.TryGetHostPort(primaryEndpoint, out string hostRaw, out int portRaw))
                 {
                     host = hostRaw;
                     port = portRaw;
                 }
                 else
                 {
-                    throw new NotSupportedException("Unknown endpoint type: " + masterEndpoint.GetType().Name);
+                    throw new NotSupportedException("Unknown endpoint type: " + primaryEndpoint.GetType().Name);
                 }
             }
             return Message.Create(-1, flags, sendMessageTo.GetFeatures().ReplicaCommands ? RedisCommand.REPLICAOF : RedisCommand.SLAVEOF, host, port);
@@ -688,8 +688,8 @@ namespace StackExchange.Redis
                 throw new ArgumentException("Cannot replicate to self");
             }
 
-            // attempt to cease having an opinion on the master; will resume that when replication completes
-            // (note that this may fail; we aren't depending on it)
+            // Attempt to cease having an opinion on the primary - will resume that when replication completes
+            // (note that this may fail - we aren't depending on it)
             if (GetTiebreakerRemovalMessage() is Message tieBreakerRemoval && !server.IsReplica)
             {
                 try
@@ -714,13 +714,13 @@ namespace StackExchange.Redis
             // since the server is specified explicitly, we don't want defaults
             // to make the "non-preferred-endpoint" counters look artificially
             // inflated; note we only change *prefer* options
-            switch (Message.GetMasterReplicaFlags(message.Flags))
+            switch (Message.GetPrimaryReplicaFlags(message.Flags))
             {
                 case CommandFlags.PreferMaster:
                     if (server.IsReplica) message.SetPreferReplica();
                     break;
                 case CommandFlags.PreferReplica:
-                    if (!server.IsReplica) message.SetPreferMaster();
+                    if (!server.IsReplica) message.SetPreferPrimary();
                     break;
             }
         }
@@ -853,13 +853,13 @@ namespace StackExchange.Redis
         public EndPoint SentinelGetMasterAddressByName(string serviceName, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.GETMASTERADDRBYNAME, (RedisValue)serviceName);
-            return ExecuteSync(msg, ResultProcessor.SentinelMasterEndpoint);
+            return ExecuteSync(msg, ResultProcessor.SentinelPrimaryEndpoint);
         }
 
         public Task<EndPoint> SentinelGetMasterAddressByNameAsync(string serviceName, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.GETMASTERADDRBYNAME, (RedisValue)serviceName);
-            return ExecuteAsync(msg, ResultProcessor.SentinelMasterEndpoint);
+            return ExecuteAsync(msg, ResultProcessor.SentinelPrimaryEndpoint);
         }
 
         public EndPoint[] SentinelGetSentinelAddresses(string serviceName, CommandFlags flags = CommandFlags.None)

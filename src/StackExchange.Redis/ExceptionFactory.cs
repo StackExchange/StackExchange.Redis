@@ -60,7 +60,7 @@ namespace StackExchange.Redis
             return ex;
         }
 
-        internal static Exception MasterOnly(bool includeDetail, RedisCommand command, Message message, ServerEndPoint server)
+        internal static Exception PrimaryOnly(bool includeDetail, RedisCommand command, Message message, ServerEndPoint server)
         {
             string s = GetLabel(includeDetail, command, message);
             var ex = new RedisCommandException("Command cannot be issued to a replica: " + s);

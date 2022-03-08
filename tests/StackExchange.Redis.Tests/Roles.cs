@@ -16,18 +16,18 @@ namespace StackExchange.Redis.Tests
         [Theory]
         [InlineData(true)]
         [InlineData(false)]
-        public void MasterRole(bool allowAdmin) // should work with or without admin now
+        public void PrimaryRole(bool allowAdmin) // should work with or without admin now
         {
             using var muxer = Create(allowAdmin: allowAdmin);
-            var server = muxer.GetServer(TestConfig.Current.MasterServerAndPort);
+            var server = muxer.GetServer(TestConfig.Current.PrimaryServerAndPort);
 
             var role = server.Role();
             Assert.NotNull(role);
             Assert.Equal(role.Value, RedisLiterals.master);
-            var master = role as Role.Master;
-            Assert.NotNull(master);
-            Assert.NotNull(master.Replicas);
-            Assert.Contains(master.Replicas, r =>
+            var primary = role as Role.Master;
+            Assert.NotNull(primary);
+            Assert.NotNull(primary.Replicas);
+            Assert.Contains(primary.Replicas, r =>
                 r.Ip == TestConfig.Current.ReplicaServer &&
                 r.Port == TestConfig.Current.ReplicaPort);
         }
@@ -43,8 +43,8 @@ namespace StackExchange.Redis.Tests
             Assert.NotNull(role);
             var replica = role as Role.Replica;
             Assert.NotNull(replica);
-            Assert.Equal(replica.MasterIp, TestConfig.Current.MasterServer);
-            Assert.Equal(replica.MasterPort, TestConfig.Current.MasterPort);
+            Assert.Equal(replica.MasterIp, TestConfig.Current.PrimaryServer);
+            Assert.Equal(replica.MasterPort, TestConfig.Current.PrimaryPort);
         }
     }
 }

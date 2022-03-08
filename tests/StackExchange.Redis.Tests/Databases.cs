@@ -18,7 +18,7 @@ namespace StackExchange.Redis.Tests
             {
                 Skip.IfMissingDatabase(muxer, db1Id);
                 Skip.IfMissingDatabase(muxer, db2Id);
-                var server = GetAnyMaster(muxer);
+                var server = GetAnyPrimary(muxer);
                 server.FlushDatabase(db1Id, CommandFlags.FireAndForget);
                 server.FlushDatabase(db2Id, CommandFlags.FireAndForget);
             }
@@ -33,7 +33,7 @@ namespace StackExchange.Redis.Tests
                 dba.StringIncrement(key, flags: CommandFlags.FireAndForget);
                 dbb.StringIncrement(key, flags: CommandFlags.FireAndForget);
 
-                var server = GetAnyMaster(muxer);
+                var server = GetAnyPrimary(muxer);
                 var c0 = server.DatabaseSizeAsync(db1Id);
                 var c1 = server.DatabaseSizeAsync(db2Id);
                 var c2 = server.DatabaseSizeAsync(); // using default DB, which is db2Id
@@ -49,7 +49,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create(allowAdmin: true))
             {
-                var server = GetAnyMaster(muxer);
+                var server = GetAnyPrimary(muxer);
                 var count = server.DatabaseCount;
                 Log("Count: " + count);
                 var configVal = server.ConfigGet("databases")[0].Value;

@@ -5,7 +5,7 @@ namespace StackExchange.Redis.Tests
 {
     public class Sockets : TestBase
     {
-        protected override string GetConfiguration() => TestConfig.Current.MasterServerAndPort;
+        protected override string GetConfiguration() => TestConfig.Current.PrimaryServerAndPort;
         public Sockets(ITestOutputHelper output) : base (output) { }
 
         [FactLongRunning]

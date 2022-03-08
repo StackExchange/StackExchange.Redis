@@ -8,7 +8,7 @@ namespace StackExchange.Redis.Tests
         public ConnectCustomConfig(ITestOutputHelper output) : base (output) { }
 
         // So we're triggering tiebreakers here
-        protected override string GetConfiguration() => TestConfig.Current.MasterServerAndPort + "," + TestConfig.Current.ReplicaServerAndPort;
+        protected override string GetConfiguration() => TestConfig.Current.PrimaryServerAndPort + "," + TestConfig.Current.ReplicaServerAndPort;
 
         [Theory]
         [InlineData("config")]

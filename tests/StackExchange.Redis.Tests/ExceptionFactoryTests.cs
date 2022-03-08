@@ -165,7 +165,7 @@ namespace StackExchange.Redis.Tests
                 ConnectionMultiplexer muxer;
                 if (abortOnConnect)
                 {
-                    options.EndPoints.Add(TestConfig.Current.MasterServerAndPort);
+                    options.EndPoints.Add(TestConfig.Current.PrimaryServerAndPort);
                     muxer = ConnectionMultiplexer.Connect(options, Writer);
                 }
                 else

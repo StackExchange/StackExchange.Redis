@@ -20,7 +20,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                var server = conn.GetServer(TestConfig.Current.MasterServerAndPort);
+                var server = conn.GetServer(TestConfig.Current.PrimaryServerAndPort);
                 var script = LuaScript.Prepare("return redis.call('get', @key)");
                 var loaded = script.Load(server);
                 var key = Me();

@@ -59,10 +59,10 @@ namespace StackExchange.Redis
                                    ScriptUnavailableFlag = (CommandFlags)256,
                                    DemandSubscriptionConnection = (CommandFlags)2048;
 
-        private const CommandFlags MaskMasterServerPreference = CommandFlags.DemandMaster
-                                                              | CommandFlags.DemandReplica
-                                                              | CommandFlags.PreferMaster
-                                                              | CommandFlags.PreferReplica;
+        private const CommandFlags MaskPrimaryServerPreference = CommandFlags.DemandMaster
+                                                               | CommandFlags.DemandReplica
+                                                               | CommandFlags.PreferMaster
+                                                               | CommandFlags.PreferReplica;
 
         private const CommandFlags UserSelectableFlags = CommandFlags.None
                                                        | CommandFlags.DemandMaster
@@ -106,30 +106,30 @@ namespace StackExchange.Redis
                 }
             }
 
-            bool masterOnly = IsMasterOnly(command);
+            bool primaryOnly = IsPrimaryOnly(command);
             Db = db;
             this.command = command;
             Flags = flags & UserSelectableFlags;
-            if (masterOnly) SetMasterOnly();
+            if (primaryOnly) SetPrimaryOnly();
 
             CreatedDateTime = DateTime.UtcNow;
             CreatedTimestamp = Stopwatch.GetTimestamp();
             Status = CommandStatus.WaitingToBeSent;
         }
 
-        internal void SetMasterOnly()
+        internal void SetPrimaryOnly()
         {
-            switch (GetMasterReplicaFlags(Flags))
+            switch (GetPrimaryReplicaFlags(Flags))
             {
                 case CommandFlags.DemandReplica:
-                    throw ExceptionFactory.MasterOnly(false, command, null, null);
+                    throw ExceptionFactory.PrimaryOnly(false, command, null, null);
                 case CommandFlags.DemandMaster:
                     // already fine as-is
                     break;
                 case CommandFlags.PreferMaster:
                 case CommandFlags.PreferReplica:
-                default: // we will run this on the master, then
-                    Flags = SetMasterReplicaFlags(Flags, CommandFlags.DemandMaster);
+                default: // we will run this on the primary, then
+                    Flags = SetPrimaryReplicaFlags(Flags, CommandFlags.DemandMaster);
                     break;
             }
         }
@@ -296,7 +296,7 @@ namespace StackExchange.Redis
         public static Message CreateInSlot(int db, int slot, CommandFlags flags, RedisCommand command, RedisValue[] values) =>
             new CommandSlotValuesMessage(db, slot, flags, command, values);
 
-        public static bool IsMasterOnly(RedisCommand command)
+        public static bool IsPrimaryOnly(RedisCommand command)
         {
             switch (command)
             {
@@ -384,7 +384,7 @@ namespace StackExchange.Redis
         /// this will already be true for primary-only commands, even if the
         /// user specified <see cref="CommandFlags.PreferMaster"/> etc.
         /// </remarks>
-        public bool IsMasterOnly() => GetMasterReplicaFlags(Flags) == CommandFlags.DemandMaster;
+        public bool IsPrimaryOnly() => GetPrimaryReplicaFlags(Flags) == CommandFlags.DemandMaster;
 
         public virtual void AppendStormLog(StringBuilder sb)
         {
@@ -490,10 +490,10 @@ namespace StackExchange.Redis
             return new CommandKeyValuesKeyMessage(db, flags, command, key0, values, key1);
         }
 
-        internal static CommandFlags GetMasterReplicaFlags(CommandFlags flags)
+        internal static CommandFlags GetPrimaryReplicaFlags(CommandFlags flags)
         {
             // for the purposes of the switch, we only care about two bits
-            return flags & MaskMasterServerPreference;
+            return flags & MaskPrimaryServerPreference;
         }
 
         internal static bool RequiresDatabase(RedisCommand command)
@@ -543,11 +543,11 @@ namespace StackExchange.Redis
             }
         }
 
-        internal static CommandFlags SetMasterReplicaFlags(CommandFlags everything, CommandFlags masterReplica)
+        internal static CommandFlags SetPrimaryReplicaFlags(CommandFlags everything, CommandFlags primaryReplica)
         {
             // take away the two flags we don't want, and add back the ones we care about
             return (everything & ~(CommandFlags.DemandMaster | CommandFlags.DemandReplica | CommandFlags.PreferMaster | CommandFlags.PreferReplica))
-                            | masterReplica;
+                            | primaryReplica;
         }
 
         internal void Cancel() => resultBox?.Cancel();
@@ -687,11 +687,11 @@ namespace StackExchange.Redis
 
         internal void SetNoRedirect() => Flags |= CommandFlags.NoRedirect;
 
-        internal void SetPreferMaster() =>
-            Flags = (Flags & ~MaskMasterServerPreference) | CommandFlags.PreferMaster;
+        internal void SetPreferPrimary() =>
+            Flags = (Flags & ~MaskPrimaryServerPreference) | CommandFlags.PreferMaster;
 
         internal void SetPreferReplica() =>
-            Flags = (Flags & ~MaskMasterServerPreference) | CommandFlags.PreferReplica;
+            Flags = (Flags & ~MaskPrimaryServerPreference) | CommandFlags.PreferReplica;
 
         /// <summary>
         /// Sets the processor and box for this message to execute.

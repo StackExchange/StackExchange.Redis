@@ -35,33 +35,33 @@ namespace StackExchange.Redis.Tests
             Assert.NotNull(msg);
             var cmd = typeof(ConnectionMultiplexer).Assembly.GetType("StackExchange.Redis.RedisCommand");
             Assert.NotNull(cmd);
-            var masterOnlyMethod = msg.GetMethod(nameof(Message.IsMasterOnly), BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public);
-            Assert.NotNull(masterOnlyMethod);
+            var primaryOnlyMethod = msg.GetMethod(nameof(Message.IsPrimaryOnly), BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public);
+            Assert.NotNull(primaryOnlyMethod);
             object[] args = new object[1];
 
-            List<object> masterReplica = new List<object>();
-            List<object> masterOnly = new List<object>();
+            List<object> primaryReplica = new List<object>();
+            List<object> primaryOnly = new List<object>();
             foreach (var val in Enum.GetValues(cmd))
             {
                 args[0] = val;
-                bool isMasterOnly = (bool)masterOnlyMethod.Invoke(null, args);
-                (isMasterOnly ? masterOnly : masterReplica).Add(val);
+                bool isPrimaryOnly = (bool)primaryOnlyMethod.Invoke(null, args);
+                (isPrimaryOnly ? primaryOnly : primaryReplica).Add(val);
 
-                if (!isMasterOnly)
+                if (!isPrimaryOnly)
                 {
                     Log(val?.ToString());
                 }
             }
-            Log("master-only: {0}, vs master/replica: {1}", masterOnly.Count, masterReplica.Count);
+            Log("primary-only: {0}, vs primary/replica: {1}", primaryOnly.Count, primaryReplica.Count);
             Log("");
-            Log("master-only:");
-            foreach (var val in masterOnly)
+            Log("primary-only:");
+            foreach (var val in primaryOnly)
             {
                 Log(val?.ToString());
             }
             Log("");
-            Log("master/replica:");
-            foreach (var val in masterReplica)
+            Log("primary/replica:");
+            foreach (var val in primaryReplica)
             {
                 Log(val?.ToString());
             }

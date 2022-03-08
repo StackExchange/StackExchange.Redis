@@ -48,7 +48,7 @@ namespace StackExchange.Redis.Tests
             {
                 var ex = Assert.Throws<RedisConnectionException>(() =>
                 {
-                    using (ConnectionMultiplexer.Connect(TestConfig.Current.MasterServer + ":6500,connectTimeout=1000,connectRetry=0", Writer)) { }
+                    using (ConnectionMultiplexer.Connect(TestConfig.Current.PrimaryServer + ":6500,connectTimeout=1000,connectRetry=0", Writer)) { }
                 });
                 Log(ex.ToString());
             }
@@ -70,7 +70,7 @@ namespace StackExchange.Redis.Tests
             await RunBlockingSynchronousWithExtraThreadAsync(innerScenario).ForAwait();
             void innerScenario()
             {
-                using (var conn = ConnectionMultiplexer.Connect(TestConfig.Current.MasterServer + ":6500,abortConnect=false,connectTimeout=1000,connectRetry=0", Writer))
+                using (var conn = ConnectionMultiplexer.Connect(TestConfig.Current.PrimaryServer + ":6500,abortConnect=false,connectTimeout=1000,connectRetry=0", Writer))
                 {
                     Assert.False(conn.GetServer(conn.GetEndPoints().Single()).IsConnected);
                     Assert.False(conn.GetDatabase().IsConnected(default(RedisKey)));

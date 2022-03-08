@@ -27,19 +27,19 @@ namespace StackExchange.Redis
         FireAndForget = 2,
 
         /// <summary>
-        /// This operation should be performed on the master if it is available, but read operations may
-        /// be performed on a replica if no master is available. This is the default option.
+        /// This operation should be performed on the primary if it is available, but read operations may
+        /// be performed on a replica if no primary is available. This is the default option.
         /// </summary>
         PreferMaster = 0,
 
         /// <summary>
-        /// This operation should only be performed on the master.
+        /// This operation should only be performed on the primary.
         /// </summary>
         DemandMaster = 4,
 
         /// <summary>
         /// This operation should be performed on the replica if it is available, but will be performed on
-        /// a master if no replicas are available. Suitable for read operations only.
+        /// a primary if no replicas are available. Suitable for read operations only.
         /// </summary>
         [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(PreferReplica) + " instead, this will be removed in 3.0.")]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
@@ -47,7 +47,7 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// This operation should be performed on the replica if it is available, but will be performed on
-        /// a master if no replicas are available. Suitable for read operations only.
+        /// a primary if no replicas are available. Suitable for read operations only.
         /// </summary>
         PreferReplica = 8, // note: we're using a 2-bit set here, which [Flags] formatting hates; position is doing the best we can for reasonable outcomes here
 
