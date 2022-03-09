@@ -871,14 +871,24 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.StringSet(ToInner(values), when, flags);
         }
 
-        public bool StringSet(RedisKey key, RedisValue value, TimeSpan? expiry = null, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        public bool StringSet(RedisKey key, RedisValue value, TimeSpan? expiry, When when, CommandFlags flags)
         {
             return Inner.StringSet(ToInner(key), value, expiry, when, flags);
         }
 
-        public RedisValue StringSetAndGet(RedisKey key, RedisValue value, TimeSpan? expiry = null, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        public bool StringSet(RedisKey key, RedisValue value, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.StringSet(ToInner(key), value, expiry, keepTtl, when, flags);
+        }
+
+        public RedisValue StringSetAndGet(RedisKey key, RedisValue value, TimeSpan? expiry, When when, CommandFlags flags)
         {
             return Inner.StringSetAndGet(ToInner(key), value, expiry, when, flags);
+        }
+
+        public RedisValue StringSetAndGet(RedisKey key, RedisValue value, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.StringSetAndGet(ToInner(key), value, expiry, keepTtl, when, flags);
         }
 
         public bool StringSetBit(RedisKey key, long offset, bool bit, CommandFlags flags = CommandFlags.None)

@@ -1163,6 +1163,14 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StringSet_2()
         {
+            TimeSpan? expiry = null;
+            wrapper.StringSet("key", "value", expiry, true, When.Exists, CommandFlags.None);
+            mock.Verify(_ => _.StringSet("prefix:key", "value", expiry, true, When.Exists, CommandFlags.None));
+        }
+
+        [Fact]
+        public void StringSet_3()
+        {
             KeyValuePair<RedisKey, RedisValue>[] values = new KeyValuePair<RedisKey, RedisValue>[] { new KeyValuePair<RedisKey, RedisValue>("a", "x"), new KeyValuePair<RedisKey, RedisValue>("b", "y") };
             Expression<Func<KeyValuePair<RedisKey, RedisValue>[], bool>> valid = _ => _.Length == 2 && _[0].Key == "prefix:a" && _[0].Value == "x" && _[1].Key == "prefix:b" && _[1].Value == "y";
             wrapper.StringSet(values, When.Exists, CommandFlags.None);
