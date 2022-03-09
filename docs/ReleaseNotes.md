@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Fix [#1988](https://github.com/StackExchange/StackExchange.Redis/issues/1988): Don't issue `SELECT` commands if explicitly disabled ([#2023 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2023))
+- Adds: `KEEPTTL` support on `SET` operations ([#2029 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2029))
 
 ## 2.5.43
 
