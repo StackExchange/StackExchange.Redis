@@ -3402,9 +3402,9 @@ namespace StackExchange.Redis
 
         private Message GetStreamTrimMessage(RedisKey key, int maxLength, bool useApproximateMaxLength, CommandFlags flags)
         {
-            if (maxLength <= 0)
+            if (maxLength < 0)
             {
-                throw new ArgumentOutOfRangeException(nameof(maxLength), "maxLength must be greater than 0.");
+                throw new ArgumentOutOfRangeException(nameof(maxLength), "maxLength must be equal or greater than 0.");
             }
 
             var values = new RedisValue[2 + (useApproximateMaxLength ? 1 : 0)];
