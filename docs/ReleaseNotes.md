@@ -3,8 +3,8 @@
 ## Unreleased
 
 - Fix [#1988](https://github.com/StackExchange/StackExchange.Redis/issues/1988): Don't issue `SELECT` commands if explicitly disabled ([#2023 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2023))
-- Adds: `ConfigurationOptions.BeforeSocketConnect` for configuring sockets between creation and connection ([#2031 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2031))
 - Fix: Allow `XTRIM` `MAXLEN` argument to be `0` ([#2030 by NicoAvanzDev](https://github.com/StackExchange/StackExchange.Redis/pull/2030))
+- Adds: `ConfigurationOptions.BeforeSocketConnect` for configuring sockets between creation and connection ([#2031 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2031))
 
 ## 2.5.43
 
