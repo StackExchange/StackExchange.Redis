@@ -6,6 +6,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Security.Authentication;
+using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
@@ -534,6 +535,39 @@ namespace StackExchange.Redis.Tests
             Assert.Equal(randomName, options.ClientName);
             Assert.Equal(randomName, result.ClientName);
             Assert.Equal(result, options);
+        }
+
+        [Fact]
+        public void BeforeSocketConnect()
+        {
+            var options = ConfigurationOptions.Parse(TestConfig.Current.PrimaryServerAndPort);
+            int count = 0;
+            options.BeforeSocketConnect = (endpoint, connType, socket) =>
+            {
+                Interlocked.Increment(ref count);
+                Log($"Endpoint: {endpoint}, ConnType: {connType}, Socket: {socket}");
+                socket.DontFragment = true;
+                socket.Ttl = (short)(connType == ConnectionType.Interactive ? 12 : 123);
+            };
+            var muxer = ConnectionMultiplexer.Connect(options);
+            Assert.True(muxer.IsConnected);
+            Assert.Equal(2, count);
+
+            var endpoint = muxer.GetServerSnapshot()[0];
+            var interactivePhysical = endpoint.GetBridge(ConnectionType.Interactive).TryConnect(null);
+            var subscriptionPhysical = endpoint.GetBridge(ConnectionType.Subscription).TryConnect(null);
+            Assert.NotNull(interactivePhysical);
+            Assert.NotNull(subscriptionPhysical);
+
+            var interactiveSocket = interactivePhysical.VolatileSocket;
+            var subscriptionSocket = subscriptionPhysical.VolatileSocket;
+            Assert.NotNull(interactiveSocket);
+            Assert.NotNull(subscriptionSocket);
+
+            Assert.Equal(12, interactiveSocket.Ttl);
+            Assert.Equal(123, subscriptionSocket.Ttl);
+            Assert.True(interactiveSocket.DontFragment);
+            Assert.True(subscriptionSocket.DontFragment);
         }
     }
 }

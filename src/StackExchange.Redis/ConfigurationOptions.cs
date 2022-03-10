@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Linq;
 using System.Net;
 using System.Net.Security;
+using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
@@ -170,6 +171,13 @@ namespace StackExchange.Redis
             get => defaultOptions ??= DefaultOptionsProvider.GetForEndpoints(EndPoints);
             set => defaultOptions = value;
         }
+
+        /// <summary>
+        /// Allows modification of a <see cref="Socket"/> between creation and connection.
+        /// Passed in is the endpoint we're connecting to, which type of connection it is, and the socket itself.
+        /// For example, a specific local IP endpoint could be bound, linger time altered, etc.
+        /// </summary>
+        public Action<EndPoint, ConnectionType, Socket> BeforeSocketConnect { get; set; }
 
         internal Func<ConnectionMultiplexer, Action<string>, Task> AfterConnectAsync => Defaults.AfterConnectAsync;
 
@@ -557,6 +565,7 @@ namespace StackExchange.Redis
                 BacklogPolicy = backlogPolicy,
                 SslProtocols = SslProtocols,
                 checkCertificateRevocation = checkCertificateRevocation,
+                BeforeSocketConnect = BeforeSocketConnect,
             };
             foreach (var item in EndPoints)
             {
