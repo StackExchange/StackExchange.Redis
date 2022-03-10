@@ -69,7 +69,7 @@ namespace StackExchange.Redis
         internal bool HasOutputPipe => _ioPipe?.Output != null;
 
         private Socket _socket;
-        private Socket VolatileSocket => Volatile.Read(ref _socket);
+        internal Socket VolatileSocket => Volatile.Read(ref _socket);
 
         public PhysicalConnection(PhysicalBridge bridge)
         {
@@ -96,6 +96,7 @@ namespace StackExchange.Redis
 
             Trace("Connecting...");
             _socket = SocketManager.CreateSocket(endpoint);
+            bridge.Multiplexer.RawConfig.BeforeSocketConnect?.Invoke(endpoint, bridge.ConnectionType, _socket);
             bridge.Multiplexer.OnConnecting(endpoint, bridge.ConnectionType);
             log?.WriteLine($"{Format.ToString(endpoint)}: BeginConnectAsync");
 
