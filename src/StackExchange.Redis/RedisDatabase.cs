@@ -3404,7 +3404,7 @@ namespace StackExchange.Redis
         {
             if (maxLength < 0)
             {
-                throw new ArgumentOutOfRangeException(nameof(maxLength), "maxLength must be equal or greater than 0.");
+                throw new ArgumentOutOfRangeException(nameof(maxLength), "maxLength must be equal to or greater than 0.");
             }
 
             var values = new RedisValue[2 + (useApproximateMaxLength ? 1 : 0)];
