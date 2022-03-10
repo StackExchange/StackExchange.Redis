@@ -100,7 +100,11 @@ The `ConfigurationOptions` object has a wide range of properties, all of which a
 
 Additional code-only options:
 - ReconnectRetryPolicy (`IReconnectRetryPolicy`) - Default: `ReconnectRetryPolicy = ExponentialRetry(ConnectTimeout / 2);`
+  - Determines how often a multiplexer will try to reconnect after a failure
 - BacklogPolicy - Default: `BacklogPolicy = BacklogPolicy.Default;`
+  - Determines how commands will be queued (or not) during a disconnect, for sending when it's available again
+- BeforeSocketConnect - Default: `null`
+  - Allows modifying a `Socket` before connecting (for advanced scenarios)
 
 Tokens in the configuration string are comma-separated; any without an `=` sign are assumed to be redis server endpoints. Endpoints without an explicit port will use 6379 if ssl is not enabled, and 6380 if ssl is enabled.
 Tokens starting with `$` are taken to represent command maps, for example: `$config=cfg`.
