@@ -1,0 +1,28 @@
+<Project>
+  <ItemGroup>
+    <PackageVersion Include="BenchmarkDotNet" Version="0.12.1" />
+    <PackageVersion Include="GitHubActionsTestLogger" Version="1.1.2" />
+    <PackageVersion Include="Microsoft.Bcl.AsyncInterfaces" Version="5.0.0" />
+    <PackageVersion Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.2" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="16.8.0" />
+    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="1.0.0" />
+    <PackageVersion Include="Moq" Version="4.15.1" />
+    <PackageVersion Include="Nerdbank.GitVersioning" Version="3.3.37" />
+    <PackageVersion Include="NSubstitute" Version="4.2.2" />
+    <PackageVersion Include="Pipelines.Sockets.Unofficial" Version="2.2.2" />
+    <PackageVersion Include="StackExchange.Redis" Version="2.5.43" />
+    <PackageVersion Include="System.Diagnostics.PerformanceCounter" Version="5.0.0" />
+    <PackageVersion Include="System.IO.Compression" Version="4.3.0" />
+    <PackageVersion Include="System.Runtime.Caching" Version="5.0.0" />
+    <PackageVersion Include="System.Runtime.InteropServices.RuntimeInformation" Version="4.3.0" />
+    <PackageVersion Include="System.Threading.Channels" Version="5.0.0" />
+    <PackageVersion Include="Newtonsoft.Json" Version="12.0.3" />
+    <PackageVersion Include="xunit" Version="2.4.1" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="2.4.3" />
+
+    <!-- note that it is only the tests that have a dependency on this; the main lib takes the
+      transitive dependency from Pipelines.Sockets.Unofficial; this is for testing some binding
+      redirect problems (something new and different for us!) -->
+    <PackageVersion Include="System.IO.Pipelines" Version="5.0.1" />
+  </ItemGroup>
+</Project>
