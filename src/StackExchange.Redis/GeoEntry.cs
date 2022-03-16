@@ -128,7 +128,7 @@ namespace StackExchange.Redis
         /// Compares two values for equality.
         /// </summary>
         /// <param name="obj">The <see cref="GeoPosition"/> to compare to.</param>
-        public override bool Equals(object obj) => obj is GeoPosition gpObj && Equals(gpObj);
+        public override bool Equals(object? obj) => obj is GeoPosition gpObj && Equals(gpObj);
 
         /// <summary>
         /// Compares two values for equality.
@@ -201,7 +201,7 @@ namespace StackExchange.Redis
         /// Compares two values for equality.
         /// </summary>
         /// <param name="obj">The <see cref="GeoEntry"/> to compare to.</param>
-        public override bool Equals(object obj) => obj is GeoEntry geObj && Equals(geObj);
+        public override bool Equals(object? obj) => obj is GeoEntry geObj && Equals(geObj);
 
         /// <summary>
         /// Compares two values for equality.

@@ -17,14 +17,15 @@ namespace StackExchange.Redis
         /// <summary>
         /// The Channel:Message string representation.
         /// </summary>
-        public override string ToString() => ((string)Channel) + ":" + ((string)Message);
+        public override string ToString() => ((string?)Channel) + ":" + ((string?)Message);
 
         /// <inheritdoc/>
         public override int GetHashCode() => Channel.GetHashCode() ^ Message.GetHashCode();
 
         /// <inheritdoc/>
-        public override bool Equals(object obj) => obj is ChannelMessage cm
+        public override bool Equals(object? obj) => obj is ChannelMessage cm
             && cm.Channel == Channel && cm.Message == Message;
+
         internal ChannelMessage(ChannelMessageQueue queue, in RedisChannel channel, in RedisValue value)
         {
             _queue = queue;
@@ -72,12 +73,12 @@ namespace StackExchange.Redis
         /// The Channel that was subscribed for this queue.
         /// </summary>
         public RedisChannel Channel { get; }
-        private RedisSubscriber _parent;
+        private RedisSubscriber? _parent;
 
         /// <summary>
         /// The string representation of this channel.
         /// </summary>
-        public override string ToString() => (string)Channel;
+        public override string? ToString() => (string?)Channel;
 
         /// <summary>
         /// An awaitable task the indicates completion of the queue (including drain of data).
@@ -127,9 +128,9 @@ namespace StackExchange.Redis
             try
             {
                 var prop = _queue.GetType().GetProperty("ItemsCountForDebugger", BindingFlags.Instance | BindingFlags.NonPublic);
-                if (prop != null)
+                if (prop is not null)
                 {
-                    count = (int)prop.GetValue(_queue);
+                    count = (int)prop.GetValue(_queue)!;
                     return true;
                 }
             }
@@ -138,7 +139,7 @@ namespace StackExchange.Redis
             return false;
         }
 
-        private Delegate _onMessageHandler;
+        private Delegate? _onMessageHandler;
         private void AssertOnMessage(Delegate handler)
         {
             if (handler == null) throw new ArgumentNullException(nameof(handler));
@@ -155,12 +156,12 @@ namespace StackExchange.Redis
             AssertOnMessage(handler);
 
             ThreadPool.QueueUserWorkItem(
-                state => ((ChannelMessageQueue)state).OnMessageSyncImpl().RedisFireAndForget(), this);
+                state => ((ChannelMessageQueue)state!).OnMessageSyncImpl().RedisFireAndForget(), this);
         }
 
         private async Task OnMessageSyncImpl()
         {
-            var handler = (Action<ChannelMessage>)_onMessageHandler;
+            var handler = (Action<ChannelMessage>?)_onMessageHandler;
             while (!Completion.IsCompleted)
             {
                 ChannelMessage next;
@@ -168,21 +169,21 @@ namespace StackExchange.Redis
                 catch (ChannelClosedException) { break; } // expected
                 catch (Exception ex)
                 {
-                    _parent.multiplexer?.OnInternalError(ex);
+                    _parent?.multiplexer?.OnInternalError(ex);
                     break;
                 }
 
-                try { handler(next); }
+                try { handler?.Invoke(next); }
                 catch { } // matches MessageCompletable
             }
         }
 
-        internal static void Combine(ref ChannelMessageQueue head, ChannelMessageQueue queue)
+        internal static void Combine(ref ChannelMessageQueue? head, ChannelMessageQueue queue)
         {
             if (queue != null)
             {
                 // insert at the start of the linked-list
-                ChannelMessageQueue old;
+                ChannelMessageQueue? old;
                 do
                 {
                     old = Volatile.Read(ref head);
@@ -200,10 +201,10 @@ namespace StackExchange.Redis
             AssertOnMessage(handler);
 
             ThreadPool.QueueUserWorkItem(
-                state => ((ChannelMessageQueue)state).OnMessageAsyncImpl().RedisFireAndForget(), this);
+                state => ((ChannelMessageQueue)state!).OnMessageAsyncImpl().RedisFireAndForget(), this);
         }
 
-        internal static void Remove(ref ChannelMessageQueue head, ChannelMessageQueue queue)
+        internal static void Remove(ref ChannelMessageQueue? head, ChannelMessageQueue queue)
         {
             if (queue == null) return;
 
@@ -223,7 +224,7 @@ namespace StackExchange.Redis
                 }
                 else
                 {
-                    ChannelMessageQueue previous = current;
+                    ChannelMessageQueue? previous = current;
                     current = Volatile.Read(ref previous._next);
                     found = false;
                     do
@@ -248,7 +249,7 @@ namespace StackExchange.Redis
             } while (found);
         }
 
-        internal static int Count(ref ChannelMessageQueue head)
+        internal static int Count(ref ChannelMessageQueue? head)
         {
             var current = Volatile.Read(ref head);
             int count = 0;
@@ -270,11 +271,11 @@ namespace StackExchange.Redis
             }
         }
 
-        private ChannelMessageQueue _next;
+        private ChannelMessageQueue? _next;
 
         private async Task OnMessageAsyncImpl()
         {
-            var handler = (Func<ChannelMessage, Task>)_onMessageHandler;
+            var handler = (Func<ChannelMessage, Task>?)_onMessageHandler;
             while (!Completion.IsCompleted)
             {
                 ChannelMessage next;
@@ -282,20 +283,20 @@ namespace StackExchange.Redis
                 catch (ChannelClosedException) { break; } // expected
                 catch (Exception ex)
                 {
-                    _parent.multiplexer?.OnInternalError(ex);
+                    _parent?.multiplexer?.OnInternalError(ex);
                     break;
                 }
 
                 try
                 {
-                    var task = handler(next);
+                    var task = handler?.Invoke(next);
                     if (task != null && task.Status != TaskStatus.RanToCompletion) await task.ForAwait();
                 }
                 catch { } // matches MessageCompletable
             }
         }
 
-        internal static void MarkAllCompleted(ref ChannelMessageQueue head)
+        internal static void MarkAllCompleted(ref ChannelMessageQueue? head)
         {
             var current = Interlocked.Exchange(ref head, null);
             while (current != null)
@@ -305,13 +306,13 @@ namespace StackExchange.Redis
             }
         }
 
-        private void MarkCompleted(Exception error = null)
+        private void MarkCompleted(Exception? error = null)
         {
             _parent = null;
             _queue.Writer.TryComplete(error);
         }
 
-        internal void UnsubscribeImpl(Exception error = null, CommandFlags flags = CommandFlags.None)
+        internal void UnsubscribeImpl(Exception? error = null, CommandFlags flags = CommandFlags.None)
         {
             var parent = _parent;
             _parent = null;
@@ -322,7 +323,7 @@ namespace StackExchange.Redis
             _queue.Writer.TryComplete(error);
         }
 
-        internal async Task UnsubscribeAsyncImpl(Exception error = null, CommandFlags flags = CommandFlags.None)
+        internal async Task UnsubscribeAsyncImpl(Exception? error = null, CommandFlags flags = CommandFlags.None)
         {
             var parent = _parent;
             _parent = null;

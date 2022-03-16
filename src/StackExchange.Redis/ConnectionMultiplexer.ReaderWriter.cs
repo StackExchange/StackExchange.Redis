@@ -4,7 +4,7 @@ namespace StackExchange.Redis
 {
     public partial class ConnectionMultiplexer
     {
-        internal SocketManager SocketManager { get; private set; }
+        internal SocketManager? SocketManager { get; private set; }
 
         partial void OnCreateReaderWriter(ConfigurationOptions configuration)
         {

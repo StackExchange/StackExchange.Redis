@@ -24,14 +24,14 @@ namespace StackExchange.Redis.Profiling
         /// </para>
         /// <para>This type is not threadsafe.</para>
         /// </summary>
-        public struct Enumerator : IEnumerator<IProfiledCommand>
+        public struct Enumerator : IEnumerator<IProfiledCommand?>
         {
-            private ProfiledCommand Head, CurrentBacker;
+            private ProfiledCommand? Head, CurrentBacker;
 
             private bool IsEmpty => Head == null;
             private bool IsUnstartedOrFinished => CurrentBacker == null;
 
-            internal Enumerator(ProfiledCommand head)
+            internal Enumerator(ProfiledCommand? head)
             {
                 Head = head;
                 CurrentBacker = null;
@@ -40,9 +40,9 @@ namespace StackExchange.Redis.Profiling
             /// <summary>
             /// The current element.
             /// </summary>
-            public IProfiledCommand Current => CurrentBacker;
+            public IProfiledCommand? Current => CurrentBacker;
 
-            object System.Collections.IEnumerator.Current => CurrentBacker;
+            object? System.Collections.IEnumerator.Current => CurrentBacker;
 
             /// <summary>
             /// Advances the enumeration, returning true if there is a new element to consume and false
@@ -58,7 +58,7 @@ namespace StackExchange.Redis.Profiling
                 }
                 else
                 {
-                    CurrentBacker = CurrentBacker.NextElement;
+                    CurrentBacker = CurrentBacker!.NextElement;
                 }
 
                 return CurrentBacker != null;
@@ -76,7 +76,7 @@ namespace StackExchange.Redis.Profiling
             public void Dispose() => CurrentBacker = Head = null;
         }
 
-        private readonly ProfiledCommand _head;
+        private readonly ProfiledCommand? _head;
         private readonly int _count;
         /// <summary>
         /// Returns the number of commands captured in this snapshot
@@ -87,7 +87,7 @@ namespace StackExchange.Redis.Profiling
         /// Returns the number of commands captured in this snapshot that match a condition
         /// </summary>
         /// <param name="predicate">The predicate to match.</param>
-        public int Count(Func<IProfiledCommand, bool> predicate)
+        public int Count(Func<IProfiledCommand?, bool> predicate)
         {
             if (predicate == null) throw new ArgumentNullException(nameof(predicate));
             if (_count == 0) return 0;
@@ -97,7 +97,7 @@ namespace StackExchange.Redis.Profiling
             for (int i = 0; i < _count; i++)
             {
                 if (predicate(cur)) result++;
-                cur = cur.NextElement;
+                cur = cur!.NextElement;
             }
             return result;
         }
@@ -110,11 +110,11 @@ namespace StackExchange.Redis.Profiling
             if (_count == 0) return Array.Empty<IProfiledCommand>();
 
             var arr = new IProfiledCommand[_count];
-            var cur = _head;
-            for(int i = 0; i < _count; i++)
+            ProfiledCommand? cur = _head;
+            for (int i = 0; i < _count; i++)
             {
-                arr[i] = cur;
-                cur = cur.NextElement;
+                arr[i] = cur!;
+                cur = cur!.NextElement;
             }
             return arr;
         }
@@ -125,7 +125,7 @@ namespace StackExchange.Redis.Profiling
         public List<IProfiledCommand> ToList()
         {   // exploit the fact that we know the length
             var list = new List<IProfiledCommand>(_count);
-            var cur = _head;
+            ProfiledCommand? cur = _head;
             while (cur != null)
             {
                 list.Add(cur);
@@ -133,7 +133,7 @@ namespace StackExchange.Redis.Profiling
             }
             return list;
         }
-        internal ProfiledCommandEnumerable(int count, ProfiledCommand head)
+        internal ProfiledCommandEnumerable(int count, ProfiledCommand? head)
         {
             _count = count;
             _head = head;

@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace StackExchange.Redis
+﻿namespace StackExchange.Redis
 {
     /// <summary>
     /// Describes an entry contained in a Redis Stream.
@@ -10,7 +8,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Creates an stream entry.
         /// </summary>
-        public StreamEntry(RedisValue id, NameValueEntry[] values)
+        public StreamEntry(RedisValue id, NameValueEntry[]? values)
         {
             Id = id;
             Values = values;
@@ -29,7 +27,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// The values contained within the message.
         /// </summary>
-        public NameValueEntry[] Values { get; }
+        public NameValueEntry[]? Values { get; }
 
         /// <summary>
         /// Search for a specific field by name, returning the value.

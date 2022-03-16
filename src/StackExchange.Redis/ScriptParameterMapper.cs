@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -15,7 +16,7 @@ namespace StackExchange.Redis
             public readonly RedisKey[] Keys;
             public readonly RedisValue[] Arguments;
 
-            public static readonly ConstructorInfo Cons = typeof(ScriptParameters).GetConstructor(new[] { typeof(RedisKey[]), typeof(RedisValue[]) });
+            public static readonly ConstructorInfo Cons = typeof(ScriptParameters).GetConstructor(new[] { typeof(RedisKey[]), typeof(RedisValue[]) })!;
             public ScriptParameters(RedisKey[] keys, RedisValue[] args)
             {
                 Keys = keys;
@@ -24,10 +25,15 @@ namespace StackExchange.Redis
         }
 
         private static readonly Regex ParameterExtractor = new Regex(@"@(?<paramName> ([a-z]|_) ([a-z]|_|\d)*)", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace);
-        private static string[] ExtractParameters(string script)
+
+        private static bool TryExtractParameters(string script, [NotNullWhen(true)] out string[]? parameters)
         {
             var ps = ParameterExtractor.Matches(script);
-            if (ps.Count == 0) return null;
+            if (ps.Count == 0)
+            {
+                parameters = null;
+                return false;
+            }
 
             var ret = new HashSet<string>();
 
@@ -50,7 +56,8 @@ namespace StackExchange.Redis
                 if (!ret.Contains(n)) ret.Add(n);
             }
 
-            return ret.ToArray();
+            parameters = ret.ToArray();
+            return true;
         }
 
         private static string MakeOrdinalScriptWithoutKeys(string rawScript, string[] args)
@@ -130,10 +137,12 @@ namespace StackExchange.Redis
         /// <param name="script">The script to prepare.</param>
         public static LuaScript PrepareScript(string script)
         {
-            var ps = ExtractParameters(script);
-            var ordinalScript = MakeOrdinalScriptWithoutKeys(script, ps);
-
-            return new LuaScript(script, ordinalScript, ps);
+            if (TryExtractParameters(script, out var ps))
+            {
+                var ordinalScript = MakeOrdinalScriptWithoutKeys(script, ps);
+                return new LuaScript(script, ordinalScript, ps);
+            }
+            throw new ArgumentException("Count not parse script: " + script);
         }
 
         private static readonly HashSet<Type> ConvertableTypes = new()
@@ -161,7 +170,7 @@ namespace StackExchange.Redis
         /// <param name="script">The script to match against.</param>
         /// <param name="missingMember">The first missing member, if any.</param>
         /// <param name="badTypeMember">The first type mismatched member, if any.</param>
-        public static bool IsValidParameterHash(Type t, LuaScript script, out string missingMember, out string badTypeMember)
+        public static bool IsValidParameterHash(Type t, LuaScript script, out string? missingMember, out string? badTypeMember)
         {
             for (var i = 0; i < script.Arguments.Length; i++)
             {
@@ -220,7 +229,7 @@ namespace StackExchange.Redis
             for (var i = 0; i < script.Arguments.Length; i++)
             {
                 var argName = script.Arguments[i];
-                var member = t.GetMember(argName).SingleOrDefault(m => m is PropertyInfo || m is FieldInfo);
+                var member = t.GetMember(argName).SingleOrDefault(m => m is PropertyInfo || m is FieldInfo)!;
 
                 var memberType = member is FieldInfo memberFieldInfo ? memberFieldInfo.FieldType : ((PropertyInfo)member).PropertyType;
 
@@ -240,8 +249,8 @@ namespace StackExchange.Redis
             var keyPrefix = Expression.Parameter(typeof(RedisKey?), "keyPrefix");
 
             Expression keysResult, valuesResult;
-            MethodInfo asRedisValue = null;
-            Expression[] keysResultArr = null;
+            MethodInfo? asRedisValue = null;
+            Expression[]? keysResultArr = null;
             if (keys.Count == 0)
             {
                 // if there are no keys, don't allocate
@@ -253,9 +262,9 @@ namespace StackExchange.Redis
                 var keyPrefixValueArr = new[] { Expression.Call(keyPrefix,
                     nameof(Nullable<RedisKey>.GetValueOrDefault), null, null) };
                 var prepend = typeof(RedisKey).GetMethod(nameof(RedisKey.Prepend),
-                    BindingFlags.Public | BindingFlags.Instance);
+                    BindingFlags.Public | BindingFlags.Instance)!;
                 asRedisValue = typeof(RedisKey).GetMethod(nameof(RedisKey.AsRedisValue),
-                    BindingFlags.NonPublic | BindingFlags.Instance);
+                    BindingFlags.NonPublic | BindingFlags.Instance)!;
 
                 keysResultArr = new Expression[keys.Count];
                 for (int i = 0; i < keysResultArr.Length; i++)
@@ -281,8 +290,8 @@ namespace StackExchange.Redis
                     if (member.Type == typeof(RedisValue)) return member; // pass-through
                     if (member.Type == typeof(RedisKey))
                     { // need to apply prefix (note we can re-use the body from earlier)
-                        var val = keysResultArr[keys.IndexOf(arg)];
-                        return Expression.Call(val, asRedisValue);
+                        var val = keysResultArr![keys.IndexOf(arg)];
+                        return Expression.Call(val, asRedisValue!);
                     }
 
                     // otherwise: use the conversion operator

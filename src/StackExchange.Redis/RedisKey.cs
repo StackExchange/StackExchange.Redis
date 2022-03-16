@@ -8,7 +8,7 @@ namespace StackExchange.Redis
     /// </summary>
     public readonly struct RedisKey : IEquatable<RedisKey>
     {
-        internal RedisKey(byte[] keyPrefix, object keyValue)
+        internal RedisKey(byte[]? keyPrefix, object? keyValue)
         {
             KeyPrefix = keyPrefix?.Length == 0 ? null : keyPrefix;
             KeyValue = keyValue;
@@ -19,7 +19,7 @@ namespace StackExchange.Redis
         /// </summary>
         public RedisKey(string key) : this(null, key) { }
 
-        internal RedisKey AsPrefix() => new RedisKey((byte[])this, null);
+        internal RedisKey AsPrefix() => new RedisKey((byte[]?)this, null);
 
         internal bool IsNull => KeyPrefix == null && KeyValue == null;
 
@@ -34,8 +34,8 @@ namespace StackExchange.Redis
             }
         }
 
-        internal byte[] KeyPrefix { get; }
-        internal object KeyValue { get; }
+        internal byte[]? KeyPrefix { get; }
+        internal object? KeyValue { get; }
 
         /// <summary>
         /// Indicate whether two keys are not equal.
@@ -111,7 +111,7 @@ namespace StackExchange.Redis
         /// See <see cref="object.Equals(object?)"/>.
         /// </summary>
         /// <param name="obj">The <see cref="RedisKey"/> to compare to.</param>
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
             if (obj is RedisKey other)
             {
@@ -130,7 +130,7 @@ namespace StackExchange.Redis
         /// <param name="other">The <see cref="RedisKey"/> to compare to.</param>
         public bool Equals(RedisKey other) => CompositeEquals(KeyPrefix, KeyValue, other.KeyPrefix, other.KeyValue);
 
-        private static bool CompositeEquals(byte[] keyPrefix0, object keyValue0, byte[] keyPrefix1, object keyValue1)
+        private static bool CompositeEquals(byte[]? keyPrefix0, object? keyValue0, byte[]? keyPrefix1, object? keyValue1)
         {
             if (RedisValue.Equals(keyPrefix0, keyPrefix1))
             {
@@ -148,7 +148,7 @@ namespace StackExchange.Redis
         public override int GetHashCode()
         {
             int chk0 = KeyPrefix == null ? 0 : RedisValue.GetHashCode(KeyPrefix),
-                chk1 = KeyValue is string ? KeyValue.GetHashCode() : RedisValue.GetHashCode((byte[])KeyValue);
+                chk1 = KeyValue is string ? KeyValue.GetHashCode() : RedisValue.GetHashCode((byte[]?)KeyValue);
 
             return unchecked((17 * chk0) + chk1);
         }
@@ -156,12 +156,12 @@ namespace StackExchange.Redis
         /// <summary>
         /// Obtains a string representation of the key.
         /// </summary>
-        public override string ToString() => ((string)this) ?? "(null)";
+        public override string ToString() => ((string?)this) ?? "(null)";
 
         internal RedisValue AsRedisValue()
         {
             if (KeyPrefix == null && KeyValue is string keyString) return keyString;
-            return (byte[])this;
+            return (byte[]?)this;
         }
 
         internal void AssertNotNull()
@@ -182,7 +182,7 @@ namespace StackExchange.Redis
         /// Create a <see cref="RedisKey"/> from a <see cref="T:byte[]"/>.
         /// </summary>
         /// <param name="key">The byte array to get a key from.</param>
-        public static implicit operator RedisKey(byte[] key)
+        public static implicit operator RedisKey(byte[]? key)
         {
             if (key == null) return default(RedisKey);
             return new RedisKey(null, key);
@@ -192,15 +192,15 @@ namespace StackExchange.Redis
         /// Obtain the <see cref="RedisKey"/> as a <see cref="T:byte[]"/>.
         /// </summary>
         /// <param name="key">The key to get a byte array for.</param>
-        public static implicit operator byte[] (RedisKey key) => ConcatenateBytes(key.KeyPrefix, key.KeyValue, null);
+        public static implicit operator byte[]? (RedisKey key) => ConcatenateBytes(key.KeyPrefix, key.KeyValue, null);
 
         /// <summary>
         /// Obtain the key as a <see cref="string"/>.
         /// </summary>
         /// <param name="key">The key to get a string for.</param>
-        public static implicit operator string(RedisKey key)
+        public static implicit operator string? (RedisKey key)
         {
-            byte[] arr;
+            byte[]? arr;
             if (key.KeyPrefix == null)
             {
                 if (key.KeyValue == null) return null;
@@ -211,7 +211,7 @@ namespace StackExchange.Redis
             }
             else
             {
-                arr = (byte[])key;
+                arr = (byte[]?)key;
             }
             if (arr == null) return null;
             try
@@ -235,7 +235,7 @@ namespace StackExchange.Redis
             return new RedisKey(ConcatenateBytes(x.KeyPrefix, x.KeyValue, y.KeyPrefix), y.KeyValue);
         }
 
-        internal static RedisKey WithPrefix(byte[] prefix, RedisKey value)
+        internal static RedisKey WithPrefix(byte[]? prefix, RedisKey value)
         {
             if (prefix == null || prefix.Length == 0) return value;
             if (value.KeyPrefix == null) return new RedisKey(prefix, value.KeyValue);
@@ -248,7 +248,7 @@ namespace StackExchange.Redis
             return new RedisKey(copy, value.KeyValue);
         }
 
-        internal static byte[] ConcatenateBytes(byte[] a, object b, byte[] c)
+        internal static byte[]? ConcatenateBytes(byte[]? a, object? b, byte[]? c)
         {
             if ((a == null || a.Length == 0) && (c == null || c.Length == 0))
             {
@@ -264,7 +264,7 @@ namespace StackExchange.Redis
                 cLen = c?.Length ?? 0;
 
             var result = new byte[aLen + bLen + cLen];
-            if (aLen != 0) Buffer.BlockCopy(a, 0, result, 0, aLen);
+            if (aLen != 0) Buffer.BlockCopy(a!, 0, result, 0, aLen);
             if (bLen != 0)
             {
                 if (b is string s)
@@ -273,10 +273,10 @@ namespace StackExchange.Redis
                 }
                 else
                 {
-                    Buffer.BlockCopy((byte[])b, 0, result, aLen, bLen);
+                    Buffer.BlockCopy((byte[])b!, 0, result, aLen, bLen);
                 }
             }
-            if (cLen != 0) Buffer.BlockCopy(c, 0, result, aLen + bLen, cLen);
+            if (cLen != 0) Buffer.BlockCopy(c!, 0, result, aLen + bLen, cLen);
             return result;
         }
 

@@ -9,10 +9,10 @@ namespace StackExchange.Redis
     /// </summary>
     public class RedisErrorEventArgs : EventArgs, ICompletable
     {
-        private readonly EventHandler<RedisErrorEventArgs> handler;
+        private readonly EventHandler<RedisErrorEventArgs>? handler;
         private readonly object sender;
         internal RedisErrorEventArgs(
-            EventHandler<RedisErrorEventArgs> handler, object sender,
+            EventHandler<RedisErrorEventArgs>? handler, object sender,
             EndPoint endpoint, string message)
         {
             this.handler = handler;

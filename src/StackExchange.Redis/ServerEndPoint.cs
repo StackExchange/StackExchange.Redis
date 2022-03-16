@@ -23,14 +23,14 @@ namespace StackExchange.Redis
 
     internal sealed partial class ServerEndPoint : IDisposable
     {
-        internal volatile ServerEndPoint Primary;
+        internal volatile ServerEndPoint? Primary;
         internal volatile ServerEndPoint[] Replicas = Array.Empty<ServerEndPoint>();
         private static readonly Regex nameSanitizer = new Regex("[^!-~]", RegexOptions.Compiled);
 
         private readonly Hashtable knownScripts = new Hashtable(StringComparer.Ordinal);
 
         private int databases, writeEverySeconds;
-        private PhysicalBridge interactive, subscription;
+        private PhysicalBridge? interactive, subscription;
         private bool isDisposed, replicaReadOnly, isReplica, allowReplicaWrites;
         private bool? supportsDatabases, supportsPrimaryWrites;
         private ServerType serverType;
@@ -72,7 +72,7 @@ namespace StackExchange.Redis
 
         public EndPoint EndPoint { get; }
 
-        public ClusterConfiguration ClusterConfiguration { get; private set; }
+        public ClusterConfiguration? ClusterConfiguration { get; private set; }
 
         /// <summary>
         /// Whether this endpoint supports databases at all.
@@ -103,9 +103,9 @@ namespace StackExchange.Redis
         /// <summary>
         /// Awaitable state seeing if this endpoint is connected.
         /// </summary>
-        public Task<string> OnConnectedAsync(LogProxy log = null, bool sendTracerIfConnected = false, bool autoConfigureIfConnected = false)
+        public Task<string> OnConnectedAsync(LogProxy? log = null, bool sendTracerIfConnected = false, bool autoConfigureIfConnected = false)
         {
-            async Task<string> IfConnectedAsync(LogProxy log, bool sendTracerIfConnected, bool autoConfigureIfConnected)
+            async Task<string> IfConnectedAsync(LogProxy? log, bool sendTracerIfConnected, bool autoConfigureIfConnected)
             {
                 log?.WriteLine($"{Format.ToString(this)}: OnConnectedAsync already connected start");
                 if (autoConfigureIfConnected)
@@ -140,7 +140,7 @@ namespace StackExchange.Redis
             return IfConnectedAsync(log, sendTracerIfConnected, autoConfigureIfConnected);
         }
 
-        internal Exception LastException
+        internal Exception? LastException
         {
             get
             {
@@ -217,7 +217,7 @@ namespace StackExchange.Redis
             tmp?.Dispose();
         }
 
-        public PhysicalBridge GetBridge(ConnectionType type, bool create = true, LogProxy log = null)
+        public PhysicalBridge? GetBridge(ConnectionType type, bool create = true, LogProxy? log = null)
         {
             if (isDisposed) return null;
             return type switch
@@ -228,7 +228,7 @@ namespace StackExchange.Redis
             };
         }
 
-        public PhysicalBridge GetBridge(Message message, bool create = true)
+        public PhysicalBridge? GetBridge(Message message, bool create = true)
         {
             if (isDisposed) return null;
 
@@ -250,7 +250,7 @@ namespace StackExchange.Redis
                 : interactive ?? (create ? interactive = CreateBridge(ConnectionType.Interactive, null) : null);
         }
 
-        public PhysicalBridge GetBridge(RedisCommand command, bool create = true)
+        public PhysicalBridge? GetBridge(RedisCommand command, bool create = true)
         {
             if (isDisposed) return null;
             switch (command)
@@ -287,8 +287,8 @@ namespace StackExchange.Redis
             if (thisNode != null)
             {
                 Multiplexer.Trace($"Updating node relations for {Format.ToString(thisNode.EndPoint)}...");
-                List<ServerEndPoint> replicas = null;
-                ServerEndPoint primary = null;
+                List<ServerEndPoint>? replicas = null;
+                ServerEndPoint? primary = null;
                 foreach (var node in configuration.Nodes)
                 {
                     if (node.NodeId == thisNode.ParentNodeId)
@@ -338,7 +338,7 @@ namespace StackExchange.Redis
 
         public ValueTask<WriteResult> TryWriteAsync(Message message) => GetBridge(message)?.TryWriteAsync(message, isReplica) ?? new ValueTask<WriteResult>(WriteResult.NoConnectionAvailable);
 
-        internal void Activate(ConnectionType type, LogProxy log) => GetBridge(type, true, log);
+        internal void Activate(ConnectionType type, LogProxy? log) => GetBridge(type, true, log);
 
         internal void AddScript(string script, byte[] hash)
         {
@@ -348,7 +348,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal async Task AutoConfigureAsync(PhysicalConnection connection, LogProxy log = null)
+        internal async Task AutoConfigureAsync(PhysicalConnection? connection, LogProxy? log = null)
         {
             if (!serverType.SupportsAutoConfigure())
             {
@@ -472,8 +472,8 @@ namespace StackExchange.Redis
             }
         }
 
-        private string runId;
-        internal string RunId
+        private string? runId;
+        internal string? RunId
         {
             get => runId;
             set
@@ -524,9 +524,9 @@ namespace StackExchange.Redis
             return sb.ToString();
         }
 
-        internal byte[] GetScriptHash(string script, RedisCommand command)
+        internal byte[]? GetScriptHash(string script, RedisCommand command)
         {
-            var found = (byte[])knownScripts[script];
+            var found = (byte[]?)knownScripts[script];
             if (found == null && command == RedisCommand.EVALSHA)
             {
                 // The script provided is a hex SHA - store and re-use the ASCii for that
@@ -539,7 +539,7 @@ namespace StackExchange.Redis
             return found;
         }
 
-        internal string GetStormLog(Message message) => GetBridge(message)?.GetStormLog();
+        internal string? GetStormLog(Message message) => GetBridge(message)?.GetStormLog();
 
         internal Message GetTracerMessage(bool assertIdentity)
         {
@@ -612,7 +612,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal Task OnEstablishingAsync(PhysicalConnection connection, LogProxy log)
+        internal Task OnEstablishingAsync(PhysicalConnection connection, LogProxy? log)
         {
             static async Task OnEstablishingAsyncAwaited(PhysicalConnection connection, Task handshake)
             {
@@ -677,8 +677,8 @@ namespace StackExchange.Redis
         internal int LastInfoReplicationCheckSecondsAgo =>
             unchecked(Environment.TickCount - Thread.VolatileRead(ref lastInfoReplicationCheckTicks)) / 1000;
 
-        private EndPoint primaryEndPoint;
-        public EndPoint PrimaryEndPoint
+        private EndPoint? primaryEndPoint;
+        public EndPoint? PrimaryEndPoint
         {
             get => primaryEndPoint;
             set => SetConfig(ref primaryEndPoint, value);
@@ -687,7 +687,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Result of the latest tie breaker (from the last reconfigure).
         /// </summary>
-        internal string TieBreakerResult { get; set; }
+        internal string? TieBreakerResult { get; set; }
 
         internal bool CheckInfoReplication()
         {
@@ -711,7 +711,7 @@ namespace StackExchange.Redis
         private int lastInfoReplicationCheckTicks;
         internal volatile int ConfigCheckSeconds;
         [ThreadStatic]
-        private static Random r;
+        private static Random? r;
 
         /// <summary>
         /// Forces frequent replication check starting from 1 second up to max ConfigCheckSeconds with an exponential increment.
@@ -754,14 +754,14 @@ namespace StackExchange.Redis
             }
         }
 
-        internal Task<T> WriteDirectAsync<T>(Message message, ResultProcessor<T> processor, PhysicalBridge bridge = null)
+        internal Task<T?> WriteDirectAsync<T>(Message message, ResultProcessor<T> processor, PhysicalBridge? bridge = null)
         {
-            static async Task<T> Awaited(ServerEndPoint @this, Message message, ValueTask<WriteResult> write, TaskCompletionSource<T> tcs)
+            static async Task<T?> Awaited(ServerEndPoint @this, Message message, ValueTask<WriteResult> write, TaskCompletionSource<T?> tcs)
             {
                 var result = await write.ForAwait();
                 if (result != WriteResult.Success)
                 {
-                    var ex = @this.Multiplexer.GetException(result, message, @this);
+                    var ex = @this.Multiplexer.GetException(result, message, @this)!;
                     ConnectionMultiplexer.ThrowFailed(tcs, ex);
                 }
                 return await tcs.Task.ForAwait();
@@ -788,7 +788,7 @@ namespace StackExchange.Redis
 
             if (result != WriteResult.Success)
             {
-                var ex = Multiplexer.GetException(result, message, this);
+                var ex = Multiplexer.GetException(result, message, this)!;
                 ConnectionMultiplexer.ThrowFailed(tcs, ex);
             }
             return tcs.Task;
@@ -800,7 +800,7 @@ namespace StackExchange.Redis
             subscription?.ReportNextFailure();
         }
 
-        internal Task<bool> SendTracerAsync(LogProxy log = null)
+        internal Task<bool> SendTracerAsync(LogProxy? log = null)
         {
             var msg = GetTracerMessage(false);
             msg = LoggingMessage.Create(log, msg);
@@ -843,7 +843,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Write the message directly to the pipe or fail...will not queue.
         /// </summary>
-        internal ValueTask WriteDirectOrQueueFireAndForgetAsync<T>(PhysicalConnection connection, Message message, ResultProcessor<T> processor)
+        internal ValueTask WriteDirectOrQueueFireAndForgetAsync<T>(PhysicalConnection? connection, Message message, ResultProcessor<T> processor)
         {
             static async ValueTask Awaited(ValueTask<WriteResult> l_result) => await l_result.ForAwait();
 
@@ -878,7 +878,7 @@ namespace StackExchange.Redis
             return default;
         }
 
-        private PhysicalBridge CreateBridge(ConnectionType type, LogProxy log)
+        private PhysicalBridge? CreateBridge(ConnectionType type, LogProxy? log)
         {
             if (Multiplexer.IsDisposed) return null;
             Multiplexer.Trace(type.ToString());
@@ -887,7 +887,7 @@ namespace StackExchange.Redis
             return bridge;
         }
 
-        private async Task HandshakeAsync(PhysicalConnection connection, LogProxy log)
+        private async Task HandshakeAsync(PhysicalConnection connection, LogProxy? log)
         {
             log?.WriteLine($"{Format.ToString(this)}: Server handshake");
             if (connection == null)
@@ -897,7 +897,7 @@ namespace StackExchange.Redis
             }
             Message msg;
             // Note that we need "" (not null) for password in the case of 'nopass' logins
-            string user = Multiplexer.RawConfig.User, password = Multiplexer.RawConfig.Password ?? "";
+            string? user = Multiplexer.RawConfig.User, password = Multiplexer.RawConfig.Password ?? "";
             if (!string.IsNullOrWhiteSpace(user))
             {
                 log?.WriteLine($"{Format.ToString(this)}: Authenticating (user/password)");
@@ -962,14 +962,14 @@ namespace StackExchange.Redis
             await connection.FlushAsync().ForAwait();
         }
 
-        private void SetConfig<T>(ref T field, T value, [CallerMemberName] string caller = null)
+        private void SetConfig<T>(ref T field, T value, [CallerMemberName] string? caller = null)
         {
             if (!EqualityComparer<T>.Default.Equals(field, value))
             {
                 Multiplexer.Trace(caller + " changed from " + field + " to " + value, "Configuration");
                 field = value;
                 ClearMemoized();
-                Multiplexer.ReconfigureIfNeeded(EndPoint, false, caller);
+                Multiplexer.ReconfigureIfNeeded(EndPoint, false, caller!);
             }
         }
 

@@ -8,11 +8,11 @@ namespace StackExchange.Redis
 {
     internal class RedisTransaction : RedisDatabase, ITransaction
     {
-        private List<ConditionResult> _conditions;
-        private List<QueuedMessage> _pending;
+        private List<ConditionResult>? _conditions;
+        private List<QueuedMessage>? _pending;
         private object SyncLock => this;
 
-        public RedisTransaction(RedisDatabase wrapped, object asyncState) : base(wrapped.multiplexer, wrapped.Database, asyncState ?? wrapped.AsyncState)
+        public RedisTransaction(RedisDatabase wrapped, object? asyncState) : base(wrapped.multiplexer, wrapped.Database, asyncState ?? wrapped.AsyncState)
         {
             // need to check we can reliably do this...
             var commandMap = multiplexer.CommandMap;
@@ -46,24 +46,24 @@ namespace StackExchange.Redis
 
         public bool Execute(CommandFlags flags)
         {
-            var msg = CreateMessage(flags, out ResultProcessor<bool> proc);
+            var msg = CreateMessage(flags, out ResultProcessor<bool>? proc);
             return base.ExecuteSync(msg, proc); // need base to avoid our local "not supported" override
         }
 
         public Task<bool> ExecuteAsync(CommandFlags flags)
         {
-            var msg = CreateMessage(flags, out ResultProcessor<bool> proc);
+            var msg = CreateMessage(flags, out ResultProcessor<bool>? proc);
             return base.ExecuteAsync(msg, proc); // need base to avoid our local wrapping override
         }
 
-        internal override Task<T> ExecuteAsync<T>(Message message, ResultProcessor<T> processor, ServerEndPoint server = null)
+        internal override Task<T?> ExecuteAsync<T>(Message? message, ResultProcessor<T>? processor, ServerEndPoint? server = null) where T : default
         {
             if (message == null) return CompletedTask<T>.Default(asyncState);
             multiplexer.CheckMessage(message);
 
             multiplexer.Trace("Wrapping " + message.Command, "Transaction");
             // prepare the inner command as a task
-            Task<T> task;
+            Task<T?> task;
             if (message.IsFireAndForget)
             {
                 task = CompletedTask<T>.Default(null); // F+F explicitly does not get async-state
@@ -105,15 +105,15 @@ namespace StackExchange.Redis
             return task;
         }
 
-        internal override T ExecuteSync<T>(Message message, ResultProcessor<T> processor, ServerEndPoint server = null)
+        internal override T? ExecuteSync<T>(Message? message, ResultProcessor<T>? processor, ServerEndPoint? server = null) where T : default
         {
             throw new NotSupportedException("ExecuteSync cannot be used inside a transaction");
         }
 
-        private Message CreateMessage(CommandFlags flags, out ResultProcessor<bool> processor)
+        private Message? CreateMessage(CommandFlags flags, out ResultProcessor<bool>? processor)
         {
-            List<ConditionResult> cond;
-            List<QueuedMessage> work;
+            List<ConditionResult>? cond;
+            List<QueuedMessage>? work;
             lock (SyncLock)
             {
                 work = _pending;
@@ -187,14 +187,14 @@ namespace StackExchange.Redis
             private readonly ConditionResult[] conditions;
             public QueuedMessage[] InnerOperations { get; }
 
-            public TransactionMessage(int db, CommandFlags flags, List<ConditionResult> conditions, List<QueuedMessage> operations)
+            public TransactionMessage(int db, CommandFlags flags, List<ConditionResult>? conditions, List<QueuedMessage>? operations)
                 : base(db, flags, RedisCommand.EXEC)
             {
                 InnerOperations = (operations?.Count > 0) ? operations.ToArray() : Array.Empty<QueuedMessage>();
                 this.conditions = (conditions?.Count > 0) ? conditions.ToArray() : Array.Empty<ConditionResult>();
             }
 
-            internal override void SetExceptionAndComplete(Exception exception, PhysicalBridge bridge)
+            internal override void SetExceptionAndComplete(Exception exception, PhysicalBridge? bridge)
             {
                 var inner = InnerOperations;
                 if (inner != null)
@@ -239,7 +239,7 @@ namespace StackExchange.Redis
 
             public IEnumerable<Message> GetMessages(PhysicalConnection connection)
             {
-                IResultBox lastBox = null;
+                IResultBox? lastBox = null;
                 var bridge = connection.BridgeCouldBeNull;
                 if (bridge == null) throw new ObjectDisposedException(connection.ToString());
 
@@ -267,7 +267,7 @@ namespace StackExchange.Redis
                             {
                                 // need to have locked them before sending them
                                 // to guarantee that we see the pulse
-                                IResultBox latestBox = conditions[i].GetBox();
+                                IResultBox latestBox = conditions[i].GetBox()!;
                                 Monitor.Enter(latestBox);
                                 if (lastBox != null) Monitor.Exit(lastBox);
                                 lastBox = latestBox;
@@ -327,7 +327,7 @@ namespace StackExchange.Redis
                                 if (explicitCheckForQueued)
                                 {   // need to have locked them before sending them
                                     // to guarantee that we see the pulse
-                                    IResultBox thisBox = op.ResultBox;
+                                    IResultBox? thisBox = op.ResultBox;
                                     if (thisBox != null)
                                     {
                                         Monitor.Enter(thisBox);
@@ -438,7 +438,7 @@ namespace StackExchange.Redis
             {
                 if (result.IsError && message is TransactionMessage tran)
                 {
-                    string error = result.GetString();
+                    string error = result.GetString()!;
                     foreach (var op in tran.InnerOperations)
                     {
                         var inner = op.Wrapped;
@@ -451,7 +451,7 @@ namespace StackExchange.Redis
 
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
-                connection?.BridgeCouldBeNull?.Multiplexer?.OnTransactionLog($"got {result} for {message.CommandAndKey}");
+                connection.BridgeCouldBeNull?.Multiplexer?.OnTransactionLog($"got {result} for {message.CommandAndKey}");
                 if (message is TransactionMessage tran)
                 {
                     var wrapped = tran.InnerOperations;
@@ -485,7 +485,7 @@ namespace StackExchange.Redis
                                 var arr = result.GetItems();
                                 if (result.IsNull)
                                 {
-                                    connection?.BridgeCouldBeNull?.Multiplexer?.OnTransactionLog("Aborting wrapped messages (failed watch)");
+                                    connection.BridgeCouldBeNull?.Multiplexer?.OnTransactionLog("Aborting wrapped messages (failed watch)");
                                     connection.Trace("Server aborted due to failed WATCH");
                                     foreach (var op in wrapped)
                                     {
@@ -499,13 +499,13 @@ namespace StackExchange.Redis
                                 else if (wrapped.Length == arr.Length)
                                 {
                                     connection.Trace("Server committed; processing nested replies");
-                                    connection?.BridgeCouldBeNull?.Multiplexer?.OnTransactionLog($"Processing {arr.Length} wrapped messages");
+                                    connection.BridgeCouldBeNull?.Multiplexer?.OnTransactionLog($"Processing {arr.Length} wrapped messages");
 
                                     int i = 0;
                                     foreach(ref RawResult item in arr)
                                     {
                                         var inner = wrapped[i++].Wrapped;
-                                        connection?.BridgeCouldBeNull?.Multiplexer?.OnTransactionLog($"> got {item} for {inner.CommandAndKey}");
+                                        connection.BridgeCouldBeNull?.Multiplexer?.OnTransactionLog($"> got {item} for {inner.CommandAndKey}");
                                         if (inner.ComputeResult(connection, in item))
                                         {
                                             inner.Complete();

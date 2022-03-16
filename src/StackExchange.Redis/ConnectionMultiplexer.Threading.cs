@@ -6,7 +6,7 @@ namespace StackExchange.Redis
 {
     public partial class ConnectionMultiplexer
     {
-        private static readonly WaitCallback s_CompleteAsWorker = s => ((ICompletable)s).TryComplete(true);
+        private static readonly WaitCallback s_CompleteAsWorker = s => ((ICompletable)s!).TryComplete(true);
         internal static void CompleteAsWorker(ICompletable completable)
         {
             if (completable != null)
@@ -15,7 +15,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal static bool TryCompleteHandler<T>(EventHandler<T> handler, object sender, T args, bool isAsync) where T : EventArgs, ICompletable
+        internal static bool TryCompleteHandler<T>(EventHandler<T>? handler, object sender, T args, bool isAsync) where T : EventArgs, ICompletable
         {
             if (handler == null) return true;
             if (isAsync)

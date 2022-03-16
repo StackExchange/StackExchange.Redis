@@ -9,12 +9,12 @@ namespace StackExchange.Redis
     /// </summary>
     public sealed class ClientInfo
     {
-        internal static readonly ResultProcessor<ClientInfo[]> Processor = new ClientInfoProcessor();
+        internal static readonly ResultProcessor<ClientInfo[]?> Processor = new ClientInfoProcessor();
 
         /// <summary>
         /// Address (host and port) of the client.
         /// </summary>
-        public EndPoint Address { get; private set; }
+        public EndPoint? Address { get; private set; }
 
         /// <summary>
         /// Total duration of the connection in seconds.
@@ -105,12 +105,12 @@ namespace StackExchange.Redis
         /// </list>
         /// </summary>
         /// <remarks>https://redis.io/commands/client-list</remarks>
-        public string FlagsRaw { get; private set; }
+        public string? FlagsRaw { get; private set; }
 
         /// <summary>
         /// The host of the client (typically an IP address).
         /// </summary>
-        public string Host => Format.TryGetHostPort(Address, out string host, out _) ? host : null;
+        public string? Host => Format.TryGetHostPort(Address, out string? host, out _) ? host : null;
 
         /// <summary>
         /// Idle time of the connection in seconds.
@@ -120,12 +120,12 @@ namespace StackExchange.Redis
         /// <summary>
         /// Last command played.
         /// </summary>
-        public string LastCommand { get; private set; }
+        public string? LastCommand { get; private set; }
 
         /// <summary>
         /// The name allocated to this connection, if any.
         /// </summary>
-        public string Name { get; private set; }
+        public string? Name { get; private set; }
 
         /// <summary>
         /// Number of pattern matching subscriptions.
@@ -140,7 +140,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// The raw content from redis.
         /// </summary>
-        public string Raw { get; private set; }
+        public string? Raw { get; private set; }
 
         /// <summary>
         /// Number of channel subscriptions.
@@ -179,14 +179,14 @@ namespace StackExchange.Redis
             }
         }
 
-        internal static ClientInfo[] Parse(string input)
+        internal static ClientInfo[]? Parse(string input)
         {
             if (input == null) return null;
 
             var clients = new List<ClientInfo>();
             using (var reader = new StringReader(input))
             {
-                string line;
+                string? line;
                 while ((line = reader.ReadLine()) != null)
                 {
                     var client = new ClientInfo
@@ -251,7 +251,7 @@ namespace StackExchange.Redis
             if (raw.IndexOf(token) >= 0) value |= toAdd;
         }
 
-        private class ClientInfoProcessor : ResultProcessor<ClientInfo[]>
+        private class ClientInfoProcessor : ResultProcessor<ClientInfo[]?>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
@@ -259,7 +259,7 @@ namespace StackExchange.Redis
                 {
                     case ResultType.BulkString:
 
-                        var raw = result.GetString();
+                        var raw = result.GetString()!;
                         var clients = Parse(raw);
                         SetResult(message, clients);
                         return true;

@@ -11,7 +11,7 @@ namespace StackExchange.Redis
     internal static class PerfCounterHelper
     {
         private static readonly object staticLock = new();
-        private static volatile PerformanceCounter _cpu;
+        private static volatile PerformanceCounter? _cpu;
         private static volatile bool _disabled = !RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
 
 #if NET5_0_OR_GREATER
@@ -58,7 +58,7 @@ namespace StackExchange.Redis
 
         internal static string GetThreadPoolAndCPUSummary(bool includePerformanceCounters)
         {
-            GetThreadPoolStats(out string iocp, out string worker, out string workItems);
+            GetThreadPoolStats(out string iocp, out string worker, out string? workItems);
             var cpu = includePerformanceCounters ? GetSystemCpuPercent() : "n/a";
             return $"IOCP: {iocp}, WORKER: {worker}, POOL: {workItems ?? "n/a"}, Local-CPU: {cpu}";
         }
@@ -68,7 +68,7 @@ namespace StackExchange.Redis
                 ? Math.Round(systemCPU, 2) + "%"
                 : "unavailable";
 
-        internal static int GetThreadPoolStats(out string iocp, out string worker, out string workItems)
+        internal static int GetThreadPoolStats(out string iocp, out string worker, out string? workItems)
         {
             ThreadPool.GetMaxThreads(out int maxWorkerThreads, out int maxIoThreads);
             ThreadPool.GetAvailableThreads(out int freeWorkerThreads, out int freeIoThreads);

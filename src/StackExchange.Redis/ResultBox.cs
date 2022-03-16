@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -14,13 +15,13 @@ namespace StackExchange.Redis
     }
     internal interface IResultBox<T> : IResultBox
     {
-        T GetResult(out Exception ex, bool canRecycle = false);
+        T? GetResult(out Exception? ex, bool canRecycle = false);
         void SetResult(T value);
     }
 
     internal abstract class SimpleResultBox : IResultBox
     {
-        private volatile Exception _exception;
+        private volatile Exception? _exception;
 
         bool IResultBox.IsAsync => false;
         bool IResultBox.IsFaulted => _exception != null;
@@ -42,7 +43,7 @@ namespace StackExchange.Redis
         // about any confusion in stack-trace
         internal static readonly Exception CancelledException = new TaskCanceledException();
 
-        protected Exception Exception
+        protected Exception? Exception
         {
             get => _exception;
             set => _exception = value;
@@ -52,10 +53,10 @@ namespace StackExchange.Redis
     internal sealed class SimpleResultBox<T> : SimpleResultBox, IResultBox<T>
     {
         private SimpleResultBox() { }
-        private T _value;
+        private T? _value;
 
         [ThreadStatic]
-        private static SimpleResultBox<T> _perThreadInstance;
+        private static SimpleResultBox<T>? _perThreadInstance;
 
         public static IResultBox<T> Create() => new SimpleResultBox<T>();
         public static IResultBox<T> Get() // includes recycled boxes; used from sync, so makes re-use easy
@@ -64,31 +65,32 @@ namespace StackExchange.Redis
             _perThreadInstance = null; // in case of oddness; only set back when recycled
             return obj;
         }
+
         void IResultBox<T>.SetResult(T value) => _value = value;
 
-        T IResultBox<T>.GetResult(out Exception ex, bool canRecycle)
+        T? IResultBox<T>.GetResult(out Exception? ex, bool canRecycle)
         {
             var value = _value;
             ex = Exception;
             if (canRecycle)
             {
                 Exception = null;
-                _value = default;
+                _value = default!;
                 _perThreadInstance = this;
             }
             return value;
         }
     }
 
-    internal sealed class TaskResultBox<T> : TaskCompletionSource<T>, IResultBox<T>
+    internal sealed class TaskResultBox<T> : TaskCompletionSource<T?>, IResultBox<T>
     {
         // you might be asking "wait, doesn't the Task own these?", to which
         // I say: no; we can't set *immediately* due to thread-theft etc, hence
         // the fun TryComplete indirection - so we need somewhere to buffer them
-        private volatile Exception _exception;
-        private T _value;
+        private volatile Exception? _exception;
+        private T? _value;
 
-        private TaskResultBox(object asyncState, TaskCreationOptions creationOptions) : base(asyncState, creationOptions)
+        private TaskResultBox(object? asyncState, TaskCreationOptions creationOptions) : base(asyncState, creationOptions)
         { }
 
         bool IResultBox.IsAsync => true;
@@ -101,14 +103,14 @@ namespace StackExchange.Redis
 
         void IResultBox<T>.SetResult(T value) => _value = value;
 
-        T IResultBox<T>.GetResult(out Exception ex, bool _)
+        T? IResultBox<T>.GetResult(out Exception? ex, bool _)
         {
             ex = _exception;
             return _value;
             // nothing to do re recycle: TaskCompletionSource<T> cannot be recycled
         }
 
-        static readonly WaitCallback s_ActivateContinuations = state => ((TaskResultBox<T>)state).ActivateContinuationsImpl();
+        static readonly WaitCallback s_ActivateContinuations = state => ((TaskResultBox<T?>)state!).ActivateContinuationsImpl();
         void IResultBox.ActivateContinuations()
         {
             if ((Task.CreationOptions & TaskCreationOptions.RunContinuationsAsynchronously) == 0)
@@ -137,7 +139,7 @@ namespace StackExchange.Redis
             }
         }
 
-        public static IResultBox<T> Create(out TaskCompletionSource<T> source, object asyncState)
+        public static IResultBox<T> Create(out TaskCompletionSource<T?> source, object? asyncState)
         {
             // it might look a little odd to return the same object as two different things,
             // but that's because it is serving two purposes, and I want to make it clear

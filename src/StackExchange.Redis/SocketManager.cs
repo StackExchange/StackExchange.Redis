@@ -72,11 +72,11 @@ namespace StackExchange.Redis
         /// <param name="name">The name for this <see cref="SocketManager"/>.</param>
         /// <param name="workerCount">the number of dedicated workers for this <see cref="SocketManager"/>.</param>
         /// <param name="options"></param>
-        public SocketManager(string name = null, int workerCount = 0, SocketManagerOptions options = SocketManagerOptions.None)
+        public SocketManager(string? name = null, int workerCount = 0, SocketManagerOptions options = SocketManagerOptions.None)
         {
             if (string.IsNullOrWhiteSpace(name)) name = GetType().Name;
             if (workerCount <= 0) workerCount = DEFAULT_WORKERS;
-            Name = name;
+            Name = name!;
             bool useHighPrioritySocketThreads = (options & SocketManagerOptions.UseHighPrioritySocketThreads) != 0,
                 useThreadPool = (options & SocketManagerOptions.UseThreadPool) != 0;
 
@@ -170,7 +170,7 @@ namespace StackExchange.Redis
             return $"{Name} - queue: {scheduler?.TotalServicedByQueue}, pool: {scheduler?.TotalServicedByPool}";
         }
 
-        private static SocketManager s_shared, s_threadPool;
+        private static SocketManager? s_shared, s_threadPool;
 
         private const int DEFAULT_WORKERS = 5, MINIMUM_SEGMENT_SIZE = 8 * 1024;
 
@@ -178,7 +178,7 @@ namespace StackExchange.Redis
 
         internal PipeScheduler Scheduler { get; private set; }
 
-        internal DedicatedThreadPoolPipeScheduler SchedulerPool => Scheduler as DedicatedThreadPoolPipeScheduler;
+        internal DedicatedThreadPoolPipeScheduler? SchedulerPool => Scheduler as DedicatedThreadPoolPipeScheduler;
 
         private enum CallbackOperation
         {
@@ -228,7 +228,7 @@ namespace StackExchange.Redis
 
         partial void OnDispose();
 
-        internal string GetState()
+        internal string? GetState()
         {
             var s = SchedulerPool;
             return s == null ? null : $"{s.AvailableCount} of {s.WorkerCount} available";

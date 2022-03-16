@@ -47,7 +47,7 @@ namespace StackExchange.Redis
             return hashCode;
         }
 
-        public override bool Equals(object obj) => obj is CommandBytes cb && Equals(cb);
+        public override bool Equals(object? obj) => obj is CommandBytes cb && Equals(cb);
 
         bool IEquatable<CommandBytes>.Equals(CommandBytes other) => _0 == other._0 && _1 == other._1 && _2 == other._2 && _3 == other._3;
 
@@ -102,10 +102,10 @@ namespace StackExchange.Redis
             }
         }
 
-        public unsafe CommandBytes(string value)
+        public unsafe CommandBytes(string? value)
         {
             _0 = _1 = _2 = _3 = 0L;
-            if (string.IsNullOrEmpty(value)) return;
+            if (value.IsNullOrEmpty()) return;
 
             var len = Encoding.GetByteCount(value);
             if (len > MaxLength) throw new ArgumentOutOfRangeException($"Command '{value}' exceeds library limit of {MaxLength} bytes");

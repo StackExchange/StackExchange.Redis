@@ -14,7 +14,7 @@ namespace StackExchange.Redis
             DataServerKey = "redis-server",
             timeoutHelpLink = "https://stackexchange.github.io/StackExchange.Redis/Timeouts";
 
-        internal static Exception AdminModeNotEnabled(bool includeDetail, RedisCommand command, Message message, ServerEndPoint server)
+        internal static Exception AdminModeNotEnabled(bool includeDetail, RedisCommand command, Message? message, ServerEndPoint? server)
         {
             string s = GetLabel(includeDetail, command, message);
             var ex = new RedisCommandException("This operation is not available unless admin mode is enabled: " + s);
@@ -30,7 +30,7 @@ namespace StackExchange.Redis
         internal static Exception TooManyArgs(string command, int argCount)
             => new RedisCommandException($"This operation would involve too many arguments ({argCount + 1} vs the redis limit of {PhysicalConnection.REDIS_MAX_ARGS}): {command}");
 
-        internal static Exception ConnectionFailure(bool includeDetail, ConnectionFailureType failureType, string message, ServerEndPoint server)
+        internal static Exception ConnectionFailure(bool includeDetail, ConnectionFailureType failureType, string message, ServerEndPoint? server)
         {
             var ex = new RedisConnectionException(failureType, message);
             if (includeDetail) AddExceptionDetail(ex, null, server, null);
@@ -60,7 +60,7 @@ namespace StackExchange.Redis
             return ex;
         }
 
-        internal static Exception PrimaryOnly(bool includeDetail, RedisCommand command, Message message, ServerEndPoint server)
+        internal static Exception PrimaryOnly(bool includeDetail, RedisCommand command, Message? message, ServerEndPoint? server)
         {
             string s = GetLabel(includeDetail, command, message);
             var ex = new RedisCommandException("Command cannot be issued to a replica: " + s);
@@ -75,7 +75,7 @@ namespace StackExchange.Redis
             return ex;
         }
 
-        internal static string GetInnerMostExceptionMessage(Exception e)
+        internal static string GetInnerMostExceptionMessage(Exception? e)
         {
             if (e == null)
             {
@@ -93,8 +93,8 @@ namespace StackExchange.Redis
 
         internal static Exception NoConnectionAvailable(
             ConnectionMultiplexer multiplexer,
-            Message message,
-            ServerEndPoint server,
+            Message? message,
+            ServerEndPoint? server,
             ReadOnlySpan<ServerEndPoint> serverSnapshot = default,
             RedisCommand command = default)
         {
@@ -140,7 +140,7 @@ namespace StackExchange.Redis
             }
 
             // Add counters and exception data if we have it
-            List<Tuple<string, string>> data = null;
+            List<Tuple<string, string>>? data = null;
             if (multiplexer.IncludeDetailInExceptions)
             {
                 data = new List<Tuple<string, string>>();
@@ -156,20 +156,19 @@ namespace StackExchange.Redis
             return ex;
         }
 
-        internal static Exception PopulateInnerExceptions(ReadOnlySpan<ServerEndPoint> serverSnapshot)
+        internal static Exception? PopulateInnerExceptions(ReadOnlySpan<ServerEndPoint> serverSnapshot)
         {
             var innerExceptions = new List<Exception>();
 
-            if (serverSnapshot.Length > 0 && serverSnapshot[0].Multiplexer.LastException != null)
+            if (serverSnapshot.Length > 0 && serverSnapshot[0].Multiplexer.LastException is Exception ex)
             {
-                innerExceptions.Add(serverSnapshot[0].Multiplexer.LastException);
+                innerExceptions.Add(ex);
             }
 
             for (int i = 0; i < serverSnapshot.Length; i++)
             {
-                if (serverSnapshot[i].LastException != null)
+                if (serverSnapshot[i].LastException is Exception lastException)
                 {
-                    var lastException = serverSnapshot[i].LastException;
                     innerExceptions.Add(lastException);
                 }
             }
@@ -199,7 +198,7 @@ namespace StackExchange.Redis
             return new RedisCommandException("Command cannot be used with a cursor: " + s);
         }
 
-        private static void Add(List<Tuple<string, string>> data, StringBuilder sb, string lk, string sk, string v)
+        private static void Add(List<Tuple<string, string>> data, StringBuilder sb, string? lk, string? sk, string? v)
         {
             if (v != null)
             {
@@ -208,7 +207,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal static Exception Timeout(ConnectionMultiplexer multiplexer, string baseErrorMessage, Message message, ServerEndPoint server, WriteResult? result = null)
+        internal static Exception Timeout(ConnectionMultiplexer multiplexer, string? baseErrorMessage, Message message, ServerEndPoint? server, WriteResult? result = null)
         {
             List<Tuple<string, string>> data = new List<Tuple<string, string>> { Tuple.Create("Message", message.CommandAndKey) };
             var sb = new StringBuilder();
@@ -265,7 +264,7 @@ namespace StackExchange.Redis
             return ex;
         }
 
-        private static void CopyDataToException(List<Tuple<string, string>> data, Exception ex)
+        private static void CopyDataToException(List<Tuple<string, string>>? data, Exception ex)
         {
             if (data != null)
             {
@@ -280,9 +279,9 @@ namespace StackExchange.Redis
         private static void AddCommonDetail(
             List<Tuple<string, string>> data,
             StringBuilder sb,
-            Message message,
+            Message? message,
             ConnectionMultiplexer multiplexer,
-            ServerEndPoint server
+            ServerEndPoint? server
             )
         {
             if (message != null)
@@ -322,7 +321,7 @@ namespace StackExchange.Redis
                     if (string.IsNullOrWhiteSpace(log)) Interlocked.Exchange(ref multiplexer.haveStormLog, 0);
                     else Interlocked.Exchange(ref multiplexer.stormLogSnapshot, log);
                 }
-                Add(data, sb, "Server-Endpoint", "serverEndpoint", server.EndPoint.ToString().Replace("Unspecified/", ""));
+                Add(data, sb, "Server-Endpoint", "serverEndpoint", (server.EndPoint.ToString() ?? "Unknown").Replace("Unspecified/", ""));
             }
             Add(data, sb, "Multiplexer-Connects", "mc", $"{multiplexer._connectAttemptCount}/{multiplexer._connectCompletedCount}/{multiplexer._connectionCloseCount}");
             Add(data, sb, "Manager", "mgr", multiplexer.SocketManager?.GetState());
@@ -337,7 +336,7 @@ namespace StackExchange.Redis
                     Add(data, sb, "Key-HashSlot", "PerfCounterHelperkeyHashSlot", message.GetHashSlot(multiplexer.ServerSelectionStrategy).ToString());
                 }
             }
-            int busyWorkerCount = PerfCounterHelper.GetThreadPoolStats(out string iocp, out string worker, out string workItems);
+            int busyWorkerCount = PerfCounterHelper.GetThreadPoolStats(out string iocp, out string worker, out string? workItems);
             Add(data, sb, "ThreadPool-IO-Completion", "IOCP", iocp);
             Add(data, sb, "ThreadPool-Workers", "WORKER", worker);
             if (workItems != null)
@@ -354,7 +353,7 @@ namespace StackExchange.Redis
             Add(data, sb, "Version", "v", Utils.GetLibVersion());
         }
 
-        private static void AddExceptionDetail(Exception exception, Message message, ServerEndPoint server, string label)
+        private static void AddExceptionDetail(Exception? exception, Message? message, ServerEndPoint? server, string? label)
         {
             if (exception != null)
             {
@@ -372,12 +371,12 @@ namespace StackExchange.Redis
             }
         }
 
-        private static string GetLabel(bool includeDetail, RedisCommand command, Message message)
+        private static string GetLabel(bool includeDetail, RedisCommand command, Message? message)
         {
             return message == null ? command.ToString() : (includeDetail ? message.CommandAndKey : message.Command.ToString());
         }
 
-        internal static Exception UnableToConnect(ConnectionMultiplexer muxer, string failureMessage=null)
+        internal static Exception UnableToConnect(ConnectionMultiplexer muxer, string? failureMessage = null)
         {
             var sb = new StringBuilder("It was not possible to connect to the redis server(s).");
             if (muxer != null)
@@ -385,7 +384,10 @@ namespace StackExchange.Redis
                 if (muxer.AuthSuspect) sb.Append(" There was an authentication failure; check that passwords (or client certificates) are configured correctly.");
                 else if (muxer.RawConfig.AbortOnConnectFail) sb.Append(" Error connecting right now. To allow this multiplexer to continue retrying until it's able to connect, use abortConnect=false in your connection string or AbortOnConnectFail=false; in your code.");
             }
-            if (!string.IsNullOrWhiteSpace(failureMessage)) sb.Append(' ').Append(failureMessage.Trim());
+            if (failureMessage != null && !string.IsNullOrWhiteSpace(failureMessage))
+            {
+                sb.Append(' ').Append(failureMessage.Trim());
+            }
 
             return new RedisConnectionException(ConnectionFailureType.UnableToConnect, sb.ToString());
         }

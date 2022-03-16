@@ -32,7 +32,7 @@ namespace StackExchange.Redis
         /// Attempt to parse a string into an <see cref="EndPoint"/>.
         /// </summary>
         /// <param name="endpoint">The endpoint string to parse.</param>
-        public static EndPoint TryParse(string endpoint) => Format.TryParseEndPoint(endpoint);
+        public static EndPoint? TryParse(string endpoint) => Format.TryParseEndPoint(endpoint);
 
         /// <summary>
         /// Adds a new endpoint to the list.

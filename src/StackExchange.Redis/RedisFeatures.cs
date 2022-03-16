@@ -284,7 +284,7 @@ namespace StackExchange.Redis
         /// <see langword="true"/> if <paramref name="obj" /> and this instance are the same type and represent the same value, <see langword="false"/> otherwise.
         /// </returns>
         /// <param name="obj">The object to compare with the current instance.</param>
-        public override bool Equals(object obj) => obj is RedisFeatures f && f.Version == Version;
+        public override bool Equals(object? obj) => obj is RedisFeatures f && f.Version == Version;
 
         /// <summary>
         /// Checks if 2 <see cref="RedisFeatures"/> are .Equal().

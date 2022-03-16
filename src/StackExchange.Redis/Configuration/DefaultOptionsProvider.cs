@@ -97,7 +97,7 @@ namespace StackExchange.Redis.Configuration
         /// <summary>
         /// The command-map associated with this configuration.
         /// </summary>
-        public virtual CommandMap CommandMap => null;
+        public virtual CommandMap? CommandMap => null;
 
         /// <summary>
         /// Channel to use for broadcasting and listening for configuration change notification.
@@ -122,7 +122,7 @@ namespace StackExchange.Redis.Configuration
         /// <summary>
         /// The retry policy to be used for connection reconnects.
         /// </summary>
-        public virtual IReconnectRetryPolicy ReconnectRetryPolicy => null;
+        public virtual IReconnectRetryPolicy? ReconnectRetryPolicy => null;
 
         /// <summary>
         /// Indicates whether endpoints should be resolved via DNS before connecting.
@@ -146,7 +146,7 @@ namespace StackExchange.Redis.Configuration
         public virtual TimeSpan ConfigCheckInterval => TimeSpan.FromMinutes(1);
 
         // We memoize this to reduce cost on re-access
-        private string defaultClientName;
+        private string? defaultClientName;
         /// <summary>
         /// The default client name for a connection, with the library version appended.
         /// </summary>
@@ -168,7 +168,7 @@ namespace StackExchange.Redis.Configuration
         /// <summary>
         /// Name of the machine we're running on, for use in any options.
         /// </summary>
-        protected static string ComputerName => Environment.MachineName ?? Environment.GetEnvironmentVariable("ComputerName");
+        protected static string ComputerName => Environment.MachineName ?? Environment.GetEnvironmentVariable("ComputerName") ?? "Unknown";
 
         /// <summary>
         /// Tries to get the RoleInstance Id if Microsoft.WindowsAzure.ServiceRuntime is loaded.
@@ -178,8 +178,9 @@ namespace StackExchange.Redis.Configuration
         /// Azure, in the default provider? Yes, to maintain existing compatibility/convenience.
         /// Source !=  destination here.
         /// </remarks>
-        internal static string TryGetAzureRoleInstanceIdNoThrow()
+        internal static string? TryGetAzureRoleInstanceIdNoThrow()
         {
+#nullable disable // This is really best effort...
             string roleInstanceId;
             try
             {
@@ -205,7 +206,7 @@ namespace StackExchange.Redis.Configuration
                 var currentRoleInstanceId = currentRoleInstanceProp.GetValue(null, null);
                 roleInstanceId = currentRoleInstanceId.GetType().GetProperty("Id").GetValue(currentRoleInstanceId, null).ToString();
 
-                if (string.IsNullOrEmpty(roleInstanceId))
+                if (roleInstanceId.IsNullOrEmpty())
                 {
                     roleInstanceId = null;
                 }
@@ -215,6 +216,7 @@ namespace StackExchange.Redis.Configuration
                 //silently ignores the exception
                 roleInstanceId = null;
             }
+#nullable enable
             return roleInstanceId;
         }
 
@@ -238,9 +240,9 @@ namespace StackExchange.Redis.Configuration
         /// </summary>
         /// <param name="endPoints">The configured endpoints to determine SSL host from (e.g. from the port).</param>
         /// <returns>The common host, if any, detected from the endpoint collection.</returns>
-        public virtual string GetSslHostFromEndpoints(EndPointCollection endPoints)
+        public virtual string? GetSslHostFromEndpoints(EndPointCollection endPoints)
         {
-            string commonHost = null;
+            string? commonHost = null;
             foreach (var endpoint in endPoints)
             {
                 if (endpoint is DnsEndPoint dnsEndpoint)

@@ -10,29 +10,29 @@ namespace StackExchange.Redis
 {
     internal class RedisDatabase : RedisBase, IDatabase
     {
-        internal RedisDatabase(ConnectionMultiplexer multiplexer, int db, object asyncState)
+        internal RedisDatabase(ConnectionMultiplexer multiplexer, int db, object? asyncState)
             : base(multiplexer, asyncState)
         {
             Database = db;
         }
 
-        public object AsyncState => asyncState;
+        public object? AsyncState => asyncState;
 
         public int Database { get; }
 
-        public IBatch CreateBatch(object asyncState)
+        public IBatch CreateBatch(object? asyncState)
         {
             if (this is IBatch) throw new NotSupportedException("Nested batches are not supported");
             return new RedisBatch(this, asyncState);
         }
 
-        public ITransaction CreateTransaction(object asyncState)
+        public ITransaction CreateTransaction(object? asyncState)
         {
             if (this is IBatch) throw new NotSupportedException("Nested transactions are not supported");
             return new RedisTransaction(this, asyncState);
         }
 
-        private ITransaction CreateTransactionIfAvailable(object asyncState)
+        private ITransaction? CreateTransactionIfAvailable(object? asyncState)
         {
             var map = multiplexer.CommandMap;
             if (!map.IsAvailable(RedisCommand.MULTI) || !map.IsAvailable(RedisCommand.EXEC))
@@ -110,7 +110,7 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.NullableDouble);
         }
 
-        public string[] GeoHash(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)
+        public string?[]? GeoHash(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)
         {
             if (members == null) throw new ArgumentNullException(nameof(members));
             var redisValues = new RedisValue[members.Length];
@@ -119,7 +119,7 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.StringArray);
         }
 
-        public Task<string[]> GeoHashAsync(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)
+        public Task<string?[]?> GeoHashAsync(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)
         {
             if (members == null) throw new ArgumentNullException(nameof(members));
             var redisValues = new RedisValue[members.Length];
@@ -128,19 +128,19 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.StringArray);
         }
 
-        public string GeoHash(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
+        public string? GeoHash(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.GEOHASH, key, member);
             return ExecuteSync(msg, ResultProcessor.String);
         }
 
-        public Task<string> GeoHashAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
+        public Task<string?> GeoHashAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.GEOHASH, key, member);
             return ExecuteAsync(msg, ResultProcessor.String);
         }
 
-        public GeoPosition?[] GeoPosition(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)
+        public GeoPosition[]? GeoPosition(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)
         {
             if (members == null) throw new ArgumentNullException(nameof(members));
             var redisValues = new RedisValue[members.Length];
@@ -149,7 +149,7 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.RedisGeoPositionArray);
         }
 
-        public Task<GeoPosition?[]> GeoPositionAsync(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)
+        public Task<GeoPosition[]?> GeoPositionAsync(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)
         {
             if (members == null) throw new ArgumentNullException(nameof(members));
             var redisValues = new RedisValue[members.Length];
@@ -158,13 +158,13 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.RedisGeoPositionArray);
         }
 
-        public GeoPosition? GeoPosition(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
+        public GeoPosition GeoPosition(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.GEOPOS, key, member);
             return ExecuteSync(msg, ResultProcessor.RedisGeoPosition);
         }
 
-        public Task<GeoPosition?> GeoPositionAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
+        public Task<GeoPosition> GeoPositionAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.GEOPOS, key, member);
             return ExecuteAsync(msg, ResultProcessor.RedisGeoPosition);
@@ -215,7 +215,7 @@ namespace StackExchange.Redis
             return Message.Create(Database, flags, command, key, redisValues.ToArray());
         }
 
-        public GeoRadiusResult[] GeoRadius(RedisKey key, RedisValue member, double radius, GeoUnit unit, int count, Order? order, GeoRadiusOptions options, CommandFlags flags)
+        public GeoRadiusResult[]? GeoRadius(RedisKey key, RedisValue member, double radius, GeoUnit unit, int count, Order? order, GeoRadiusOptions options, CommandFlags flags)
         {
             // This gets confused with the double overload below sometimes...throwing when this occurs.
             if (member.Type == RedisValue.StorageType.Double)
@@ -225,7 +225,7 @@ namespace StackExchange.Redis
             return ExecuteSync(GetGeoRadiusMessage(key, member, double.NaN, double.NaN, radius, unit, count, order, options, flags), ResultProcessor.GeoRadiusArray(options));
         }
 
-        public Task<GeoRadiusResult[]> GeoRadiusAsync(RedisKey key, RedisValue member, double radius, GeoUnit unit, int count, Order? order, GeoRadiusOptions options, CommandFlags flags)
+        public Task<GeoRadiusResult[]?> GeoRadiusAsync(RedisKey key, RedisValue member, double radius, GeoUnit unit, int count, Order? order, GeoRadiusOptions options, CommandFlags flags)
         {
             // This gets confused with the double overload below sometimes...throwing when this occurs.
             if (member.Type == RedisValue.StorageType.Double)
@@ -235,12 +235,12 @@ namespace StackExchange.Redis
             return ExecuteAsync(GetGeoRadiusMessage(key, member, double.NaN, double.NaN, radius, unit, count, order, options, flags), ResultProcessor.GeoRadiusArray(options));
         }
 
-        public GeoRadiusResult[] GeoRadius(RedisKey key, double longitude, double latitude, double radius, GeoUnit unit, int count, Order? order, GeoRadiusOptions options, CommandFlags flags)
+        public GeoRadiusResult[]? GeoRadius(RedisKey key, double longitude, double latitude, double radius, GeoUnit unit, int count, Order? order, GeoRadiusOptions options, CommandFlags flags)
         {
             return ExecuteSync(GetGeoRadiusMessage(key, null, longitude, latitude, radius, unit, count, order, options, flags), ResultProcessor.GeoRadiusArray(options));
         }
 
-        public Task<GeoRadiusResult[]> GeoRadiusAsync(RedisKey key, double longitude, double latitude, double radius, GeoUnit unit, int count, Order? order, GeoRadiusOptions options, CommandFlags flags)
+        public Task<GeoRadiusResult[]?> GeoRadiusAsync(RedisKey key, double longitude, double latitude, double radius, GeoUnit unit, int count, Order? order, GeoRadiusOptions options, CommandFlags flags)
         {
             return ExecuteAsync(GetGeoRadiusMessage(key, null, longitude, latitude, radius, unit, count, order, options, flags), ResultProcessor.GeoRadiusArray(options));
         }
@@ -310,13 +310,13 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.RedisValue);
         }
 
-        public Lease<byte> HashGetLease(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
+        public Lease<byte>? HashGetLease(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.HGET, key, hashField);
             return ExecuteSync(msg, ResultProcessor.Lease);
         }
 
-        public RedisValue[] HashGet(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None)
+        public RedisValue[]? HashGet(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None)
         {
             if (hashFields == null) throw new ArgumentNullException(nameof(hashFields));
             if (hashFields.Length == 0) return Array.Empty<RedisValue>();
@@ -324,13 +324,13 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.RedisValueArray);
         }
 
-        public HashEntry[] HashGetAll(RedisKey key, CommandFlags flags = CommandFlags.None)
+        public HashEntry[]? HashGetAll(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.HGETALL, key);
             return ExecuteSync(msg, ResultProcessor.HashEntryArray);
         }
 
-        public Task<HashEntry[]> HashGetAllAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
+        public Task<HashEntry[]?> HashGetAllAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.HGETALL, key);
             return ExecuteAsync(msg, ResultProcessor.HashEntryArray);
@@ -342,13 +342,13 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.RedisValue);
         }
 
-        public Task<Lease<byte>> HashGetLeaseAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
+        public Task<Lease<byte>?> HashGetLeaseAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.HGET, key, hashField);
             return ExecuteAsync(msg, ResultProcessor.Lease);
         }
 
-        public Task<RedisValue[]> HashGetAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None)
+        public Task<RedisValue[]?> HashGetAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None)
         {
             if (hashFields == null) throw new ArgumentNullException(nameof(hashFields));
             if (hashFields.Length == 0) return CompletedTask<RedisValue[]>.FromResult(Array.Empty<RedisValue>(), asyncState);
@@ -384,13 +384,13 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Double);
         }
 
-        public RedisValue[] HashKeys(RedisKey key, CommandFlags flags = CommandFlags.None)
+        public RedisValue[]? HashKeys(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.HKEYS, key);
             return ExecuteSync(msg, ResultProcessor.RedisValueArray);
         }
 
-        public Task<RedisValue[]> HashKeysAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
+        public Task<RedisValue[]?> HashKeysAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.HKEYS, key);
             return ExecuteAsync(msg, ResultProcessor.RedisValueArray);
@@ -477,13 +477,13 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Boolean);
         }
 
-        public RedisValue[] HashValues(RedisKey key, CommandFlags flags = CommandFlags.None)
+        public RedisValue[]? HashValues(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.HVALS, key);
             return ExecuteSync(msg, ResultProcessor.RedisValueArray);
         }
 
-        public Task<RedisValue[]> HashValuesAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
+        public Task<RedisValue[]?> HashValuesAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.HVALS, key);
             return ExecuteAsync(msg, ResultProcessor.RedisValueArray);
@@ -515,7 +515,7 @@ namespace StackExchange.Redis
 
         public long HyperLogLogLength(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
-            var features = GetFeatures(key, flags, out ServerEndPoint server);
+            var features = GetFeatures(key, flags, out ServerEndPoint? server);
             var cmd = Message.Create(Database, flags, RedisCommand.PFCOUNT, key);
             // technically a write / primary-only command until 2.8.18
             if (server != null && !features.HyperLogLogCountReplicaSafe) cmd.SetPrimaryOnly();
@@ -525,7 +525,7 @@ namespace StackExchange.Redis
         public long HyperLogLogLength(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
         {
             if (keys == null) throw new ArgumentNullException(nameof(keys));
-            ServerEndPoint server = null;
+            ServerEndPoint? server = null;
             var cmd = Message.Create(Database, flags, RedisCommand.PFCOUNT, keys);
             if (keys.Length != 0)
             {
@@ -538,7 +538,7 @@ namespace StackExchange.Redis
 
         public Task<long> HyperLogLogLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
-            var features = GetFeatures(key, flags, out ServerEndPoint server);
+            var features = GetFeatures(key, flags, out ServerEndPoint? server);
             var cmd = Message.Create(Database, flags, RedisCommand.PFCOUNT, key);
             // technically a write / primary-only command until 2.8.18
             if (server != null && !features.HyperLogLogCountReplicaSafe) cmd.SetPrimaryOnly();
@@ -548,7 +548,7 @@ namespace StackExchange.Redis
         public Task<long> HyperLogLogLengthAsync(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
         {
             if (keys == null) throw new ArgumentNullException(nameof(keys));
-            ServerEndPoint server = null;
+            ServerEndPoint? server = null;
             var cmd = Message.Create(Database, flags, RedisCommand.PFCOUNT, keys);
             if (keys.Length != 0)
             {
@@ -583,13 +583,13 @@ namespace StackExchange.Redis
             return ExecuteAsync(cmd, ResultProcessor.DemandOK);
         }
 
-        public EndPoint IdentifyEndpoint(RedisKey key = default(RedisKey), CommandFlags flags = CommandFlags.None)
+        public EndPoint? IdentifyEndpoint(RedisKey key = default, CommandFlags flags = CommandFlags.None)
         {
             var msg = key.IsNull ? Message.Create(-1, flags, RedisCommand.PING) : Message.Create(Database, flags, RedisCommand.EXISTS, key);
             return ExecuteSync(msg, ResultProcessor.ConnectionIdentity);
         }
 
-        public Task<EndPoint> IdentifyEndpointAsync(RedisKey key = default(RedisKey), CommandFlags flags = CommandFlags.None)
+        public Task<EndPoint?> IdentifyEndpointAsync(RedisKey key = default, CommandFlags flags = CommandFlags.None)
         {
             var msg = key.IsNull ? Message.Create(-1, flags, RedisCommand.PING) : Message.Create(Database, flags, RedisCommand.EXISTS, key);
             return ExecuteAsync(msg, ResultProcessor.ConnectionIdentity);
@@ -639,7 +639,7 @@ namespace StackExchange.Redis
             return CompletedTask<long>.Default(0);
         }
 
-        private RedisCommand GetDeleteCommand(RedisKey key, CommandFlags flags, out ServerEndPoint server)
+        private RedisCommand GetDeleteCommand(RedisKey key, CommandFlags flags, out ServerEndPoint? server)
         {
             var features = GetFeatures(key, flags, out server);
             if (server != null && features.Unlink && multiplexer.CommandMap.IsAvailable(RedisCommand.UNLINK))
@@ -649,13 +649,13 @@ namespace StackExchange.Redis
             return RedisCommand.DEL;
         }
 
-        public byte[] KeyDump(RedisKey key, CommandFlags flags = CommandFlags.None)
+        public byte[]? KeyDump(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.DUMP, key);
             return ExecuteSync(msg, ResultProcessor.ByteArray);
         }
 
-        public Task<byte[]> KeyDumpAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
+        public Task<byte[]?> KeyDumpAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.DUMP, key);
             return ExecuteAsync(msg, ResultProcessor.ByteArray);
@@ -687,25 +687,25 @@ namespace StackExchange.Redis
 
         public bool KeyExpire(RedisKey key, TimeSpan? expiry, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetExpiryMessage(key, flags, expiry, out ServerEndPoint server);
+            var msg = GetExpiryMessage(key, flags, expiry, out ServerEndPoint? server);
             return ExecuteSync(msg, ResultProcessor.Boolean, server: server);
         }
 
         public bool KeyExpire(RedisKey key, DateTime? expiry, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetExpiryMessage(key, flags, expiry, out ServerEndPoint server);
+            var msg = GetExpiryMessage(key, flags, expiry, out ServerEndPoint? server);
             return ExecuteSync(msg, ResultProcessor.Boolean, server: server);
         }
 
         public Task<bool> KeyExpireAsync(RedisKey key, TimeSpan? expiry, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetExpiryMessage(key, flags, expiry, out ServerEndPoint server);
+            var msg = GetExpiryMessage(key, flags, expiry, out ServerEndPoint? server);
             return ExecuteAsync(msg, ResultProcessor.Boolean, server: server);
         }
 
         public Task<bool> KeyExpireAsync(RedisKey key, DateTime? expiry, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetExpiryMessage(key, flags, expiry, out ServerEndPoint server);
+            var msg = GetExpiryMessage(key, flags, expiry, out ServerEndPoint? server);
             return ExecuteAsync(msg, ResultProcessor.Boolean, server: server);
         }
 
@@ -745,7 +745,7 @@ namespace StackExchange.Redis
                 : base(db, flags, RedisCommand.MIGRATE, key)
             {
                 if (toServer == null) throw new ArgumentNullException(nameof(toServer));
-                if (!Format.TryGetHostPort(toServer, out string toHost, out int toPort)) throw new ArgumentException($"Couldn't get host and port from {toServer}", nameof(toServer));
+                if (!Format.TryGetHostPort(toServer, out string? toHost, out int toPort)) throw new ArgumentException($"Couldn't get host and port from {toServer}", nameof(toServer));
                 this.toHost = toHost;
                 this.toPort = toPort;
                 if (toDatabase < 0) throw new ArgumentOutOfRangeException(nameof(toDatabase));
@@ -843,7 +843,7 @@ namespace StackExchange.Redis
 
         public TimeSpan? KeyTimeToLive(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
-            var features = GetFeatures(key, flags, out ServerEndPoint server);
+            var features = GetFeatures(key, flags, out ServerEndPoint? server);
             Message msg;
             if (server != null && features.MillisecondExpiry && multiplexer.CommandMap.IsAvailable(RedisCommand.PTTL))
             {
@@ -856,7 +856,7 @@ namespace StackExchange.Redis
 
         public Task<TimeSpan?> KeyTimeToLiveAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
-            var features = GetFeatures(key, flags, out ServerEndPoint server);
+            var features = GetFeatures(key, flags, out ServerEndPoint? server);
             Message msg;
             if (server != null && features.MillisecondExpiry && multiplexer.CommandMap.IsAvailable(RedisCommand.PTTL))
             {
@@ -921,7 +921,7 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.RedisValue);
         }
 
-        public RedisValue[] ListLeftPop(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+        public RedisValue[]? ListLeftPop(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.LPOP, key, count);
             return ExecuteSync(msg, ResultProcessor.RedisValueArray);
@@ -933,7 +933,7 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.RedisValue);
         }
 
-        public Task<RedisValue[]> ListLeftPopAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+        public Task<RedisValue[]?> ListLeftPopAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.LPOP, key, count);
             return ExecuteAsync(msg, ResultProcessor.RedisValueArray);
@@ -997,13 +997,13 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
-        public RedisValue[] ListRange(RedisKey key, long start = 0, long stop = -1, CommandFlags flags = CommandFlags.None)
+        public RedisValue[]? ListRange(RedisKey key, long start = 0, long stop = -1, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.LRANGE, key, start, stop);
             return ExecuteSync(msg, ResultProcessor.RedisValueArray);
         }
 
-        public Task<RedisValue[]> ListRangeAsync(RedisKey key, long start = 0, long stop = -1, CommandFlags flags = CommandFlags.None)
+        public Task<RedisValue[]?> ListRangeAsync(RedisKey key, long start = 0, long stop = -1, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.LRANGE, key, start, stop);
             return ExecuteAsync(msg, ResultProcessor.RedisValueArray);
@@ -1027,7 +1027,7 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.RedisValue);
         }
 
-        public RedisValue[] ListRightPop(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+        public RedisValue[]? ListRightPop(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.RPOP, key, count);
             return ExecuteSync(msg, ResultProcessor.RedisValueArray);
@@ -1039,7 +1039,7 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.RedisValue);
         }
 
-        public Task<RedisValue[]> ListRightPopAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+        public Task<RedisValue[]?> ListRightPopAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.RPOP, key, count);
             return ExecuteAsync(msg, ResultProcessor.RedisValueArray);
@@ -1204,7 +1204,7 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
-        public RedisResult ScriptEvaluate(string script, RedisKey[] keys = null, RedisValue[] values = null, CommandFlags flags = CommandFlags.None)
+        public RedisResult? ScriptEvaluate(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
         {
             var msg = new ScriptEvalMessage(Database, flags, script, keys, values);
             try
@@ -1218,56 +1218,57 @@ namespace StackExchange.Redis
             }
         }
 
-        public RedisResult Execute(string command, params object[] args)
+        public RedisResult? Execute(string command, params object[] args)
             => Execute(command, args, CommandFlags.None);
-        public RedisResult Execute(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None)
+        public RedisResult? Execute(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None)
         {
             var msg = new ExecuteMessage(multiplexer?.CommandMap, Database, flags, command, args);
             return ExecuteSync(msg, ResultProcessor.ScriptResult);
         }
 
-        public Task<RedisResult> ExecuteAsync(string command, params object[] args)
+        public Task<RedisResult?> ExecuteAsync(string command, params object[] args)
             => ExecuteAsync(command, args, CommandFlags.None);
-        public Task<RedisResult> ExecuteAsync(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None)
+
+        public Task<RedisResult?> ExecuteAsync(string command, ICollection<object>? args, CommandFlags flags = CommandFlags.None)
         {
             var msg = new ExecuteMessage(multiplexer?.CommandMap, Database, flags, command, args);
             return ExecuteAsync(msg, ResultProcessor.ScriptResult);
         }
 
-        public RedisResult ScriptEvaluate(byte[] hash, RedisKey[] keys = null, RedisValue[] values = null, CommandFlags flags = CommandFlags.None)
+        public RedisResult? ScriptEvaluate(byte[] hash, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
         {
             var msg = new ScriptEvalMessage(Database, flags, hash, keys, values);
             return ExecuteSync(msg, ResultProcessor.ScriptResult);
         }
 
-        public RedisResult ScriptEvaluate(LuaScript script, object parameters = null, CommandFlags flags = CommandFlags.None)
+        public RedisResult? ScriptEvaluate(LuaScript script, object? parameters = null, CommandFlags flags = CommandFlags.None)
         {
             return script.Evaluate(this, parameters, null, flags);
         }
 
-        public RedisResult ScriptEvaluate(LoadedLuaScript script, object parameters = null, CommandFlags flags = CommandFlags.None)
+        public RedisResult? ScriptEvaluate(LoadedLuaScript script, object? parameters = null, CommandFlags flags = CommandFlags.None)
         {
             return script.Evaluate(this, parameters, null, flags);
         }
 
-        public Task<RedisResult> ScriptEvaluateAsync(string script, RedisKey[] keys = null, RedisValue[] values = null, CommandFlags flags = CommandFlags.None)
+        public Task<RedisResult?> ScriptEvaluateAsync(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
         {
             var msg = new ScriptEvalMessage(Database, flags, script, keys, values);
             return ExecuteAsync(msg, ResultProcessor.ScriptResult);
         }
 
-        public Task<RedisResult> ScriptEvaluateAsync(byte[] hash, RedisKey[] keys = null, RedisValue[] values = null, CommandFlags flags = CommandFlags.None)
+        public Task<RedisResult?> ScriptEvaluateAsync(byte[] hash, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
         {
             var msg = new ScriptEvalMessage(Database, flags, hash, keys, values);
             return ExecuteAsync(msg, ResultProcessor.ScriptResult);
         }
 
-        public Task<RedisResult> ScriptEvaluateAsync(LuaScript script, object parameters = null, CommandFlags flags = CommandFlags.None)
+        public Task<RedisResult?> ScriptEvaluateAsync(LuaScript script, object? parameters = null, CommandFlags flags = CommandFlags.None)
         {
             return script.EvaluateAsync(this, parameters, null, flags);
         }
 
-        public Task<RedisResult> ScriptEvaluateAsync(LoadedLuaScript script, object parameters = null, CommandFlags flags = CommandFlags.None)
+        public Task<RedisResult?> ScriptEvaluateAsync(LoadedLuaScript script, object? parameters = null, CommandFlags flags = CommandFlags.None)
         {
             return script.EvaluateAsync(this, parameters, null, flags);
         }
@@ -1298,13 +1299,13 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
-        public RedisValue[] SetCombine(SetOperation operation, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None)
+        public RedisValue[]? SetCombine(SetOperation operation, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, SetOperationCommand(operation, false), first, second);
             return ExecuteSync(msg, ResultProcessor.RedisValueArray);
         }
 
-        public RedisValue[] SetCombine(SetOperation operation, RedisKey[] keys, CommandFlags flags = CommandFlags.None)
+        public RedisValue[]? SetCombine(SetOperation operation, RedisKey[] keys, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, SetOperationCommand(operation, false), keys);
             return ExecuteSync(msg, ResultProcessor.RedisValueArray);
@@ -1334,13 +1335,13 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
-        public Task<RedisValue[]> SetCombineAsync(SetOperation operation, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None)
+        public Task<RedisValue[]?> SetCombineAsync(SetOperation operation, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, SetOperationCommand(operation, false), first, second);
             return ExecuteAsync(msg, ResultProcessor.RedisValueArray);
         }
 
-        public Task<RedisValue[]> SetCombineAsync(SetOperation operation, RedisKey[] keys, CommandFlags flags = CommandFlags.None)
+        public Task<RedisValue[]?> SetCombineAsync(SetOperation operation, RedisKey[] keys, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, SetOperationCommand(operation, false), keys);
             return ExecuteAsync(msg, ResultProcessor.RedisValueArray);
@@ -1370,13 +1371,13 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
-        public RedisValue[] SetMembers(RedisKey key, CommandFlags flags = CommandFlags.None)
+        public RedisValue[]? SetMembers(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.SMEMBERS, key);
             return ExecuteSync(msg, ResultProcessor.RedisValueArray);
         }
 
-        public Task<RedisValue[]> SetMembersAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
+        public Task<RedisValue[]?> SetMembersAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.SMEMBERS, key);
             return ExecuteAsync(msg, ResultProcessor.RedisValueArray);
@@ -1406,7 +1407,7 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.RedisValue);
         }
 
-        public RedisValue[] SetPop(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+        public RedisValue[]? SetPop(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
         {
             if (count == 0) return Array.Empty<RedisValue>();
             var msg = count == 1
@@ -1415,9 +1416,9 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.RedisValueArray);
         }
 
-        public Task<RedisValue[]> SetPopAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+        public Task<RedisValue[]?> SetPopAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
         {
-            if(count == 0) return Task.FromResult(Array.Empty<RedisValue>());
+            if(count == 0) return Task.FromResult<RedisValue[]?>(Array.Empty<RedisValue>());
             var msg = count == 1
                     ? Message.Create(Database, flags, RedisCommand.SPOP, key)
                     : Message.Create(Database, flags, RedisCommand.SPOP, key, count);
@@ -1436,13 +1437,13 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.RedisValue);
         }
 
-        public RedisValue[] SetRandomMembers(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+        public RedisValue[]? SetRandomMembers(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.SRANDMEMBER, key, count);
             return ExecuteSync(msg, ResultProcessor.RedisValueArray);
         }
 
-        public Task<RedisValue[]> SetRandomMembersAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+        public Task<RedisValue[]?> SetRandomMembersAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.SRANDMEMBER, key, count);
             return ExecuteAsync(msg, ResultProcessor.RedisValueArray);
@@ -1495,25 +1496,25 @@ namespace StackExchange.Redis
             throw ExceptionFactory.NotSupported(true, RedisCommand.SSCAN);
         }
 
-        public RedisValue[] Sort(RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default(RedisValue), RedisValue[] get = null, CommandFlags flags = CommandFlags.None)
+        public RedisValue[]? Sort(RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default, RedisValue[]? get = null, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetSortedSetAddMessage(default(RedisKey), key, skip, take, order, sortType, by, get, flags);
             return ExecuteSync(msg, ResultProcessor.RedisValueArray);
         }
 
-        public long SortAndStore(RedisKey destination, RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default(RedisValue), RedisValue[] get = null, CommandFlags flags = CommandFlags.None)
+        public long SortAndStore(RedisKey destination, RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default, RedisValue[]? get = null, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetSortedSetAddMessage(destination, key, skip, take, order, sortType, by, get, flags);
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
-        public Task<long> SortAndStoreAsync(RedisKey destination, RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default(RedisValue), RedisValue[] get = null, CommandFlags flags = CommandFlags.None)
+        public Task<long> SortAndStoreAsync(RedisKey destination, RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default, RedisValue[]? get = null, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetSortedSetAddMessage(destination, key, skip, take, order, sortType, by, get, flags);
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
-        public Task<RedisValue[]> SortAsync(RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default(RedisValue), RedisValue[] get = null, CommandFlags flags = CommandFlags.None)
+        public Task<RedisValue[]?> SortAsync(RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default, RedisValue[]? get = null, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetSortedSetAddMessage(default(RedisKey), key, skip, take, order, sortType, by, get, flags);
             return ExecuteAsync(msg, ResultProcessor.RedisValueArray);
@@ -1573,7 +1574,7 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
-        public long SortedSetCombineAndStore(SetOperation operation, RedisKey destination, RedisKey[] keys, double[] weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None)
+        public long SortedSetCombineAndStore(SetOperation operation, RedisKey destination, RedisKey[] keys, double[]? weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetSortedSetCombineAndStoreCommandMessage(operation, destination, keys, weights, aggregate, flags);
             return ExecuteSync(msg, ResultProcessor.Int64);
@@ -1585,7 +1586,7 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
-        public Task<long> SortedSetCombineAndStoreAsync(SetOperation operation, RedisKey destination, RedisKey[] keys, double[] weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None)
+        public Task<long> SortedSetCombineAndStoreAsync(SetOperation operation, RedisKey destination, RedisKey[] keys, double[]? weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetSortedSetCombineAndStoreCommandMessage(operation, destination, keys, weights, aggregate, flags);
             return ExecuteAsync(msg, ResultProcessor.Int64);
@@ -1625,49 +1626,49 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
-        public RedisValue[] SortedSetRangeByRank(RedisKey key, long start = 0, long stop = -1, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
+        public RedisValue[]? SortedSetRangeByRank(RedisKey key, long start = 0, long stop = -1, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, order == Order.Descending ? RedisCommand.ZREVRANGE : RedisCommand.ZRANGE, key, start, stop);
             return ExecuteSync(msg, ResultProcessor.RedisValueArray);
         }
 
-        public Task<RedisValue[]> SortedSetRangeByRankAsync(RedisKey key, long start = 0, long stop = -1, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
+        public Task<RedisValue[]?> SortedSetRangeByRankAsync(RedisKey key, long start = 0, long stop = -1, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, order == Order.Descending ? RedisCommand.ZREVRANGE : RedisCommand.ZRANGE, key, start, stop);
             return ExecuteAsync(msg, ResultProcessor.RedisValueArray);
         }
 
-        public SortedSetEntry[] SortedSetRangeByRankWithScores(RedisKey key, long start = 0, long stop = -1, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
+        public SortedSetEntry[]? SortedSetRangeByRankWithScores(RedisKey key, long start = 0, long stop = -1, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, order == Order.Descending ? RedisCommand.ZREVRANGE : RedisCommand.ZRANGE, key, start, stop, RedisLiterals.WITHSCORES);
             return ExecuteSync(msg, ResultProcessor.SortedSetWithScores);
         }
 
-        public Task<SortedSetEntry[]> SortedSetRangeByRankWithScoresAsync(RedisKey key, long start = 0, long stop = -1, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
+        public Task<SortedSetEntry[]?> SortedSetRangeByRankWithScoresAsync(RedisKey key, long start = 0, long stop = -1, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, order == Order.Descending ? RedisCommand.ZREVRANGE : RedisCommand.ZRANGE, key, start, stop, RedisLiterals.WITHSCORES);
             return ExecuteAsync(msg, ResultProcessor.SortedSetWithScores);
         }
 
-        public RedisValue[] SortedSetRangeByScore(RedisKey key, double start = double.NegativeInfinity, double stop = double.PositiveInfinity, Exclude exclude = Exclude.None, Order order = Order.Ascending, long skip = 0, long take = -1, CommandFlags flags = CommandFlags.None)
+        public RedisValue[]? SortedSetRangeByScore(RedisKey key, double start = double.NegativeInfinity, double stop = double.PositiveInfinity, Exclude exclude = Exclude.None, Order order = Order.Ascending, long skip = 0, long take = -1, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetSortedSetRangeByScoreMessage(key, start, stop, exclude, order, skip, take, flags, false);
             return ExecuteSync(msg, ResultProcessor.RedisValueArray);
         }
 
-        public Task<RedisValue[]> SortedSetRangeByScoreAsync(RedisKey key, double start = double.NegativeInfinity, double stop = double.PositiveInfinity, Exclude exclude = Exclude.None, Order order = Order.Ascending, long skip = 0, long take = -1, CommandFlags flags = CommandFlags.None)
+        public Task<RedisValue[]?> SortedSetRangeByScoreAsync(RedisKey key, double start = double.NegativeInfinity, double stop = double.PositiveInfinity, Exclude exclude = Exclude.None, Order order = Order.Ascending, long skip = 0, long take = -1, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetSortedSetRangeByScoreMessage(key, start, stop, exclude, order, skip, take, flags, false);
             return ExecuteAsync(msg, ResultProcessor.RedisValueArray);
         }
 
-        public SortedSetEntry[] SortedSetRangeByScoreWithScores(RedisKey key, double start = double.NegativeInfinity, double stop = double.PositiveInfinity, Exclude exclude = Exclude.None, Order order = Order.Ascending, long skip = 0, long take = -1, CommandFlags flags = CommandFlags.None)
+        public SortedSetEntry[]? SortedSetRangeByScoreWithScores(RedisKey key, double start = double.NegativeInfinity, double stop = double.PositiveInfinity, Exclude exclude = Exclude.None, Order order = Order.Ascending, long skip = 0, long take = -1, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetSortedSetRangeByScoreMessage(key, start, stop, exclude, order, skip, take, flags, true);
             return ExecuteSync(msg, ResultProcessor.SortedSetWithScores);
         }
 
-        public Task<SortedSetEntry[]> SortedSetRangeByScoreWithScoresAsync(RedisKey key, double start = double.NegativeInfinity, double stop = double.PositiveInfinity, Exclude exclude = Exclude.None, Order order = Order.Ascending, long skip = 0, long take = -1, CommandFlags flags = CommandFlags.None)
+        public Task<SortedSetEntry[]?> SortedSetRangeByScoreWithScoresAsync(RedisKey key, double start = double.NegativeInfinity, double stop = double.PositiveInfinity, Exclude exclude = Exclude.None, Order order = Order.Ascending, long skip = 0, long take = -1, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetSortedSetRangeByScoreMessage(key, start, stop, exclude, order, skip, take, flags, true);
             return ExecuteAsync(msg, ResultProcessor.SortedSetWithScores);
@@ -1776,7 +1777,7 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.SortedSetEntry);
         }
 
-        public SortedSetEntry[] SortedSetPop(RedisKey key, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
+        public SortedSetEntry[]? SortedSetPop(RedisKey key, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
         {
             if (count == 0) return Array.Empty<SortedSetEntry>();
             var msg = count == 1
@@ -1785,9 +1786,9 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.SortedSetWithScores);
         }
 
-        public Task<SortedSetEntry[]> SortedSetPopAsync(RedisKey key, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
+        public Task<SortedSetEntry[]?> SortedSetPopAsync(RedisKey key, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
         {
-            if (count == 0) return Task.FromResult(Array.Empty<SortedSetEntry>());
+            if (count == 0) return Task.FromResult<SortedSetEntry[]?>(Array.Empty<SortedSetEntry>());
             var msg = count == 1
                     ? Message.Create(Database, flags, order == Order.Descending ? RedisCommand.ZPOPMAX : RedisCommand.ZPOPMIN, key)
                     : Message.Create(Database, flags, order == Order.Descending ? RedisCommand.ZPOPMAX : RedisCommand.ZPOPMIN, key, count);
@@ -1866,7 +1867,7 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.RedisValue);
         }
 
-        public StreamEntry[] StreamClaim(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
+        public StreamEntry[]? StreamClaim(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStreamClaimMessage(key,
                 consumerGroup,
@@ -1879,7 +1880,7 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.SingleStream);
         }
 
-        public Task<StreamEntry[]> StreamClaimAsync(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
+        public Task<StreamEntry[]?> StreamClaimAsync(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStreamClaimMessage(key,
                 consumerGroup,
@@ -1892,7 +1893,7 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.SingleStream);
         }
 
-        public RedisValue[] StreamClaimIdsOnly(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
+        public RedisValue[]? StreamClaimIdsOnly(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStreamClaimMessage(key,
                 consumerGroup,
@@ -1905,7 +1906,7 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.RedisValueArray);
         }
 
-        public Task<RedisValue[]> StreamClaimIdsOnlyAsync(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
+        public Task<RedisValue[]?> StreamClaimIdsOnlyAsync(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStreamClaimMessage(key,
                 consumerGroup,
@@ -1994,7 +1995,7 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Boolean);
         }
 
-        public StreamConsumerInfo[] StreamConsumerInfo(RedisKey key, RedisValue groupName, CommandFlags flags = CommandFlags.None)
+        public StreamConsumerInfo[]? StreamConsumerInfo(RedisKey key, RedisValue groupName, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database,
                 flags,
@@ -2009,7 +2010,7 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.StreamConsumerInfo);
         }
 
-        public Task<StreamConsumerInfo[]> StreamConsumerInfoAsync(RedisKey key, RedisValue groupName, CommandFlags flags = CommandFlags.None)
+        public Task<StreamConsumerInfo[]?> StreamConsumerInfoAsync(RedisKey key, RedisValue groupName, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database,
                 flags,
@@ -2024,13 +2025,13 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.StreamConsumerInfo);
         }
 
-        public StreamGroupInfo[] StreamGroupInfo(RedisKey key, CommandFlags flags = CommandFlags.None)
+        public StreamGroupInfo[]? StreamGroupInfo(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.XINFO, StreamConstants.Groups, key);
             return ExecuteSync(msg, ResultProcessor.StreamGroupInfo);
         }
 
-        public Task<StreamGroupInfo[]> StreamGroupInfoAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
+        public Task<StreamGroupInfo[]?> StreamGroupInfoAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.XINFO, StreamConstants.Groups, key);
             return ExecuteAsync(msg, ResultProcessor.StreamGroupInfo);
@@ -2156,7 +2157,7 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.StreamPendingInfo);
         }
 
-        public StreamPendingMessageInfo[] StreamPendingMessages(RedisKey key, RedisValue groupName, int count, RedisValue consumerName, RedisValue? minId = null, RedisValue? maxId = null, CommandFlags flags = CommandFlags.None)
+        public StreamPendingMessageInfo[]? StreamPendingMessages(RedisKey key, RedisValue groupName, int count, RedisValue consumerName, RedisValue? minId = null, RedisValue? maxId = null, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStreamPendingMessagesMessage(key,
                 groupName,
@@ -2169,7 +2170,7 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.StreamPendingMessages);
         }
 
-        public Task<StreamPendingMessageInfo[]> StreamPendingMessagesAsync(RedisKey key, RedisValue groupName, int count, RedisValue consumerName, RedisValue? minId = null, RedisValue? maxId = null, CommandFlags flags = CommandFlags.None)
+        public Task<StreamPendingMessageInfo[]?> StreamPendingMessagesAsync(RedisKey key, RedisValue groupName, int count, RedisValue consumerName, RedisValue? minId = null, RedisValue? maxId = null, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStreamPendingMessagesMessage(key,
                 groupName,
@@ -2182,7 +2183,7 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.StreamPendingMessages);
         }
 
-        public StreamEntry[] StreamRange(RedisKey key, RedisValue? minId = null, RedisValue? maxId = null, int? count = null, Order messageOrder = Order.Ascending, CommandFlags flags = CommandFlags.None)
+        public StreamEntry[]? StreamRange(RedisKey key, RedisValue? minId = null, RedisValue? maxId = null, int? count = null, Order messageOrder = Order.Ascending, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStreamRangeMessage(key,
                 minId,
@@ -2194,7 +2195,7 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.SingleStream);
         }
 
-        public Task<StreamEntry[]> StreamRangeAsync(RedisKey key, RedisValue? minId = null, RedisValue? maxId = null, int? count = null, Order messageOrder = Order.Ascending, CommandFlags flags = CommandFlags.None)
+        public Task<StreamEntry[]?> StreamRangeAsync(RedisKey key, RedisValue? minId = null, RedisValue? maxId = null, int? count = null, Order messageOrder = Order.Ascending, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStreamRangeMessage(key,
                 minId,
@@ -2206,7 +2207,7 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.SingleStream);
         }
 
-        public StreamEntry[] StreamRead(RedisKey key, RedisValue position, int? count = null, CommandFlags flags = CommandFlags.None)
+        public StreamEntry[]? StreamRead(RedisKey key, RedisValue position, int? count = null, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetSingleStreamReadMessage(key,
                 StreamPosition.Resolve(position, RedisCommand.XREAD),
@@ -2216,7 +2217,7 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.SingleStreamWithNameSkip);
         }
 
-        public Task<StreamEntry[]> StreamReadAsync(RedisKey key, RedisValue position, int? count = null, CommandFlags flags = CommandFlags.None)
+        public Task<StreamEntry[]?> StreamReadAsync(RedisKey key, RedisValue position, int? count = null, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetSingleStreamReadMessage(key,
                 StreamPosition.Resolve(position, RedisCommand.XREAD),
@@ -2226,19 +2227,19 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.SingleStreamWithNameSkip);
         }
 
-        public RedisStream[] StreamRead(StreamPosition[] streamPositions, int? countPerStream = null, CommandFlags flags = CommandFlags.None)
+        public RedisStream[]? StreamRead(StreamPosition[] streamPositions, int? countPerStream = null, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetMultiStreamReadMessage(streamPositions, countPerStream, flags);
             return ExecuteSync(msg, ResultProcessor.MultiStream);
         }
 
-        public Task<RedisStream[]> StreamReadAsync(StreamPosition[] streamPositions, int? countPerStream = null, CommandFlags flags = CommandFlags.None)
+        public Task<RedisStream[]?> StreamReadAsync(StreamPosition[] streamPositions, int? countPerStream = null, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetMultiStreamReadMessage(streamPositions, countPerStream, flags);
             return ExecuteAsync(msg, ResultProcessor.MultiStream);
         }
 
-        public StreamEntry[] StreamReadGroup(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position, int? count, CommandFlags flags)
+        public StreamEntry[]? StreamReadGroup(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position, int? count, CommandFlags flags)
         {
             return StreamReadGroup(key,
                 groupName,
@@ -2249,7 +2250,7 @@ namespace StackExchange.Redis
                 flags);
         }
 
-        public StreamEntry[] StreamReadGroup(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position = null, int? count = null, bool noAck = false, CommandFlags flags = CommandFlags.None)
+        public StreamEntry[]? StreamReadGroup(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position = null, int? count = null, bool noAck = false, CommandFlags flags = CommandFlags.None)
         {
             var actualPosition = position ?? StreamPosition.NewMessages;
 
@@ -2264,7 +2265,7 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.SingleStreamWithNameSkip);
         }
 
-        public Task<StreamEntry[]> StreamReadGroupAsync(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position, int? count, CommandFlags flags)
+        public Task<StreamEntry[]?> StreamReadGroupAsync(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position, int? count, CommandFlags flags)
         {
             return StreamReadGroupAsync(key,
                 groupName,
@@ -2275,7 +2276,7 @@ namespace StackExchange.Redis
                 flags);
         }
 
-        public Task<StreamEntry[]> StreamReadGroupAsync(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position = null, int? count = null, bool noAck = false, CommandFlags flags = CommandFlags.None)
+        public Task<StreamEntry[]?> StreamReadGroupAsync(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position = null, int? count = null, bool noAck = false, CommandFlags flags = CommandFlags.None)
         {
             var actualPosition = position ?? StreamPosition.NewMessages;
 
@@ -2290,7 +2291,7 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.SingleStreamWithNameSkip);
         }
 
-        public RedisStream[] StreamReadGroup(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, CommandFlags flags)
+        public RedisStream[]? StreamReadGroup(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, CommandFlags flags)
         {
             return StreamReadGroup(streamPositions,
                 groupName,
@@ -2300,7 +2301,7 @@ namespace StackExchange.Redis
                 flags);
         }
 
-        public RedisStream[] StreamReadGroup(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, CommandFlags flags = CommandFlags.None)
+        public RedisStream[]? StreamReadGroup(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetMultiStreamReadGroupMessage(streamPositions,
                 groupName,
@@ -2312,7 +2313,7 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.MultiStream);
         }
 
-        public Task<RedisStream[]> StreamReadGroupAsync(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, CommandFlags flags)
+        public Task<RedisStream[]?> StreamReadGroupAsync(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, CommandFlags flags)
         {
             return StreamReadGroupAsync(streamPositions,
                 groupName,
@@ -2322,7 +2323,7 @@ namespace StackExchange.Redis
                 flags);
         }
 
-        public Task<RedisStream[]> StreamReadGroupAsync(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, CommandFlags flags = CommandFlags.None)
+        public Task<RedisStream[]?> StreamReadGroupAsync(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetMultiStreamReadGroupMessage(streamPositions,
                 groupName,
@@ -2432,7 +2433,7 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.RedisValue);
         }
 
-        public RedisValue[] StringGet(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
+        public RedisValue[]? StringGet(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
         {
             if (keys == null) throw new ArgumentNullException(nameof(keys));
             if (keys.Length == 0) return Array.Empty<RedisValue>();
@@ -2440,7 +2441,7 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.RedisValueArray);
         }
 
-        public Lease<byte> StringGetLease(RedisKey key, CommandFlags flags = CommandFlags.None)
+        public Lease<byte>? StringGetLease(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.GET, key);
             return ExecuteSync(msg, ResultProcessor.Lease);
@@ -2452,13 +2453,13 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.RedisValue);
         }
 
-        public Task<Lease<byte>> StringGetLeaseAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
+        public Task<Lease<byte>?> StringGetLeaseAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.GET, key);
             return ExecuteAsync(msg, ResultProcessor.Lease);
         }
 
-        public Task<RedisValue[]> StringGetAsync(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
+        public Task<RedisValue[]?> StringGetAsync(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
         {
             if (keys == null) throw new ArgumentNullException(nameof(keys));
             if (keys.Length == 0) return CompletedTask<RedisValue[]>.FromResult(Array.Empty<RedisValue>(), asyncState);
@@ -2516,13 +2517,13 @@ namespace StackExchange.Redis
 
         public RedisValueWithExpiry StringGetWithExpiry(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetStringGetWithExpiryMessage(key, flags, out ResultProcessor<RedisValueWithExpiry> processor, out ServerEndPoint server);
+            var msg = GetStringGetWithExpiryMessage(key, flags, out ResultProcessor<RedisValueWithExpiry> processor, out ServerEndPoint? server);
             return ExecuteSync(msg, processor, server);
         }
 
         public Task<RedisValueWithExpiry> StringGetWithExpiryAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetStringGetWithExpiryMessage(key, flags, out ResultProcessor<RedisValueWithExpiry> processor, out ServerEndPoint server);
+            var msg = GetStringGetWithExpiryMessage(key, flags, out ResultProcessor<RedisValueWithExpiry> processor, out ServerEndPoint? server);
             return ExecuteAsync(msg, processor, server);
         }
 
@@ -2658,7 +2659,7 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.RedisValue);
         }
 
-        private Message GetExpiryMessage(in RedisKey key, CommandFlags flags, TimeSpan? expiry, out ServerEndPoint server)
+        private Message GetExpiryMessage(in RedisKey key, CommandFlags flags, TimeSpan? expiry, out ServerEndPoint? server)
         {
             TimeSpan duration;
             if (expiry == null || (duration = expiry.Value) == TimeSpan.MaxValue)
@@ -2680,7 +2681,7 @@ namespace StackExchange.Redis
             return Message.Create(Database, flags, RedisCommand.EXPIRE, key, seconds);
         }
 
-        private Message GetExpiryMessage(in RedisKey key, CommandFlags flags, DateTime? expiry, out ServerEndPoint server)
+        private Message GetExpiryMessage(in RedisKey key, CommandFlags flags, DateTime? expiry, out ServerEndPoint? server)
         {
             DateTime when;
             if (expiry == null || (when = expiry.Value) == DateTime.MaxValue)
@@ -2711,7 +2712,7 @@ namespace StackExchange.Redis
             return Message.Create(Database, flags, RedisCommand.EXPIREAT, key, seconds);
         }
 
-        private Message GetHashSetMessage(RedisKey key, HashEntry[] hashFields, CommandFlags flags)
+        private Message? GetHashSetMessage(RedisKey key, HashEntry[] hashFields, CommandFlags flags)
         {
             if (hashFields == null) throw new ArgumentNullException(nameof(hashFields));
             switch (hashFields.Length)
@@ -2736,10 +2737,10 @@ namespace StackExchange.Redis
             }
         }
 
-        private ITransaction GetLockExtendTransaction(RedisKey key, RedisValue value, TimeSpan expiry)
+        private ITransaction? GetLockExtendTransaction(RedisKey key, RedisValue value, TimeSpan expiry)
         {
             var tran = CreateTransactionIfAvailable(asyncState);
-            if (tran != null)
+            if (tran is not null)
             {
                 tran.AddCondition(Condition.StringEqual(key, value));
                 tran.KeyExpireAsync(key, expiry, CommandFlags.FireAndForget);
@@ -2747,10 +2748,10 @@ namespace StackExchange.Redis
             return tran;
         }
 
-        private ITransaction GetLockReleaseTransaction(RedisKey key, RedisValue value)
+        private ITransaction? GetLockReleaseTransaction(RedisKey key, RedisValue value)
         {
             var tran = CreateTransactionIfAvailable(asyncState);
-            if (tran != null)
+            if (tran is not null)
             {
                 tran.AddCondition(Condition.StringEqual(key, value));
                 tran.KeyDeleteAsync(key, CommandFlags.FireAndForget);
@@ -2764,7 +2765,7 @@ namespace StackExchange.Redis
             {
                 return isStart ? RedisLiterals.MinusSymbol : RedisLiterals.PlusSumbol;
             }
-            byte[] orig = value;
+            byte[] orig = value!;
 
             byte[] result = new byte[orig.Length + 1];
             // no defaults here; must always explicitly specify [ / (
@@ -2909,7 +2910,7 @@ namespace StackExchange.Redis
             };
         }
 
-        private Message GetSortedSetAddMessage(RedisKey key, SortedSetEntry[] values, When when, CommandFlags flags)
+        private Message? GetSortedSetAddMessage(RedisKey key, SortedSetEntry[] values, When when, CommandFlags flags)
         {
             WhenAlwaysOrExistsOrNotExists(when);
             if (values == null) throw new ArgumentNullException(nameof(values));
@@ -2945,7 +2946,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private Message GetSortedSetAddMessage(RedisKey destination, RedisKey key, long skip, long take, Order order, SortType sortType, RedisValue by, RedisValue[] get, CommandFlags flags)
+        private Message GetSortedSetAddMessage(RedisKey destination, RedisKey key, long skip, long take, Order order, SortType sortType, RedisValue by, RedisValue[]? get, CommandFlags flags)
         {
             // most common cases; no "get", no "by", no "destination", no "skip", no "take"
             if (destination.IsNull && skip == 0 && take == -1 && by.IsNull && (get == null || get.Length == 0))
@@ -3022,7 +3023,7 @@ namespace StackExchange.Redis
             return Message.Create(Database, flags, RedisCommand.SORT, key, values.ToArray(), destination);
         }
 
-        private Message GetSortedSetCombineAndStoreCommandMessage(SetOperation operation, RedisKey destination, RedisKey[] keys, double[] weights, Aggregate aggregate, CommandFlags flags)
+        private Message GetSortedSetCombineAndStoreCommandMessage(SetOperation operation, RedisKey destination, RedisKey[] keys, double[]? weights, Aggregate aggregate, CommandFlags flags)
         {
             var command = operation switch
             {
@@ -3032,7 +3033,7 @@ namespace StackExchange.Redis
             };
             if (keys == null) throw new ArgumentNullException(nameof(keys));
 
-            List<RedisValue> values = null;
+            List<RedisValue>? values = null;
             if (weights != null && weights.Length != 0)
             {
                 (values ??= new List<RedisValue>()).Add(RedisLiterals.WEIGHTS);
@@ -3428,7 +3429,7 @@ namespace StackExchange.Redis
                 values);
         }
 
-        private Message GetStringBitOperationMessage(Bitwise operation, RedisKey destination, RedisKey[] keys, CommandFlags flags)
+        private Message? GetStringBitOperationMessage(Bitwise operation, RedisKey destination, RedisKey[] keys, CommandFlags flags)
         {
             if (keys == null) throw new ArgumentNullException(nameof(keys));
             if (keys.Length == 0) return null;
@@ -3463,7 +3464,7 @@ namespace StackExchange.Redis
             return Message.CreateInSlot(Database, slot, flags, RedisCommand.BITOP, new[] { op, destination.AsRedisValue(), first.AsRedisValue(), second.AsRedisValue() });
         }
 
-        private Message GetStringGetWithExpiryMessage(RedisKey key, CommandFlags flags, out ResultProcessor<RedisValueWithExpiry> processor, out ServerEndPoint server)
+        private Message GetStringGetWithExpiryMessage(RedisKey key, CommandFlags flags, out ResultProcessor<RedisValueWithExpiry> processor, out ServerEndPoint? server)
         {
             if (this is IBatch)
             {
@@ -3480,7 +3481,7 @@ namespace StackExchange.Redis
             return new StringGetWithExpiryMessage(Database, flags, RedisCommand.TTL, key);
         }
 
-        private Message GetStringSetMessage(KeyValuePair<RedisKey, RedisValue>[] values, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        private Message? GetStringSetMessage(KeyValuePair<RedisKey, RedisValue>[] values, When when = When.Always, CommandFlags flags = CommandFlags.None)
         {
             if (values == null) throw new ArgumentNullException(nameof(values));
             switch (values.Length)
@@ -3508,12 +3509,14 @@ namespace StackExchange.Redis
             if (value.IsNull) return Message.Create(Database, flags, RedisCommand.DEL, key);
 
             if (expiry == null || expiry.Value == TimeSpan.MaxValue)
-            { // no expiry
+            {
+                // no expiry
                 switch (when)
                 {
                     case When.Always: return Message.Create(Database, flags, RedisCommand.SET, key, value);
                     case When.NotExists: return Message.Create(Database, flags, RedisCommand.SETNX, key, value);
                     case When.Exists: return Message.Create(Database, flags, RedisCommand.SET, key, value, RedisLiterals.XX);
+                    default: throw new NotSupportedException();
                 }
             }
             long milliseconds = expiry.Value.Ticks / TimeSpan.TicksPerMillisecond;
@@ -3527,6 +3530,7 @@ namespace StackExchange.Redis
                     case When.Always: return Message.Create(Database, flags, RedisCommand.SETEX, key, seconds, value);
                     case When.Exists: return Message.Create(Database, flags, RedisCommand.SET, key, value, RedisLiterals.EX, seconds, RedisLiterals.XX);
                     case When.NotExists: return Message.Create(Database, flags, RedisCommand.SET, key, value, RedisLiterals.EX, seconds, RedisLiterals.NX);
+                    default: throw new NotSupportedException();
                 }
             }
 
@@ -3551,6 +3555,7 @@ namespace StackExchange.Redis
                     case When.Always: return Message.Create(Database, flags, RedisCommand.SET, key, value, RedisLiterals.GET);
                     case When.Exists: return Message.Create(Database, flags, RedisCommand.SET, key, value, RedisLiterals.XX, RedisLiterals.GET);
                     case When.NotExists: return Message.Create(Database, flags, RedisCommand.SET, key, value, RedisLiterals.NX, RedisLiterals.GET);
+                    default: throw new NotSupportedException();
                 }
             }
             long milliseconds = expiry.Value.Ticks / TimeSpan.TicksPerMillisecond;
@@ -3564,6 +3569,7 @@ namespace StackExchange.Redis
                     case When.Always: return Message.Create(Database, flags, RedisCommand.SET, key, value, RedisLiterals.EX, seconds, RedisLiterals.GET);
                     case When.Exists: return Message.Create(Database, flags, RedisCommand.SET, key, value, RedisLiterals.EX, seconds, RedisLiterals.XX, RedisLiterals.GET);
                     case When.NotExists: return Message.Create(Database, flags, RedisCommand.SET, key, value, RedisLiterals.EX, seconds, RedisLiterals.NX, RedisLiterals.GET);
+                    default: throw new NotSupportedException();
                 }
             }
 
@@ -3576,7 +3582,7 @@ namespace StackExchange.Redis
             };
         }
 
-        private Message IncrMessage(RedisKey key, long value, CommandFlags flags)
+        private Message? IncrMessage(RedisKey key, long value, CommandFlags flags)
         {
             switch (value)
             {
@@ -3602,7 +3608,7 @@ namespace StackExchange.Redis
             _ => throw new ArgumentOutOfRangeException(nameof(operation)),
         };
 
-        private CursorEnumerable<T> TryScan<T>(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags, RedisCommand command, ResultProcessor<ScanEnumerable<T>.ScanResult> processor, out ServerEndPoint server)
+        private CursorEnumerable<T>? TryScan<T>(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags, RedisCommand command, ResultProcessor<ScanEnumerable<T>.ScanResult> processor, out ServerEndPoint? server)
         {
             server = null;
             if (pageSize <= 0)
@@ -3612,7 +3618,7 @@ namespace StackExchange.Redis
             var features = GetFeatures(key, flags, out server);
             if (!features.Scan) return null;
 
-            if (CursorUtils.IsNil(pattern)) pattern = (byte[])null;
+            if (CursorUtils.IsNil(pattern)) pattern = (byte[]?)null;
             return new ScanEnumerable<T>(this, server, key, pattern, pageSize, cursor, pageOffset, flags, command, processor);
         }
 
@@ -3632,12 +3638,12 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
-        public RedisValue[] SortedSetRangeByValue(RedisKey key, RedisValue min, RedisValue max, Exclude exclude, long skip, long take, CommandFlags flags)
+        public RedisValue[]? SortedSetRangeByValue(RedisKey key, RedisValue min, RedisValue max, Exclude exclude, long skip, long take, CommandFlags flags)
             => SortedSetRangeByValue(key, min, max, exclude, Order.Ascending, skip, take, flags);
 
         private static void ReverseLimits(Order order, ref Exclude exclude, ref RedisValue start, ref RedisValue stop)
         {
-            bool reverseLimits = (order == Order.Ascending) == (stop != default(RedisValue) && start.CompareTo(stop) > 0);
+            bool reverseLimits = (order == Order.Ascending) == (stop != default && start.CompareTo(stop) > 0);
             if (reverseLimits)
             {
                 var tmp = start;
@@ -3650,7 +3656,7 @@ namespace StackExchange.Redis
                 }
             }
         }
-        public RedisValue[] SortedSetRangeByValue(RedisKey key, RedisValue min = default(RedisValue), RedisValue max = default(RedisValue),
+        public RedisValue[]? SortedSetRangeByValue(RedisKey key, RedisValue min = default, RedisValue max = default,
             Exclude exclude = Exclude.None, Order order = Order.Ascending, long skip = 0, long take = -1, CommandFlags flags = CommandFlags.None)
         {
             ReverseLimits(order, ref exclude, ref min, ref max);
@@ -3670,10 +3676,10 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
-        public Task<RedisValue[]> SortedSetRangeByValueAsync(RedisKey key, RedisValue min, RedisValue max, Exclude exclude, long skip, long take, CommandFlags flags)
+        public Task<RedisValue[]?> SortedSetRangeByValueAsync(RedisKey key, RedisValue min, RedisValue max, Exclude exclude, long skip, long take, CommandFlags flags)
             => SortedSetRangeByValueAsync(key, min, max, exclude, Order.Ascending, skip, take, flags);
 
-        public Task<RedisValue[]> SortedSetRangeByValueAsync(RedisKey key, RedisValue min = default(RedisValue), RedisValue max = default(RedisValue),
+        public Task<RedisValue[]?> SortedSetRangeByValueAsync(RedisKey key, RedisValue min = default, RedisValue max = default,
             Exclude exclude = Exclude.None, Order order = Order.Ascending, long skip = 0, long take = -1, CommandFlags flags = CommandFlags.None)
         {
             ReverseLimits(order, ref exclude, ref min, ref max);
@@ -3693,7 +3699,7 @@ namespace StackExchange.Redis
             private readonly RedisValue pattern;
             private readonly RedisCommand command;
 
-            public ScanEnumerable(RedisDatabase database, ServerEndPoint server, RedisKey key, in RedisValue pattern, int pageSize, in RedisValue cursor, int pageOffset, CommandFlags flags,
+            public ScanEnumerable(RedisDatabase database, ServerEndPoint? server, RedisKey key, in RedisValue pattern, int pageSize, in RedisValue cursor, int pageOffset, CommandFlags flags,
                 RedisCommand command, ResultProcessor<ScanResult> processor)
                 : base(database, server, database.Database, pageSize, cursor, pageOffset, flags)
             {
@@ -3754,13 +3760,13 @@ namespace StackExchange.Redis
         {
             public static readonly ResultProcessor<ScanEnumerable<HashEntry>.ScanResult> Default = new HashScanResultProcessor();
             private HashScanResultProcessor() { }
-            protected override HashEntry[] Parse(in RawResult result, out int count)
-                => HashEntryArray.TryParse(result, out HashEntry[] pairs, true, out count) ? pairs : null;
+            protected override HashEntry[]? Parse(in RawResult result, out int count)
+                => HashEntryArray.TryParse(result, out HashEntry[]? pairs, true, out count) ? pairs : null;
         }
 
         private abstract class ScanResultProcessor<T> : ResultProcessor<ScanEnumerable<T>.ScanResult>
         {
-            protected abstract T[] Parse(in RawResult result, out int count);
+            protected abstract T[]? Parse(in RawResult result, out int count);
 
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
@@ -3773,7 +3779,7 @@ namespace StackExchange.Redis
                             ref RawResult inner = ref arr[1];
                             if (inner.Type == ResultType.MultiBulk && arr[0].TryGetInt64(out var i64))
                             {
-                                T[] oversized = Parse(inner, out int count);
+                                T[]? oversized = Parse(inner, out int count);
                                 var sscanResult = new ScanEnumerable<T>.ScanResult(i64, oversized, count, true);
                                 SetResult(message, sscanResult);
                                 return true;
@@ -3790,7 +3796,7 @@ namespace StackExchange.Redis
             private readonly ICollection<object> _args;
             public new CommandBytes Command { get; }
 
-            public ExecuteMessage(CommandMap map, int db, CommandFlags flags, string command, ICollection<object> args) : base(db, flags, RedisCommand.UNKNOWN)
+            public ExecuteMessage(CommandMap? map, int db, CommandFlags flags, string command, ICollection<object>? args) : base(db, flags, RedisCommand.UNKNOWN)
             {
                 if (args != null && args.Count >= PhysicalConnection.REDIS_MAX_ARGS) // using >= here because we will be adding 1 for the command itself (which is an arg for the purposes of the multi-bulk protocol)
                 {
@@ -3843,25 +3849,25 @@ namespace StackExchange.Redis
         private sealed class ScriptEvalMessage : Message, IMultiMessage
         {
             private readonly RedisKey[] keys;
-            private readonly string script;
+            private readonly string? script;
             private readonly RedisValue[] values;
-            private byte[] asciiHash;
-            private readonly byte[] hexHash;
+            private byte[]? asciiHash;
+            private readonly byte[]? hexHash;
 
-            public ScriptEvalMessage(int db, CommandFlags flags, string script, RedisKey[] keys, RedisValue[] values)
+            public ScriptEvalMessage(int db, CommandFlags flags, string script, RedisKey[]? keys, RedisValue[]? values)
                 : this(db, flags, ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA : RedisCommand.EVAL, script, null, keys, values)
             {
                 if (script == null) throw new ArgumentNullException(nameof(script));
             }
 
-            public ScriptEvalMessage(int db, CommandFlags flags, byte[] hash, RedisKey[] keys, RedisValue[] values)
+            public ScriptEvalMessage(int db, CommandFlags flags, byte[] hash, RedisKey[]? keys, RedisValue[]? values)
                 : this(db, flags, RedisCommand.EVALSHA, null, hash, keys, values)
             {
                 if (hash == null) throw new ArgumentNullException(nameof(hash));
                 if (hash.Length != ResultProcessor.ScriptLoadProcessor.Sha1HashLength) throw new ArgumentOutOfRangeException(nameof(hash), "Invalid hash length");
             }
 
-            private ScriptEvalMessage(int db, CommandFlags flags, RedisCommand command, string script, byte[] hexHash, RedisKey[] keys, RedisValue[] values)
+            private ScriptEvalMessage(int db, CommandFlags flags, RedisCommand command, string? script, byte[]? hexHash, RedisKey[]? keys, RedisValue[]? values)
                 : base(db, flags, command)
             {
                 this.script = script;
@@ -3887,7 +3893,7 @@ namespace StackExchange.Redis
 
             public IEnumerable<Message> GetMessages(PhysicalConnection connection)
             {
-                PhysicalBridge bridge;
+                PhysicalBridge? bridge;
                 if (script != null && (bridge = connection.BridgeCouldBeNull) != null
                     && bridge.Multiplexer.CommandMap.IsAvailable(RedisCommand.SCRIPT)
                     && (Flags & CommandFlags.NoScriptCache) == 0)
@@ -3991,14 +3997,14 @@ namespace StackExchange.Redis
         {
             public static readonly ResultProcessor<ScanEnumerable<SortedSetEntry>.ScanResult> Default = new SortedSetScanResultProcessor();
             private SortedSetScanResultProcessor() { }
-            protected override SortedSetEntry[] Parse(in RawResult result, out int count)
-                => SortedSetWithScores.TryParse(result, out SortedSetEntry[] pairs, true, out count) ? pairs : null;
+            protected override SortedSetEntry[]? Parse(in RawResult result, out int count)
+                => SortedSetWithScores.TryParse(result, out SortedSetEntry[]? pairs, true, out count) ? pairs : null;
         }
 
         private class StringGetWithExpiryMessage : Message.CommandKeyBase, IMultiMessage
         {
             private readonly RedisCommand ttlCommand;
-            private IResultBox<TimeSpan?> box;
+            private IResultBox<TimeSpan?>? box;
 
             public StringGetWithExpiryMessage(int db, CommandFlags flags, RedisCommand ttlCommand, in RedisKey key)
                 : base(db, flags, RedisCommand.GET, key)
@@ -4006,7 +4012,7 @@ namespace StackExchange.Redis
                 this.ttlCommand = ttlCommand;
             }
 
-            public override string CommandAndKey => ttlCommand + "+" + RedisCommand.GET + " " + (string)Key;
+            public override string CommandAndKey => ttlCommand + "+" + RedisCommand.GET + " " + (string?)Key;
 
             public IEnumerable<Message> GetMessages(PhysicalConnection connection)
             {
@@ -4018,7 +4024,7 @@ namespace StackExchange.Redis
                 yield return this;
             }
 
-            public bool UnwrapValue(out TimeSpan? value, out Exception ex)
+            public bool UnwrapValue(out TimeSpan? value, out Exception? ex)
             {
                 if (box != null)
                 {
