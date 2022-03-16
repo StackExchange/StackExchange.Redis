@@ -75,8 +75,6 @@ namespace StackExchange.Redis
 
         internal static bool PreventThreadTheft => (s_featureFlags & FeatureFlags.PreventThreadTheft) != 0;
 
-        private static TaskFactory? _factory = null;
-
 #if DEBUG
         private static int _collectedWithoutDispose;
         internal static int CollectedWithoutDispose => Thread.VolatileRead(ref _collectedWithoutDispose);
@@ -117,15 +115,13 @@ namespace StackExchange.Redis
         internal int _connectAttemptCount = 0, _connectCompletedCount = 0, _connectionCloseCount = 0;
 
         /// <summary>
-        /// Provides a way of overriding the default Task Factory.
-        /// If not set, it will use the default <see cref="Task.Factory"/>.
-        /// Useful when top level code sets it's own factory which may interfere with Redis queries.
+        /// No longer used.
         /// </summary>
         [Obsolete("No longer used, will be removed in 3.0.")]
         public static TaskFactory Factory
         {
-            get => _factory ?? Task.Factory;
-            set => _factory = value;
+            get => Task.Factory;
+            set { }
         }
 
         /// <summary>
