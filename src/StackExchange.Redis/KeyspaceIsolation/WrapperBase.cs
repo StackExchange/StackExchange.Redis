@@ -48,7 +48,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<GeoPosition[]?> GeoPositionAsync(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None) =>
             Inner.GeoPositionAsync(ToInner(key), members, flags);
 
-        public Task<GeoPosition> GeoPositionAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None) =>
+        public Task<GeoPosition?> GeoPositionAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None) =>
             Inner.GeoPositionAsync(ToInner(key), member, flags);
 
         public Task<GeoRadiusResult[]?> GeoRadiusAsync(RedisKey key, RedisValue member, double radius, GeoUnit unit = GeoUnit.Meters, int count = -1, Order? order = null, GeoRadiusOptions options = GeoRadiusOptions.Default, CommandFlags flags = CommandFlags.None) =>

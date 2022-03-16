@@ -45,7 +45,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public GeoPosition[]? GeoPosition(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None) =>
             Inner.GeoPosition(ToInner(key), members, flags);
 
-        public GeoPosition GeoPosition(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None) =>
+        public GeoPosition? GeoPosition(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None) =>
             Inner.GeoPosition(ToInner(key), member, flags);
 
         public GeoRadiusResult[]? GeoRadius(RedisKey key, RedisValue member, double radius, GeoUnit unit = GeoUnit.Meters, int count = -1, Order? order = null,GeoRadiusOptions options = GeoRadiusOptions.Default, CommandFlags flags = CommandFlags.None) =>

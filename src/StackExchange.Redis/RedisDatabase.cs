@@ -158,13 +158,13 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.RedisGeoPositionArray);
         }
 
-        public GeoPosition GeoPosition(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
+        public GeoPosition? GeoPosition(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.GEOPOS, key, member);
             return ExecuteSync(msg, ResultProcessor.RedisGeoPosition);
         }
 
-        public Task<GeoPosition> GeoPositionAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
+        public Task<GeoPosition?> GeoPositionAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.GEOPOS, key, member);
             return ExecuteAsync(msg, ResultProcessor.RedisGeoPosition);

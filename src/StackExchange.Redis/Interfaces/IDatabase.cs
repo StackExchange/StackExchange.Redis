@@ -158,7 +158,7 @@ namespace StackExchange.Redis
         /// Non existing elements are reported as NULL elements of the array.
         /// </returns>
         /// <remarks>https://redis.io/commands/geopos</remarks>
-        GeoPosition GeoPosition(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None);
+        GeoPosition? GeoPosition(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Return the members of a sorted set populated with geospatial information using GEOADD, which are
