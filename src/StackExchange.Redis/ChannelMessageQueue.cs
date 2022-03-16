@@ -206,7 +206,10 @@ namespace StackExchange.Redis
 
         internal static void Remove(ref ChannelMessageQueue? head, ChannelMessageQueue queue)
         {
-            if (queue == null) return;
+            if (queue is null)
+            {
+                return;
+            }
 
             bool found;
             do // if we fail due to a conflict, re-do from start
@@ -243,7 +246,7 @@ namespace StackExchange.Redis
                             }
                         }
                         previous = current;
-                        current = Volatile.Read(ref previous._next);
+                        current = Volatile.Read(ref previous!._next);
                     } while (current != null);
                 }
             } while (found);

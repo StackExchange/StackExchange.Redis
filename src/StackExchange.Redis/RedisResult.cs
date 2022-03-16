@@ -226,6 +226,10 @@ namespace StackExchange.Redis
         public Dictionary<string, RedisResult> ToDictionary(IEqualityComparer<string>? comparer = null)
         {
             var arr = AsRedisResultArray();
+            if (arr is null)
+            {
+                return new Dictionary<string, RedisResult>();
+            }
             int len = arr.Length / 2;
             var result = new Dictionary<string, RedisResult>(len, comparer ?? StringComparer.InvariantCultureIgnoreCase);
             for (int i = 0; i < arr.Length; i += 2)

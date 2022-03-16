@@ -129,7 +129,7 @@ namespace StackExchange.Redis
             {
                 var dictionary = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
                 // nix everything
-                foreach (RedisCommand command in Enum.GetValues(typeof(RedisCommand)))
+                foreach (RedisCommand command in (RedisCommand[])Enum.GetValues(typeof(RedisCommand)))
                 {
                     dictionary[command.ToString()] = null;
                 }

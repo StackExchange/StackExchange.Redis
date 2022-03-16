@@ -854,7 +854,8 @@ namespace StackExchange.Redis
                 if (connection == null)
                 {
                     Multiplexer.Trace($"{Format.ToString(this)}: Enqueue (async): " + message);
-                    result = GetBridge(message).TryWriteAsync(message, isReplica);
+                    // A bridge will be created if missing, so not nullable here
+                    result = GetBridge(message)!.TryWriteAsync(message, isReplica);
                 }
                 else
                 {
