@@ -26,7 +26,7 @@ namespace StackExchange.Redis
         /// Format an <see cref="EndPoint"/>.
         /// </summary>
         /// <param name="endpoint">The endpoint to get a string representation for.</param>
-        public static string ToString(EndPoint endpoint) => Format.ToString(endpoint);
+        public static string ToString(EndPoint? endpoint) => Format.ToString(endpoint);
 
         /// <summary>
         /// Attempt to parse a string into an <see cref="EndPoint"/>.
