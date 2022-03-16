@@ -70,7 +70,7 @@ namespace StackExchange.Redis.Tests
             using (var muxer = Create())
             {
                 var db = muxer.GetDatabase();
-                const string key = null;
+                const string? key = null;
                 var ex = Assert.Throws<ArgumentException>(() => db.StringGet(key));
                 Assert.Equal("A null key is not valid in this context", ex.Message);
             }
@@ -82,7 +82,7 @@ namespace StackExchange.Redis.Tests
             using (var muxer = Create())
             {
                 var db = muxer.GetDatabase();
-                const string key = null, value = "abc";
+                const string? key = null, value = "abc";
                 var ex = Assert.Throws<ArgumentException>(() => db.StringSet(key, value));
                 Assert.Equal("A null key is not valid in this context", ex.Message);
             }
@@ -94,7 +94,8 @@ namespace StackExchange.Redis.Tests
             using (var muxer = Create())
             {
                 var db = muxer.GetDatabase();
-                string key = Me(), value = null;
+                string key = Me();
+                string? value = null;
                 db.KeyDelete(key, CommandFlags.FireAndForget);
 
                 db.StringSet(key, "abc", flags: CommandFlags.FireAndForget);
@@ -226,10 +227,10 @@ namespace StackExchange.Redis.Tests
                 {
                     Assert.Equal("val", asyncResult.Value);
                     Assert.Equal(hasExpiry, asyncResult.Expiry.HasValue);
-                    if (hasExpiry) Assert.True(asyncResult.Expiry.Value.TotalMinutes >= 4.9 && asyncResult.Expiry.Value.TotalMinutes <= 5);
+                    if (hasExpiry) Assert.True(asyncResult.Expiry!.Value.TotalMinutes >= 4.9 && asyncResult.Expiry.Value.TotalMinutes <= 5);
                     Assert.Equal("val", syncResult.Value);
                     Assert.Equal(hasExpiry, syncResult.Expiry.HasValue);
-                    if (hasExpiry) Assert.True(syncResult.Expiry.Value.TotalMinutes >= 4.9 && syncResult.Expiry.Value.TotalMinutes <= 5);
+                    if (hasExpiry) Assert.True(syncResult.Expiry!.Value.TotalMinutes >= 4.9 && syncResult.Expiry.Value.TotalMinutes <= 5);
                 }
                 else
                 {

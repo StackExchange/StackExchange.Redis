@@ -34,16 +34,16 @@ namespace StackExchange.Redis.Tests
                 var s3 = conn.StringGetAsync(key);
                 var l2 = server.Features.StringLength ? conn.StringLengthAsync(key) : null;
 
-                Assert.Null((string)await s0);
+                Assert.Null((string?)await s0);
                 Assert.Equal("abc", await s1);
                 Assert.Equal(8, await result);
                 Assert.Equal("abcdefgh", await s3);
 
                 if (server.Features.StringLength)
                 {
-                    Assert.Equal(0, await l0);
-                    Assert.Equal(3, await l1);
-                    Assert.Equal(8, await l2);
+                    Assert.Equal(0, await l0!);
+                    Assert.Equal(3, await l1!);
+                    Assert.Equal(8, await l2!);
                 }
             }
         }

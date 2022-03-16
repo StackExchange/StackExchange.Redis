@@ -39,18 +39,18 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        public static IEnumerable<object[]> GetConnections()
+        public static IEnumerable<object?[]> GetConnections()
         {
             yield return new object[] { TestConfig.Current.PrimaryServerAndPort, TestConfig.Current.PrimaryServerAndPort, TestConfig.Current.PrimaryServerAndPort };
             yield return new object[] { TestConfig.Current.SecureServerAndPort, TestConfig.Current.SecureServerAndPort, TestConfig.Current.SecureServerAndPort };
-            yield return new object[] { TestConfig.Current.SecureServerAndPort, TestConfig.Current.PrimaryServerAndPort, null };
-            yield return new object[] { TestConfig.Current.PrimaryServerAndPort, TestConfig.Current.SecureServerAndPort, null };
+            yield return new object?[] { TestConfig.Current.SecureServerAndPort, TestConfig.Current.PrimaryServerAndPort, null };
+            yield return new object?[] { TestConfig.Current.PrimaryServerAndPort, TestConfig.Current.SecureServerAndPort, null };
 
-            yield return new object[] { null, TestConfig.Current.PrimaryServerAndPort, TestConfig.Current.PrimaryServerAndPort };
-            yield return new object[] { TestConfig.Current.PrimaryServerAndPort, null, TestConfig.Current.PrimaryServerAndPort };
-            yield return new object[] { null, TestConfig.Current.SecureServerAndPort, TestConfig.Current.SecureServerAndPort };
-            yield return new object[] { TestConfig.Current.SecureServerAndPort, null, TestConfig.Current.SecureServerAndPort };
-            yield return new object[] { null, null, null };
+            yield return new object?[] { null, TestConfig.Current.PrimaryServerAndPort, TestConfig.Current.PrimaryServerAndPort };
+            yield return new object?[] { TestConfig.Current.PrimaryServerAndPort, null, TestConfig.Current.PrimaryServerAndPort };
+            yield return new object?[] { null, TestConfig.Current.SecureServerAndPort, TestConfig.Current.SecureServerAndPort };
+            yield return new object?[] { TestConfig.Current.SecureServerAndPort, null, TestConfig.Current.SecureServerAndPort };
+            yield return new object?[] { null, null, null };
         }
 
         [Theory, MemberData(nameof(GetConnections))]

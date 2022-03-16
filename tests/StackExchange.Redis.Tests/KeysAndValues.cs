@@ -13,10 +13,10 @@ namespace StackExchange.Redis.Tests
             RedisValue @default = default(RedisValue);
             CheckNull(@default);
 
-            RedisValue nullString = (string)null;
+            RedisValue nullString = (string?)null;
             CheckNull(nullString);
 
-            RedisValue nullBlob = (byte[])null;
+            RedisValue nullBlob = (byte[]?)null;
             CheckNull(nullBlob);
 
             RedisValue emptyString = "";
@@ -104,8 +104,8 @@ namespace StackExchange.Redis.Tests
 
             CheckSame(value, value);
             CheckNotSame(value, default(RedisValue));
-            CheckNotSame(value, (string)null);
-            CheckNotSame(value, (byte[])null);
+            CheckNotSame(value, (string?)null);
+            CheckNotSame(value, (byte[]?)null);
         }
 
         internal static void CheckNull(RedisValue value)

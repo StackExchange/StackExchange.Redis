@@ -119,27 +119,27 @@ namespace StackExchange.Redis.Tests
 
             public Task CloseAsync(bool allowCommandsToComplete = true) => _inner.CloseAsync(allowCommandsToComplete);
 
-            public bool Configure(TextWriter log = null) => _inner.Configure(log);
+            public bool Configure(TextWriter? log = null) => _inner.Configure(log);
 
-            public Task<bool> ConfigureAsync(TextWriter log = null) => _inner.ConfigureAsync(log);
+            public Task<bool> ConfigureAsync(TextWriter? log = null) => _inner.ConfigureAsync(log);
 
             public void Dispose() { } // DO NOT call _inner.Dispose();
 
             public ServerCounters GetCounters() => _inner.GetCounters();
 
-            public IDatabase GetDatabase(int db = -1, object asyncState = null) => _inner.GetDatabase(db, asyncState);
+            public IDatabase GetDatabase(int db = -1, object? asyncState = null) => _inner.GetDatabase(db, asyncState);
 
             public EndPoint[] GetEndPoints(bool configuredOnly = false) => _inner.GetEndPoints(configuredOnly);
 
             public int GetHashSlot(RedisKey key) => _inner.GetHashSlot(key);
 
-            public IServer GetServer(string host, int port, object asyncState = null) => _inner.GetServer(host, port, asyncState);
+            public IServer GetServer(string host, int port, object? asyncState = null) => _inner.GetServer(host, port, asyncState);
 
-            public IServer GetServer(string hostAndPort, object asyncState = null) => _inner.GetServer(hostAndPort, asyncState);
+            public IServer GetServer(string hostAndPort, object? asyncState = null) => _inner.GetServer(hostAndPort, asyncState);
 
             public IServer GetServer(IPAddress host, int port) => _inner.GetServer(host, port);
 
-            public IServer GetServer(EndPoint endpoint, object asyncState = null) => _inner.GetServer(endpoint, asyncState);
+            public IServer GetServer(EndPoint endpoint, object? asyncState = null) => _inner.GetServer(endpoint, asyncState);
 
             public string GetStatus() => _inner.GetStatus();
 
@@ -147,7 +147,7 @@ namespace StackExchange.Redis.Tests
 
             public string GetStormLog() => _inner.GetStormLog();
 
-            public ISubscriber GetSubscriber(object asyncState = null) => _inner.GetSubscriber(asyncState);
+            public ISubscriber GetSubscriber(object? asyncState = null) => _inner.GetSubscriber(asyncState);
 
             public int HashSlot(RedisKey key) => _inner.HashSlot(key);
 
@@ -175,7 +175,7 @@ namespace StackExchange.Redis.Tests
             GC.SuppressFinalize(this);
         }
 
-        protected void OnInternalError(object sender, InternalErrorEventArgs e)
+        protected void OnInternalError(object? sender, InternalErrorEventArgs e)
         {
             Interlocked.Increment(ref privateFailCount);
             lock (privateExceptions)
@@ -183,7 +183,7 @@ namespace StackExchange.Redis.Tests
                 privateExceptions.Add(TestBase.Time() + ": Internal error: " + e.Origin + ", " + EndPointCollection.ToString(e.EndPoint) + "/" + e.ConnectionType);
             }
         }
-        protected void OnConnectionFailed(object sender, ConnectionFailedEventArgs e)
+        protected void OnConnectionFailed(object? sender, ConnectionFailedEventArgs e)
         {
             Interlocked.Increment(ref privateFailCount);
             lock (privateExceptions)

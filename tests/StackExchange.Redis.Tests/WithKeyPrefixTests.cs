@@ -39,7 +39,7 @@ namespace StackExchange.Redis.Tests
             {
                 using var conn = Create();
                 var raw = conn.GetDatabase();
-                raw.WithKeyPrefix((byte[])null);
+                raw.WithKeyPrefix((byte[]?)null);
             });
         }
 
@@ -50,7 +50,7 @@ namespace StackExchange.Redis.Tests
             {
                 using var conn = Create();
                 var raw = conn.GetDatabase();
-                raw.WithKeyPrefix((string)null);
+                raw.WithKeyPrefix((string?)null);
             });
         }
 
@@ -62,7 +62,7 @@ namespace StackExchange.Redis.Tests
         {
             Assert.Throws<ArgumentNullException>(() =>
             {
-                IDatabase raw = null;
+                IDatabase? raw = null;
                 raw.WithKeyPrefix(prefix);
             });
         }

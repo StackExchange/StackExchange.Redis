@@ -13,7 +13,7 @@ namespace StackExchange.Redis.Tests.Issues
             using (var muxer = Create())
             {
                 var redis = muxer.GetDatabase();
-                const string expectedTestValue = null;
+                const string? expectedTestValue = null;
                 var uid = Me();
                 redis.StringSetAsync(uid, "abc");
                 redis.StringSetAsync(uid, expectedTestValue);

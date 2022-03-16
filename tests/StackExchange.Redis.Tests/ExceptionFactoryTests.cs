@@ -107,7 +107,7 @@ namespace StackExchange.Redis.Tests
         {
             try
             {
-                using (var muxer = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true, shared: false) as ConnectionMultiplexer)
+                using (var muxer = (Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true, shared: false) as ConnectionMultiplexer)!)
                 {
                     var server = GetServer(muxer);
                     muxer.AllowConnect = false;
@@ -196,13 +196,13 @@ namespace StackExchange.Redis.Tests
                     {
                         Assert.Contains("inst: 0, qu: 0, qs: 0, aw: False, bw: Inactive, in: 0, in-pipe: 0, out-pipe: 0", ex.Message);
                         Assert.Contains($"mc: {connCount}/{completeCount}/0", ex.Message);
-                        Assert.Contains("serverEndpoint: " + server.EndPoint.ToString().Replace("Unspecified/", ""), ex.Message);
+                        Assert.Contains("serverEndpoint: " + server.EndPoint.ToString()?.Replace("Unspecified/", ""), ex.Message);
                     }
                     else
                     {
                         Assert.DoesNotContain("inst: 0, qu: 0, qs: 0, aw: False, bw: Inactive, in: 0, in-pipe: 0, out-pipe: 0", ex.Message);
                         Assert.DoesNotContain($"mc: {connCount}/{completeCount}/0", ex.Message);
-                        Assert.DoesNotContain("serverEndpoint: " + server.EndPoint.ToString().Replace("Unspecified/", ""), ex.Message);
+                        Assert.DoesNotContain("serverEndpoint: " + server.EndPoint.ToString()?.Replace("Unspecified/", ""), ex.Message);
                     }
                     Assert.DoesNotContain("Unspecified/", ex.Message);
                 }

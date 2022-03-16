@@ -86,6 +86,7 @@ namespace StackExchange.Redis.Tests
                     var rde = Assert.IsType<RedisConnectionException>(ex.InnerException);
                     Assert.Equal(CommandStatus.WaitingToBeSent, ex.CommandStatus);
                     Assert.Equal(ConnectionFailureType.AuthenticationFailure, rde.FailureType);
+                    Assert.NotNull(rde.InnerException);
                     Assert.Equal("Error: NOAUTH Authentication required. Verify if the Redis password provided is correct.", rde.InnerException.Message);
                 }
 

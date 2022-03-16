@@ -57,7 +57,7 @@ namespace StackExchange.Redis.Tests
         {
             var server = TestConfig.Current.SslServer;
             int? port = TestConfig.Current.SslPort;
-            string password = "";
+            string? password = "";
             bool isAzure = false;
             if (string.IsNullOrWhiteSpace(server) && useSsl)
             {
@@ -75,7 +75,7 @@ namespace StackExchange.Redis.Tests
                 SyncTimeout = Debugger.IsAttached ? int.MaxValue : 5000,
                 Password = password,
             };
-            var map = new Dictionary<string, string>
+            var map = new Dictionary<string, string?>
             {
                 ["config"] = null // don't rely on config working
             };
@@ -94,7 +94,7 @@ namespace StackExchange.Redis.Tests
                 config.CertificateValidation += (sender, cert, chain, errors) =>
                 {
                     Log("errors: " + errors);
-                    Log("cert issued to: " + cert.Subject);
+                    Log("cert issued to: " + cert?.Subject);
                     return true; // fingers in ears, pretend we don't know this is wrong
                 };
             }
@@ -320,7 +320,7 @@ namespace StackExchange.Redis.Tests
             Assert.True(options.SslHost == null);
         }
 
-        private void Check(string name, object x, object y)
+        private void Check(string name, object? x, object? y)
         {
             Writer.WriteLine($"{name}: {(x == null ? "(null)" : x.ToString())} vs {(y == null ? "(null)" : y.ToString())}");
             Assert.Equal(x, y);
@@ -399,8 +399,12 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        public static RemoteCertificateValidationCallback ShowCertFailures(TextWriterOutputHelper output) {
-            if (output == null) return null;
+        public static RemoteCertificateValidationCallback? ShowCertFailures(TextWriterOutputHelper output)
+        {
+            if (output == null)
+            {
+                return null;
+            }
 
             return (sender, certificate, chain, sslPolicyErrors) =>
             {

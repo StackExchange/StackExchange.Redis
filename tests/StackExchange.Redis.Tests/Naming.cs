@@ -31,25 +31,16 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void ShowReadOnlyOperations()
         {
-            var msg = typeof(ConnectionMultiplexer).Assembly.GetType("StackExchange.Redis.Message");
-            Assert.NotNull(msg);
-            var cmd = typeof(ConnectionMultiplexer).Assembly.GetType("StackExchange.Redis.RedisCommand");
-            Assert.NotNull(cmd);
-            var primaryOnlyMethod = msg.GetMethod(nameof(Message.IsPrimaryOnly), BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public);
-            Assert.NotNull(primaryOnlyMethod);
-            object[] args = new object[1];
-
             List<object> primaryReplica = new List<object>();
             List<object> primaryOnly = new List<object>();
-            foreach (var val in Enum.GetValues(cmd))
+            foreach (var val in (RedisCommand[])Enum.GetValues(typeof(RedisCommand)))
             {
-                args[0] = val;
-                bool isPrimaryOnly = (bool)primaryOnlyMethod.Invoke(null, args);
+                bool isPrimaryOnly = Message.IsPrimaryOnly(val);
                 (isPrimaryOnly ? primaryOnly : primaryReplica).Add(val);
 
                 if (!isPrimaryOnly)
                 {
-                    Log(val?.ToString());
+                    Log(val.ToString());
                 }
             }
             Log("primary-only: {0}, vs primary/replica: {1}", primaryOnly.Count, primaryReplica.Count);
@@ -104,7 +95,7 @@ namespace StackExchange.Redis.Tests
 
             if (type.IsArray)
             {
-                if (UsesKey(type.GetElementType())) return true;
+                if (UsesKey(type.GetElementType()!)) return true;
             }
             if (type.IsGenericType) // KVP, etc
             {
@@ -170,7 +161,7 @@ namespace StackExchange.Redis.Tests
 
         private void CheckMethod(MethodInfo method, bool isAsync)
         {
-            string shortName = method.Name, fullName = method.DeclaringType.Name + "." + shortName;
+            string shortName = method.Name, fullName = method.DeclaringType?.Name + "." + shortName;
 
             switch (shortName)
             {

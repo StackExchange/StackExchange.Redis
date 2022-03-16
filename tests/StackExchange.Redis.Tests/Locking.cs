@@ -38,11 +38,11 @@ namespace StackExchange.Redis.Tests
             using (var c1 = Create(testMode))
             using (var c2 = Create(testMode))
             {
-                void cb(object obj)
+                void cb(object? obj)
                 {
                     try
                     {
-                        var conn = (IDatabase)obj;
+                        var conn = (IDatabase?)obj!;
                         conn.Multiplexer.ErrorMessage += delegate { Interlocked.Increment(ref errorCount); };
 
                         for (int i = 0; i < 1000; i++)
@@ -148,9 +148,9 @@ namespace StackExchange.Redis.Tests
                 Assert.True(await t1, "1");
                 Assert.False(await t1b, "1b");
                 Assert.Equal(right, await t2);
-                if (withTran) Assert.False(await t3, "3");
+                if (withTran) Assert.False(await t3!, "3");
                 Assert.Equal(right, await t4);
-                if (withTran) Assert.False(await t5, "5");
+                if (withTran) Assert.False(await t5!, "5");
                 Assert.Equal(right, await t6);
                 var ttl = (await t7).Value.TotalSeconds;
                 Assert.True(ttl > 0 && ttl <= 20, "7");
@@ -199,9 +199,9 @@ namespace StackExchange.Redis.Tests
             {
                 int errorCount = 0;
                 conn.ErrorMessage += delegate { Interlocked.Increment(ref errorCount); };
-                Task<bool> taken = null;
-                Task<RedisValue> newValue = null;
-                Task<TimeSpan?> ttl = null;
+                Task<bool>? taken = null;
+                Task<RedisValue>? newValue = null;
+                Task<TimeSpan?>? ttl = null;
 
                 const int LOOP = 50;
                 var db = conn.GetDatabase();
@@ -213,9 +213,9 @@ namespace StackExchange.Redis.Tests
                     newValue = db.StringGetAsync(key);
                     ttl = db.KeyTimeToLiveAsync(key);
                 }
-                Assert.True(await taken, "taken");
-                Assert.Equal("new-value", await newValue);
-                var ttlValue = (await ttl).Value.TotalSeconds;
+                Assert.True(await taken!, "taken");
+                Assert.Equal("new-value", await newValue!);
+                var ttlValue = (await ttl!).Value.TotalSeconds;
                 Assert.True(ttlValue >= 8 && ttlValue <= 10, "ttl");
 
                 Assert.Equal(0, errorCount);
