@@ -92,6 +92,7 @@ namespace StackExchange.Redis
             if (endpoint == null)
             {
                 log?.WriteLine("No endpoint");
+                return;
             }
 
             Trace("Connecting...");
