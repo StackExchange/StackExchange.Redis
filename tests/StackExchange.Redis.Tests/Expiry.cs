@@ -82,7 +82,7 @@ namespace StackExchange.Redis.Tests
                 var f = conn.KeyTimeToLiveAsync(key);
 
                 Assert.Null(await a);
-                var timeResult = await b!;
+                var timeResult = await b;
                 Assert.NotNull(timeResult);
                 TimeSpan time = timeResult.Value;
 
