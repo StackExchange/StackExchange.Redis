@@ -149,17 +149,20 @@ namespace StackExchange.Redis.Tests
 
                 Assert.Equal(results[0].Member, cefalù.Member);
                 Assert.Equal(0, results[0].Distance);
-                Assert.True(results[0].Position.HasValue);
-                Assert.Equal(Math.Round(results[0].Position!.Value.Longitude, 5), Math.Round(cefalù.Position.Longitude, 5));
-                Assert.Equal(Math.Round(results[0].Position!.Value.Latitude, 5), Math.Round(cefalù.Position.Latitude, 5));
+                var position0 = results[0].Position;
+                Assert.NotNull(position0);
+                Assert.Equal(Math.Round(position0.Value.Longitude, 5), Math.Round(cefalù.Position.Longitude, 5));
+                Assert.Equal(Math.Round(position0.Value.Latitude, 5), Math.Round(cefalù.Position.Latitude, 5));
                 Assert.False(results[0].Hash.HasValue);
 
                 Assert.Equal(results[1].Member, palermo.Member);
-                Assert.True(results[1].Distance.HasValue);
-                Assert.Equal(Math.Round(36.5319, 6), Math.Round(results[1].Distance!.Value, 6));
-                Assert.True(results[1].Position.HasValue);
-                Assert.Equal(Math.Round(results[1].Position!.Value.Longitude, 5), Math.Round(palermo.Position.Longitude, 5));
-                Assert.Equal(Math.Round(results[1].Position!.Value.Latitude, 5), Math.Round(palermo.Position.Latitude, 5));
+                var distance1 = results[1].Distance;
+                Assert.NotNull(distance1);
+                Assert.Equal(Math.Round(36.5319, 6), Math.Round(distance1.Value, 6));
+                var position1 = results[1].Position;
+                Assert.NotNull(position1);
+                Assert.Equal(Math.Round(position1.Value.Longitude, 5), Math.Round(palermo.Position.Longitude, 5));
+                Assert.Equal(Math.Round(position1.Value.Latitude, 5), Math.Round(palermo.Position.Latitude, 5));
                 Assert.False(results[1].Hash.HasValue);
 
                 results = db.GeoRadius(key, cefalù.Member, 60, GeoUnit.Miles, 2, Order.Ascending, GeoRadiusOptions.None);

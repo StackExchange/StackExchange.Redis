@@ -82,7 +82,9 @@ namespace StackExchange.Redis.Tests
                 var f = conn.KeyTimeToLiveAsync(key);
 
                 Assert.Null(await a);
-                TimeSpan time = (await b)!.Value;
+                var timeResult = await b!;
+                Assert.NotNull(timeResult);
+                TimeSpan time = timeResult.Value;
 
                 // Adjust for server time offset, if any when checking expectations
                 time -= offset;
@@ -91,7 +93,11 @@ namespace StackExchange.Redis.Tests
                 Assert.True(time >= TimeSpan.FromMinutes(59));
                 Assert.True(time <= TimeSpan.FromMinutes(60.1));
                 Assert.Null(await c);
-                time = (await d).Value;
+
+                timeResult = await d;
+                Assert.NotNull(timeResult);
+                time = timeResult.Value;
+
                 Assert.True(time >= TimeSpan.FromMinutes(89));
                 Assert.True(time <= TimeSpan.FromMinutes(90.1));
                 Assert.Null(await e);
