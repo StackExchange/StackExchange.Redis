@@ -195,6 +195,47 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public async Task SetKeepTtl()
+        {
+            using (var muxer = Create())
+            {
+                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.SetKeepTtl), r => r.SetKeepTtl);
+
+                var conn = muxer.GetDatabase();
+                var prefix = Me();
+                conn.KeyDelete(prefix + "1", CommandFlags.FireAndForget);
+                conn.KeyDelete(prefix + "2", CommandFlags.FireAndForget);
+                conn.KeyDelete(prefix + "3", CommandFlags.FireAndForget);
+                conn.StringSet(prefix + "1", "abc", flags: CommandFlags.FireAndForget);
+                conn.StringSet(prefix + "2", "abc", expiry: TimeSpan.FromMinutes(5), flags: CommandFlags.FireAndForget);
+                conn.StringSet(prefix + "3", "abc", expiry: TimeSpan.FromMinutes(10), flags: CommandFlags.FireAndForget);
+
+                var x0 = conn.KeyTimeToLiveAsync(prefix + "1");
+                var x1 = conn.KeyTimeToLiveAsync(prefix + "2");
+                var x2 = conn.KeyTimeToLiveAsync(prefix + "3");
+
+                Assert.Null(await x0);
+                Assert.True(await x1 > TimeSpan.FromMinutes(4), "Over 4");
+                Assert.True(await x1 <= TimeSpan.FromMinutes(5), "Under 5");
+                Assert.True(await x2 > TimeSpan.FromMinutes(9), "Over 9");
+                Assert.True(await x2 <= TimeSpan.FromMinutes(10), "Under 10");
+
+                conn.StringSet(prefix + "1", "def", keepTtl: true, flags: CommandFlags.FireAndForget);
+                conn.StringSet(prefix + "2", "def", flags: CommandFlags.FireAndForget);
+                conn.StringSet(prefix + "3", "def", keepTtl: true, flags: CommandFlags.FireAndForget);
+
+                var y0 = conn.KeyTimeToLiveAsync(prefix + "1");
+                var y1 = conn.KeyTimeToLiveAsync(prefix + "2");
+                var y2 = conn.KeyTimeToLiveAsync(prefix + "3");
+
+                Assert.Null(await y0);
+                Assert.Null(await y1);
+                Assert.True(await y2 > TimeSpan.FromMinutes(9), "Over 9");
+                Assert.True(await y2 <= TimeSpan.FromMinutes(10), "Under 10");
+            }
+        }
+
+        [Fact]
         public async Task SetAndGet()
         {
             using (var muxer = Create())
@@ -212,6 +253,7 @@ namespace StackExchange.Redis.Tests
                 conn.KeyDelete(prefix + "7", CommandFlags.FireAndForget);
                 conn.KeyDelete(prefix + "8", CommandFlags.FireAndForget);
                 conn.KeyDelete(prefix + "9", CommandFlags.FireAndForget);
+                conn.KeyDelete(prefix + "10", CommandFlags.FireAndForget);
                 conn.StringSet(prefix + "1", "abc", flags: CommandFlags.FireAndForget);
                 conn.StringSet(prefix + "2", "abc", flags: CommandFlags.FireAndForget);
                 conn.StringSet(prefix + "4", "abc", flags: CommandFlags.FireAndForget);
@@ -219,6 +261,7 @@ namespace StackExchange.Redis.Tests
                 conn.StringSet(prefix + "7", "abc", flags: CommandFlags.FireAndForget);
                 conn.StringSet(prefix + "8", "abc", flags: CommandFlags.FireAndForget);
                 conn.StringSet(prefix + "9", "abc", flags: CommandFlags.FireAndForget);
+                conn.StringSet(prefix + "10", "abc", expiry: TimeSpan.FromMinutes(10), flags: CommandFlags.FireAndForget);
 
                 var x0 = conn.StringSetAndGetAsync(prefix + "1", RedisValue.Null);
                 var x1 = conn.StringSetAndGetAsync(prefix + "2", "def");
@@ -229,6 +272,10 @@ namespace StackExchange.Redis.Tests
                 var x6 = conn.StringSetAndGetAsync(prefix + "7", "def", expiry: TimeSpan.FromMilliseconds(4001));
                 var x7 = conn.StringSetAndGetAsync(prefix + "8", "def", expiry: TimeSpan.FromSeconds(4), when: When.Exists);
                 var x8 = conn.StringSetAndGetAsync(prefix + "9", "def", expiry: TimeSpan.FromMilliseconds(4001), when: When.Exists);
+
+                var y0 = conn.StringSetAndGetAsync(prefix + "10", "def", keepTtl: true);
+                var y1 = conn.KeyTimeToLiveAsync(prefix + "10");
+                var y2 = conn.StringGetAsync(prefix + "10");
 
                 var s0 = conn.StringGetAsync(prefix + "1");
                 var s1 = conn.StringGetAsync(prefix + "2");
@@ -245,6 +292,11 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal("abc", await x6);
                 Assert.Equal("abc", await x7);
                 Assert.Equal("abc", await x8);
+
+                Assert.Equal("abc", await y0);
+                Assert.True(await y1 <= TimeSpan.FromMinutes(10), "Under 10 min");
+                Assert.True(await y1 >= TimeSpan.FromMinutes(8), "Over 8 min");
+                Assert.Equal("def", await y2);
 
                 Assert.Equal(RedisValue.Null, await s0);
                 Assert.Equal("def", await s1);

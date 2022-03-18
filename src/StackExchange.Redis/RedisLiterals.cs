@@ -62,6 +62,7 @@ namespace StackExchange.Redis
             HISTORY = "HISTORY",
             ID = "ID",
             IDLETIME = "IDLETIME",
+            KEEPTTL = "KEEPTTL",
             KILL = "KILL",
             LATEST = "LATEST",
             LIMIT = "LIMIT",
