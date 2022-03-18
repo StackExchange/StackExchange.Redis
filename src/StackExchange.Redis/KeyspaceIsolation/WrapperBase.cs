@@ -862,14 +862,24 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.StringSetAsync(ToInner(values), when, flags);
         }
 
-        public Task<bool> StringSetAsync(RedisKey key, RedisValue value, TimeSpan? expiry = null, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        public Task<bool> StringSetAsync(RedisKey key, RedisValue value, TimeSpan? expiry, When when, CommandFlags flags)
         {
             return Inner.StringSetAsync(ToInner(key), value, expiry, when, flags);
         }
 
-        public Task<RedisValue> StringSetAndGetAsync(RedisKey key, RedisValue value, TimeSpan? expiry = null, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        public Task<bool> StringSetAsync(RedisKey key, RedisValue value, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.StringSetAsync(ToInner(key), value, expiry, keepTtl, when, flags);
+        }
+
+        public Task<RedisValue> StringSetAndGetAsync(RedisKey key, RedisValue value, TimeSpan? expiry, When when, CommandFlags flags)
         {
             return Inner.StringSetAndGetAsync(ToInner(key), value, expiry, when, flags);
+        }
+
+        public Task<RedisValue> StringSetAndGetAsync(RedisKey key, RedisValue value, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.StringSetAndGetAsync(ToInner(key), value, expiry, keepTtl, when, flags);
         }
 
         public Task<bool> StringSetBitAsync(RedisKey key, long offset, bool bit, CommandFlags flags = CommandFlags.None)

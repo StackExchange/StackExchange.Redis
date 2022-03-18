@@ -36,6 +36,7 @@ namespace StackExchange.Redis
                                          v4_0_0 = new Version(4, 0, 0),
                                          v4_9_1 = new Version(4, 9, 1), // 5.0 RC1 is version 4.9.1; // 5.0 RC1 is version 4.9.1
                                          v5_0_0 = new Version(5, 0, 0),
+                                         v6_0_0 = new Version(6, 0, 0),
                                          v6_2_0 = new Version(6, 2, 0),
                                          v6_9_240 = new Version(6, 9, 240); // 7.0 RC1 is version 6.9.240
 
@@ -74,16 +75,6 @@ namespace StackExchange.Redis
         /// Is GETDEL available?
         /// </summary>
         public bool GetDelete => Version >= v6_2_0;
-
-        /// <summary>
-        /// Does SET support the GET option?
-        /// </summary>
-        public bool SetAndGet => Version >= v6_2_0;
-
-        /// <summary>
-        /// Does SET allow the NX and GET options to be used together?
-        /// </summary>
-        public bool SetNotExistsAndGet => Version >= v6_9_240;
 
         /// <summary>
         /// Is HSTRLEN available?
@@ -151,9 +142,24 @@ namespace StackExchange.Redis
         public bool Scripting => Version >= v2_5_7;
 
         /// <summary>
+        /// Does SET support the GET option?
+        /// </summary>
+        public bool SetAndGet => Version >= v6_2_0;
+
+        /// <summary>
         /// Does SET have the EX|PX|NX|XX extensions?
         /// </summary>
         public bool SetConditional => Version >= v2_6_12;
+
+        /// <summary>
+        /// Does SET have the KEEPTTL extension?
+        /// </summary>
+        public bool SetKeepTtl => Version >= v6_0_0;
+
+        /// <summary>
+        /// Does SET allow the NX and GET options to be used together?
+        /// </summary>
+        public bool SetNotExistsAndGet => Version >= v6_9_240;
 
         /// <summary>
         /// Does SADD support variadic usage?
