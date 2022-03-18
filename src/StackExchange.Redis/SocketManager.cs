@@ -74,9 +74,9 @@ namespace StackExchange.Redis
         /// <param name="options"></param>
         public SocketManager(string? name = null, int workerCount = 0, SocketManagerOptions options = SocketManagerOptions.None)
         {
-            if (string.IsNullOrWhiteSpace(name)) name = GetType().Name;
+            if (name.IsNullOrWhiteSpace()) name = GetType().Name;
             if (workerCount <= 0) workerCount = DEFAULT_WORKERS;
-            Name = name!;
+            Name = name;
             bool useHighPrioritySocketThreads = (options & SocketManagerOptions.UseHighPrioritySocketThreads) != 0,
                 useThreadPool = (options & SocketManagerOptions.UseThreadPool) != 0;
 

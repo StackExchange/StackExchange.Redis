@@ -180,7 +180,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal static bool TryParse(string input, [NotNullWhen(true)] out ClientInfo[]? clientList)
+        internal static bool TryParse(string? input, [NotNullWhen(true)] out ClientInfo[]? clientList)
         {
             if (input == null)
             {
@@ -264,7 +264,7 @@ namespace StackExchange.Redis
                 switch(result.Type)
                 {
                     case ResultType.BulkString:
-                        var raw = result.GetString()!;
+                        var raw = result.GetString();
                         if (TryParse(raw, out var clients))
                         {
                             SetResult(message, clients);

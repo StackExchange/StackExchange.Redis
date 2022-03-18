@@ -384,7 +384,7 @@ namespace StackExchange.Redis
                 if (muxer.AuthSuspect) sb.Append(" There was an authentication failure; check that passwords (or client certificates) are configured correctly.");
                 else if (muxer.RawConfig.AbortOnConnectFail) sb.Append(" Error connecting right now. To allow this multiplexer to continue retrying until it's able to connect, use abortConnect=false in your connection string or AbortOnConnectFail=false; in your code.");
             }
-            if (failureMessage != null && !string.IsNullOrWhiteSpace(failureMessage))
+            if (!failureMessage.IsNullOrWhiteSpace())
             {
                 sb.Append(' ').Append(failureMessage.Trim());
             }

@@ -898,7 +898,8 @@ namespace StackExchange.Redis
             }
             Message msg;
             // Note that we need "" (not null) for password in the case of 'nopass' logins
-            string? user = Multiplexer.RawConfig.User, password = Multiplexer.RawConfig.Password ?? "";
+            string? user = Multiplexer.RawConfig.User;
+            string password = Multiplexer.RawConfig.Password ?? "";
             if (!string.IsNullOrWhiteSpace(user))
             {
                 log?.WriteLine($"{Format.ToString(this)}: Authenticating (user/password)");
