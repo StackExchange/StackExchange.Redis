@@ -296,8 +296,8 @@ namespace StackExchange.Redis
             return new GeoPosition(longitude, latitude);
         }
 
-        internal GeoPosition[]? GetItemsAsGeoPositionArray()
-            => this.ToArray<GeoPosition>((in RawResult item) => item.IsNull ? default : AsGeoPosition(item.GetItems()));
+        internal GeoPosition?[]? GetItemsAsGeoPositionArray()
+            => this.ToArray<GeoPosition?>((in RawResult item) => item.IsNull ? default : AsGeoPosition(item.GetItems()));
 
         internal unsafe string? GetString()
         {

@@ -145,7 +145,7 @@ namespace StackExchange.Redis
         /// Non existing elements are reported as NULL elements of the array.
         /// </returns>
         /// <remarks>https://redis.io/commands/geopos</remarks>
-        GeoPosition[]? GeoPosition(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None);
+        GeoPosition?[]? GeoPosition(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Return the positions (longitude,latitude) of all the specified members of the geospatial index represented by the sorted set at key.

@@ -140,7 +140,7 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.String);
         }
 
-        public GeoPosition[]? GeoPosition(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)
+        public GeoPosition?[]? GeoPosition(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)
         {
             if (members == null) throw new ArgumentNullException(nameof(members));
             var redisValues = new RedisValue[members.Length];
@@ -149,7 +149,7 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.RedisGeoPositionArray);
         }
 
-        public Task<GeoPosition[]?> GeoPositionAsync(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)
+        public Task<GeoPosition?[]?> GeoPositionAsync(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)
         {
             if (members == null) throw new ArgumentNullException(nameof(members));
             var redisValues = new RedisValue[members.Length];

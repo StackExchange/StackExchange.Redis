@@ -80,7 +80,7 @@ namespace StackExchange.Redis
         public static readonly ResultProcessor<string?[]>
             StringArray = new StringArrayProcessor();
 
-        public static readonly ResultProcessor<GeoPosition[]>
+        public static readonly ResultProcessor<GeoPosition?[]>
             RedisGeoPositionArray = new RedisValueGeoPositionArrayProcessor();
         public static readonly ResultProcessor<GeoPosition?>
             RedisGeoPosition = new RedisValueGeoPositionProcessor();
@@ -1307,7 +1307,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private sealed class RedisValueGeoPositionArrayProcessor : ResultProcessor<GeoPosition[]>
+        private sealed class RedisValueGeoPositionArrayProcessor : ResultProcessor<GeoPosition?[]>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {

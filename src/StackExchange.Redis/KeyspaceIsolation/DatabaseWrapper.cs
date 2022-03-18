@@ -42,7 +42,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public string? GeoHash(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None) =>
             Inner.GeoHash(ToInner(key), member, flags);
 
-        public GeoPosition[]? GeoPosition(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None) =>
+        public GeoPosition?[]? GeoPosition(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None) =>
             Inner.GeoPosition(ToInner(key), members, flags);
 
         public GeoPosition? GeoPosition(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None) =>
