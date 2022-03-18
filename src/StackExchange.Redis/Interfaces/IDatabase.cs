@@ -1393,7 +1393,7 @@ namespace StackExchange.Redis
         /// <returns>List of elements in the specified range.</returns>
         /// <remarks>https://redis.io/commands/zrange</remarks>
         /// <remarks>https://redis.io/commands/zrevrange</remarks>
-        RedisValue[]? SortedSetRangeByRank(RedisKey key, long start = 0, long stop = -1, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None);
+        RedisValue[] SortedSetRangeByRank(RedisKey key, long start = 0, long stop = -1, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Returns the specified range of elements in the sorted set stored at key.
@@ -1410,7 +1410,7 @@ namespace StackExchange.Redis
         /// <returns>List of elements in the specified range.</returns>
         /// <remarks>https://redis.io/commands/zrange</remarks>
         /// <remarks>https://redis.io/commands/zrevrange</remarks>
-        SortedSetEntry[]? SortedSetRangeByRankWithScores(RedisKey key, long start = 0, long stop = -1, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None);
+        SortedSetEntry[] SortedSetRangeByRankWithScores(RedisKey key, long start = 0, long stop = -1, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Returns the specified range of elements in the sorted set stored at key.
@@ -1430,7 +1430,7 @@ namespace StackExchange.Redis
         /// <returns>List of elements in the specified score range.</returns>
         /// <remarks>https://redis.io/commands/zrangebyscore</remarks>
         /// <remarks>https://redis.io/commands/zrevrangebyscore</remarks>
-        RedisValue[]? SortedSetRangeByScore(RedisKey key,
+        RedisValue[] SortedSetRangeByScore(RedisKey key,
             double start = double.NegativeInfinity,
             double stop = double.PositiveInfinity,
             Exclude exclude = Exclude.None,
@@ -1457,7 +1457,7 @@ namespace StackExchange.Redis
         /// <returns>List of elements in the specified score range.</returns>
         /// <remarks>https://redis.io/commands/zrangebyscore</remarks>
         /// <remarks>https://redis.io/commands/zrevrangebyscore</remarks>
-        SortedSetEntry[]? SortedSetRangeByScoreWithScores(RedisKey key,
+        SortedSetEntry[] SortedSetRangeByScoreWithScores(RedisKey key,
             double start = double.NegativeInfinity,
             double stop = double.PositiveInfinity,
             Exclude exclude = Exclude.None,
@@ -1479,7 +1479,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <remarks>https://redis.io/commands/zrangebylex</remarks>
         /// <returns>List of elements in the specified score range.</returns>
-        RedisValue[]? SortedSetRangeByValue(RedisKey key,
+        RedisValue[] SortedSetRangeByValue(RedisKey key,
             RedisValue min,
             RedisValue max,
             Exclude exclude,
@@ -1502,7 +1502,7 @@ namespace StackExchange.Redis
         /// <remarks>https://redis.io/commands/zrangebylex</remarks>
         /// <remarks>https://redis.io/commands/zrevrangebylex</remarks>
         /// <returns>List of elements in the specified score range.</returns>
-        RedisValue[]? SortedSetRangeByValue(RedisKey key,
+        RedisValue[] SortedSetRangeByValue(RedisKey key,
             RedisValue min = default(RedisValue),
             RedisValue max = default(RedisValue),
             Exclude exclude = Exclude.None,
@@ -1857,7 +1857,7 @@ namespace StackExchange.Redis
         /// <returns>An instance of <see cref="StreamPendingMessageInfo"/> for each pending message.</returns>
         /// <remarks>Equivalent of calling XPENDING key group start-id end-id count consumer-name.</remarks>
         /// <remarks>https://redis.io/commands/xpending</remarks>
-        StreamPendingMessageInfo[]? StreamPendingMessages(RedisKey key, RedisValue groupName, int count, RedisValue consumerName, RedisValue? minId = null, RedisValue? maxId = null, CommandFlags flags = CommandFlags.None);
+        StreamPendingMessageInfo[] StreamPendingMessages(RedisKey key, RedisValue groupName, int count, RedisValue consumerName, RedisValue? minId = null, RedisValue? maxId = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Read a stream using the given range of IDs.
@@ -1870,7 +1870,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>Returns an instance of <see cref="StreamEntry"/> for each message returned.</returns>
         /// <remarks>https://redis.io/commands/xrange</remarks>
-        StreamEntry[]? StreamRange(RedisKey key, RedisValue? minId = null, RedisValue? maxId = null, int? count = null, Order messageOrder = Order.Ascending, CommandFlags flags = CommandFlags.None);
+        StreamEntry[] StreamRange(RedisKey key, RedisValue? minId = null, RedisValue? maxId = null, int? count = null, Order messageOrder = Order.Ascending, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Read from a single stream.
@@ -1882,7 +1882,7 @@ namespace StackExchange.Redis
         /// <returns>Returns an instance of <see cref="StreamEntry"/> for each message returned.</returns>
         /// <remarks>Equivalent of calling XREAD COUNT num STREAMS key id.</remarks>
         /// <remarks>https://redis.io/commands/xread</remarks>
-        StreamEntry[]? StreamRead(RedisKey key, RedisValue position, int? count = null, CommandFlags flags = CommandFlags.None);
+        StreamEntry[] StreamRead(RedisKey key, RedisValue position, int? count = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Read from multiple streams.
@@ -1893,7 +1893,7 @@ namespace StackExchange.Redis
         /// <returns>A value of <see cref="RedisStream"/> for each stream.</returns>
         /// <remarks>Equivalent of calling XREAD COUNT num STREAMS key1 key2 id1 id2.</remarks>
         /// <remarks>https://redis.io/commands/xread</remarks>
-        RedisStream[]? StreamRead(StreamPosition[] streamPositions, int? countPerStream = null, CommandFlags flags = CommandFlags.None);
+        RedisStream[] StreamRead(StreamPosition[] streamPositions, int? countPerStream = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Read messages from a stream into an associated consumer group.
@@ -1906,7 +1906,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>Returns a value of <see cref="StreamEntry"/> for each message returned.</returns>
         /// <remarks>https://redis.io/commands/xreadgroup</remarks>
-        StreamEntry[]? StreamReadGroup(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position, int? count, CommandFlags flags);
+        StreamEntry[] StreamReadGroup(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position, int? count, CommandFlags flags);
 
         /// <summary>
         /// Read messages from a stream into an associated consumer group.
@@ -1920,7 +1920,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>Returns a value of <see cref="StreamEntry"/> for each message returned.</returns>
         /// <remarks>https://redis.io/commands/xreadgroup</remarks>
-        StreamEntry[]? StreamReadGroup(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position = null, int? count = null, bool noAck = false, CommandFlags flags = CommandFlags.None);
+        StreamEntry[] StreamReadGroup(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position = null, int? count = null, bool noAck = false, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Read from multiple streams into the given consumer group.
@@ -1934,7 +1934,7 @@ namespace StackExchange.Redis
         /// <returns>A value of <see cref="RedisStream"/> for each stream.</returns>
         /// <remarks>Equivalent of calling XREADGROUP GROUP groupName consumerName COUNT countPerStream STREAMS stream1 stream2 id1 id2</remarks>
         /// <remarks>https://redis.io/commands/xreadgroup</remarks>
-        RedisStream[]? StreamReadGroup(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, CommandFlags flags);
+        RedisStream[] StreamReadGroup(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, CommandFlags flags);
 
         /// <summary>
         /// Read from multiple streams into the given consumer group.
@@ -1949,7 +1949,7 @@ namespace StackExchange.Redis
         /// <returns>A value of <see cref="RedisStream"/> for each stream.</returns>
         /// <remarks>Equivalent of calling XREADGROUP GROUP groupName consumerName COUNT countPerStream STREAMS stream1 stream2 id1 id2</remarks>
         /// <remarks>https://redis.io/commands/xreadgroup</remarks>
-        RedisStream[]? StreamReadGroup(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, CommandFlags flags = CommandFlags.None);
+        RedisStream[] StreamReadGroup(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Trim the stream to a specified maximum length.

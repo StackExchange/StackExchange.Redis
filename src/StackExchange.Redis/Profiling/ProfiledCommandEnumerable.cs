@@ -87,7 +87,7 @@ namespace StackExchange.Redis.Profiling
         /// Returns the number of commands captured in this snapshot that match a condition
         /// </summary>
         /// <param name="predicate">The predicate to match.</param>
-        public int Count(Func<IProfiledCommand?, bool> predicate)
+        public int Count(Func<IProfiledCommand, bool> predicate)
         {
             if (predicate == null) throw new ArgumentNullException(nameof(predicate));
             if (_count == 0) return 0;
@@ -96,7 +96,7 @@ namespace StackExchange.Redis.Profiling
             var cur = _head;
             for (int i = 0; i < _count; i++)
             {
-                if (predicate(cur)) result++;
+                if (cur != null && predicate(cur)) result++;
                 cur = cur!.NextElement;
             }
             return result;

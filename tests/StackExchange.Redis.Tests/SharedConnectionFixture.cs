@@ -145,7 +145,7 @@ namespace StackExchange.Redis.Tests
 
             public void GetStatus(TextWriter log) => _inner.GetStatus(log);
 
-            public string GetStormLog() => _inner.GetStormLog();
+            public string? GetStormLog() => _inner.GetStormLog();
 
             public ISubscriber GetSubscriber(object? asyncState = null) => _inner.GetSubscriber(asyncState);
 
@@ -215,10 +215,10 @@ namespace StackExchange.Redis.Tests
                 TestBase.Log(output, "Connection Counts: " + _actualConnection.GetCounters().ToString());
                 foreach (var ep in _actualConnection.GetServerSnapshot())
                 {
-                    var interactive = ep.GetBridge(ConnectionType.Interactive);
+                    var interactive = ep.GetBridge(ConnectionType.Interactive)!;
                     TestBase.Log(output, $"  {Format.ToString(interactive)}: " + interactive.GetStatus());
 
-                    var subscription = ep.GetBridge(ConnectionType.Subscription);
+                    var subscription = ep.GetBridge(ConnectionType.Subscription)!;
                     TestBase.Log(output, $"  {Format.ToString(subscription)}: " + subscription.GetStatus());
                 }
             }

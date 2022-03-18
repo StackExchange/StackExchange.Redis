@@ -1810,7 +1810,7 @@ namespace StackExchange.Redis
         /// <returns>An instance of <see cref="StreamPendingMessageInfo"/> for each pending message.</returns>
         /// <remarks>Equivalent of calling XPENDING key group start-id end-id count consumer-name.</remarks>
         /// <remarks>https://redis.io/commands/xpending</remarks>
-        Task<StreamPendingMessageInfo[]?> StreamPendingMessagesAsync(RedisKey key, RedisValue groupName, int count, RedisValue consumerName, RedisValue? minId = null, RedisValue? maxId = null, CommandFlags flags = CommandFlags.None);
+        Task<StreamPendingMessageInfo[]> StreamPendingMessagesAsync(RedisKey key, RedisValue groupName, int count, RedisValue consumerName, RedisValue? minId = null, RedisValue? maxId = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Read a stream using the given range of IDs.
@@ -1823,7 +1823,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>Returns an instance of <see cref="StreamEntry"/> for each message returned.</returns>
         /// <remarks>https://redis.io/commands/xrange</remarks>
-        Task<StreamEntry[]?> StreamRangeAsync(RedisKey key, RedisValue? minId = null, RedisValue? maxId = null, int? count = null, Order messageOrder = Order.Ascending, CommandFlags flags = CommandFlags.None);
+        Task<StreamEntry[]> StreamRangeAsync(RedisKey key, RedisValue? minId = null, RedisValue? maxId = null, int? count = null, Order messageOrder = Order.Ascending, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Read from a single stream.
@@ -1835,7 +1835,7 @@ namespace StackExchange.Redis
         /// <returns>Returns an instance of <see cref="StreamEntry"/> for each message returned.</returns>
         /// <remarks>Equivalent of calling XREAD COUNT num STREAMS key id.</remarks>
         /// <remarks>https://redis.io/commands/xread</remarks>
-        Task<StreamEntry[]?> StreamReadAsync(RedisKey key, RedisValue position, int? count = null, CommandFlags flags = CommandFlags.None);
+        Task<StreamEntry[]> StreamReadAsync(RedisKey key, RedisValue position, int? count = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Read from multiple streams.
@@ -1846,7 +1846,7 @@ namespace StackExchange.Redis
         /// <returns>A value of <see cref="RedisStream"/> for each stream.</returns>
         /// <remarks>Equivalent of calling XREAD COUNT num STREAMS key1 key2 id1 id2.</remarks>
         /// <remarks>https://redis.io/commands/xread</remarks>
-        Task<RedisStream[]?> StreamReadAsync(StreamPosition[] streamPositions, int? countPerStream = null, CommandFlags flags = CommandFlags.None);
+        Task<RedisStream[]> StreamReadAsync(StreamPosition[] streamPositions, int? countPerStream = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Read messages from a stream into an associated consumer group.
@@ -1859,7 +1859,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>Returns a value of <see cref="StreamEntry"/> for each message returned.</returns>
         /// <remarks>https://redis.io/commands/xreadgroup</remarks>
-        Task<StreamEntry[]?> StreamReadGroupAsync(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position, int? count, CommandFlags flags);
+        Task<StreamEntry[]> StreamReadGroupAsync(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position, int? count, CommandFlags flags);
 
         /// <summary>
         /// Read messages from a stream into an associated consumer group.
@@ -1873,7 +1873,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>Returns a value of <see cref="StreamEntry"/> for each message returned.</returns>
         /// <remarks>https://redis.io/commands/xreadgroup</remarks>
-        Task<StreamEntry[]?> StreamReadGroupAsync(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position = null, int? count = null, bool noAck = false, CommandFlags flags = CommandFlags.None);
+        Task<StreamEntry[]> StreamReadGroupAsync(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position = null, int? count = null, bool noAck = false, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Read from multiple streams into the given consumer group.
@@ -1887,7 +1887,7 @@ namespace StackExchange.Redis
         /// <returns>A value of <see cref="RedisStream"/> for each stream.</returns>
         /// <remarks>Equivalent of calling XREADGROUP GROUP groupName consumerName COUNT countPerStream STREAMS stream1 stream2 id1 id2</remarks>
         /// <remarks>https://redis.io/commands/xreadgroup</remarks>
-        Task<RedisStream[]?> StreamReadGroupAsync(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, CommandFlags flags);
+        Task<RedisStream[]> StreamReadGroupAsync(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, CommandFlags flags);
 
         /// <summary>
         /// Read from multiple streams into the given consumer group.
@@ -1902,7 +1902,7 @@ namespace StackExchange.Redis
         /// <returns>A value of <see cref="RedisStream"/> for each stream.</returns>
         /// <remarks>Equivalent of calling XREADGROUP GROUP groupName consumerName COUNT countPerStream STREAMS stream1 stream2 id1 id2</remarks>
         /// <remarks>https://redis.io/commands/xreadgroup</remarks>
-        Task<RedisStream[]?> StreamReadGroupAsync(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, CommandFlags flags = CommandFlags.None);
+        Task<RedisStream[]> StreamReadGroupAsync(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Trim the stream to a specified maximum length.

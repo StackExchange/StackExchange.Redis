@@ -2157,7 +2157,7 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.StreamPendingInfo);
         }
 
-        public StreamPendingMessageInfo[]? StreamPendingMessages(RedisKey key, RedisValue groupName, int count, RedisValue consumerName, RedisValue? minId = null, RedisValue? maxId = null, CommandFlags flags = CommandFlags.None)
+        public StreamPendingMessageInfo[] StreamPendingMessages(RedisKey key, RedisValue groupName, int count, RedisValue consumerName, RedisValue? minId = null, RedisValue? maxId = null, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStreamPendingMessagesMessage(key,
                 groupName,
@@ -2167,7 +2167,7 @@ namespace StackExchange.Redis
                 consumerName,
                 flags);
 
-            return ExecuteSync(msg, ResultProcessor.StreamPendingMessages);
+            return ExecuteSync(msg, ResultProcessor.StreamPendingMessages, defaultValue: Array.Empty<StreamPendingMessageInfo>());
         }
 
         public Task<StreamPendingMessageInfo[]?> StreamPendingMessagesAsync(RedisKey key, RedisValue groupName, int count, RedisValue consumerName, RedisValue? minId = null, RedisValue? maxId = null, CommandFlags flags = CommandFlags.None)
@@ -2183,7 +2183,7 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.StreamPendingMessages);
         }
 
-        public StreamEntry[]? StreamRange(RedisKey key, RedisValue? minId = null, RedisValue? maxId = null, int? count = null, Order messageOrder = Order.Ascending, CommandFlags flags = CommandFlags.None)
+        public StreamEntry[] StreamRange(RedisKey key, RedisValue? minId = null, RedisValue? maxId = null, int? count = null, Order messageOrder = Order.Ascending, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStreamRangeMessage(key,
                 minId,
@@ -2192,10 +2192,10 @@ namespace StackExchange.Redis
                 messageOrder,
                 flags);
 
-            return ExecuteSync(msg, ResultProcessor.SingleStream);
+            return ExecuteSync(msg, ResultProcessor.SingleStream, defaultValue: Array.Empty<StreamEntry>());
         }
 
-        public Task<StreamEntry[]?> StreamRangeAsync(RedisKey key, RedisValue? minId = null, RedisValue? maxId = null, int? count = null, Order messageOrder = Order.Ascending, CommandFlags flags = CommandFlags.None)
+        public Task<StreamEntry[]> StreamRangeAsync(RedisKey key, RedisValue? minId = null, RedisValue? maxId = null, int? count = null, Order messageOrder = Order.Ascending, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStreamRangeMessage(key,
                 minId,
@@ -2207,17 +2207,17 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.SingleStream);
         }
 
-        public StreamEntry[]? StreamRead(RedisKey key, RedisValue position, int? count = null, CommandFlags flags = CommandFlags.None)
+        public StreamEntry[] StreamRead(RedisKey key, RedisValue position, int? count = null, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetSingleStreamReadMessage(key,
                 StreamPosition.Resolve(position, RedisCommand.XREAD),
                 count,
                 flags);
 
-            return ExecuteSync(msg, ResultProcessor.SingleStreamWithNameSkip);
+            return ExecuteSync(msg, ResultProcessor.SingleStreamWithNameSkip, defaultValue: Array.Empty<StreamEntry>());
         }
 
-        public Task<StreamEntry[]?> StreamReadAsync(RedisKey key, RedisValue position, int? count = null, CommandFlags flags = CommandFlags.None)
+        public Task<StreamEntry[]> StreamReadAsync(RedisKey key, RedisValue position, int? count = null, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetSingleStreamReadMessage(key,
                 StreamPosition.Resolve(position, RedisCommand.XREAD),
@@ -2227,19 +2227,19 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.SingleStreamWithNameSkip);
         }
 
-        public RedisStream[]? StreamRead(StreamPosition[] streamPositions, int? countPerStream = null, CommandFlags flags = CommandFlags.None)
+        public RedisStream[] StreamRead(StreamPosition[] streamPositions, int? countPerStream = null, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetMultiStreamReadMessage(streamPositions, countPerStream, flags);
-            return ExecuteSync(msg, ResultProcessor.MultiStream);
+            return ExecuteSync(msg, ResultProcessor.MultiStream, defaultValue: Array.Empty<RedisStream>());
         }
 
-        public Task<RedisStream[]?> StreamReadAsync(StreamPosition[] streamPositions, int? countPerStream = null, CommandFlags flags = CommandFlags.None)
+        public Task<RedisStream[]> StreamReadAsync(StreamPosition[] streamPositions, int? countPerStream = null, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetMultiStreamReadMessage(streamPositions, countPerStream, flags);
             return ExecuteAsync(msg, ResultProcessor.MultiStream);
         }
 
-        public StreamEntry[]? StreamReadGroup(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position, int? count, CommandFlags flags)
+        public StreamEntry[] StreamReadGroup(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position, int? count, CommandFlags flags)
         {
             return StreamReadGroup(key,
                 groupName,
@@ -2250,7 +2250,7 @@ namespace StackExchange.Redis
                 flags);
         }
 
-        public StreamEntry[]? StreamReadGroup(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position = null, int? count = null, bool noAck = false, CommandFlags flags = CommandFlags.None)
+        public StreamEntry[] StreamReadGroup(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position = null, int? count = null, bool noAck = false, CommandFlags flags = CommandFlags.None)
         {
             var actualPosition = position ?? StreamPosition.NewMessages;
 
@@ -2262,10 +2262,10 @@ namespace StackExchange.Redis
                 noAck,
                 flags);
 
-            return ExecuteSync(msg, ResultProcessor.SingleStreamWithNameSkip);
+            return ExecuteSync(msg, ResultProcessor.SingleStreamWithNameSkip, defaultValue: Array.Empty<StreamEntry>());
         }
 
-        public Task<StreamEntry[]?> StreamReadGroupAsync(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position, int? count, CommandFlags flags)
+        public Task<StreamEntry[]> StreamReadGroupAsync(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position, int? count, CommandFlags flags)
         {
             return StreamReadGroupAsync(key,
                 groupName,
@@ -2276,7 +2276,7 @@ namespace StackExchange.Redis
                 flags);
         }
 
-        public Task<StreamEntry[]?> StreamReadGroupAsync(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position = null, int? count = null, bool noAck = false, CommandFlags flags = CommandFlags.None)
+        public Task<StreamEntry[]> StreamReadGroupAsync(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position = null, int? count = null, bool noAck = false, CommandFlags flags = CommandFlags.None)
         {
             var actualPosition = position ?? StreamPosition.NewMessages;
 
@@ -2291,7 +2291,7 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.SingleStreamWithNameSkip);
         }
 
-        public RedisStream[]? StreamReadGroup(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, CommandFlags flags)
+        public RedisStream[] StreamReadGroup(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, CommandFlags flags)
         {
             return StreamReadGroup(streamPositions,
                 groupName,
@@ -2301,7 +2301,7 @@ namespace StackExchange.Redis
                 flags);
         }
 
-        public RedisStream[]? StreamReadGroup(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, CommandFlags flags = CommandFlags.None)
+        public RedisStream[] StreamReadGroup(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetMultiStreamReadGroupMessage(streamPositions,
                 groupName,
@@ -2310,10 +2310,10 @@ namespace StackExchange.Redis
                 noAck,
                 flags);
 
-            return ExecuteSync(msg, ResultProcessor.MultiStream);
+            return ExecuteSync(msg, ResultProcessor.MultiStream, defaultValue: Array.Empty<RedisStream>());
         }
 
-        public Task<RedisStream[]?> StreamReadGroupAsync(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, CommandFlags flags)
+        public Task<RedisStream[]> StreamReadGroupAsync(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, CommandFlags flags)
         {
             return StreamReadGroupAsync(streamPositions,
                 groupName,
@@ -2323,7 +2323,7 @@ namespace StackExchange.Redis
                 flags);
         }
 
-        public Task<RedisStream[]?> StreamReadGroupAsync(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, CommandFlags flags = CommandFlags.None)
+        public Task<RedisStream[]> StreamReadGroupAsync(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetMultiStreamReadGroupMessage(streamPositions,
                 groupName,

@@ -216,7 +216,7 @@ namespace StackExchange.Redis.Tests
             {
                 var db = conn.GetDatabase();
                 db.KeyDelete(key, CommandFlags.FireAndForget);
-                string s = db.StringGet(key);
+                string? s = db.StringGet(key);
                 Assert.Null(s);
                 db.StringSet(key, "abc", flags: CommandFlags.FireAndForget);
                 s = db.StringGet(key);
@@ -274,7 +274,7 @@ namespace StackExchange.Redis.Tests
 
                     var db = conn.GetDatabase();
                     db.KeyDelete(key, CommandFlags.FireAndForget);
-                    string s = db.StringGet(key);
+                    string? s = db.StringGet(key);
                     Assert.Null(s);
                     db.StringSet(key, "abc");
                     s = db.StringGet(key);

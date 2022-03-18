@@ -72,7 +72,7 @@ namespace StackExchange.Redis
         }
 
         [return: NotNullIfNotNull("value")]
-        internal static string? ToString(object value) => value switch
+        internal static string? ToString(object? value) => value switch
         {
             null => "",
             long l => ToString(l),

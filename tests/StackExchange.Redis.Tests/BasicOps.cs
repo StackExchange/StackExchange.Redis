@@ -83,7 +83,7 @@ namespace StackExchange.Redis.Tests
             {
                 var db = muxer.GetDatabase();
                 const string? key = null, value = "abc";
-                var ex = Assert.Throws<ArgumentException>(() => db.StringSet(key, value));
+                var ex = Assert.Throws<ArgumentException>(() => db.StringSet(key!, value));
                 Assert.Equal("A null key is not valid in this context", ex.Message);
             }
         }
@@ -102,7 +102,7 @@ namespace StackExchange.Redis.Tests
                 Assert.True(db.KeyExists(key));
                 db.StringSet(key, value, flags: CommandFlags.FireAndForget);
 
-                var actual = (string)db.StringGet(key);
+                var actual = (string?)db.StringGet(key);
                 Assert.Null(actual);
                 Assert.False(db.KeyExists(key));
             }
@@ -122,7 +122,7 @@ namespace StackExchange.Redis.Tests
                 Assert.True(db.KeyExists(key));
                 db.StringSet(key, value, flags: CommandFlags.FireAndForget);
 
-                var actual = (string)db.StringGet(key);
+                var actual = (string?)db.StringGet(key);
                 Assert.Null(actual);
                 Assert.False(db.KeyExists(key));
             }
@@ -142,7 +142,7 @@ namespace StackExchange.Redis.Tests
                 Assert.True(db.KeyExists(key));
                 db.StringSet(key, value, flags: CommandFlags.FireAndForget);
 
-                var actual = (string)db.StringGet(key);
+                var actual = (string?)db.StringGet(key);
                 Assert.Equal("0", actual);
                 Assert.True(db.KeyExists(key));
             }
@@ -165,7 +165,7 @@ namespace StackExchange.Redis.Tests
 
                 await d0;
                 Assert.False(await d1);
-                Assert.Null((string)(await g1));
+                Assert.Null((string?)(await g1));
                 Assert.True((await g1).IsNull);
                 await s1;
                 Assert.Equal("123", await g2);
@@ -191,7 +191,7 @@ namespace StackExchange.Redis.Tests
                 var d2 = conn.KeyDelete(key);
 
                 Assert.False(d1);
-                Assert.Null((string)g1);
+                Assert.Null((string?)g1);
                 Assert.True(g1.IsNull);
 
                 Assert.Equal("123", g2);
@@ -255,7 +255,7 @@ namespace StackExchange.Redis.Tests
                 {
                     try
                     {
-                        Log("Key: " + (string)key);
+                        Log("Key: " + (string?)key);
                         await db.StringGetWithExpiryAsync(key).ForAwait();
                     }
                     catch (AggregateException e)

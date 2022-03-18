@@ -2743,13 +2743,14 @@ namespace StackExchange.Redis
             }
         }
 
-        internal T? ExecuteSyncImpl<T>(Message message, ResultProcessor<T>? processor, ServerEndPoint? server)
+        [return: NotNullIfNotNull("defaultValue")]
+        internal T? ExecuteSyncImpl<T>(Message message, ResultProcessor<T>? processor, ServerEndPoint? server, T? defaultValue = default)
         {
             if (_isDisposed) throw new ObjectDisposedException(ToString());
 
             if (message is null) // Fire-and forget could involve a no-op, represented by null - for example Increment by 0
             {
-                return default;
+                return defaultValue;
             }
 
             if (message.IsFireAndForget)
@@ -2758,7 +2759,7 @@ namespace StackExchange.Redis
                 TryPushMessageToBridgeSync(message, processor, null, ref server);
 #pragma warning restore CS0618
                 Interlocked.Increment(ref fireAndForgets);
-                return default;
+                return defaultValue;
             }
             else
             {

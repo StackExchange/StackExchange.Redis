@@ -47,11 +47,12 @@ namespace StackExchange.Redis
             return multiplexer.ExecuteAsyncImpl<T>(message, processor, asyncState, server);
         }
 
-        internal virtual T? ExecuteSync<T>(Message? message, ResultProcessor<T>? processor, ServerEndPoint? server = null)
+        [return: NotNullIfNotNull("defaultValue")]
+        internal virtual T? ExecuteSync<T>(Message? message, ResultProcessor<T>? processor, ServerEndPoint? server = null, T? defaultValue = default)
         {
-            if (message is null) return default; // no-op
+            if (message is null) return defaultValue; // no-op
             multiplexer.CheckMessage(message);
-            return multiplexer.ExecuteSyncImpl<T>(message, processor, server);
+            return multiplexer.ExecuteSyncImpl<T>(message, processor, server, defaultValue);
         }
 
         internal virtual RedisFeatures GetFeatures(in RedisKey key, CommandFlags flags, out ServerEndPoint? server)

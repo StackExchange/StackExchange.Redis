@@ -8,23 +8,15 @@ namespace StackExchange.Redis.Tests
     {
         public static void Inconclusive(string message) => throw new SkipTestException(message);
 
-        public static void IfNoConfig(string prop,
-#if NETCOREAPP
-            [NotNull]
-#endif
-            string? value)
+        public static void IfNoConfig(string prop, [NotNull] string? value)
         {
-            if (string.IsNullOrEmpty(value))
+            if (value.IsNullOrEmpty())
             {
                 throw new SkipTestException($"Config.{prop} is not set, skipping test.");
             }
         }
 
-        public static void IfNoConfig(string prop,
-#if NETCOREAPP
-            [NotNull]
-#endif
-            List<string>? values)
+        public static void IfNoConfig(string prop, [NotNull] List<string>? values)
         {
             if (values == null || values.Count == 0)
             {

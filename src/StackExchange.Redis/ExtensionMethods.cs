@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Net.Security;
 using System.Runtime.CompilerServices;
@@ -19,6 +20,7 @@ namespace StackExchange.Redis
         /// Create a dictionary from an array of HashEntry values.
         /// </summary>
         /// <param name="hash">The entry to convert to a dictionary.</param>
+        [return: NotNullIfNotNull("hash")]
         public static Dictionary<string,string>? ToStringDictionary(this HashEntry[]? hash)
         {
             if (hash is null)
@@ -38,6 +40,7 @@ namespace StackExchange.Redis
         /// Create a dictionary from an array of HashEntry values.
         /// </summary>
         /// <param name="hash">The entry to convert to a dictionary.</param>
+        [return: NotNullIfNotNull("hash")]
         public static Dictionary<RedisValue, RedisValue>? ToDictionary(this HashEntry[]? hash)
         {
             if (hash is null)
@@ -57,6 +60,7 @@ namespace StackExchange.Redis
         /// Create a dictionary from an array of SortedSetEntry values.
         /// </summary>
         /// <param name="sortedSet">The set entries to convert to a dictionary.</param>
+        [return: NotNullIfNotNull("sortedSet")]
         public static Dictionary<string, double>? ToStringDictionary(this SortedSetEntry[]? sortedSet)
         {
             if (sortedSet is null)
@@ -76,6 +80,7 @@ namespace StackExchange.Redis
         /// Create a dictionary from an array of SortedSetEntry values.
         /// </summary>
         /// <param name="sortedSet">The set entries to convert to a dictionary.</param>
+        [return: NotNullIfNotNull("sortedSet")]
         public static Dictionary<RedisValue, double>? ToDictionary(this SortedSetEntry[]? sortedSet)
         {
             if (sortedSet is null)
@@ -95,6 +100,7 @@ namespace StackExchange.Redis
         /// Create a dictionary from an array of key/value pairs.
         /// </summary>
         /// <param name="pairs">The pairs to convert to a dictionary.</param>
+        [return: NotNullIfNotNull("pairs")]
         public static Dictionary<string, string>? ToStringDictionary(this KeyValuePair<RedisKey, RedisValue>[]? pairs)
         {
             if (pairs is null)
@@ -114,6 +120,7 @@ namespace StackExchange.Redis
         /// Create a dictionary from an array of key/value pairs.
         /// </summary>
         /// <param name="pairs">The pairs to convert to a dictionary.</param>
+        [return: NotNullIfNotNull("pairs")]
         public static Dictionary<RedisKey, RedisValue>? ToDictionary(this KeyValuePair<RedisKey, RedisValue>[]? pairs)
         {
             if (pairs is null)
@@ -133,6 +140,7 @@ namespace StackExchange.Redis
         /// Create a dictionary from an array of string pairs.
         /// </summary>
         /// <param name="pairs">The pairs to convert to a dictionary.</param>
+        [return: NotNullIfNotNull("pairs")]
         public static Dictionary<string, string>? ToDictionary(this KeyValuePair<string, string>[]? pairs)
         {
             if (pairs is null)
@@ -152,6 +160,7 @@ namespace StackExchange.Redis
         /// Create an array of RedisValues from an array of strings.
         /// </summary>
         /// <param name="values">The string array to convert to RedisValues.</param>
+        [return: NotNullIfNotNull("values")]
         public static RedisValue[]? ToRedisValueArray(this string[]? values)
         {
             if (values is null)
@@ -167,6 +176,7 @@ namespace StackExchange.Redis
         /// Create an array of strings from an array of values.
         /// </summary>
         /// <param name="values">The values to convert to an array.</param>
+        [return: NotNullIfNotNull("values")]
         public static string?[]? ToStringArray(this RedisValue[]? values)
         {
             if (values == null)
@@ -201,6 +211,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="bytes">The lease upon which to base the stream.</param>
         /// <param name="ownsLease">If true, disposing the stream also disposes the lease.</param>
+        [return: NotNullIfNotNull("bytes")]
         public static Stream? AsStream(this Lease<byte>? bytes, bool ownsLease = true)
         {
             if (bytes is null)
@@ -221,6 +232,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="bytes">The bytes to decode.</param>
         /// <param name="encoding">The encoding to use.</param>
+        [return: NotNullIfNotNull("bytes")]
         public static string? DecodeString(this Lease<byte> bytes, Encoding? encoding = null)
         {
             if (bytes is null)
@@ -242,6 +254,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="bytes">The bytes to decode.</param>
         /// <param name="encoding">The encoding to use.</param>
+        [return: NotNullIfNotNull("bytes")]
         public static Lease<char>? DecodeLease(this Lease<byte>? bytes, Encoding? encoding = null)
         {
             if (bytes is null)

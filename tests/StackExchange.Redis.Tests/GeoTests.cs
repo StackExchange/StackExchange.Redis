@@ -76,6 +76,7 @@ namespace StackExchange.Redis.Tests
                 db.GeoAdd(key, all, CommandFlags.FireAndForget);
 
                 var hashes = db.GeoHash(key, new RedisValue[] { palermo.Member, "Nowhere", agrigento.Member });
+                Assert.NotNull(hashes);
                 Assert.Equal(3, hashes.Length);
                 Assert.Equal("sqc8b49rny0", hashes[0]);
                 Assert.Null(hashes[1]);
@@ -145,6 +146,7 @@ namespace StackExchange.Redis.Tests
                 db.GeoAdd(key, all, CommandFlags.FireAndForget);
 
                 var results = db.GeoRadius(key, cefalù.Member, 60, GeoUnit.Miles, 2, Order.Ascending);
+                Assert.NotNull(results);
                 Assert.Equal(2, results.Length);
 
                 Assert.Equal(results[0].Member, cefalù.Member);
@@ -166,6 +168,7 @@ namespace StackExchange.Redis.Tests
                 Assert.False(results[1].Hash.HasValue);
 
                 results = db.GeoRadius(key, cefalù.Member, 60, GeoUnit.Miles, 2, Order.Ascending, GeoRadiusOptions.None);
+                Assert.NotNull(results);
                 Assert.Equal(2, results.Length);
                 Assert.Equal(results[0].Member, cefalù.Member);
                 Assert.False(results[0].Position.HasValue);
@@ -202,7 +205,7 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal("member", ex.ParamName);
 
                 // The good stuff
-                GeoRadiusResult[] result = db.GeoRadius(key, -1.759925, 52.19493, 500, unit: GeoUnit.Miles, order: Order.Ascending, options: GeoRadiusOptions.WithDistance);
+                GeoRadiusResult[]? result = db.GeoRadius(key, -1.759925, 52.19493, 500, unit: GeoUnit.Miles, order: Order.Ascending, options: GeoRadiusOptions.WithDistance);
                 Assert.NotNull(result);
 
                 result = await db.GeoRadiusAsync(key, -1.759925, 52.19493, 500, unit: GeoUnit.Miles, order: Order.Ascending, options: GeoRadiusOptions.WithDistance).ForAwait();

@@ -84,7 +84,7 @@ namespace StackExchange.Redis
         /// Parse this object as a value - to be used alongside Box.
         /// </summary>
         /// <param name="value">The value to unbox.</param>
-        public static RedisValue Unbox(object value)
+        public static RedisValue Unbox(object? value)
         {
             var val = TryParse(value, out var valid);
             if (!valid) throw new ArgumentException("Could not parse value", nameof(value));
@@ -408,7 +408,7 @@ namespace StackExchange.Redis
             return CompareTo(val);
         }
 
-        internal static RedisValue TryParse(object obj, out bool valid)
+        internal static RedisValue TryParse(object? obj, out bool valid)
         {
             valid = true;
             switch (obj)

@@ -67,7 +67,7 @@ namespace StackExchange.Redis.Tests
                 var conn = muxer.GetDatabase();
                 var key = Me();
                 conn.StringSet(key, "bar", flags: CommandFlags.FireAndForget);
-                var result = (string)conn.ScriptEvaluate("return redis.call('get', KEYS[1])", new RedisKey[] { key }, null);
+                var result = (string?)conn.ScriptEvaluate("return redis.call('get', KEYS[1])", new RedisKey[] { key }, null);
                 Assert.Equal("bar", result);
             }
         }
@@ -1064,16 +1064,16 @@ return arr;
         {
             Assert.True(value == null || value.IsNull);
 
-            Assert.Null((RedisValue[])value);
-            Assert.Null((RedisKey[])value);
-            Assert.Null((bool[])value);
-            Assert.Null((long[])value);
-            Assert.Null((ulong[])value);
-            Assert.Null((string[])value);
-            Assert.Null((int[])value);
-            Assert.Null((double[])value);
-            Assert.Null((byte[][])value);
-            Assert.Null((RedisResult[])value);
+            Assert.Null((RedisValue[]?)value);
+            Assert.Null((RedisKey[]?)value);
+            Assert.Null((bool[]?)value);
+            Assert.Null((long[]?)value);
+            Assert.Null((ulong[]?)value);
+            Assert.Null((string[]?)value);
+            Assert.Null((int[]?)value);
+            Assert.Null((double[]?)value);
+            Assert.Null((byte[][]?)value);
+            Assert.Null((RedisResult[]?)value);
         }
 
         [Fact]
