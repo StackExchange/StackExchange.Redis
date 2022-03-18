@@ -2141,7 +2141,20 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns><see langword="true"/> if the string was set, <see langword="false"/> otherwise.</returns>
         /// <remarks>https://redis.io/commands/set</remarks>
-        Task<bool> StringSetAsync(RedisKey key, RedisValue value, TimeSpan? expiry = null, When when = When.Always, CommandFlags flags = CommandFlags.None);
+        Task<bool> StringSetAsync(RedisKey key, RedisValue value, TimeSpan? expiry, When when, CommandFlags flags);
+
+        /// <summary>
+        /// Set key to hold the string value. If key already holds a value, it is overwritten, regardless of its type.
+        /// </summary>
+        /// <param name="key">The key of the string.</param>
+        /// <param name="value">The value to set.</param>
+        /// <param name="expiry">The expiry to set.</param>
+        /// <param name="keepTtl">Whether to maintain the existing key's TTL (KEEPTTL flag).</param>
+        /// <param name="when">Which condition to set the value under (defaults to always).</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns><see langword="true"/> if the string was set, <see langword="false"/> otherwise.</returns>
+        /// <remarks>https://redis.io/commands/set</remarks>
+        Task<bool> StringSetAsync(RedisKey key, RedisValue value, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Sets the given keys to their respective values.
@@ -2166,7 +2179,21 @@ namespace StackExchange.Redis
         /// <returns>The previous value stored at <paramref name="key"/>, or nil when key did not exist.</returns>
         /// <remarks>This method uses the SET command with the GET option introduced in Redis 6.2.0 instead of the deprecated GETSET command.</remarks>
         /// <remarks>https://redis.io/commands/set</remarks>
-        Task<RedisValue> StringSetAndGetAsync(RedisKey key, RedisValue value, TimeSpan? expiry = null, When when = When.Always, CommandFlags flags = CommandFlags.None);
+        Task<RedisValue> StringSetAndGetAsync(RedisKey key, RedisValue value, TimeSpan? expiry, When when, CommandFlags flags);
+
+        /// <summary>
+        /// Atomically sets key to value and returns the previous value (if any) stored at <paramref name="key"/>.
+        /// </summary>
+        /// <param name="key">The key of the string.</param>
+        /// <param name="value">The value to set.</param>
+        /// <param name="expiry">The expiry to set.</param>
+        /// <param name="keepTtl">Whether to maintain the existing key's TTL (KEEPTTL flag).</param>
+        /// <param name="when">Which condition to set the value under (defaults to <see cref="When.Always"/>).</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The previous value stored at <paramref name="key"/>, or nil when key did not exist.</returns>
+        /// <remarks>This method uses the SET command with the GET option introduced in Redis 6.2.0 instead of the deprecated GETSET command.</remarks>
+        /// <remarks>https://redis.io/commands/set</remarks>
+        Task<RedisValue> StringSetAndGetAsync(RedisKey key, RedisValue value, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Sets or clears the bit at offset in the string value stored at key.

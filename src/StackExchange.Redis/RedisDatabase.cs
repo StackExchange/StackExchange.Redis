@@ -2565,9 +2565,12 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
-        public bool StringSet(RedisKey key, RedisValue value, TimeSpan? expiry = null, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        public bool StringSet(RedisKey key, RedisValue value, TimeSpan? expiry, When when, CommandFlags flags) =>
+            StringSet(key, value, expiry, false, when, flags);
+
+        public bool StringSet(RedisKey key, RedisValue value, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetStringSetMessage(key, value, expiry, when, flags);
+            var msg = GetStringSetMessage(key, value, expiry, keepTtl, when, flags);
             return ExecuteSync(msg, ResultProcessor.Boolean);
         }
 
@@ -2577,9 +2580,12 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.Boolean);
         }
 
-        public Task<bool> StringSetAsync(RedisKey key, RedisValue value, TimeSpan? expiry = null, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        public Task<bool> StringSetAsync(RedisKey key, RedisValue value, TimeSpan? expiry, When when, CommandFlags flags) =>
+            StringSetAsync(key, value, expiry, false, when, flags);
+
+        public Task<bool> StringSetAsync(RedisKey key, RedisValue value, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetStringSetMessage(key, value, expiry, when, flags);
+            var msg = GetStringSetMessage(key, value, expiry, keepTtl, when, flags);
             return ExecuteAsync(msg, ResultProcessor.Boolean);
         }
 
@@ -2589,15 +2595,21 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Boolean);
         }
 
-        public RedisValue StringSetAndGet(RedisKey key, RedisValue value, TimeSpan? expiry = null, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        public RedisValue StringSetAndGet(RedisKey key, RedisValue value, TimeSpan? expiry, When when, CommandFlags flags) =>
+            StringSetAndGet(key, value, expiry, false, when, flags);
+
+        public RedisValue StringSetAndGet(RedisKey key, RedisValue value, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetStringSetAndGetMessage(key, value, expiry, when, flags);
+            var msg = GetStringSetAndGetMessage(key, value, expiry, keepTtl, when, flags);
             return ExecuteSync(msg, ResultProcessor.RedisValue);
         }
 
-        public Task<RedisValue> StringSetAndGetAsync(RedisKey key, RedisValue value, TimeSpan? expiry = null, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        public Task<RedisValue> StringSetAndGetAsync(RedisKey key, RedisValue value, TimeSpan? expiry, When when, CommandFlags flags) =>
+            StringSetAndGetAsync(key, value, expiry, false, when, flags);
+
+        public Task<RedisValue> StringSetAndGetAsync(RedisKey key, RedisValue value, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetStringSetAndGetMessage(key, value, expiry, when, flags);
+            var msg = GetStringSetAndGetMessage(key, value, expiry, keepTtl, when, flags);
             return ExecuteAsync(msg, ResultProcessor.RedisValue);
         }
 
@@ -3487,7 +3499,7 @@ namespace StackExchange.Redis
             switch (values.Length)
             {
                 case 0: return null;
-                case 1: return GetStringSetMessage(values[0].Key, values[0].Value, null, when, flags);
+                case 1: return GetStringSetMessage(values[0].Key, values[0].Value, null, false, when, flags);
                 default:
                     WhenAlwaysOrNotExists(when);
                     int slot = ServerSelectionStrategy.NoSlot, offset = 0;
@@ -3503,7 +3515,13 @@ namespace StackExchange.Redis
             }
         }
 
-        private Message GetStringSetMessage(RedisKey key, RedisValue value, TimeSpan? expiry = null, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        private Message GetStringSetMessage(
+            RedisKey key,
+            RedisValue value,
+            TimeSpan? expiry = null,
+            bool keepTtl = false,
+            When when = When.Always,
+            CommandFlags flags = CommandFlags.None)
         {
             WhenAlwaysOrExistsOrNotExists(when);
             if (value.IsNull) return Message.Create(Database, flags, RedisCommand.DEL, key);
@@ -3511,13 +3529,16 @@ namespace StackExchange.Redis
             if (expiry == null || expiry.Value == TimeSpan.MaxValue)
             {
                 // no expiry
-                switch (when)
+                return when switch
                 {
-                    case When.Always: return Message.Create(Database, flags, RedisCommand.SET, key, value);
-                    case When.NotExists: return Message.Create(Database, flags, RedisCommand.SETNX, key, value);
-                    case When.Exists: return Message.Create(Database, flags, RedisCommand.SET, key, value, RedisLiterals.XX);
-                    default: throw new NotSupportedException();
-                }
+                    When.Always when !keepTtl    => Message.Create(Database, flags, RedisCommand.SET, key, value),
+                    When.Always when keepTtl     => Message.Create(Database, flags, RedisCommand.SET, key, value, RedisLiterals.KEEPTTL),
+                    When.NotExists when !keepTtl => Message.Create(Database, flags, RedisCommand.SETNX, key, value),
+                    When.NotExists when keepTtl  => Message.Create(Database, flags, RedisCommand.SETNX, key, value, RedisLiterals.KEEPTTL),
+                    When.Exists when !keepTtl    => Message.Create(Database, flags, RedisCommand.SET, key, value, RedisLiterals.XX),
+                    When.Exists when keepTtl     => Message.Create(Database, flags, RedisCommand.SET, key, value, RedisLiterals.XX, RedisLiterals.KEEPTTL),
+                    _ => throw new ArgumentOutOfRangeException(nameof(when)),
+                };
             }
             long milliseconds = expiry.Value.Ticks / TimeSpan.TicksPerMillisecond;
 
@@ -3525,38 +3546,48 @@ namespace StackExchange.Redis
             {
                 // a nice round number of seconds
                 long seconds = milliseconds / 1000;
-                switch (when)
+                return when switch
                 {
-                    case When.Always: return Message.Create(Database, flags, RedisCommand.SETEX, key, seconds, value);
-                    case When.Exists: return Message.Create(Database, flags, RedisCommand.SET, key, value, RedisLiterals.EX, seconds, RedisLiterals.XX);
-                    case When.NotExists: return Message.Create(Database, flags, RedisCommand.SET, key, value, RedisLiterals.EX, seconds, RedisLiterals.NX);
-                    default: throw new NotSupportedException();
-                }
+                    When.Always    => Message.Create(Database, flags, RedisCommand.SETEX, key, seconds, value),
+                    When.Exists    => Message.Create(Database, flags, RedisCommand.SET, key, value, RedisLiterals.EX, seconds, RedisLiterals.XX),
+                    When.NotExists => Message.Create(Database, flags, RedisCommand.SET, key, value, RedisLiterals.EX, seconds, RedisLiterals.NX),
+                    _ => throw new ArgumentOutOfRangeException(nameof(when)),
+                };
             }
 
             return when switch
             {
-                When.Always => Message.Create(Database, flags, RedisCommand.PSETEX, key, milliseconds, value),
-                When.Exists => Message.Create(Database, flags, RedisCommand.SET, key, value, RedisLiterals.PX, milliseconds, RedisLiterals.XX),
+                When.Always    => Message.Create(Database, flags, RedisCommand.PSETEX, key, milliseconds, value),
+                When.Exists    => Message.Create(Database, flags, RedisCommand.SET, key, value, RedisLiterals.PX, milliseconds, RedisLiterals.XX),
                 When.NotExists => Message.Create(Database, flags, RedisCommand.SET, key, value, RedisLiterals.PX, milliseconds, RedisLiterals.NX),
-                _ => throw new NotSupportedException(),
+                _ => throw new ArgumentOutOfRangeException(nameof(when)),
             };
         }
 
-        private Message GetStringSetAndGetMessage(RedisKey key, RedisValue value, TimeSpan? expiry = null, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        private Message GetStringSetAndGetMessage(
+            RedisKey key,
+            RedisValue value,
+            TimeSpan? expiry = null,
+            bool keepTtl = false,
+            When when = When.Always,
+            CommandFlags flags = CommandFlags.None)
         {
             WhenAlwaysOrExistsOrNotExists(when);
             if (value.IsNull) return Message.Create(Database, flags, RedisCommand.GETDEL, key);
 
             if (expiry == null || expiry.Value == TimeSpan.MaxValue)
-            { // no expiry
-                switch (when)
+            {
+                // no expiry
+                return when switch
                 {
-                    case When.Always: return Message.Create(Database, flags, RedisCommand.SET, key, value, RedisLiterals.GET);
-                    case When.Exists: return Message.Create(Database, flags, RedisCommand.SET, key, value, RedisLiterals.XX, RedisLiterals.GET);
-                    case When.NotExists: return Message.Create(Database, flags, RedisCommand.SET, key, value, RedisLiterals.NX, RedisLiterals.GET);
-                    default: throw new NotSupportedException();
-                }
+                    When.Always when !keepTtl    => Message.Create(Database, flags, RedisCommand.SET, key, value, RedisLiterals.GET),
+                    When.Always when keepTtl     => Message.Create(Database, flags, RedisCommand.SET, key, value, RedisLiterals.GET, RedisLiterals.KEEPTTL),
+                    When.Exists when !keepTtl    => Message.Create(Database, flags, RedisCommand.SET, key, value, RedisLiterals.XX, RedisLiterals.GET),
+                    When.Exists when keepTtl     => Message.Create(Database, flags, RedisCommand.SET, key, value, RedisLiterals.XX, RedisLiterals.GET, RedisLiterals.KEEPTTL),
+                    When.NotExists when !keepTtl => Message.Create(Database, flags, RedisCommand.SET, key, value, RedisLiterals.NX, RedisLiterals.GET),
+                    When.NotExists when keepTtl  => Message.Create(Database, flags, RedisCommand.SET, key, value, RedisLiterals.NX, RedisLiterals.GET, RedisLiterals.KEEPTTL),
+                    _ => throw new ArgumentOutOfRangeException(nameof(when)),
+                };
             }
             long milliseconds = expiry.Value.Ticks / TimeSpan.TicksPerMillisecond;
 
@@ -3564,41 +3595,34 @@ namespace StackExchange.Redis
             {
                 // a nice round number of seconds
                 long seconds = milliseconds / 1000;
-                switch (when)
+                return when switch
                 {
-                    case When.Always: return Message.Create(Database, flags, RedisCommand.SET, key, value, RedisLiterals.EX, seconds, RedisLiterals.GET);
-                    case When.Exists: return Message.Create(Database, flags, RedisCommand.SET, key, value, RedisLiterals.EX, seconds, RedisLiterals.XX, RedisLiterals.GET);
-                    case When.NotExists: return Message.Create(Database, flags, RedisCommand.SET, key, value, RedisLiterals.EX, seconds, RedisLiterals.NX, RedisLiterals.GET);
-                    default: throw new NotSupportedException();
-                }
+                    When.Always    => Message.Create(Database, flags, RedisCommand.SET, key, value, RedisLiterals.EX, seconds, RedisLiterals.GET),
+                    When.Exists    => Message.Create(Database, flags, RedisCommand.SET, key, value, RedisLiterals.EX, seconds, RedisLiterals.XX, RedisLiterals.GET),
+                    When.NotExists => Message.Create(Database, flags, RedisCommand.SET, key, value, RedisLiterals.EX, seconds, RedisLiterals.NX, RedisLiterals.GET),
+                    _ => throw new ArgumentOutOfRangeException(nameof(when)),
+                };
             }
 
             return when switch
             {
-                When.Always => Message.Create(Database, flags, RedisCommand.SET, key, value, RedisLiterals.PX, milliseconds, RedisLiterals.GET),
-                When.Exists => Message.Create(Database, flags, RedisCommand.SET, key, value, RedisLiterals.PX, milliseconds, RedisLiterals.XX, RedisLiterals.GET),
+                When.Always    => Message.Create(Database, flags, RedisCommand.SET, key, value, RedisLiterals.PX, milliseconds, RedisLiterals.GET),
+                When.Exists    => Message.Create(Database, flags, RedisCommand.SET, key, value, RedisLiterals.PX, milliseconds, RedisLiterals.XX, RedisLiterals.GET),
                 When.NotExists => Message.Create(Database, flags, RedisCommand.SET, key, value, RedisLiterals.PX, milliseconds, RedisLiterals.NX, RedisLiterals.GET),
-                _ => throw new NotSupportedException(),
+                _ => throw new ArgumentOutOfRangeException(nameof(when)),
             };
         }
 
-        private Message? IncrMessage(RedisKey key, long value, CommandFlags flags)
+        private Message? IncrMessage(RedisKey key, long value, CommandFlags flags) => value switch
         {
-            switch (value)
-            {
-                case 0:
-                    if ((flags & CommandFlags.FireAndForget) != 0) return null;
-                    return Message.Create(Database, flags, RedisCommand.INCRBY, key, value);
-                case 1:
-                    return Message.Create(Database, flags, RedisCommand.INCR, key);
-                case -1:
-                    return Message.Create(Database, flags, RedisCommand.DECR, key);
-                default:
-                    return value > 0
-                        ? Message.Create(Database, flags, RedisCommand.INCRBY, key, value)
-                        : Message.Create(Database, flags, RedisCommand.DECRBY, key, -value);
-            }
-        }
+            0 => ((flags & CommandFlags.FireAndForget) != 0)
+                 ? null
+                 : Message.Create(Database, flags, RedisCommand.INCRBY, key, value),
+            1   => Message.Create(Database, flags, RedisCommand.INCR, key),
+            -1  => Message.Create(Database, flags, RedisCommand.DECR, key),
+            > 0 => Message.Create(Database, flags, RedisCommand.INCRBY, key, value),
+            _   => Message.Create(Database, flags, RedisCommand.DECRBY, key, -value),
+        };
 
         private static RedisCommand SetOperationCommand(SetOperation operation, bool store) => operation switch
         {
