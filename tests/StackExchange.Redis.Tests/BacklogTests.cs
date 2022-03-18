@@ -326,7 +326,7 @@ namespace StackExchange.Redis.Tests
                 RedisKey meKey = Me();
                 var getMsg = Message.Create(0, CommandFlags.None, RedisCommand.GET, meKey);
 
-                ServerEndPoint server = null; // Get the server specifically for this message's hash slot
+                ServerEndPoint? server = null; // Get the server specifically for this message's hash slot
                 await UntilConditionAsync(TimeSpan.FromSeconds(10), () => (server = muxer.SelectServer(getMsg)) != null);
 
                 Assert.NotNull(server);

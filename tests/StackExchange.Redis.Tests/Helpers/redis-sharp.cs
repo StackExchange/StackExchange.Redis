@@ -11,6 +11,7 @@
 //
 // Licensed under the same terms of reddis: new BSD license.
 //
+#nullable disable
 
 using System;
 using System.Collections.Generic;

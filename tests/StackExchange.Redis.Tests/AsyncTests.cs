@@ -37,6 +37,7 @@ namespace StackExchange.Redis.Tests
                 var c = db.SetAddAsync(key, "c");
 
                 Assert.True(c.IsFaulted, "faulted");
+                Assert.NotNull(c.Exception);
                 var ex = c.Exception.InnerExceptions.Single();
                 Assert.IsType<RedisConnectionException>(ex);
                 Assert.StartsWith("No connection is active/available to service this operation: SADD " + key.ToString(), ex.Message);

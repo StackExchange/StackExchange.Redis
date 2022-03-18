@@ -45,7 +45,7 @@ namespace StackExchange.Redis.Tests
                 var i = 0;
                 foreach (var cmd in cmds)
                 {
-                    Log("Command {0} (DB: {1}): {2}", i++, cmd.Db, cmd.ToString().Replace("\n", ", "));
+                    Log("Command {0} (DB: {1}): {2}", i++, cmd.Db, cmd?.ToString()?.Replace("\n", ", "));
                 }
 
                 var all = string.Join(",", cmds.Select(x => x.Command));
@@ -211,7 +211,7 @@ namespace StackExchange.Redis.Tests
         {
             private readonly ThreadLocal<ProfilingSession> perThreadSession = new ThreadLocal<ProfilingSession>(() => new ProfilingSession());
 
-            public ProfilingSession GetSession() => perThreadSession.Value;
+            public ProfilingSession GetSession() => perThreadSession.Value!;
         }
 
         internal class AsyncLocalProfiler

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
@@ -20,11 +21,13 @@ namespace StackExchange.Redis.Tests
         protected IServer SentinelServerC { get; set; }
         public IServer[] SentinelsServers { get; set; }
 
+#nullable disable
         public SentinelBase(ITestOutputHelper output) : base(output)
         {
             Skip.IfNoConfig(nameof(TestConfig.Config.SentinelServer), TestConfig.Current.SentinelServer);
             Skip.IfNoConfig(nameof(TestConfig.Config.SentinelSeviceName), TestConfig.Current.SentinelSeviceName);
         }
+#nullable enable
 
         public Task DisposeAsync() => Task.CompletedTask;
 
@@ -49,11 +52,12 @@ namespace StackExchange.Redis.Tests
                 }
             }
             Assert.True(Conn.IsConnected);
-            SentinelServerA = Conn.GetServer(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortA);
-            SentinelServerB = Conn.GetServer(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortB);
-            SentinelServerC = Conn.GetServer(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortC);
+            SentinelServerA = Conn.GetServer(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortA)!;
+            SentinelServerB = Conn.GetServer(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortB)!;
+            SentinelServerC = Conn.GetServer(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortC)!;
             SentinelsServers = new[] { SentinelServerA, SentinelServerB, SentinelServerC };
 
+            SentinelServerA.AllowReplicaWrites = true;
             // Wait until we are in a state of a single primary and replica
             await WaitForReadyAsync();
         }
@@ -61,13 +65,13 @@ namespace StackExchange.Redis.Tests
         // Sometimes it's global, sometimes it's local
         // Depends what mood Redis is in but they're equal and not the point of our tests
         protected static readonly IpComparer _ipComparer = new IpComparer();
-        protected class IpComparer : IEqualityComparer<string>
+        protected class IpComparer : IEqualityComparer<string?>
         {
-            public bool Equals(string x, string y) => x == y || x?.Replace("0.0.0.0", "127.0.0.1") == y?.Replace("0.0.0.0", "127.0.0.1");
-            public int GetHashCode(string obj) => obj.GetHashCode();
+            public bool Equals(string? x, string? y) => x == y || x?.Replace("0.0.0.0", "127.0.0.1") == y?.Replace("0.0.0.0", "127.0.0.1");
+            public int GetHashCode(string? obj) => obj?.GetHashCode() ?? 0;
         }
 
-        protected async Task WaitForReadyAsync(EndPoint expectedPrimary = null, bool waitForReplication = false, TimeSpan? duration = null)
+        protected async Task WaitForReadyAsync(EndPoint? expectedPrimary = null, bool waitForReplication = false, TimeSpan? duration = null)
         {
             duration ??= TimeSpan.FromSeconds(30);
 

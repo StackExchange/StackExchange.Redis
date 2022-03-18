@@ -15,7 +15,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void ChannelSharding()
         {
-            using var muxer = Create(channelPrefix: Me()) as ConnectionMultiplexer;
+            using var muxer = (Create(channelPrefix: Me()) as ConnectionMultiplexer)!;
 
             var defaultSlot = muxer.ServerSelectionStrategy.HashSlot(default(RedisChannel));
             var slot1 = muxer.ServerSelectionStrategy.HashSlot((RedisChannel)"hey");
@@ -30,7 +30,7 @@ namespace StackExchange.Redis.Tests
         public async Task ClusterNodeSubscriptionFailover()
         {
             Log("Connecting...");
-            using var muxer = Create(allowAdmin: true) as ConnectionMultiplexer;
+            using var muxer = (Create(allowAdmin: true) as ConnectionMultiplexer)!;
             var sub = muxer.GetSubscriber();
             var channel = (RedisChannel)Me();
 
@@ -101,7 +101,7 @@ namespace StackExchange.Redis.Tests
         {
             var config = TestConfig.Current.PrimaryServerAndPort + "," + TestConfig.Current.ReplicaServerAndPort;
             Log("Connecting...");
-            using var muxer = Create(configuration: config, shared: false, allowAdmin: true) as ConnectionMultiplexer;
+            using var muxer = (Create(configuration: config, shared: false, allowAdmin: true) as ConnectionMultiplexer)!;
             var sub = muxer.GetSubscriber();
             var channel = (RedisChannel)(Me() + flags.ToString()); // Individual channel per case to not overlap publishers
 

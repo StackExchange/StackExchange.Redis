@@ -13,7 +13,7 @@ namespace StackExchange.Redis.Tests
         public static Config Current { get; }
 
         private static int _db = 17;
-        public static int GetDedicatedDB(IConnectionMultiplexer conn = null)
+        public static int GetDedicatedDB(IConnectionMultiplexer? conn = null)
         {
             int db = Interlocked.Increment(ref _db);
             if (conn != null) Skip.IfMissingDatabase(conn, db);
@@ -31,7 +31,7 @@ namespace StackExchange.Redis.Tests
                     {
                         using (var reader = new StreamReader(stream))
                         {
-                            Current = JsonConvert.DeserializeObject<Config>(reader.ReadToEnd());
+                            Current = JsonConvert.DeserializeObject<Config>(reader.ReadToEnd()) ?? new Config();
                         }
                     }
                 }
@@ -90,17 +90,17 @@ namespace StackExchange.Redis.Tests
             public int ClusterServerCount { get; set; } = 6;
             public string ClusterServersAndPorts => string.Join(",", Enumerable.Range(ClusterStartPort, ClusterServerCount).Select(port => ClusterServer + ":" + port));
 
-            public string SslServer { get; set; }
+            public string? SslServer { get; set; }
             public int SslPort { get; set; }
 
-            public string RedisLabsSslServer { get; set; }
+            public string? RedisLabsSslServer { get; set; }
             public int RedisLabsSslPort { get; set; } = 6379;
-            public string RedisLabsPfxPath { get; set; }
+            public string? RedisLabsPfxPath { get; set; }
 
-            public string AzureCacheServer { get; set; }
-            public string AzureCachePassword { get; set; }
+            public string? AzureCacheServer { get; set; }
+            public string? AzureCachePassword { get; set; }
 
-            public string SSDBServer { get; set; }
+            public string? SSDBServer { get; set; }
             public int SSDBPort { get; set; } = 8888;
 
             public string ProxyServer { get; set; } = "127.0.0.1";

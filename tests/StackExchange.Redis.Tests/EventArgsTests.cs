@@ -27,7 +27,7 @@ namespace StackExchange.Redis.Tests
                 = Substitute.For<HashSlotMovedEventArgs>(
                     default, default, default, default);
 
-            DiagnosticStub stub = DiagnosticStub.Create();
+            DiagnosticStub stub = new DiagnosticStub();
 
             stub.ConfigurationChangedBroadcastHandler(default, endpointArgsMock);
             Assert.Equal(stub.Message,DiagnosticStub.ConfigurationChangedBroadcastHandlerMessage);
@@ -74,73 +74,69 @@ namespace StackExchange.Redis.Tests
             public const string HashSlotMovedHandlerMessage
                 = "HashSlotMovedHandler invoked";
 
-            public static DiagnosticStub Create()
+            public DiagnosticStub()
             {
-                DiagnosticStub stub = new DiagnosticStub();
+                ConfigurationChangedBroadcastHandler
+                    = (obj, args) => Message = ConfigurationChangedBroadcastHandlerMessage;
 
-                stub.ConfigurationChangedBroadcastHandler
-                    = (obj, args) => stub.Message = ConfigurationChangedBroadcastHandlerMessage;
+                ErrorMessageHandler
+                    = (obj, args) => Message = ErrorMessageHandlerMessage;
 
-                stub.ErrorMessageHandler
-                    = (obj, args) => stub.Message = ErrorMessageHandlerMessage;
+                ConnectionFailedHandler
+                    = (obj, args) => Message = ConnectionFailedHandlerMessage;
 
-                stub.ConnectionFailedHandler
-                    = (obj, args) => stub.Message = ConnectionFailedHandlerMessage;
+                InternalErrorHandler
+                    = (obj, args) => Message = InternalErrorHandlerMessage;
 
-                stub.InternalErrorHandler
-                    = (obj, args) => stub.Message = InternalErrorHandlerMessage;
+                ConnectionRestoredHandler
+                    = (obj, args) => Message = ConnectionRestoredHandlerMessage;
 
-                stub.ConnectionRestoredHandler
-                    = (obj, args) => stub.Message = ConnectionRestoredHandlerMessage;
+                ConfigurationChangedHandler
+                    = (obj, args) => Message = ConfigurationChangedHandlerMessage;
 
-                stub.ConfigurationChangedHandler
-                    = (obj, args) => stub.Message = ConfigurationChangedHandlerMessage;
-
-                stub.HashSlotMovedHandler
-                    = (obj, args) => stub.Message = HashSlotMovedHandlerMessage;
-
-                return stub;
+                HashSlotMovedHandler
+                    = (obj, args) => Message = HashSlotMovedHandlerMessage;
             }
 
-            public string Message { get; private set; }
+            public string? Message { get; private set; }
 
-            public Action<object, EndPointEventArgs> ConfigurationChangedBroadcastHandler
+            public Action<object?, EndPointEventArgs> ConfigurationChangedBroadcastHandler
             {
                 get;
                 private set;
             }
 
-            public Action<object, RedisErrorEventArgs> ErrorMessageHandler
+            public Action<object?, RedisErrorEventArgs> ErrorMessageHandler
             {
                 get;
                 private set;
             }
 
-            public Action<object, ConnectionFailedEventArgs> ConnectionFailedHandler
+            public Action<object?, ConnectionFailedEventArgs> ConnectionFailedHandler
             {
                 get;
                 private set;
             }
 
-            public Action<object, InternalErrorEventArgs> InternalErrorHandler
+            public Action<object?, InternalErrorEventArgs> InternalErrorHandler
             {
                 get;
                 private set;
             }
 
-            public Action<object, ConnectionFailedEventArgs> ConnectionRestoredHandler
+            public Action<object?, ConnectionFailedEventArgs> ConnectionRestoredHandler
             {
                 get;
                 private set;
             }
 
-            public Action<object, EndPointEventArgs> ConfigurationChangedHandler
+            public Action<object?, EndPointEventArgs> ConfigurationChangedHandler
             {
                 get;
                 private set;
             }
 
-            public Action<object, HashSlotMovedEventArgs> HashSlotMovedHandler
+            public Action<object?, HashSlotMovedEventArgs> HashSlotMovedHandler
             {
                 get;
                 private set;

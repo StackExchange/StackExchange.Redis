@@ -15,7 +15,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void PreserveAsyncOrder()
         {
-            Assert.True(Attribute.IsDefined(typeof(ConfigurationOptions).GetProperty(nameof(ConfigurationOptions.PreserveAsyncOrder)), typeof(ObsoleteAttribute)));
+            Assert.True(Attribute.IsDefined(typeof(ConfigurationOptions).GetProperty(nameof(ConfigurationOptions.PreserveAsyncOrder))!, typeof(ObsoleteAttribute)));
 
             var options = ConfigurationOptions.Parse("name=Hello");
             Assert.False(options.PreserveAsyncOrder);
@@ -32,7 +32,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void WriteBufferParse()
         {
-            Assert.True(Attribute.IsDefined(typeof(ConfigurationOptions).GetProperty(nameof(ConfigurationOptions.WriteBuffer)), typeof(ObsoleteAttribute)));
+            Assert.True(Attribute.IsDefined(typeof(ConfigurationOptions).GetProperty(nameof(ConfigurationOptions.WriteBuffer))!, typeof(ObsoleteAttribute)));
 
             var options = ConfigurationOptions.Parse("name=Hello");
             Assert.Equal(0, options.WriteBuffer);
@@ -44,7 +44,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void ResponseTimeout()
         {
-            Assert.True(Attribute.IsDefined(typeof(ConfigurationOptions).GetProperty(nameof(ConfigurationOptions.ResponseTimeout)), typeof(ObsoleteAttribute)));
+            Assert.True(Attribute.IsDefined(typeof(ConfigurationOptions).GetProperty(nameof(ConfigurationOptions.ResponseTimeout))!, typeof(ObsoleteAttribute)));
 
             var options = ConfigurationOptions.Parse("name=Hello");
             Assert.Equal(0, options.ResponseTimeout);

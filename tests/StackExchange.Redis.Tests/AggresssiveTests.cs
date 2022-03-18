@@ -80,11 +80,11 @@ namespace StackExchange.Redis.Tests
             {
                 var db = muxer.GetDatabase();
 
-                Thread x = new Thread(state => BatchRunPings((IDatabase)state))
+                Thread x = new Thread(state => BatchRunPings((IDatabase)state!))
                 {
                     Name = nameof(BatchRunPings)
                 };
-                Thread y = new Thread(state => BatchRunIntegers((IDatabase)state))
+                Thread y = new Thread(state => BatchRunIntegers((IDatabase)state!))
                 {
                     Name = nameof(BatchRunIntegers)
                 };
@@ -200,11 +200,11 @@ namespace StackExchange.Redis.Tests
             {
                 var db = muxer.GetDatabase();
 
-                Thread x = new Thread(state => TranRunPings((IDatabase)state))
+                Thread x = new Thread(state => TranRunPings((IDatabase)state!))
                 {
                     Name = nameof(BatchRunPings)
                 };
-                Thread y = new Thread(state => TranRunIntegers((IDatabase)state))
+                Thread y = new Thread(state => TranRunIntegers((IDatabase)state!))
                 {
                     Name = nameof(BatchRunIntegers)
                 };

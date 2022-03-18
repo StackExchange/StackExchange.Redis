@@ -61,7 +61,7 @@ namespace StackExchange.Redis.Tests
     internal static class Util
     {
         public static async Task WithTimeout(this Task task, int timeoutMs,
-            [CallerMemberName] string caller = null, [CallerLineNumber] int line = 0)
+            [CallerMemberName] string? caller = null, [CallerLineNumber] int line = 0)
         {
             var cts = new CancellationTokenSource();
             if (task == await Task.WhenAny(task, Task.Delay(timeoutMs, cts.Token)).ForAwait())
@@ -75,7 +75,7 @@ namespace StackExchange.Redis.Tests
             }
         }
         public static async Task<T> WithTimeout<T>(this Task<T> task, int timeoutMs,
-            [CallerMemberName] string caller = null, [CallerLineNumber] int line = 0)
+            [CallerMemberName] string? caller = null, [CallerLineNumber] int line = 0)
         {
             var cts = new CancellationTokenSource();
             if (task == await Task.WhenAny(task, Task.Delay(timeoutMs, cts.Token)).ForAwait())

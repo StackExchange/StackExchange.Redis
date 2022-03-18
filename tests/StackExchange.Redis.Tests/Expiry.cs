@@ -10,7 +10,7 @@ namespace StackExchange.Redis.Tests
     {
         public Expiry(ITestOutputHelper output, SharedConnectionFixture fixture) : base (output, fixture) { }
 
-        private static string[] GetMap(bool disablePTimes) => disablePTimes ? (new[] { "pexpire", "pexpireat", "pttl" }) : null;
+        private static string[]? GetMap(bool disablePTimes) => disablePTimes ? (new[] { "pexpire", "pexpireat", "pttl" }) : null;
 
         [Theory]
         [InlineData(true)]
@@ -82,18 +82,22 @@ namespace StackExchange.Redis.Tests
                 var f = conn.KeyTimeToLiveAsync(key);
 
                 Assert.Null(await a);
-                var time = await b;
+                var timeResult = await b;
+                Assert.NotNull(timeResult);
+                TimeSpan time = timeResult.Value;
 
                 // Adjust for server time offset, if any when checking expectations
                 time -= offset;
 
-                Assert.NotNull(time);
                 Log("Time: {0}, Expected: {1}-{2}", time, TimeSpan.FromMinutes(59), TimeSpan.FromMinutes(60));
                 Assert.True(time >= TimeSpan.FromMinutes(59));
                 Assert.True(time <= TimeSpan.FromMinutes(60.1));
                 Assert.Null(await c);
-                time = await d;
-                Assert.NotNull(time);
+
+                timeResult = await d;
+                Assert.NotNull(timeResult);
+                time = timeResult.Value;
+
                 Assert.True(time >= TimeSpan.FromMinutes(89));
                 Assert.True(time <= TimeSpan.FromMinutes(90.1));
                 Assert.Null(await e);

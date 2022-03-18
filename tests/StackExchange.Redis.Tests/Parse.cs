@@ -46,7 +46,7 @@ namespace StackExchange.Redis.Tests
         public void ParseAsLotsOfChunks(string ascii, int expected)
         {
             var bytes = Encoding.ASCII.GetBytes(ascii);
-            FragmentedSegment<byte> chain = null, tail = null;
+            FragmentedSegment<byte>? chain = null, tail = null;
             for (int i = 0; i < bytes.Length; i++)
             {
                 var next = new FragmentedSegment<byte>(i, new ReadOnlyMemory<byte>(bytes, i, 1));
@@ -60,7 +60,7 @@ namespace StackExchange.Redis.Tests
                 }
                 tail = next;
             }
-            var buffer = new ReadOnlySequence<byte>(chain, 0, tail, 1);
+            var buffer = new ReadOnlySequence<byte>(chain!, 0, tail!, 1);
             Assert.Equal(bytes.Length, buffer.Length);
             using (var arena = new Arena<RawResult>())
             {
@@ -90,9 +90,9 @@ namespace StackExchange.Redis.Tests
                 Memory = memory;
             }
 
-            public new FragmentedSegment<T> Next
+            public new FragmentedSegment<T>? Next
             {
-                get => (FragmentedSegment<T>)base.Next;
+                get => (FragmentedSegment<T>?)base.Next;
                 set => base.Next = value;
             }
         }

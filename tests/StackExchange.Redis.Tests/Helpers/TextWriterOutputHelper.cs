@@ -8,7 +8,7 @@ namespace StackExchange.Redis.Tests.Helpers
     public class TextWriterOutputHelper : TextWriter
     {
         private StringBuilder Buffer { get; } = new StringBuilder(2048);
-        private StringBuilder Echo { get; set; }
+        private StringBuilder? Echo { get; set; }
         public override Encoding Encoding => Encoding.UTF8;
         private readonly ITestOutputHelper Output;
         private readonly bool ToConsole;
@@ -20,7 +20,7 @@ namespace StackExchange.Redis.Tests.Helpers
 
         public void EchoTo(StringBuilder sb) => Echo = sb;
 
-        public void WriteLineNoTime(string value)
+        public void WriteLineNoTime(string? value)
         {
             try
             {
@@ -34,8 +34,13 @@ namespace StackExchange.Redis.Tests.Helpers
             }
         }
 
-        public override void WriteLine(string value)
+        public override void WriteLine(string? value)
         {
+            if (value is null)
+            {
+                return;
+            }
+
             try
             {
                 // Prevent double timestamps
