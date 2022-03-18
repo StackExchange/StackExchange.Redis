@@ -40,9 +40,9 @@ namespace StackExchange.Redis.Profiling
             /// <summary>
             /// The current element.
             /// </summary>
-            public IProfiledCommand? Current => CurrentBacker;
+            public IProfiledCommand Current => CurrentBacker!;
 
-            object? System.Collections.IEnumerator.Current => CurrentBacker;
+            object System.Collections.IEnumerator.Current => CurrentBacker!;
 
             /// <summary>
             /// Advances the enumeration, returning true if there is a new element to consume and false

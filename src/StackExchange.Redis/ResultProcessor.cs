@@ -62,7 +62,7 @@ namespace StackExchange.Redis
         public static readonly ResultProcessor<RedisKey>
                     RedisKey = new RedisKeyProcessor();
 
-        public static readonly ResultProcessor<RedisKey[]?>
+        public static readonly ResultProcessor<RedisKey[]>
             RedisKeyArray = new RedisKeyArrayProcessor();
 
         public static readonly ResultProcessor<RedisType>
@@ -1202,14 +1202,14 @@ namespace StackExchange.Redis
             }
         }
 
-        private sealed class RedisKeyArrayProcessor : ResultProcessor<RedisKey[]?>
+        private sealed class RedisKeyArrayProcessor : ResultProcessor<RedisKey[]>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
                 switch (result.Type)
                 {
                     case ResultType.MultiBulk:
-                        var arr = result.GetItemsAsKeys();
+                        var arr = result.GetItemsAsKeys()!;
                         SetResult(message, arr);
                         return true;
                 }
@@ -1570,8 +1570,7 @@ The coordinates as a two items x,y array (longitude,latitude).
             // (is that a thing?) will be wrapped in the RedisResult
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
-                var value = Redis.RedisResult.TryCreate(connection, result);
-                if (value != null)
+                if (RedisResult.TryCreate(connection, result, out var value))
                 {
                     SetResult(message, value);
                     return true;

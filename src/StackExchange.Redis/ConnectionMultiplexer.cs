@@ -2671,23 +2671,86 @@ namespace StackExchange.Redis
             oldTimer?.Dispose();
         }
 
-        internal Task<T?> ExecuteAsyncImpl<T>(Message? message, ResultProcessor<T>? processor, object? state, ServerEndPoint? server)
+        internal Task<T> ExecuteAsyncImpl<T>(Message? message, ResultProcessor<T>? processor, object? state, ServerEndPoint? server, T defaultValue)
         {
+            static async Task<T> ExecuteAsyncImpl_Awaited(ConnectionMultiplexer @this, ValueTask<WriteResult> write, TaskCompletionSource<T>? tcs, Message message, ServerEndPoint? server, T defaultValue)
+            {
+                var result = await write.ForAwait();
+                if (result != WriteResult.Success)
+                {
+                    var ex = @this.GetException(result, message, server)!;
+                    ThrowFailed(tcs, ex);
+                }
+                return tcs == null ? defaultValue : await tcs.Task.ForAwait();
+            }
+
             if (_isDisposed) throw new ObjectDisposedException(ToString());
 
             if (message == null)
             {
-                return CompletedTask<T>.Default(state);
+                return CompletedTask<T>.FromDefault(defaultValue, state);
             }
 
-            TaskCompletionSource<T?>? tcs = null;
+            TaskCompletionSource<T>? tcs = null;
             IResultBox<T>? source = null;
             if (!message.IsFireAndForget)
             {
                 source = TaskResultBox<T>.Create(out tcs, state);
             }
             var write = TryPushMessageToBridgeAsync(message, processor, source, ref server);
-            if (!write.IsCompletedSuccessfully) return ExecuteAsyncImpl_Awaited<T>(this, write, tcs, message, server);
+            if (!write.IsCompletedSuccessfully)
+            {
+                return ExecuteAsyncImpl_Awaited(this, write, tcs, message, server, defaultValue);
+            }
+
+            if (tcs == null)
+            {
+                return CompletedTask<T>.FromDefault(defaultValue, null); // F+F explicitly does not get async-state
+            }
+            else
+            {
+                var result = write.Result;
+                if (result != WriteResult.Success)
+                {
+                    var ex = GetException(result, message, server)!;
+                    ThrowFailed(tcs, ex);
+                }
+                return tcs.Task;
+            }
+        }
+
+        internal Task<T?> ExecuteAsyncImpl<T>(Message? message, ResultProcessor<T>? processor, object? state, ServerEndPoint? server)
+        {
+            [return: NotNullIfNotNull("tcs")]
+            static async Task<T?> ExecuteAsyncImpl_Awaited(ConnectionMultiplexer @this, ValueTask<WriteResult> write, TaskCompletionSource<T?>? tcs, Message message, ServerEndPoint? server)
+            {
+                var result = await write.ForAwait();
+                if (result != WriteResult.Success)
+                {
+                    var ex = @this.GetException(result, message, server)!;
+                    ThrowFailed(tcs, ex);
+                }
+                return tcs == null ? default : await tcs.Task.ForAwait();
+            }
+
+            if (_isDisposed) throw new ObjectDisposedException(ToString());
+
+            if (message == null)
+            {
+                return CompletedTask<T?>.Default(state);
+            }
+
+            TaskCompletionSource<T?>? tcs = null;
+            IResultBox<T?>? source = null;
+            if (!message.IsFireAndForget)
+            {
+                source = TaskResultBox<T?>.Create(out tcs, state);
+            }
+            var write = TryPushMessageToBridgeAsync(message, processor, source!, ref server);
+            if (!write.IsCompletedSuccessfully)
+            {
+                return ExecuteAsyncImpl_Awaited(this, write, tcs, message, server);
+            }
 
             if (tcs == null)
             {
@@ -2703,18 +2766,6 @@ namespace StackExchange.Redis
                 }
                 return tcs.Task;
             }
-        }
-
-        [return: NotNullIfNotNull("tcs")]
-        private static async Task<T?> ExecuteAsyncImpl_Awaited<T>(ConnectionMultiplexer @this, ValueTask<WriteResult> write, TaskCompletionSource<T?>? tcs, Message message, ServerEndPoint? server)
-        {
-            var result = await write.ForAwait();
-            if (result != WriteResult.Success)
-            {
-                var ex = @this.GetException(result, message, server)!;
-                ThrowFailed(tcs, ex);
-            }
-            return tcs == null ? default(T) : await tcs.Task.ForAwait();
         }
 
         internal Exception? GetException(WriteResult result, Message message, ServerEndPoint? server) => result switch

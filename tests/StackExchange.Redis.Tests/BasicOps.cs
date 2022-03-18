@@ -95,7 +95,7 @@ namespace StackExchange.Redis.Tests
             {
                 var db = muxer.GetDatabase();
                 string key = Me();
-                string? value = null;
+                const string? value = null;
                 db.KeyDelete(key, CommandFlags.FireAndForget);
 
                 db.StringSet(key, "abc", flags: CommandFlags.FireAndForget);

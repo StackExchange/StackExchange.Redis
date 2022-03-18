@@ -338,14 +338,14 @@ namespace StackExchange.Redis
 
         int IScanningCursor.PageOffset => activeCursor?.PageOffset ?? initialOffset;
 
-        internal static CursorEnumerable<T> From(RedisBase redis, ServerEndPoint? server, Task<T[]?> pending, int pageOffset)
+        internal static CursorEnumerable<T> From(RedisBase redis, ServerEndPoint? server, Task<T[]> pending, int pageOffset)
             => new SingleBlockEnumerable(redis, server, pending, pageOffset);
 
         private class SingleBlockEnumerable : CursorEnumerable<T>
         {
-            private readonly Task<T[]?> _pending;
+            private readonly Task<T[]> _pending;
             public SingleBlockEnumerable(RedisBase redis, ServerEndPoint? server,
-                Task<T[]?> pending, int pageOffset) : base(redis, server, 0, int.MaxValue, 0, pageOffset, default)
+                Task<T[]> pending, int pageOffset) : base(redis, server, 0, int.MaxValue, 0, pageOffset, default)
             {
                 _pending = pending;
             }

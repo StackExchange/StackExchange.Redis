@@ -144,7 +144,7 @@ namespace StackExchange.Redis
         /// <param name="ps">The parameter object to use.</param>
         /// <param name="withKeyPrefix">The key prefix to use, if any.</param>
         /// <param name="flags">The command flags to use.</param>
-        public RedisResult? Evaluate(IDatabase db, object? ps = null, RedisKey? withKeyPrefix = null, CommandFlags flags = CommandFlags.None)
+        public RedisResult Evaluate(IDatabase db, object? ps = null, RedisKey? withKeyPrefix = null, CommandFlags flags = CommandFlags.None)
         {
             ExtractParameters(ps, withKeyPrefix, out RedisKey[]? keys, out RedisValue[]? args);
             return db.ScriptEvaluate(ExecutableScript, keys, args, flags);
@@ -157,7 +157,7 @@ namespace StackExchange.Redis
         /// <param name="ps">The parameter object to use.</param>
         /// <param name="withKeyPrefix">The key prefix to use, if any.</param>
         /// <param name="flags">The command flags to use.</param>
-        public Task<RedisResult?> EvaluateAsync(IDatabaseAsync db, object? ps = null, RedisKey? withKeyPrefix = null, CommandFlags flags = CommandFlags.None)
+        public Task<RedisResult> EvaluateAsync(IDatabaseAsync db, object? ps = null, RedisKey? withKeyPrefix = null, CommandFlags flags = CommandFlags.None)
         {
             ExtractParameters(ps, withKeyPrefix, out RedisKey[]? keys, out RedisValue[]? args);
             return db.ScriptEvaluateAsync(ExecutableScript, keys, args, flags);
@@ -262,7 +262,7 @@ namespace StackExchange.Redis
         /// <param name="ps">The parameter object to use.</param>
         /// <param name="withKeyPrefix">The key prefix to use, if any.</param>
         /// <param name="flags">The command flags to use.</param>
-        public RedisResult? Evaluate(IDatabase db, object? ps = null, RedisKey? withKeyPrefix = null, CommandFlags flags = CommandFlags.None)
+        public RedisResult Evaluate(IDatabase db, object? ps = null, RedisKey? withKeyPrefix = null, CommandFlags flags = CommandFlags.None)
         {
             Original.ExtractParameters(ps, withKeyPrefix, out RedisKey[]? keys, out RedisValue[]? args);
             return db.ScriptEvaluate(Hash, keys, args, flags);
@@ -279,7 +279,7 @@ namespace StackExchange.Redis
         /// <param name="ps">The parameter object to use.</param>
         /// <param name="withKeyPrefix">The key prefix to use, if any.</param>
         /// <param name="flags">The command flags to use.</param>
-        public Task<RedisResult?> EvaluateAsync(IDatabaseAsync db, object? ps = null, RedisKey? withKeyPrefix = null, CommandFlags flags = CommandFlags.None)
+        public Task<RedisResult> EvaluateAsync(IDatabaseAsync db, object? ps = null, RedisKey? withKeyPrefix = null, CommandFlags flags = CommandFlags.None)
         {
             Original.ExtractParameters(ps, withKeyPrefix, out RedisKey[]? keys, out RedisValue[]? args);
             return db.ScriptEvaluateAsync(Hash, keys, args, flags);

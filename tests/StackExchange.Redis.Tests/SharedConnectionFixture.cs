@@ -167,6 +167,8 @@ namespace StackExchange.Redis.Tests
 
             public void ExportConfiguration(Stream destination, ExportOptions options = ExportOptions.All)
                 => _inner.ExportConfiguration(destination, options);
+
+            public override string ToString() => _inner.ToString();
         }
 
         public void Dispose()

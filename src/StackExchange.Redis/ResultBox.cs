@@ -82,13 +82,13 @@ namespace StackExchange.Redis
         }
     }
 
-    internal sealed class TaskResultBox<T> : TaskCompletionSource<T?>, IResultBox<T>
+    internal sealed class TaskResultBox<T> : TaskCompletionSource<T>, IResultBox<T>
     {
         // you might be asking "wait, doesn't the Task own these?", to which
         // I say: no; we can't set *immediately* due to thread-theft etc, hence
         // the fun TryComplete indirection - so we need somewhere to buffer them
         private volatile Exception? _exception;
-        private T? _value;
+        private T _value = default!;
 
         private TaskResultBox(object? asyncState, TaskCreationOptions creationOptions) : base(asyncState, creationOptions)
         { }
@@ -139,7 +139,7 @@ namespace StackExchange.Redis
             }
         }
 
-        public static IResultBox<T> Create(out TaskCompletionSource<T?> source, object? asyncState)
+        public static IResultBox<T> Create(out TaskCompletionSource<T> source, object? asyncState)
         {
             // it might look a little odd to return the same object as two different things,
             // but that's because it is serving two purposes, and I want to make it clear

@@ -76,9 +76,9 @@ namespace StackExchange.Redis
             }
             else
             {
-                var source = TaskResultBox<T>.Create(out var tcs, asyncState);
+                var source = TaskResultBox<T?>.Create(out var tcs, asyncState);
                 task = tcs.Task;
-                message.SetSource(source, processor);
+                message.SetSource(source!, processor);
             }
 
             // store it
@@ -86,7 +86,7 @@ namespace StackExchange.Redis
             return task;
         }
 
-        internal override T ExecuteSync<T>(Message? message, ResultProcessor<T>? processor, ServerEndPoint? server = null) =>
+        internal override T ExecuteSync<T>(Message? message, ResultProcessor<T>? processor, ServerEndPoint? server = null, T? defaultValue = default) where T : default =>
             throw new NotSupportedException("ExecuteSync cannot be used inside a batch");
 
         private static void FailNoServer(ConnectionMultiplexer muxer, List<Message> messages)

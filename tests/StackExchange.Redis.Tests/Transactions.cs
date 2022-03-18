@@ -279,7 +279,7 @@ namespace StackExchange.Redis.Tests
                     Assert.False(await exec, "neq: exec");
                     Assert.False(cond.WasSatisfied, "neq: was satisfied");
                     Assert.Equal(TaskStatus.Canceled, SafeStatus(push)); // neq: push
-                    Assert.Null((string)get); // neq: get
+                    Assert.Null((string?)get); // neq: get
                 }
             }
         }

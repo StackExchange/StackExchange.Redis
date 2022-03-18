@@ -70,8 +70,8 @@ namespace StackExchange.Redis
             }
             else
             {
-                var source = TaskResultBox<T>.Create(out var tcs, asyncState);
-                message.SetSource(source, processor);
+                var source = TaskResultBox<T?>.Create(out var tcs, asyncState);
+                message.SetSource(source!, processor);
                 task = tcs.Task;
             }
 
@@ -105,7 +105,7 @@ namespace StackExchange.Redis
             return task;
         }
 
-        internal override T? ExecuteSync<T>(Message? message, ResultProcessor<T>? processor, ServerEndPoint? server = null) where T : default
+        internal override T? ExecuteSync<T>(Message? message, ResultProcessor<T>? processor, ServerEndPoint? server = null, T? defaultValue = default) where T : default
         {
             throw new NotSupportedException("ExecuteSync cannot be used inside a transaction");
         }

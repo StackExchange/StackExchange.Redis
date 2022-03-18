@@ -125,14 +125,14 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="flags">The command flags to use.</param>
         /// <remarks>https://redis.io/commands/client-list</remarks>
-        ClientInfo[]? ClientList(CommandFlags flags = CommandFlags.None);
+        ClientInfo[] ClientList(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// The CLIENT LIST command returns information and statistics about the client connections server in a mostly human readable format.
         /// </summary>
         /// <param name="flags">The command flags to use.</param>
         /// <remarks>https://redis.io/commands/client-list</remarks>
-        Task<ClientInfo[]?> ClientListAsync(CommandFlags flags = CommandFlags.None);
+        Task<ClientInfo[]> ClientListAsync(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Obtains the current CLUSTER NODES output from a cluster server.
@@ -165,7 +165,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The command flags to use.</param>
         /// <returns>All matching configuration parameters.</returns>
         /// <remarks>https://redis.io/commands/config-get</remarks>
-        KeyValuePair<string, string>[]? ConfigGet(RedisValue pattern = default(RedisValue), CommandFlags flags = CommandFlags.None);
+        KeyValuePair<string, string>[] ConfigGet(RedisValue pattern = default(RedisValue), CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Get all configuration parameters matching the specified pattern.
@@ -174,7 +174,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The command flags to use.</param>
         /// <returns>All matching configuration parameters.</returns>
         /// <remarks>https://redis.io/commands/config-get</remarks>
-        Task<KeyValuePair<string, string>[]?> ConfigGetAsync(RedisValue pattern = default(RedisValue), CommandFlags flags = CommandFlags.None);
+        Task<KeyValuePair<string, string>[]> ConfigGetAsync(RedisValue pattern = default(RedisValue), CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Resets the statistics reported by Redis using the INFO command.
@@ -269,7 +269,7 @@ namespace StackExchange.Redis
         /// <param name="args">The arguments to pass for the command.</param>
         /// <remarks>This API should be considered an advanced feature; inappropriate use can be harmful</remarks>
         /// <returns>A dynamic representation of the command's result</returns>
-        RedisResult? Execute(string command, params object[] args);
+        RedisResult Execute(string command, params object[] args);
 
         /// <summary>
         /// Execute an arbitrary command against the server; this is primarily intended for
@@ -281,7 +281,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <remarks>This API should be considered an advanced feature; inappropriate use can be harmful</remarks>
         /// <returns>A dynamic representation of the command's result</returns>
-        RedisResult? Execute(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None);
+        RedisResult Execute(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Execute an arbitrary command against the server; this is primarily intended for
@@ -292,7 +292,7 @@ namespace StackExchange.Redis
         /// <param name="args">The arguments to pass for the command.</param>
         /// <remarks>This API should be considered an advanced feature; inappropriate use can be harmful</remarks>
         /// <returns>A dynamic representation of the command's result</returns>
-        Task<RedisResult?> ExecuteAsync(string command, params object[] args);
+        Task<RedisResult> ExecuteAsync(string command, params object[] args);
 
         /// <summary>
         /// Execute an arbitrary command against the server; this is primarily intended for
@@ -304,7 +304,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <remarks>This API should be considered an advanced feature; inappropriate use can be harmful</remarks>
         /// <returns>A dynamic representation of the command's result</returns>
-        Task<RedisResult?> ExecuteAsync(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None);
+        Task<RedisResult> ExecuteAsync(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Delete all the keys of all databases on the server.
@@ -347,7 +347,7 @@ namespace StackExchange.Redis
         /// <param name="section">The info section to get, if getting a specific one.</param>
         /// <param name="flags">The command flags to use.</param>
         /// <remarks>https://redis.io/commands/info</remarks>
-        IGrouping<string, KeyValuePair<string, string>>[]? Info(RedisValue section = default(RedisValue), CommandFlags flags = CommandFlags.None);
+        IGrouping<string, KeyValuePair<string, string>>[] Info(RedisValue section = default(RedisValue), CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// The INFO command returns information and statistics about the server in a format that is simple to parse by computers and easy to read by humans.
@@ -355,7 +355,7 @@ namespace StackExchange.Redis
         /// <param name="section">The info section to get, if getting a specific one.</param>
         /// <param name="flags">The command flags to use.</param>
         /// <remarks>https://redis.io/commands/info</remarks>
-        Task<IGrouping<string, KeyValuePair<string, string>>[]?> InfoAsync(RedisValue section = default(RedisValue), CommandFlags flags = CommandFlags.None);
+        Task<IGrouping<string, KeyValuePair<string, string>>[]> InfoAsync(RedisValue section = default(RedisValue), CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// The INFO command returns information and statistics about the server in a format that is simple to parse by computers and easy to read by humans.
@@ -616,7 +616,7 @@ namespace StackExchange.Redis
         /// <param name="count">The count of items to get.</param>
         /// <param name="flags">The command flags to use.</param>
         /// <remarks>https://redis.io/commands/slowlog</remarks>
-        CommandTrace[]? SlowlogGet(int count = 0, CommandFlags flags = CommandFlags.None);
+        CommandTrace[] SlowlogGet(int count = 0, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// To read the slow log the SLOWLOG GET command is used, that returns every entry in the slow log.
@@ -625,7 +625,7 @@ namespace StackExchange.Redis
         /// <param name="count">The count of items to get.</param>
         /// <param name="flags">The command flags to use.</param>
         /// <remarks>https://redis.io/commands/slowlog</remarks>
-        Task<CommandTrace[]?> SlowlogGetAsync(int count = 0, CommandFlags flags = CommandFlags.None);
+        Task<CommandTrace[]> SlowlogGetAsync(int count = 0, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// You can reset the slow log using the SLOWLOG RESET command. Once deleted the information is lost forever.
@@ -649,7 +649,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The command flags to use.</param>
         /// <returns> a list of active channels, optionally matching the specified pattern.</returns>
         /// <remarks>https://redis.io/commands/pubsub</remarks>
-        RedisChannel[]? SubscriptionChannels(RedisChannel pattern = default(RedisChannel), CommandFlags flags = CommandFlags.None);
+        RedisChannel[] SubscriptionChannels(RedisChannel pattern = default(RedisChannel), CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Lists the currently active channels.
@@ -659,7 +659,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The command flags to use.</param>
         /// <returns> a list of active channels, optionally matching the specified pattern.</returns>
         /// <remarks>https://redis.io/commands/pubsub</remarks>
-        Task<RedisChannel[]?> SubscriptionChannelsAsync(RedisChannel pattern = default(RedisChannel), CommandFlags flags = CommandFlags.None);
+        Task<RedisChannel[]> SubscriptionChannelsAsync(RedisChannel pattern = default(RedisChannel), CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Returns the number of subscriptions to patterns (that are performed using the PSUBSCRIBE command).
@@ -757,23 +757,23 @@ namespace StackExchange.Redis
         /// Fetch raw latency data from the event time series, as timestamp-latency pairs
         /// </summary>
         /// <remarks>https://redis.io/topics/latency-monitor</remarks>
-        Task<LatencyHistoryEntry[]?> LatencyHistoryAsync(string eventName, CommandFlags flags = CommandFlags.None);
+        Task<LatencyHistoryEntry[]> LatencyHistoryAsync(string eventName, CommandFlags flags = CommandFlags.None);
         /// <summary>
         /// Fetch raw latency data from the event time series, as timestamp-latency pairs
         /// </summary>
         /// <remarks>https://redis.io/topics/latency-monitor</remarks>
-        LatencyHistoryEntry[]? LatencyHistory(string eventName, CommandFlags flags = CommandFlags.None);
+        LatencyHistoryEntry[] LatencyHistory(string eventName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Fetch raw latency data from the event time series, as timestamp-latency pairs
         /// </summary>
         /// <remarks>https://redis.io/topics/latency-monitor</remarks>
-        Task<LatencyLatestEntry[]?> LatencyLatestAsync(CommandFlags flags = CommandFlags.None);
+        Task<LatencyLatestEntry[]> LatencyLatestAsync(CommandFlags flags = CommandFlags.None);
         /// <summary>
         /// Fetch raw latency data from the event time series, as timestamp-latency pairs
         /// </summary>
         /// <remarks>https://redis.io/topics/latency-monitor</remarks>
-        LatencyLatestEntry[]? LatencyLatest(CommandFlags flags = CommandFlags.None);
+        LatencyLatestEntry[] LatencyLatest(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Reports about different memory-related issues that the Redis server experiences, and advises about possible remedies.
@@ -851,7 +851,7 @@ namespace StackExchange.Redis
         /// <param name="serviceName">The sentinel service name.</param>
         /// <param name="flags">The command flags to use.</param>
         /// <returns>A list of the sentinel IPs and ports.</returns>
-        EndPoint[]? SentinelGetSentinelAddresses(string serviceName, CommandFlags flags = CommandFlags.None);
+        EndPoint[] SentinelGetSentinelAddresses(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Returns the IP and port numbers of all known Sentinels for the given service name.
@@ -859,7 +859,7 @@ namespace StackExchange.Redis
         /// <param name="serviceName">The sentinel service name.</param>
         /// <param name="flags">The command flags to use.</param>
         /// <returns>A list of the sentinel IPs and ports.</returns>
-        Task<EndPoint[]?> SentinelGetSentinelAddressesAsync(string serviceName, CommandFlags flags = CommandFlags.None);
+        Task<EndPoint[]> SentinelGetSentinelAddressesAsync(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Returns the IP and port numbers of all known Sentinel replicas for the given service name.
@@ -867,7 +867,7 @@ namespace StackExchange.Redis
         /// <param name="serviceName">The sentinel service name.</param>
         /// <param name="flags">The command flags to use.</param>
         /// <returns>A list of the replica IPs and ports.</returns>
-        EndPoint[]? SentinelGetReplicaAddresses(string serviceName, CommandFlags flags = CommandFlags.None);
+        EndPoint[] SentinelGetReplicaAddresses(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Returns the IP and port numbers of all known Sentinel replicas for the given service name.
@@ -875,7 +875,7 @@ namespace StackExchange.Redis
         /// <param name="serviceName">The sentinel service name.</param>
         /// <param name="flags">The command flags to use.</param>
         /// <returns>A list of the replica IPs and ports.</returns>
-        Task<EndPoint[]?> SentinelGetReplicaAddressesAsync(string serviceName, CommandFlags flags = CommandFlags.None);
+        Task<EndPoint[]> SentinelGetReplicaAddressesAsync(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Show the state and info of the specified primary.
@@ -884,7 +884,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The command flags to use.</param>
         /// <returns>The primaries state as KeyValuePairs.</returns>
         /// <remarks>https://redis.io/topics/sentinel</remarks>
-        KeyValuePair<string, string>[]? SentinelMaster(string serviceName, CommandFlags flags = CommandFlags.None);
+        KeyValuePair<string, string>[] SentinelMaster(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Show the state and info of the specified primary.
@@ -893,7 +893,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The command flags to use.</param>
         /// <returns>The primaries state as KeyValuePairs.</returns>
         /// <remarks>https://redis.io/topics/sentinel</remarks>
-        Task<KeyValuePair<string, string>[]?> SentinelMasterAsync(string serviceName, CommandFlags flags = CommandFlags.None);
+        Task<KeyValuePair<string, string>[]> SentinelMasterAsync(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Show a list of monitored primaries and their state.
@@ -901,7 +901,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The command flags to use.</param>
         /// <returns>An array of primaries state KeyValuePair arrays.</returns>
         /// <remarks>https://redis.io/topics/sentinel</remarks>
-        KeyValuePair<string, string>[][]? SentinelMasters(CommandFlags flags = CommandFlags.None);
+        KeyValuePair<string, string>[][] SentinelMasters(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Show a list of monitored primaries and their state.
@@ -909,7 +909,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The command flags to use.</param>
         /// <returns>An array of primaries state KeyValuePair arrays.</returns>
         /// <remarks>https://redis.io/topics/sentinel</remarks>
-        Task<KeyValuePair<string, string>[][]?> SentinelMastersAsync(CommandFlags flags = CommandFlags.None);
+        Task<KeyValuePair<string, string>[][]> SentinelMastersAsync(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Show a list of replicas for this primary, and their state.
@@ -920,7 +920,7 @@ namespace StackExchange.Redis
         /// <remarks>https://redis.io/topics/sentinel</remarks>
         [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(SentinelReplicas) + " instead, this will be removed in 3.0.")]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
-        KeyValuePair<string, string>[][]? SentinelSlaves(string serviceName, CommandFlags flags = CommandFlags.None);
+        KeyValuePair<string, string>[][] SentinelSlaves(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Show a list of replicas for this primary, and their state.
@@ -929,7 +929,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The command flags to use.</param>
         /// <returns>An array of replica state KeyValuePair arrays.</returns>
         /// <remarks>https://redis.io/topics/sentinel</remarks>
-        KeyValuePair<string, string>[][]? SentinelReplicas(string serviceName, CommandFlags flags = CommandFlags.None);
+        KeyValuePair<string, string>[][] SentinelReplicas(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Show a list of replicas for this primary, and their state.
@@ -940,7 +940,7 @@ namespace StackExchange.Redis
         /// <remarks>https://redis.io/topics/sentinel</remarks>
         [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(SentinelReplicasAsync) + " instead, this will be removed in 3.0.")]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
-        Task<KeyValuePair<string, string>[][]?> SentinelSlavesAsync(string serviceName, CommandFlags flags = CommandFlags.None);
+        Task<KeyValuePair<string, string>[][]> SentinelSlavesAsync(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Show a list of replicas for this primary, and their state.
@@ -949,7 +949,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The command flags to use.</param>
         /// <returns>An array of replica state KeyValuePair arrays.</returns>
         /// <remarks>https://redis.io/topics/sentinel</remarks>
-        Task<KeyValuePair<string, string>[][]?> SentinelReplicasAsync(string serviceName, CommandFlags flags = CommandFlags.None);
+        Task<KeyValuePair<string, string>[][]> SentinelReplicasAsync(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Force a failover as if the primary was not reachable, and without asking for agreement to other Sentinels
@@ -975,7 +975,7 @@ namespace StackExchange.Redis
         /// <param name="serviceName">The sentinel service name.</param>
         /// <param name="flags">The command flags to use.</param>
         /// <remarks>https://redis.io/topics/sentinel</remarks>
-        KeyValuePair<string, string>[][]? SentinelSentinels(string serviceName, CommandFlags flags = CommandFlags.None);
+        KeyValuePair<string, string>[][] SentinelSentinels(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Show a list of sentinels for a primary, and their state.
@@ -983,7 +983,7 @@ namespace StackExchange.Redis
         /// <param name="serviceName">The sentinel service name.</param>
         /// <param name="flags">The command flags to use.</param>
         /// <remarks>https://redis.io/topics/sentinel</remarks>
-        Task<KeyValuePair<string, string>[][]?> SentinelSentinelsAsync(string serviceName, CommandFlags flags = CommandFlags.None);
+        Task<KeyValuePair<string, string>[][]> SentinelSentinelsAsync(string serviceName, CommandFlags flags = CommandFlags.None);
 
         #endregion
     }

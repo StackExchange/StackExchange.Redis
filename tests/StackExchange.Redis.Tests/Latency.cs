@@ -15,7 +15,7 @@ namespace StackExchange.Redis.Tests
             using (var conn = Create())
             {
                 var server = conn.GetServer(conn.GetEndPoints()[0]);
-                string doctor = server.LatencyDoctor();
+                string? doctor = server.LatencyDoctor();
                 Assert.NotNull(doctor);
                 Assert.NotEqual("", doctor);
 

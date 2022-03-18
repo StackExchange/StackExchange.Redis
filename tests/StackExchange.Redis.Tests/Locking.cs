@@ -159,7 +159,7 @@ namespace StackExchange.Redis.Tests
                 ttl = (await t10).Value.TotalSeconds;
                 Assert.True(ttl > 50 && ttl <= 60, "10");
                 Assert.True(await t11, "11");
-                Assert.Null((string)await t12);
+                Assert.Null((string?)await t12);
                 Assert.True(await t13, "13");
             }
         }

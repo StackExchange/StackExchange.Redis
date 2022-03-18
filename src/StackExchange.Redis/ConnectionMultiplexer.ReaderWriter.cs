@@ -1,4 +1,4 @@
-﻿using System;
+﻿using System.Diagnostics.CodeAnalysis;
 
 namespace StackExchange.Redis
 {
@@ -6,6 +6,7 @@ namespace StackExchange.Redis
     {
         internal SocketManager? SocketManager { get; private set; }
 
+        [MemberNotNull(nameof(SocketManager))]
         partial void OnCreateReaderWriter(ConfigurationOptions configuration)
         {
             SocketManager = configuration.SocketManager ?? GetDefaultSocketManager();

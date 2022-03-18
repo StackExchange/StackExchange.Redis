@@ -40,6 +40,14 @@ namespace StackExchange.Redis
 
         public void WaitAll(params Task[] tasks) => multiplexer.WaitAll(tasks);
 
+        internal virtual Task<T> ExecuteAsync<T>(Message? message, ResultProcessor<T>? processor, T defaultValue, ServerEndPoint? server = null) where T : class
+        {
+            if (message is null) return CompletedTask<T>.FromDefault(defaultValue, asyncState);
+            multiplexer.CheckMessage(message);
+            return multiplexer.ExecuteAsyncImpl<T>(message, processor, asyncState, server, defaultValue)!;
+        }
+
+        [return: NotNullIfNotNull("defualtValue")]
         internal virtual Task<T?> ExecuteAsync<T>(Message? message, ResultProcessor<T>? processor, ServerEndPoint? server = null)
         {
             if (message is null) return CompletedTask<T>.Default(asyncState);

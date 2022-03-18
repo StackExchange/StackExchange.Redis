@@ -17,7 +17,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Creates a <see cref="RedisKey"/> from a string.
         /// </summary>
-        public RedisKey(string key) : this(null, key) { }
+        public RedisKey(string? key) : this(null, key) { }
 
         internal RedisKey AsPrefix() => new RedisKey((byte[]?)this, null);
 
@@ -173,7 +173,7 @@ namespace StackExchange.Redis
         /// Create a <see cref="RedisKey"/> from a <see cref="string"/>.
         /// </summary>
         /// <param name="key">The string to get a key from.</param>
-        public static implicit operator RedisKey(string key)
+        public static implicit operator RedisKey(string? key)
         {
             if (key == null) return default(RedisKey);
             return new RedisKey(null, key);

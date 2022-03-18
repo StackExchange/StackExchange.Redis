@@ -80,7 +80,7 @@ namespace StackExchange.Redis.Tests
                 conn.StringSet(key, "abc", flags: CommandFlags.FireAndForget);
                 using (var v1 = await conn.StringGetLeaseAsync(key).ConfigureAwait(false))
                 {
-                    string? s = v1.DecodeString();
+                    string? s = v1?.DecodeString();
                     Assert.Equal("abc", s);
                 }
             }
@@ -96,7 +96,9 @@ namespace StackExchange.Redis.Tests
                 conn.KeyDelete(key, CommandFlags.FireAndForget);
 
                 conn.StringSet(key, "abc", flags: CommandFlags.FireAndForget);
-                using (var v1 = (await conn.StringGetLeaseAsync(key).ConfigureAwait(false)).AsStream())
+                var lease = await conn.StringGetLeaseAsync(key).ConfigureAwait(false);
+                Assert.NotNull(lease);
+                using (var v1 = lease.AsStream())
                 {
                     using (var sr = new StreamReader(v1))
                     {
@@ -481,10 +483,10 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal(1, await len_xor);
                 Assert.Equal(1, await len_not);
 
-                var r_and = ((byte[]?)(await conn.StringGetAsync("and").ForAwait())).Single();
-                var r_or = ((byte[]?)(await conn.StringGetAsync("or").ForAwait())).Single();
-                var r_xor = ((byte[]?)(await conn.StringGetAsync("xor").ForAwait())).Single();
-                var r_not = ((byte[]?)(await conn.StringGetAsync("not").ForAwait())).Single();
+                var r_and = ((byte[]?)(await conn.StringGetAsync("and").ForAwait()))?.Single();
+                var r_or = ((byte[]?)(await conn.StringGetAsync("or").ForAwait()))?.Single();
+                var r_xor = ((byte[]?)(await conn.StringGetAsync("xor").ForAwait()))?.Single();
+                var r_not = ((byte[]?)(await conn.StringGetAsync("not").ForAwait()))?.Single();
 
                 Assert.Equal((byte)(3 & 6 & 12), r_and);
                 Assert.Equal((byte)(3 | 6 | 12), r_or);
@@ -539,6 +541,6 @@ namespace StackExchange.Redis.Tests
         }
 
         private static byte[] Encode(string value) => Encoding.UTF8.GetBytes(value);
-        private static string Decode(byte[]? value) => Encoding.UTF8.GetString(value);
+        private static string? Decode(byte[]? value) => value is null ? null : Encoding.UTF8.GetString(value);
     }
 }

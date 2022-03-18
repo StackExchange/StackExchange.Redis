@@ -63,7 +63,7 @@ namespace StackExchange.Redis.Tests
             Assert.Throws<ArgumentNullException>(() =>
             {
                 IDatabase? raw = null;
-                raw.WithKeyPrefix(prefix);
+                raw!.WithKeyPrefix(prefix);
             });
         }
 

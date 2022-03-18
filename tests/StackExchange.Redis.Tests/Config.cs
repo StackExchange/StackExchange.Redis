@@ -234,7 +234,7 @@ namespace StackExchange.Redis.Tests
                 var conn = muxer.GetDatabase();
                 conn.Ping();
 
-                var name = (string)GetAnyPrimary(muxer).Execute("CLIENT", "GETNAME");
+                var name = (string?)GetAnyPrimary(muxer).Execute("CLIENT", "GETNAME");
                 Assert.Equal("TestRig", name);
             }
         }
@@ -248,7 +248,7 @@ namespace StackExchange.Redis.Tests
                 var conn = muxer.GetDatabase();
                 conn.Ping();
 
-                var name = (string)GetAnyPrimary(muxer).Execute("CLIENT", "GETNAME");
+                var name = (string?)GetAnyPrimary(muxer).Execute("CLIENT", "GETNAME");
                 Assert.Equal($"{Environment.MachineName}(SE.Redis-v{Utils.GetLibVersion()})", name);
             }
         }
@@ -324,7 +324,7 @@ namespace StackExchange.Redis.Tests
                 RedisKey key = Me();
                 db.KeyDelete(key, CommandFlags.FireAndForget);
                 db.StringIncrement(key, flags: CommandFlags.FireAndForget);
-                var debug = (string)db.DebugObject(key);
+                var debug = (string?)db.DebugObject(key);
                 Assert.NotNull(debug);
                 Assert.Contains("encoding:int serializedlength:2", debug);
             }
@@ -462,7 +462,7 @@ namespace StackExchange.Redis.Tests
                 SocketManager = SocketManager.ThreadPool
             };
             using var muxer = ConnectionMultiplexer.Connect(config);
-            Assert.Same(PipeScheduler.ThreadPool, muxer.SocketManager.Scheduler);
+            Assert.Same(PipeScheduler.ThreadPool, muxer.SocketManager?.Scheduler);
         }
 
         [Fact]
@@ -473,7 +473,7 @@ namespace StackExchange.Redis.Tests
                 EndPoints = { { IPAddress.Loopback, 6379 } },
             };
             using var muxer = ConnectionMultiplexer.Connect(config);
-            Assert.Same(ConnectionMultiplexer.GetDefaultSocketManager().Scheduler, muxer.SocketManager.Scheduler);
+            Assert.Same(ConnectionMultiplexer.GetDefaultSocketManager().Scheduler, muxer.SocketManager?.Scheduler);
         }
 
         [Theory]
@@ -518,7 +518,7 @@ namespace StackExchange.Redis.Tests
             Assert.Equal("FooApply", options.ClientName);
 
             // Doesn't go boom
-            var result = options.Apply(null);
+            var result = options.Apply(null!);
             Assert.Equal("FooApply", options.ClientName);
             Assert.Equal(result, options);
         }
@@ -554,8 +554,8 @@ namespace StackExchange.Redis.Tests
             Assert.Equal(2, count);
 
             var endpoint = muxer.GetServerSnapshot()[0];
-            var interactivePhysical = endpoint.GetBridge(ConnectionType.Interactive).TryConnect(null);
-            var subscriptionPhysical = endpoint.GetBridge(ConnectionType.Subscription).TryConnect(null);
+            var interactivePhysical = endpoint.GetBridge(ConnectionType.Interactive)?.TryConnect(null);
+            var subscriptionPhysical = endpoint.GetBridge(ConnectionType.Subscription)?.TryConnect(null);
             Assert.NotNull(interactivePhysical);
             Assert.NotNull(subscriptionPhysical);
 

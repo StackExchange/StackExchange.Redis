@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Net;
 
@@ -9,7 +10,7 @@ namespace StackExchange.Redis
     /// </summary>
     public sealed class ClientInfo
     {
-        internal static readonly ResultProcessor<ClientInfo[]?> Processor = new ClientInfoProcessor();
+        internal static readonly ResultProcessor<ClientInfo[]> Processor = new ClientInfoProcessor();
 
         /// <summary>
         /// Address (host and port) of the client.
@@ -179,9 +180,13 @@ namespace StackExchange.Redis
             }
         }
 
-        internal static ClientInfo[]? Parse(string input)
+        internal static bool TryParse(string input, [NotNullWhen(true)] out ClientInfo[]? clientList)
         {
-            if (input == null) return null;
+            if (input == null)
+            {
+                clientList = null;
+                return false;
+            }
 
             var clients = new List<ClientInfo>();
             using (var reader = new StringReader(input))
@@ -243,7 +248,8 @@ namespace StackExchange.Redis
                 }
             }
 
-            return clients.ToArray();
+            clientList = clients.ToArray();
+            return true;
         }
 
         private static void AddFlag(ref ClientFlags value, string raw, ClientFlags toAdd, char token)
@@ -251,18 +257,20 @@ namespace StackExchange.Redis
             if (raw.IndexOf(token) >= 0) value |= toAdd;
         }
 
-        private class ClientInfoProcessor : ResultProcessor<ClientInfo[]?>
+        private class ClientInfoProcessor : ResultProcessor<ClientInfo[]>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
                 switch(result.Type)
                 {
                     case ResultType.BulkString:
-
                         var raw = result.GetString()!;
-                        var clients = Parse(raw);
-                        SetResult(message, clients);
-                        return true;
+                        if (TryParse(raw, out var clients))
+                        {
+                            SetResult(message, clients);
+                            return true;
+                        }
+                        break;
                 }
                 return false;
             }

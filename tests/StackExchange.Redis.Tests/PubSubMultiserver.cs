@@ -57,6 +57,7 @@ namespace StackExchange.Redis.Tests
             var subscribedServerEndpoint = muxer.GetServerEndPoint(endpoint);
 
             Assert.True(subscribedServer.IsConnected, "subscribedServer.IsConnected");
+            Assert.NotNull(subscribedServerEndpoint);
             Assert.True(subscribedServerEndpoint.IsConnected, "subscribedServerEndpoint.IsConnected");
             Assert.True(subscribedServerEndpoint.IsSubscriberConnected, "subscribedServerEndpoint.IsSubscriberConnected");
 
@@ -127,6 +128,7 @@ namespace StackExchange.Redis.Tests
             var subscribedServerEndpoint = muxer.GetServerEndPoint(endpoint);
 
             Assert.True(subscribedServer.IsConnected, "subscribedServer.IsConnected");
+            Assert.NotNull(subscribedServerEndpoint);
             Assert.True(subscribedServerEndpoint.IsConnected, "subscribedServerEndpoint.IsConnected");
             Assert.True(subscribedServerEndpoint.IsSubscriberConnected, "subscribedServerEndpoint.IsSubscriberConnected");
 

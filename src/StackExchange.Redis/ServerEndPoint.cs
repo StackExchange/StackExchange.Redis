@@ -767,7 +767,7 @@ namespace StackExchange.Redis
                 return await tcs.Task.ForAwait();
             }
 
-            var source = TaskResultBox<T>.Create(out var tcs, null);
+            var source = TaskResultBox<T?>.Create(out var tcs, null);
             message.SetSource(processor, source);
             if (bridge == null) bridge = GetBridge(message);
 

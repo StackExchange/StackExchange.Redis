@@ -36,7 +36,7 @@ namespace StackExchange.Redis.Tests.Issues
                 var first = await pubsub.SubscribeAsync(name);
                 var second = await pubsub.SubscribeAsync(name);
                 AssertCounts(pubsub, name, true, 0, 2);
-                List<string> values = new List<string>();
+                var values = new List<string?>();
                 int i = 0;
                 first.OnMessage(x =>
                 {
@@ -102,7 +102,7 @@ namespace StackExchange.Redis.Tests.Issues
                 var first = await pubsub.SubscribeAsync(name);
                 var second = await pubsub.SubscribeAsync(name);
                 AssertCounts(pubsub, name, true, 0, 2);
-                List<string> values = new List<string>();
+                var values = new List<string?>();
                 int i = 0;
                 first.OnMessage(x =>
                 {
@@ -154,7 +154,7 @@ namespace StackExchange.Redis.Tests.Issues
                 var first = await pubsub.SubscribeAsync(name);
                 var second = await pubsub.SubscribeAsync(name);
                 AssertCounts(pubsub, name, true, 0, 2);
-                List<string> values = new List<string>();
+                var values = new List<string?>();
                 int i = 0;
                 first.OnMessage(x =>
                 {
