@@ -23,7 +23,7 @@ namespace StackExchange.Redis.Tests
                 else
                 {
                     Assert.False(test.IsNull);
-                    Assert.Equal((int)known, ((int?)test).Value);
+                    Assert.Equal((int)known, ((int?)test)!.Value);
                     Assert.Equal((int)known, (int)test);
                 }
                 Assert.Equal((int)known, (int)test);
@@ -62,7 +62,7 @@ namespace StackExchange.Redis.Tests
                 else
                 {
                     Assert.False(test.IsNull);
-                    Assert.Equal((long)known, ((long?)test).Value);
+                    Assert.Equal((long)known, ((long?)test!).Value);
                     Assert.Equal((long)known, (long)test);
                 }
                 Assert.Equal((long)known, (long)test);
@@ -101,7 +101,7 @@ namespace StackExchange.Redis.Tests
                 else
                 {
                     Assert.False(test.IsNull);
-                    Assert.Equal((double)known, ((double?)test).Value);
+                    Assert.Equal((double)known, ((double?)test)!.Value);
                     Assert.Equal((double)known, (double)test);
                 }
                 Assert.Equal((double)known, (double)test);
@@ -150,7 +150,7 @@ namespace StackExchange.Redis.Tests
             Assert.True(s == expected, $"'{s}' vs '{expected}'");
         }
 
-        private static byte[] Bytes(string s) => s == null ? null : Encoding.UTF8.GetBytes(s);
+        private static byte[]? Bytes(string? s) => s == null ? null : Encoding.UTF8.GetBytes(s);
 
         private static string LineNumber([CallerLineNumber] int lineNumber = 0) => lineNumber.ToString();
 

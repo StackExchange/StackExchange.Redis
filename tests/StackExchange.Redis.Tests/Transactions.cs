@@ -374,7 +374,7 @@ namespace StackExchange.Redis.Tests
                 db.KeyDelete(key2, CommandFlags.FireAndForget);
 
                 var expectSuccess = false;
-                Condition condition = null;
+                Condition? condition = null;
                 var valueLength = value?.Length ?? 0;
                 switch (type)
                 {
@@ -393,6 +393,8 @@ namespace StackExchange.Redis.Tests
                         condition = Condition.StringLengthLessThan(key2, length);
                         Assert.Contains("String length < " + length, condition.ToString());
                         break;
+                    default:
+                        throw new ArgumentOutOfRangeException(nameof(type));
                 }
 
                 if (value != null) db.StringSet(key2, value, flags: CommandFlags.FireAndForget);
@@ -452,7 +454,7 @@ namespace StackExchange.Redis.Tests
                 db.KeyDelete(key2, CommandFlags.FireAndForget);
 
                 var expectSuccess = false;
-                Condition condition = null;
+                Condition? condition = null;
                 var valueLength = value?.Length ?? 0;
                 switch (type)
                 {
@@ -468,11 +470,13 @@ namespace StackExchange.Redis.Tests
                         expectSuccess = valueLength < length;
                         condition = Condition.HashLengthLessThan(key2, length);
                         break;
+                    default:
+                        throw new ArgumentOutOfRangeException(nameof(type));
                 }
 
                 for (var i = 0; i < valueLength; i++)
                 {
-                    db.HashSet(key2, i, value[i].ToString(), flags: CommandFlags.FireAndForget);
+                    db.HashSet(key2, i, value![i].ToString(), flags: CommandFlags.FireAndForget);
                 }
                 Assert.False(db.KeyExists(key));
                 Assert.Equal(valueLength, db.HashLength(key2));
@@ -530,7 +534,7 @@ namespace StackExchange.Redis.Tests
                 db.KeyDelete(key2, CommandFlags.FireAndForget);
 
                 var expectSuccess = false;
-                Condition condition = null;
+                Condition? condition = null;
                 var valueLength = value?.Length ?? 0;
                 switch (type)
                 {
@@ -546,6 +550,8 @@ namespace StackExchange.Redis.Tests
                         expectSuccess = valueLength < length;
                         condition = Condition.SetLengthLessThan(key2, length);
                         break;
+                    default:
+                        throw new ArgumentOutOfRangeException(nameof(type));
                 }
 
                 for (var i = 0; i < valueLength; i++)
@@ -650,7 +656,7 @@ namespace StackExchange.Redis.Tests
                 db.KeyDelete(key2, CommandFlags.FireAndForget);
 
                 var expectSuccess = false;
-                Condition condition = null;
+                Condition? condition = null;
                 var valueLength = value?.Length ?? 0;
                 switch (type)
                 {
@@ -666,6 +672,8 @@ namespace StackExchange.Redis.Tests
                         expectSuccess = valueLength < length;
                         condition = Condition.SortedSetLengthLessThan(key2, length);
                         break;
+                    default:
+                        throw new ArgumentOutOfRangeException(nameof(type));
                 }
 
                 for (var i = 0; i < valueLength; i++)
@@ -728,7 +736,7 @@ namespace StackExchange.Redis.Tests
                 db.KeyDelete(key2, CommandFlags.FireAndForget);
 
                 var expectSuccess = false;
-                Condition condition = null;
+                Condition? condition = null;
                 var valueLength = (int)(max - min) + 1;
                 switch (type)
                 {
@@ -744,6 +752,8 @@ namespace StackExchange.Redis.Tests
                         expectSuccess = valueLength < length;
                         condition = Condition.SortedSetLengthLessThan(key2, length, min, max);
                         break;
+                    default:
+                        throw new ArgumentOutOfRangeException(nameof(type));
                 }
 
                 for (var i = 0; i < 5; i++)
@@ -1026,7 +1036,7 @@ namespace StackExchange.Redis.Tests
                 db.KeyDelete(key2, CommandFlags.FireAndForget);
 
                 var expectSuccess = false;
-                Condition condition = null;
+                Condition? condition = null;
                 var valueLength = value?.Length ?? 0;
                 switch (type)
                 {
@@ -1042,6 +1052,8 @@ namespace StackExchange.Redis.Tests
                         expectSuccess = valueLength < length;
                         condition = Condition.ListLengthLessThan(key2, length);
                         break;
+                    default:
+                        throw new ArgumentOutOfRangeException(nameof(type));
                 }
 
                 for (var i = 0; i < valueLength; i++)
@@ -1106,22 +1118,24 @@ namespace StackExchange.Redis.Tests
                 db.KeyDelete(key2, CommandFlags.FireAndForget);
 
                 var expectSuccess = false;
-                Condition condition = null;
+                Condition? condition = null;
                 var valueLength = value?.Length ?? 0;
                 switch (type)
                 {
-                case ComparisonType.Equal:
-                    expectSuccess = valueLength == length;
-                    condition = Condition.StreamLengthEqual(key2, length);
-                    break;
-                case ComparisonType.GreaterThan:
-                    expectSuccess = valueLength > length;
-                    condition = Condition.StreamLengthGreaterThan(key2, length);
-                    break;
-                case ComparisonType.LessThan:
-                    expectSuccess = valueLength < length;
-                    condition = Condition.StreamLengthLessThan(key2, length);
-                    break;
+                    case ComparisonType.Equal:
+                        expectSuccess = valueLength == length;
+                        condition = Condition.StreamLengthEqual(key2, length);
+                        break;
+                    case ComparisonType.GreaterThan:
+                        expectSuccess = valueLength > length;
+                        condition = Condition.StreamLengthGreaterThan(key2, length);
+                        break;
+                    case ComparisonType.LessThan:
+                        expectSuccess = valueLength < length;
+                        condition = Condition.StreamLengthLessThan(key2, length);
+                        break;
+                    default:
+                        throw new ArgumentOutOfRangeException(nameof(type));
                 }
                 RedisValue fieldName = "Test";
                 for (var i = 0; i < valueLength; i++)

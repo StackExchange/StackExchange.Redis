@@ -316,6 +316,7 @@ return timeTaken
                     Assert.Equal(2L, c.Result);
 
                     Assert.True(QuickWait(b).IsFaulted, "should be faulted");
+                    Assert.NotNull(b.Exception);
                     Assert.Single(b.Exception.InnerExceptions);
                     var ex = b.Exception.InnerExceptions.Single();
                     Assert.IsType<RedisServerException>(ex);
@@ -1059,7 +1060,7 @@ return arr;
         [Fact]
         public void RedisResultUnderstandsNullArrayNull() => TestNullArray(null);
 
-        private static void TestNullArray(RedisResult value)
+        private static void TestNullArray(RedisResult? value)
         {
             Assert.True(value == null || value.IsNull);
 
@@ -1080,7 +1081,7 @@ return arr;
         [Fact]
         public void RedisResultUnderstandsNullValue() => TestNullValue(RedisResult.Create(RedisValue.Null, ResultType.None));
 
-        private static void TestNullValue(RedisResult value)
+        private static void TestNullValue(RedisResult? value)
         {
             Assert.True(value == null || value.IsNull);
 

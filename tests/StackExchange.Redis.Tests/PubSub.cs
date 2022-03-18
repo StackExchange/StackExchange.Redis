@@ -746,7 +746,7 @@ namespace StackExchange.Redis.Tests
 
             using (var connection = await ConnectionMultiplexer.ConnectAsync(options))
             {
-                connection.ServerMaintenanceEvent += (object _, ServerMaintenanceEvent e) =>
+                connection.ServerMaintenanceEvent += (object? _, ServerMaintenanceEvent e) =>
                 {
                     if (e is AzureMaintenanceEvent)
                     {
@@ -765,7 +765,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task SubscriptionsSurviveConnectionFailureAsync()
         {
-            using (var muxer = Create(allowAdmin: true, shared: false, log: Writer, syncTimeout: 1000) as ConnectionMultiplexer)
+            using (var muxer = (Create(allowAdmin: true, shared: false, log: Writer, syncTimeout: 1000) as ConnectionMultiplexer)!)
             {
                 var profiler = muxer.AddProfiler();
                 RedisChannel channel = Me();

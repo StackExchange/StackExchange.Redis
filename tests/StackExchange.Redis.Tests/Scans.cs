@@ -17,7 +17,7 @@ namespace StackExchange.Redis.Tests
         [InlineData(false)]
         public void KeysScan(bool supported)
         {
-            string[] disabledCommands = supported ? null : new[] { "scan" };
+            string[]? disabledCommands = supported ? null : new[] { "scan" };
             using (var conn = Create(disabledCommands: disabledCommands, allowAdmin: true))
             {
                 var dbId = TestConfig.GetDedicatedDB(conn);
@@ -191,7 +191,7 @@ namespace StackExchange.Redis.Tests
         [InlineData(false)]
         public void SetScan(bool supported)
         {
-            string[] disabledCommands = supported ? null : new[] { "sscan" };
+            string[]? disabledCommands = supported ? null : new[] { "sscan" };
             using (var conn = Create(disabledCommands: disabledCommands))
             {
                 RedisKey key = Me();
@@ -214,7 +214,7 @@ namespace StackExchange.Redis.Tests
         [InlineData(false)]
         public void SortedSetScan(bool supported)
         {
-            string[] disabledCommands = supported ? null : new[] { "zscan" };
+            string[]? disabledCommands = supported ? null : new[] { "zscan" };
             using (var conn = Create(disabledCommands: disabledCommands))
             {
                 RedisKey key = Me() + supported;
@@ -282,7 +282,7 @@ namespace StackExchange.Redis.Tests
         [InlineData(false)]
         public void HashScan(bool supported)
         {
-            string[] disabledCommands = supported ? null : new[] { "hscan" };
+            string[]? disabledCommands = supported ? null : new[] { "hscan" };
             using (var conn = Create(disabledCommands: disabledCommands))
             {
                 RedisKey key = Me();

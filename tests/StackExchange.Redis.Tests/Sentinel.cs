@@ -225,7 +225,7 @@ namespace StackExchange.Redis.Tests
         {
             var sentinels = SentinelServerA.SentinelSentinels(ServiceName);
 
-            var expected = new List<string> {
+            var expected = new List<string?> {
                 SentinelServerB.EndPoint.ToString(),
                 SentinelServerC.EndPoint.ToString()
             };
@@ -247,7 +247,7 @@ namespace StackExchange.Redis.Tests
                 var data = kv.ToDictionary();
                 actual.Add(data["ip"] + ":" + data["port"]);
             }
-            expected = new List<string> {
+            expected = new List<string?> {
                 SentinelServerA.EndPoint.ToString(),
                 SentinelServerC.EndPoint.ToString()
             };
@@ -262,7 +262,7 @@ namespace StackExchange.Redis.Tests
                 var data = kv.ToDictionary();
                 actual.Add(data["ip"] + ":" + data["port"]);
             }
-            expected = new List<string> {
+            expected = new List<string?> {
                 SentinelServerA.EndPoint.ToString(),
                 SentinelServerB.EndPoint.ToString()
             };
@@ -276,7 +276,7 @@ namespace StackExchange.Redis.Tests
         public async Task SentinelSentinelsAsyncTest()
         {
             var sentinels = await SentinelServerA.SentinelSentinelsAsync(ServiceName).ForAwait();
-            var expected = new List<string> {
+            var expected = new List<string?> {
                 SentinelServerB.EndPoint.ToString(),
                 SentinelServerC.EndPoint.ToString()
             };
@@ -293,7 +293,7 @@ namespace StackExchange.Redis.Tests
 
             sentinels = await SentinelServerB.SentinelSentinelsAsync(ServiceName).ForAwait();
 
-            expected = new List<string> {
+            expected = new List<string?> {
                 SentinelServerA.EndPoint.ToString(),
                 SentinelServerC.EndPoint.ToString()
             };
@@ -309,7 +309,7 @@ namespace StackExchange.Redis.Tests
             Assert.All(expected, ep => Assert.Contains(ep, actual, _ipComparer));
 
             sentinels = await SentinelServerC.SentinelSentinelsAsync(ServiceName).ForAwait();
-            expected = new List<string> {
+            expected = new List<string?> {
                 SentinelServerA.EndPoint.ToString(),
                 SentinelServerB.EndPoint.ToString()
             };

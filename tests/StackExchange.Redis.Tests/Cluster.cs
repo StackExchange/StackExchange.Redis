@@ -719,7 +719,7 @@ namespace StackExchange.Redis.Tests
                     {
                         // imprecision of DateTime.UtcNow makes this pretty approximate
                         Assert.True(msg.RetransmissionOf.CommandCreated <= msg.CommandCreated);
-                        Assert.Equal(RetransmissionReasonType.Moved, msg.RetransmissionReason.Value);
+                        Assert.Equal(RetransmissionReasonType.Moved, msg.RetransmissionReason);
                     }
                     else
                     {

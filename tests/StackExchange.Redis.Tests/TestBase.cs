@@ -23,11 +23,11 @@ namespace StackExchange.Redis.Tests
         protected virtual string GetConfiguration() => GetDefaultConfiguration();
         internal static string GetDefaultConfiguration() => TestConfig.Current.PrimaryServerAndPort;
 
-        private readonly SharedConnectionFixture _fixture;
+        private readonly SharedConnectionFixture? _fixture;
 
         protected bool SharedFixtureAvailable => _fixture != null && _fixture.IsEnabled;
 
-        protected TestBase(ITestOutputHelper output, SharedConnectionFixture fixture = null)
+        protected TestBase(ITestOutputHelper output, SharedConnectionFixture? fixture = null)
         {
             Output = output;
             Output.WriteFrameworkVersion();
@@ -48,7 +48,7 @@ namespace StackExchange.Redis.Tests
         protected static Task RunBlockingSynchronousWithExtraThreadAsync(Action testScenario) => Task.Factory.StartNew(testScenario, CancellationToken.None, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
 
         protected void LogNoTime(string message) => LogNoTime(Writer, message);
-        internal static void LogNoTime(TextWriter output, string message)
+        internal static void LogNoTime(TextWriter output, string? message)
         {
             lock (output)
             {
@@ -59,7 +59,7 @@ namespace StackExchange.Redis.Tests
                 Console.WriteLine(message);
             }
         }
-        protected void Log(string message) => LogNoTime(Writer, message);
+        protected void Log(string? message) => LogNoTime(Writer, message);
         public static void Log(TextWriter output, string message)
         {
             lock (output)
@@ -71,7 +71,7 @@ namespace StackExchange.Redis.Tests
                 Console.WriteLine(message);
             }
         }
-        protected void Log(string message, params object[] args)
+        protected void Log(string message, params object?[] args)
         {
             lock (Output)
             {
@@ -140,7 +140,7 @@ namespace StackExchange.Redis.Tests
         }
 
         internal static string Time() => DateTime.UtcNow.ToString("HH:mm:ss.ffff");
-        protected void OnConnectionFailed(object sender, ConnectionFailedEventArgs e)
+        protected void OnConnectionFailed(object? sender, ConnectionFailedEventArgs e)
         {
             Interlocked.Increment(ref privateFailCount);
             lock (privateExceptions)
@@ -150,7 +150,7 @@ namespace StackExchange.Redis.Tests
             Log($"Connection Failed ({e.ConnectionType},{e.FailureType}): {e.Exception}");
         }
 
-        protected void OnInternalError(object sender, InternalErrorEventArgs e)
+        protected void OnInternalError(object? sender, InternalErrorEventArgs e)
         {
             Interlocked.Increment(ref privateFailCount);
             lock (privateExceptions)
@@ -222,7 +222,7 @@ namespace StackExchange.Redis.Tests
         protected static IServer GetServer(IConnectionMultiplexer muxer)
         {
             EndPoint[] endpoints = muxer.GetEndPoints();
-            IServer result = null;
+            IServer? result = null;
             foreach (var endpoint in endpoints)
             {
                 var server = muxer.GetServer(endpoint);
@@ -245,27 +245,27 @@ namespace StackExchange.Redis.Tests
         }
 
         internal virtual IInternalConnectionMultiplexer Create(
-            string clientName = null,
+            string? clientName = null,
             int? syncTimeout = null,
             bool? allowAdmin = null,
             int? keepAlive = null,
             int? connectTimeout = null,
-            string password = null,
-            string tieBreaker = null,
-            TextWriter log = null,
+            string? password = null,
+            string? tieBreaker = null,
+            TextWriter? log = null,
             bool fail = true,
-            string[] disabledCommands = null,
-            string[] enabledCommands = null,
+            string[]? disabledCommands = null,
+            string[]? enabledCommands = null,
             bool checkConnect = true,
-            string failMessage = null,
-            string channelPrefix = null,
+            string? failMessage = null,
+            string? channelPrefix = null,
             Proxy? proxy = null,
-            string configuration = null,
+            string? configuration = null,
             bool logTransactionData = true,
             bool shared = true,
             int? defaultDatabase = null,
-            BacklogPolicy backlogPolicy = null,
-            [CallerMemberName] string caller = null)
+            BacklogPolicy? backlogPolicy = null,
+            [CallerMemberName] string? caller = null)
         {
             if (Output == null)
             {
@@ -313,29 +313,29 @@ namespace StackExchange.Redis.Tests
         }
 
         public static ConnectionMultiplexer CreateDefault(
-            TextWriter output,
-            string clientName = null,
+            TextWriter? output,
+            string? clientName = null,
             int? syncTimeout = null,
             bool? allowAdmin = null,
             int? keepAlive = null,
             int? connectTimeout = null,
-            string password = null,
-            string tieBreaker = null,
-            TextWriter log = null,
+            string? password = null,
+            string? tieBreaker = null,
+            TextWriter? log = null,
             bool fail = true,
-            string[] disabledCommands = null,
-            string[] enabledCommands = null,
+            string[]? disabledCommands = null,
+            string[]? enabledCommands = null,
             bool checkConnect = true,
-            string failMessage = null,
-            string channelPrefix = null,
+            string? failMessage = null,
+            string? channelPrefix = null,
             Proxy? proxy = null,
-            string configuration = null,
+            string? configuration = null,
             bool logTransactionData = true,
             int? defaultDatabase = null,
-            BacklogPolicy backlogPolicy = null,
-            [CallerMemberName] string caller = null)
+            BacklogPolicy? backlogPolicy = null,
+            [CallerMemberName] string? caller = null)
         {
-            StringWriter localLog = null;
+            StringWriter? localLog = null;
             if (log == null)
             {
                 log = localLog = new StringWriter();
@@ -389,7 +389,7 @@ namespace StackExchange.Redis.Tests
                     Log(output, "Connect took: " + watch.ElapsedMilliseconds + "ms");
                 }
                 var muxer = task.Result;
-                if (checkConnect && (muxer == null || !muxer.IsConnected))
+                if (checkConnect && !muxer.IsConnected)
                 {
                     // If fail is true, we throw.
                     Assert.False(fail, failMessage + "Server is not available");
@@ -423,15 +423,15 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        public static string Me([CallerFilePath] string filePath = null, [CallerMemberName] string caller = null) =>
+        public static string Me([CallerFilePath] string? filePath = null, [CallerMemberName] string? caller = null) =>
             Environment.Version.ToString() + Path.GetFileNameWithoutExtension(filePath) + "-" + caller;
 
-        protected static TimeSpan RunConcurrent(Action work, int threads, int timeout = 10000, [CallerMemberName] string caller = null)
+        protected static TimeSpan RunConcurrent(Action work, int threads, int timeout = 10000, [CallerMemberName] string? caller = null)
         {
             if (work == null) throw new ArgumentNullException(nameof(work));
             if (threads < 1) throw new ArgumentOutOfRangeException(nameof(threads));
             if (string.IsNullOrWhiteSpace(caller)) caller = Me();
-            Stopwatch watch = null;
+            Stopwatch? watch = null;
             ManualResetEvent allDone = new ManualResetEvent(false);
             object token = new object();
             int active = 0;
@@ -453,7 +453,7 @@ namespace StackExchange.Redis.Tests
                 work();
                 if (Interlocked.Decrement(ref active) == 0)
                 {
-                    watch.Stop();
+                    watch?.Stop();
                     allDone.Set();
                 }
             }
@@ -480,7 +480,7 @@ namespace StackExchange.Redis.Tests
                 throw new TimeoutException();
             }
 
-            return watch.Elapsed;
+            return watch?.Elapsed ?? TimeSpan.Zero;
         }
 
         private static readonly TimeSpan DefaultWaitPerLoop = TimeSpan.FromMilliseconds(50);

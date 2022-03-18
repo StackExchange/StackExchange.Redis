@@ -46,7 +46,7 @@ namespace StackExchange.Redis.Tests
                 var db = conn.GetDatabase();
                 var key = Me();
 
-                RedisValue[] values = null;
+                RedisValue[]? values = null;
                 Assert.Throws<ArgumentNullException>(() => db.SetRemove(key, values));
                 await Assert.ThrowsAsync<ArgumentNullException>(async () => await db.SetRemoveAsync(key, values).ForAwait()).ForAwait();
 

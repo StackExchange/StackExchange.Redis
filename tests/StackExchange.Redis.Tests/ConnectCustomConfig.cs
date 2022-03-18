@@ -47,7 +47,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void TieBreakerIntact()
         {
-            using var muxer = Create(allowAdmin: true, log: Writer) as ConnectionMultiplexer;
+            using var muxer = (Create(allowAdmin: true, log: Writer) as ConnectionMultiplexer)!;
 
             var tiebreaker = muxer.GetDatabase().StringGet(muxer.RawConfig.TieBreaker);
             Log($"Tiebreaker: {tiebreaker}");
@@ -62,7 +62,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void TieBreakerSkips()
         {
-            using var muxer = Create(allowAdmin: true, disabledCommands: new[] { "get" }, log: Writer) as ConnectionMultiplexer;
+            using var muxer = (Create(allowAdmin: true, disabledCommands: new[] { "get" }, log: Writer) as ConnectionMultiplexer)!;
             Assert.Throws<RedisCommandException>(() => muxer.GetDatabase().StringGet(muxer.RawConfig.TieBreaker));
 
             var snapshot = muxer.GetServerSnapshot();

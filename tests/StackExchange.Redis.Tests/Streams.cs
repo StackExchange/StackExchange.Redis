@@ -1813,10 +1813,10 @@ namespace StackExchange.Redis.Tests
 
                 var streamResult = await db.StreamRangeAsync(streamName, count: 1000);
                 var evntJson = streamResult
-                    .Select(x => (dynamic)JsonConvert.DeserializeObject(x["msg"]))
+                    .Select(x => (dynamic?)JsonConvert.DeserializeObject(x["msg"]))
                     .ToList();
                 var obj = Assert.Single(evntJson);
-                Assert.Equal(123, (int)obj.id);
+                Assert.Equal(123, (int)obj!.id);
                 Assert.Equal("test", (string)obj.name);
             }
         }
