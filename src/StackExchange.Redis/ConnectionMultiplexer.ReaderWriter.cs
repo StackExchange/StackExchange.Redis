@@ -1,36 +1,32 @@
-﻿using System;
+﻿namespace StackExchange.Redis;
 
-namespace StackExchange.Redis
+public partial class ConnectionMultiplexer
 {
-    public partial class ConnectionMultiplexer
+    internal SocketManager SocketManager { get; private set; }
+
+    private void OnCreateReaderWriter(ConfigurationOptions configuration)
     {
-        internal SocketManager SocketManager { get; private set; }
+        SocketManager = configuration.SocketManager ?? GetDefaultSocketManager();
+    }
 
-        partial void OnCreateReaderWriter(ConfigurationOptions configuration)
-        {
-            SocketManager = configuration.SocketManager ?? GetDefaultSocketManager();
-        }
+    private void OnCloseReaderWriter()
+    {
+        SocketManager = null;
+    }
 
-        partial void OnCloseReaderWriter()
-        {
-            SocketManager = null;
-        }
-        partial void OnWriterCreated();
-
-        /// <summary>
-        /// .NET 6.0+ has changes to sync-over-async stalls in the .NET primary thread pool
-        /// If we're in that environment, by default remove the overhead of our own threadpool
-        /// This will eliminate some context-switching overhead and better-size threads on both large
-        /// and small environments, from 16 core machines to single core VMs where the default 10 threads
-        /// isn't an ideal situation.
-        /// </summary>
-        internal static SocketManager GetDefaultSocketManager()
-        {
+    /// <summary>
+    /// .NET 6.0+ has changes to sync-over-async stalls in the .NET primary thread pool
+    /// If we're in that environment, by default remove the overhead of our own threadpool
+    /// This will eliminate some context-switching overhead and better-size threads on both large
+    /// and small environments, from 16 core machines to single core VMs where the default 10 threads
+    /// isn't an ideal situation.
+    /// </summary>
+    internal static SocketManager GetDefaultSocketManager()
+    {
 #if NET6_0_OR_GREATER
-            return SocketManager.ThreadPool;
+        return SocketManager.ThreadPool;
 #else
-            return SocketManager.Shared;
+        return SocketManager.Shared;
 #endif
-        }
     }
 }

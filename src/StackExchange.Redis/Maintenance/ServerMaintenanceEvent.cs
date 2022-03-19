@@ -36,6 +36,6 @@ namespace StackExchange.Redis.Maintenance
         /// Notifies a ConnectionMultiplexer of this event, for anyone observing its <see cref="ConnectionMultiplexer.ServerMaintenanceEvent"/> handler.
         /// </summary>
         protected void NotifyMultiplexer(ConnectionMultiplexer multiplexer)
-            => multiplexer.InvokeServerMaintenanceEvent(this);
+            => multiplexer.OnServerMaintenanceEvent(this);
     }
 }

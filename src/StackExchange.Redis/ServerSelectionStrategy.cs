@@ -49,10 +49,7 @@ namespace StackExchange.Redis
 
         private ServerEndPoint[] map;
 
-        public ServerSelectionStrategy(ConnectionMultiplexer multiplexer)
-        {
-            this.multiplexer = multiplexer;
-        }
+        public ServerSelectionStrategy(ConnectionMultiplexer multiplexer) => this.multiplexer = multiplexer;
 
         public ServerType ServerType { get; set; } = ServerType.Standalone;
         internal static int TotalSlots => RedisClusterSlotCount;
