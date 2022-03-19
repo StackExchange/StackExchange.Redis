@@ -2,12 +2,10 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel;
-using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Net;
-using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -817,8 +815,10 @@ namespace StackExchange.Redis
         {
             SocketConnection.AssertDependencies();
 
-            if (IsSentinel(configuration))
+            if (configuration?.IsSentinel == true)
+            {
                 return SentinelPrimaryConnectAsync(configuration, log);
+            }
 
             return ConnectImplAsync(PrepareConfig(configuration), log);
         }
@@ -866,39 +866,30 @@ namespace StackExchange.Redis
             }
         }
 
-        private static bool IsSentinel(ConfigurationOptions configuration)
+        internal static ConfigurationOptions PrepareConfig(ConfigurationOptions config, bool sentinel = false)
         {
-            return !string.IsNullOrEmpty(configuration?.ServiceName);
-        }
+            if (config == null)
+            {
+                throw new ArgumentNullException(nameof(config));
+            }
+            if (config.EndPoints.Count == 0)
+            {
+                throw new ArgumentException("No endpoints specified", nameof(config));
+            }
 
-        internal static ConfigurationOptions PrepareConfig(object configuration, bool sentinel = false)
-        {
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
-            ConfigurationOptions config;
-            if (configuration is string s)
-            {
-                config = ConfigurationOptions.Parse(s);
-            }
-            else if (configuration is ConfigurationOptions configurationOptions)
-            {
-                config = (configurationOptions).Clone();
-            }
-            else
-            {
-                throw new ArgumentException("Invalid configuration object", nameof(configuration));
-            }
-            if (config.EndPoints.Count == 0) throw new ArgumentException("No endpoints specified", nameof(configuration));
+            // TODO: Switch to partial clone
+            config = config.Clone();
 
             if (sentinel)
             {
                 config.SetSentinelDefaults();
-
                 return config;
             }
-
-            config.SetDefaultPorts();
-
-            return config;
+            else
+            {
+                config.SetDefaultPorts();
+                return config;
+            }
         }
         private static ConnectionMultiplexer CreateMultiplexer(ConfigurationOptions configuration, LogProxy log, out EventHandler<ConnectionFailedEventArgs> connectHandler)
         {
@@ -955,7 +946,7 @@ namespace StackExchange.Redis
         {
             SocketConnection.AssertDependencies();
 
-            if (IsSentinel(configuration))
+            if (configuration?.IsSentinel == true)
             {
                 return SentinelPrimaryConnect(configuration, log);
             }
@@ -971,7 +962,8 @@ namespace StackExchange.Redis
         public static ConnectionMultiplexer SentinelConnect(string configuration, TextWriter log = null)
         {
             SocketConnection.AssertDependencies();
-            return ConnectImpl(PrepareConfig(configuration, sentinel: true), log);
+            var config = ConfigurationOptions.Parse(configuration);
+            return ConnectImpl(PrepareConfig(config, sentinel: true), log);
         }
 
         /// <summary>
@@ -982,7 +974,8 @@ namespace StackExchange.Redis
         public static Task<ConnectionMultiplexer> SentinelConnectAsync(string configuration, TextWriter log = null)
         {
             SocketConnection.AssertDependencies();
-            return ConnectImplAsync(PrepareConfig(configuration, sentinel: true), log);
+            var config = ConfigurationOptions.Parse(configuration);
+            return ConnectImplAsync(PrepareConfig(config, sentinel: true), log);
         }
 
         /// <summary>
@@ -1011,17 +1004,6 @@ namespace StackExchange.Redis
         /// Create a new <see cref="ConnectionMultiplexer"/> instance that connects to a sentinel server, discovers the current primary server
         /// for the specified <see cref="ConfigurationOptions.ServiceName"/> in the config and returns a managed connection to the current primary server.
         /// </summary>
-        /// <param name="configuration">The string configuration to use for this multiplexer.</param>
-        /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
-        private static ConnectionMultiplexer SentinelPrimaryConnect(string configuration, TextWriter log = null)
-        {
-            return SentinelPrimaryConnect(PrepareConfig(configuration, sentinel: true), log);
-        }
-
-        /// <summary>
-        /// Create a new <see cref="ConnectionMultiplexer"/> instance that connects to a sentinel server, discovers the current primary server
-        /// for the specified <see cref="ConfigurationOptions.ServiceName"/> in the config and returns a managed connection to the current primary server.
-        /// </summary>
         /// <param name="configuration">The configuration options to use for this multiplexer.</param>
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
         private static ConnectionMultiplexer SentinelPrimaryConnect(ConfigurationOptions configuration, TextWriter log = null)
@@ -1033,17 +1015,6 @@ namespace StackExchange.Redis
             muxer.sentinelConnection = sentinelConnection;
 
             return muxer;
-        }
-
-        /// <summary>
-        /// Create a new <see cref="ConnectionMultiplexer"/> instance that connects to a sentinel server, discovers the current primary server
-        /// for the specified <see cref="ConfigurationOptions.ServiceName"/> in the config and returns a managed connection to the current primary server.
-        /// </summary>
-        /// <param name="configuration">The string configuration to use for this multiplexer.</param>
-        /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
-        private static Task<ConnectionMultiplexer> SentinelPrimaryConnectAsync(string configuration, TextWriter log = null)
-        {
-            return SentinelPrimaryConnectAsync(PrepareConfig(configuration, sentinel: true), log);
         }
 
         /// <summary>
@@ -1592,9 +1563,9 @@ namespace StackExchange.Redis
 
                 if (first)
                 {
-                    if (RawConfig.ResolveDns && RawConfig.HasDnsEndPoints())
+                    if (RawConfig.ResolveDns && RawConfig.EndPoints.HasDnsEndPoints())
                     {
-                        var dns = RawConfig.ResolveEndPointsAsync(this, log).ObserveErrors();
+                        var dns = RawConfig.EndPoints.ResolveEndPointsAsync(this, log).ObserveErrors();
                         if (!await dns.TimeoutAfter(TimeoutMilliseconds).ForAwait())
                         {
                             throw new TimeoutException("Timeout resolving endpoints");

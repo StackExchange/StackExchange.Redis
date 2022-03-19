@@ -218,6 +218,7 @@ StackExchange.Redis.ConfigurationOptions.Defaults.set -> void
 StackExchange.Redis.ConfigurationOptions.DefaultVersion.get -> System.Version
 StackExchange.Redis.ConfigurationOptions.DefaultVersion.set -> void
 StackExchange.Redis.ConfigurationOptions.EndPoints.get -> StackExchange.Redis.EndPointCollection
+StackExchange.Redis.ConfigurationOptions.EndPoints.init -> void
 StackExchange.Redis.ConfigurationOptions.HighPrioritySocketThreads.get -> bool
 StackExchange.Redis.ConfigurationOptions.HighPrioritySocketThreads.set -> void
 StackExchange.Redis.ConfigurationOptions.KeepAlive.get -> int
