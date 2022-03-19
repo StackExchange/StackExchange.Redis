@@ -60,22 +60,33 @@ namespace StackExchange.Redis
         /// <summary>
         /// Should exceptions include identifiable details? (key names, additional .Data annotations)
         /// </summary>
-        public bool IncludeDetailInExceptions { get; set; }
+        public bool IncludeDetailInExceptions
+        {
+            get => RawConfig.IncludeDetailInExceptions;
+            set => RawConfig.IncludeDetailInExceptions = value;
+        }
 
         /// <summary>
-        /// Should exceptions include performance counter details? (CPU usage, etc - note that this can be problematic on some platforms)
+        /// Should exceptions include performance counter details?
         /// </summary>
-        public bool IncludePerformanceCountersInExceptions { get; set; }
+        /// <remarks>
+        /// CPU usage, etc - note that this can be problematic on some platforms.
+        /// </remarks>
+        public bool IncludePerformanceCountersInExceptions
+        {
+            get => RawConfig.IncludePerformanceCountersInExceptions;
+            set => RawConfig.IncludePerformanceCountersInExceptions = value;
+        }
 
         /// <summary>
         /// Gets the synchronous timeout associated with the connections.
         /// </summary>
-        public int TimeoutMilliseconds { get; }
+        public int TimeoutMilliseconds => RawConfig.SyncTimeout;
 
         /// <summary>
         /// Gets the asynchronous timeout associated with the connections.
         /// </summary>
-        internal int AsyncTimeoutMilliseconds { get; }
+        internal int AsyncTimeoutMilliseconds => RawConfig.AsyncTimeout;
 
         /// <summary>
         /// Gets the client-name that will be used on all new connections.
@@ -125,23 +136,19 @@ namespace StackExchange.Redis
 
         private ConnectionMultiplexer(ConfigurationOptions configuration)
         {
-            IncludeDetailInExceptions = true;
-            IncludePerformanceCountersInExceptions = false;
-
             RawConfig = configuration ?? throw new ArgumentNullException(nameof(configuration));
 
             var map = CommandMap = configuration.CommandMap;
-            if (!string.IsNullOrWhiteSpace(configuration.Password)) map.AssertAvailable(RedisCommand.AUTH);
-
+            if (!string.IsNullOrWhiteSpace(configuration.Password))
+            {
+                map.AssertAvailable(RedisCommand.AUTH);
+            }
             if (!map.IsAvailable(RedisCommand.ECHO) && !map.IsAvailable(RedisCommand.PING) && !map.IsAvailable(RedisCommand.TIME))
             {
                 // I mean really, give me a CHANCE! I need *something* to check the server is available to me...
                 // see also: SendTracer (matching logic)
                 map.AssertAvailable(RedisCommand.EXISTS);
             }
-
-            TimeoutMilliseconds = configuration.SyncTimeout;
-            AsyncTimeoutMilliseconds = configuration.AsyncTimeout;
 
             OnCreateReaderWriter(configuration);
             ServerSelectionStrategy = new ServerSelectionStrategy(this);
@@ -230,14 +237,11 @@ namespace StackExchange.Redis
             var nodes = GetServerSnapshot().ToArray(); // Have to array because async/await
             RedisValue newPrimary = Format.ToString(server.EndPoint);
 
-            RedisKey tieBreakerKey = default(RedisKey);
             // try and write this everywhere; don't worry if some folks reject our advances
-            if (options.HasFlag(ReplicationChangeOptions.SetTiebreaker)
-                && !string.IsNullOrWhiteSpace(RawConfig.TieBreaker)
+            if (RawConfig.TryGetTieBreaker(out var tieBreakerKey)
+                && options.HasFlag(ReplicationChangeOptions.SetTiebreaker)
                 && CommandMap.IsAvailable(RedisCommand.SET))
             {
-                tieBreakerKey = RawConfig.TieBreaker;
-
                 foreach (var node in nodes)
                 {
                     if (!node.IsConnected || node.IsReplica) continue;
@@ -1210,7 +1214,7 @@ namespace StackExchange.Redis
                     }
                     int standaloneCount = 0, clusterCount = 0, sentinelCount = 0;
                     var endpoints = RawConfig.EndPoints;
-                    bool useTieBreakers = !string.IsNullOrWhiteSpace(RawConfig.TieBreaker);
+                    bool useTieBreakers = RawConfig.TryGetTieBreaker(out var tieBreakerKey);
                     log?.WriteLine($"{endpoints.Count} unique nodes specified ({(useTieBreakers ? "with" : "without")} tiebreaker)");
 
                     if (endpoints.Count == 0)
@@ -1236,8 +1240,6 @@ namespace StackExchange.Redis
 
                         var available = new Task<string>[endpoints.Count];
                         servers = new ServerEndPoint[available.Length];
-
-                        RedisKey tieBreakerKey = useTieBreakers ? (RedisKey)RawConfig.TieBreaker : default(RedisKey);
 
                         for (int i = 0; i < available.Length; i++)
                         {

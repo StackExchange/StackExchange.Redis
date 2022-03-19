@@ -15,8 +15,18 @@ using StackExchange.Redis.Configuration;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// The options relevant to a set of redis connections
+    /// The options relevant to a set of redis connections.
     /// </summary>
+    /// <remarks>
+    /// Some options are not observed by a <see cref="ConnectionMultiplexer"/> after initial creation:
+    /// <list type="bullet">
+    ///     <item><see cref="CommandMap"/></item>
+    ///     <item><see cref="ConfigurationChannel"/></item>
+    ///     <item><see cref="DefaultVersion"/></item>
+    ///     <item><see cref="EndPoints"/></item>
+    ///     <item><see cref="SocketManager"/> or <see cref="HighPrioritySocketThreads"/></item>
+    /// </list>
+    /// </remarks>
     public sealed class ConfigurationOptions : ICloneable
     {
         private static class OptionKeys
@@ -133,7 +143,8 @@ namespace StackExchange.Redis
 
         private DefaultOptionsProvider defaultOptions;
 
-        private bool? allowAdmin, abortOnConnectFail, highPrioritySocketThreads, resolveDns, ssl, checkCertificateRevocation;
+        private bool? allowAdmin, abortOnConnectFail, highPrioritySocketThreads, resolveDns, ssl, checkCertificateRevocation,
+                      includeDetailInExceptions, includePerformanceCountersInExceptions;
 
         private string tieBreaker, sslHost, configChannel;
 
@@ -345,6 +356,27 @@ namespace StackExchange.Redis
         {
             get => highPrioritySocketThreads ?? true;
             set => highPrioritySocketThreads = value;
+        }
+
+        /// <summary>
+        /// Should exceptions include identifiable details? (key names, additional .Data annotations)
+        /// </summary>
+        public bool IncludeDetailInExceptions
+        {
+            get => includeDetailInExceptions ?? Defaults.IncludeDetailInExceptions;
+            set => includeDetailInExceptions = value;
+        }
+
+        /// <summary>
+        /// Should exceptions include performance counter details?
+        /// </summary>
+        /// <remarks>
+        /// CPU usage, etc - note that this can be problematic on some platforms.
+        /// </remarks>
+        public bool IncludePerformanceCountersInExceptions
+        {
+            get => includePerformanceCountersInExceptions ?? Defaults.IncludePerformanceCountersInExceptions;
+            set => includePerformanceCountersInExceptions = value;
         }
 
         /// <summary>
@@ -583,7 +615,6 @@ namespace StackExchange.Redis
             if (sentinel)
             {
                 // this is required when connecting to sentinel servers
-                TieBreaker = "";
                 CommandMap = CommandMap.Sentinel;
 
                 // use default sentinel port
@@ -602,6 +633,18 @@ namespace StackExchange.Redis
         public void SetDefaultPorts() => EndPoints.SetDefaultPorts(Ssl ? 6380 : 6379);
 
         internal bool IsSentinel => !string.IsNullOrEmpty(ServiceName);
+
+        internal bool TryGetTieBreaker(out RedisKey tieBreaker)
+        {
+            var key = TieBreaker;
+            if (!IsSentinel && !string.IsNullOrWhiteSpace(key))
+            {
+                tieBreaker = key;
+                return true;
+            }
+            tieBreaker = default;
+            return false;
+        }
 
         /// <summary>
         /// Returns the effective configuration string for this configuration, including Redis credentials.

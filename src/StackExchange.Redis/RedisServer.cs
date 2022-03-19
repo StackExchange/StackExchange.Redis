@@ -580,9 +580,9 @@ namespace StackExchange.Redis
         {
             var configuration = multiplexer.RawConfig;
 
-            if (!string.IsNullOrWhiteSpace(configuration.TieBreaker) && multiplexer.CommandMap.IsAvailable(RedisCommand.DEL))
+            if (configuration.TryGetTieBreaker(out var tieBreakerKey) && multiplexer.CommandMap.IsAvailable(RedisCommand.DEL))
             {
-                var msg = Message.Create(0, CommandFlags.FireAndForget | CommandFlags.NoRedirect, RedisCommand.DEL, (RedisKey)configuration.TieBreaker);
+                var msg = Message.Create(0, CommandFlags.FireAndForget | CommandFlags.NoRedirect, RedisCommand.DEL, tieBreakerKey);
                 msg.SetInternalCall();
                 return msg;
             }

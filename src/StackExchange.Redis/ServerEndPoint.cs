@@ -426,9 +426,8 @@ namespace StackExchange.Redis
             }
             // If we are going to fetch a tie breaker, do so last and we'll get it in before the tracer fires completing the connection
             // But if GETs are disabled on this, do not fail the connection - we just don't get tiebreaker benefits
-            if (!string.IsNullOrEmpty(Multiplexer.RawConfig.TieBreaker) && Multiplexer.RawConfig.CommandMap.IsAvailable(RedisCommand.GET))
+            if (Multiplexer.RawConfig.TryGetTieBreaker(out var tieBreakerKey) && Multiplexer.RawConfig.CommandMap.IsAvailable(RedisCommand.GET))
             {
-                RedisKey tieBreakerKey = Multiplexer.RawConfig.TieBreaker;
                 log?.WriteLine($"{Format.ToString(EndPoint)}: Requesting tie-break (Key=\"{tieBreakerKey}\")...");
                 msg = Message.Create(0, flags, RedisCommand.GET, tieBreakerKey);
                 msg.SetInternalCall();
