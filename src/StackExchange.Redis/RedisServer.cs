@@ -100,7 +100,6 @@ namespace StackExchange.Redis
                     default:
                         throw new ArgumentOutOfRangeException(nameof(clientType));
                 }
-                parts.Add(id.Value);
             }
             if (endpoint != null)
             {
