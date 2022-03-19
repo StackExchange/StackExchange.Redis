@@ -6,6 +6,8 @@
 - Adds: `KEEPTTL` support on `SET` operations ([#2029 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2029))
 - Fix: Allow `XTRIM` `MAXLEN` argument to be `0` ([#2030 by NicoAvanzDev](https://github.com/StackExchange/StackExchange.Redis/pull/2030))
 - Adds: `ConfigurationOptions.BeforeSocketConnect` for configuring sockets between creation and connection ([#2031 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2031))
+- Fix [#1813](https://github.com/StackExchange/StackExchange.Redis/issues/1813): Don't connect to endpoints we failed to parse ([#2042 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2042))
+- Fix: `ClientKill`/`ClientKillAsync` when using `ClientType` ([#2048 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2048))
 
 ## 2.5.43
 
