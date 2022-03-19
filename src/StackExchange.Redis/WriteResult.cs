@@ -1,10 +1,9 @@
-﻿namespace StackExchange.Redis
+﻿namespace StackExchange.Redis;
+
+internal enum WriteResult
 {
-    internal enum WriteResult
-    {
-        Success,
-        NoConnectionAvailable,
-        TimeoutBeforeWrite,
-        WriteFailure,
-    }
+    Success,
+    NoConnectionAvailable,
+    TimeoutBeforeWrite,
+    WriteFailure,
 }
