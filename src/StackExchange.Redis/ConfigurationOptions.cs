@@ -578,23 +578,28 @@ namespace StackExchange.Redis
             return this;
         }
 
+        internal ConfigurationOptions WithDefaults(bool sentinel = false)
+        {
+            if (sentinel)
+            {
+                // this is required when connecting to sentinel servers
+                TieBreaker = "";
+                CommandMap = CommandMap.Sentinel;
+
+                // use default sentinel port
+                EndPoints.SetDefaultPorts(26379);
+            }
+            else
+            {
+                SetDefaultPorts();
+            }
+            return this;
+        }
+
         /// <summary>
         /// Resolve the default port for any endpoints that did not have a port explicitly specified.
         /// </summary>
         public void SetDefaultPorts() => EndPoints.SetDefaultPorts(Ssl ? 6380 : 6379);
-
-        /// <summary>
-        /// Sets default config settings required for sentinel usage.
-        /// </summary>
-        internal void SetSentinelDefaults()
-        {
-            // this is required when connecting to sentinel servers
-            TieBreaker = "";
-            CommandMap = CommandMap.Sentinel;
-
-            // use default sentinel port
-            EndPoints.SetDefaultPorts(26379);
-        }
 
         internal bool IsSentinel => !string.IsNullOrEmpty(ServiceName);
 

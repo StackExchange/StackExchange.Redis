@@ -63,7 +63,7 @@ namespace StackExchange.Redis.Tests
             public long OperationCount => _inner.OperationCount;
 
 #pragma warning disable CS0618 // Type or member is obsolete
-            public bool PreserveAsyncOrder { get => _inner.PreserveAsyncOrder; set => _inner.PreserveAsyncOrder = value; }
+            public bool PreserveAsyncOrder { get => false; set { } }
 #pragma warning restore CS0618
 
             public bool IsConnected => _inner.IsConnected;
