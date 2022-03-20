@@ -142,7 +142,7 @@ namespace StackExchange.Redis
 
         private DefaultOptionsProvider defaultOptions;
 
-        private bool? allowAdmin, abortOnConnectFail, highPrioritySocketThreads, resolveDns, ssl, checkCertificateRevocation,
+        private bool? allowAdmin, abortOnConnectFail, resolveDns, ssl, checkCertificateRevocation,
                       includeDetailInExceptions, includePerformanceCountersInExceptions;
 
         private string tieBreaker, sslHost, configChannel;
@@ -369,10 +369,11 @@ namespace StackExchange.Redis
         /// Use ThreadPriority.AboveNormal for SocketManager reader and writer threads (true by default).
         /// If <see langword="false"/>, <see cref="ThreadPriority.Normal"/> will be used.
         /// </summary>
+        [Obsolete($"This setting no longer has any effect, please use {nameof(SocketManager.SocketManagerOptions)}.{nameof(SocketManager.SocketManagerOptions.UseHighPrioritySocketThreads)} instead - this setting will be removed in 3.0.")]
         public bool HighPrioritySocketThreads
         {
-            get => highPrioritySocketThreads ?? true;
-            set => highPrioritySocketThreads = value;
+            get => false;
+            set { }
         }
 
         /// <summary>
@@ -598,7 +599,6 @@ namespace StackExchange.Redis
             tieBreaker = tieBreaker,
             ssl = ssl,
             sslHost = sslHost,
-            highPrioritySocketThreads = highPrioritySocketThreads,
             configChannel = configChannel,
             abortOnConnectFail = abortOnConnectFail,
             resolveDns = resolveDns,
@@ -685,7 +685,6 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.SslProtocols, SslProtocols?.ToString().Replace(',', '|'));
             Append(sb, OptionKeys.CheckCertificateRevocation, checkCertificateRevocation);
             Append(sb, OptionKeys.SslHost, sslHost);
-            Append(sb, OptionKeys.HighPrioritySocketThreads, highPrioritySocketThreads);
             Append(sb, OptionKeys.ConfigChannel, configChannel);
             Append(sb, OptionKeys.AbortOnConnectFail, abortOnConnectFail);
             Append(sb, OptionKeys.ResolveDns, resolveDns);
@@ -728,7 +727,7 @@ namespace StackExchange.Redis
         {
             ClientName = ServiceName = User = Password = tieBreaker = sslHost = configChannel = null;
             keepAlive = syncTimeout = asyncTimeout = connectTimeout = connectRetry = configCheckSeconds = DefaultDatabase = null;
-            allowAdmin = abortOnConnectFail = highPrioritySocketThreads = resolveDns = ssl = null;
+            allowAdmin = abortOnConnectFail = resolveDns = ssl = null;
             SslProtocols = null;
             defaultVersion = null;
             EndPoints.Clear();
@@ -834,9 +833,6 @@ namespace StackExchange.Redis
                         case OptionKeys.SslHost:
                             SslHost = value;
                             break;
-                        case OptionKeys.HighPrioritySocketThreads:
-                            HighPrioritySocketThreads = OptionKeys.ParseBoolean(key, value);
-                            break;
                         case OptionKeys.Proxy:
                             Proxy = OptionKeys.ParseProxy(key, value);
                             break;
@@ -847,6 +843,7 @@ namespace StackExchange.Redis
                             SslProtocols = OptionKeys.ParseSslProtocols(key, value);
                             break;
                         // Deprecated options we ignore...
+                        case OptionKeys.HighPrioritySocketThreads:
                         case OptionKeys.PreserveAsyncOrder:
                         case OptionKeys.ResponseTimeout:
                         case OptionKeys.WriteBuffer:
