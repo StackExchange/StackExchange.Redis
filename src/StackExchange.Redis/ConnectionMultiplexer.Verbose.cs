@@ -36,7 +36,7 @@ public partial class ConnectionMultiplexer
 
     [Conditional("VERBOSE")]
     internal void OnMessageFaulted(Message? msg, Exception? fault, [CallerMemberName] string? origin = default, [CallerFilePath] string? path = default, [CallerLineNumber] int lineNumber = default) =>
-        MessageFaulted?.Invoke(msg?.CommandAndKey, fault, $"{origin} ({path}#{lineNumber})");Z
+        MessageFaulted?.Invoke(msg?.CommandAndKey, fault, $"{origin} ({path}#{lineNumber})");
 
     [Conditional("VERBOSE")]
     internal void OnInfoMessage(string message) => InfoMessage?.Invoke(message);

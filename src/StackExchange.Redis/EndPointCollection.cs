@@ -177,7 +177,7 @@ namespace StackExchange.Redis
             return false;
         }
 
-        internal async Task ResolveEndPointsAsync(ConnectionMultiplexer multiplexer, LogProxy log)
+        internal async Task ResolveEndPointsAsync(ConnectionMultiplexer multiplexer, LogProxy? log)
         {
             var cache = new Dictionary<string, IPAddress>(StringComparer.OrdinalIgnoreCase);
             for (int i = 0; i < Count; i++)
@@ -190,7 +190,7 @@ namespace StackExchange.Redis
                         {
                             this[i] = new IPEndPoint(IPAddress.Loopback, dns.Port);
                         }
-                        else if (cache.TryGetValue(dns.Host, out IPAddress ip))
+                        else if (cache.TryGetValue(dns.Host, out IPAddress? ip))
                         { // use cache
                             this[i] = new IPEndPoint(ip, dns.Port);
                         }

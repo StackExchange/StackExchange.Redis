@@ -11,16 +11,16 @@ namespace StackExchange.Redis;
 
 public partial class ConnectionMultiplexer
 {
-    internal EndPoint currentSentinelPrimaryEndPoint;
-    internal Timer sentinelPrimaryReconnectTimer;
+    internal EndPoint? currentSentinelPrimaryEndPoint;
+    internal Timer? sentinelPrimaryReconnectTimer;
     internal Dictionary<string, ConnectionMultiplexer> sentinelConnectionChildren = new Dictionary<string, ConnectionMultiplexer>();
-    internal ConnectionMultiplexer sentinelConnection = null;
+    internal ConnectionMultiplexer? sentinelConnection = null;
 
     /// <summary>
     /// Initializes the connection as a Sentinel connection and adds the necessary event handlers to track changes to the managed primaries.
     /// </summary>
     /// <param name="logProxy">The writer to log to, if any.</param>
-    internal void InitializeSentinel(LogProxy logProxy)
+    internal void InitializeSentinel(LogProxy? logProxy)
     {
         if (ServerSelectionStrategy.ServerType != ServerType.Sentinel)
         {
@@ -34,8 +34,8 @@ public partial class ConnectionMultiplexer
         {
             sub.Subscribe("+switch-master", (_, message) =>
             {
-                string[] messageParts = ((string)message).Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                EndPoint switchBlame = Format.TryParseEndPoint(string.Format("{0}:{1}", messageParts[1], messageParts[2]));
+                string[] messageParts = ((string)message!).Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                EndPoint? switchBlame = Format.TryParseEndPoint(string.Format("{0}:{1}", messageParts[1], messageParts[2]));
 
                 lock (sentinelConnectionChildren)
                 {
@@ -73,7 +73,7 @@ public partial class ConnectionMultiplexer
         {
             sub.Subscribe("+sentinel", (_, message) =>
             {
-                string[] messageParts = ((string)message).Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                string[] messageParts = ((string)message!).Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
                 UpdateSentinelAddressList(messageParts[0]);
             }, CommandFlags.FireAndForget);
         }
@@ -85,7 +85,7 @@ public partial class ConnectionMultiplexer
     /// </summary>
     /// <param name="configuration">The string configuration to use for this multiplexer.</param>
     /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
-    public static ConnectionMultiplexer SentinelConnect(string configuration, TextWriter log = null) =>
+    public static ConnectionMultiplexer SentinelConnect(string configuration, TextWriter? log = null) =>
         SentinelConnect(ConfigurationOptions.Parse(configuration), log);
 
     /// <summary>
@@ -93,7 +93,7 @@ public partial class ConnectionMultiplexer
     /// </summary>
     /// <param name="configuration">The string configuration to use for this multiplexer.</param>
     /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
-    public static Task<ConnectionMultiplexer> SentinelConnectAsync(string configuration, TextWriter log = null) =>
+    public static Task<ConnectionMultiplexer> SentinelConnectAsync(string configuration, TextWriter? log = null) =>
         SentinelConnectAsync(ConfigurationOptions.Parse(configuration), log);
 
     /// <summary>
@@ -101,7 +101,7 @@ public partial class ConnectionMultiplexer
     /// </summary>
     /// <param name="configuration">The configuration options to use for this multiplexer.</param>
     /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
-    public static ConnectionMultiplexer SentinelConnect(ConfigurationOptions configuration, TextWriter log = null)
+    public static ConnectionMultiplexer SentinelConnect(ConfigurationOptions configuration, TextWriter? log = null)
     {
         SocketConnection.AssertDependencies();
         return ConnectImpl(PrepareConfig(configuration, sentinel: true), log);
@@ -112,7 +112,7 @@ public partial class ConnectionMultiplexer
     /// </summary>
     /// <param name="configuration">The configuration options to use for this multiplexer.</param>
     /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
-    public static Task<ConnectionMultiplexer> SentinelConnectAsync(ConfigurationOptions configuration, TextWriter log = null)
+    public static Task<ConnectionMultiplexer> SentinelConnectAsync(ConfigurationOptions configuration, TextWriter? log = null)
     {
         SocketConnection.AssertDependencies();
         return ConnectImplAsync(PrepareConfig(configuration, sentinel: true), log);
@@ -124,7 +124,7 @@ public partial class ConnectionMultiplexer
     /// </summary>
     /// <param name="configuration">The configuration options to use for this multiplexer.</param>
     /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
-    private static ConnectionMultiplexer SentinelPrimaryConnect(ConfigurationOptions configuration, TextWriter log = null)
+    private static ConnectionMultiplexer SentinelPrimaryConnect(ConfigurationOptions configuration, TextWriter? log = null)
     {
         var sentinelConnection = SentinelConnect(configuration, log);
 
@@ -141,7 +141,7 @@ public partial class ConnectionMultiplexer
     /// </summary>
     /// <param name="configuration">The configuration options to use for this multiplexer.</param>
     /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
-    private static async Task<ConnectionMultiplexer> SentinelPrimaryConnectAsync(ConfigurationOptions configuration, TextWriter log = null)
+    private static async Task<ConnectionMultiplexer> SentinelPrimaryConnectAsync(ConfigurationOptions configuration, TextWriter? log = null)
     {
         var sentinelConnection = await SentinelConnectAsync(configuration, log).ForAwait();
 
@@ -157,7 +157,7 @@ public partial class ConnectionMultiplexer
     /// </summary>
     /// <param name="config">The configuration to be used when connecting to the primary.</param>
     /// <param name="log">The writer to log to, if any.</param>
-    public ConnectionMultiplexer GetSentinelMasterConnection(ConfigurationOptions config, TextWriter log = null)
+    public ConnectionMultiplexer GetSentinelMasterConnection(ConfigurationOptions config, TextWriter? log = null)
     {
         if (ServerSelectionStrategy.ServerType != ServerType.Sentinel)
         {
@@ -165,26 +165,28 @@ public partial class ConnectionMultiplexer
                 "Sentinel: The ConnectionMultiplexer is not a Sentinel connection. Detected as: " + ServerSelectionStrategy.ServerType);
         }
 
-        if (string.IsNullOrEmpty(config.ServiceName))
+        var serviceName = config.ServiceName;
+        if (serviceName.IsNullOrEmpty())
         {
             throw new ArgumentException("A ServiceName must be specified.");
         }
 
         lock (sentinelConnectionChildren)
         {
-            if (sentinelConnectionChildren.TryGetValue(config.ServiceName, out var sentinelConnectionChild) && !sentinelConnectionChild.IsDisposed)
+            if (sentinelConnectionChildren.TryGetValue(serviceName, out var sentinelConnectionChild) && !sentinelConnectionChild.IsDisposed)
                 return sentinelConnectionChild;
         }
 
         bool success = false;
-        ConnectionMultiplexer connection = null;
+        ConnectionMultiplexer? connection = null;
 
         var sw = ValueStopwatch.StartNew();
         do
         {
+#pragma warning disable CS8600 // Converting null literal or possible null value to non-nullable type.
             // Get an initial endpoint - try twice
-            EndPoint newPrimaryEndPoint = GetConfiguredPrimaryForService(config.ServiceName)
-                                         ?? GetConfiguredPrimaryForService(config.ServiceName);
+            EndPoint newPrimaryEndPoint = GetConfiguredPrimaryForService(serviceName)
+                                         ?? GetConfiguredPrimaryForService(serviceName);
 
             if (newPrimaryEndPoint == null)
             {
@@ -192,8 +194,9 @@ public partial class ConnectionMultiplexer
                     $"Sentinel: Failed connecting to configured primary for service: {config.ServiceName}");
             }
 
-            EndPoint[] replicaEndPoints = GetReplicasForService(config.ServiceName)
-                                       ?? GetReplicasForService(config.ServiceName);
+            EndPoint[] replicaEndPoints = GetReplicasForService(serviceName)
+                                       ?? GetReplicasForService(serviceName);
+#pragma warning restore CS8600 // Converting null literal or possible null value to non-nullable type.
 
             // Replace the primary endpoint, if we found another one
             // If not, assume the last state is the best we have and minimize the race
@@ -207,16 +210,19 @@ public partial class ConnectionMultiplexer
                 config.EndPoints.TryAdd(newPrimaryEndPoint);
             }
 
-            foreach (var replicaEndPoint in replicaEndPoints)
+            if (replicaEndPoints is not null)
             {
-                config.EndPoints.TryAdd(replicaEndPoint);
+                foreach (var replicaEndPoint in replicaEndPoints)
+                {
+                    config.EndPoints.TryAdd(replicaEndPoint);
+                }
             }
 
             connection = ConnectImpl(config, log);
 
             // verify role is primary according to:
-            // https://redis.io/topics/sentinel-clients
-            if (connection.GetServer(newPrimaryEndPoint)?.Role().Value == RedisLiterals.master)
+            // https://redis.io/topics/sentinel-clientsS
+            if (connection.GetServer(newPrimaryEndPoint)?.Role()?.Value == (string?)RedisLiterals.master)
             {
                 success = true;
                 break;
@@ -239,7 +245,7 @@ public partial class ConnectionMultiplexer
 
         lock (sentinelConnectionChildren)
         {
-            sentinelConnectionChildren[connection.RawConfig.ServiceName] = connection;
+            sentinelConnectionChildren[serviceName] = connection;
         }
 
         // Perform the initial switchover
@@ -249,9 +255,9 @@ public partial class ConnectionMultiplexer
     }
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Roslynator", "RCS1075:Avoid empty catch clause that catches System.Exception.", Justification = "We don't care.")]
-    internal void OnManagedConnectionRestored(object sender, ConnectionFailedEventArgs e)
+    internal void OnManagedConnectionRestored(object? sender, ConnectionFailedEventArgs e)
     {
-        ConnectionMultiplexer connection = (ConnectionMultiplexer)sender;
+        ConnectionMultiplexer connection = (ConnectionMultiplexer)sender!;
 
         var oldTimer = Interlocked.Exchange(ref connection.sentinelPrimaryReconnectTimer, null);
         oldTimer?.Dispose();
@@ -290,9 +296,9 @@ public partial class ConnectionMultiplexer
     }
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Roslynator", "RCS1075:Avoid empty catch clause that catches System.Exception.", Justification = "We don't care.")]
-    internal void OnManagedConnectionFailed(object sender, ConnectionFailedEventArgs e)
+    internal void OnManagedConnectionFailed(object? sender, ConnectionFailedEventArgs e)
     {
-        ConnectionMultiplexer connection = (ConnectionMultiplexer)sender;
+        ConnectionMultiplexer connection = (ConnectionMultiplexer)sender!;
         // Periodically check to see if we can reconnect to the proper primary.
         // This is here in case we lost our subscription to a good sentinel instance
         // or if we miss the published primary change.
@@ -316,7 +322,7 @@ public partial class ConnectionMultiplexer
         }
     }
 
-    internal EndPoint GetConfiguredPrimaryForService(string serviceName) =>
+    internal EndPoint? GetConfiguredPrimaryForService(string serviceName) =>
         GetServerSnapshot()
             .ToArray()
             .Where(s => s.ServerType == ServerType.Sentinel)
@@ -328,7 +334,7 @@ public partial class ConnectionMultiplexer
             })
             .FirstOrDefault(r => r != null);
 
-    internal EndPoint[] GetReplicasForService(string serviceName) =>
+    internal EndPoint[]? GetReplicasForService(string serviceName) =>
         GetServerSnapshot()
             .ToArray()
             .Where(s => s.ServerType == ServerType.Sentinel)
@@ -346,33 +352,40 @@ public partial class ConnectionMultiplexer
     /// <param name="switchBlame">The endpoint responsible for the switch.</param>
     /// <param name="connection">The connection that should be switched over to a new primary endpoint.</param>
     /// <param name="log">The writer to log to, if any.</param>
-    internal void SwitchPrimary(EndPoint switchBlame, ConnectionMultiplexer connection, TextWriter log = null)
+    internal void SwitchPrimary(EndPoint? switchBlame, ConnectionMultiplexer connection, TextWriter? log = null)
     {
         if (log == null) log = TextWriter.Null;
 
         using (var logProxy = LogProxy.TryCreate(log))
         {
-            string serviceName = connection.RawConfig.ServiceName;
+            if (connection.RawConfig.ServiceName is not string serviceName)
+            {
+                logProxy?.WriteLine("Service name not defined.");
+                return;
+            }
 
             // Get new primary - try twice
             EndPoint newPrimaryEndPoint = GetConfiguredPrimaryForService(serviceName)
-                                       ?? GetConfiguredPrimaryForService(serviceName)
-                                       ?? throw new RedisConnectionException(ConnectionFailureType.UnableToConnect,
+                                        ?? GetConfiguredPrimaryForService(serviceName)
+                                        ?? throw new RedisConnectionException(ConnectionFailureType.UnableToConnect,
                                             $"Sentinel: Failed connecting to switch primary for service: {serviceName}");
 
             connection.currentSentinelPrimaryEndPoint = newPrimaryEndPoint;
 
             if (!connection.servers.Contains(newPrimaryEndPoint))
             {
-                EndPoint[] replicaEndPoints = GetReplicasForService(serviceName)
-                                           ?? GetReplicasForService(serviceName);
+                EndPoint[]? replicaEndPoints = GetReplicasForService(serviceName)
+                                            ?? GetReplicasForService(serviceName);
 
                 connection.servers.Clear();
                 connection.RawConfig.EndPoints.Clear();
                 connection.RawConfig.EndPoints.TryAdd(newPrimaryEndPoint);
-                foreach (var replicaEndPoint in replicaEndPoints)
+                if (replicaEndPoints is not null)
                 {
-                    connection.RawConfig.EndPoints.TryAdd(replicaEndPoint);
+                    foreach (var replicaEndPoint in replicaEndPoints)
+                    {
+                        connection.RawConfig.EndPoints.TryAdd(replicaEndPoint);
+                    }
                 }
                 Trace($"Switching primary to {newPrimaryEndPoint}");
                 // Trigger a reconfigure
