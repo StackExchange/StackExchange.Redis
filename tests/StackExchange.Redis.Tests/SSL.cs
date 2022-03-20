@@ -339,7 +339,7 @@ namespace StackExchange.Redis.Tests
                     Writer.WriteLine("Tessting: " + ci.Name);
                     CultureInfo.CurrentCulture = ci;
 
-                    var a = ConnectionMultiplexer.PrepareConfig("myDNS:883,password=mypassword,connectRetry=3,connectTimeout=5000,syncTimeout=5000,defaultDatabase=0,ssl=true,abortConnect=false");
+                    var a = ConnectionMultiplexer.PrepareConfig(ConfigurationOptions.Parse("myDNS:883,password=mypassword,connectRetry=3,connectTimeout=5000,syncTimeout=5000,defaultDatabase=0,ssl=true,abortConnect=false"));
                     var b = ConnectionMultiplexer.PrepareConfig(new ConfigurationOptions
                     {
                         EndPoints = { { "myDNS", 883 } },

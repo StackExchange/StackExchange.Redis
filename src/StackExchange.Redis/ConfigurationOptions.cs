@@ -335,7 +335,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// The endpoints defined for this configuration.
         /// </summary>
-        public EndPointCollection EndPoints { get; } = new EndPointCollection();
+        public EndPointCollection EndPoints { get; init; } = new EndPointCollection();
 
         /// <summary>
         /// Use ThreadPriority.AboveNormal for SocketManager reader and writer threads (true by default).
@@ -529,50 +529,43 @@ namespace StackExchange.Redis
         /// <summary>
         /// Create a copy of the configuration.
         /// </summary>
-        public ConfigurationOptions Clone()
+        public ConfigurationOptions Clone() => new ConfigurationOptions
         {
-            var options = new ConfigurationOptions
-            {
-                defaultOptions = defaultOptions,
-                ClientName = ClientName,
-                ServiceName = ServiceName,
-                keepAlive = keepAlive,
-                syncTimeout = syncTimeout,
-                asyncTimeout = asyncTimeout,
-                allowAdmin = allowAdmin,
-                defaultVersion = defaultVersion,
-                connectTimeout = connectTimeout,
-                User = User,
-                Password = Password,
-                tieBreaker = tieBreaker,
-                ssl = ssl,
-                sslHost = sslHost,
-                highPrioritySocketThreads = highPrioritySocketThreads,
-                configChannel = configChannel,
-                abortOnConnectFail = abortOnConnectFail,
-                resolveDns = resolveDns,
-                proxy = proxy,
-                commandMap = commandMap,
-                CertificateValidationCallback = CertificateValidationCallback,
-                CertificateSelectionCallback = CertificateSelectionCallback,
-                ChannelPrefix = ChannelPrefix.Clone(),
-                SocketManager = SocketManager,
-                connectRetry = connectRetry,
-                configCheckSeconds = configCheckSeconds,
-                responseTimeout = responseTimeout,
-                DefaultDatabase = DefaultDatabase,
-                reconnectRetryPolicy = reconnectRetryPolicy,
-                backlogPolicy = backlogPolicy,
-                SslProtocols = SslProtocols,
-                checkCertificateRevocation = checkCertificateRevocation,
-                BeforeSocketConnect = BeforeSocketConnect,
-            };
-            foreach (var item in EndPoints)
-            {
-                options.EndPoints.Add(item);
-            }
-            return options;
-        }
+            defaultOptions = defaultOptions,
+            ClientName = ClientName,
+            ServiceName = ServiceName,
+            keepAlive = keepAlive,
+            syncTimeout = syncTimeout,
+            asyncTimeout = asyncTimeout,
+            allowAdmin = allowAdmin,
+            defaultVersion = defaultVersion,
+            connectTimeout = connectTimeout,
+            User = User,
+            Password = Password,
+            tieBreaker = tieBreaker,
+            ssl = ssl,
+            sslHost = sslHost,
+            highPrioritySocketThreads = highPrioritySocketThreads,
+            configChannel = configChannel,
+            abortOnConnectFail = abortOnConnectFail,
+            resolveDns = resolveDns,
+            proxy = proxy,
+            commandMap = commandMap,
+            CertificateValidationCallback = CertificateValidationCallback,
+            CertificateSelectionCallback = CertificateSelectionCallback,
+            ChannelPrefix = ChannelPrefix.Clone(),
+            SocketManager = SocketManager,
+            connectRetry = connectRetry,
+            configCheckSeconds = configCheckSeconds,
+            responseTimeout = responseTimeout,
+            DefaultDatabase = DefaultDatabase,
+            reconnectRetryPolicy = reconnectRetryPolicy,
+            backlogPolicy = backlogPolicy,
+            SslProtocols = SslProtocols,
+            checkCertificateRevocation = checkCertificateRevocation,
+            BeforeSocketConnect = BeforeSocketConnect,
+            EndPoints = new EndPointCollection(EndPoints),
+        };
 
         /// <summary>
         /// Apply settings to configure this instance of <see cref="ConfigurationOptions"/>, e.g. for a specific scenario.
@@ -585,23 +578,30 @@ namespace StackExchange.Redis
             return this;
         }
 
+        internal ConfigurationOptions WithDefaults(bool sentinel = false)
+        {
+            if (sentinel)
+            {
+                // this is required when connecting to sentinel servers
+                TieBreaker = "";
+                CommandMap = CommandMap.Sentinel;
+
+                // use default sentinel port
+                EndPoints.SetDefaultPorts(26379);
+            }
+            else
+            {
+                SetDefaultPorts();
+            }
+            return this;
+        }
+
         /// <summary>
         /// Resolve the default port for any endpoints that did not have a port explicitly specified.
         /// </summary>
         public void SetDefaultPorts() => EndPoints.SetDefaultPorts(Ssl ? 6380 : 6379);
 
-        /// <summary>
-        /// Sets default config settings required for sentinel usage.
-        /// </summary>
-        internal void SetSentinelDefaults()
-        {
-            // this is required when connecting to sentinel servers
-            TieBreaker = "";
-            CommandMap = CommandMap.Sentinel;
-
-            // use default sentinel port
-            EndPoints.SetDefaultPorts(26379);
-        }
+        internal bool IsSentinel => !string.IsNullOrEmpty(ServiceName);
 
         /// <summary>
         /// Returns the effective configuration string for this configuration, including Redis credentials.
@@ -650,57 +650,6 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.DefaultDatabase, DefaultDatabase);
             commandMap?.AppendDeltas(sb);
             return sb.ToString();
-        }
-
-        internal bool HasDnsEndPoints()
-        {
-            foreach (var endpoint in EndPoints)
-            {
-                if (endpoint is DnsEndPoint)
-                {
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        internal async Task ResolveEndPointsAsync(ConnectionMultiplexer multiplexer, LogProxy? log)
-        {
-            var cache = new Dictionary<string, IPAddress>(StringComparer.OrdinalIgnoreCase);
-            for (int i = 0; i < EndPoints.Count; i++)
-            {
-                if (EndPoints[i] is DnsEndPoint dns)
-                {
-                    try
-                    {
-                        if (dns.Host == ".")
-                        {
-                            EndPoints[i] = new IPEndPoint(IPAddress.Loopback, dns.Port);
-                        }
-                        else if (cache.TryGetValue(dns.Host, out IPAddress? ip))
-                        { // use cache
-                            EndPoints[i] = new IPEndPoint(ip, dns.Port);
-                        }
-                        else
-                        {
-                            log?.WriteLine($"Using DNS to resolve '{dns.Host}'...");
-                            var ips = await Dns.GetHostAddressesAsync(dns.Host).ObserveErrors().ForAwait();
-                            if (ips.Length == 1)
-                            {
-                                ip = ips[0];
-                                log?.WriteLine($"'{dns.Host}' => {ip}");
-                                cache[dns.Host] = ip;
-                                EndPoints[i] = new IPEndPoint(ip, dns.Port);
-                            }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        multiplexer.OnInternalError(ex);
-                        log?.WriteLine(ex.Message);
-                    }
-                }
-            }
         }
 
         private static void Append(StringBuilder sb, object value)

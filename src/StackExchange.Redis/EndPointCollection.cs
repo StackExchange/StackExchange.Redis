@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Net;
+using System.Threading.Tasks;
 
 namespace StackExchange.Redis
 {
@@ -161,6 +162,57 @@ namespace StackExchange.Redis
             for (int i = 0; i < Count; i++)
             {
                 yield return this[i];
+            }
+        }
+
+        internal bool HasDnsEndPoints()
+        {
+            foreach (var endpoint in this)
+            {
+                if (endpoint is DnsEndPoint)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        internal async Task ResolveEndPointsAsync(ConnectionMultiplexer multiplexer, LogProxy log)
+        {
+            var cache = new Dictionary<string, IPAddress>(StringComparer.OrdinalIgnoreCase);
+            for (int i = 0; i < Count; i++)
+            {
+                if (this[i] is DnsEndPoint dns)
+                {
+                    try
+                    {
+                        if (dns.Host == ".")
+                        {
+                            this[i] = new IPEndPoint(IPAddress.Loopback, dns.Port);
+                        }
+                        else if (cache.TryGetValue(dns.Host, out IPAddress ip))
+                        { // use cache
+                            this[i] = new IPEndPoint(ip, dns.Port);
+                        }
+                        else
+                        {
+                            log?.WriteLine($"Using DNS to resolve '{dns.Host}'...");
+                            var ips = await Dns.GetHostAddressesAsync(dns.Host).ObserveErrors().ForAwait();
+                            if (ips.Length == 1)
+                            {
+                                ip = ips[0];
+                                log?.WriteLine($"'{dns.Host}' => {ip}");
+                                cache[dns.Host] = ip;
+                                this[i] = new IPEndPoint(ip, dns.Port);
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        multiplexer.OnInternalError(ex);
+                        log?.WriteLine(ex.Message);
+                    }
+                }
             }
         }
     }
