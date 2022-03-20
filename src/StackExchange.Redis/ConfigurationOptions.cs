@@ -22,9 +22,8 @@ namespace StackExchange.Redis
     /// <list type="bullet">
     ///     <item><see cref="CommandMap"/></item>
     ///     <item><see cref="ConfigurationChannel"/></item>
-    ///     <item><see cref="DefaultVersion"/></item>
     ///     <item><see cref="EndPoints"/></item>
-    ///     <item><see cref="SocketManager"/> or <see cref="HighPrioritySocketThreads"/></item>
+    ///     <item><see cref="SocketManager"/></item>
     /// </list>
     /// </remarks>
     public sealed class ConfigurationOptions : ICloneable
@@ -300,6 +299,10 @@ namespace StackExchange.Redis
         /// <summary>
         /// The command-map associated with this configuration.
         /// </summary>
+        /// <remarks>
+        /// This is memoized when a <see cref="ConnectionMultiplexer"/> connects.
+        /// Modifying it afterwards will have no effect on already-created multiplexers.
+        /// </remarks>
         public CommandMap CommandMap
         {
             get => commandMap ?? Defaults.CommandMap ?? Proxy switch
@@ -320,6 +323,10 @@ namespace StackExchange.Redis
         /// <summary>
         /// Channel to use for broadcasting and listening for configuration change notification.
         /// </summary>
+        /// <remarks>
+        /// This is memoized when a <see cref="ConnectionMultiplexer"/> connects.
+        /// Modifying it afterwards will have no effect on already-created multiplexers.
+        /// </remarks>
         public string ConfigurationChannel
         {
             get => configChannel ?? Defaults.ConfigurationChannel;
@@ -352,6 +359,10 @@ namespace StackExchange.Redis
         /// <summary>
         /// The endpoints defined for this configuration.
         /// </summary>
+        /// <remarks>
+        /// This is memoized when a <see cref="ConnectionMultiplexer"/> connects.
+        /// Modifying it afterwards will have no effect on already-created multiplexers.
+        /// </remarks>
         public EndPointCollection EndPoints { get; init; } = new EndPointCollection();
 
         /// <summary>
@@ -471,6 +482,10 @@ namespace StackExchange.Redis
         /// Gets or sets the SocketManager instance to be used with these options.
         /// If this is null a shared cross-multiplexer <see cref="SocketManager"/> is used.
         /// </summary>
+        /// <remarks>
+        /// This is only used when a <see cref="ConnectionMultiplexer"/> is created.
+        /// Modifying it afterwards will have no effect on already-created multiplexers.
+        /// </remarks>
         public SocketManager SocketManager { get; set; }
 
         /// <summary>
