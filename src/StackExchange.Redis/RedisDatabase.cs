@@ -3027,7 +3027,7 @@ namespace StackExchange.Redis
             // Because we are using STORE, we need to push this to a primary
             if (Message.GetPrimaryReplicaFlags(flags) == CommandFlags.DemandReplica)
             {
-                throw ExceptionFactory.PrimaryOnly(multiplexer.IncludeDetailInExceptions, RedisCommand.SORT, null, null);
+                throw ExceptionFactory.PrimaryOnly(multiplexer.RawConfig.IncludeDetailInExceptions, RedisCommand.SORT, null, null);
             }
             flags = Message.SetPrimaryReplicaFlags(flags, CommandFlags.DemandMaster);
             values.Add(RedisLiterals.STORE);

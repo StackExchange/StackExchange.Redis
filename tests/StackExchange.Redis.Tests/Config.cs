@@ -591,6 +591,7 @@ namespace StackExchange.Redis.Tests
             options.CommandMap = CommandMap.Envoyproxy;
             Assert.NotSame(options.CommandMap, muxer.CommandMap);
 
+#pragma warning disable CS0618 // Type or member is obsolete
             // Defaults true
             Assert.True(options.IncludeDetailInExceptions);
             Assert.True(muxer.IncludeDetailInExceptions);
@@ -604,6 +605,7 @@ namespace StackExchange.Redis.Tests
             options.IncludePerformanceCountersInExceptions = true;
             Assert.True(options.IncludePerformanceCountersInExceptions);
             Assert.True(muxer.IncludePerformanceCountersInExceptions);
+#pragma warning restore CS0618
 
             var newName = Guid.NewGuid().ToString();
             options.ClientName = newName;

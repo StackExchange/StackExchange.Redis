@@ -48,6 +48,8 @@ namespace StackExchange.Redis
         internal ServerSelectionStrategy ServerSelectionStrategy { get; }
         internal Exception LastException { get; set; }
 
+        ConfigurationOptions IInternalConnectionMultiplexer.RawConfig => RawConfig;
+
         private int _activeHeartbeatErrors, lastHeartbeatTicks;
         internal long LastHeartbeatSecondsAgo =>
             pulse is null
@@ -61,10 +63,10 @@ namespace StackExchange.Redis
         /// <summary>
         /// Should exceptions include identifiable details? (key names, additional .Data annotations)
         /// </summary>
+        [Obsolete($"Please use {nameof(ConfigurationOptions)}.{nameof(ConfigurationOptions.IncludeDetailInExceptions)} instead - this will be removed in 3.0.")]
         public bool IncludeDetailInExceptions
         {
             get => RawConfig.IncludeDetailInExceptions;
-            [Obsolete($"Please use {nameof(ConfigurationOptions)}.{nameof(ConfigurationOptions.IncludeDetailInExceptions)} instead - this will be removed in 3.0.")]
             set => RawConfig.IncludeDetailInExceptions = value;
         }
 
@@ -74,10 +76,10 @@ namespace StackExchange.Redis
         /// <remarks>
         /// CPU usage, etc - note that this can be problematic on some platforms.
         /// </remarks>
+        [Obsolete($"Please use {nameof(ConfigurationOptions)}.{nameof(ConfigurationOptions.IncludePerformanceCountersInExceptions)} instead - this will be removed in 3.0.")]
         public bool IncludePerformanceCountersInExceptions
         {
             get => RawConfig.IncludePerformanceCountersInExceptions;
-            [Obsolete($"Please use {nameof(ConfigurationOptions)}.{nameof(ConfigurationOptions.IncludePerformanceCountersInExceptions)} instead - this will be removed in 3.0.")]
             set => RawConfig.IncludePerformanceCountersInExceptions = value;
         }
 
@@ -217,7 +219,7 @@ namespace StackExchange.Redis
 
             if (!RawConfig.AllowAdmin)
             {
-                throw ExceptionFactory.AdminModeNotEnabled(IncludeDetailInExceptions, cmd, null, server);
+                throw ExceptionFactory.AdminModeNotEnabled(RawConfig.IncludeDetailInExceptions, cmd, null, server);
             }
             var srv = new RedisServer(this, server, null);
             if (!srv.IsConnected)
@@ -351,7 +353,7 @@ namespace StackExchange.Redis
         {
             if (!RawConfig.AllowAdmin && message.IsAdmin)
             {
-                throw ExceptionFactory.AdminModeNotEnabled(IncludeDetailInExceptions, message.Command, message, null);
+                throw ExceptionFactory.AdminModeNotEnabled(RawConfig.IncludeDetailInExceptions, message.Command, message, null);
             }
             if (message.Command != RedisCommand.UNKNOWN)
             {
@@ -1733,7 +1735,7 @@ namespace StackExchange.Redis
             {
                 if (message.IsPrimaryOnly() && server.IsReplica)
                 {
-                    throw ExceptionFactory.PrimaryOnly(IncludeDetailInExceptions, message.Command, message, server);
+                    throw ExceptionFactory.PrimaryOnly(RawConfig.IncludeDetailInExceptions, message.Command, message, server);
                 }
 
                 switch (server.ServerType)
@@ -1741,7 +1743,7 @@ namespace StackExchange.Redis
                     case ServerType.Cluster:
                         if (message.GetHashSlot(ServerSelectionStrategy) == ServerSelectionStrategy.MultipleSlots)
                         {
-                            throw ExceptionFactory.MultiSlot(IncludeDetailInExceptions, message);
+                            throw ExceptionFactory.MultiSlot(RawConfig.IncludeDetailInExceptions, message);
                         }
                         break;
                 }
@@ -1767,7 +1769,7 @@ namespace StackExchange.Redis
                     int availableDatabases = server.Databases;
                     if (availableDatabases > 0 && message.Db >= availableDatabases)
                     {
-                        throw ExceptionFactory.DatabaseOutfRange(IncludeDetailInExceptions, message.Db, message, server);
+                        throw ExceptionFactory.DatabaseOutfRange(RawConfig.IncludeDetailInExceptions, message.Db, message, server);
                     }
                 }
 
@@ -1795,7 +1797,7 @@ namespace StackExchange.Redis
             WriteResult.Success => null,
             WriteResult.NoConnectionAvailable => ExceptionFactory.NoConnectionAvailable(this, message, server),
             WriteResult.TimeoutBeforeWrite => ExceptionFactory.Timeout(this, "The timeout was reached before the message could be written to the output buffer, and it was not sent", message, server, result),
-            _ => ExceptionFactory.ConnectionFailure(IncludeDetailInExceptions, ConnectionFailureType.ProtocolFailure, "An unknown error occurred when writing the message", server),
+            _ => ExceptionFactory.ConnectionFailure(RawConfig.IncludeDetailInExceptions, ConnectionFailureType.ProtocolFailure, "An unknown error occurred when writing the message", server),
         };
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "CA1816:Dispose methods should call SuppressFinalize", Justification = "Intentional observation")]

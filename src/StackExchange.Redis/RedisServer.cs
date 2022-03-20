@@ -395,14 +395,14 @@ namespace StackExchange.Redis
 
         public void ScriptFlush(CommandFlags flags = CommandFlags.None)
         {
-            if (!multiplexer.RawConfig.AllowAdmin) throw ExceptionFactory.AdminModeNotEnabled(multiplexer.IncludeDetailInExceptions, RedisCommand.SCRIPT, null, server);
+            if (!multiplexer.RawConfig.AllowAdmin) throw ExceptionFactory.AdminModeNotEnabled(multiplexer.RawConfig.IncludeDetailInExceptions, RedisCommand.SCRIPT, null, server);
             var msg = Message.Create(-1, flags, RedisCommand.SCRIPT, RedisLiterals.FLUSH);
             ExecuteSync(msg, ResultProcessor.DemandOK);
         }
 
         public Task ScriptFlushAsync(CommandFlags flags = CommandFlags.None)
         {
-            if (!multiplexer.RawConfig.AllowAdmin) throw ExceptionFactory.AdminModeNotEnabled(multiplexer.IncludeDetailInExceptions, RedisCommand.SCRIPT, null, server);
+            if (!multiplexer.RawConfig.AllowAdmin) throw ExceptionFactory.AdminModeNotEnabled(multiplexer.RawConfig.IncludeDetailInExceptions, RedisCommand.SCRIPT, null, server);
             var msg = Message.Create(-1, flags, RedisCommand.SCRIPT, RedisLiterals.FLUSH);
             return ExecuteAsync(msg, ResultProcessor.DemandOK);
         }

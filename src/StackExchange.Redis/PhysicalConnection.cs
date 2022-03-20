@@ -220,7 +220,7 @@ namespace StackExchange.Redis
 
         public long LastWriteSecondsAgo => unchecked(Environment.TickCount - Thread.VolatileRead(ref lastWriteTickCount)) / 1000;
 
-        private bool IncludeDetailInExceptions => BridgeCouldBeNull?.Multiplexer.IncludeDetailInExceptions ?? false;
+        private bool IncludeDetailInExceptions => BridgeCouldBeNull?.Multiplexer.RawConfig.IncludeDetailInExceptions ?? false;
 
         [Conditional("VERBOSE")]
         internal void Trace(string message) => BridgeCouldBeNull?.Multiplexer?.Trace(message, ToString());

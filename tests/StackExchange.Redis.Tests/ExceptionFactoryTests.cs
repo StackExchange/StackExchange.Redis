@@ -221,7 +221,7 @@ namespace StackExchange.Redis.Tests
         public void MessageFail(bool includeDetail, ConnectionFailureType failType, string messageStart)
         {
             using var muxer = Create(shared: false);
-            muxer.IncludeDetailInExceptions = includeDetail;
+            muxer.RawConfig.IncludeDetailInExceptions = includeDetail;
 
             var message = Message.Create(0, CommandFlags.None, RedisCommand.GET, (RedisKey)"myKey");
             var resultBox = SimpleResultBox<string>.Create();

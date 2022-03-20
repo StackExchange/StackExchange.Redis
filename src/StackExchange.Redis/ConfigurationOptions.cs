@@ -315,7 +315,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Gets the command map for a given server type, since some supercede settings when connecting.
+        /// Gets the command map for a given server type, since some supersede settings when connecting.
         /// </summary>
         internal CommandMap GetCommandMap(ServerType? serverType) => serverType switch
         {

@@ -98,7 +98,7 @@ namespace StackExchange.Redis
             ReadOnlySpan<ServerEndPoint> serverSnapshot = default,
             RedisCommand command = default)
         {
-            string commandLabel = GetLabel(multiplexer.IncludeDetailInExceptions, message?.Command ?? command, message);
+            string commandLabel = GetLabel(multiplexer.RawConfig.IncludeDetailInExceptions, message?.Command ?? command, message);
 
             if (server != null)
             {
@@ -141,13 +141,13 @@ namespace StackExchange.Redis
 
             // Add counters and exception data if we have it
             List<Tuple<string, string>> data = null;
-            if (multiplexer.IncludeDetailInExceptions)
+            if (multiplexer.RawConfig.IncludeDetailInExceptions)
             {
                 data = new List<Tuple<string, string>>();
                 AddCommonDetail(data, sb, message, multiplexer, server);
             }
             var ex = new RedisConnectionException(ConnectionFailureType.UnableToResolvePhysicalConnection, sb.ToString(), innerException, message?.Status ?? CommandStatus.Unknown);
-            if (multiplexer.IncludeDetailInExceptions)
+            if (multiplexer.RawConfig.IncludeDetailInExceptions)
             {
                 CopyDataToException(data, ex);
                 sb.Append("; ").Append(PerfCounterHelper.GetThreadPoolAndCPUSummary(multiplexer.IncludePerformanceCountersInExceptions));
@@ -261,7 +261,7 @@ namespace StackExchange.Redis
             };
             CopyDataToException(data, ex);
 
-            if (multiplexer.IncludeDetailInExceptions) AddExceptionDetail(ex, message, server, null);
+            if (multiplexer.RawConfig.IncludeDetailInExceptions) AddExceptionDetail(ex, message, server, null);
             return ex;
         }
 
@@ -288,8 +288,8 @@ namespace StackExchange.Redis
             if (message != null)
             {
                 message.TryGetHeadMessages(out var now, out var next);
-                if (now != null) Add(data, sb, "Message-Current", "active", multiplexer.IncludeDetailInExceptions ? now.CommandAndKey : now.Command.ToString());
-                if (next != null) Add(data, sb, "Message-Next", "next", multiplexer.IncludeDetailInExceptions ? next.CommandAndKey : next.Command.ToString());
+                if (now != null) Add(data, sb, "Message-Current", "active", multiplexer.RawConfig.IncludeDetailInExceptions ? now.CommandAndKey : now.Command.ToString());
+                if (next != null) Add(data, sb, "Message-Next", "next", multiplexer.RawConfig.IncludeDetailInExceptions ? next.CommandAndKey : next.Command.ToString());
             }
 
             // Add server data, if we have it
