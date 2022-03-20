@@ -311,6 +311,12 @@ namespace StackExchange.Redis
             set => commandMap = value ?? throw new ArgumentNullException(nameof(value));
         }
 
+        internal CommandMap GetCommandMap(ServerType? serverType) => serverType switch
+        {
+            ServerType.Sentinel => CommandMap.Sentinel,
+            _ => CommandMap,
+        };
+
         /// <summary>
         /// Channel to use for broadcasting and listening for configuration change notification.
         /// </summary>
@@ -596,7 +602,7 @@ namespace StackExchange.Redis
             SslProtocols = SslProtocols,
             checkCertificateRevocation = checkCertificateRevocation,
             BeforeSocketConnect = BeforeSocketConnect,
-            EndPoints = new EndPointCollection(EndPoints),
+            EndPoints = EndPoints.Clone(),
         };
 
         /// <summary>
@@ -610,27 +616,10 @@ namespace StackExchange.Redis
             return this;
         }
 
-        internal ConfigurationOptions WithDefaults(bool sentinel = false)
-        {
-            if (sentinel)
-            {
-                // this is required when connecting to sentinel servers
-                CommandMap = CommandMap.Sentinel;
-
-                // use default sentinel port
-                EndPoints.SetDefaultPorts(26379);
-            }
-            else
-            {
-                SetDefaultPorts();
-            }
-            return this;
-        }
-
         /// <summary>
         /// Resolve the default port for any endpoints that did not have a port explicitly specified.
         /// </summary>
-        public void SetDefaultPorts() => EndPoints.SetDefaultPorts(Ssl ? 6380 : 6379);
+        public void SetDefaultPorts() => EndPoints.SetDefaultPorts(ServerType.Standalone, ssl: Ssl);
 
         internal bool IsSentinel => !string.IsNullOrEmpty(ServiceName);
 

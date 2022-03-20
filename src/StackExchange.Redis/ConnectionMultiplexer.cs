@@ -43,6 +43,7 @@ namespace StackExchange.Redis
         internal bool IsDisposed => _isDisposed;
 
         internal CommandMap CommandMap { get; }
+        internal EndPointCollection EndPoints { get; }
         internal ConfigurationOptions RawConfig { get; }
         internal ServerSelectionStrategy ServerSelectionStrategy { get; }
         internal Exception LastException { get; set; }
@@ -134,11 +135,13 @@ namespace StackExchange.Redis
             SetAutodetectFeatureFlags();
         }
 
-        private ConnectionMultiplexer(ConfigurationOptions configuration)
+        private ConnectionMultiplexer(ConfigurationOptions configuration, ServerType? serverType = null)
         {
             RawConfig = configuration ?? throw new ArgumentNullException(nameof(configuration));
+            EndPoints = RawConfig.EndPoints.Clone();
+            EndPoints.SetDefaultPorts(serverType, ssl: RawConfig.Ssl);
 
-            var map = CommandMap = configuration.CommandMap;
+            var map = CommandMap = configuration.GetCommandMap(serverType);
             if (!string.IsNullOrWhiteSpace(configuration.Password))
             {
                 map.AssertAvailable(RedisCommand.AUTH);
@@ -161,9 +164,9 @@ namespace StackExchange.Redis
             lastHeartbeatTicks = Environment.TickCount;
         }
 
-        private static ConnectionMultiplexer CreateMultiplexer(ConfigurationOptions configuration, LogProxy log, out EventHandler<ConnectionFailedEventArgs> connectHandler)
+        private static ConnectionMultiplexer CreateMultiplexer(ConfigurationOptions configuration, LogProxy log, ServerType? serverType, out EventHandler<ConnectionFailedEventArgs> connectHandler)
         {
-            var muxer = new ConnectionMultiplexer(configuration);
+            var muxer = new ConnectionMultiplexer(configuration, serverType);
             connectHandler = null;
             if (log is not null)
             {
@@ -581,11 +584,12 @@ namespace StackExchange.Redis
 
             return configuration?.IsSentinel == true
                 ? SentinelPrimaryConnectAsync(configuration, log)
-                : ConnectImplAsync(PrepareConfig(configuration), log);
+                : ConnectImplAsync(configuration, log);
         }
 
-        private static async Task<ConnectionMultiplexer> ConnectImplAsync(ConfigurationOptions configuration, TextWriter log = null)
+        private static async Task<ConnectionMultiplexer> ConnectImplAsync(ConfigurationOptions configuration, TextWriter log, ServerType? serverType = null)
         {
+            Validate(configuration);
             IDisposable killMe = null;
             EventHandler<ConnectionFailedEventArgs> connectHandler = null;
             ConnectionMultiplexer muxer = null;
@@ -595,7 +599,7 @@ namespace StackExchange.Redis
                 var sw = ValueStopwatch.StartNew();
                 logProxy?.WriteLine($"Connecting (async) on {RuntimeInformation.FrameworkDescription} (StackExchange.Redis: v{Utils.GetLibVersion()})");
 
-                muxer = CreateMultiplexer(configuration, logProxy, out connectHandler);
+                muxer = CreateMultiplexer(configuration, logProxy, serverType, out connectHandler);
                 killMe = muxer;
                 Interlocked.Increment(ref muxer._connectAttemptCount);
                 bool configured = await muxer.ReconfigureAsync(first: true, reconfigureAll: false, logProxy, null, "connect").ObserveErrors().ForAwait();
@@ -625,15 +629,17 @@ namespace StackExchange.Redis
             }
         }
 
-        internal static ConfigurationOptions PrepareConfig(ConfigurationOptions config, bool sentinel = false)
+        private static ConfigurationOptions Validate(ConfigurationOptions config)
         {
-            _ = config ?? throw new ArgumentNullException(nameof(config));
+            if (config is null)
+            {
+                throw new ArgumentNullException(nameof(config));
+            }
             if (config.EndPoints.Count == 0)
             {
                 throw new ArgumentException("No endpoints specified", nameof(config));
             }
-
-            return config.Clone().WithDefaults(sentinel);
+            return config;
         }
 
         /// <summary>
@@ -665,11 +671,12 @@ namespace StackExchange.Redis
 
             return configuration?.IsSentinel == true
                 ? SentinelPrimaryConnect(configuration, log)
-                : ConnectImpl(PrepareConfig(configuration), log);
+                : ConnectImpl(configuration, log);
         }
 
-        private static ConnectionMultiplexer ConnectImpl(ConfigurationOptions configuration, TextWriter log)
+        private static ConnectionMultiplexer ConnectImpl(ConfigurationOptions configuration, TextWriter log, ServerType? serverType = null)
         {
+            Validate(configuration);
             IDisposable killMe = null;
             EventHandler<ConnectionFailedEventArgs> connectHandler = null;
             ConnectionMultiplexer muxer = null;
@@ -679,7 +686,7 @@ namespace StackExchange.Redis
                 var sw = ValueStopwatch.StartNew();
                 logProxy?.WriteLine($"Connecting (sync) on {RuntimeInformation.FrameworkDescription} (StackExchange.Redis: v{Utils.GetLibVersion()})");
 
-                muxer = CreateMultiplexer(configuration, logProxy, out connectHandler);
+                muxer = CreateMultiplexer(configuration, logProxy, serverType, out connectHandler);
                 killMe = muxer;
                 Interlocked.Increment(ref muxer._connectAttemptCount);
                 // note that task has timeouts internally, so it might take *just over* the regular timeout
@@ -1189,15 +1196,15 @@ namespace StackExchange.Redis
 
                 if (first)
                 {
-                    if (RawConfig.ResolveDns && RawConfig.EndPoints.HasDnsEndPoints())
+                    if (RawConfig.ResolveDns && EndPoints.HasDnsEndPoints())
                     {
-                        var dns = RawConfig.EndPoints.ResolveEndPointsAsync(this, log).ObserveErrors();
+                        var dns = EndPoints.ResolveEndPointsAsync(this, log).ObserveErrors();
                         if (!await dns.TimeoutAfter(TimeoutMilliseconds).ForAwait())
                         {
                             throw new TimeoutException("Timeout resolving endpoints");
                         }
                     }
-                    foreach (var endpoint in RawConfig.EndPoints)
+                    foreach (var endpoint in EndPoints)
                     {
                         GetServerEndPoint(endpoint, log, false);
                     }
@@ -1213,7 +1220,7 @@ namespace StackExchange.Redis
                         attemptsLeft--;
                     }
                     int standaloneCount = 0, clusterCount = 0, sentinelCount = 0;
-                    var endpoints = RawConfig.EndPoints;
+                    var endpoints = EndPoints;
                     bool useTieBreakers = RawConfig.TryGetTieBreaker(out var tieBreakerKey);
                     log?.WriteLine($"{endpoints.Count} unique nodes specified ({(useTieBreakers ? "with" : "without")} tiebreaker)");
 
@@ -1501,7 +1508,7 @@ namespace StackExchange.Redis
         /// <param name="configuredOnly">Whether to get only the endpoints specified explicitly in the config.</param>
         public EndPoint[] GetEndPoints(bool configuredOnly = false) =>
             configuredOnly
-                ? RawConfig.EndPoints.ToArray()
+                ? EndPoints.ToArray()
                 : _serverSnapshot.GetEndPoints();
 
         private async Task<EndPointCollection> GetEndpointsFromClusterNodes(ServerEndPoint server, LogProxy log)
