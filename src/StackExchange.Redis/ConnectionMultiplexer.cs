@@ -629,7 +629,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private static ConfigurationOptions Validate(ConfigurationOptions config)
+        private static void Validate(ConfigurationOptions config)
         {
             if (config is null)
             {
@@ -639,7 +639,6 @@ namespace StackExchange.Redis
             {
                 throw new ArgumentException("No endpoints specified", nameof(config));
             }
-            return config;
         }
 
         /// <summary>
