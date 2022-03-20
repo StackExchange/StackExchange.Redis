@@ -8,6 +8,7 @@
 - Adds: `ConfigurationOptions.BeforeSocketConnect` for configuring sockets between creation and connection ([#2031 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2031))
 - Fix [#1813](https://github.com/StackExchange/StackExchange.Redis/issues/1813): Don't connect to endpoints we failed to parse ([#2042 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2042))
 - Fix: `ClientKill`/`ClientKillAsync` when using `ClientType` ([#2048 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2048))
+- Adds: Most `ConfigurationOptions` changes after `ConnectionMultiplexer` connections will now be respected, e.g. changing a timeout will work and changing a password for auth rotation would be used at the next reconnect ([#2050 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2050))
 
 ## 2.5.43
 
