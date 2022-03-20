@@ -180,8 +180,8 @@ namespace StackExchange.Redis.Tests
                     muxer.AllowConnect = false;
                     muxer._connectAttemptCount = connCount;
                     muxer._connectCompletedCount = completeCount;
-                    muxer.IncludeDetailInExceptions = hasDetail;
-                    muxer.IncludePerformanceCountersInExceptions = hasDetail;
+                    options.IncludeDetailInExceptions = hasDetail;
+                    options.IncludePerformanceCountersInExceptions = hasDetail;
 
                     var msg = Message.Create(-1, CommandFlags.None, RedisCommand.PING);
                     var rawEx = ExceptionFactory.NoConnectionAvailable(muxer, msg, new ServerEndPoint(muxer, server.EndPoint));

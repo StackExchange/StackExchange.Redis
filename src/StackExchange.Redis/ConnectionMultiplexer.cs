@@ -64,6 +64,7 @@ namespace StackExchange.Redis
         public bool IncludeDetailInExceptions
         {
             get => RawConfig.IncludeDetailInExceptions;
+            [Obsolete($"Please use {nameof(ConfigurationOptions)}.{nameof(ConfigurationOptions.IncludeDetailInExceptions)} instead - this will be removed in 3.0.")]
             set => RawConfig.IncludeDetailInExceptions = value;
         }
 
@@ -76,6 +77,7 @@ namespace StackExchange.Redis
         public bool IncludePerformanceCountersInExceptions
         {
             get => RawConfig.IncludePerformanceCountersInExceptions;
+            [Obsolete($"Please use {nameof(ConfigurationOptions)}.{nameof(ConfigurationOptions.IncludePerformanceCountersInExceptions)} instead - this will be removed in 3.0.")]
             set => RawConfig.IncludePerformanceCountersInExceptions = value;
         }
 
