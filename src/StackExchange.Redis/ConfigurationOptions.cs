@@ -314,6 +314,9 @@ namespace StackExchange.Redis
             set => commandMap = value ?? throw new ArgumentNullException(nameof(value));
         }
 
+        /// <summary>
+        /// Gets the command map for a given server type, since some supercede settings when connecting.
+        /// </summary>
         internal CommandMap GetCommandMap(ServerType? serverType) => serverType switch
         {
             ServerType.Sentinel => CommandMap.Sentinel,
@@ -638,6 +641,9 @@ namespace StackExchange.Redis
 
         internal bool IsSentinel => !string.IsNullOrEmpty(ServiceName);
 
+        /// <summary>
+        /// Gets a tie breaker if we both have one set, and should be using one.
+        /// </summary>
         internal bool TryGetTieBreaker(out RedisKey tieBreaker)
         {
             var key = TieBreaker;
