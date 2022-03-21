@@ -122,7 +122,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The command returns an array where each element is the Geohash corresponding to each member name passed as argument to the command.</returns>
         /// <remarks>https://redis.io/commands/geohash</remarks>
-        string?[]? GeoHash(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None);
+        string?[] GeoHash(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Return valid Geohash strings representing the position of one or more elements in a sorted set value representing a geospatial index (where elements were added using GEOADD).

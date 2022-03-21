@@ -36,7 +36,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public double? GeoDistance(RedisKey key, RedisValue member1, RedisValue member2, GeoUnit unit = GeoUnit.Meters,CommandFlags flags = CommandFlags.None) =>
             Inner.GeoDistance(ToInner(key), member1, member2, unit, flags);
 
-        public string?[]? GeoHash(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None) =>
+        public string?[] GeoHash(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None) =>
             Inner.GeoHash(ToInner(key), members, flags);
 
         public string? GeoHash(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None) =>

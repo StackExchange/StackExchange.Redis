@@ -110,13 +110,13 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.NullableDouble);
         }
 
-        public string?[]? GeoHash(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)
+        public string?[] GeoHash(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)
         {
             if (members == null) throw new ArgumentNullException(nameof(members));
             var redisValues = new RedisValue[members.Length];
             for (var i = 0; i < members.Length; i++) redisValues[i] = members[i];
             var msg = Message.Create(Database, flags, RedisCommand.GEOHASH, key, redisValues);
-            return ExecuteSync(msg, ResultProcessor.StringArray);
+            return ExecuteSync(msg, ResultProcessor.StringArray, defaultValue: Array.Empty<string?>());
         }
 
         public Task<string?[]> GeoHashAsync(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)
