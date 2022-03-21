@@ -451,7 +451,8 @@ namespace StackExchange.Redis
 
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
-                connection.BridgeCouldBeNull?.Multiplexer?.OnTransactionLog($"got {result} for {message.CommandAndKey}");
+                var muxer = connection.BridgeCouldBeNull?.Multiplexer;
+                muxer?.OnTransactionLog($"got {result} for {message.CommandAndKey}");
                 if (message is TransactionMessage tran)
                 {
                     var wrapped = tran.InnerOperations;
@@ -485,7 +486,7 @@ namespace StackExchange.Redis
                                 var arr = result.GetItems();
                                 if (result.IsNull)
                                 {
-                                    connection.BridgeCouldBeNull?.Multiplexer?.OnTransactionLog("Aborting wrapped messages (failed watch)");
+                                    muxer?.OnTransactionLog("Aborting wrapped messages (failed watch)");
                                     connection.Trace("Server aborted due to failed WATCH");
                                     foreach (var op in wrapped)
                                     {
@@ -499,13 +500,13 @@ namespace StackExchange.Redis
                                 else if (wrapped.Length == arr.Length)
                                 {
                                     connection.Trace("Server committed; processing nested replies");
-                                    connection.BridgeCouldBeNull?.Multiplexer?.OnTransactionLog($"Processing {arr.Length} wrapped messages");
+                                    muxer?.OnTransactionLog($"Processing {arr.Length} wrapped messages");
 
                                     int i = 0;
                                     foreach(ref RawResult item in arr)
                                     {
                                         var inner = wrapped[i++].Wrapped;
-                                        connection.BridgeCouldBeNull?.Multiplexer?.OnTransactionLog($"> got {item} for {inner.CommandAndKey}");
+                                        muxer?.OnTransactionLog($"> got {item} for {inner.CommandAndKey}");
                                         if (inner.ComputeResult(connection, in item))
                                         {
                                             inner.Complete();
@@ -523,7 +524,7 @@ namespace StackExchange.Redis
                     {
                         if (op?.Wrapped is Message inner)
                         {
-                            inner.Fail(ConnectionFailureType.ProtocolFailure, null, "Transaction failure", connection?.BridgeCouldBeNull?.Multiplexer);
+                            inner.Fail(ConnectionFailureType.ProtocolFailure, null, "Transaction failure", muxer);
                             inner.Complete();
                         }
                     }
