@@ -185,7 +185,6 @@ namespace StackExchange.Redis.Tests
                 var t = db.SetPopAsync(key, count: 0);
                 Assert.True(t.IsCompleted); // sync
                 var arr = await t;
-                Assert.NotNull(arr);
                 Assert.Empty(arr);
 
                 Assert.Equal(10, db.SetLength(key));

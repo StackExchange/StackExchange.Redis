@@ -1769,11 +1769,11 @@ namespace StackExchange.Redis
         }
 
         private ValueTask<WriteResult> TryPushMessageToBridgeAsync<T>(Message message, ResultProcessor<T>? processor, IResultBox<T>? resultBox, [NotNullWhen(true)] ref ServerEndPoint? server)
-            => PrepareToPushMessageToBridge(message, processor, resultBox, ref server) ? server!.TryWriteAsync(message) : new ValueTask<WriteResult>(WriteResult.NoConnectionAvailable);
+            => PrepareToPushMessageToBridge(message, processor, resultBox, ref server) ? server.TryWriteAsync(message) : new ValueTask<WriteResult>(WriteResult.NoConnectionAvailable);
 
         [Obsolete("prefer async")]
         private WriteResult TryPushMessageToBridgeSync<T>(Message message, ResultProcessor<T>? processor, IResultBox<T>? resultBox, [NotNullWhen(true)] ref ServerEndPoint? server)
-            => PrepareToPushMessageToBridge(message, processor, resultBox, ref server) ? server!.TryWriteSync(message) : WriteResult.NoConnectionAvailable;
+            => PrepareToPushMessageToBridge(message, processor, resultBox, ref server) ? server.TryWriteSync(message) : WriteResult.NoConnectionAvailable;
 
         /// <summary>
         /// Gets the client name for this multiplexer.

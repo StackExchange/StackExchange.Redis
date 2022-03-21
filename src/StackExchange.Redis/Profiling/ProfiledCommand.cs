@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -77,6 +78,7 @@ namespace StackExchange.Redis.Profiling
             return new ProfiledCommand(resentFor.PushToWhenFinished, server, resentFor, isMoved ? RetransmissionReasonType.Moved : RetransmissionReasonType.Ask);
         }
 
+        [MemberNotNull(nameof(Message))]
         public void SetMessage(Message msg)
         {
             // This method should never be called twice

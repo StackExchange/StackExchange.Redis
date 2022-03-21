@@ -757,7 +757,7 @@ namespace StackExchange.Redis
                 Key = key;
             }
 
-            public override string CommandAndKey => Command + " " + (string)Key!;
+            public override string CommandAndKey => Command + " " + (string?)Key;
 
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) => serverSelectionStrategy.HashSlot(Key);
         }

@@ -228,7 +228,7 @@ namespace StackExchange.Redis
             };
         }
 
-        public PhysicalBridge? GetBridge(Message message, bool create = true)
+        public PhysicalBridge? GetBridge(Message message)
         {
             if (isDisposed) return null;
 
@@ -246,8 +246,8 @@ namespace StackExchange.Redis
             }
 
             return message.IsForSubscriptionBridge
-                ? subscription ?? (create ? subscription = CreateBridge(ConnectionType.Subscription, null) : null)
-                : interactive ?? (create ? interactive = CreateBridge(ConnectionType.Interactive, null) : null);
+                ? subscription ??= CreateBridge(ConnectionType.Subscription, null)
+                : interactive ??= CreateBridge(ConnectionType.Interactive, null);
         }
 
         public PhysicalBridge? GetBridge(RedisCommand command, bool create = true)

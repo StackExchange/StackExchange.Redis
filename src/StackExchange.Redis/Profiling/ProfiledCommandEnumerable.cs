@@ -24,7 +24,7 @@ namespace StackExchange.Redis.Profiling
         /// </para>
         /// <para>This type is not threadsafe.</para>
         /// </summary>
-        public struct Enumerator : IEnumerator<IProfiledCommand?>
+        public struct Enumerator : IEnumerator<IProfiledCommand>
         {
             private ProfiledCommand? Head, CurrentBacker;
 

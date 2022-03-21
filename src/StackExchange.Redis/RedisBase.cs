@@ -44,7 +44,7 @@ namespace StackExchange.Redis
         {
             if (message is null) return CompletedTask<T>.FromDefault(defaultValue, asyncState);
             multiplexer.CheckMessage(message);
-            return multiplexer.ExecuteAsyncImpl<T>(message, processor, asyncState, server, defaultValue)!;
+            return multiplexer.ExecuteAsyncImpl<T>(message, processor, asyncState, server, defaultValue);
         }
 
         [return: NotNullIfNotNull("defualtValue")]
