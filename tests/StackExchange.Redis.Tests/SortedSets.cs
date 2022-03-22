@@ -620,7 +620,7 @@ namespace StackExchange.Redis.Tests
             db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
             db.SortedSetAdd(sourceKey, lexEntries, CommandFlags.FireAndForget);
             var exception = Assert.Throws<ArgumentException>(()=>db.SortedSetRangeAndStore(destinationKey, sourceKey,0,-1, take:5));
-            Assert.Equal($"take argument is not valid when sortedSetOrder is ByRank you may want to try setting the SortedSetOrder to ByLex or ByScore{Environment.NewLine}Parameter name: take", exception.Message);
+            Assert.Equal("take", exception.ParamName);
         }
 
         [Fact]
@@ -637,7 +637,7 @@ namespace StackExchange.Redis.Tests
             db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
             db.SortedSetAdd(sourceKey, lexEntries, CommandFlags.FireAndForget);
             var exception = Assert.Throws<ArgumentException>(()=>db.SortedSetRangeAndStore(destinationKey, sourceKey,0,-1, exclude: Exclude.Both));
-            Assert.Equal($"exclude argument is not valid when sortedSetOrder is ByRank, you may want to try setting the sortedSetOrder to ByLex or ByScore{Environment.NewLine}Parameter name: exclude", exception.Message);
+            Assert.Equal("exclude", exception.ParamName);
         }
     }
 }
