@@ -172,6 +172,11 @@ namespace StackExchange.Redis
         public bool SortedSetPop => Version >= v4_9_1;
 
         /// <summary>
+        /// Is ZRANGESTORE available?
+        /// </summary>
+        public bool SortedSetRangeStore => Version >= v6_2_0;
+
+        /// <summary>
         /// Are Redis Streams available?
         /// </summary>
         public bool Streams => Version >= v4_9_1;

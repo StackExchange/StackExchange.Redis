@@ -177,10 +177,11 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public async Task SortedSetRangeByRankAsync()
+        public async Task SortedSetRangeStoreByRankAsync()
         {
             using (var conn = Create())
             {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
                 var db = conn.GetDatabase();
                 var me = Me();
                 var sourceKey = $"{me}:ZSetSource";
@@ -194,10 +195,12 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public async Task SortedSetRangeByRankLimitedAsync()
+        public async Task SortedSetRangeStoreByRankLimitedAsync()
         {
             using (var conn = Create())
             {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+
                 var db = conn.GetDatabase();
                 var me = Me();
                 var sourceKey = $"{me}:ZSetSource";
@@ -216,10 +219,12 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public async Task SortedSetRangeByScoreAsync()
+        public async Task SortedSetRangeStoreByScoreAsync()
         {
             using (var conn = Create())
             {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+
                 var db = conn.GetDatabase();
                 var me = Me();
                 var sourceKey = $"{me}:ZSetSource";
@@ -238,10 +243,12 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public async Task SortedSetRangeByScoreAsyncDefault()
+        public async Task SortedSetRangeStoreByScoreAsyncDefault()
         {
             using (var conn = Create())
             {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+
                 var db = conn.GetDatabase();
                 var me = Me();
                 var sourceKey = $"{me}:ZSetSource";
@@ -260,10 +267,12 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public async Task SortedSetRangeByScoreAsyncLimited()
+        public async Task SortedSetRangeStoreByScoreAsyncLimited()
         {
             using (var conn = Create())
             {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+
                 var db = conn.GetDatabase();
                 var me = Me();
                 var sourceKey = $"{me}:ZSetSource";
@@ -282,10 +291,12 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public async Task SortedSetRangeByScoreAsyncExclusiveRange()
+        public async Task SortedSetRangeStoreByScoreAsyncExclusiveRange()
         {
             using (var conn = Create())
             {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+
                 var db = conn.GetDatabase();
                 var me = Me();
                 var sourceKey = $"{me}:ZSetSource";
@@ -304,10 +315,12 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public async Task SortedSetRangeByScoreAsyncReverse()
+        public async Task SortedSetRangeStoreByScoreAsyncReverse()
         {
             using (var conn = Create())
             {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+
                 var db = conn.GetDatabase();
                 var me = Me();
                 var sourceKey = $"{me}:ZSetSource";
@@ -326,10 +339,12 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public async Task SortedSetRangeByLexAsync()
+        public async Task SortedSetRangeStoreByLexAsync()
         {
             using (var conn = Create())
             {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+
                 var db = conn.GetDatabase();
                 var me = Me();
                 var sourceKey = $"{me}:ZSetSource";
@@ -348,10 +363,12 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public async Task SortedSetRangeByLexExlusiveRangeAsync()
+        public async Task SortedSetRangeStoreByLexExclusiveRangeAsync()
         {
             using (var conn = Create())
             {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+
                 var db = conn.GetDatabase();
                 var me = Me();
                 var sourceKey = $"{me}:ZSetSource";
@@ -370,10 +387,12 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public async Task SortedSetRangeByLexRevRangeAsync()
+        public async Task SortedSetRangeStoreByLexRevRangeAsync()
         {
             using (var conn = Create())
             {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+
                 var db = conn.GetDatabase();
                 var me = Me();
                 var sourceKey = $"{me}:ZSetSource";
@@ -392,10 +411,12 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void SortedSetRangeByRank()
+        public void SortedSetRangeStoreByRank()
         {
             using (var conn = Create())
             {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+
                 var db = conn.GetDatabase();
                 var me = Me();
                 var sourceKey = $"{me}:ZSetSource";
@@ -409,10 +430,12 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void SortedSetRangeByRankLimited()
+        public void SortedSetRangeStoreByRankLimited()
         {
             using (var conn = Create())
             {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+
                 var db = conn.GetDatabase();
                 var me = Me();
                 var sourceKey = $"{me}:ZSetSource";
@@ -431,10 +454,12 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void SortedSetRangeByScore()
+        public void SortedSetRangeStoreByScore()
         {
             using (var conn = Create())
             {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+
                 var db = conn.GetDatabase();
                 var me = Me();
                 var sourceKey = $"{me}:ZSetSource";
@@ -453,10 +478,12 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void SortedSetRangeByScoreDefault()
+        public void SortedSetRangeStoreByScoreDefault()
         {
             using (var conn = Create())
             {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+
                 var db = conn.GetDatabase();
                 var me = Me();
                 var sourceKey = $"{me}:ZSetSource";
@@ -475,10 +502,12 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void SortedSetRangeByScoreLimited()
+        public void SortedSetRangeStoreByScoreLimited()
         {
             using (var conn = Create())
             {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+
                 var db = conn.GetDatabase();
                 var me = Me();
                 var sourceKey = $"{me}:ZSetSource";
@@ -497,10 +526,12 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void SortedSetRangeByScoreExclusiveRange()
+        public void SortedSetRangeStoreByScoreExclusiveRange()
         {
             using (var conn = Create())
             {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+
                 var db = conn.GetDatabase();
                 var me = Me();
                 var sourceKey = $"{me}:ZSetSource";
@@ -519,10 +550,12 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void SortedSetRangeByScoreReverse()
+        public void SortedSetRangeStoreByScoreReverse()
         {
             using (var conn = Create())
             {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+
                 var db = conn.GetDatabase();
                 var me = Me();
                 var sourceKey = $"{me}:ZSetSource";
@@ -541,10 +574,12 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void SortedSetRangeByLex()
+        public void SortedSetRangeStoreByLex()
         {
             using (var conn = Create())
             {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+
                 var db = conn.GetDatabase();
                 var me = Me();
                 var sourceKey = $"{me}:ZSetSource";
@@ -563,10 +598,12 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void SortedSetRangeByLexExlusiveRange()
+        public void SortedSetRangeStoreByLexExclusiveRange()
         {
             using (var conn = Create())
             {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+
                 var db = conn.GetDatabase();
                 var me = Me();
                 var sourceKey = $"{me}:ZSetSource";
@@ -585,10 +622,12 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void SortedSetRangeByLexRevRange()
+        public void SortedSetRangeStoreByLexRevRange()
         {
             using (var conn = Create())
             {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+
                 var db = conn.GetDatabase();
                 var me = Me();
                 var sourceKey = $"{me}:ZSetSource";
