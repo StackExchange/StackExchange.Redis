@@ -1631,10 +1631,27 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.RedisValueArray);
         }
 
+        public RedisValue SortedSetRangeByRankAndStore(RedisKey destinationKey, RedisKey sourceKey, long start = 0, long stop = -1,
+            Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = CreateSortedSetRangeStoreMessage(Database, flags, destinationKey, sourceKey, start, stop,
+                SortedSetOrderBy.ByRank, order);
+            return ExecuteSync(msg, ResultProcessor.RedisValue);
+        }
+
         public Task<RedisValue[]> SortedSetRangeByRankAsync(RedisKey key, long start = 0, long stop = -1, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, order == Order.Descending ? RedisCommand.ZREVRANGE : RedisCommand.ZRANGE, key, start, stop);
             return ExecuteAsync(msg, ResultProcessor.RedisValueArray);
+        }
+
+        public async Task<RedisValue> SortedSetRangeByRankAndStoreAsync(RedisKey destinationKey, RedisKey sourceKey,
+            long start = 0, long stop = -1,
+            Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = CreateSortedSetRangeStoreMessage(Database, flags, destinationKey, sourceKey, start, stop,
+                SortedSetOrderBy.ByRank, order);
+            return await ExecuteAsync(msg, ResultProcessor.RedisValue);
         }
 
         public SortedSetEntry[] SortedSetRangeByRankWithScores(RedisKey key, long start = 0, long stop = -1, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
@@ -1655,10 +1672,32 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.RedisValueArray);
         }
 
+        public RedisValue SortedSetRangeByScoreAndStore(RedisKey destinationKey, RedisKey sourceKey,
+            double start = Double.NegativeInfinity, double stop = Double.PositiveInfinity,
+            Exclude exclude = Exclude.None,
+            Order order = Order.Ascending, long skip = 0, long take = 0, CommandFlags flags = CommandFlags.None)
+        {
+            Message msg = CreateSortedSetRangeStoreMessage(Database, flags, destinationKey, sourceKey, start, stop,
+                SortedSetOrderBy.ByScore, order, exclude,  skip, take);
+
+            return ExecuteSync(msg, ResultProcessor.RedisValue);
+        }
+
         public Task<RedisValue[]> SortedSetRangeByScoreAsync(RedisKey key, double start = double.NegativeInfinity, double stop = double.PositiveInfinity, Exclude exclude = Exclude.None, Order order = Order.Ascending, long skip = 0, long take = -1, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetSortedSetRangeByScoreMessage(key, start, stop, exclude, order, skip, take, flags, false);
             return ExecuteAsync(msg, ResultProcessor.RedisValueArray);
+        }
+
+        public async Task<RedisValue> SortedSetRangeByScoreAndStoreAsync(RedisKey destinationKey, RedisKey sourceKey,
+            double start = Double.NegativeInfinity, double stop = Double.PositiveInfinity,
+            Exclude exclude = Exclude.None,
+            Order order = Order.Ascending, long skip = 0, long take = 0, CommandFlags flags = CommandFlags.None)
+        {
+            Message msg = CreateSortedSetRangeStoreMessage(Database, flags, destinationKey, sourceKey, start, stop,
+                SortedSetOrderBy.ByScore, order, exclude,  skip, take);
+
+            return await ExecuteAsync(msg, ResultProcessor.RedisValue);
         }
 
         public SortedSetEntry[] SortedSetRangeByScoreWithScores(RedisKey key, double start = double.NegativeInfinity, double stop = double.PositiveInfinity, Exclude exclude = Exclude.None, Order order = Order.Ascending, long skip = 0, long take = -1, CommandFlags flags = CommandFlags.None)
@@ -3664,6 +3703,16 @@ namespace StackExchange.Redis
         public RedisValue[] SortedSetRangeByValue(RedisKey key, RedisValue min, RedisValue max, Exclude exclude, long skip, long take, CommandFlags flags)
             => SortedSetRangeByValue(key, min, max, exclude, Order.Ascending, skip, take, flags);
 
+        public RedisValue SortedSetRangeByValueAndStore(RedisKey destinationKey, RedisKey sourceKey, RedisValue min,
+            RedisValue max,
+            Exclude exclude, Order order = Order.Ascending, long skip = 0, long take = 0,
+            CommandFlags flags = CommandFlags.None)
+        {
+            var msg = CreateSortedSetRangeStoreMessage(Database, flags, destinationKey, sourceKey, min, max,
+                SortedSetOrderBy.ByLex, order, exclude, skip, take);
+            return ExecuteSync(msg, ResultProcessor.RedisValue);
+        }
+
         private static void ReverseLimits(Order order, ref Exclude exclude, ref RedisValue start, ref RedisValue stop)
         {
             bool reverseLimits = (order == Order.Ascending) == (stop != default(RedisValue) && start.CompareTo(stop) > 0);
@@ -3701,6 +3750,16 @@ namespace StackExchange.Redis
 
         public Task<RedisValue[]> SortedSetRangeByValueAsync(RedisKey key, RedisValue min, RedisValue max, Exclude exclude, long skip, long take, CommandFlags flags)
             => SortedSetRangeByValueAsync(key, min, max, exclude, Order.Ascending, skip, take, flags);
+
+        public async Task<RedisValue> SortedSetRangeByValueAndStoreAsync(RedisKey destinationKey, RedisKey sourceKey,
+            RedisValue min, RedisValue max,
+            Exclude exclude, Order order = Order.Ascending, long skip = 0, long take = 0,
+            CommandFlags flags = CommandFlags.None)
+        {
+            var msg = CreateSortedSetRangeStoreMessage(Database, flags, destinationKey, sourceKey, min, max,
+                SortedSetOrderBy.ByLex, order, exclude, skip, take);
+            return await ExecuteAsync(msg, ResultProcessor.RedisValue);
+        }
 
         public Task<RedisValue[]> SortedSetRangeByValueAsync(RedisKey key, RedisValue min = default(RedisValue), RedisValue max = default(RedisValue),
             Exclude exclude = Exclude.None, Order order = Order.Ascending, long skip = 0, long take = -1, CommandFlags flags = CommandFlags.None)
@@ -3977,6 +4036,70 @@ namespace StackExchange.Redis
                 RedisValue[] arr = ArrayPool<RedisValue>.Shared.Rent(count);
                 items.CopyTo(arr, (in RawResult r) => r.AsRedisValue());
                 return arr;
+            }
+        }
+
+        private static SortedSetRangeAndStoreCommandMessage CreateSortedSetRangeStoreMessage(
+            int db,
+            CommandFlags flags,
+            RedisKey destinationKey,
+            RedisKey sourceKey,
+            RedisValue start,
+            RedisValue stop,
+            SortedSetOrderBy orderBy,
+            Order order,
+            Exclude exclude = Exclude.None,
+            long skip = 0,
+            long take = -1)
+        {
+            var arguments = new List<RedisValue>();
+            arguments.Add(exclude == Exclude.Both || exclude == Exclude.Start ? $"({start}" : orderBy == SortedSetOrderBy.ByLex ? $"[{start}" : start);
+            arguments.Add(exclude == Exclude.Both || exclude == Exclude.Stop ? $"({stop}" : orderBy == SortedSetOrderBy.ByLex ?  $"[{stop}" : stop);
+
+            if (orderBy != SortedSetOrderBy.ByRank)
+            {
+                arguments.Add(orderBy.GetLiteral());
+            }
+
+            if (order == Order.Descending)
+            {
+                arguments.Add(RedisLiterals.REV);
+            }
+
+            if (take > 0)
+            {
+                arguments.Add(RedisLiterals.LIMIT);
+                arguments.Add(skip);
+                arguments.Add(take);
+            }
+
+            return new SortedSetRangeAndStoreCommandMessage(db, flags, destinationKey, sourceKey, arguments.ToArray());
+        }
+
+
+        private sealed class SortedSetRangeAndStoreCommandMessage : Message.CommandKeyBase // handle's ZRANGESTORE's unique signature
+        {
+            private readonly RedisKey destinationKey;
+            private readonly RedisKey sourceKey;
+            private readonly RedisValue[] arguments;
+
+            public SortedSetRangeAndStoreCommandMessage(int db, CommandFlags flags, in RedisKey destinationKey, in RedisKey sourceKey, RedisValue[] arguments) : base(db, flags, RedisCommand.ZRANGESTORE, in destinationKey)
+            {
+                this.destinationKey = destinationKey;
+                this.sourceKey = sourceKey;
+                this.arguments = arguments;
+            }
+
+            public override int ArgCount => 2 + arguments.Length;
+            protected override void WriteImpl(PhysicalConnection physical)
+            {
+                physical.WriteHeader(RedisCommand.ZRANGESTORE, ArgCount);
+                physical.Write(destinationKey);
+                physical.Write(sourceKey);
+                foreach (var arg in arguments)
+                {
+                    physical.WriteBulkString(arg);
+                }
             }
         }
 

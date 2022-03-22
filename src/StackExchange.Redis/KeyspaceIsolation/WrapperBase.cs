@@ -564,6 +564,10 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.SortedSetRangeByRankAsync(ToInner(key), start, stop, order, flags);
         }
 
+        public Task<RedisValue> SortedSetRangeByRankAndStoreAsync(RedisKey destinationKey, RedisKey sourceKey, long start = 0, long stop = -1,
+            Order order = Order.Ascending, CommandFlags flags = CommandFlags.None) =>
+            throw new NotImplementedException();
+
         public Task<SortedSetEntry[]> SortedSetRangeByRankWithScoresAsync(RedisKey key, long start = 0, long stop = -1, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
         {
             return Inner.SortedSetRangeByRankWithScoresAsync(ToInner(key), start, stop, order, flags);
@@ -574,6 +578,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.SortedSetRangeByScoreAsync(ToInner(key), start, stop, exclude, order, skip, take, flags);
         }
 
+        public Task<RedisValue> SortedSetRangeByScoreAndStoreAsync(RedisKey destinationKey, RedisKey sourceKey,
+            double start = Double.NegativeInfinity, double stop = Double.PositiveInfinity, Exclude exclude = Exclude.None,
+            Order order = Order.Ascending, long skip = 0, long take = -1, CommandFlags flags = CommandFlags.None) =>
+            throw new NotImplementedException();
+
         public Task<SortedSetEntry[]> SortedSetRangeByScoreWithScoresAsync(RedisKey key, double start = -1.0 / 0.0, double stop = 1.0 / 0.0, Exclude exclude = Exclude.None, Order order = Order.Ascending, long skip = 0, long take = -1, CommandFlags flags = CommandFlags.None)
         {
             return Inner.SortedSetRangeByScoreWithScoresAsync(ToInner(key), start, stop, exclude, order, skip, take, flags);
@@ -583,6 +592,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
         {
             return Inner.SortedSetRangeByValueAsync(ToInner(key), min, max, exclude, Order.Ascending, skip, take, flags);
         }
+
+        public Task<RedisValue> SortedSetRangeByValueAndStoreAsync(RedisKey destinationKey, RedisKey sourceKey, RedisValue min, RedisValue max,
+            Exclude exclude, Order order = Order.Ascending, long skip = 0, long take = 0,
+            CommandFlags flags = CommandFlags.None) =>
+            throw new NotImplementedException();
 
         public Task<RedisValue[]> SortedSetRangeByValueAsync(RedisKey key, RedisValue min = default(RedisValue), RedisValue max = default(RedisValue), Exclude exclude = Exclude.None, Order order = Order.Ascending, long skip = 0, long take = -1, CommandFlags flags = CommandFlags.None)
         {

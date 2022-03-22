@@ -199,6 +199,7 @@
         ZRANGE,
         ZRANGEBYLEX,
         ZRANGEBYSCORE,
+        ZRANGESTORE,
         ZRANK,
         ZREM,
         ZREMRANGEBYLEX,
