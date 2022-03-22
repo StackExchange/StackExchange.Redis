@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Reflection;
 using System.Text;
 using System.Threading;
 
@@ -388,20 +387,6 @@ namespace StackExchange.Redis
             if (!string.IsNullOrWhiteSpace(failureMessage)) sb.Append(' ').Append(failureMessage.Trim());
 
             return new RedisConnectionException(ConnectionFailureType.UnableToConnect, sb.ToString());
-        }
-
-        internal static Exception BeganProfilingWithDuplicateContext(object forContext)
-        {
-            var exc = new InvalidOperationException("Attempted to begin profiling for the same context twice");
-            exc.Data["forContext"] = forContext;
-            return exc;
-        }
-
-        internal static Exception FinishedProfilingWithInvalidContext(object forContext)
-        {
-            var exc = new InvalidOperationException("Attempted to finish profiling for a context which is no longer valid, or was never begun");
-            exc.Data["forContext"] = forContext;
-            return exc;
         }
     }
 }

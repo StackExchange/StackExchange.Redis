@@ -10,6 +10,7 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using StackExchange.Redis.Configuration;
 
 namespace StackExchange.Redis
@@ -158,6 +159,8 @@ namespace StackExchange.Redis
         private IReconnectRetryPolicy reconnectRetryPolicy;
 
         private BacklogPolicy backlogPolicy;
+
+        private ILogger logger;
 
         /// <summary>
         /// A LocalCertificateSelectionCallback delegate responsible for selecting the certificate used for authentication; note
@@ -408,6 +411,15 @@ namespace StackExchange.Redis
         {
             get => keepAlive ?? (int)Defaults.KeepAliveInterval.TotalSeconds;
             set => keepAlive = value;
+        }
+
+        /// <summary>
+        /// The <see cref="ILogger"/> to use for connection events.
+        /// </summary>
+        public ILogger Logger
+        {
+            get => logger;
+            set => logger = value;
         }
 
         /// <summary>

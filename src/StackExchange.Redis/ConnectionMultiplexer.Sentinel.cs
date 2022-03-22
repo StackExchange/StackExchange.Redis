@@ -349,7 +349,7 @@ public partial class ConnectionMultiplexer
     {
         if (log == null) log = TextWriter.Null;
 
-        using (var logProxy = LogProxy.TryCreate(log))
+        using (var logProxy = LogProxy.TryCreate(log, RawConfig))
         {
             string serviceName = connection.RawConfig.ServiceName;
 

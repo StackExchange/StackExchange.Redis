@@ -209,12 +209,12 @@ namespace StackExchange.Redis
                         }
                         else
                         {
-                            log?.WriteLine($"Using DNS to resolve '{dns.Host}'...");
+                            log?.LogInfo($"Using DNS to resolve '{dns.Host}'...");
                             var ips = await Dns.GetHostAddressesAsync(dns.Host).ObserveErrors().ForAwait();
                             if (ips.Length == 1)
                             {
                                 ip = ips[0];
-                                log?.WriteLine($"'{dns.Host}' => {ip}");
+                                log?.LogInfo($"'{dns.Host}' => {ip}");
                                 cache[dns.Host] = ip;
                                 this[i] = new IPEndPoint(ip, dns.Port);
                             }
@@ -223,7 +223,7 @@ namespace StackExchange.Redis
                     catch (Exception ex)
                     {
                         multiplexer.OnInternalError(ex);
-                        log?.WriteLine(ex.Message);
+                        log?.LogError(ex, ex.Message);
                     }
                 }
             }

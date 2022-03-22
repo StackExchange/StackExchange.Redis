@@ -107,7 +107,7 @@ namespace StackExchange.Redis
         {
             async Task<string> IfConnectedAsync(LogProxy log, bool sendTracerIfConnected, bool autoConfigureIfConnected)
             {
-                log?.WriteLine($"{Format.ToString(this)}: OnConnectedAsync already connected start");
+                log?.LogInfo($"{Format.ToString(this)}: OnConnectedAsync already connected start");
                 if (autoConfigureIfConnected)
                 {
                     await AutoConfigureAsync(null, log).ForAwait();
@@ -116,15 +116,15 @@ namespace StackExchange.Redis
                 {
                     await SendTracerAsync(log).ForAwait();
                 }
-                log?.WriteLine($"{Format.ToString(this)}: OnConnectedAsync already connected end");
+                log?.LogInfo($"{Format.ToString(this)}: OnConnectedAsync already connected end");
                 return "Already connected";
             }
 
             if (!IsConnected)
             {
-                log?.WriteLine($"{Format.ToString(this)}: OnConnectedAsync init (State={interactive?.ConnectionState})");
+                log?.LogInfo($"{Format.ToString(this)}: OnConnectedAsync init (State={interactive?.ConnectionState})");
                 var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
-                _ = tcs.Task.ContinueWith(t => log?.WriteLine($"{Format.ToString(this)}: OnConnectedAsync completed ({t.Result})"));
+                _ = tcs.Task.ContinueWith(t => log?.LogInfo($"{Format.ToString(this)}: OnConnectedAsync completed ({t.Result})"));
                 lock (_pendingConnectionMonitors)
                 {
                     _pendingConnectionMonitors.Add(tcs);
@@ -357,7 +357,7 @@ namespace StackExchange.Redis
                 return;
             }
 
-            log?.WriteLine($"{Format.ToString(this)}: Auto-configuring...");
+            log?.LogInfo($"{Format.ToString(this)}: Auto-configuring...");
 
             var commandMap = Multiplexer.CommandMap;
             const CommandFlags flags = CommandFlags.FireAndForget | CommandFlags.NoRedirect;
@@ -428,7 +428,7 @@ namespace StackExchange.Redis
             // But if GETs are disabled on this, do not fail the connection - we just don't get tiebreaker benefits
             if (Multiplexer.RawConfig.TryGetTieBreaker(out var tieBreakerKey) && Multiplexer.CommandMap.IsAvailable(RedisCommand.GET))
             {
-                log?.WriteLine($"{Format.ToString(EndPoint)}: Requesting tie-break (Key=\"{tieBreakerKey}\")...");
+                log?.LogInfo($"{Format.ToString(EndPoint)}: Requesting tie-break (Key=\"{tieBreakerKey}\")...");
                 msg = Message.Create(0, flags, RedisCommand.GET, tieBreakerKey);
                 msg.SetInternalCall();
                 msg = LoggingMessage.Create(log, msg);
@@ -888,7 +888,7 @@ namespace StackExchange.Redis
 
         private async Task HandshakeAsync(PhysicalConnection connection, LogProxy log)
         {
-            log?.WriteLine($"{Format.ToString(this)}: Server handshake");
+            log?.LogInfo($"{Format.ToString(this)}: Server handshake");
             if (connection == null)
             {
                 Multiplexer.Trace("No connection!?");
@@ -899,14 +899,14 @@ namespace StackExchange.Redis
             string user = Multiplexer.RawConfig.User, password = Multiplexer.RawConfig.Password ?? "";
             if (!string.IsNullOrWhiteSpace(user))
             {
-                log?.WriteLine($"{Format.ToString(this)}: Authenticating (user/password)");
+                log?.LogInfo($"{Format.ToString(this)}: Authenticating (user/password)");
                 msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.AUTH, (RedisValue)user, (RedisValue)password);
                 msg.SetInternalCall();
                 await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
             }
             else if (!string.IsNullOrWhiteSpace(password))
             {
-                log?.WriteLine($"{Format.ToString(this)}: Authenticating (password)");
+                log?.LogInfo($"{Format.ToString(this)}: Authenticating (password)");
                 msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.AUTH, (RedisValue)password);
                 msg.SetInternalCall();
                 await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
@@ -920,7 +920,7 @@ namespace StackExchange.Redis
                     name = nameSanitizer.Replace(name, "");
                     if (!string.IsNullOrWhiteSpace(name))
                     {
-                        log?.WriteLine($"{Format.ToString(this)}: Setting client name: {name}");
+                        log?.LogInfo($"{Format.ToString(this)}: Setting client name: {name}");
                         msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.CLIENT, RedisLiterals.SETNAME, (RedisValue)name);
                         msg.SetInternalCall();
                         await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
@@ -942,7 +942,7 @@ namespace StackExchange.Redis
 
             var tracer = GetTracerMessage(true);
             tracer = LoggingMessage.Create(log, tracer);
-            log?.WriteLine($"{Format.ToString(this)}: Sending critical tracer (handshake): {tracer.CommandAndKey}");
+            log?.LogInfo($"{Format.ToString(this)}: Sending critical tracer (handshake): {tracer.CommandAndKey}");
             await WriteDirectOrQueueFireAndForgetAsync(connection, tracer, ResultProcessor.EstablishConnection).ForAwait();
 
             // Note: this **must** be the last thing on the subscription handshake, because after this
@@ -957,7 +957,7 @@ namespace StackExchange.Redis
                     await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.TrackSubscriptions).ForAwait();
                 }
             }
-            log?.WriteLine($"{Format.ToString(this)}: Flushing outbound buffer");
+            log?.LogInfo($"{Format.ToString(this)}: Flushing outbound buffer");
             await connection.FlushAsync().ForAwait();
         }
 

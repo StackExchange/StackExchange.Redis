@@ -16,6 +16,7 @@
 
   <ItemGroup>
     <!-- needed everywhere -->
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
     <PackageReference Include="Pipelines.Sockets.Unofficial" />
     <PackageReference Include="System.Diagnostics.PerformanceCounter" />
 

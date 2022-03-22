@@ -227,6 +227,8 @@ StackExchange.Redis.ConfigurationOptions.IncludePerformanceCountersInExceptions.
 StackExchange.Redis.ConfigurationOptions.IncludePerformanceCountersInExceptions.set -> void
 StackExchange.Redis.ConfigurationOptions.KeepAlive.get -> int
 StackExchange.Redis.ConfigurationOptions.KeepAlive.set -> void
+StackExchange.Redis.ConfigurationOptions.Logger.get -> Microsoft.Extensions.Logging.ILogger
+StackExchange.Redis.ConfigurationOptions.Logger.set -> void
 StackExchange.Redis.ConfigurationOptions.Password.get -> string
 StackExchange.Redis.ConfigurationOptions.Password.set -> void
 StackExchange.Redis.ConfigurationOptions.PreserveAsyncOrder.get -> bool
