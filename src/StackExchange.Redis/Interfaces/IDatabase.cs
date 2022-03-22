@@ -1410,7 +1410,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of members in the resultant sorted set.</returns>
         /// <remarks>https://redis.io/commands/zrangestore</remarks>
-        RedisValue SortedSetRangeByRankAndStore(RedisKey destinationKey, RedisKey sourceKey, long start = 0, long stop = -1, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None);
+        long SortedSetRangeByRankAndStore(RedisKey destinationKey, RedisKey sourceKey, long start = 0, long stop = -1, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Returns the specified range of elements in the sorted set stored at key.
@@ -1473,7 +1473,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of members in the resultant sorted set.</returns>
         /// <remarks>https://redis.io/commands/zrangestore</remarks>
-        RedisValue SortedSetRangeByScoreAndStore(RedisKey destinationKey,
+        long SortedSetRangeByScoreAndStore(RedisKey destinationKey,
             RedisKey sourceKey,
             double start = double.NegativeInfinity,
             double stop = Double.PositiveInfinity,
@@ -1549,7 +1549,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of members in the resultant sorted set.</returns>
         /// <remarks>https://redis.io/commands/zrangestore</remarks>
-        RedisValue SortedSetRangeByValueAndStore(RedisKey destinationKey,
+        long SortedSetRangeByValueAndStore(RedisKey destinationKey,
             RedisKey sourceKey,
             RedisValue min,
             RedisValue max,

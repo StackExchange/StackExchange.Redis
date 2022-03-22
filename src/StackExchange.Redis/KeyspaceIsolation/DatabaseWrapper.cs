@@ -576,7 +576,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.SortedSetRangeByRank(ToInner(key), start, stop, order, flags);
         }
 
-        public RedisValue SortedSetRangeByRankAndStore(RedisKey destinationKey, RedisKey sourceKey, long start = 0, long stop = -1,
+        public long SortedSetRangeByRankAndStore(RedisKey destinationKey, RedisKey sourceKey, long start = 0, long stop = -1,
             Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
         {
             return Inner.SortedSetRangeByRankAndStore(ToInner(destinationKey), ToInner(sourceKey), start, stop, order, flags);
@@ -592,7 +592,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.SortedSetRangeByScore(ToInner(key), start, stop, exclude, order, skip, take, flags);
         }
 
-        public RedisValue SortedSetRangeByScoreAndStore(RedisKey destinationKey, RedisKey sourceKey,
+        public long SortedSetRangeByScoreAndStore(RedisKey destinationKey, RedisKey sourceKey,
             double start = Double.NegativeInfinity, double stop = Double.PositiveInfinity,
             Exclude exclude = Exclude.None,
             Order order = Order.Ascending, long skip = 0, long take = -1, CommandFlags flags = CommandFlags.None)
@@ -610,7 +610,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.SortedSetRangeByValue(ToInner(key), min, max, exclude, Order.Ascending, skip, take, flags);
         }
 
-        public RedisValue SortedSetRangeByValueAndStore(RedisKey destinationKey, RedisKey sourceKey, RedisValue min,
+        public long SortedSetRangeByValueAndStore(RedisKey destinationKey, RedisKey sourceKey, RedisValue min,
             RedisValue max,
             Exclude exclude, Order order = Order.Ascending, long skip = 0, long take = 0,
             CommandFlags flags = CommandFlags.None)

@@ -3,7 +3,7 @@
 /// <summary>
 /// Enum to manage ordering in sorted sets.
 /// </summary>
-internal enum SortedSetOrderBy
+internal enum SortedSetOrder
 {
     /// <summary>
     /// Bases ordering off of the rank in the sorted set. This means that your start and stop inside the sorted set will be some offset into the set.
@@ -23,10 +23,10 @@ internal enum SortedSetOrderBy
 
 internal static class SortedSetOrderByExtensions
 {
-    public static RedisValue GetLiteral(this SortedSetOrderBy sortedSetOrderBy) => sortedSetOrderBy switch
+    public static RedisValue GetLiteral(this SortedSetOrder sortedSetOrder) => sortedSetOrder switch
     {
-        SortedSetOrderBy.ByLex => RedisLiterals.BYLEX,
-        SortedSetOrderBy.ByScore => RedisLiterals.BYSCORE,
+        SortedSetOrder.ByLex => RedisLiterals.BYLEX,
+        SortedSetOrder.ByScore => RedisLiterals.BYSCORE,
         _ => RedisValue.EmptyString
     };
 }
