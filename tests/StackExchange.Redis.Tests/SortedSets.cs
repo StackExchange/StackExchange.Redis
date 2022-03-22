@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System;
+using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
@@ -179,470 +180,464 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task SortedSetRangeStoreByRankAsync()
         {
-            using (var conn = Create())
-            {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
-                var db = conn.GetDatabase();
-                var me = Me();
-                var sourceKey = $"{me}:ZSetSource";
-                var destinationKey = $"{me}:ZSetDestination";
+            using var conn = Create();
+            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+            var db = conn.GetDatabase();
+            var me = Me();
+            var sourceKey = $"{me}:ZSetSource";
+            var destinationKey = $"{me}:ZSetDestination";
 
-                db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
-                await db.SortedSetAddAsync(sourceKey, entries, CommandFlags.FireAndForget);
-                var res = await db.SortedSetRangeByRankAndStoreAsync(destinationKey, sourceKey);
-                Assert.Equal(entries.Length, res);
-            }
+            db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
+            await db.SortedSetAddAsync(sourceKey, entries, CommandFlags.FireAndForget);
+            var res = await db.SortedSetRangeAndStoreAsync(destinationKey, sourceKey, 0, -1);
+            Assert.Equal(entries.Length, res);
         }
 
         [Fact]
         public async Task SortedSetRangeStoreByRankLimitedAsync()
         {
-            using (var conn = Create())
+            using var conn = Create();
+            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+
+            var db = conn.GetDatabase();
+            var me = Me();
+            var sourceKey = $"{me}:ZSetSource";
+            var destinationKey = $"{me}:ZSetDestination";
+
+            db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
+            await db.SortedSetAddAsync(sourceKey, entries, CommandFlags.FireAndForget);
+            var res = await db.SortedSetRangeAndStoreAsync(destinationKey, sourceKey, 1, 4);
+            var range = await db.SortedSetRangeByRankWithScoresAsync(destinationKey);
+            Assert.Equal(4, res);
+            for (var i = 1; i < 5; i++)
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
-
-                var db = conn.GetDatabase();
-                var me = Me();
-                var sourceKey = $"{me}:ZSetSource";
-                var destinationKey = $"{me}:ZSetDestination";
-
-                db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
-                await db.SortedSetAddAsync(sourceKey, entries, CommandFlags.FireAndForget);
-                var res = await db.SortedSetRangeByRankAndStoreAsync(destinationKey, sourceKey, 1, 4);
-                var range = await db.SortedSetRangeByRankWithScoresAsync(destinationKey);
-                Assert.Equal(4, res);
-                for (var i = 1; i < 5; i++)
-                {
-                    Assert.Equal(entries[i], range[i-1]);
-                }
+                Assert.Equal(entries[i], range[i-1]);
             }
         }
 
         [Fact]
         public async Task SortedSetRangeStoreByScoreAsync()
         {
-            using (var conn = Create())
+            using var conn = Create();
+            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+
+            var db = conn.GetDatabase();
+            var me = Me();
+            var sourceKey = $"{me}:ZSetSource";
+            var destinationKey = $"{me}:ZSetDestination";
+
+            db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
+            await db.SortedSetAddAsync(sourceKey, entriesPow2, CommandFlags.FireAndForget);
+            var res = await db.SortedSetRangeAndStoreAsync(destinationKey, sourceKey, 64, 128, SortedSetOrder.ByScore);
+            var range = await db.SortedSetRangeByRankWithScoresAsync(destinationKey);
+            Assert.Equal(2, res);
+            for (var i = 6; i < 8; i++)
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
-
-                var db = conn.GetDatabase();
-                var me = Me();
-                var sourceKey = $"{me}:ZSetSource";
-                var destinationKey = $"{me}:ZSetDestination";
-
-                db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
-                await db.SortedSetAddAsync(sourceKey, entriesPow2, CommandFlags.FireAndForget);
-                var res = await db.SortedSetRangeByScoreAndStoreAsync(destinationKey, sourceKey, 64, 128);
-                var range = await db.SortedSetRangeByRankWithScoresAsync(destinationKey);
-                Assert.Equal(2, res);
-                for (var i = 6; i < 8; i++)
-                {
-                    Assert.Equal(entriesPow2[i], range[i-6]);
-                }
+                Assert.Equal(entriesPow2[i], range[i-6]);
             }
         }
 
         [Fact]
         public async Task SortedSetRangeStoreByScoreAsyncDefault()
         {
-            using (var conn = Create())
+            using var conn = Create();
+            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+
+            var db = conn.GetDatabase();
+            var me = Me();
+            var sourceKey = $"{me}:ZSetSource";
+            var destinationKey = $"{me}:ZSetDestination";
+
+            db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
+            await db.SortedSetAddAsync(sourceKey, entriesPow2, CommandFlags.FireAndForget);
+            var res = await db.SortedSetRangeAndStoreAsync(destinationKey, sourceKey, double.NegativeInfinity, double.PositiveInfinity, SortedSetOrder.ByScore);
+            var range = await db.SortedSetRangeByRankWithScoresAsync(destinationKey);
+            Assert.Equal(10, res);
+            for (var i = 0; i < entriesPow2.Length; i++)
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
-
-                var db = conn.GetDatabase();
-                var me = Me();
-                var sourceKey = $"{me}:ZSetSource";
-                var destinationKey = $"{me}:ZSetDestination";
-
-                db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
-                await db.SortedSetAddAsync(sourceKey, entriesPow2, CommandFlags.FireAndForget);
-                var res = await db.SortedSetRangeByScoreAndStoreAsync(destinationKey, sourceKey);
-                var range = await db.SortedSetRangeByRankWithScoresAsync(destinationKey);
-                Assert.Equal(10, res);
-                for (var i = 0; i < entriesPow2.Length; i++)
-                {
-                    Assert.Equal(entriesPow2[i], range[i]);
-                }
+                Assert.Equal(entriesPow2[i], range[i]);
             }
         }
 
         [Fact]
         public async Task SortedSetRangeStoreByScoreAsyncLimited()
         {
-            using (var conn = Create())
+            using var conn = Create();
+            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+
+            var db = conn.GetDatabase();
+            var me = Me();
+            var sourceKey = $"{me}:ZSetSource";
+            var destinationKey = $"{me}:ZSetDestination";
+
+            db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
+            await db.SortedSetAddAsync(sourceKey, entriesPow2, CommandFlags.FireAndForget);
+            var res = await db.SortedSetRangeAndStoreAsync(destinationKey, sourceKey, double.NegativeInfinity, double.PositiveInfinity, SortedSetOrder.ByScore, skip: 1, take: 6);
+            var range = await db.SortedSetRangeByRankWithScoresAsync(destinationKey);
+            Assert.Equal(6, res);
+            for (var i = 1; i < 7; i++)
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
-
-                var db = conn.GetDatabase();
-                var me = Me();
-                var sourceKey = $"{me}:ZSetSource";
-                var destinationKey = $"{me}:ZSetDestination";
-
-                db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
-                await db.SortedSetAddAsync(sourceKey, entriesPow2, CommandFlags.FireAndForget);
-                var res = await db.SortedSetRangeByScoreAndStoreAsync(destinationKey, sourceKey, skip: 1, take: 6);
-                var range = await db.SortedSetRangeByRankWithScoresAsync(destinationKey);
-                Assert.Equal(6, res);
-                for (var i = 1; i < 7; i++)
-                {
-                    Assert.Equal(entriesPow2[i], range[i-1]);
-                }
+                Assert.Equal(entriesPow2[i], range[i-1]);
             }
         }
 
         [Fact]
         public async Task SortedSetRangeStoreByScoreAsyncExclusiveRange()
         {
-            using (var conn = Create())
+            using var conn = Create();
+            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+
+            var db = conn.GetDatabase();
+            var me = Me();
+            var sourceKey = $"{me}:ZSetSource";
+            var destinationKey = $"{me}:ZSetDestination";
+
+            db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
+            await db.SortedSetAddAsync(sourceKey, entriesPow2, CommandFlags.FireAndForget);
+            var res = await db.SortedSetRangeAndStoreAsync(destinationKey, sourceKey, 32, 256, SortedSetOrder.ByScore, exclude: Exclude.Both);
+            var range = await db.SortedSetRangeByRankWithScoresAsync(destinationKey);
+            Assert.Equal(2, res);
+            for (var i = 6; i < 8; i++)
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
-
-                var db = conn.GetDatabase();
-                var me = Me();
-                var sourceKey = $"{me}:ZSetSource";
-                var destinationKey = $"{me}:ZSetDestination";
-
-                db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
-                await db.SortedSetAddAsync(sourceKey, entriesPow2, CommandFlags.FireAndForget);
-                var res = await db.SortedSetRangeByScoreAndStoreAsync(destinationKey, sourceKey, 32, 256, Exclude.Both);
-                var range = await db.SortedSetRangeByRankWithScoresAsync(destinationKey);
-                Assert.Equal(2, res);
-                for (var i = 6; i < 8; i++)
-                {
-                    Assert.Equal(entriesPow2[i], range[i-6]);
-                }
+                Assert.Equal(entriesPow2[i], range[i-6]);
             }
         }
 
         [Fact]
         public async Task SortedSetRangeStoreByScoreAsyncReverse()
         {
-            using (var conn = Create())
+            using var conn = Create();
+            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+
+            var db = conn.GetDatabase();
+            var me = Me();
+            var sourceKey = $"{me}:ZSetSource";
+            var destinationKey = $"{me}:ZSetDestination";
+
+            db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
+            await db.SortedSetAddAsync(sourceKey, entriesPow2, CommandFlags.FireAndForget);
+            var res = await db.SortedSetRangeAndStoreAsync(destinationKey, sourceKey, start: double.PositiveInfinity, double.NegativeInfinity, SortedSetOrder.ByScore, order: Order.Descending);
+            var range = await db.SortedSetRangeByRankWithScoresAsync(destinationKey);
+            Assert.Equal(10, res);
+            for (var i = 0; i < entriesPow2.Length; i++)
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
-
-                var db = conn.GetDatabase();
-                var me = Me();
-                var sourceKey = $"{me}:ZSetSource";
-                var destinationKey = $"{me}:ZSetDestination";
-
-                db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
-                await db.SortedSetAddAsync(sourceKey, entriesPow2, CommandFlags.FireAndForget);
-                var res = await db.SortedSetRangeByScoreAndStoreAsync(destinationKey, sourceKey, start: double.PositiveInfinity, double.NegativeInfinity, order: Order.Descending);
-                var range = await db.SortedSetRangeByRankWithScoresAsync(destinationKey);
-                Assert.Equal(10, res);
-                for (var i = 0; i < entriesPow2.Length; i++)
-                {
-                    Assert.Equal(entriesPow2[i], range[i]);
-                }
+                Assert.Equal(entriesPow2[i], range[i]);
             }
         }
 
         [Fact]
         public async Task SortedSetRangeStoreByLexAsync()
         {
-            using (var conn = Create())
+            using var conn = Create();
+            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+
+            var db = conn.GetDatabase();
+            var me = Me();
+            var sourceKey = $"{me}:ZSetSource";
+            var destinationKey = $"{me}:ZSetDestination";
+
+            db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
+            await db.SortedSetAddAsync(sourceKey, lexEntries, CommandFlags.FireAndForget);
+            var res = await db.SortedSetRangeAndStoreAsync(destinationKey, sourceKey, "a", "j", SortedSetOrder.ByLex);
+            var range = await db.SortedSetRangeByRankWithScoresAsync(destinationKey);
+            Assert.Equal(10, res);
+            for (var i = 0; i <lexEntries.Length; i++)
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
-
-                var db = conn.GetDatabase();
-                var me = Me();
-                var sourceKey = $"{me}:ZSetSource";
-                var destinationKey = $"{me}:ZSetDestination";
-
-                db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
-                await db.SortedSetAddAsync(sourceKey, lexEntries, CommandFlags.FireAndForget);
-                var res = await db.SortedSetRangeByValueAndStoreAsync(destinationKey, sourceKey, "a", "j", Exclude.None);
-                var range = await db.SortedSetRangeByRankWithScoresAsync(destinationKey);
-                Assert.Equal(10, res);
-                for (var i = 0; i <lexEntries.Length; i++)
-                {
-                    Assert.Equal(lexEntries[i], range[i]);
-                }
+                Assert.Equal(lexEntries[i], range[i]);
             }
         }
 
         [Fact]
         public async Task SortedSetRangeStoreByLexExclusiveRangeAsync()
         {
-            using (var conn = Create())
+            using var conn = Create();
+            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+
+            var db = conn.GetDatabase();
+            var me = Me();
+            var sourceKey = $"{me}:ZSetSource";
+            var destinationKey = $"{me}:ZSetDestination";
+
+            db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
+            await db.SortedSetAddAsync(sourceKey, lexEntries, CommandFlags.FireAndForget);
+            var res = await db.SortedSetRangeAndStoreAsync(destinationKey, sourceKey, "a", "j", SortedSetOrder.ByLex, Exclude.Both);
+            var range = await db.SortedSetRangeByRankWithScoresAsync(destinationKey);
+            Assert.Equal(8, res);
+            for (var i = 1; i <lexEntries.Length-1; i++)
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
-
-                var db = conn.GetDatabase();
-                var me = Me();
-                var sourceKey = $"{me}:ZSetSource";
-                var destinationKey = $"{me}:ZSetDestination";
-
-                db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
-                await db.SortedSetAddAsync(sourceKey, lexEntries, CommandFlags.FireAndForget);
-                var res = await db.SortedSetRangeByValueAndStoreAsync(destinationKey, sourceKey, "a", "j", Exclude.Both);
-                var range = await db.SortedSetRangeByRankWithScoresAsync(destinationKey);
-                Assert.Equal(8, res);
-                for (var i = 1; i <lexEntries.Length-1; i++)
-                {
-                    Assert.Equal(lexEntries[i], range[i-1]);
-                }
+                Assert.Equal(lexEntries[i], range[i-1]);
             }
         }
 
         [Fact]
         public async Task SortedSetRangeStoreByLexRevRangeAsync()
         {
-            using (var conn = Create())
+            using var conn = Create();
+            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+
+            var db = conn.GetDatabase();
+            var me = Me();
+            var sourceKey = $"{me}:ZSetSource";
+            var destinationKey = $"{me}:ZSetDestination";
+
+            db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
+            await db.SortedSetAddAsync(sourceKey, lexEntries, CommandFlags.FireAndForget);
+            var res = await db.SortedSetRangeAndStoreAsync(destinationKey, sourceKey, "j", "a", SortedSetOrder.ByLex, exclude:Exclude.None, order: Order.Descending);
+            var range = await db.SortedSetRangeByRankWithScoresAsync(destinationKey);
+            Assert.Equal(10, res);
+            for (var i = 0; i < lexEntries.Length; i++)
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
-
-                var db = conn.GetDatabase();
-                var me = Me();
-                var sourceKey = $"{me}:ZSetSource";
-                var destinationKey = $"{me}:ZSetDestination";
-
-                db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
-                await db.SortedSetAddAsync(sourceKey, lexEntries, CommandFlags.FireAndForget);
-                var res = await db.SortedSetRangeByValueAndStoreAsync(destinationKey, sourceKey, "j", "a", Exclude.None, Order.Descending);
-                var range = await db.SortedSetRangeByRankWithScoresAsync(destinationKey);
-                Assert.Equal(10, res);
-                for (var i = 0; i < lexEntries.Length; i++)
-                {
-                    Assert.Equal(lexEntries[i], range[i]);
-                }
+                Assert.Equal(lexEntries[i], range[i]);
             }
         }
 
         [Fact]
         public void SortedSetRangeStoreByRank()
         {
-            using (var conn = Create())
-            {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+            using var conn = Create();
+            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
 
-                var db = conn.GetDatabase();
-                var me = Me();
-                var sourceKey = $"{me}:ZSetSource";
-                var destinationKey = $"{me}:ZSetDestination";
+            var db = conn.GetDatabase();
+            var me = Me();
+            var sourceKey = $"{me}:ZSetSource";
+            var destinationKey = $"{me}:ZSetDestination";
 
-                db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
-                db.SortedSetAdd(sourceKey, entries, CommandFlags.FireAndForget);
-                var res = db.SortedSetRangeByRankAndStore(destinationKey, sourceKey);
-                Assert.Equal(entries.Length, res);
-            }
+            db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
+            db.SortedSetAdd(sourceKey, entries, CommandFlags.FireAndForget);
+            var res = db.SortedSetRangeAndStore(destinationKey, sourceKey, 0, -1);
+            Assert.Equal(entries.Length, res);
         }
 
         [Fact]
         public void SortedSetRangeStoreByRankLimited()
         {
-            using (var conn = Create())
+            using var conn = Create();
+            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+
+            var db = conn.GetDatabase();
+            var me = Me();
+            var sourceKey = $"{me}:ZSetSource";
+            var destinationKey = $"{me}:ZSetDestination";
+
+            db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
+            db.SortedSetAdd(sourceKey, entries, CommandFlags.FireAndForget);
+            var res = db.SortedSetRangeAndStore(destinationKey, sourceKey, 1, 4);
+            var range = db.SortedSetRangeByRankWithScores(destinationKey);
+            Assert.Equal(4, res);
+            for (var i = 1; i < 5; i++)
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
-
-                var db = conn.GetDatabase();
-                var me = Me();
-                var sourceKey = $"{me}:ZSetSource";
-                var destinationKey = $"{me}:ZSetDestination";
-
-                db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
-                db.SortedSetAdd(sourceKey, entries, CommandFlags.FireAndForget);
-                var res = db.SortedSetRangeByRankAndStore(destinationKey, sourceKey, 1, 4);
-                var range = db.SortedSetRangeByRankWithScores(destinationKey);
-                Assert.Equal(4, res);
-                for (var i = 1; i < 5; i++)
-                {
-                    Assert.Equal(entries[i], range[i-1]);
-                }
+                Assert.Equal(entries[i], range[i-1]);
             }
         }
 
         [Fact]
         public void SortedSetRangeStoreByScore()
         {
-            using (var conn = Create())
+            using var conn = Create();
+            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+
+            var db = conn.GetDatabase();
+            var me = Me();
+            var sourceKey = $"{me}:ZSetSource";
+            var destinationKey = $"{me}:ZSetDestination";
+
+            db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
+            db.SortedSetAdd(sourceKey, entriesPow2, CommandFlags.FireAndForget);
+            var res = db.SortedSetRangeAndStore(destinationKey, sourceKey, 64, 128, SortedSetOrder.ByScore);
+            var range = db.SortedSetRangeByRankWithScores(destinationKey);
+            Assert.Equal(2, res);
+            for (var i = 6; i < 8; i++)
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
-
-                var db = conn.GetDatabase();
-                var me = Me();
-                var sourceKey = $"{me}:ZSetSource";
-                var destinationKey = $"{me}:ZSetDestination";
-
-                db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
-                db.SortedSetAdd(sourceKey, entriesPow2, CommandFlags.FireAndForget);
-                var res = db.SortedSetRangeByScoreAndStore(destinationKey, sourceKey, 64, 128);
-                var range = db.SortedSetRangeByRankWithScores(destinationKey);
-                Assert.Equal(2, res);
-                for (var i = 6; i < 8; i++)
-                {
-                    Assert.Equal(entriesPow2[i], range[i-6]);
-                }
+                Assert.Equal(entriesPow2[i], range[i-6]);
             }
         }
 
         [Fact]
         public void SortedSetRangeStoreByScoreDefault()
         {
-            using (var conn = Create())
+            using var conn = Create();
+            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+
+            var db = conn.GetDatabase();
+            var me = Me();
+            var sourceKey = $"{me}:ZSetSource";
+            var destinationKey = $"{me}:ZSetDestination";
+
+            db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
+            db.SortedSetAdd(sourceKey, entriesPow2, CommandFlags.FireAndForget);
+            var res = db.SortedSetRangeAndStore(destinationKey, sourceKey, double.NegativeInfinity, double.PositiveInfinity, SortedSetOrder.ByScore);
+            var range = db.SortedSetRangeByRankWithScores(destinationKey);
+            Assert.Equal(10, res);
+            for (var i = 0; i < entriesPow2.Length; i++)
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
-
-                var db = conn.GetDatabase();
-                var me = Me();
-                var sourceKey = $"{me}:ZSetSource";
-                var destinationKey = $"{me}:ZSetDestination";
-
-                db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
-                db.SortedSetAdd(sourceKey, entriesPow2, CommandFlags.FireAndForget);
-                var res = db.SortedSetRangeByScoreAndStore(destinationKey, sourceKey);
-                var range = db.SortedSetRangeByRankWithScores(destinationKey);
-                Assert.Equal(10, res);
-                for (var i = 0; i < entriesPow2.Length; i++)
-                {
-                    Assert.Equal(entriesPow2[i], range[i]);
-                }
+                Assert.Equal(entriesPow2[i], range[i]);
             }
         }
 
         [Fact]
         public void SortedSetRangeStoreByScoreLimited()
         {
-            using (var conn = Create())
+            using var conn = Create();
+            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+
+            var db = conn.GetDatabase();
+            var me = Me();
+            var sourceKey = $"{me}:ZSetSource";
+            var destinationKey = $"{me}:ZSetDestination";
+
+            db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
+            db.SortedSetAdd(sourceKey, entriesPow2, CommandFlags.FireAndForget);
+            var res = db.SortedSetRangeAndStore(destinationKey, sourceKey,double.NegativeInfinity, double.PositiveInfinity, SortedSetOrder.ByScore, skip: 1, take: 6);
+            var range = db.SortedSetRangeByRankWithScores(destinationKey);
+            Assert.Equal(6, res);
+            for (var i = 1; i < 7; i++)
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
-
-                var db = conn.GetDatabase();
-                var me = Me();
-                var sourceKey = $"{me}:ZSetSource";
-                var destinationKey = $"{me}:ZSetDestination";
-
-                db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
-                db.SortedSetAdd(sourceKey, entriesPow2, CommandFlags.FireAndForget);
-                var res = db.SortedSetRangeByScoreAndStore(destinationKey, sourceKey, skip: 1, take: 6);
-                var range = db.SortedSetRangeByRankWithScores(destinationKey);
-                Assert.Equal(6, res);
-                for (var i = 1; i < 7; i++)
-                {
-                    Assert.Equal(entriesPow2[i], range[i-1]);
-                }
+                Assert.Equal(entriesPow2[i], range[i-1]);
             }
         }
 
         [Fact]
         public void SortedSetRangeStoreByScoreExclusiveRange()
         {
-            using (var conn = Create())
+            using var conn = Create();
+            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+
+            var db = conn.GetDatabase();
+            var me = Me();
+            var sourceKey = $"{me}:ZSetSource";
+            var destinationKey = $"{me}:ZSetDestination";
+
+            db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
+            db.SortedSetAdd(sourceKey, entriesPow2, CommandFlags.FireAndForget);
+            var res = db.SortedSetRangeAndStore(destinationKey, sourceKey, 32, 256, SortedSetOrder.ByScore, exclude: Exclude.Both);
+            var range = db.SortedSetRangeByRankWithScores(destinationKey);
+            Assert.Equal(2, res);
+            for (var i = 6; i < 8; i++)
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
-
-                var db = conn.GetDatabase();
-                var me = Me();
-                var sourceKey = $"{me}:ZSetSource";
-                var destinationKey = $"{me}:ZSetDestination";
-
-                db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
-                db.SortedSetAdd(sourceKey, entriesPow2, CommandFlags.FireAndForget);
-                var res = db.SortedSetRangeByScoreAndStore(destinationKey, sourceKey, 32, 256, Exclude.Both);
-                var range = db.SortedSetRangeByRankWithScores(destinationKey);
-                Assert.Equal(2, res);
-                for (var i = 6; i < 8; i++)
-                {
-                    Assert.Equal(entriesPow2[i], range[i-6]);
-                }
+                Assert.Equal(entriesPow2[i], range[i-6]);
             }
         }
 
         [Fact]
         public void SortedSetRangeStoreByScoreReverse()
         {
-            using (var conn = Create())
+            using var conn = Create();
+            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+
+            var db = conn.GetDatabase();
+            var me = Me();
+            var sourceKey = $"{me}:ZSetSource";
+            var destinationKey = $"{me}:ZSetDestination";
+
+            db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
+            db.SortedSetAdd(sourceKey, entriesPow2, CommandFlags.FireAndForget);
+            var res = db.SortedSetRangeAndStore(destinationKey, sourceKey, start: double.PositiveInfinity, double.NegativeInfinity, SortedSetOrder.ByScore, order: Order.Descending);
+            var range = db.SortedSetRangeByRankWithScores(destinationKey);
+            Assert.Equal(10, res);
+            for (var i = 0; i < entriesPow2.Length; i++)
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
-
-                var db = conn.GetDatabase();
-                var me = Me();
-                var sourceKey = $"{me}:ZSetSource";
-                var destinationKey = $"{me}:ZSetDestination";
-
-                db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
-                db.SortedSetAdd(sourceKey, entriesPow2, CommandFlags.FireAndForget);
-                var res = db.SortedSetRangeByScoreAndStore(destinationKey, sourceKey, start: double.PositiveInfinity, double.NegativeInfinity, order: Order.Descending);
-                var range = db.SortedSetRangeByRankWithScores(destinationKey);
-                Assert.Equal(10, res);
-                for (var i = 0; i < entriesPow2.Length; i++)
-                {
-                    Assert.Equal(entriesPow2[i], range[i]);
-                }
+                Assert.Equal(entriesPow2[i], range[i]);
             }
         }
 
         [Fact]
         public void SortedSetRangeStoreByLex()
         {
-            using (var conn = Create())
+            using var conn = Create();
+            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+
+            var db = conn.GetDatabase();
+            var me = Me();
+            var sourceKey = $"{me}:ZSetSource";
+            var destinationKey = $"{me}:ZSetDestination";
+
+            db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
+            db.SortedSetAdd(sourceKey, lexEntries, CommandFlags.FireAndForget);
+            var res = db.SortedSetRangeAndStore(destinationKey, sourceKey, "a", "j", SortedSetOrder.ByLex);
+            var range = db.SortedSetRangeByRankWithScores(destinationKey);
+            Assert.Equal(10, res);
+            for (var i = 0; i <lexEntries.Length; i++)
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
-
-                var db = conn.GetDatabase();
-                var me = Me();
-                var sourceKey = $"{me}:ZSetSource";
-                var destinationKey = $"{me}:ZSetDestination";
-
-                db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
-                db.SortedSetAdd(sourceKey, lexEntries, CommandFlags.FireAndForget);
-                var res = db.SortedSetRangeByValueAndStore(destinationKey, sourceKey, "a", "j", Exclude.None);
-                var range = db.SortedSetRangeByRankWithScores(destinationKey);
-                Assert.Equal(10, res);
-                for (var i = 0; i <lexEntries.Length; i++)
-                {
-                    Assert.Equal(lexEntries[i], range[i]);
-                }
+                Assert.Equal(lexEntries[i], range[i]);
             }
         }
 
         [Fact]
         public void SortedSetRangeStoreByLexExclusiveRange()
         {
-            using (var conn = Create())
+            using var conn = Create();
+            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+
+            var db = conn.GetDatabase();
+            var me = Me();
+            var sourceKey = $"{me}:ZSetSource";
+            var destinationKey = $"{me}:ZSetDestination";
+
+            db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
+            db.SortedSetAdd(sourceKey, lexEntries, CommandFlags.FireAndForget);
+            var res = db.SortedSetRangeAndStore(destinationKey, sourceKey, "a", "j", SortedSetOrder.ByLex, Exclude.Both);
+            var range = db.SortedSetRangeByRankWithScores(destinationKey);
+            Assert.Equal(8, res);
+            for (var i = 1; i <lexEntries.Length-1; i++)
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
-
-                var db = conn.GetDatabase();
-                var me = Me();
-                var sourceKey = $"{me}:ZSetSource";
-                var destinationKey = $"{me}:ZSetDestination";
-
-                db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
-                db.SortedSetAdd(sourceKey, lexEntries, CommandFlags.FireAndForget);
-                var res = db.SortedSetRangeByValueAndStore(destinationKey, sourceKey, "a", "j", Exclude.Both);
-                var range = db.SortedSetRangeByRankWithScores(destinationKey);
-                Assert.Equal(8, res);
-                for (var i = 1; i <lexEntries.Length-1; i++)
-                {
-                    Assert.Equal(lexEntries[i], range[i-1]);
-                }
+                Assert.Equal(lexEntries[i], range[i-1]);
             }
         }
 
         [Fact]
         public void SortedSetRangeStoreByLexRevRange()
         {
-            using (var conn = Create())
+            using var conn = Create();
+            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+
+            var db = conn.GetDatabase();
+            var me = Me();
+            var sourceKey = $"{me}:ZSetSource";
+            var destinationKey = $"{me}:ZSetDestination";
+
+            db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
+            db.SortedSetAdd(sourceKey, lexEntries, CommandFlags.FireAndForget);
+            var res = db.SortedSetRangeAndStore(destinationKey, sourceKey, "j", "a", SortedSetOrder.ByLex, Exclude.None, Order.Descending);
+            var range = db.SortedSetRangeByRankWithScores(destinationKey);
+            Assert.Equal(10, res);
+            for (var i = 0; i < lexEntries.Length; i++)
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
-
-                var db = conn.GetDatabase();
-                var me = Me();
-                var sourceKey = $"{me}:ZSetSource";
-                var destinationKey = $"{me}:ZSetDestination";
-
-                db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
-                db.SortedSetAdd(sourceKey, lexEntries, CommandFlags.FireAndForget);
-                var res = db.SortedSetRangeByValueAndStore(destinationKey, sourceKey, "j", "a", Exclude.None, Order.Descending);
-                var range = db.SortedSetRangeByRankWithScores(destinationKey);
-                Assert.Equal(10, res);
-                for (var i = 0; i < lexEntries.Length; i++)
-                {
-                    Assert.Equal(lexEntries[i], range[i]);
-                }
+                Assert.Equal(lexEntries[i], range[i]);
             }
+        }
+
+        [Fact]
+        public void SortedSetRangeStoreFailErroneousTake()
+        {
+            using var conn = Create();
+            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+
+            var db = conn.GetDatabase();
+            var me = Me();
+            var sourceKey = $"{me}:ZSetSource";
+            var destinationKey = $"{me}:ZSetDestination";
+
+            db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
+            db.SortedSetAdd(sourceKey, lexEntries, CommandFlags.FireAndForget);
+            var exception = Assert.Throws<ArgumentException>(()=>db.SortedSetRangeAndStore(destinationKey, sourceKey,0,-1, take:5));
+            Assert.Equal($"take argument is not valid when sortedSetOrder is ByRank you may want to try setting the SortedSetOrder to ByLex or ByScore{Environment.NewLine}Parameter name: take", exception.Message);
+        }
+
+        [Fact]
+        public void SortedSetRangeStoreFailExclude()
+        {
+            using var conn = Create();
+            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+
+            var db = conn.GetDatabase();
+            var me = Me();
+            var sourceKey = $"{me}:ZSetSource";
+            var destinationKey = $"{me}:ZSetDestination";
+
+            db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
+            db.SortedSetAdd(sourceKey, lexEntries, CommandFlags.FireAndForget);
+            var exception = Assert.Throws<ArgumentException>(()=>db.SortedSetRangeAndStore(destinationKey, sourceKey,0,-1, exclude: Exclude.Both));
+            Assert.Equal($"exclude argument is not valid when sortedSetOrder is ByRank, you may want to try setting the sortedSetOrder to ByLex or ByScore{Environment.NewLine}Parameter name: exclude", exception.Message);
         }
     }
 }

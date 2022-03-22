@@ -576,10 +576,12 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.SortedSetRangeByRank(ToInner(key), start, stop, order, flags);
         }
 
-        public long SortedSetRangeByRankAndStore(RedisKey destinationKey, RedisKey sourceKey, long start = 0, long stop = -1,
-            Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
+        public long SortedSetRangeAndStore(RedisKey destinationKey, RedisKey sourceKey, RedisValue start,
+            RedisValue stop,
+            SortedSetOrder sortedSetOrder = SortedSetOrder.ByRank, Exclude exclude = Exclude.None,
+            Order order = Order.Ascending, long skip = 0, long take = 0, CommandFlags flags = CommandFlags.None)
         {
-            return Inner.SortedSetRangeByRankAndStore(ToInner(destinationKey), ToInner(sourceKey), start, stop, order, flags);
+            return Inner.SortedSetRangeAndStore(ToInner(destinationKey), ToInner(sourceKey), start, stop, sortedSetOrder, exclude, order, skip, take, flags);
         }
 
         public SortedSetEntry[] SortedSetRangeByRankWithScores(RedisKey key, long start = 0, long stop = -1, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
@@ -592,14 +594,6 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.SortedSetRangeByScore(ToInner(key), start, stop, exclude, order, skip, take, flags);
         }
 
-        public long SortedSetRangeByScoreAndStore(RedisKey destinationKey, RedisKey sourceKey,
-            double start = Double.NegativeInfinity, double stop = Double.PositiveInfinity,
-            Exclude exclude = Exclude.None,
-            Order order = Order.Ascending, long skip = 0, long take = -1, CommandFlags flags = CommandFlags.None)
-        {
-            return Inner.SortedSetRangeByScoreAndStore(ToInner(destinationKey), ToInner(sourceKey), start, stop, exclude, order, skip, take, flags);
-        }
-
         public SortedSetEntry[] SortedSetRangeByScoreWithScores(RedisKey key, double start = -1.0 / 0.0, double stop = 1.0 / 0.0, Exclude exclude = Exclude.None, Order order = Order.Ascending, long skip = 0, long take = -1, CommandFlags flags = CommandFlags.None)
         {
             return Inner.SortedSetRangeByScoreWithScores(ToInner(key), start, stop, exclude, order, skip, take, flags);
@@ -608,14 +602,6 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public RedisValue[] SortedSetRangeByValue(RedisKey key, RedisValue min, RedisValue max, Exclude exclude, long skip, long take, CommandFlags flags)
         {
             return Inner.SortedSetRangeByValue(ToInner(key), min, max, exclude, Order.Ascending, skip, take, flags);
-        }
-
-        public long SortedSetRangeByValueAndStore(RedisKey destinationKey, RedisKey sourceKey, RedisValue min,
-            RedisValue max,
-            Exclude exclude, Order order = Order.Ascending, long skip = 0, long take = 0,
-            CommandFlags flags = CommandFlags.None)
-        {
-            return Inner.SortedSetRangeByValueAndStore(ToInner(destinationKey), ToInner(sourceKey), min, max, exclude, order, skip, take, flags);
         }
 
         public RedisValue[] SortedSetRangeByValue(RedisKey key, RedisValue min = default(RedisValue), RedisValue max = default(RedisValue), Exclude exclude = Exclude.None, Order order = Order.Ascending, long skip = 0, long take = -1, CommandFlags flags = CommandFlags.None)

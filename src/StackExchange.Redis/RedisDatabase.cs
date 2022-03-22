@@ -1631,11 +1631,13 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.RedisValueArray);
         }
 
-        public long SortedSetRangeByRankAndStore(RedisKey destinationKey, RedisKey sourceKey, long start = 0, long stop = -1,
-            Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
+        public long SortedSetRangeAndStore(RedisKey destinationKey, RedisKey sourceKey, RedisValue start,
+            RedisValue stop,
+            SortedSetOrder sortedSetOrder = SortedSetOrder.ByRank, Exclude exclude = Exclude.None,
+            Order order = Order.Ascending, long skip = 0, long take = 0, CommandFlags flags = CommandFlags.None)
         {
             var msg = CreateSortedSetRangeStoreMessage(Database, flags, destinationKey, sourceKey, start, stop,
-                SortedSetOrder.ByRank, order);
+                sortedSetOrder, order, exclude, skip, take);
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
@@ -1645,12 +1647,13 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.RedisValueArray);
         }
 
-        public async Task<long> SortedSetRangeByRankAndStoreAsync(RedisKey destinationKey, RedisKey sourceKey,
-            long start = 0, long stop = -1,
-            Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
+        public async Task<long> SortedSetRangeAndStoreAsync(RedisKey destinationKey, RedisKey sourceKey, RedisValue start,
+            RedisValue stop,
+            SortedSetOrder sortedSetOrder = SortedSetOrder.ByRank, Exclude exclude = Exclude.None,
+            Order order = Order.Ascending, long skip = 0, long take = 0, CommandFlags flags = CommandFlags.None)
         {
             var msg = CreateSortedSetRangeStoreMessage(Database, flags, destinationKey, sourceKey, start, stop,
-                SortedSetOrder.ByRank, order);
+                sortedSetOrder, order, exclude, skip, take);
             return await ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
@@ -1672,32 +1675,10 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.RedisValueArray);
         }
 
-        public long SortedSetRangeByScoreAndStore(RedisKey destinationKey, RedisKey sourceKey,
-            double start = Double.NegativeInfinity, double stop = Double.PositiveInfinity,
-            Exclude exclude = Exclude.None,
-            Order order = Order.Ascending, long skip = 0, long take = 0, CommandFlags flags = CommandFlags.None)
-        {
-            Message msg = CreateSortedSetRangeStoreMessage(Database, flags, destinationKey, sourceKey, start, stop,
-                SortedSetOrder.ByScore, order, exclude,  skip, take);
-
-            return ExecuteSync(msg, ResultProcessor.Int64);
-        }
-
         public Task<RedisValue[]> SortedSetRangeByScoreAsync(RedisKey key, double start = double.NegativeInfinity, double stop = double.PositiveInfinity, Exclude exclude = Exclude.None, Order order = Order.Ascending, long skip = 0, long take = -1, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetSortedSetRangeByScoreMessage(key, start, stop, exclude, order, skip, take, flags, false);
             return ExecuteAsync(msg, ResultProcessor.RedisValueArray);
-        }
-
-        public async Task<long> SortedSetRangeByScoreAndStoreAsync(RedisKey destinationKey, RedisKey sourceKey,
-            double start = Double.NegativeInfinity, double stop = Double.PositiveInfinity,
-            Exclude exclude = Exclude.None,
-            Order order = Order.Ascending, long skip = 0, long take = 0, CommandFlags flags = CommandFlags.None)
-        {
-            Message msg = CreateSortedSetRangeStoreMessage(Database, flags, destinationKey, sourceKey, start, stop,
-                SortedSetOrder.ByScore, order, exclude,  skip, take);
-
-            return await ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
         public SortedSetEntry[] SortedSetRangeByScoreWithScores(RedisKey key, double start = double.NegativeInfinity, double stop = double.PositiveInfinity, Exclude exclude = Exclude.None, Order order = Order.Ascending, long skip = 0, long take = -1, CommandFlags flags = CommandFlags.None)
@@ -3703,16 +3684,6 @@ namespace StackExchange.Redis
         public RedisValue[] SortedSetRangeByValue(RedisKey key, RedisValue min, RedisValue max, Exclude exclude, long skip, long take, CommandFlags flags)
             => SortedSetRangeByValue(key, min, max, exclude, Order.Ascending, skip, take, flags);
 
-        public long SortedSetRangeByValueAndStore(RedisKey destinationKey, RedisKey sourceKey, RedisValue min,
-            RedisValue max,
-            Exclude exclude, Order order = Order.Ascending, long skip = 0, long take = 0,
-            CommandFlags flags = CommandFlags.None)
-        {
-            var msg = CreateSortedSetRangeStoreMessage(Database, flags, destinationKey, sourceKey, min, max,
-                SortedSetOrder.ByLex, order, exclude, skip, take);
-            return ExecuteSync(msg, ResultProcessor.Int64);
-        }
-
         private static void ReverseLimits(Order order, ref Exclude exclude, ref RedisValue start, ref RedisValue stop)
         {
             bool reverseLimits = (order == Order.Ascending) == (stop != default(RedisValue) && start.CompareTo(stop) > 0);
@@ -3750,16 +3721,6 @@ namespace StackExchange.Redis
 
         public Task<RedisValue[]> SortedSetRangeByValueAsync(RedisKey key, RedisValue min, RedisValue max, Exclude exclude, long skip, long take, CommandFlags flags)
             => SortedSetRangeByValueAsync(key, min, max, exclude, Order.Ascending, skip, take, flags);
-
-        public async Task<long> SortedSetRangeByValueAndStoreAsync(RedisKey destinationKey, RedisKey sourceKey,
-            RedisValue min, RedisValue max,
-            Exclude exclude, Order order = Order.Ascending, long skip = 0, long take = 0,
-            CommandFlags flags = CommandFlags.None)
-        {
-            var msg = CreateSortedSetRangeStoreMessage(Database, flags, destinationKey, sourceKey, min, max,
-                SortedSetOrder.ByLex, order, exclude, skip, take);
-            return await ExecuteAsync(msg, ResultProcessor.Int64);
-        }
 
         public Task<RedisValue[]> SortedSetRangeByValueAsync(RedisKey key, RedisValue min = default(RedisValue), RedisValue max = default(RedisValue),
             Exclude exclude = Exclude.None, Order order = Order.Ascending, long skip = 0, long take = -1, CommandFlags flags = CommandFlags.None)
@@ -4048,10 +4009,23 @@ namespace StackExchange.Redis
             RedisValue stop,
             SortedSetOrder sortedSetOrder,
             Order order,
-            Exclude exclude = Exclude.None,
-            long skip = 0,
-            long take = -1)
+            Exclude exclude,
+            long skip,
+            long take)
         {
+            if (sortedSetOrder == SortedSetOrder.ByRank)
+            {
+                if (take > 0)
+                {
+                    throw new ArgumentException("take argument is not valid when sortedSetOrder is ByRank you may want to try setting the SortedSetOrder to ByLex or ByScore", nameof(take));
+                }
+
+                if (exclude != Exclude.None)
+                {
+                    throw new ArgumentException("exclude argument is not valid when sortedSetOrder is ByRank, you may want to try setting the sortedSetOrder to ByLex or ByScore", nameof(exclude));
+                }
+            }
+
             var arguments = new List<RedisValue>();
             arguments.Add(exclude == Exclude.Both || exclude == Exclude.Start ? $"({start}" : sortedSetOrder == SortedSetOrder.ByLex ? $"[{start}" : start);
             arguments.Add(exclude == Exclude.Both || exclude == Exclude.Stop ? $"({stop}" : sortedSetOrder == SortedSetOrder.ByLex ?  $"[{stop}" : stop);

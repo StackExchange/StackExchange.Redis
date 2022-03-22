@@ -1361,21 +1361,33 @@ namespace StackExchange.Redis
         Task<RedisValue[]> SortedSetRangeByRankAsync(RedisKey key, long start = 0, long stop = -1, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Takes the specified range of elemets in the sorted set of the source key and stores
-        /// them in a new sorted set at the destination key. By default, the elements are considered to be ordered from
-        /// lowest to highest score when creating the new set. Lexicographical order is used for elements with equivalent scores.
-        /// start and stop are 0-based indexes into the source sorted set, with 0 being the
-        /// first element, 1 being the second, -1 being the final element, -2 being the second the final element, and so on.
+        /// Takes the specified range of elements in the sorted set of the source key and stores
+        /// them in a new sorted set at the destination key.
         /// </summary>
-        /// <param name="destinationKey">Where the new sorted set will be stored.</param>
-        /// <param name="sourceKey">The sorted set to pull from</param>
-        /// <param name="start">The starting rank.</param>
-        /// <param name="stop">The ending rank.</param>
-        /// <param name="order">The order to sort by, defaults to ascending.</param>
-        /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The number of members in the resultant sorted set.</returns>
+        /// <param name="destinationKey">Where the new set will be stored</param>
+        /// <param name="sourceKey">The sorted set to take the range from</param>
+        /// <param name="start">The starting point in the Sorted Set, if using BYLEX this should be a string.</param>
+        /// <param name="stop">The stopping point in the range of the sorted set, if using BYLEX this should be a string.</param>
+        /// <param name="sortedSetOrder">The ordering criteria to use for the range. Choices are ByRank, ByScore, and ByLex.</param>
+        /// <param name="exclude">Whether to consider score or lex ranges exclusively or not (e.g. scores greater than 3 or greater than or equal to 3)</param>
+        /// <param name="order">The direction to consider the start and stop in, if Ascending, the start must be smaller than the stop, if Descending Stop smaller than start</param>
+        /// <param name="skip">Elements into the sorted set to skip. Should only be used </param>
+        /// <param name="take">Number of elements to pull into the new set.</param>
+        /// <param name="flags">The flags to use for this operation</param>
         /// <remarks>https://redis.io/commands/zrangestore</remarks>
-        Task<long> SortedSetRangeByRankAndStoreAsync(RedisKey destinationKey, RedisKey sourceKey, long start = 0, long stop = -1, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None);
+        /// <returns>The cardinality of the newly created sorted set</returns>
+        Task<long> SortedSetRangeAndStoreAsync(
+            RedisKey destinationKey,
+            RedisKey sourceKey,
+            RedisValue start,
+            RedisValue stop,
+            SortedSetOrder sortedSetOrder = SortedSetOrder.ByRank,
+            Exclude exclude = Exclude.None,
+            Order order = Order.Ascending,
+            long skip = 0,
+            long take = 0,
+            CommandFlags flags = CommandFlags.None);
+
 
         /// <summary>
         /// Returns the specified range of elements in the sorted set stored at key.
@@ -1419,33 +1431,6 @@ namespace StackExchange.Redis
             Order order = Order.Ascending,
             long skip = 0,
             long take = -1,
-            CommandFlags flags = CommandFlags.None);
-
-        /// <summary>
-        /// Takes the specified range of elements in the sorted set of the source key and stores
-        /// them in a new sorted set at the destination key. By default, the elements are considered to be ordered from
-        /// lowest to highest score when creating the new set. start and stop represent
-        /// the range of scores to consider when building the new set.
-        /// </summary>
-        /// <param name="destinationKey">Where the new sorted set will be stored.</param>
-        /// <param name="sourceKey">The sorted set to pull from</param>
-        /// <param name="start">The starting score.</param>
-        /// <param name="stop">The ending score.</param>
-        /// <param name="exclude">Which of <paramref name="start"/> and <paramref name="stop"/> to exclude (defaults to both inclusive).</param>
-        /// <param name="order">The order to sort by, defaults to ascending.</param>
-        /// <param name="skip">How many items to skip.</param>
-        /// <param name="take">How many items to take.</param>
-        /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The number of members in the resultant sorted set.</returns>
-        /// <remarks>https://redis.io/commands/zrangestore</remarks>
-        Task<long> SortedSetRangeByScoreAndStoreAsync(RedisKey destinationKey,
-            RedisKey sourceKey,
-            double start = double.NegativeInfinity,
-            double stop = Double.PositiveInfinity,
-            Exclude exclude = Exclude.None,
-            Order order = Order.Ascending,
-            long skip = 0,
-            long take = 0,
             CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1495,34 +1480,6 @@ namespace StackExchange.Redis
             long skip,
             long take = -1,
             CommandFlags flags = CommandFlags.None); // defaults removed to avoid ambiguity with overload with order
-
-        /// <summary>
-        /// Takes the specified range of elements in the sorted set of the source key and stores
-        /// them in a new sorted set at the destination key. By default, the elements are considered to be ordered from
-        /// lowest to highest score when creating the new set. min and max the start and stop
-        /// values to consider lexicographical,
-        /// Note: for this command to work correctly, all elements in the sorted set must have the same score.
-        /// </summary>
-        /// <param name="destinationKey">Where the new sorted set will be stored.</param>
-        /// <param name="sourceKey">The sorted set to pull from</param>
-        /// <param name="min">The starting score.</param>
-        /// <param name="max">The ending score.</param>
-        /// <param name="exclude">Which of <paramref name="min"/> and <paramref name="max"/> to exclude (defaults to both inclusive).</param>
-        /// <param name="order">The order to sort by, defaults to ascending.</param>
-        /// <param name="skip">Number of elements into the source set to skip.</param>
-        /// <param name="take">Number of elements in the source set to take</param>
-        /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The number of members in the resultant sorted set.</returns>
-        /// <remarks>https://redis.io/commands/zrangestore</remarks>
-        Task<long> SortedSetRangeByValueAndStoreAsync(RedisKey destinationKey,
-            RedisKey sourceKey,
-            RedisValue min,
-            RedisValue max,
-            Exclude exclude,
-            Order order = Order.Ascending,
-            long skip = 0,
-            long take = 0,
-            CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// When all the elements in a sorted set are inserted with the same score, in order to force lexicographical ordering.

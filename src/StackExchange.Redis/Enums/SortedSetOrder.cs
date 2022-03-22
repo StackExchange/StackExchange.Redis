@@ -3,7 +3,7 @@
 /// <summary>
 /// Enum to manage ordering in sorted sets.
 /// </summary>
-internal enum SortedSetOrder
+public enum SortedSetOrder
 {
     /// <summary>
     /// Bases ordering off of the rank in the sorted set. This means that your start and stop inside the sorted set will be some offset into the set.
