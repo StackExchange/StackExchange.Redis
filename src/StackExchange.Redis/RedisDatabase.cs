@@ -1631,12 +1631,19 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.RedisValueArray);
         }
 
-        public long SortedSetRangeAndStore(RedisKey destinationKey, RedisKey sourceKey, RedisValue start,
+        public long SortedSetRangeAndStore(
+            RedisKey sourceKey,
+            RedisKey destinationKey,
+            RedisValue start,
             RedisValue stop,
-            SortedSetOrder sortedSetOrder = SortedSetOrder.ByRank, Exclude exclude = Exclude.None,
-            Order order = Order.Ascending, long skip = 0, long take = 0, CommandFlags flags = CommandFlags.None)
+            SortedSetOrder sortedSetOrder = SortedSetOrder.ByRank,
+            Exclude exclude = Exclude.None,
+            Order order = Order.Ascending,
+            long skip = 0,
+            long? take = null,
+            CommandFlags flags = CommandFlags.None)
         {
-            var msg = CreateSortedSetRangeStoreMessage(Database, flags, destinationKey, sourceKey, start, stop,
+            var msg = CreateSortedSetRangeStoreMessage(Database, flags, sourceKey, destinationKey, start, stop,
                 sortedSetOrder, order, exclude, skip, take);
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
@@ -1647,12 +1654,19 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.RedisValueArray);
         }
 
-        public async Task<long> SortedSetRangeAndStoreAsync(RedisKey destinationKey, RedisKey sourceKey, RedisValue start,
+        public async Task<long> SortedSetRangeAndStoreAsync(
+            RedisKey sourceKey,
+            RedisKey destinationKey,
+            RedisValue start,
             RedisValue stop,
-            SortedSetOrder sortedSetOrder = SortedSetOrder.ByRank, Exclude exclude = Exclude.None,
-            Order order = Order.Ascending, long skip = 0, long take = 0, CommandFlags flags = CommandFlags.None)
+            SortedSetOrder sortedSetOrder = SortedSetOrder.ByRank,
+            Exclude exclude = Exclude.None,
+            Order order = Order.Ascending,
+            long skip = 0,
+            long? take = null,
+            CommandFlags flags = CommandFlags.None)
         {
-            var msg = CreateSortedSetRangeStoreMessage(Database, flags, destinationKey, sourceKey, start, stop,
+            var msg = CreateSortedSetRangeStoreMessage(Database, flags, sourceKey, destinationKey, start, stop,
                 sortedSetOrder, order, exclude, skip, take);
             return await ExecuteAsync(msg, ResultProcessor.Int64);
         }
@@ -4000,18 +4014,18 @@ namespace StackExchange.Redis
             }
         }
 
-        private static SortedSetRangeAndStoreCommandMessage CreateSortedSetRangeStoreMessage(
+        private static Message CreateSortedSetRangeStoreMessage(
             int db,
             CommandFlags flags,
-            RedisKey destinationKey,
             RedisKey sourceKey,
+            RedisKey destinationKey,
             RedisValue start,
             RedisValue stop,
             SortedSetOrder sortedSetOrder,
             Order order,
             Exclude exclude,
             long skip,
-            long take)
+            long? take)
         {
             if (sortedSetOrder == SortedSetOrder.ByRank)
             {
@@ -4024,55 +4038,46 @@ namespace StackExchange.Redis
                 {
                     throw new ArgumentException("exclude argument is not valid when sortedSetOrder is ByRank, you may want to try setting the sortedSetOrder to ByLex or ByScore", nameof(exclude));
                 }
+
+                if (order == Order.Ascending)
+                {
+                    return Message.Create(db, flags, RedisCommand.ZRANGESTORE, destinationKey, sourceKey, start, stop);
+                }
+                else
+                {
+                    return Message.Create(db, flags, RedisCommand.ZRANGESTORE, destinationKey, sourceKey, start, stop, RedisLiterals.REV);
+                }
             }
 
-            var arguments = new List<RedisValue>();
-            arguments.Add(exclude == Exclude.Both || exclude == Exclude.Start ? $"({start}" : sortedSetOrder == SortedSetOrder.ByLex ? $"[{start}" : start);
-            arguments.Add(exclude == Exclude.Both || exclude == Exclude.Stop ? $"({stop}" : sortedSetOrder == SortedSetOrder.ByLex ?  $"[{stop}" : stop);
-
-            if (sortedSetOrder != SortedSetOrder.ByRank)
-            {
-                arguments.Add(sortedSetOrder.GetLiteral());
-            }
+            RedisValue formattedStart = exclude == Exclude.Both || exclude == Exclude.Start ? $"({start}" :
+                sortedSetOrder == SortedSetOrder.ByLex ? $"[{start}" : start;
+            RedisValue formattedStop = exclude == Exclude.Both || exclude == Exclude.Stop ? $"({stop}" :
+                sortedSetOrder == SortedSetOrder.ByLex ? $"[{stop}" : stop;
 
             if (order == Order.Descending)
             {
-                arguments.Add(RedisLiterals.REV);
-            }
-
-            if (take > 0)
-            {
-                arguments.Add(RedisLiterals.LIMIT);
-                arguments.Add(skip);
-                arguments.Add(take);
-            }
-
-            return new SortedSetRangeAndStoreCommandMessage(db, flags, destinationKey, sourceKey, arguments.ToArray());
-        }
-
-
-        private sealed class SortedSetRangeAndStoreCommandMessage : Message.CommandKeyBase // handle's ZRANGESTORE's unique signature
-        {
-            private readonly RedisKey destinationKey;
-            private readonly RedisKey sourceKey;
-            private readonly RedisValue[] arguments;
-
-            public SortedSetRangeAndStoreCommandMessage(int db, CommandFlags flags, in RedisKey destinationKey, in RedisKey sourceKey, RedisValue[] arguments) : base(db, flags, RedisCommand.ZRANGESTORE, in destinationKey)
-            {
-                this.destinationKey = destinationKey;
-                this.sourceKey = sourceKey;
-                this.arguments = arguments;
-            }
-
-            public override int ArgCount => 2 + arguments.Length;
-            protected override void WriteImpl(PhysicalConnection physical)
-            {
-                physical.WriteHeader(RedisCommand.ZRANGESTORE, ArgCount);
-                physical.Write(destinationKey);
-                physical.Write(sourceKey);
-                foreach (var arg in arguments)
+                if (take != null && take > 0)
                 {
-                    physical.WriteBulkString(arg);
+                    return Message.Create(db, flags, RedisCommand.ZRANGESTORE, destinationKey, sourceKey, formattedStart,
+                        formattedStop, sortedSetOrder.GetLiteral(), RedisLiterals.REV, RedisLiterals.LIMIT, skip, take);
+                }
+                else
+                {
+                    return Message.Create(db, flags, RedisCommand.ZRANGESTORE, destinationKey, sourceKey, formattedStart,
+                        formattedStop, sortedSetOrder.GetLiteral(), RedisLiterals.REV);
+                }
+            }
+            else
+            {
+                if (take != null && take > 0)
+                {
+                    return Message.Create(db, flags, RedisCommand.ZRANGESTORE, destinationKey, sourceKey, formattedStart,
+                        formattedStop, sortedSetOrder.GetLiteral(), RedisLiterals.LIMIT, skip, take);
+                }
+                else
+                {
+                    return Message.Create(db, flags, RedisCommand.ZRANGESTORE, destinationKey, sourceKey, formattedStart,
+                        formattedStop, sortedSetOrder.GetLiteral());
                 }
             }
         }

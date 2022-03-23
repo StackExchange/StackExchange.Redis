@@ -1399,8 +1399,8 @@ namespace StackExchange.Redis
         /// Takes the specified range of elements in the sorted set of the <paramref name="sourceKey"/> and stores
         /// them in a new sorted set at the <paramref name="destinationKey"/>.
         /// </summary>
-        /// <param name="destinationKey">Where the resulting set will be stored.</param>
         /// <param name="sourceKey">The sorted set to take the range from.</param>
+        /// <param name="destinationKey">Where the resulting set will be stored.</param>
         /// <param name="start">The starting point in the Sorted Set, if using BYLEX this should be a string.</param>
         /// <param name="stop">The stopping point in the range of the sorted set, if using BYLEX this should be a string.</param>
         /// <param name="sortedSetOrder">The ordering criteria to use for the range. Choices are ByRank, ByScore, and ByLex.</param>
@@ -1411,7 +1411,17 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <remarks>https://redis.io/commands/zrangestore</remarks>
         /// <returns>The cardinality of (number of elements in) the newly created sorted set.</returns>
-        long SortedSetRangeAndStore(RedisKey destinationKey, RedisKey sourceKey, RedisValue start, RedisValue stop, SortedSetOrder sortedSetOrder = SortedSetOrder.ByRank, Exclude exclude = Exclude.None, Order order = Order.Ascending, long skip = 0, long take = 0, CommandFlags flags = CommandFlags.None);
+        long SortedSetRangeAndStore(
+            RedisKey sourceKey,
+            RedisKey destinationKey,
+            RedisValue start,
+            RedisValue stop,
+            SortedSetOrder sortedSetOrder = SortedSetOrder.ByRank,
+            Exclude exclude = Exclude.None,
+            Order order = Order.Ascending,
+            long skip = 0,
+            long? take = null,
+            CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Returns the specified range of elements in the sorted set stored at key.

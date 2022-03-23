@@ -27,6 +27,6 @@ internal static class SortedSetOrderByExtensions
     {
         SortedSetOrder.ByLex => RedisLiterals.BYLEX,
         SortedSetOrder.ByScore => RedisLiterals.BYSCORE,
-        _ => RedisValue.EmptyString
+        _ => RedisValue.Null
     };
 }

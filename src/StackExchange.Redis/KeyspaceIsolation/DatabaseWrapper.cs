@@ -576,12 +576,19 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.SortedSetRangeByRank(ToInner(key), start, stop, order, flags);
         }
 
-        public long SortedSetRangeAndStore(RedisKey destinationKey, RedisKey sourceKey, RedisValue start,
+        public long SortedSetRangeAndStore(
+            RedisKey destinationKey,
+            RedisKey sourceKey,
+            RedisValue start,
             RedisValue stop,
-            SortedSetOrder sortedSetOrder = SortedSetOrder.ByRank, Exclude exclude = Exclude.None,
-            Order order = Order.Ascending, long skip = 0, long take = 0, CommandFlags flags = CommandFlags.None)
+            SortedSetOrder sortedSetOrder = SortedSetOrder.ByRank,
+            Exclude exclude = Exclude.None,
+            Order order = Order.Ascending,
+            long skip = 0,
+            long? take = null,
+            CommandFlags flags = CommandFlags.None)
         {
-            return Inner.SortedSetRangeAndStore(ToInner(destinationKey), ToInner(sourceKey), start, stop, sortedSetOrder, exclude, order, skip, take, flags);
+            return Inner.SortedSetRangeAndStore(ToInner(sourceKey), ToInner(destinationKey), start, stop, sortedSetOrder, exclude, order, skip, take, flags);
         }
 
         public SortedSetEntry[] SortedSetRangeByRankWithScores(RedisKey key, long start = 0, long stop = -1, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
