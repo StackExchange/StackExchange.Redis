@@ -1375,7 +1375,7 @@ namespace StackExchange.Redis
         /// <param name="take">Number of elements to pull into the new set.</param>
         /// <param name="flags">The flags to use for this operation</param>
         /// <remarks>https://redis.io/commands/zrangestore</remarks>
-        /// <returns>The cardinality of the newly created sorted set</returns>
+        /// <returns>The cardinality of (number of elements in) the newly created sorted set.</returns>
         Task<long> SortedSetRangeAndStoreAsync(
             RedisKey destinationKey,
             RedisKey sourceKey,

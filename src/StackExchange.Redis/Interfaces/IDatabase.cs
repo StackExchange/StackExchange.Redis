@@ -1396,21 +1396,21 @@ namespace StackExchange.Redis
         RedisValue[] SortedSetRangeByRank(RedisKey key, long start = 0, long stop = -1, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Takes the specified range of elements in the sorted set of the source key and stores
-        /// them in a new sorted set at the destination key.
+        /// Takes the specified range of elements in the sorted set of the <paramref name="sourceKey"/> and stores
+        /// them in a new sorted set at the <paramref name="destinationKey"/>.
         /// </summary>
-        /// <param name="destinationKey">Where the new set will be stored</param>
-        /// <param name="sourceKey">The sorted set to take the range from</param>
+        /// <param name="destinationKey">Where the resulting set will be stored.</param>
+        /// <param name="sourceKey">The sorted set to take the range from.</param>
         /// <param name="start">The starting point in the Sorted Set, if using BYLEX this should be a string.</param>
         /// <param name="stop">The stopping point in the range of the sorted set, if using BYLEX this should be a string.</param>
         /// <param name="sortedSetOrder">The ordering criteria to use for the range. Choices are ByRank, ByScore, and ByLex.</param>
-        /// <param name="exclude">Whether to consider score or lex ranges exclusively or not (e.g. scores greater than 3 or greater than or equal to 3)</param>
-        /// <param name="order">The direction to consider the start and stop in, if Ascending, the start must be smaller than the stop, if Descending Stop smaller than start</param>
-        /// <param name="skip">Elements into the sorted set to skip. Should only be used </param>
-        /// <param name="take">Number of elements to pull into the new set.</param>
-        /// <param name="flags">The flags to use for this operation</param>
+        /// <param name="exclude">Whether to exclude <paramref name="start"/> and <paramref name="stop"/> from the range check (defaults to both inclusive).</param>
+        /// <param name="order">The direction to consider the <paramref name="start"/> and <paramref name="stop"/> in. If <see cref="Order.Ascending"/>, the <paramref name="start"/> must be smaller than the <paramref name="stop"/>. If <see cref="Order.Descending "/>, <paramref name="stop"/> must be smaller than <paramref name="start"/>.</param>
+        /// <param name="skip">The number of elements into the sorted set to skip. Note: this iterates after sorting so incurs O(n) cost for large values.</param>
+        /// <param name="take">The maximum number of elements to pull into the new (<paramref name="destinationKey"/>) set.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
         /// <remarks>https://redis.io/commands/zrangestore</remarks>
-        /// <returns>The cardinality of the newly created sorted set</returns>
+        /// <returns>The cardinality of (number of elements in) the newly created sorted set.</returns>
         long SortedSetRangeAndStore(RedisKey destinationKey, RedisKey sourceKey, RedisValue start, RedisValue stop, SortedSetOrder sortedSetOrder = SortedSetOrder.ByRank, Exclude exclude = Exclude.None, Order order = Order.Ascending, long skip = 0, long take = 0, CommandFlags flags = CommandFlags.None);
 
         /// <summary>

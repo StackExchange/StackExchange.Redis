@@ -49,7 +49,7 @@ namespace StackExchange.Redis
             AND = "AND",
             BEFORE = "BEFORE",
             BY = "BY",
-            BYSCORE="BYSCORE",
+            BYSCORE = "BYSCORE",
             BYLEX = "BYLEX",
             CHANNELS = "CHANNELS",
             COPY = "COPY",
