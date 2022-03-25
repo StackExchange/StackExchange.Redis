@@ -18,7 +18,7 @@ public enum SortedSetOrder
     /// <summary>
     /// Bases ordering off of lexicographical order, this is only appropriate in an instance where all the members of your sorted set are given the same score
     /// </summary>
-    ByLex
+    ByLex,
 }
 
 internal static class SortedSetOrderByExtensions

@@ -1643,8 +1643,7 @@ namespace StackExchange.Redis
             long? take = null,
             CommandFlags flags = CommandFlags.None)
         {
-            var msg = CreateSortedSetRangeStoreMessage(Database, flags, sourceKey, destinationKey, start, stop,
-                sortedSetOrder, order, exclude, skip, take);
+            var msg = CreateSortedSetRangeStoreMessage(Database, flags, sourceKey, destinationKey, start, stop, sortedSetOrder, order, exclude, skip, take);
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
@@ -1654,7 +1653,7 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.RedisValueArray);
         }
 
-        public async Task<long> SortedSetRangeAndStoreAsync(
+        public Task<long> SortedSetRangeAndStoreAsync(
             RedisKey sourceKey,
             RedisKey destinationKey,
             RedisValue start,
@@ -1666,9 +1665,8 @@ namespace StackExchange.Redis
             long? take = null,
             CommandFlags flags = CommandFlags.None)
         {
-            var msg = CreateSortedSetRangeStoreMessage(Database, flags, sourceKey, destinationKey, start, stop,
-                sortedSetOrder, order, exclude, skip, take);
-            return await ExecuteAsync(msg, ResultProcessor.Int64);
+            var msg = CreateSortedSetRangeStoreMessage(Database, flags, sourceKey, destinationKey, start, stop, sortedSetOrder, order, exclude, skip, take);
+            return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
         public SortedSetEntry[] SortedSetRangeByRankWithScores(RedisKey key, long start = 0, long stop = -1, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
