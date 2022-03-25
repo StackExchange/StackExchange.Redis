@@ -4031,53 +4031,45 @@ namespace StackExchange.Redis
                 {
                     throw new ArgumentException("take argument is not valid when sortedSetOrder is ByRank you may want to try setting the SortedSetOrder to ByLex or ByScore", nameof(take));
                 }
-
                 if (exclude != Exclude.None)
                 {
                     throw new ArgumentException("exclude argument is not valid when sortedSetOrder is ByRank, you may want to try setting the sortedSetOrder to ByLex or ByScore", nameof(exclude));
                 }
 
-                if (order == Order.Ascending)
+                return order switch
                 {
-                    return Message.Create(db, flags, RedisCommand.ZRANGESTORE, destinationKey, sourceKey, start, stop);
-                }
-                else
-                {
-                    return Message.Create(db, flags, RedisCommand.ZRANGESTORE, destinationKey, sourceKey, start, stop, RedisLiterals.REV);
-                }
+                    Order.Ascending => Message.Create(db, flags, RedisCommand.ZRANGESTORE, destinationKey, sourceKey, start, stop),
+                    Order.Descending => Message.Create(db, flags, RedisCommand.ZRANGESTORE, destinationKey, sourceKey, start, stop, RedisLiterals.REV),
+                    _ => throw new ArgumentOutOfRangeException(nameof(order))
+                };
             }
 
-            RedisValue formattedStart = exclude == Exclude.Both || exclude == Exclude.Start ? $"({start}" :
-                sortedSetOrder == SortedSetOrder.ByLex ? $"[{start}" : start;
-            RedisValue formattedStop = exclude == Exclude.Both || exclude == Exclude.Stop ? $"({stop}" :
-                sortedSetOrder == SortedSetOrder.ByLex ? $"[{stop}" : stop;
+            RedisValue formattedStart = exclude switch
+            {
+                Exclude.Both or Exclude.Start => $"({start}",
+                _ when sortedSetOrder == SortedSetOrder.ByLex => $"[{start}",
+                _ => start
+            };
 
-            if (order == Order.Descending)
+            RedisValue formattedStop = exclude switch
             {
-                if (take != null && take > 0)
-                {
-                    return Message.Create(db, flags, RedisCommand.ZRANGESTORE, destinationKey, sourceKey, formattedStart,
-                        formattedStop, sortedSetOrder.GetLiteral(), RedisLiterals.REV, RedisLiterals.LIMIT, skip, take);
-                }
-                else
-                {
-                    return Message.Create(db, flags, RedisCommand.ZRANGESTORE, destinationKey, sourceKey, formattedStart,
-                        formattedStop, sortedSetOrder.GetLiteral(), RedisLiterals.REV);
-                }
-            }
-            else
+                Exclude.Both or Exclude.Stop => $"({stop}",
+                _ when sortedSetOrder == SortedSetOrder.ByLex => $"[{stop}",
+                _ => stop
+            };
+
+            return order switch
             {
-                if (take != null && take > 0)
-                {
-                    return Message.Create(db, flags, RedisCommand.ZRANGESTORE, destinationKey, sourceKey, formattedStart,
-                        formattedStop, sortedSetOrder.GetLiteral(), RedisLiterals.LIMIT, skip, take);
-                }
-                else
-                {
-                    return Message.Create(db, flags, RedisCommand.ZRANGESTORE, destinationKey, sourceKey, formattedStart,
-                        formattedStop, sortedSetOrder.GetLiteral());
-                }
-            }
+                Order.Ascending when take != null && take > 0 =>
+                    Message.Create(db, flags, RedisCommand.ZRANGESTORE, destinationKey, sourceKey, formattedStart, formattedStop, sortedSetOrder.GetLiteral(), RedisLiterals.LIMIT, skip, take),
+                Order.Ascending =>
+                    Message.Create(db, flags, RedisCommand.ZRANGESTORE, destinationKey, sourceKey, formattedStart, formattedStop, sortedSetOrder.GetLiteral()),
+                Order.Descending when take != null && take > 0 =>
+                    Message.Create(db, flags, RedisCommand.ZRANGESTORE, destinationKey, sourceKey, formattedStart, formattedStop, sortedSetOrder.GetLiteral(), RedisLiterals.REV, RedisLiterals.LIMIT, skip, take),
+                Order.Descending =>
+                    Message.Create(db, flags, RedisCommand.ZRANGESTORE, destinationKey, sourceKey, formattedStart, formattedStop, sortedSetOrder.GetLiteral(), RedisLiterals.REV),
+                _ => throw new ArgumentOutOfRangeException(nameof(order))
+            };
         }
 
         private sealed class SortedSetCombineAndStoreCommandMessage : Message.CommandKeyBase // ZINTERSTORE and ZUNIONSTORE have a very unusual signature
