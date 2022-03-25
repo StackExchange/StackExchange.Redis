@@ -1392,7 +1392,6 @@ namespace StackExchange.Redis
             long? take = null,
             CommandFlags flags = CommandFlags.None);
 
-
         /// <summary>
         /// Returns the specified range of elements in the sorted set stored at key.
         /// By default the elements are considered to be ordered from the lowest to the highest score.
