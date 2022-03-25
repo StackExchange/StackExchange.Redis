@@ -79,7 +79,6 @@ public partial class ConnectionMultiplexer
         }
     }
 
-
     /// <summary>
     /// Create a new <see cref="ConnectionMultiplexer"/> instance that connects to a Sentinel server.
     /// </summary>

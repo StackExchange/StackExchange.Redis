@@ -364,6 +364,19 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<long> SortedSetLengthByValueAsync(RedisKey key, RedisValue min, RedisValue max, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetLengthByValueAsync(ToInner(key), min, max, exclude, flags);
 
+        public Task<long> SortedSetRangeAndStoreAsync(
+            RedisKey sourceKey,
+            RedisKey destinationKey,
+            RedisValue start,
+            RedisValue stop,
+            SortedSetOrder sortedSetOrder = SortedSetOrder.ByRank,
+            Exclude exclude = Exclude.None,
+            Order order = Order.Ascending,
+            long skip = 0,
+            long? take = null,
+            CommandFlags flags = CommandFlags.None) =>
+            Inner.SortedSetRangeAndStoreAsync(ToInner(sourceKey), ToInner(destinationKey), start, stop, sortedSetOrder, exclude, order, skip, take, flags);
+
         public Task<RedisValue[]> SortedSetRangeByRankAsync(RedisKey key, long start = 0, long stop = -1, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetRangeByRankAsync(ToInner(key), start, stop, order, flags);
 

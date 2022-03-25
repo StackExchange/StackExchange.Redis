@@ -590,6 +590,7 @@ StackExchange.Redis.IDatabase.SortedSetLengthByValue(StackExchange.Redis.RedisKe
 StackExchange.Redis.IDatabase.SortedSetPop(StackExchange.Redis.RedisKey key, long count, StackExchange.Redis.Order order = StackExchange.Redis.Order.Ascending, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.SortedSetEntry[]!
 StackExchange.Redis.IDatabase.SortedSetPop(StackExchange.Redis.RedisKey key, StackExchange.Redis.Order order = StackExchange.Redis.Order.Ascending, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.SortedSetEntry?
 StackExchange.Redis.IDatabase.SortedSetRangeByRank(StackExchange.Redis.RedisKey key, long start = 0, long stop = -1, StackExchange.Redis.Order order = StackExchange.Redis.Order.Ascending, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue[]!
+StackExchange.Redis.IDatabase.SortedSetRangeAndStore(StackExchange.Redis.RedisKey sourceKey, StackExchange.Redis.RedisKey destinationKey, StackExchange.Redis.RedisValue start, StackExchange.Redis.RedisValue stop, StackExchange.Redis.SortedSetOrder sortedSetOrder = StackExchange.Redis.SortedSetOrder.ByRank, StackExchange.Redis.Exclude exclude = StackExchange.Redis.Exclude.None, StackExchange.Redis.Order order = StackExchange.Redis.Order.Ascending, long skip = 0, long? take = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
 StackExchange.Redis.IDatabase.SortedSetRangeByRankWithScores(StackExchange.Redis.RedisKey key, long start = 0, long stop = -1, StackExchange.Redis.Order order = StackExchange.Redis.Order.Ascending, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.SortedSetEntry[]!
 StackExchange.Redis.IDatabase.SortedSetRangeByScore(StackExchange.Redis.RedisKey key, double start = -Infinity, double stop = Infinity, StackExchange.Redis.Exclude exclude = StackExchange.Redis.Exclude.None, StackExchange.Redis.Order order = StackExchange.Redis.Order.Ascending, long skip = 0, long take = -1, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue[]!
 StackExchange.Redis.IDatabase.SortedSetRangeByScoreWithScores(StackExchange.Redis.RedisKey key, double start = -Infinity, double stop = Infinity, StackExchange.Redis.Exclude exclude = StackExchange.Redis.Exclude.None, StackExchange.Redis.Order order = StackExchange.Redis.Order.Ascending, long skip = 0, long take = -1, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.SortedSetEntry[]!
@@ -773,6 +774,7 @@ StackExchange.Redis.IDatabaseAsync.SortedSetLengthAsync(StackExchange.Redis.Redi
 StackExchange.Redis.IDatabaseAsync.SortedSetLengthByValueAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue min, StackExchange.Redis.RedisValue max, StackExchange.Redis.Exclude exclude = StackExchange.Redis.Exclude.None, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
 StackExchange.Redis.IDatabaseAsync.SortedSetPopAsync(StackExchange.Redis.RedisKey key, long count, StackExchange.Redis.Order order = StackExchange.Redis.Order.Ascending, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.SortedSetEntry[]!>!
 StackExchange.Redis.IDatabaseAsync.SortedSetPopAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.Order order = StackExchange.Redis.Order.Ascending, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.SortedSetEntry?>!
+StackExchange.Redis.IDatabaseAsync.SortedSetRangeAndStoreAsync(StackExchange.Redis.RedisKey sourceKey, StackExchange.Redis.RedisKey destinationKey, StackExchange.Redis.RedisValue start, StackExchange.Redis.RedisValue stop, StackExchange.Redis.SortedSetOrder sortedSetOrder = StackExchange.Redis.SortedSetOrder.ByRank, StackExchange.Redis.Exclude exclude = StackExchange.Redis.Exclude.None, StackExchange.Redis.Order order = StackExchange.Redis.Order.Ascending, long skip = 0, long? take = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
 StackExchange.Redis.IDatabaseAsync.SortedSetRangeByRankAsync(StackExchange.Redis.RedisKey key, long start = 0, long stop = -1, StackExchange.Redis.Order order = StackExchange.Redis.Order.Ascending, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue[]!>!
 StackExchange.Redis.IDatabaseAsync.SortedSetRangeByRankWithScoresAsync(StackExchange.Redis.RedisKey key, long start = 0, long stop = -1, StackExchange.Redis.Order order = StackExchange.Redis.Order.Ascending, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.SortedSetEntry[]!>!
 StackExchange.Redis.IDatabaseAsync.SortedSetRangeByScoreAsync(StackExchange.Redis.RedisKey key, double start = -Infinity, double stop = Infinity, StackExchange.Redis.Exclude exclude = StackExchange.Redis.Exclude.None, StackExchange.Redis.Order order = StackExchange.Redis.Order.Ascending, long skip = 0, long take = -1, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue[]!>!
@@ -1162,6 +1164,7 @@ StackExchange.Redis.RedisFeatures.SetNotExistsAndGet.get -> bool
 StackExchange.Redis.RedisFeatures.SetPopMultiple.get -> bool
 StackExchange.Redis.RedisFeatures.SetVaradicAddRemove.get -> bool
 StackExchange.Redis.RedisFeatures.SortedSetPop.get -> bool
+StackExchange.Redis.RedisFeatures.SortedSetRangeStore.get -> bool
 StackExchange.Redis.RedisFeatures.Streams.get -> bool
 StackExchange.Redis.RedisFeatures.StringLength.get -> bool
 StackExchange.Redis.RedisFeatures.StringSetRange.get -> bool
@@ -1305,6 +1308,10 @@ StackExchange.Redis.SortedSetEntry.Score.get -> double
 StackExchange.Redis.SortedSetEntry.SortedSetEntry() -> void
 StackExchange.Redis.SortedSetEntry.SortedSetEntry(StackExchange.Redis.RedisValue element, double score) -> void
 StackExchange.Redis.SortedSetEntry.Value.get -> double
+StackExchange.Redis.SortedSetOrder
+StackExchange.Redis.SortedSetOrder.ByLex = 2 -> StackExchange.Redis.SortedSetOrder
+StackExchange.Redis.SortedSetOrder.ByRank = 0 -> StackExchange.Redis.SortedSetOrder
+StackExchange.Redis.SortedSetOrder.ByScore = 1 -> StackExchange.Redis.SortedSetOrder
 StackExchange.Redis.SortType
 StackExchange.Redis.SortType.Alphabetic = 1 -> StackExchange.Redis.SortType
 StackExchange.Redis.SortType.Numeric = 0 -> StackExchange.Redis.SortType
