@@ -180,8 +180,8 @@ namespace StackExchange.Redis.Tests
                     muxer.AllowConnect = false;
                     muxer._connectAttemptCount = connCount;
                     muxer._connectCompletedCount = completeCount;
-                    muxer.IncludeDetailInExceptions = hasDetail;
-                    muxer.IncludePerformanceCountersInExceptions = hasDetail;
+                    options.IncludeDetailInExceptions = hasDetail;
+                    options.IncludePerformanceCountersInExceptions = hasDetail;
 
                     var msg = Message.Create(-1, CommandFlags.None, RedisCommand.PING);
                     var rawEx = ExceptionFactory.NoConnectionAvailable(muxer, msg, new ServerEndPoint(muxer, server.EndPoint));
@@ -221,7 +221,7 @@ namespace StackExchange.Redis.Tests
         public void MessageFail(bool includeDetail, ConnectionFailureType failType, string messageStart)
         {
             using var muxer = Create(shared: false);
-            muxer.IncludeDetailInExceptions = includeDetail;
+            muxer.RawConfig.IncludeDetailInExceptions = includeDetail;
 
             var message = Message.Create(0, CommandFlags.None, RedisCommand.GET, (RedisKey)"myKey");
             var resultBox = SimpleResultBox<string>.Create();

@@ -1372,7 +1372,7 @@ namespace StackExchange.Redis
 
                 if (isPrimaryOnly && !ServerEndPoint.SupportsPrimaryWrites)
                 {
-                    throw ExceptionFactory.PrimaryOnly(Multiplexer.IncludeDetailInExceptions, message.Command, message, ServerEndPoint);
+                    throw ExceptionFactory.PrimaryOnly(Multiplexer.RawConfig.IncludeDetailInExceptions, message.Command, message, ServerEndPoint);
                 }
                 switch(cmd)
                 {
@@ -1487,7 +1487,7 @@ namespace StackExchange.Redis
         {
             if (!Multiplexer.RawConfig.AllowAdmin)
             {
-                throw ExceptionFactory.AdminModeNotEnabled(Multiplexer.IncludeDetailInExceptions, RedisCommand.DEBUG, null, ServerEndPoint); // close enough
+                throw ExceptionFactory.AdminModeNotEnabled(Multiplexer.RawConfig.IncludeDetailInExceptions, RedisCommand.DEBUG, null, ServerEndPoint); // close enough
             }
             physical?.SimulateConnectionFailure(failureType);
         }

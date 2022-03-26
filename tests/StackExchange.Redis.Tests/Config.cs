@@ -6,6 +6,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Security.Authentication;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
@@ -568,6 +569,59 @@ namespace StackExchange.Redis.Tests
             Assert.Equal(123, subscriptionSocket.Ttl);
             Assert.True(interactiveSocket.DontFragment);
             Assert.True(subscriptionSocket.DontFragment);
+        }
+
+        [Fact]
+        public async Task MutableOptions()
+        {
+            var options = ConfigurationOptions.Parse(TestConfig.Current.PrimaryServerAndPort + ",name=Details");
+            var originalConfigChannel = options.ConfigurationChannel = "originalConfig";
+            var originalUser = options.User = "originalUser";
+            var originalPassword = options.Password = "originalPassword";
+            Assert.Equal("Details", options.ClientName);
+            using var muxer = await ConnectionMultiplexer.ConnectAsync(options);
+
+            // Same instance
+            Assert.Same(options, muxer.RawConfig);
+            // Copies
+            Assert.NotSame(options.EndPoints, muxer.EndPoints);
+
+            // Same until forked - it's not cloned
+            Assert.Same(options.CommandMap, muxer.CommandMap);
+            options.CommandMap = CommandMap.Envoyproxy;
+            Assert.NotSame(options.CommandMap, muxer.CommandMap);
+
+#pragma warning disable CS0618 // Type or member is obsolete
+            // Defaults true
+            Assert.True(options.IncludeDetailInExceptions);
+            Assert.True(muxer.IncludeDetailInExceptions);
+            options.IncludeDetailInExceptions = false;
+            Assert.False(options.IncludeDetailInExceptions);
+            Assert.False(muxer.IncludeDetailInExceptions);
+
+            // Defaults false
+            Assert.False(options.IncludePerformanceCountersInExceptions);
+            Assert.False(muxer.IncludePerformanceCountersInExceptions);
+            options.IncludePerformanceCountersInExceptions = true;
+            Assert.True(options.IncludePerformanceCountersInExceptions);
+            Assert.True(muxer.IncludePerformanceCountersInExceptions);
+#pragma warning restore CS0618
+
+            var newName = Guid.NewGuid().ToString();
+            options.ClientName = newName;
+            Assert.Equal(newName, muxer.ClientName);
+
+            // TODO: This forks due to memoization of the byte[] for efficiency
+            // If we could cheaply detect change it'd be good to let this change
+            const string newConfigChannel = "newConfig";
+            options.ConfigurationChannel = newConfigChannel;
+            Assert.Equal(newConfigChannel, options.ConfigurationChannel);
+            Assert.Equal(Encoding.UTF8.GetString(muxer.ConfigurationChangedChannel), originalConfigChannel);
+
+            Assert.Equal(originalUser, muxer.RawConfig.User);
+            Assert.Equal(originalPassword, muxer.RawConfig.Password);
+            var newPass = options.Password = "newPassword";
+            Assert.Equal(newPass, muxer.RawConfig.Password);
         }
     }
 }

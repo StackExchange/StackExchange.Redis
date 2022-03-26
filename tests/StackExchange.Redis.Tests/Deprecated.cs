@@ -13,6 +13,23 @@ namespace StackExchange.Redis.Tests
 
 #pragma warning disable CS0618 // Type or member is obsolete
         [Fact]
+        public void HighPrioritySocketThreads()
+        {
+            Assert.True(Attribute.IsDefined(typeof(ConfigurationOptions).GetProperty(nameof(ConfigurationOptions.HighPrioritySocketThreads))!, typeof(ObsoleteAttribute)));
+
+            var options = ConfigurationOptions.Parse("name=Hello");
+            Assert.False(options.HighPrioritySocketThreads);
+
+            options = ConfigurationOptions.Parse("highPriorityThreads=true");
+            Assert.Equal("", options.ToString());
+            Assert.False(options.HighPrioritySocketThreads);
+
+            options = ConfigurationOptions.Parse("highPriorityThreads=false");
+            Assert.Equal("", options.ToString());
+            Assert.False(options.HighPrioritySocketThreads);
+        }
+
+        [Fact]
         public void PreserveAsyncOrder()
         {
             Assert.True(Attribute.IsDefined(typeof(ConfigurationOptions).GetProperty(nameof(ConfigurationOptions.PreserveAsyncOrder))!, typeof(ObsoleteAttribute)));

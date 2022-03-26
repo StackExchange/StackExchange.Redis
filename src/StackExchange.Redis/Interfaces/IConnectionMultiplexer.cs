@@ -13,6 +13,8 @@ namespace StackExchange.Redis
         bool IgnoreConnect { get; set; }
 
         ReadOnlySpan<ServerEndPoint> GetServerSnapshot();
+
+        ConfigurationOptions RawConfig { get; }
     }
 
     /// <summary>
@@ -59,6 +61,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Should exceptions include identifiable details? (key names, additional <see cref="Exception.Data"/> annotations).
         /// </summary>
+        [Obsolete($"Please use {nameof(ConfigurationOptions)}.{nameof(ConfigurationOptions.IncludeDetailInExceptions)} instead - this will be removed in 3.0.")]
         bool IncludeDetailInExceptions { get; set; }
 
         /// <summary>

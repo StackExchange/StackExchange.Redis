@@ -43,9 +43,12 @@ namespace StackExchange.Redis
         internal bool IsDisposed => _isDisposed;
 
         internal CommandMap CommandMap { get; }
+        internal EndPointCollection EndPoints { get; }
         internal ConfigurationOptions RawConfig { get; }
         internal ServerSelectionStrategy ServerSelectionStrategy { get; }
         internal Exception LastException { get; set; }
+
+        ConfigurationOptions IInternalConnectionMultiplexer.RawConfig => RawConfig;
 
         private int _activeHeartbeatErrors, lastHeartbeatTicks;
         internal long LastHeartbeatSecondsAgo =>
@@ -60,22 +63,35 @@ namespace StackExchange.Redis
         /// <summary>
         /// Should exceptions include identifiable details? (key names, additional .Data annotations)
         /// </summary>
-        public bool IncludeDetailInExceptions { get; set; }
+        [Obsolete($"Please use {nameof(ConfigurationOptions)}.{nameof(ConfigurationOptions.IncludeDetailInExceptions)} instead - this will be removed in 3.0.")]
+        public bool IncludeDetailInExceptions
+        {
+            get => RawConfig.IncludeDetailInExceptions;
+            set => RawConfig.IncludeDetailInExceptions = value;
+        }
 
         /// <summary>
-        /// Should exceptions include performance counter details? (CPU usage, etc - note that this can be problematic on some platforms)
+        /// Should exceptions include performance counter details?
         /// </summary>
-        public bool IncludePerformanceCountersInExceptions { get; set; }
+        /// <remarks>
+        /// CPU usage, etc - note that this can be problematic on some platforms.
+        /// </remarks>
+        [Obsolete($"Please use {nameof(ConfigurationOptions)}.{nameof(ConfigurationOptions.IncludePerformanceCountersInExceptions)} instead - this will be removed in 3.0.")]
+        public bool IncludePerformanceCountersInExceptions
+        {
+            get => RawConfig.IncludePerformanceCountersInExceptions;
+            set => RawConfig.IncludePerformanceCountersInExceptions = value;
+        }
 
         /// <summary>
         /// Gets the synchronous timeout associated with the connections.
         /// </summary>
-        public int TimeoutMilliseconds { get; }
+        public int TimeoutMilliseconds => RawConfig.SyncTimeout;
 
         /// <summary>
         /// Gets the asynchronous timeout associated with the connections.
         /// </summary>
-        internal int AsyncTimeoutMilliseconds { get; }
+        internal int AsyncTimeoutMilliseconds => RawConfig.AsyncTimeout;
 
         /// <summary>
         /// Gets the client-name that will be used on all new connections.
@@ -123,25 +139,23 @@ namespace StackExchange.Redis
             SetAutodetectFeatureFlags();
         }
 
-        private ConnectionMultiplexer(ConfigurationOptions configuration)
+        private ConnectionMultiplexer(ConfigurationOptions configuration, ServerType? serverType = null)
         {
-            IncludeDetailInExceptions = true;
-            IncludePerformanceCountersInExceptions = false;
-
             RawConfig = configuration ?? throw new ArgumentNullException(nameof(configuration));
+            EndPoints = RawConfig.EndPoints.Clone();
+            EndPoints.SetDefaultPorts(serverType, ssl: RawConfig.Ssl);
 
-            var map = CommandMap = configuration.CommandMap;
-            if (!string.IsNullOrWhiteSpace(configuration.Password)) map.AssertAvailable(RedisCommand.AUTH);
-
+            var map = CommandMap = configuration.GetCommandMap(serverType);
+            if (!string.IsNullOrWhiteSpace(configuration.Password))
+            {
+                map.AssertAvailable(RedisCommand.AUTH);
+            }
             if (!map.IsAvailable(RedisCommand.ECHO) && !map.IsAvailable(RedisCommand.PING) && !map.IsAvailable(RedisCommand.TIME))
             {
                 // I mean really, give me a CHANCE! I need *something* to check the server is available to me...
                 // see also: SendTracer (matching logic)
                 map.AssertAvailable(RedisCommand.EXISTS);
             }
-
-            TimeoutMilliseconds = configuration.SyncTimeout;
-            AsyncTimeoutMilliseconds = configuration.AsyncTimeout;
 
             OnCreateReaderWriter(configuration);
             ServerSelectionStrategy = new ServerSelectionStrategy(this);
@@ -154,9 +168,9 @@ namespace StackExchange.Redis
             lastHeartbeatTicks = Environment.TickCount;
         }
 
-        private static ConnectionMultiplexer CreateMultiplexer(ConfigurationOptions configuration, LogProxy log, out EventHandler<ConnectionFailedEventArgs> connectHandler)
+        private static ConnectionMultiplexer CreateMultiplexer(ConfigurationOptions configuration, LogProxy log, ServerType? serverType, out EventHandler<ConnectionFailedEventArgs> connectHandler)
         {
-            var muxer = new ConnectionMultiplexer(configuration);
+            var muxer = new ConnectionMultiplexer(configuration, serverType);
             connectHandler = null;
             if (log is not null)
             {
@@ -205,7 +219,7 @@ namespace StackExchange.Redis
 
             if (!RawConfig.AllowAdmin)
             {
-                throw ExceptionFactory.AdminModeNotEnabled(IncludeDetailInExceptions, cmd, null, server);
+                throw ExceptionFactory.AdminModeNotEnabled(RawConfig.IncludeDetailInExceptions, cmd, null, server);
             }
             var srv = new RedisServer(this, server, null);
             if (!srv.IsConnected)
@@ -230,14 +244,11 @@ namespace StackExchange.Redis
             var nodes = GetServerSnapshot().ToArray(); // Have to array because async/await
             RedisValue newPrimary = Format.ToString(server.EndPoint);
 
-            RedisKey tieBreakerKey = default(RedisKey);
             // try and write this everywhere; don't worry if some folks reject our advances
-            if (options.HasFlag(ReplicationChangeOptions.SetTiebreaker)
-                && !string.IsNullOrWhiteSpace(RawConfig.TieBreaker)
+            if (RawConfig.TryGetTieBreaker(out var tieBreakerKey)
+                && options.HasFlag(ReplicationChangeOptions.SetTiebreaker)
                 && CommandMap.IsAvailable(RedisCommand.SET))
             {
-                tieBreakerKey = RawConfig.TieBreaker;
-
                 foreach (var node in nodes)
                 {
                     if (!node.IsConnected || node.IsReplica) continue;
@@ -342,7 +353,7 @@ namespace StackExchange.Redis
         {
             if (!RawConfig.AllowAdmin && message.IsAdmin)
             {
-                throw ExceptionFactory.AdminModeNotEnabled(IncludeDetailInExceptions, message.Command, message, null);
+                throw ExceptionFactory.AdminModeNotEnabled(RawConfig.IncludeDetailInExceptions, message.Command, message, null);
             }
             if (message.Command != RedisCommand.UNKNOWN)
             {
@@ -577,11 +588,12 @@ namespace StackExchange.Redis
 
             return configuration?.IsSentinel == true
                 ? SentinelPrimaryConnectAsync(configuration, log)
-                : ConnectImplAsync(PrepareConfig(configuration), log);
+                : ConnectImplAsync(configuration, log);
         }
 
-        private static async Task<ConnectionMultiplexer> ConnectImplAsync(ConfigurationOptions configuration, TextWriter log = null)
+        private static async Task<ConnectionMultiplexer> ConnectImplAsync(ConfigurationOptions configuration, TextWriter log, ServerType? serverType = null)
         {
+            Validate(configuration);
             IDisposable killMe = null;
             EventHandler<ConnectionFailedEventArgs> connectHandler = null;
             ConnectionMultiplexer muxer = null;
@@ -591,7 +603,7 @@ namespace StackExchange.Redis
                 var sw = ValueStopwatch.StartNew();
                 logProxy?.WriteLine($"Connecting (async) on {RuntimeInformation.FrameworkDescription} (StackExchange.Redis: v{Utils.GetLibVersion()})");
 
-                muxer = CreateMultiplexer(configuration, logProxy, out connectHandler);
+                muxer = CreateMultiplexer(configuration, logProxy, serverType, out connectHandler);
                 killMe = muxer;
                 Interlocked.Increment(ref muxer._connectAttemptCount);
                 bool configured = await muxer.ReconfigureAsync(first: true, reconfigureAll: false, logProxy, null, "connect").ObserveErrors().ForAwait();
@@ -621,15 +633,16 @@ namespace StackExchange.Redis
             }
         }
 
-        internal static ConfigurationOptions PrepareConfig(ConfigurationOptions config, bool sentinel = false)
+        private static void Validate(ConfigurationOptions config)
         {
-            _ = config ?? throw new ArgumentNullException(nameof(config));
+            if (config is null)
+            {
+                throw new ArgumentNullException(nameof(config));
+            }
             if (config.EndPoints.Count == 0)
             {
                 throw new ArgumentException("No endpoints specified", nameof(config));
             }
-
-            return config.Clone().WithDefaults(sentinel);
         }
 
         /// <summary>
@@ -661,11 +674,12 @@ namespace StackExchange.Redis
 
             return configuration?.IsSentinel == true
                 ? SentinelPrimaryConnect(configuration, log)
-                : ConnectImpl(PrepareConfig(configuration), log);
+                : ConnectImpl(configuration, log);
         }
 
-        private static ConnectionMultiplexer ConnectImpl(ConfigurationOptions configuration, TextWriter log)
+        private static ConnectionMultiplexer ConnectImpl(ConfigurationOptions configuration, TextWriter log, ServerType? serverType = null)
         {
+            Validate(configuration);
             IDisposable killMe = null;
             EventHandler<ConnectionFailedEventArgs> connectHandler = null;
             ConnectionMultiplexer muxer = null;
@@ -675,7 +689,7 @@ namespace StackExchange.Redis
                 var sw = ValueStopwatch.StartNew();
                 logProxy?.WriteLine($"Connecting (sync) on {RuntimeInformation.FrameworkDescription} (StackExchange.Redis: v{Utils.GetLibVersion()})");
 
-                muxer = CreateMultiplexer(configuration, logProxy, out connectHandler);
+                muxer = CreateMultiplexer(configuration, logProxy, serverType, out connectHandler);
                 killMe = muxer;
                 Interlocked.Increment(ref muxer._connectAttemptCount);
                 // note that task has timeouts internally, so it might take *just over* the regular timeout
@@ -1185,15 +1199,15 @@ namespace StackExchange.Redis
 
                 if (first)
                 {
-                    if (RawConfig.ResolveDns && RawConfig.EndPoints.HasDnsEndPoints())
+                    if (RawConfig.ResolveDns && EndPoints.HasDnsEndPoints())
                     {
-                        var dns = RawConfig.EndPoints.ResolveEndPointsAsync(this, log).ObserveErrors();
+                        var dns = EndPoints.ResolveEndPointsAsync(this, log).ObserveErrors();
                         if (!await dns.TimeoutAfter(TimeoutMilliseconds).ForAwait())
                         {
                             throw new TimeoutException("Timeout resolving endpoints");
                         }
                     }
-                    foreach (var endpoint in RawConfig.EndPoints)
+                    foreach (var endpoint in EndPoints)
                     {
                         GetServerEndPoint(endpoint, log, false);
                     }
@@ -1209,8 +1223,8 @@ namespace StackExchange.Redis
                         attemptsLeft--;
                     }
                     int standaloneCount = 0, clusterCount = 0, sentinelCount = 0;
-                    var endpoints = RawConfig.EndPoints;
-                    bool useTieBreakers = !string.IsNullOrWhiteSpace(RawConfig.TieBreaker);
+                    var endpoints = EndPoints;
+                    bool useTieBreakers = RawConfig.TryGetTieBreaker(out var tieBreakerKey);
                     log?.WriteLine($"{endpoints.Count} unique nodes specified ({(useTieBreakers ? "with" : "without")} tiebreaker)");
 
                     if (endpoints.Count == 0)
@@ -1236,8 +1250,6 @@ namespace StackExchange.Redis
 
                         var available = new Task<string>[endpoints.Count];
                         servers = new ServerEndPoint[available.Length];
-
-                        RedisKey tieBreakerKey = useTieBreakers ? (RedisKey)RawConfig.TieBreaker : default(RedisKey);
 
                         for (int i = 0; i < available.Length; i++)
                         {
@@ -1499,7 +1511,7 @@ namespace StackExchange.Redis
         /// <param name="configuredOnly">Whether to get only the endpoints specified explicitly in the config.</param>
         public EndPoint[] GetEndPoints(bool configuredOnly = false) =>
             configuredOnly
-                ? RawConfig.EndPoints.ToArray()
+                ? EndPoints.ToArray()
                 : _serverSnapshot.GetEndPoints();
 
         private async Task<EndPointCollection> GetEndpointsFromClusterNodes(ServerEndPoint server, LogProxy log)
@@ -1723,7 +1735,7 @@ namespace StackExchange.Redis
             {
                 if (message.IsPrimaryOnly() && server.IsReplica)
                 {
-                    throw ExceptionFactory.PrimaryOnly(IncludeDetailInExceptions, message.Command, message, server);
+                    throw ExceptionFactory.PrimaryOnly(RawConfig.IncludeDetailInExceptions, message.Command, message, server);
                 }
 
                 switch (server.ServerType)
@@ -1731,7 +1743,7 @@ namespace StackExchange.Redis
                     case ServerType.Cluster:
                         if (message.GetHashSlot(ServerSelectionStrategy) == ServerSelectionStrategy.MultipleSlots)
                         {
-                            throw ExceptionFactory.MultiSlot(IncludeDetailInExceptions, message);
+                            throw ExceptionFactory.MultiSlot(RawConfig.IncludeDetailInExceptions, message);
                         }
                         break;
                 }
@@ -1757,7 +1769,7 @@ namespace StackExchange.Redis
                     int availableDatabases = server.Databases;
                     if (availableDatabases > 0 && message.Db >= availableDatabases)
                     {
-                        throw ExceptionFactory.DatabaseOutfRange(IncludeDetailInExceptions, message.Db, message, server);
+                        throw ExceptionFactory.DatabaseOutfRange(RawConfig.IncludeDetailInExceptions, message.Db, message, server);
                     }
                 }
 
@@ -1785,7 +1797,7 @@ namespace StackExchange.Redis
             WriteResult.Success => null,
             WriteResult.NoConnectionAvailable => ExceptionFactory.NoConnectionAvailable(this, message, server),
             WriteResult.TimeoutBeforeWrite => ExceptionFactory.Timeout(this, "The timeout was reached before the message could be written to the output buffer, and it was not sent", message, server, result),
-            _ => ExceptionFactory.ConnectionFailure(IncludeDetailInExceptions, ConnectionFailureType.ProtocolFailure, "An unknown error occurred when writing the message", server),
+            _ => ExceptionFactory.ConnectionFailure(RawConfig.IncludeDetailInExceptions, ConnectionFailureType.ProtocolFailure, "An unknown error occurred when writing the message", server),
         };
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "CA1816:Dispose methods should call SuppressFinalize", Justification = "Intentional observation")]

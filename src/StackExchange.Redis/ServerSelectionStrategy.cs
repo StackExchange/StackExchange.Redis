@@ -112,7 +112,7 @@ namespace StackExchange.Redis
                 case ServerType.Twemproxy:
                 case ServerType.Envoyproxy:
                     slot = message.GetHashSlot(this);
-                    if (slot == MultipleSlots) throw ExceptionFactory.MultiSlot(multiplexer.IncludeDetailInExceptions, message);
+                    if (slot == MultipleSlots) throw ExceptionFactory.MultiSlot(multiplexer.RawConfig.IncludeDetailInExceptions, message);
                     break;
             }
             return Select(slot, message.Command, message.Flags, allowDisconnected);

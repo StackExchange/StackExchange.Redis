@@ -336,11 +336,11 @@ namespace StackExchange.Redis.Tests
                 Writer.WriteLine($"Checking {all.Length} cultures...");
                 foreach (var ci in all)
                 {
-                    Writer.WriteLine("Tessting: " + ci.Name);
+                    Writer.WriteLine("Testing: " + ci.Name);
                     CultureInfo.CurrentCulture = ci;
 
-                    var a = ConnectionMultiplexer.PrepareConfig(ConfigurationOptions.Parse("myDNS:883,password=mypassword,connectRetry=3,connectTimeout=5000,syncTimeout=5000,defaultDatabase=0,ssl=true,abortConnect=false"));
-                    var b = ConnectionMultiplexer.PrepareConfig(new ConfigurationOptions
+                    var a = ConfigurationOptions.Parse("myDNS:883,password=mypassword,connectRetry=3,connectTimeout=5000,syncTimeout=5000,defaultDatabase=0,ssl=true,abortConnect=false");
+                    var b = new ConfigurationOptions
                     {
                         EndPoints = { { "myDNS", 883 } },
                         Password = "mypassword",
@@ -350,7 +350,7 @@ namespace StackExchange.Redis.Tests
                         DefaultDatabase = 0,
                         Ssl = true,
                         AbortOnConnectFail = false,
-                    });
+                    };
                     Writer.WriteLine($"computed: {b.ToString(true)}");
 
                     Writer.WriteLine("Checking endpoints...");

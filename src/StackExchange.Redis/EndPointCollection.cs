@@ -12,6 +12,13 @@ namespace StackExchange.Redis
     /// </summary>
     public sealed class EndPointCollection : Collection<EndPoint>, IEnumerable<EndPoint>
     {
+        private static class DefaultPorts
+        {
+            public static int Standard => 6379;
+            public static int Ssl => 6380;
+            public static int Sentinel => 26379;
+        }
+
         /// <summary>
         /// Create a new <see cref="EndPointCollection"/>.
         /// </summary>
@@ -133,8 +140,14 @@ namespace StackExchange.Redis
             base.SetItem(index, item);
         }
 
-        internal void SetDefaultPorts(int defaultPort)
+        internal void SetDefaultPorts(ServerType? serverType, bool ssl = false)
         {
+            int defaultPort = serverType switch
+            {
+                ServerType.Sentinel => DefaultPorts.Sentinel,
+                _ => ssl ? DefaultPorts.Ssl : DefaultPorts.Standard,
+            };
+
             for (int i = 0; i < Count; i++)
             {
                 switch (this[i])
@@ -215,5 +228,7 @@ namespace StackExchange.Redis
                 }
             }
         }
+
+        internal EndPointCollection Clone() => new EndPointCollection(this);
     }
 }
