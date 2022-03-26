@@ -103,6 +103,8 @@ public partial class ConnectionMultiplexer
     public static ConnectionMultiplexer SentinelConnect(ConfigurationOptions configuration, TextWriter? log = null)
     {
         SocketConnection.AssertDependencies();
+        Validate(configuration);
+
         return ConnectImpl(configuration, log, ServerType.Sentinel);
     }
 
@@ -114,6 +116,8 @@ public partial class ConnectionMultiplexer
     public static Task<ConnectionMultiplexer> SentinelConnectAsync(ConfigurationOptions configuration, TextWriter? log = null)
     {
         SocketConnection.AssertDependencies();
+        Validate(configuration);
+
         return ConnectImplAsync(configuration, log, ServerType.Sentinel);
     }
 

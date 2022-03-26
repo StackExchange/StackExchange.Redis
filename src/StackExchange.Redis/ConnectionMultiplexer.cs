@@ -1,8 +1,6 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.ComponentModel;
-using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
@@ -142,7 +140,7 @@ namespace StackExchange.Redis
             SetAutodetectFeatureFlags();
         }
 
-        private ConnectionMultiplexer(ConfigurationOptions? configuration, ServerType? serverType = null)
+        private ConnectionMultiplexer(ConfigurationOptions configuration, ServerType? serverType = null)
         {
             RawConfig = configuration ?? throw new ArgumentNullException(nameof(configuration));
             EndPoints = RawConfig.EndPoints.Clone();
@@ -171,7 +169,7 @@ namespace StackExchange.Redis
             lastHeartbeatTicks = Environment.TickCount;
         }
 
-        private static ConnectionMultiplexer CreateMultiplexer(ConfigurationOptions? configuration, LogProxy? log, ServerType? serverType, out EventHandler<ConnectionFailedEventArgs>? connectHandler)
+        private static ConnectionMultiplexer CreateMultiplexer(ConfigurationOptions configuration, LogProxy? log, ServerType? serverType, out EventHandler<ConnectionFailedEventArgs>? connectHandler)
         {
             var muxer = new ConnectionMultiplexer(configuration, serverType);
             connectHandler = null;
@@ -588,15 +586,15 @@ namespace StackExchange.Redis
         public static Task<ConnectionMultiplexer> ConnectAsync(ConfigurationOptions configuration, TextWriter? log = null)
         {
             SocketConnection.AssertDependencies();
+            Validate(configuration);
 
-            return configuration?.IsSentinel == true
+            return configuration.IsSentinel
                 ? SentinelPrimaryConnectAsync(configuration, log)
                 : ConnectImplAsync(configuration, log);
         }
 
-        private static async Task<ConnectionMultiplexer> ConnectImplAsync(ConfigurationOptions? configuration, TextWriter? log = null, ServerType? serverType = null)
+        private static async Task<ConnectionMultiplexer> ConnectImplAsync(ConfigurationOptions configuration, TextWriter? log = null, ServerType? serverType = null)
         {
-            Validate(configuration);
             IDisposable? killMe = null;
             EventHandler<ConnectionFailedEventArgs>? connectHandler = null;
             ConnectionMultiplexer? muxer = null;
@@ -674,15 +672,15 @@ namespace StackExchange.Redis
         public static ConnectionMultiplexer Connect(ConfigurationOptions configuration, TextWriter? log = null)
         {
             SocketConnection.AssertDependencies();
+            Validate(configuration);
 
-            return configuration?.IsSentinel == true
+            return configuration.IsSentinel
                 ? SentinelPrimaryConnect(configuration, log)
                 : ConnectImpl(configuration, log);
         }
 
-        private static ConnectionMultiplexer ConnectImpl(ConfigurationOptions? configuration, TextWriter? log, ServerType? serverType = null)
+        private static ConnectionMultiplexer ConnectImpl(ConfigurationOptions configuration, TextWriter? log, ServerType? serverType = null)
         {
-            Validate(configuration);
             IDisposable? killMe = null;
             EventHandler<ConnectionFailedEventArgs>? connectHandler = null;
             ConnectionMultiplexer? muxer = null;
