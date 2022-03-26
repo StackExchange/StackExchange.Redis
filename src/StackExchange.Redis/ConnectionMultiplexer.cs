@@ -1790,9 +1790,9 @@ namespace StackExchange.Redis
         /// </summary>
         public override string ToString() => string.IsNullOrWhiteSpace(ClientName) ? GetType().Name : ClientName;
 
-        internal Exception? GetException(WriteResult result, Message message, ServerEndPoint? server) => result switch
+        internal Exception GetException(WriteResult result, Message message, ServerEndPoint? server) => result switch
         {
-            WriteResult.Success => null,
+            WriteResult.Success => throw new ArgumentOutOfRangeException(nameof(result), "Be sure to check result isn't successful before calling GetException."),
             WriteResult.NoConnectionAvailable => ExceptionFactory.NoConnectionAvailable(this, message, server),
             WriteResult.TimeoutBeforeWrite => ExceptionFactory.Timeout(this, "The timeout was reached before the message could be written to the output buffer, and it was not sent", message, server, result),
             _ => ExceptionFactory.ConnectionFailure(RawConfig.IncludeDetailInExceptions, ConnectionFailureType.ProtocolFailure, "An unknown error occurred when writing the message", server),
@@ -1844,7 +1844,7 @@ namespace StackExchange.Redis
 #pragma warning restore CS0618
                     if (result != WriteResult.Success)
                     {
-                        throw GetException(result, message, server)!;
+                        throw GetException(result, message, server);
                     }
 
                     if (Monitor.Wait(source, TimeoutMilliseconds))
@@ -1874,7 +1874,7 @@ namespace StackExchange.Redis
                 var result = await write.ForAwait();
                 if (result != WriteResult.Success)
                 {
-                    var ex = @this.GetException(result, message, server)!;
+                    var ex = @this.GetException(result, message, server);
                     ThrowFailed(tcs, ex);
                 }
                 return tcs == null ? defaultValue : await tcs.Task.ForAwait();
@@ -1908,7 +1908,7 @@ namespace StackExchange.Redis
                 var result = write.Result;
                 if (result != WriteResult.Success)
                 {
-                    var ex = GetException(result, message, server)!;
+                    var ex = GetException(result, message, server);
                     ThrowFailed(tcs, ex);
                 }
                 return tcs.Task;
@@ -1923,7 +1923,7 @@ namespace StackExchange.Redis
                 var result = await write.ForAwait();
                 if (result != WriteResult.Success)
                 {
-                    var ex = @this.GetException(result, message, server)!;
+                    var ex = @this.GetException(result, message, server);
                     ThrowFailed(tcs, ex);
                 }
                 return tcs == null ? default : await tcs.Task.ForAwait();
@@ -1957,7 +1957,7 @@ namespace StackExchange.Redis
                 var result = write.Result;
                 if (result != WriteResult.Success)
                 {
-                    var ex = GetException(result, message, server)!;
+                    var ex = GetException(result, message, server);
                     ThrowFailed(tcs, ex);
                 }
                 return tcs.Task;

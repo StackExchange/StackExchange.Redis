@@ -374,7 +374,7 @@ namespace StackExchange.Redis
 
                 if (result != WriteResult.Success)
                 {
-                    var ex = Multiplexer.GetException(result, msg, ServerEndPoint)!;
+                    var ex = Multiplexer.GetException(result, msg, ServerEndPoint);
                     OnInternalError(ex);
                 }
             }
@@ -875,7 +875,7 @@ namespace StackExchange.Redis
 
                 // Tell the message it has failed
                 // Note: Attempting to *avoid* reentrancy/deadlock issues by not holding the lock while completing messages.
-                var ex = Multiplexer.GetException(WriteResult.TimeoutBeforeWrite, message, ServerEndPoint)!;
+                var ex = Multiplexer.GetException(WriteResult.TimeoutBeforeWrite, message, ServerEndPoint);
                 message.SetExceptionAndComplete(ex, this);
             }
         }
@@ -1033,7 +1033,7 @@ namespace StackExchange.Redis
                         if (result != WriteResult.Success)
                         {
                             _backlogStatus = BacklogStatus.RecordingWriteFailure;
-                            var ex = Multiplexer.GetException(result, message, ServerEndPoint)!;
+                            var ex = Multiplexer.GetException(result, message, ServerEndPoint);
                             HandleWriteException(message, ex);
                         }
                     }

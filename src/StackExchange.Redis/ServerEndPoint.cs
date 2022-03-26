@@ -760,7 +760,7 @@ namespace StackExchange.Redis
                 var result = await write.ForAwait();
                 if (result != WriteResult.Success)
                 {
-                    var ex = @this.Multiplexer.GetException(result, message, @this)!;
+                    var ex = @this.Multiplexer.GetException(result, message, @this);
                     ConnectionMultiplexer.ThrowFailed(tcs, ex);
                 }
                 return await tcs.Task.ForAwait();
@@ -787,7 +787,7 @@ namespace StackExchange.Redis
 
             if (result != WriteResult.Success)
             {
-                var ex = Multiplexer.GetException(result, message, this)!;
+                var ex = Multiplexer.GetException(result, message, this);
                 ConnectionMultiplexer.ThrowFailed(tcs, ex);
             }
             return tcs.Task;
