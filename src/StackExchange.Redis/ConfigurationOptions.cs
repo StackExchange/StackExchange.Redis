@@ -15,8 +15,17 @@ using StackExchange.Redis.Configuration;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// The options relevant to a set of redis connections
+    /// The options relevant to a set of redis connections.
     /// </summary>
+    /// <remarks>
+    /// Some options are not observed by a <see cref="ConnectionMultiplexer"/> after initial creation:
+    /// <list type="bullet">
+    ///     <item><see cref="CommandMap"/></item>
+    ///     <item><see cref="ConfigurationChannel"/></item>
+    ///     <item><see cref="EndPoints"/></item>
+    ///     <item><see cref="SocketManager"/></item>
+    /// </list>
+    /// </remarks>
     public sealed class ConfigurationOptions : ICloneable
     {
         private static class OptionKeys
@@ -133,7 +142,8 @@ namespace StackExchange.Redis
 
         private DefaultOptionsProvider? defaultOptions;
 
-        private bool? allowAdmin, abortOnConnectFail, highPrioritySocketThreads, resolveDns, ssl, checkCertificateRevocation;
+        private bool? allowAdmin, abortOnConnectFail, resolveDns, ssl, checkCertificateRevocation,
+                      includeDetailInExceptions, includePerformanceCountersInExceptions;
 
         private string? tieBreaker, sslHost, configChannel;
 
@@ -289,6 +299,10 @@ namespace StackExchange.Redis
         /// <summary>
         /// The command-map associated with this configuration.
         /// </summary>
+        /// <remarks>
+        /// This is memoized when a <see cref="ConnectionMultiplexer"/> connects.
+        /// Modifying it afterwards will have no effect on already-created multiplexers.
+        /// </remarks>
         public CommandMap CommandMap
         {
             get => commandMap ?? Defaults.CommandMap ?? Proxy switch
@@ -301,8 +315,21 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
+        /// Gets the command map for a given server type, since some supersede settings when connecting.
+        /// </summary>
+        internal CommandMap GetCommandMap(ServerType? serverType) => serverType switch
+        {
+            ServerType.Sentinel => CommandMap.Sentinel,
+            _ => CommandMap,
+        };
+
+        /// <summary>
         /// Channel to use for broadcasting and listening for configuration change notification.
         /// </summary>
+        /// <remarks>
+        /// This is memoized when a <see cref="ConnectionMultiplexer"/> connects.
+        /// Modifying it afterwards will have no effect on already-created multiplexers.
+        /// </remarks>
         public string ConfigurationChannel
         {
             get => configChannel ?? Defaults.ConfigurationChannel;
@@ -335,16 +362,42 @@ namespace StackExchange.Redis
         /// <summary>
         /// The endpoints defined for this configuration.
         /// </summary>
+        /// <remarks>
+        /// This is memoized when a <see cref="ConnectionMultiplexer"/> connects.
+        /// Modifying it afterwards will have no effect on already-created multiplexers.
+        /// </remarks>
         public EndPointCollection EndPoints { get; init; } = new EndPointCollection();
 
         /// <summary>
         /// Use ThreadPriority.AboveNormal for SocketManager reader and writer threads (true by default).
         /// If <see langword="false"/>, <see cref="ThreadPriority.Normal"/> will be used.
         /// </summary>
+        [Obsolete($"This setting no longer has any effect, please use {nameof(SocketManager.SocketManagerOptions)}.{nameof(SocketManager.SocketManagerOptions.UseHighPrioritySocketThreads)} instead - this setting will be removed in 3.0.")]
         public bool HighPrioritySocketThreads
         {
-            get => highPrioritySocketThreads ?? true;
-            set => highPrioritySocketThreads = value;
+            get => false;
+            set { }
+        }
+
+        /// <summary>
+        /// Should exceptions include identifiable details? (key names, additional .Data annotations)
+        /// </summary>
+        public bool IncludeDetailInExceptions
+        {
+            get => includeDetailInExceptions ?? Defaults.IncludeDetailInExceptions;
+            set => includeDetailInExceptions = value;
+        }
+
+        /// <summary>
+        /// Should exceptions include performance counter details?
+        /// </summary>
+        /// <remarks>
+        /// CPU usage, etc - note that this can be problematic on some platforms.
+        /// </remarks>
+        public bool IncludePerformanceCountersInExceptions
+        {
+            get => includePerformanceCountersInExceptions ?? Defaults.IncludePerformanceCountersInExceptions;
+            set => includePerformanceCountersInExceptions = value;
         }
 
         /// <summary>
@@ -370,7 +423,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Specifies whether asynchronous operations should be invoked in a way that guarantees their original delivery order.
         /// </summary>
-        [Obsolete("Not supported; if you require ordered pub/sub, please see " + nameof(ChannelMessageQueue) + ", will be removed in 3.0.", false)]
+        [Obsolete("Not supported; if you require ordered pub/sub, please see " + nameof(ChannelMessageQueue) + " - this will be removed in 3.0.", false)]
         public bool PreserveAsyncOrder
         {
             get => false;
@@ -433,6 +486,10 @@ namespace StackExchange.Redis
         /// Gets or sets the SocketManager instance to be used with these options.
         /// If this is null a shared cross-multiplexer <see cref="SocketManager"/> is used.
         /// </summary>
+        /// <remarks>
+        /// This is only used when a <see cref="ConnectionMultiplexer"/> is created.
+        /// Modifying it afterwards will have no effect on already-created multiplexers.
+        /// </remarks>
         public SocketManager? SocketManager { get; set; }
 
         /// <summary>
@@ -545,7 +602,6 @@ namespace StackExchange.Redis
             tieBreaker = tieBreaker,
             ssl = ssl,
             sslHost = sslHost,
-            highPrioritySocketThreads = highPrioritySocketThreads,
             configChannel = configChannel,
             abortOnConnectFail = abortOnConnectFail,
             resolveDns = resolveDns,
@@ -564,7 +620,7 @@ namespace StackExchange.Redis
             SslProtocols = SslProtocols,
             checkCertificateRevocation = checkCertificateRevocation,
             BeforeSocketConnect = BeforeSocketConnect,
-            EndPoints = new EndPointCollection(EndPoints),
+            EndPoints = EndPoints.Clone(),
         };
 
         /// <summary>
@@ -578,30 +634,27 @@ namespace StackExchange.Redis
             return this;
         }
 
-        internal ConfigurationOptions WithDefaults(bool sentinel = false)
-        {
-            if (sentinel)
-            {
-                // this is required when connecting to sentinel servers
-                TieBreaker = "";
-                CommandMap = CommandMap.Sentinel;
-
-                // use default sentinel port
-                EndPoints.SetDefaultPorts(26379);
-            }
-            else
-            {
-                SetDefaultPorts();
-            }
-            return this;
-        }
-
         /// <summary>
         /// Resolve the default port for any endpoints that did not have a port explicitly specified.
         /// </summary>
-        public void SetDefaultPorts() => EndPoints.SetDefaultPorts(Ssl ? 6380 : 6379);
+        public void SetDefaultPorts() => EndPoints.SetDefaultPorts(ServerType.Standalone, ssl: Ssl);
 
         internal bool IsSentinel => !string.IsNullOrEmpty(ServiceName);
+
+        /// <summary>
+        /// Gets a tie breaker if we both have one set, and should be using one.
+        /// </summary>
+        internal bool TryGetTieBreaker(out RedisKey tieBreaker)
+        {
+            var key = TieBreaker;
+            if (!IsSentinel && !string.IsNullOrWhiteSpace(key))
+            {
+                tieBreaker = key;
+                return true;
+            }
+            tieBreaker = default;
+            return false;
+        }
 
         /// <summary>
         /// Returns the effective configuration string for this configuration, including Redis credentials.
@@ -638,7 +691,6 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.SslProtocols, SslProtocols?.ToString().Replace(',', '|'));
             Append(sb, OptionKeys.CheckCertificateRevocation, checkCertificateRevocation);
             Append(sb, OptionKeys.SslHost, sslHost);
-            Append(sb, OptionKeys.HighPrioritySocketThreads, highPrioritySocketThreads);
             Append(sb, OptionKeys.ConfigChannel, configChannel);
             Append(sb, OptionKeys.AbortOnConnectFail, abortOnConnectFail);
             Append(sb, OptionKeys.ResolveDns, resolveDns);
@@ -681,7 +733,7 @@ namespace StackExchange.Redis
         {
             ClientName = ServiceName = User = Password = tieBreaker = sslHost = configChannel = null;
             keepAlive = syncTimeout = asyncTimeout = connectTimeout = connectRetry = configCheckSeconds = DefaultDatabase = null;
-            allowAdmin = abortOnConnectFail = highPrioritySocketThreads = resolveDns = ssl = null;
+            allowAdmin = abortOnConnectFail = resolveDns = ssl = null;
             SslProtocols = null;
             defaultVersion = null;
             EndPoints.Clear();
@@ -787,9 +839,6 @@ namespace StackExchange.Redis
                         case OptionKeys.SslHost:
                             SslHost = value;
                             break;
-                        case OptionKeys.HighPrioritySocketThreads:
-                            HighPrioritySocketThreads = OptionKeys.ParseBoolean(key, value);
-                            break;
                         case OptionKeys.Proxy:
                             Proxy = OptionKeys.ParseProxy(key, value);
                             break;
@@ -800,6 +849,7 @@ namespace StackExchange.Redis
                             SslProtocols = OptionKeys.ParseSslProtocols(key, value);
                             break;
                         // Deprecated options we ignore...
+                        case OptionKeys.HighPrioritySocketThreads:
                         case OptionKeys.PreserveAsyncOrder:
                         case OptionKeys.ResponseTimeout:
                         case OptionKeys.WriteBuffer:

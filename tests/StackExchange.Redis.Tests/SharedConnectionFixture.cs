@@ -70,7 +70,10 @@ namespace StackExchange.Redis.Tests
 
             public bool IsConnecting => _inner.IsConnecting;
 
-            public bool IncludeDetailInExceptions { get => _inner.IncludeDetailInExceptions; set => _inner.IncludeDetailInExceptions = value; }
+            public ConfigurationOptions RawConfig => _inner.RawConfig;
+
+            public bool IncludeDetailInExceptions { get => _inner.RawConfig.IncludeDetailInExceptions; set => _inner.RawConfig.IncludeDetailInExceptions = value; }
+
             public int StormLogThreshold { get => _inner.StormLogThreshold; set => _inner.StormLogThreshold = value; }
 
             public event EventHandler<RedisErrorEventArgs> ErrorMessage

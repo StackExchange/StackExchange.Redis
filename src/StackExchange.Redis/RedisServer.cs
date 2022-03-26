@@ -399,14 +399,14 @@ namespace StackExchange.Redis
 
         public void ScriptFlush(CommandFlags flags = CommandFlags.None)
         {
-            if (!multiplexer.RawConfig.AllowAdmin) throw ExceptionFactory.AdminModeNotEnabled(multiplexer.IncludeDetailInExceptions, RedisCommand.SCRIPT, null, server);
+            if (!multiplexer.RawConfig.AllowAdmin) throw ExceptionFactory.AdminModeNotEnabled(multiplexer.RawConfig.IncludeDetailInExceptions, RedisCommand.SCRIPT, null, server);
             var msg = Message.Create(-1, flags, RedisCommand.SCRIPT, RedisLiterals.FLUSH);
             ExecuteSync(msg, ResultProcessor.DemandOK);
         }
 
         public Task ScriptFlushAsync(CommandFlags flags = CommandFlags.None)
         {
-            if (!multiplexer.RawConfig.AllowAdmin) throw ExceptionFactory.AdminModeNotEnabled(multiplexer.IncludeDetailInExceptions, RedisCommand.SCRIPT, null, server);
+            if (!multiplexer.RawConfig.AllowAdmin) throw ExceptionFactory.AdminModeNotEnabled(multiplexer.RawConfig.IncludeDetailInExceptions, RedisCommand.SCRIPT, null, server);
             var msg = Message.Create(-1, flags, RedisCommand.SCRIPT, RedisLiterals.FLUSH);
             return ExecuteAsync(msg, ResultProcessor.DemandOK);
         }
@@ -584,9 +584,9 @@ namespace StackExchange.Redis
         {
             var configuration = multiplexer.RawConfig;
 
-            if (!string.IsNullOrWhiteSpace(configuration.TieBreaker) && multiplexer.CommandMap.IsAvailable(RedisCommand.DEL))
+            if (configuration.TryGetTieBreaker(out var tieBreakerKey) && multiplexer.CommandMap.IsAvailable(RedisCommand.DEL))
             {
-                var msg = Message.Create(0, CommandFlags.FireAndForget | CommandFlags.NoRedirect, RedisCommand.DEL, (RedisKey)configuration.TieBreaker);
+                var msg = Message.Create(0, CommandFlags.FireAndForget | CommandFlags.NoRedirect, RedisCommand.DEL, tieBreakerKey);
                 msg.SetInternalCall();
                 return msg;
             }

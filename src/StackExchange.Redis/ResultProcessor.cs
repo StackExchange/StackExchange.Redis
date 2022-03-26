@@ -160,7 +160,7 @@ namespace StackExchange.Redis
             if (message is not null)
             {
                 sb.Append(" on ");
-                sb.Append(muxer?.IncludeDetailInExceptions == true ? message.ToString() : message.ToStringCommandOnly());
+                sb.Append(muxer?.RawConfig.IncludeDetailInExceptions == true ? message.ToString() : message.ToStringCommandOnly());
             }
             if (!string.IsNullOrWhiteSpace(annotation))
             {

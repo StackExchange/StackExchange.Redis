@@ -14,7 +14,7 @@ public partial class ConnectionMultiplexer
     internal EndPoint? currentSentinelPrimaryEndPoint;
     internal Timer? sentinelPrimaryReconnectTimer;
     internal Dictionary<string, ConnectionMultiplexer> sentinelConnectionChildren = new Dictionary<string, ConnectionMultiplexer>();
-    internal ConnectionMultiplexer? sentinelConnection = null;
+    internal ConnectionMultiplexer? sentinelConnection;
 
     /// <summary>
     /// Initializes the connection as a Sentinel connection and adds the necessary event handlers to track changes to the managed primaries.
@@ -103,7 +103,7 @@ public partial class ConnectionMultiplexer
     public static ConnectionMultiplexer SentinelConnect(ConfigurationOptions configuration, TextWriter? log = null)
     {
         SocketConnection.AssertDependencies();
-        return ConnectImpl(PrepareConfig(configuration, sentinel: true), log);
+        return ConnectImpl(configuration, log, ServerType.Sentinel);
     }
 
     /// <summary>
@@ -114,7 +114,7 @@ public partial class ConnectionMultiplexer
     public static Task<ConnectionMultiplexer> SentinelConnectAsync(ConfigurationOptions configuration, TextWriter? log = null)
     {
         SocketConnection.AssertDependencies();
-        return ConnectImplAsync(PrepareConfig(configuration, sentinel: true), log);
+        return ConnectImplAsync(configuration, log, ServerType.Sentinel);
     }
 
     /// <summary>
@@ -248,7 +248,7 @@ public partial class ConnectionMultiplexer
         }
 
         // Perform the initial switchover
-        SwitchPrimary(RawConfig.EndPoints[0], connection, log);
+        SwitchPrimary(EndPoints[0], connection, log);
 
         return connection;
     }
@@ -377,13 +377,13 @@ public partial class ConnectionMultiplexer
                                             ?? GetReplicasForService(serviceName);
 
                 connection.servers.Clear();
-                connection.RawConfig.EndPoints.Clear();
-                connection.RawConfig.EndPoints.TryAdd(newPrimaryEndPoint);
+                connection.EndPoints.Clear();
+                connection.EndPoints.TryAdd(newPrimaryEndPoint);
                 if (replicaEndPoints is not null)
                 {
                     foreach (var replicaEndPoint in replicaEndPoints)
                     {
-                        connection.RawConfig.EndPoints.TryAdd(replicaEndPoint);
+                        connection.EndPoints.TryAdd(replicaEndPoint);
                     }
                 }
                 Trace($"Switching primary to {newPrimaryEndPoint}");
@@ -414,16 +414,16 @@ public partial class ConnectionMultiplexer
             return;
 
         bool hasNew = false;
-        foreach (EndPoint newSentinel in firstCompleteRequest.Where(x => !RawConfig.EndPoints.Contains(x)))
+        foreach (EndPoint newSentinel in firstCompleteRequest.Where(x => !EndPoints.Contains(x)))
         {
             hasNew = true;
-            RawConfig.EndPoints.TryAdd(newSentinel);
+            EndPoints.TryAdd(newSentinel);
         }
 
         if (hasNew)
         {
             // Reconfigure the sentinel multiplexer if we added new endpoints
-            ReconfigureAsync(first: false, reconfigureAll: true, null, RawConfig.EndPoints[0], "Updating Sentinel List", false).Wait();
+            ReconfigureAsync(first: false, reconfigureAll: true, null, EndPoints[0], "Updating Sentinel List", false).Wait();
         }
     }
 }

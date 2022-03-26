@@ -19,7 +19,7 @@ namespace StackExchange.Redis.Configuration
     public class DefaultOptionsProvider
     {
         /// <summary>
-        /// The known providers to match against (built into the lbirary) - the default set.
+        /// The known providers to match against (built into the library) - the default set.
         /// If none of these match, <see cref="DefaultOptionsProvider"/> is used.
         /// </summary>
         private static readonly List<DefaultOptionsProvider> BuiltInProviders = new()
@@ -108,6 +108,19 @@ namespace StackExchange.Redis.Configuration
         /// The server version to assume.
         /// </summary>
         public virtual Version DefaultVersion => RedisFeatures.v3_0_0;
+
+        /// <summary>
+        /// Should exceptions include identifiable details? (key names, additional .Data annotations)
+        /// </summary>
+        public virtual bool IncludeDetailInExceptions => true;
+
+        /// <summary>
+        /// Should exceptions include performance counter details?
+        /// </summary>
+        /// <remarks>
+        /// CPU usage, etc - note that this can be problematic on some platforms.
+        /// </remarks>
+        public virtual bool IncludePerformanceCountersInExceptions => false;
 
         /// <summary>
         /// Specifies the time interval at which connections should be pinged to ensure validity.
@@ -232,7 +245,7 @@ namespace StackExchange.Redis.Configuration
         /// Note: this setting then applies for *all* endpoints.
         /// </summary>
         /// <param name="endPoints">The configured endpoints to determine SSL usage from (e.g. from the port).</param>
-        /// <returns>Whether to enable SSL for connections (unless excplicitly overriden in a direct <see cref="ConfigurationOptions.Ssl"/> set).</returns>
+        /// <returns>Whether to enable SSL for connections (unless explicitly overridden in a direct <see cref="ConfigurationOptions.Ssl"/> set).</returns>
         public virtual bool GetDefaultSsl(EndPointCollection endPoints) => false;
 
         /// <summary>
