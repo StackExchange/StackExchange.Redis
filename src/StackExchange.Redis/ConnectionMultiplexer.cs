@@ -142,7 +142,7 @@ namespace StackExchange.Redis
             SetAutodetectFeatureFlags();
         }
 
-        private ConnectionMultiplexer(ConfigurationOptions configuration, ServerType? serverType = null)
+        private ConnectionMultiplexer(ConfigurationOptions? configuration, ServerType? serverType = null)
         {
             RawConfig = configuration ?? throw new ArgumentNullException(nameof(configuration));
             EndPoints = RawConfig.EndPoints.Clone();
@@ -171,7 +171,7 @@ namespace StackExchange.Redis
             lastHeartbeatTicks = Environment.TickCount;
         }
 
-        private static ConnectionMultiplexer CreateMultiplexer(ConfigurationOptions configuration, LogProxy? log, ServerType? serverType, out EventHandler<ConnectionFailedEventArgs>? connectHandler)
+        private static ConnectionMultiplexer CreateMultiplexer(ConfigurationOptions? configuration, LogProxy? log, ServerType? serverType, out EventHandler<ConnectionFailedEventArgs>? connectHandler)
         {
             var muxer = new ConnectionMultiplexer(configuration, serverType);
             connectHandler = null;
@@ -594,7 +594,7 @@ namespace StackExchange.Redis
                 : ConnectImplAsync(configuration, log);
         }
 
-        private static async Task<ConnectionMultiplexer> ConnectImplAsync(ConfigurationOptions configuration, TextWriter? log = null, ServerType? serverType = null)
+        private static async Task<ConnectionMultiplexer> ConnectImplAsync(ConfigurationOptions? configuration, TextWriter? log = null, ServerType? serverType = null)
         {
             Validate(configuration);
             IDisposable? killMe = null;
@@ -636,7 +636,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private static void Validate(ConfigurationOptions? config)
+        private static void Validate([NotNull] ConfigurationOptions? config)
         {
             if (config is null)
             {

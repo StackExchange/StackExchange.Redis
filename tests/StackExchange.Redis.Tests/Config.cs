@@ -616,6 +616,7 @@ namespace StackExchange.Redis.Tests
             const string newConfigChannel = "newConfig";
             options.ConfigurationChannel = newConfigChannel;
             Assert.Equal(newConfigChannel, options.ConfigurationChannel);
+            Assert.NotNull(muxer.ConfigurationChangedChannel);
             Assert.Equal(Encoding.UTF8.GetString(muxer.ConfigurationChangedChannel), originalConfigChannel);
 
             Assert.Equal(originalUser, muxer.RawConfig.User);
