@@ -267,7 +267,7 @@ namespace StackExchange.Redis
     /// </summary>
     public sealed class ClusterNode :  IEquatable<ClusterNode>, IComparable<ClusterNode>, IComparable
     {
-        private static readonly ClusterNode Sentienl = new();
+        private static readonly ClusterNode NullNode = new();
 
         private readonly ClusterConfiguration configuration;
 
@@ -391,9 +391,9 @@ namespace StackExchange.Redis
         {
             get
             {
-                if (parent != null) return parent == Sentienl ? null : parent;
+                if (parent != null) return parent == NullNode ? null : parent;
                 ClusterNode? found = configuration[ParentNodeId!];
-                parent = found ?? Sentienl;
+                parent = found ?? NullNode;
                 return found;
             }
         }
