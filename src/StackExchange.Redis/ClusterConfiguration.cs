@@ -68,7 +68,7 @@ namespace StackExchange.Redis
         {
             if (string.IsNullOrWhiteSpace(range))
             {
-                value = default(SlotRange);
+                value = default;
                 return false;
             }
             int i = range.IndexOf('-');
@@ -89,7 +89,7 @@ namespace StackExchange.Redis
                     return true;
                 }
             }
-            value = default(SlotRange);
+            value = default;
             return false;
         }
 
@@ -165,8 +165,7 @@ namespace StackExchange.Redis
             Origin = origin;
             using (var reader = new StringReader(nodes))
             {
-                string? line;
-                while ((line = reader.ReadLine()) != null)
+                while (reader.ReadLine() is string line)
                 {
                     if (string.IsNullOrWhiteSpace(line)) continue;
                     var node = new ClusterNode(this, line, origin);
@@ -267,19 +266,10 @@ namespace StackExchange.Redis
     /// </summary>
     public sealed class ClusterNode :  IEquatable<ClusterNode>, IComparable<ClusterNode>, IComparable
     {
-        private static readonly ClusterNode NullNode = new();
-
         private readonly ClusterConfiguration configuration;
-
         private IList<ClusterNode>? children;
-
         private ClusterNode? parent;
-
         private string? toString;
-
-#pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider declaring as nullable.
-        internal ClusterNode() { } // Used for Sentinel top-level value only, but we should change how this works...
-#pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider declaring as nullable.
 
         internal ClusterNode(ClusterConfiguration configuration, string raw, EndPoint origin)
         {
@@ -335,7 +325,7 @@ namespace StackExchange.Redis
         {
             get
             {
-                if (children != null) return children;
+                if (children is not null) return children;
 
                 List<ClusterNode>? nodes = null;
                 foreach (var node in configuration.Nodes)
@@ -390,16 +380,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Gets the parent node of the current node.
         /// </summary>
-        public ClusterNode? Parent
-        {
-            get
-            {
-                if (parent != null) return parent == NullNode ? null : parent;
-                ClusterNode? found = configuration[ParentNodeId!];
-                parent = found ?? NullNode;
-                return found;
-            }
-        }
+        public ClusterNode? Parent => (parent is not null) ? parent = configuration[ParentNodeId!] : null;
 
         /// <summary>
         /// Gets the unique node-id of the parent of the current node.
@@ -445,12 +426,7 @@ namespace StackExchange.Redis
         /// Indicates whether two <see cref="ClusterNode"/> instances are equivalent.
         /// </summary>
         /// <param name="other">The <see cref="ClusterNode"/> to compare to.</param>
-        public bool Equals(ClusterNode? other)
-        {
-            if (other == null) return false;
-
-            return ToString() == other.ToString(); // lazy, but effective - plus only computes once
-        }
+        public bool Equals(ClusterNode? other) => other is ClusterNode node && ToString() == node.ToString();
 
         /// <inheritdoc/>
         public override int GetHashCode() => ToString().GetHashCode();
@@ -460,13 +436,12 @@ namespace StackExchange.Redis
         /// </summary>
         public override string ToString()
         {
-            if (toString != null) return toString;
+            if (toString is not null) return toString;
             var sb = new StringBuilder().Append(NodeId).Append(" at ").Append(EndPoint);
             if (IsReplica)
             {
                 sb.Append(", replica of ").Append(ParentNodeId);
-                var parent = Parent;
-                if (parent != null) sb.Append(" at ").Append(parent.EndPoint);
+                if (Parent is ClusterNode parent) sb.Append(" at ").Append(parent.EndPoint);
             }
             var childCount = Children.Count;
             switch(childCount)
