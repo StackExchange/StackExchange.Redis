@@ -1816,6 +1816,7 @@ namespace StackExchange.Redis
             }
         }
 
+        [return: NotNullIfNotNull("defaultValue")]
         internal T? ExecuteSyncImpl<T>(Message message, ResultProcessor<T>? processor, ServerEndPoint? server, T? defaultValue = default)
         {
             if (_isDisposed) throw new ObjectDisposedException(ToString());
