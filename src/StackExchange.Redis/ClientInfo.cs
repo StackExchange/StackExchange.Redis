@@ -191,8 +191,7 @@ namespace StackExchange.Redis
             var clients = new List<ClientInfo>();
             using (var reader = new StringReader(input))
             {
-                string? line;
-                while ((line = reader.ReadLine()) != null)
+                while (reader.ReadLine() is string line)
                 {
                     var client = new ClientInfo
                     {

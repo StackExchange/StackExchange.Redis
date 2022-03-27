@@ -677,7 +677,7 @@ namespace StackExchange.Redis
                     case ResultType.BulkString:
                         if (message?.Command == RedisCommand.INFO)
                         {
-                            string? info = result.GetString(), line;
+                            string? info = result.GetString();
                             if (string.IsNullOrWhiteSpace(info))
                             {
                                 SetResult(message, true);
@@ -687,7 +687,7 @@ namespace StackExchange.Redis
                             bool roleSeen = false;
                             using (var reader = new StringReader(info))
                             {
-                                while ((line = reader.ReadLine()) != null)
+                                while (reader.ReadLine() is string line)
                                 {
                                     if (string.IsNullOrWhiteSpace(line) || line.StartsWith("# "))
                                     {
@@ -1044,11 +1044,10 @@ namespace StackExchange.Redis
                 if (result.Type == ResultType.BulkString)
                 {
                     string category = Normalize(null);
-                    string? line;
                     var list = new List<Tuple<string, KeyValuePair<string, string>>>();
                     using (var reader = new StringReader(result.GetString()!))
                     {
-                        while ((line = reader.ReadLine()) != null)
+                        while (reader.ReadLine() is string line)
                         {
                             if (string.IsNullOrWhiteSpace(line)) continue;
                             if (line.StartsWith("# "))

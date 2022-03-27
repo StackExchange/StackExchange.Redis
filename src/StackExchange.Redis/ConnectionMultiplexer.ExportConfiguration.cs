@@ -132,9 +132,10 @@ public partial class ConnectionMultiplexer
         {
             using (var reader = new StringReader(source))
             {
-                string? line;
-                while ((line = reader.ReadLine()) != null)
+                while (reader.ReadLine() is string line)
+                {
                     writer.WriteLine(line); // normalize line endings
+                }
             }
         }
     }
