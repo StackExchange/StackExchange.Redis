@@ -10,10 +10,7 @@ namespace StackExchange.Redis.Tests
     {
         public FloatingPoint(ITestOutputHelper output, SharedConnectionFixture fixture) : base (output, fixture) { }
 
-        private static bool Within(double x, double y, double delta)
-        {
-            return Math.Abs(x - y) <= delta;
-        }
+        private static bool Within(double x, double y, double delta) => Math.Abs(x - y) <= delta;
 
         [Fact]
         public void IncrDecrFloatingPoint()

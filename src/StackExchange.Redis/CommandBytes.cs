@@ -8,7 +8,7 @@ namespace StackExchange.Redis
     {
         private static Encoding Encoding => Encoding.UTF8;
 
-        internal unsafe static CommandBytes TrimToFit(string value)
+        internal static unsafe CommandBytes TrimToFit(string value)
         {
             if (string.IsNullOrWhiteSpace(value)) return default;
             value = value.Trim();

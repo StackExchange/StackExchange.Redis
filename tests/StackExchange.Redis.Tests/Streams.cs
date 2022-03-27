@@ -240,15 +240,12 @@ namespace StackExchange.Redis.Tests
                 var db = conn.GetDatabase();
 
                 // Pass 'false' for 'createStream' to ensure that an
-                // execption is thrown when the stream doesn't exist.
-                Assert.ThrowsAny<RedisServerException>(() =>
-                {
-                    db.StreamCreateConsumerGroup(
+                // exception is thrown when the stream doesn't exist.
+                Assert.ThrowsAny<RedisServerException>(() => db.StreamCreateConsumerGroup(
                         key,
                         "consumerGroup",
                         StreamPosition.NewMessages,
-                        createStream: false);
-                });
+                        createStream: false));
             }
         }
 

@@ -64,10 +64,8 @@ public partial class ConnectionMultiplexer
         // If we lose connection to a sentinel server,
         // we need to reconfigure to make sure we still have a subscription to the +switch-master channel
         ConnectionFailed += (sender, e) =>
-        {
             // Reconfigure to get subscriptions back online
             ReconfigureAsync(first: false, reconfigureAll: true, logProxy, e.EndPoint, "Lost sentinel connection", false).Wait();
-        };
 
         // Subscribe to new sentinels being added
         if (sub.SubscribedEndpoint("+sentinel") == null)

@@ -587,7 +587,7 @@ namespace StackExchange.Redis
             }
 
             [DoesNotReturn]
-            void ThrowNotSupported([CallerMemberName] string? caller = null)
+            private void ThrowNotSupported([CallerMemberName] string? caller = null)
                 => throw new NotSupportedException($"{typeof(SingleRedisResult).FullName} does not support {nameof(IConvertible)}.{caller} with value '{AsString()}'");
         }
     }

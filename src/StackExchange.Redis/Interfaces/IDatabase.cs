@@ -1639,7 +1639,7 @@ namespace StackExchange.Redis
         /// <returns>Yields all matching elements of the sorted set.</returns>
         /// <remarks>https://redis.io/commands/zscan</remarks>
         IEnumerable<SortedSetEntry> SortedSetScan(RedisKey key,
-            RedisValue pattern = default(RedisValue),
+            RedisValue pattern = default,
             int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize,
             long cursor = RedisBase.CursorUtils.Origin,
             int pageOffset = 0,

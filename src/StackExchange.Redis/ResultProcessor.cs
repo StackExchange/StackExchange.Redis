@@ -171,15 +171,11 @@ namespace StackExchange.Redis
             SetException(message, ex);
         }
 
-        public static void ConnectionFail(Message message, ConnectionFailureType fail, string errorMessage)
-        {
+        public static void ConnectionFail(Message message, ConnectionFailureType fail, string errorMessage) =>
             SetException(message, new RedisConnectionException(fail, errorMessage));
-        }
 
-        public static void ServerFail(Message message, string errorMessage)
-        {
+        public static void ServerFail(Message message, string errorMessage) =>
             SetException(message, new RedisServerException(errorMessage));
-        }
 
         public static void SetException(Message? message, Exception ex)
         {
@@ -343,10 +339,8 @@ namespace StackExchange.Redis
         {
             private static readonly double TimestampToTicks = TimeSpan.TicksPerSecond / (double)Stopwatch.Frequency;
 
-            public static TimerMessage CreateMessage(int db, CommandFlags flags, RedisCommand command, RedisValue value = default(RedisValue))
-            {
-                return new TimerMessage(db, flags, command, value);
-            }
+            public static TimerMessage CreateMessage(int db, CommandFlags flags, RedisCommand command, RedisValue value = default) =>
+                new TimerMessage(db, flags, command, value);
 
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
@@ -461,10 +455,7 @@ namespace StackExchange.Redis
         {
             private static readonly Regex sha1 = new Regex("^[0-9a-f]{40}$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-            internal static bool IsSHA1(string script)
-            {
-                return script != null && sha1.IsMatch(script);
-            }
+            internal static bool IsSHA1(string script) => script is not null && sha1.IsMatch(script);
 
             internal const int Sha1HashLength = 20;
             internal static byte[]? ParseSHA1(byte[] value)
@@ -570,18 +561,14 @@ namespace StackExchange.Redis
 
         internal sealed class SortedSetEntryArrayProcessor : ValuePairInterleavedProcessorBase<SortedSetEntry>
         {
-            protected override SortedSetEntry Parse(in RawResult first, in RawResult second)
-            {
-                return new SortedSetEntry(first.AsRedisValue(), second.TryGetDouble(out double val) ? val : double.NaN);
-            }
+            protected override SortedSetEntry Parse(in RawResult first, in RawResult second) =>
+                new SortedSetEntry(first.AsRedisValue(), second.TryGetDouble(out double val) ? val : double.NaN);
         }
 
         internal sealed class HashEntryArrayProcessor : ValuePairInterleavedProcessorBase<HashEntry>
         {
-            protected override HashEntry Parse(in RawResult first, in RawResult second)
-            {
-                return new HashEntry(first.AsRedisValue(), second.AsRedisValue());
-            }
+            protected override HashEntry Parse(in RawResult first, in RawResult second) =>
+                new HashEntry(first.AsRedisValue(), second.AsRedisValue());
         }
 
         internal abstract class ValuePairInterleavedProcessorBase<T> : ResultProcessor<T[]>
@@ -1070,10 +1057,8 @@ namespace StackExchange.Redis
                 return false;
             }
 
-            private static string Normalize(string? category)
-            {
-                return category.IsNullOrWhiteSpace() ? "miscellaneous" : category.Trim();
-            }
+            private static string Normalize(string? category) =>
+                category.IsNullOrWhiteSpace() ? "miscellaneous" : category.Trim();
         }
 
         private class Int64Processor : ResultProcessor<long>
@@ -2021,11 +2006,8 @@ The coordinates as a two items x,y array (longitude,latitude).
                 return new StreamEntry(id: entryDetails[0].AsRedisValue(),
                     values: ParseStreamEntryValues(entryDetails[1]));
             }
-            protected StreamEntry[] ParseRedisStreamEntries(in RawResult result)
-            {
-                return result.GetItems().ToArray(
-                    (in RawResult item, in StreamProcessorBase<T> _) => ParseRedisStreamEntry(item), this);
-            }
+            protected StreamEntry[] ParseRedisStreamEntries(in RawResult result) =>
+                result.GetItems().ToArray((in RawResult item, in StreamProcessorBase<T> _) => ParseRedisStreamEntry(item), this);
 
             protected static NameValueEntry[]? ParseStreamEntryValues(in RawResult result)
             {
@@ -2071,10 +2053,8 @@ The coordinates as a two items x,y array (longitude,latitude).
 
         private sealed class StringPairInterleavedProcessor : ValuePairInterleavedProcessorBase<KeyValuePair<string, string>>
         {
-            protected override KeyValuePair<string, string> Parse(in RawResult first, in RawResult second)
-            {
-                return new KeyValuePair<string, string>(first.GetString()!, second.GetString()!);
-            }
+            protected override KeyValuePair<string, string> Parse(in RawResult first, in RawResult second) =>
+                new KeyValuePair<string, string>(first.GetString()!, second.GetString()!);
         }
 
         private sealed class StringProcessor : ResultProcessor<string?>

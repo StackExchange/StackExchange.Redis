@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Reflection;
 using System.Text;
 using System.Threading;
 
@@ -12,7 +11,7 @@ namespace StackExchange.Redis
             DataCommandKey = "redis-command",
             DataSentStatusKey = "request-sent-status",
             DataServerKey = "redis-server",
-            timeoutHelpLink = "https://stackexchange.github.io/StackExchange.Redis/Timeouts";
+            TimeoutHelpLink = "https://stackexchange.github.io/StackExchange.Redis/Timeouts";
 
         internal static Exception AdminModeNotEnabled(bool includeDetail, RedisCommand command, Message? message, ServerEndPoint? server)
         {
@@ -251,12 +250,12 @@ namespace StackExchange.Redis
             AddCommonDetail(data, sb, message, multiplexer, server);
 
             sb.Append(" (Please take a look at this article for some common client-side issues that can cause timeouts: ");
-            sb.Append(timeoutHelpLink);
+            sb.Append(TimeoutHelpLink);
             sb.Append(')');
 
             var ex = new RedisTimeoutException(sb.ToString(), message?.Status ?? CommandStatus.Unknown)
             {
-                HelpLink = timeoutHelpLink
+                HelpLink = TimeoutHelpLink
             };
             CopyDataToException(data, ex);
 

@@ -175,7 +175,7 @@ namespace StackExchange.Redis
         /// <param name="key">The string to get a key from.</param>
         public static implicit operator RedisKey(string? key)
         {
-            if (key == null) return default(RedisKey);
+            if (key == null) return default;
             return new RedisKey(null, key);
         }
         /// <summary>
@@ -184,7 +184,7 @@ namespace StackExchange.Redis
         /// <param name="key">The byte array to get a key from.</param>
         public static implicit operator RedisKey(byte[]? key)
         {
-            if (key == null) return default(RedisKey);
+            if (key == null) return default;
             return new RedisKey(null, key);
         }
 
@@ -230,10 +230,8 @@ namespace StackExchange.Redis
         /// <param name="x">The first <see cref="RedisKey"/> to add.</param>
         /// <param name="y">The second <see cref="RedisKey"/> to add.</param>
         [Obsolete("Prefer WithPrefix")]
-        public static RedisKey operator +(RedisKey x, RedisKey y)
-        {
-            return new RedisKey(ConcatenateBytes(x.KeyPrefix, x.KeyValue, y.KeyPrefix), y.KeyValue);
-        }
+        public static RedisKey operator +(RedisKey x, RedisKey y) =>
+            new RedisKey(ConcatenateBytes(x.KeyPrefix, x.KeyValue, y.KeyPrefix), y.KeyValue);
 
         internal static RedisKey WithPrefix(byte[]? prefix, RedisKey value)
         {

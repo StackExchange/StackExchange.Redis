@@ -284,7 +284,7 @@ namespace StackExchange.Redis
         /// This is *could* we be connected, as in "what's the theoretical endpoint for this channel?",
         /// rather than if we're actually connected and actually listening on that channel.
         /// </summary>
-        public bool IsConnected(RedisChannel channel = default(RedisChannel))
+        public bool IsConnected(RedisChannel channel = default)
         {
             var server = multiplexer.GetSubscribedServer(channel) ?? multiplexer.SelectServer(RedisCommand.SUBSCRIBE, CommandFlags.DemandMaster, channel);
             return server?.IsConnected == true && server.IsSubscriberConnected;

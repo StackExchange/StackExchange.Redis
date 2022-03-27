@@ -186,7 +186,7 @@ namespace StackExchange.Redis
         /// <param name="key">The string to get a channel from.</param>
         public static implicit operator RedisChannel(string key)
         {
-            if (key == null) return default(RedisChannel);
+            if (key == null) return default;
             return new RedisChannel(Encoding.UTF8.GetBytes(key), PatternMode.Auto);
         }
 
@@ -196,7 +196,7 @@ namespace StackExchange.Redis
         /// <param name="key">The byte array to get a channel from.</param>
         public static implicit operator RedisChannel(byte[]? key)
         {
-            if (key == null) return default(RedisChannel);
+            if (key == null) return default;
             return new RedisChannel(key, PatternMode.Auto);
         }
 

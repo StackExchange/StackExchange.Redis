@@ -66,10 +66,8 @@ namespace StackExchange.Redis
                 return tmp;
             }
 
-            internal static void Unknown(string key)
-            {
+            internal static void Unknown(string key) =>
                 throw new ArgumentException($"Keyword '{key}' is not supported.", key);
-            }
 
             internal const string
                 AbortOnConnectFail = "abortConnect",

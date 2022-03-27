@@ -364,7 +364,7 @@ namespace StackExchange.Redis
         {
             public static readonly ConditionProcessor Default = new();
 
-            public static Message CreateMessage(Condition condition, int db, CommandFlags flags, RedisCommand command, in RedisKey key, RedisValue value = default(RedisValue)) =>
+            public static Message CreateMessage(Condition condition, int db, CommandFlags flags, RedisCommand command, in RedisKey key, RedisValue value = default) =>
                 new ConditionMessage(condition, db, flags, command, key, value);
 
             public static Message CreateMessage(Condition condition, int db, CommandFlags flags, RedisCommand command, in RedisKey key, in RedisValue value, in RedisValue value1) =>
@@ -845,7 +845,7 @@ namespace StackExchange.Redis
 
         internal IEnumerable<Message> CreateMessages(int db) => Condition.CreateMessages(db, resultBox);
 
-        internal IResultBox<bool>? GetBox() { return resultBox; }
+        internal IResultBox<bool>? GetBox() => resultBox;
         internal bool UnwrapBox()
         {
             if (resultBox != null)

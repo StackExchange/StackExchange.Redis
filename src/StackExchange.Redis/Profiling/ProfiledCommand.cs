@@ -20,7 +20,7 @@ namespace StackExchange.Redis.Profiling
 
         public CommandFlags Flags => Message!.Flags;
 
-        public DateTime CommandCreated => MessageCreatedDateTime;
+        public DateTime CommandCreated { get; private set; }
 
         public TimeSpan CreationToEnqueued => GetElapsedTime(EnqueuedTimeStamp - MessageCreatedTimeStamp);
 
@@ -49,8 +49,6 @@ namespace StackExchange.Redis.Profiling
         private Message? Message;
         private readonly ServerEndPoint Server;
         private readonly ProfiledCommand? OriginalProfiling;
-
-        private DateTime MessageCreatedDateTime;
         private long MessageCreatedTimeStamp;
         private long EnqueuedTimeStamp;
         private long RequestSentTimeStamp;
@@ -88,7 +86,7 @@ namespace StackExchange.Redis.Profiling
             }
 
             Message = msg;
-            MessageCreatedDateTime = msg.CreatedDateTime;
+            CommandCreated = msg.CreatedDateTime;
             MessageCreatedTimeStamp = msg.CreatedTimestamp;
         }
 

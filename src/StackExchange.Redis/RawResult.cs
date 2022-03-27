@@ -132,7 +132,7 @@ namespace StackExchange.Redis
                         byte[] copy = Payload.Slice(channelPrefix.Length).ToArray();
                         return new RedisChannel(copy, mode);
                     }
-                    return default(RedisChannel);
+                    return default;
                 default:
                     throw new InvalidCastException("Cannot convert to RedisChannel: " + Type);
             }

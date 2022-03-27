@@ -46,10 +46,10 @@ namespace StackExchange.Redis
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Roslynator", "RCS1085:Use auto-implemented property.", Justification = "Intentional field ref")]
         internal long DirectOverlappedBits64 => _overlappedBits64;
 
-        private readonly static object Sentinel_SignedInteger = new();
-        private readonly static object Sentinel_UnsignedInteger = new();
-        private readonly static object Sentinel_Raw = new();
-        private readonly static object Sentinel_Double = new();
+        private static readonly object Sentinel_SignedInteger = new();
+        private static readonly object Sentinel_UnsignedInteger = new();
+        private static readonly object Sentinel_Raw = new();
+        private static readonly object Sentinel_Double = new();
 
         /// <summary>
         /// Obtain this value as an object - to be used alongside Unbox
@@ -97,9 +97,9 @@ namespace StackExchange.Redis
         public static RedisValue EmptyString { get; } = new RedisValue(0, default, Sentinel_Raw);
 
         // note: it is *really important* that this s_EmptyString assignment happens *after* the EmptyString initializer above!
-        static readonly object s_DoubleNAN = double.NaN, s_DoublePosInf = double.PositiveInfinity, s_DoubleNegInf = double.NegativeInfinity,
+        private static readonly object s_DoubleNAN = double.NaN, s_DoublePosInf = double.PositiveInfinity, s_DoubleNegInf = double.NegativeInfinity,
             s_EmptyString = RedisValue.EmptyString;
-        static readonly object[] s_CommonInt32 = Enumerable.Range(-1, 22).Select(i => (object)i).ToArray(); // [-1,20] = 22 values
+        private static readonly object[] s_CommonInt32 = Enumerable.Range(-1, 22).Select(i => (object)i).ToArray(); // [-1,20] = 22 values
 
         /// <summary>
         /// A null value.

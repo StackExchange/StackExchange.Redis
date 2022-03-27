@@ -918,7 +918,7 @@ namespace StackExchange.Redis
             }
         }
 
-        CancellationTokenSource? _reusableFlushSyncTokenSource;
+        private CancellationTokenSource? _reusableFlushSyncTokenSource;
         [Obsolete("this is an anti-pattern; work to reduce reliance on this is in progress")]
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0062:Make local function 'static'", Justification = "DEBUG uses instance data")]
         internal WriteResult FlushSync(bool throwOnFailure, int millisecondsTimeout)
@@ -1128,7 +1128,7 @@ namespace StackExchange.Redis
             return encoder;
         }
 
-        unsafe static internal void WriteRaw(PipeWriter writer, string value, int expectedLength)
+        internal static unsafe void WriteRaw(PipeWriter writer, string value, int expectedLength)
         {
             const int MaxQuickEncodeSize = 512;
 

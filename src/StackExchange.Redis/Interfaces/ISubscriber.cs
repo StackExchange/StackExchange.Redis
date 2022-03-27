@@ -30,7 +30,7 @@ namespace StackExchange.Redis
         /// server is chosen arbitrarily from the primaries.
         /// </summary>
         /// <param name="channel">The channel to identify the server endpoint by.</param>
-        bool IsConnected(RedisChannel channel = default(RedisChannel));
+        bool IsConnected(RedisChannel channel = default);
 
         /// <summary>
         /// Posts a message to the given channel.

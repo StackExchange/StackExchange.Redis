@@ -781,7 +781,10 @@ namespace StackExchange.Redis
             public static RedisValue Encode(byte[] value)
             {
                 const string hex = "0123456789abcdef";
-                if (value == null) return default(RedisValue);
+                if (value == null)
+                {
+                    return default;
+                }
                 var result = new byte[value.Length * 2];
                 int offset = 0;
                 for (int i = 0; i < value.Length; i++)
@@ -795,7 +798,7 @@ namespace StackExchange.Redis
 
             public static RedisValue Hash(string value)
             {
-                if (value == null) return default(RedisValue);
+                if (value is null) return default;
                 using (var sha1 = SHA1.Create())
                 {
                     var bytes = sha1.ComputeHash(Encoding.UTF8.GetBytes(value));

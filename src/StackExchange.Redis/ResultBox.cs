@@ -110,7 +110,7 @@ namespace StackExchange.Redis
             // nothing to do re recycle: TaskCompletionSource<T> cannot be recycled
         }
 
-        static readonly WaitCallback s_ActivateContinuations = state => ((TaskResultBox<T?>)state!).ActivateContinuationsImpl();
+        private static readonly WaitCallback s_ActivateContinuations = state => ((TaskResultBox<T?>)state!).ActivateContinuationsImpl();
         void IResultBox.ActivateContinuations()
         {
             if ((Task.CreationOptions & TaskCreationOptions.RunContinuationsAsynchronously) == 0)
