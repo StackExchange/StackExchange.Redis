@@ -193,14 +193,13 @@ namespace StackExchange.Redis.Configuration
         /// </remarks>
         internal static string? TryGetAzureRoleInstanceIdNoThrow()
         {
-#nullable disable // This is really best effort...
-            string roleInstanceId;
+            string? roleInstanceId;
             try
             {
-                Assembly asm = null;
+                Assembly? asm = null;
                 foreach (var asmb in AppDomain.CurrentDomain.GetAssemblies())
                 {
-                    if (asmb.GetName().Name.Equals("Microsoft.WindowsAzure.ServiceRuntime"))
+                    if (asmb.GetName()?.Name?.Equals("Microsoft.WindowsAzure.ServiceRuntime") == true)
                     {
                         asm = asmb;
                         break;
@@ -212,12 +211,16 @@ namespace StackExchange.Redis.Configuration
                 var type = asm.GetType("Microsoft.WindowsAzure.ServiceRuntime.RoleEnvironment");
 
                 // https://msdn.microsoft.com/en-us/library/microsoft.windowsazure.serviceruntime.roleenvironment.isavailable.aspx
-                if (!(bool)type.GetProperty("IsAvailable").GetValue(null, null))
+                if (type?.GetProperty("IsAvailable") is not PropertyInfo isAvailableProp
+                    || isAvailableProp.GetValue(null, null) is not bool isAvailableVal
+                    || !isAvailableVal)
+                {
                     return null;
+                }
 
                 var currentRoleInstanceProp = type.GetProperty("CurrentRoleInstance");
-                var currentRoleInstanceId = currentRoleInstanceProp.GetValue(null, null);
-                roleInstanceId = currentRoleInstanceId.GetType().GetProperty("Id").GetValue(currentRoleInstanceId, null).ToString();
+                var currentRoleInstanceId = currentRoleInstanceProp?.GetValue(null, null);
+                roleInstanceId = currentRoleInstanceId?.GetType().GetProperty("Id")?.GetValue(currentRoleInstanceId, null)?.ToString();
 
                 if (roleInstanceId.IsNullOrEmpty())
                 {
@@ -229,7 +232,6 @@ namespace StackExchange.Redis.Configuration
                 //silently ignores the exception
                 roleInstanceId = null;
             }
-#nullable enable
             return roleInstanceId;
         }
 

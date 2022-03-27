@@ -260,7 +260,10 @@ public partial class ConnectionMultiplexer
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Roslynator", "RCS1075:Avoid empty catch clause that catches System.Exception.", Justification = "We don't care.")]
     internal void OnManagedConnectionRestored(object? sender, ConnectionFailedEventArgs e)
     {
-        ConnectionMultiplexer connection = (ConnectionMultiplexer)sender!;
+        if (sender is not ConnectionMultiplexer connection)
+        {
+            return; // This should never happen - called from non-nullable ConnectionFailedEventArgs
+        }
 
         var oldTimer = Interlocked.Exchange(ref connection.sentinelPrimaryReconnectTimer, null);
         oldTimer?.Dispose();
@@ -301,7 +304,11 @@ public partial class ConnectionMultiplexer
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Roslynator", "RCS1075:Avoid empty catch clause that catches System.Exception.", Justification = "We don't care.")]
     internal void OnManagedConnectionFailed(object? sender, ConnectionFailedEventArgs e)
     {
-        ConnectionMultiplexer connection = (ConnectionMultiplexer)sender!;
+        if (sender is not ConnectionMultiplexer connection)
+        {
+            return; // This should never happen - called from non-nullable ConnectionFailedEventArgs
+        }
+
         // Periodically check to see if we can reconnect to the proper primary.
         // This is here in case we lost our subscription to a good sentinel instance
         // or if we miss the published primary change.
