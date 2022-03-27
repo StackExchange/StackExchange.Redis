@@ -103,6 +103,24 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public async Task GetEx_Absolute()
+        {
+            using var muxer = Create();
+            Skip.IfMissingFeature(muxer, nameof(RedisFeatures.GetEx), r => r.GetEx);
+            var conn = muxer.GetDatabase();
+            var key = Me();
+            conn.KeyDelete(key, CommandFlags.FireAndForget);
+
+            conn.StringSet(key, "abc", TimeSpan.FromHours(1));
+            var val = conn.StringGetSetExpiryAsync(key, DateTime.UtcNow.AddMinutes(30));
+            var val_ttl = conn.KeyTimeToLiveAsync(key);
+
+            Assert.Equal("abc", await val);
+            var time = await val_ttl;
+            Assert.True(time > TimeSpan.FromMinutes(29.9) && time <= TimeSpan.FromMinutes(30));
+        }
+
+        [Fact]
         public async Task GetEx_Persist()
         {
             using var muxer = Create();

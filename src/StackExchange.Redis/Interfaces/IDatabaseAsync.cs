@@ -2107,7 +2107,7 @@ namespace StackExchange.Redis
         Task<RedisValue> StringGetSetAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Gets the value of <paramref name="key"/> and update its expiry.
+        /// Gets the value of <paramref name="key"/> and update its (relative) expiry.
         /// If the key does not exist, the result will be <see cref="RedisValue.Null"/>.
         /// </summary>
         /// <param name="key">The key of the string.</param>
@@ -2116,6 +2116,17 @@ namespace StackExchange.Redis
         /// <returns>The value of key, or nil when key does not exist.</returns>
         /// <remarks>https://redis.io/commands/getex</remarks>
         Task<RedisValue> StringGetSetExpiryAsync(RedisKey key, TimeSpan? expiry, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Gets the value of <paramref name="key"/> and update its (absolute) expiry.
+        /// If the key does not exist, the result will be <see cref="RedisValue.Null"/>.
+        /// </summary>
+        /// <param name="key">The key of the string.</param>
+        /// <param name="expiry">The exact date and time to expire at. <see cref="DateTime.MaxValue"/> will remove expiry.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The value of key, or nil when key does not exist.</returns>
+        /// <remarks>https://redis.io/commands/getex</remarks>
+        Task<RedisValue> StringGetSetExpiryAsync(RedisKey key, DateTime expiry, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Get the value of key and delete the key.

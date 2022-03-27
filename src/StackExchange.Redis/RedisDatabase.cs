@@ -2470,7 +2470,19 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.RedisValue);
         }
 
+        public RedisValue StringGetSetExpiry(RedisKey key, DateTime expiry, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetStringGetExMessage(key, expiry, flags);
+            return ExecuteSync(msg, ResultProcessor.RedisValue);
+        }
+
         public Task<RedisValue> StringGetSetExpiryAsync(RedisKey key, TimeSpan? expiry, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetStringGetExMessage(key, expiry, flags);
+            return ExecuteAsync(msg, ResultProcessor.RedisValue);
+        }
+
+        public Task<RedisValue> StringGetSetExpiryAsync(RedisKey key, DateTime expiry, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStringGetExMessage(key, expiry, flags);
             return ExecuteAsync(msg, ResultProcessor.RedisValue);
@@ -3535,6 +3547,29 @@ namespace StackExchange.Redis
             }
 
             return Message.Create(Database, flags, RedisCommand.GETEX, key, RedisLiterals.PX, milliseconds);
+        }
+
+        private Message GetStringGetExMessage(in RedisKey key, DateTime expiry, CommandFlags flags = CommandFlags.None)
+        {
+            if (expiry == DateTime.MaxValue)
+            {
+                return Message.Create(Database, flags, RedisCommand.GETEX, key, RedisLiterals.PERSIST);
+            }
+            switch (expiry.Kind)
+            {
+                case DateTimeKind.Local:
+                case DateTimeKind.Utc:
+                    break; // fine, we can work with that
+                default:
+                    throw new ArgumentException("Expiry time must be either Utc or Local", nameof(expiry));
+            }
+            long milliseconds = (expiry.ToUniversalTime() - RedisBase.UnixEpoch).Ticks / TimeSpan.TicksPerMillisecond;
+            if ((milliseconds % 1000) != 0)
+            {
+                return Message.Create(Database, flags, RedisCommand.GETEX, key, RedisLiterals.PXAT, milliseconds);
+            }
+            long seconds = milliseconds / 1000;
+            return Message.Create(Database, flags, RedisCommand.GETEX, key, RedisLiterals.EXAT, seconds);
         }
 
         private Message GetStringGetWithExpiryMessage(RedisKey key, CommandFlags flags, out ResultProcessor<RedisValueWithExpiry> processor, out ServerEndPoint server)
