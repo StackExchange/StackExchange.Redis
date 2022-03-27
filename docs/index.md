@@ -6,8 +6,8 @@ StackExchange.Redis
 ## Overview
 
 StackExchange.Redis is a high performance general purpose redis client for .NET languages (C#, etc.). It is the logical successor to [BookSleeve](https://code.google.com/archive/p/booksleeve/),
-and is the client developed-by (and used-by) [Stack Exchange](http://stackexchange.com/) for busy sites like [Stack Overflow](http://stackoverflow.com/). For the full reasons
-why this library was created (i.e. "What about BookSleeve?") [please see here](http://marcgravell.blogspot.com/2014/03/so-i-went-and-wrote-another-redis-client.html).
+and is the client developed-by (and used-by) [Stack Exchange](https://stackexchange.com/) for busy sites like [Stack Overflow](https://stackoverflow.com/). For the full reasons
+why this library was created (i.e. "What about BookSleeve?") [please see here](https://marcgravell.blogspot.com/2014/03/so-i-went-and-wrote-another-redis-client.html).
 
 Features
 --
@@ -38,11 +38,13 @@ Documentation
 - [Transactions](Transactions) - how atomic transactions work in redis
 - [Events](Events) - the events available for logging / information purposes
 - [Pub/Sub Message Order](PubSubOrder) - advice on sequential and concurrent processing
+- [ServerMaintenanceEvent](ServerMaintenanceEvent) - how to listen and prepare for hosted server maintenance (e.g. Azure Cache for Redis)
 - [Streams](Streams) - how to use the Stream data type
 - [Where are `KEYS` / `SCAN` / `FLUSH*`?](KeysScan) - how to use server-based commands
 - [Profiling](Profiling) - profiling interfaces, as well as how to profile in an `async` world
 - [Scripting](Scripting) - running Lua scripts with convenient named parameter replacement
 - [Testing](Testing) - running the `StackExchange.Redis.Tests` suite to validate changes
+- [Timeouts](Timeouts) - guidance on dealing with timeout problems
 - [Thread Theft](ThreadTheft) - guidance on avoiding TPL threading problems
 
 Questions and Contributions
@@ -50,5 +52,5 @@ Questions and Contributions
 
 If you think you have found a bug or have a feature request, please [report an issue][2], or if appropriate: submit a pull request. If you have a question, feel free to [contact me](https://github.com/mgravell).
 
-  [1]: http://msdn.microsoft.com/en-us/library/dd460717%28v=vs.110%29.aspx
+  [1]: https://docs.microsoft.com/en-us/dotnet/standard/parallel-programming/task-parallel-library-tpl
   [2]: https://github.com/StackExchange/StackExchange.Redis/issues?state=open

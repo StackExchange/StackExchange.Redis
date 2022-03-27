@@ -31,37 +31,28 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void ShowReadOnlyOperations()
         {
-            var msg = typeof(ConnectionMultiplexer).Assembly.GetType("StackExchange.Redis.Message");
-            Assert.NotNull(msg);
-            var cmd = typeof(ConnectionMultiplexer).Assembly.GetType("StackExchange.Redis.RedisCommand");
-            Assert.NotNull(cmd);
-            var masterOnlyMethod = msg.GetMethod(nameof(Message.IsMasterOnly), BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public);
-            Assert.NotNull(masterOnlyMethod);
-            object[] args = new object[1];
-
-            List<object> masterReplica = new List<object>();
-            List<object> masterOnly = new List<object>();
-            foreach (var val in Enum.GetValues(cmd))
+            List<object> primaryReplica = new List<object>();
+            List<object> primaryOnly = new List<object>();
+            foreach (var val in (RedisCommand[])Enum.GetValues(typeof(RedisCommand)))
             {
-                args[0] = val;
-                bool isMasterOnly = (bool)masterOnlyMethod.Invoke(null, args);
-                (isMasterOnly ? masterOnly : masterReplica).Add(val);
+                bool isPrimaryOnly = Message.IsPrimaryOnly(val);
+                (isPrimaryOnly ? primaryOnly : primaryReplica).Add(val);
 
-                if (!isMasterOnly)
+                if (!isPrimaryOnly)
                 {
-                    Log(val?.ToString());
+                    Log(val.ToString());
                 }
             }
-            Log("master-only: {0}, vs master/replica: {1}", masterOnly.Count, masterReplica.Count);
+            Log("primary-only: {0}, vs primary/replica: {1}", primaryOnly.Count, primaryReplica.Count);
             Log("");
-            Log("master-only:");
-            foreach (var val in masterOnly)
+            Log("primary-only:");
+            foreach (var val in primaryOnly)
             {
                 Log(val?.ToString());
             }
             Log("");
-            Log("master/replica:");
-            foreach (var val in masterReplica)
+            Log("primary/replica:");
+            foreach (var val in primaryReplica)
             {
                 Log(val?.ToString());
             }
@@ -104,7 +95,7 @@ namespace StackExchange.Redis.Tests
 
             if (type.IsArray)
             {
-                if (UsesKey(type.GetElementType())) return true;
+                if (UsesKey(type.GetElementType()!)) return true;
             }
             if (type.IsGenericType) // KVP, etc
             {
@@ -170,7 +161,7 @@ namespace StackExchange.Redis.Tests
 
         private void CheckMethod(MethodInfo method, bool isAsync)
         {
-            string shortName = method.Name, fullName = method.DeclaringType.Name + "." + shortName;
+            string shortName = method.Name, fullName = method.DeclaringType?.Name + "." + shortName;
 
             switch (shortName)
             {
@@ -237,7 +228,7 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        private void CheckName(MemberInfo member, bool isAsync)
+        private static void CheckName(MemberInfo member, bool isAsync)
         {
             if (isAsync) Assert.True(member.Name.EndsWith("Async"), member.Name + ":Name - end *Async");
             else Assert.False(member.Name.EndsWith("Async"), member.Name + ":Name - don't end *Async");

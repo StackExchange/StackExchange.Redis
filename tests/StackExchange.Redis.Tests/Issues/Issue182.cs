@@ -8,7 +8,7 @@ namespace StackExchange.Redis.Tests.Issues
 {
     public class Issue182 : TestBase
     {
-        protected override string GetConfiguration() => $"{TestConfig.Current.MasterServerAndPort},responseTimeout=10000";
+        protected override string GetConfiguration() => $"{TestConfig.Current.PrimaryServerAndPort},responseTimeout=10000";
 
         public Issue182(ITestOutputHelper output) : base (output) { }
 

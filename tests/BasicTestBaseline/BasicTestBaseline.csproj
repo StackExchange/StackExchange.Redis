@@ -7,7 +7,6 @@
     <OutputType>Exe</OutputType>
     <PackageId>BasicTestBaseline</PackageId>
     <RuntimeIdentifiers>win7-x64</RuntimeIdentifiers>
-    <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
     <DefineConstants>$(DefineConstants);TEST_BASELINE</DefineConstants>
   </PropertyGroup>
 
@@ -17,7 +16,7 @@
 
   <ItemGroup>
     <PackageReference Include="BenchmarkDotNet" />
-    <PackageReference Include="StackExchange.Redis" Version="[2.0.558]" />
+    <PackageReference Include="StackExchange.Redis" />
   </ItemGroup>
 
 </Project>

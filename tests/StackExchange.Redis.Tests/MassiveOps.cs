@@ -39,7 +39,7 @@ namespace StackExchange.Redis.Tests
                 RedisKey key = Me();
                 var conn = muxer.GetDatabase();
                 await conn.PingAsync().ForAwait();
-                void nonTrivial(Task _)
+                static void nonTrivial(Task _)
                 {
                     Thread.SpinWait(5);
                 }
@@ -47,9 +47,11 @@ namespace StackExchange.Redis.Tests
                 for (int i = 0; i <= AsyncOpsQty; i++)
                 {
                     var t = conn.StringSetAsync(key, i);
-#pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
-                    if (withContinuation) t.ContinueWith(nonTrivial);
-#pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
+                    if (withContinuation)
+                    {
+                        // Intentionally unawaited
+                        _ = t.ContinueWith(nonTrivial);
+                    }
                 }
                 Assert.Equal(AsyncOpsQty, await conn.StringGetAsync(key).ForAwait());
                 watch.Stop();

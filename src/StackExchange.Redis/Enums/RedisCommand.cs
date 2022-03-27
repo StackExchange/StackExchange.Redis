@@ -49,6 +49,7 @@
 
         GET,
         GETBIT,
+        GETDEL,
         GETEX,
         GETRANGE,
         GETSET,
@@ -199,6 +200,7 @@
         ZRANGE,
         ZRANGEBYLEX,
         ZRANGEBYSCORE,
+        ZRANGESTORE,
         ZRANK,
         ZREM,
         ZREMRANGEBYLEX,

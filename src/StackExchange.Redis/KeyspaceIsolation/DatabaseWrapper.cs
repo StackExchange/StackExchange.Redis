@@ -301,6 +301,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.ListLeftPop(ToInner(key), flags);
         }
 
+        public RedisValue[] ListLeftPop(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.ListLeftPop(ToInner(key), count, flags);
+        }
+
         public long ListLeftPush(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None)
         {
             return Inner.ListLeftPush(ToInner(key), values, flags);
@@ -334,6 +339,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public RedisValue ListRightPop(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             return Inner.ListRightPop(ToInner(key), flags);
+        }
+
+        public RedisValue[] ListRightPop(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.ListRightPop(ToInner(key), count, flags);
         }
 
         public RedisValue ListRightPopLeftPush(RedisKey source, RedisKey destination, CommandFlags flags = CommandFlags.None)
@@ -564,6 +574,21 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public RedisValue[] SortedSetRangeByRank(RedisKey key, long start = 0, long stop = -1, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
         {
             return Inner.SortedSetRangeByRank(ToInner(key), start, stop, order, flags);
+        }
+
+        public long SortedSetRangeAndStore(
+            RedisKey destinationKey,
+            RedisKey sourceKey,
+            RedisValue start,
+            RedisValue stop,
+            SortedSetOrder sortedSetOrder = SortedSetOrder.ByRank,
+            Exclude exclude = Exclude.None,
+            Order order = Order.Ascending,
+            long skip = 0,
+            long? take = null,
+            CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.SortedSetRangeAndStore(ToInner(sourceKey), ToInner(destinationKey), start, stop, sortedSetOrder, exclude, order, skip, take, flags);
         }
 
         public SortedSetEntry[] SortedSetRangeByRankWithScores(RedisKey key, long start = 0, long stop = -1, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
@@ -811,19 +836,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.StringGet(ToInner(key), flags);
         }
 
-        public RedisValue StringGetSetExpiry(RedisKey key, TimeSpan expiry, CommandFlags flags = CommandFlags.None)
+        public RedisValue StringGetSetExpiry(RedisKey key, TimeSpan? expiry, CommandFlags flags = CommandFlags.None)
         {
             return Inner.StringGetSetExpiry(ToInner(key), expiry, flags);
-        }
-
-        public RedisValue StringGetSetExpiry(RedisKey key, DateTime expiry, CommandFlags flags = CommandFlags.None)
-        {
-            return Inner.StringGetSetExpiry(ToInner(key), expiry, flags);
-        }
-
-        public RedisValue StringGetRemoveExpiry(RedisKey key, CommandFlags flags = CommandFlags.None)
-        {
-            return Inner.StringGetRemoveExpiry(ToInner(key), flags);
         }
 
         public Lease<byte>StringGetLease(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -844,6 +859,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public RedisValue StringGetSet(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
         {
             return Inner.StringGetSet(ToInner(key), value, flags);
+        }
+
+        public RedisValue StringGetDelete(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.StringGetDelete(ToInner(key), flags);
         }
 
         public RedisValueWithExpiry StringGetWithExpiry(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -871,9 +891,24 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.StringSet(ToInner(values), when, flags);
         }
 
-        public bool StringSet(RedisKey key, RedisValue value, TimeSpan? expiry = null, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        public bool StringSet(RedisKey key, RedisValue value, TimeSpan? expiry, When when, CommandFlags flags)
         {
             return Inner.StringSet(ToInner(key), value, expiry, when, flags);
+        }
+
+        public bool StringSet(RedisKey key, RedisValue value, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.StringSet(ToInner(key), value, expiry, keepTtl, when, flags);
+        }
+
+        public RedisValue StringSetAndGet(RedisKey key, RedisValue value, TimeSpan? expiry, When when, CommandFlags flags)
+        {
+            return Inner.StringSetAndGet(ToInner(key), value, expiry, when, flags);
+        }
+
+        public RedisValue StringSetAndGet(RedisKey key, RedisValue value, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.StringSetAndGet(ToInner(key), value, expiry, keepTtl, when, flags);
         }
 
         public bool StringSetBit(RedisKey key, long offset, bool bit, CommandFlags flags = CommandFlags.None)

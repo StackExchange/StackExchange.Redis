@@ -6,6 +6,8 @@ using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Security.Authentication;
+using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
@@ -14,6 +16,9 @@ namespace StackExchange.Redis.Tests
 {
     public class Config : TestBase
     {
+        public Version DefaultVersion = new (3, 0, 0);
+        public Version DefaultAzureVersion = new (4, 0, 0);
+
         public Config(ITestOutputHelper output) : base(output) { }
 
         [Fact]
@@ -39,7 +44,7 @@ namespace StackExchange.Redis.Tests
             var options = ConfigurationOptions.Parse($"host,{conString}");
             Assert.Equal(expectedValue, options.CheckCertificateRevocation);
             var toString = options.ToString();
-            Assert.True(toString.IndexOf(conString, StringComparison.CurrentCultureIgnoreCase) >= 0);
+            Assert.Contains(conString, toString, StringComparison.CurrentCultureIgnoreCase);
         }
 
         [Fact]
@@ -63,7 +68,7 @@ namespace StackExchange.Redis.Tests
         public void ConfigurationOptionsDefaultForAzure()
         {
             var options = ConfigurationOptions.Parse("contoso.redis.cache.windows.net");
-            Assert.True(options.DefaultVersion.Equals(new Version(3, 0, 0)));
+            Assert.True(options.DefaultVersion.Equals(DefaultAzureVersion));
             Assert.False(options.AbortOnConnectFail);
         }
 
@@ -80,7 +85,7 @@ namespace StackExchange.Redis.Tests
         {
             // added a few upper case chars to validate comparison
             var options = ConfigurationOptions.Parse("contoso.REDIS.CACHE.chinacloudapi.cn");
-            Assert.True(options.DefaultVersion.Equals(new Version(3, 0, 0)));
+            Assert.True(options.DefaultVersion.Equals(DefaultAzureVersion));
             Assert.False(options.AbortOnConnectFail);
         }
 
@@ -88,7 +93,7 @@ namespace StackExchange.Redis.Tests
         public void ConfigurationOptionsDefaultForAzureGermany()
         {
             var options = ConfigurationOptions.Parse("contoso.redis.cache.cloudapi.de");
-            Assert.True(options.DefaultVersion.Equals(new Version(3, 0, 0)));
+            Assert.True(options.DefaultVersion.Equals(DefaultAzureVersion));
             Assert.False(options.AbortOnConnectFail);
         }
 
@@ -96,7 +101,7 @@ namespace StackExchange.Redis.Tests
         public void ConfigurationOptionsDefaultForAzureUSGov()
         {
             var options = ConfigurationOptions.Parse("contoso.redis.cache.usgovcloudapi.net");
-            Assert.True(options.DefaultVersion.Equals(new Version(3, 0, 0)));
+            Assert.True(options.DefaultVersion.Equals(DefaultAzureVersion));
             Assert.False(options.AbortOnConnectFail);
         }
 
@@ -104,7 +109,7 @@ namespace StackExchange.Redis.Tests
         public void ConfigurationOptionsDefaultForNonAzure()
         {
             var options = ConfigurationOptions.Parse("redis.contoso.com");
-            Assert.True(options.DefaultVersion.Equals(new Version(2, 0, 0)));
+            Assert.True(options.DefaultVersion.Equals(DefaultVersion));
             Assert.True(options.AbortOnConnectFail);
         }
 
@@ -112,7 +117,7 @@ namespace StackExchange.Redis.Tests
         public void ConfigurationOptionsDefaultWhenNoEndpointsSpecifiedYet()
         {
             var options = new ConfigurationOptions();
-            Assert.True(options.DefaultVersion.Equals(new Version(2, 0, 0)));
+            Assert.True(options.DefaultVersion.Equals(DefaultVersion));
             Assert.True(options.AbortOnConnectFail);
         }
 
@@ -206,7 +211,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create(allowAdmin: true))
             {
-                var rows = GetAnyMaster(muxer).SlowlogGet(count);
+                var rows = GetAnyPrimary(muxer).SlowlogGet(count);
                 Assert.NotNull(rows);
             }
         }
@@ -216,7 +221,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create(allowAdmin: true))
             {
-                GetAnyMaster(muxer).SlowlogReset();
+                GetAnyPrimary(muxer).SlowlogReset();
             }
         }
 
@@ -230,7 +235,7 @@ namespace StackExchange.Redis.Tests
                 var conn = muxer.GetDatabase();
                 conn.Ping();
 
-                var name = (string)GetAnyMaster(muxer).Execute("CLIENT", "GETNAME");
+                var name = (string)GetAnyPrimary(muxer).Execute("CLIENT", "GETNAME");
                 Assert.Equal("TestRig", name);
             }
         }
@@ -240,12 +245,12 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create(allowAdmin: true, caller: null)) // force default naming to kick in
             {
-                Assert.Equal(Environment.MachineName, muxer.ClientName);
+                Assert.Equal($"{Environment.MachineName}(SE.Redis-v{Utils.GetLibVersion()})", muxer.ClientName);
                 var conn = muxer.GetDatabase();
                 conn.Ping();
 
-                var name = (string)GetAnyMaster(muxer).Execute("CLIENT", "GETNAME");
-                Assert.Equal(Environment.MachineName, name);
+                var name = (string)GetAnyPrimary(muxer).Execute("CLIENT", "GETNAME");
+                Assert.Equal($"{Environment.MachineName}(SE.Redis-v{Utils.GetLibVersion()})", name);
             }
         }
 
@@ -254,9 +259,24 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create(allowAdmin: true, disabledCommands: new[] { "config", "info" }))
             {
-                var conn = GetAnyMaster(muxer);
+                var conn = GetAnyPrimary(muxer);
                 var ex = Assert.Throws<RedisCommandException>(() => conn.ConfigGet());
                 Assert.Equal("This operation has been disabled in the command-map and cannot be used: CONFIG", ex.Message);
+            }
+        }
+
+        [Fact]
+        public void ConnectWithSubscribeDisabled()
+        {
+            using (var muxer = Create(allowAdmin: true, disabledCommands: new[] { "subscribe" }))
+            {
+                Assert.True(muxer.IsConnected);
+                var servers = muxer.GetServerSnapshot();
+                Assert.True(servers[0].IsConnected);
+                Assert.False(servers[0].IsSubscriberConnected);
+
+                var ex = Assert.Throws<RedisCommandException>(() => muxer.GetSubscriber().Subscribe(Me(), (_, _) => GC.KeepAlive(this)));
+                Assert.Equal("This operation has been disabled in the command-map and cannot be used: SUBSCRIBE", ex.Message);
             }
         }
 
@@ -266,7 +286,7 @@ namespace StackExchange.Redis.Tests
             using (var muxer = Create(allowAdmin: true))
             {
                 Log("about to get config");
-                var conn = GetAnyMaster(muxer);
+                var conn = GetAnyPrimary(muxer);
                 var all = conn.ConfigGet();
                 Assert.True(all.Length > 0, "any");
 
@@ -278,7 +298,7 @@ namespace StackExchange.Redis.Tests
 
                 Assert.True(pairs.ContainsKey("port"), "port");
                 val = int.Parse(pairs["port"]);
-                Assert.Equal(TestConfig.Current.MasterPort, val);
+                Assert.Equal(TestConfig.Current.PrimaryPort, val);
             }
         }
 
@@ -287,7 +307,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create())
             {
-                var server = GetAnyMaster(muxer);
+                var server = GetAnyPrimary(muxer);
                 var serverTime = server.Time();
                 var localTime = DateTime.UtcNow;
                 Log("Server: " + serverTime.ToString(CultureInfo.InvariantCulture));
@@ -316,7 +336,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create(allowAdmin: true))
             {
-                var server = GetAnyMaster(muxer);
+                var server = GetAnyPrimary(muxer);
                 var info1 = server.Info();
                 Assert.True(info1.Length > 5);
                 Log("All sections");
@@ -347,7 +367,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create(allowAdmin: true))
             {
-                var server = GetAnyMaster(muxer);
+                var server = GetAnyPrimary(muxer);
                 var info = server.InfoRaw();
                 Assert.Contains("used_cpu_sys", info);
                 Assert.Contains("used_cpu_user", info);
@@ -360,7 +380,7 @@ namespace StackExchange.Redis.Tests
             var name = Guid.NewGuid().ToString();
             using (var muxer = Create(clientName: name, allowAdmin: true))
             {
-                var server = GetAnyMaster(muxer);
+                var server = GetAnyPrimary(muxer);
                 var clients = server.ClientList();
                 Assert.True(clients.Length > 0, "no clients"); // ourselves!
                 Assert.True(clients.Any(x => x.Name == name), "expected: " + name);
@@ -372,7 +392,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create(allowAdmin: true))
             {
-                var server = GetAnyMaster(muxer);
+                var server = GetAnyPrimary(muxer);
                 server.SlowlogGet();
                 server.SlowlogReset();
             }
@@ -387,7 +407,7 @@ namespace StackExchange.Redis.Tests
                 try
                 {
                     configMuxer.GetDatabase();
-                    var srv = GetAnyMaster(configMuxer);
+                    var srv = GetAnyPrimary(configMuxer);
                     oldTimeout = srv.ConfigGet("timeout")[0].Value;
                     srv.ConfigSet("timeout", 5);
 
@@ -409,7 +429,7 @@ namespace StackExchange.Redis.Tests
                 {
                     if (!oldTimeout.IsNull)
                     {
-                        var srv = GetAnyMaster(configMuxer);
+                        var srv = GetAnyPrimary(configMuxer);
                         srv.ConfigSet("timeout", oldTimeout);
                     }
                 }
@@ -454,15 +474,15 @@ namespace StackExchange.Redis.Tests
                 EndPoints = { { IPAddress.Loopback, 6379 } },
             };
             using var muxer = ConnectionMultiplexer.Connect(config);
-            Assert.Same(SocketManager.Shared.Scheduler, muxer.SocketManager.Scheduler);
+            Assert.Same(ConnectionMultiplexer.GetDefaultSocketManager().Scheduler, muxer.SocketManager.Scheduler);
         }
 
         [Theory]
         [InlineData("myDNS:myPort,password=myPassword,connectRetry=3,connectTimeout=15000,syncTimeout=15000,defaultDatabase=0,abortConnect=false,ssl=true,sslProtocols=Tls12", SslProtocols.Tls12)]
         [InlineData("myDNS:myPort,password=myPassword,abortConnect=false,ssl=true,sslProtocols=Tls12", SslProtocols.Tls12)]
-#pragma warning disable CS0618 // obsolete
+#pragma warning disable CS0618 // Type or member is obsolete
         [InlineData("myDNS:myPort,password=myPassword,abortConnect=false,ssl=true,sslProtocols=Ssl3", SslProtocols.Ssl3)]
-#pragma warning restore CS0618 // obsolete
+#pragma warning restore CS0618
         [InlineData("myDNS:myPort,password=myPassword,abortConnect=false,ssl=true,sslProtocols=Tls12 ", SslProtocols.Tls12)]
         public void ParseTlsWithoutTrailingComma(string configString, SslProtocols expected)
         {
@@ -490,6 +510,118 @@ namespace StackExchange.Redis.Tests
             var ex = Assert.Throws<ArgumentException>(() => ConfigurationOptions.Parse("foo,flibble=value"));
             Assert.StartsWith("Keyword 'flibble' is not supported.", ex.Message); // param name gets concatenated sometimes
             Assert.Equal("flibble", ex.ParamName);
+        }
+
+        [Fact]
+        public void NullApply()
+        {
+            var options = ConfigurationOptions.Parse("127.0.0.1,name=FooApply");
+            Assert.Equal("FooApply", options.ClientName);
+
+            // Doesn't go boom
+            var result = options.Apply(null);
+            Assert.Equal("FooApply", options.ClientName);
+            Assert.Equal(result, options);
+        }
+
+        [Fact]
+        public void Apply()
+        {
+            var options = ConfigurationOptions.Parse("127.0.0.1,name=FooApply");
+            Assert.Equal("FooApply", options.ClientName);
+
+            var randomName = Guid.NewGuid().ToString();
+            var result = options.Apply(options => options.ClientName = randomName);
+
+            Assert.Equal(randomName, options.ClientName);
+            Assert.Equal(randomName, result.ClientName);
+            Assert.Equal(result, options);
+        }
+
+        [Fact]
+        public void BeforeSocketConnect()
+        {
+            var options = ConfigurationOptions.Parse(TestConfig.Current.PrimaryServerAndPort);
+            int count = 0;
+            options.BeforeSocketConnect = (endpoint, connType, socket) =>
+            {
+                Interlocked.Increment(ref count);
+                Log($"Endpoint: {endpoint}, ConnType: {connType}, Socket: {socket}");
+                socket.DontFragment = true;
+                socket.Ttl = (short)(connType == ConnectionType.Interactive ? 12 : 123);
+            };
+            var muxer = ConnectionMultiplexer.Connect(options);
+            Assert.True(muxer.IsConnected);
+            Assert.Equal(2, count);
+
+            var endpoint = muxer.GetServerSnapshot()[0];
+            var interactivePhysical = endpoint.GetBridge(ConnectionType.Interactive).TryConnect(null);
+            var subscriptionPhysical = endpoint.GetBridge(ConnectionType.Subscription).TryConnect(null);
+            Assert.NotNull(interactivePhysical);
+            Assert.NotNull(subscriptionPhysical);
+
+            var interactiveSocket = interactivePhysical.VolatileSocket;
+            var subscriptionSocket = subscriptionPhysical.VolatileSocket;
+            Assert.NotNull(interactiveSocket);
+            Assert.NotNull(subscriptionSocket);
+
+            Assert.Equal(12, interactiveSocket.Ttl);
+            Assert.Equal(123, subscriptionSocket.Ttl);
+            Assert.True(interactiveSocket.DontFragment);
+            Assert.True(subscriptionSocket.DontFragment);
+        }
+
+        [Fact]
+        public async Task MutableOptions()
+        {
+            var options = ConfigurationOptions.Parse(TestConfig.Current.PrimaryServerAndPort + ",name=Details");
+            var originalConfigChannel = options.ConfigurationChannel = "originalConfig";
+            var originalUser = options.User = "originalUser";
+            var originalPassword = options.Password = "originalPassword";
+            Assert.Equal("Details", options.ClientName);
+            using var muxer = await ConnectionMultiplexer.ConnectAsync(options);
+
+            // Same instance
+            Assert.Same(options, muxer.RawConfig);
+            // Copies
+            Assert.NotSame(options.EndPoints, muxer.EndPoints);
+
+            // Same until forked - it's not cloned
+            Assert.Same(options.CommandMap, muxer.CommandMap);
+            options.CommandMap = CommandMap.Envoyproxy;
+            Assert.NotSame(options.CommandMap, muxer.CommandMap);
+
+#pragma warning disable CS0618 // Type or member is obsolete
+            // Defaults true
+            Assert.True(options.IncludeDetailInExceptions);
+            Assert.True(muxer.IncludeDetailInExceptions);
+            options.IncludeDetailInExceptions = false;
+            Assert.False(options.IncludeDetailInExceptions);
+            Assert.False(muxer.IncludeDetailInExceptions);
+
+            // Defaults false
+            Assert.False(options.IncludePerformanceCountersInExceptions);
+            Assert.False(muxer.IncludePerformanceCountersInExceptions);
+            options.IncludePerformanceCountersInExceptions = true;
+            Assert.True(options.IncludePerformanceCountersInExceptions);
+            Assert.True(muxer.IncludePerformanceCountersInExceptions);
+#pragma warning restore CS0618
+
+            var newName = Guid.NewGuid().ToString();
+            options.ClientName = newName;
+            Assert.Equal(newName, muxer.ClientName);
+
+            // TODO: This forks due to memoization of the byte[] for efficiency
+            // If we could cheaply detect change it'd be good to let this change
+            const string newConfigChannel = "newConfig";
+            options.ConfigurationChannel = newConfigChannel;
+            Assert.Equal(newConfigChannel, options.ConfigurationChannel);
+            Assert.Equal(Encoding.UTF8.GetString(muxer.ConfigurationChangedChannel), originalConfigChannel);
+
+            Assert.Equal(originalUser, muxer.RawConfig.User);
+            Assert.Equal(originalPassword, muxer.RawConfig.Password);
+            var newPass = options.Password = "newPassword";
+            Assert.Equal(newPass, muxer.RawConfig.Password);
         }
     }
 }

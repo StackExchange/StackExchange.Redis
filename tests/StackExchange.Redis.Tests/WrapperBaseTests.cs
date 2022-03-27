@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 
 namespace StackExchange.Redis.Tests
 {
+    [Collection(nameof(MoqDependentCollection))]
     public sealed class WrapperBaseTests
     {
         private readonly Mock<IDatabaseAsync> mock;
@@ -21,12 +22,10 @@ namespace StackExchange.Redis.Tests
             wrapper = new WrapperBase<IDatabaseAsync>(mock.Object, Encoding.UTF8.GetBytes("prefix:"));
         }
 
-#pragma warning disable RCS1047 // Non-asynchronous method name should not end with 'Async'.
-
         [Fact]
-        public void DebugObjectAsync()
+        public async Task DebugObjectAsync()
         {
-            wrapper.DebugObjectAsync("key", CommandFlags.None);
+            await wrapper.DebugObjectAsync("key", CommandFlags.None);
             mock.Verify(_ => _.DebugObjectAsync("prefix:key", CommandFlags.None));
         }
 
@@ -54,7 +53,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void HashDeleteAsync_2()
         {
-            RedisValue[] hashFields = new RedisValue[0];
+            RedisValue[] hashFields = Array.Empty<RedisValue>();
             wrapper.HashDeleteAsync("key", hashFields, CommandFlags.None);
             mock.Verify(_ => _.HashDeleteAsync("prefix:key", hashFields, CommandFlags.None));
         }
@@ -83,7 +82,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void HashGetAsync_2()
         {
-            RedisValue[] hashFields = new RedisValue[0];
+            RedisValue[] hashFields = Array.Empty<RedisValue>();
             wrapper.HashGetAsync("key", hashFields, CommandFlags.None);
             mock.Verify(_ => _.HashGetAsync("prefix:key", hashFields, CommandFlags.None));
         }
@@ -119,7 +118,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void HashSetAsync_1()
         {
-            HashEntry[] hashFields = new HashEntry[0];
+            HashEntry[] hashFields = Array.Empty<HashEntry>();
             wrapper.HashSetAsync("key", hashFields, CommandFlags.None);
             mock.Verify(_ => _.HashSetAsync("prefix:key", hashFields, CommandFlags.None));
         }
@@ -155,7 +154,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void HyperLogLogAddAsync_2()
         {
-            var values = new RedisValue[0];
+            var values = Array.Empty<RedisValue>();
             wrapper.HyperLogLogAddAsync("key", values, CommandFlags.None);
             mock.Verify(_ => _.HyperLogLogAddAsync("prefix:key", values, CommandFlags.None));
         }
@@ -281,7 +280,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void KeyRestoreAsync()
         {
-            byte[] value = new byte[0];
+            byte[] value = Array.Empty<byte>();
             TimeSpan expiry = TimeSpan.FromSeconds(123);
             wrapper.KeyRestoreAsync("key", value, expiry, CommandFlags.None);
             mock.Verify(_ => _.KeyRestoreAsync("prefix:key", value, expiry, CommandFlags.None));
@@ -330,6 +329,13 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void ListLeftPopAsync_1()
+        {
+            wrapper.ListLeftPopAsync("key", 123, CommandFlags.None);
+            mock.Verify(_ => _.ListLeftPopAsync("prefix:key", 123, CommandFlags.None));
+        }
+
+        [Fact]
         public void ListLeftPushAsync_1()
         {
             wrapper.ListLeftPushAsync("key", "value", When.Exists, CommandFlags.None);
@@ -339,7 +345,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void ListLeftPushAsync_2()
         {
-            RedisValue[] values = new RedisValue[0];
+            RedisValue[] values = Array.Empty<RedisValue>();
             wrapper.ListLeftPushAsync("key", values, CommandFlags.None);
             mock.Verify(_ => _.ListLeftPushAsync("prefix:key", values, CommandFlags.None));
         }
@@ -381,6 +387,13 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void ListRightPopAsync_1()
+        {
+            wrapper.ListRightPopAsync("key", 123, CommandFlags.None);
+            mock.Verify(_ => _.ListRightPopAsync("prefix:key", 123, CommandFlags.None));
+        }
+
+        [Fact]
         public void ListRightPopLeftPushAsync()
         {
             wrapper.ListRightPopLeftPushAsync("source", "destination", CommandFlags.None);
@@ -397,7 +410,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void ListRightPushAsync_2()
         {
-            RedisValue[] values = new RedisValue[0];
+            RedisValue[] values = Array.Empty<RedisValue>();
             wrapper.ListRightPushAsync("key", values, CommandFlags.None);
             mock.Verify(_ => _.ListRightPushAsync("prefix:key", values, CommandFlags.None));
         }
@@ -464,8 +477,8 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void ScriptEvaluateAsync_1()
         {
-            byte[] hash = new byte[0];
-            RedisValue[] values = new RedisValue[0];
+            byte[] hash = Array.Empty<byte>();
+            RedisValue[] values = Array.Empty<RedisValue>();
             RedisKey[] keys = new RedisKey[] { "a", "b" };
             Expression<Func<RedisKey[], bool>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "prefix:b";
             wrapper.ScriptEvaluateAsync(hash, keys, values, CommandFlags.None);
@@ -475,7 +488,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void ScriptEvaluateAsync_2()
         {
-            RedisValue[] values = new RedisValue[0];
+            RedisValue[] values = Array.Empty<RedisValue>();
             RedisKey[] keys = new RedisKey[] { "a", "b" };
             Expression<Func<RedisKey[], bool>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "prefix:b";
             wrapper.ScriptEvaluateAsync("script", keys, values, CommandFlags.None);
@@ -492,7 +505,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void SetAddAsync_2()
         {
-            RedisValue[] values = new RedisValue[0];
+            RedisValue[] values = Array.Empty<RedisValue>();
             wrapper.SetAddAsync("key", values, CommandFlags.None);
             mock.Verify(_ => _.SetAddAsync("prefix:key", values, CommandFlags.None));
         }
@@ -598,7 +611,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void SetRemoveAsync_2()
         {
-            RedisValue[] values = new RedisValue[0];
+            RedisValue[] values = Array.Empty<RedisValue>();
             wrapper.SetRemoveAsync("key", values, CommandFlags.None);
             mock.Verify(_ => _.SetRemoveAsync("prefix:key", values, CommandFlags.None));
         }
@@ -639,7 +652,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void SortedSetAddAsync_2()
         {
-            SortedSetEntry[] values = new SortedSetEntry[0];
+            SortedSetEntry[] values = Array.Empty<SortedSetEntry>();
             wrapper.SortedSetAddAsync("key", values, When.Exists, CommandFlags.None);
             mock.Verify(_ => _.SortedSetAddAsync("prefix:key", values, When.Exists, CommandFlags.None));
         }
@@ -747,7 +760,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void SortedSetRemoveAsync_2()
         {
-            RedisValue[] members = new RedisValue[0];
+            RedisValue[] members = Array.Empty<RedisValue>();
             wrapper.SortedSetRemoveAsync("key", members, CommandFlags.None);
             mock.Verify(_ => _.SortedSetRemoveAsync("prefix:key", members, CommandFlags.None));
         }
@@ -805,7 +818,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamAddAsync_2()
         {
-            var fields = new NameValueEntry[0];
+            var fields = Array.Empty<NameValueEntry>();
             wrapper.StreamAddAsync("key", fields, "*", 1000, true, CommandFlags.None);
             mock.Verify(_ => _.StreamAddAsync("prefix:key", fields, "*", 1000, true, CommandFlags.None));
         }
@@ -813,7 +826,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamClaimMessagesAsync()
         {
-            var messageIds = new RedisValue[0];
+            var messageIds = Array.Empty<RedisValue>();
             wrapper.StreamClaimAsync("key", "group", "consumer", 1000, messageIds, CommandFlags.None);
             mock.Verify(_ => _.StreamClaimAsync("prefix:key", "group", "consumer", 1000, messageIds, CommandFlags.None));
         }
@@ -821,7 +834,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamClaimMessagesReturningIdsAsync()
         {
-            var messageIds = new RedisValue[0];
+            var messageIds = Array.Empty<RedisValue>();
             wrapper.StreamClaimIdsOnlyAsync("key", "group", "consumer", 1000, messageIds, CommandFlags.None);
             mock.Verify(_ => _.StreamClaimIdsOnlyAsync("prefix:key", "group", "consumer", 1000, messageIds, CommandFlags.None));
         }
@@ -871,7 +884,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamMessagesDeleteAsync()
         {
-            var messageIds = new RedisValue[] { };
+            var messageIds = Array.Empty<RedisValue>();
             wrapper.StreamDeleteAsync("key", messageIds, CommandFlags.None);
             mock.Verify(_ => _.StreamDeleteAsync("prefix:key", messageIds, CommandFlags.None));
         }
@@ -914,7 +927,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamReadAsync_1()
         {
-            var streamPositions = new StreamPosition[] { };
+            var streamPositions = Array.Empty<StreamPosition>();
             wrapper.StreamReadAsync(streamPositions, null, CommandFlags.None);
             mock.Verify(_ => _.StreamReadAsync(streamPositions, null, CommandFlags.None));
         }
@@ -936,7 +949,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamStreamReadGroupAsync_2()
         {
-            var streamPositions = new StreamPosition[] { };
+            var streamPositions = Array.Empty<StreamPosition>();
             wrapper.StreamReadGroupAsync(streamPositions, "group", "consumer", 10, false, CommandFlags.None);
             mock.Verify(_ => _.StreamReadGroupAsync(streamPositions, "group", "consumer", 10, false, CommandFlags.None));
         }
@@ -1037,6 +1050,13 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void StringGetDeleteAsync()
+        {
+            wrapper.StringGetDeleteAsync("key", CommandFlags.None);
+            mock.Verify(_ => _.StringGetDeleteAsync("prefix:key", CommandFlags.None));
+        }
+
+        [Fact]
         public void StringGetWithExpiryAsync()
         {
             wrapper.StringGetWithExpiryAsync("key", CommandFlags.None);
@@ -1074,6 +1094,14 @@ namespace StackExchange.Redis.Tests
 
         [Fact]
         public void StringSetAsync_2()
+        {
+            TimeSpan? expiry = null;
+            wrapper.StringSetAsync("key", "value", expiry, true, When.Exists, CommandFlags.None);
+            mock.Verify(_ => _.StringSetAsync("prefix:key", "value", expiry, true, When.Exists, CommandFlags.None));
+        }
+
+        [Fact]
+        public void StringSetAsync_3()
         {
             KeyValuePair<RedisKey, RedisValue>[] values = new KeyValuePair<RedisKey, RedisValue>[] { new KeyValuePair<RedisKey, RedisValue>("a", "x"), new KeyValuePair<RedisKey, RedisValue>("b", "y") };
             Expression<Func<KeyValuePair<RedisKey, RedisValue>[], bool>> valid = _ => _.Length == 2 && _[0].Key == "prefix:a" && _[0].Value == "x" && _[1].Key == "prefix:b" && _[1].Value == "y";

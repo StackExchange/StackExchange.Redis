@@ -286,6 +286,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.ListLeftPopAsync(ToInner(key), flags);
         }
 
+        public Task<RedisValue[]> ListLeftPopAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.ListLeftPopAsync(ToInner(key), count, flags);
+        }
+
         public Task<long> ListLeftPushAsync(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None)
         {
             return Inner.ListLeftPushAsync(ToInner(key), values, flags);
@@ -319,6 +324,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<RedisValue> ListRightPopAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             return Inner.ListRightPopAsync(ToInner(key), flags);
+        }
+
+        public Task<RedisValue[]> ListRightPopAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.ListRightPopAsync(ToInner(key), count, flags);
         }
 
         public Task<RedisValue> ListRightPopLeftPushAsync(RedisKey source, RedisKey destination, CommandFlags flags = CommandFlags.None)
@@ -552,6 +562,21 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<RedisValue[]> SortedSetRangeByRankAsync(RedisKey key, long start = 0, long stop = -1, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
         {
             return Inner.SortedSetRangeByRankAsync(ToInner(key), start, stop, order, flags);
+        }
+
+        public Task<long> SortedSetRangeAndStoreAsync(
+            RedisKey sourceKey,
+            RedisKey destinationKey,
+            RedisValue start,
+            RedisValue stop,
+            SortedSetOrder sortedSetOrder = SortedSetOrder.ByRank,
+            Exclude exclude = Exclude.None,
+            Order order = Order.Ascending,
+            long skip = 0,
+            long? take = null,
+            CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.SortedSetRangeAndStoreAsync(ToInner(sourceKey), ToInner(destinationKey), start, stop, sortedSetOrder, exclude, order, skip, take, flags);
         }
 
         public Task<SortedSetEntry[]> SortedSetRangeByRankWithScoresAsync(RedisKey key, long start = 0, long stop = -1, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
@@ -802,19 +827,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.StringGetAsync(ToInner(key), flags);
         }
 
-        public Task<RedisValue> StringGetSetExpiryAsync(RedisKey key, TimeSpan expiry, CommandFlags flags = CommandFlags.None)
+        public Task<RedisValue> StringGetSetExpiryAsync(RedisKey key, TimeSpan? expiry, CommandFlags flags = CommandFlags.None)
         {
             return Inner.StringGetSetExpiryAsync(ToInner(key), expiry, flags);
-        }
-
-        public Task<RedisValue> StringGetSetExpiryAsync(RedisKey key, DateTime expiry, CommandFlags flags = CommandFlags.None)
-        {
-            return Inner.StringGetSetExpiryAsync(ToInner(key), expiry, flags);
-        }
-
-        public Task<RedisValue> StringGetRemoveExpiryAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
-        {
-            return Inner.StringGetRemoveExpiryAsync(ToInner(key), flags);
         }
 
         public Task<Lease<byte>> StringGetLeaseAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -835,6 +850,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<RedisValue> StringGetSetAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
         {
             return Inner.StringGetSetAsync(ToInner(key), value, flags);
+        }
+
+        public Task<RedisValue> StringGetDeleteAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.StringGetDeleteAsync(ToInner(key), flags);
         }
 
         public Task<RedisValueWithExpiry> StringGetWithExpiryAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -862,9 +882,24 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.StringSetAsync(ToInner(values), when, flags);
         }
 
-        public Task<bool> StringSetAsync(RedisKey key, RedisValue value, TimeSpan? expiry = null, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        public Task<bool> StringSetAsync(RedisKey key, RedisValue value, TimeSpan? expiry, When when, CommandFlags flags)
         {
             return Inner.StringSetAsync(ToInner(key), value, expiry, when, flags);
+        }
+
+        public Task<bool> StringSetAsync(RedisKey key, RedisValue value, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.StringSetAsync(ToInner(key), value, expiry, keepTtl, when, flags);
+        }
+
+        public Task<RedisValue> StringSetAndGetAsync(RedisKey key, RedisValue value, TimeSpan? expiry, When when, CommandFlags flags)
+        {
+            return Inner.StringSetAndGetAsync(ToInner(key), value, expiry, when, flags);
+        }
+
+        public Task<RedisValue> StringSetAndGetAsync(RedisKey key, RedisValue value, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.StringSetAndGetAsync(ToInner(key), value, expiry, keepTtl, when, flags);
         }
 
         public Task<bool> StringSetBitAsync(RedisKey key, long offset, bool bit, CommandFlags flags = CommandFlags.None)
@@ -881,7 +916,6 @@ namespace StackExchange.Redis.KeyspaceIsolation
         {
             return Inner.PingAsync(flags);
         }
-
 
         public Task<long> KeyTouchAsync(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
         {
@@ -1057,7 +1091,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
         protected Func<RedisKey, RedisKey> GetMapFunction()
         {
             // create as a delegate when first required, then re-use
-            return mapFunction ?? (mapFunction = new Func<RedisKey, RedisKey>(ToInner));
+            return mapFunction ??= new Func<RedisKey, RedisKey>(ToInner);
         }
     }
 }

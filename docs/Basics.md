@@ -12,18 +12,18 @@ ConnectionMultiplexer redis = ConnectionMultiplexer.Connect("localhost");
 
 Note that `ConnectionMultiplexer` implements `IDisposable` and can be disposed when no longer required. This is deliberately not showing `using` statement usage, because it is exceptionally rare that you would want to use a `ConnectionMultiplexer` briefly, as the idea is to re-use this object.
 
-A more complicated scenario might involve a master/replica setup; for this usage, simply specify all the desired nodes that make up that logical redis tier (it will automatically identify the master):
+A more complicated scenario might involve a primary/replica setup; for this usage, simply specify all the desired nodes that make up that logical redis tier (it will automatically identify the primary):
 
 ```csharp
 ConnectionMultiplexer redis = ConnectionMultiplexer.Connect("server1:6379,server2:6379");
 ```
 
-If it finds both nodes are masters, a tie-breaker key can optionally be specified that can be used to resolve the issue, however such a condition is fortunately very rare.
+If it finds both nodes are primaries, a tie-breaker key can optionally be specified that can be used to resolve the issue, however such a condition is fortunately very rare.
 
 Once you have a `ConnectionMultiplexer`, there are 3 main things you might want to do:
 
 - access a redis database (note that in the case of a cluster, a single logical database may be spread over multiple nodes)
-- make use of the [pub/sub](http://redis.io/topics/pubsub) features of redis
+- make use of the [pub/sub](https://redis.io/topics/pubsub) features of redis
 - access an individual server for maintenance / monitoring purposes
 
 Using a redis database
@@ -43,7 +43,7 @@ object asyncState = ...
 IDatabase db = redis.GetDatabase(databaseNumber, asyncState);
 ```
 
-Once you have the `IDatabase`, it is simply a case of using the [redis API](http://redis.io/commands). Note that all methods have both synchronous and asynchronous implementations. In line with Microsoft's naming guidance, the asynchronous methods all end `...Async(...)`, and are fully `await`-able etc.
+Once you have the `IDatabase`, it is simply a case of using the [redis API](https://redis.io/commands). Note that all methods have both synchronous and asynchronous implementations. In line with Microsoft's naming guidance, the asynchronous methods all end `...Async(...)`, and are fully `await`-able etc.
 
 The simplest operation would be to store and retrieve a value:
 
@@ -55,7 +55,7 @@ string value = db.StringGet("mykey");
 Console.WriteLine(value); // writes: "abcdefg"
 ```
 
-Note that the `String...` prefix here denotes the [String redis type](http://redis.io/topics/data-types), and is largely separate to the [.NET String type][3], although both can store text data. However, redis allows raw binary data for both keys and values - the usage is identical:
+Note that the `String...` prefix here denotes the [String redis type](https://redis.io/topics/data-types), and is largely separate to the [.NET String type][3], although both can store text data. However, redis allows raw binary data for both keys and values - the usage is identical:
 
 ```csharp
 byte[] key = ..., value = ...;
@@ -64,18 +64,18 @@ db.StringSet(key, value);
 byte[] value = db.StringGet(key);
 ```
 
-The entire range of [redis database commands](http://redis.io/commands) covering all redis data types is available for use.
+The entire range of [redis database commands](https://redis.io/commands) covering all redis data types is available for use.
 
 Using redis pub/sub
 ----
 
-Another common use of redis is as a [pub/sub message](http://redis.io/topics/pubsub) distribution tool; this is also simple, and in the event of connection failure, the `ConnectionMultiplexer` will handle all the details of re-subscribing to the requested channels.
+Another common use of redis is as a [pub/sub message](https://redis.io/topics/pubsub) distribution tool; this is also simple, and in the event of connection failure, the `ConnectionMultiplexer` will handle all the details of re-subscribing to the requested channels.
 
 ```csharp
 ISubscriber sub = redis.GetSubscriber();
 ```
 
-Again, the object returned from `GetSubscriber` is a cheap pass-thru object that does not need to be stored. The pub/sub API has no concept of databases, but as before we can optionally provide an async-state. Note that all subscriptions are global: they are not scoped to the lifetime of the `ISubscriber` instance. The pub/sub features in redis use named "channels"; channels do not need to be defined in advance on the server (an interesting use here is things like per-user notification channels, which is what drives parts of the realtime updates on [Stack Overflow](http://stackoverflow.com)). As is common in .NET, subscriptions take the form of callback delegates which accept the channel-name and the message:
+Again, the object returned from `GetSubscriber` is a cheap pass-thru object that does not need to be stored. The pub/sub API has no concept of databases, but as before we can optionally provide an async-state. Note that all subscriptions are global: they are not scoped to the lifetime of the `ISubscriber` instance. The pub/sub features in redis use named "channels"; channels do not need to be defined in advance on the server (an interesting use here is things like per-user notification channels, which is what drives parts of the realtime updates on [Stack Overflow](https://stackoverflow.com)). As is common in .NET, subscriptions take the form of callback delegates which accept the channel-name and the message:
 
 ```csharp
 sub.Subscribe("messages", (channel, message) => {
@@ -118,13 +118,13 @@ For maintenance purposes, it is sometimes necessary to issue server-specific com
 IServer server = redis.GetServer("localhost", 6379);
 ```
 
-The `GetServer` method will accept an [`EndPoint`](http://msdn.microsoft.com/en-us/library/system.net.endpoint(v=vs.110).aspx) or the name/value pair that uniquely identify the server. As before, the object returned from `GetServer` is a cheap pass-thru object that does not need to be stored, and async-state can be optionally specified. Note that the set of available endpoints is also available:
+The `GetServer` method will accept an [`EndPoint`](https://docs.microsoft.com/en-us/dotnet/api/system.net.endpoint) or the name/value pair that uniquely identify the server. As before, the object returned from `GetServer` is a cheap pass-thru object that does not need to be stored, and async-state can be optionally specified. Note that the set of available endpoints is also available:
 
 ```csharp
 EndPoint[] endpoints = redis.GetEndPoints();
 ```
 
-From the `IServer` instance, the [Server commands](http://redis.io/commands#server) are available; for example:
+From the `IServer` instance, the [Server commands](https://redis.io/commands#server) are available; for example:
 
 ```csharp
 DateTime lastSave = server.LastSave();
@@ -139,7 +139,7 @@ There are 3 primary usage mechanisms with StackExchange.Redis:
 - Synchronous - where the operation completes before the methods returns to the caller (note that while this may block the caller, it absolutely **does not** block other threads: the key idea in StackExchange.Redis is that it aggressively shares the connection between concurrent callers)
 - Asynchronous - where the operation completes some time in the future, and a `Task` or `Task<T>` is returned immediately, which can later:
     - be `.Wait()`ed (blocking the current thread until the response is available)
-    - have a continuation callback added ([`ContinueWith`](http://msdn.microsoft.com/en-us/library/system.threading.tasks.task.continuewith(v=vs.110).aspx) in the TPL)
+    - have a continuation callback added ([`ContinueWith`](https://docs.microsoft.com/en-us/dotnet/api/system.threading.tasks.task.continuewith) in the TPL)
     - be *awaited* (which is a language-level feature that simplifies the latter, while also continuing immediately if the reply is already known)
 - Fire-and-Forget - where you really aren't interested in the reply, and are happy to continue irrespective of the response
 
@@ -161,9 +161,6 @@ The fire-and-forget usage is accessed by the optional `CommandFlags flags` param
 db.StringIncrement(pageKey, flags: CommandFlags.FireAndForget);
 ```
 
-
-
-
-  [1]: http://msdn.microsoft.com/en-us/library/dd460717%28v=vs.110%29.aspx
-  [2]: http://msdn.microsoft.com/en-us/library/system.threading.tasks.task.asyncstate(v=vs.110).aspx
-  [3]: http://msdn.microsoft.com/en-us/library/system.string(v=vs.110).aspx
+  [1]: https://docs.microsoft.com/en-us/dotnet/standard/parallel-programming/task-parallel-library-tpl
+  [2]: https://docs.microsoft.com/en-us/dotnet/api/system.threading.tasks.task.asyncstate
+  [3]: https://docs.microsoft.com/en-us/dotnet/api/system.string

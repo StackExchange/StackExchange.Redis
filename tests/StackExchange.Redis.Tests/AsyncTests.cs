@@ -12,16 +12,16 @@ namespace StackExchange.Redis.Tests
     {
         public AsyncTests(ITestOutputHelper output) : base(output) { }
 
-        protected override string GetConfiguration() => TestConfig.Current.MasterServerAndPort;
+        protected override string GetConfiguration() => TestConfig.Current.PrimaryServerAndPort;
 
         [Fact]
         public void AsyncTasksReportFailureIfServerUnavailable()
         {
             SetExpectedAmbientFailureCount(-1); // this will get messy
 
-            using (var conn = Create(allowAdmin: true))
+            using (var conn = Create(allowAdmin: true, shared: false, backlogPolicy: BacklogPolicy.FailFast))
             {
-                var server = conn.GetServer(TestConfig.Current.MasterServer, TestConfig.Current.MasterPort);
+                var server = conn.GetServer(TestConfig.Current.PrimaryServer, TestConfig.Current.PrimaryPort);
 
                 RedisKey key = Me();
                 var db = conn.GetDatabase();
@@ -33,10 +33,11 @@ namespace StackExchange.Redis.Tests
                 Assert.True(conn.Wait(b));
 
                 conn.AllowConnect = false;
-                server.SimulateConnectionFailure();
+                server.SimulateConnectionFailure(SimulatedFailureType.All);
                 var c = db.SetAddAsync(key, "c");
 
                 Assert.True(c.IsFaulted, "faulted");
+                Assert.NotNull(c.Exception);
                 var ex = c.Exception.InnerExceptions.Single();
                 Assert.IsType<RedisConnectionException>(ex);
                 Assert.StartsWith("No connection is active/available to service this operation: SADD " + key.ToString(), ex.Message);

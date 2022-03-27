@@ -1002,7 +1002,7 @@ namespace StackExchange.Redis.Tests
             static bool IsMessageId(string value)
             {
                 if (string.IsNullOrWhiteSpace(value)) return false;
-                return value.Length >= 3 && value.Contains("-");
+                return value.Length >= 3 && value.Contains('-');
             }
         }
 
@@ -1317,7 +1317,7 @@ namespace StackExchange.Redis.Tests
 
                 var db = conn.GetDatabase();
 
-                var emptyList = new StreamPosition[0];
+                var emptyList = Array.Empty<StreamPosition>();
 
                 Assert.Throws<ArgumentOutOfRangeException>(() => db.StreamRead(emptyList));
             }
@@ -1792,8 +1792,7 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        private RedisKey GetUniqueKey(string type) => $"{type}_stream_{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
-
+        private static RedisKey GetUniqueKey(string type) => $"{type}_stream_{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
 
         [Fact]
         public async Task StreamReadIndexerUsage()
@@ -1814,13 +1813,12 @@ namespace StackExchange.Redis.Tests
 
                 var streamResult = await db.StreamRangeAsync(streamName, count: 1000);
                 var evntJson = streamResult
-                    .Select(x => (dynamic)JsonConvert.DeserializeObject(x["msg"]))
+                    .Select(x => (dynamic?)JsonConvert.DeserializeObject(x["msg"]))
                     .ToList();
                 var obj = Assert.Single(evntJson);
-                Assert.Equal(123, (int)obj.id);
+                Assert.Equal(123, (int)obj!.id);
                 Assert.Equal("test", (string)obj.name);
             }
         }
-
     }
 }

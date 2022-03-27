@@ -5,7 +5,7 @@ using System.ComponentModel;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// Describes a hash-field (a name/value pair)
+    /// Describes a hash-field (a name/value pair).
     /// </summary>
     public readonly struct HashEntry : IEquatable<HashEntry>
     {
@@ -23,44 +23,42 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// The name of the hash field
+        /// The name of the hash field.
         /// </summary>
         public RedisValue Name => name;
 
         /// <summary>
-        /// The value of the hash field
+        /// The value of the hash field.
         /// </summary>
         public RedisValue Value => value;
 
         /// <summary>
-        /// The name of the hash field
+        /// The name of the hash field.
         /// </summary>
         [Browsable(false)]
         [EditorBrowsable(EditorBrowsableState.Never), Obsolete("Please use Name", false)]
-        public RedisValue Key { get { return name; } }
+        public RedisValue Key => name;
 
         /// <summary>
-        /// Converts to a key/value pair
+        /// Converts to a key/value pair.
         /// </summary>
         /// <param name="value">The <see cref="HashEntry"/> to create a <see cref="KeyValuePair{TKey, TValue}"/> from.</param>
         public static implicit operator KeyValuePair<RedisValue, RedisValue>(HashEntry value) =>
             new KeyValuePair<RedisValue, RedisValue>(value.name, value.value);
 
         /// <summary>
-        /// Converts from a key/value pair
+        /// Converts from a key/value pair.
         /// </summary>
         /// <param name="value">The <see cref="KeyValuePair{TKey, TValue}"/> to get a <see cref="HashEntry"/> from.</param>
         public static implicit operator HashEntry(KeyValuePair<RedisValue, RedisValue> value) =>
             new HashEntry(value.Key, value.Value);
 
         /// <summary>
-        /// See Object.ToString()
+        /// A "{name}: {value}" string representation of this entry.
         /// </summary>
         public override string ToString() => name + ": " + value;
 
-        /// <summary>
-        /// See Object.GetHashCode()
-        /// </summary>
+        /// <inheritdoc/>
         public override int GetHashCode() => name.GetHashCode() ^ value.GetHashCode();
 
         /// <summary>
@@ -76,14 +74,14 @@ namespace StackExchange.Redis
         public bool Equals(HashEntry other) => name == other.name && value == other.value;
 
         /// <summary>
-        /// Compares two values for equality
+        /// Compares two values for equality.
         /// </summary>
         /// <param name="x">The first <see cref="HashEntry"/> to compare.</param>
         /// <param name="y">The second <see cref="HashEntry"/> to compare.</param>
         public static bool operator ==(HashEntry x, HashEntry y) => x.name == y.name && x.value == y.value;
 
         /// <summary>
-        /// Compares two values for non-equality
+        /// Compares two values for non-equality.
         /// </summary>
         /// <param name="x">The first <see cref="HashEntry"/> to compare.</param>
         /// <param name="y">The second <see cref="HashEntry"/> to compare.</param>

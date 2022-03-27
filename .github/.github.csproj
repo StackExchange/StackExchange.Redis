@@ -1,5 +1,5 @@
-﻿<Project Sdk="Microsoft.Build.NoTargets/1.0.94">
+﻿<Project Sdk="Microsoft.Build.NoTargets/3.3.0">
   <PropertyGroup>
-    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <TargetFramework>net6.0</TargetFramework>
   </PropertyGroup>
 </Project>

@@ -20,6 +20,9 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
+                var server = conn.GetServer(TestConfig.Current.PrimaryServerAndPort);
+                var script = LuaScript.Prepare("return redis.call('get', @key)");
+                var loaded = script.Load(server);
                 var key = Me();
 
                 var session = new ProfilingSession();
@@ -29,8 +32,10 @@ namespace StackExchange.Redis.Tests
                 var dbId = TestConfig.GetDedicatedDB();
                 var db = conn.GetDatabase(dbId);
                 db.StringSet(key, "world");
-                var result = db.ScriptEvaluate(LuaScript.Prepare("return redis.call('get', @key)"), new { key = (RedisKey)key });
+                var result = db.ScriptEvaluate(script, new { key = (RedisKey)key });
                 Assert.Equal("world", result.AsString());
+                var loadedResult = db.ScriptEvaluate(loaded, new { key = (RedisKey)key });
+                Assert.Equal("world", loadedResult.AsString());
                 var val = db.StringGet(key);
                 Assert.Equal("world", val);
                 var s = (string)db.Execute("ECHO", "fii");
@@ -40,11 +45,11 @@ namespace StackExchange.Redis.Tests
                 var i = 0;
                 foreach (var cmd in cmds)
                 {
-                    Log("Command {0} (DB: {1}): {2}", i++, cmd.Db, cmd.ToString().Replace("\n", ", "));
+                    Log("Command {0} (DB: {1}): {2}", i++, cmd.Db, cmd?.ToString()?.Replace("\n", ", "));
                 }
 
                 var all = string.Join(",", cmds.Select(x => x.Command));
-                Assert.Equal("SET,EVAL,GET,ECHO", all);
+                Assert.Equal("SET,EVAL,EVALSHA,GET,ECHO", all);
                 Log("Checking for SET");
                 var set = cmds.SingleOrDefault(cmd => cmd.Command == "SET");
                 Assert.NotNull(set);
@@ -54,20 +59,26 @@ namespace StackExchange.Redis.Tests
                 Log("Checking for EVAL");
                 var eval = cmds.SingleOrDefault(cmd => cmd.Command == "EVAL");
                 Assert.NotNull(eval);
+                Log("Checking for EVALSHA");
+                var evalSha = cmds.SingleOrDefault(cmd => cmd.Command == "EVALSHA");
+                Assert.NotNull(evalSha);
                 Log("Checking for ECHO");
                 var echo = cmds.SingleOrDefault(cmd => cmd.Command == "ECHO");
                 Assert.NotNull(echo);
 
-                Assert.Equal(4, cmds.Count());
+                Assert.Equal(5, cmds.Count());
 
                 Assert.True(set.CommandCreated <= eval.CommandCreated);
-                Assert.True(eval.CommandCreated <= get.CommandCreated);
+                Assert.True(eval.CommandCreated <= evalSha.CommandCreated);
+                Assert.True(evalSha.CommandCreated <= get.CommandCreated);
 
                 AssertProfiledCommandValues(set, conn, dbId);
 
                 AssertProfiledCommandValues(get, conn, dbId);
 
                 AssertProfiledCommandValues(eval, conn, dbId);
+
+                AssertProfiledCommandValues(evalSha, conn, dbId);
 
                 AssertProfiledCommandValues(echo, conn, dbId);
             }
@@ -200,7 +211,7 @@ namespace StackExchange.Redis.Tests
         {
             private readonly ThreadLocal<ProfilingSession> perThreadSession = new ThreadLocal<ProfilingSession>(() => new ProfilingSession());
 
-            public ProfilingSession GetSession() => perThreadSession.Value;
+            public ProfilingSession GetSession() => perThreadSession.Value!;
         }
 
         internal class AsyncLocalProfiler

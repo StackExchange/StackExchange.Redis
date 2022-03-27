@@ -1,6 +1,4 @@
-﻿#pragma warning disable RCS1090 // Call 'ConfigureAwait(false)'.
-
-using System;
+﻿using System;
 using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
@@ -12,13 +10,13 @@ namespace StackExchange.Redis.Tests
     {
         public Migrate(ITestOutputHelper output) : base (output) { }
 
-        [Fact]
+        [FactLongRunning]
         public async Task Basic()
         {
             var fromConfig = new ConfigurationOptions { EndPoints = { { TestConfig.Current.SecureServer, TestConfig.Current.SecurePort } }, Password = TestConfig.Current.SecurePassword, AllowAdmin = true };
-            var toConfig = new ConfigurationOptions { EndPoints = { { TestConfig.Current.MasterServer, TestConfig.Current.MasterPort } }, AllowAdmin = true };
-            using (var from = ConnectionMultiplexer.Connect(fromConfig))
-            using (var to = ConnectionMultiplexer.Connect(toConfig))
+            var toConfig = new ConfigurationOptions { EndPoints = { { TestConfig.Current.PrimaryServer, TestConfig.Current.PrimaryPort } }, AllowAdmin = true };
+            using (var from = ConnectionMultiplexer.Connect(fromConfig, Writer))
+            using (var to = ConnectionMultiplexer.Connect(toConfig, Writer))
             {
                 if (await IsWindows(from) || await IsWindows(to))
                     Skip.Inconclusive("'migrate' is unreliable on redis-64");
@@ -30,22 +28,24 @@ namespace StackExchange.Redis.Tests
                 toDb.KeyDelete(key, CommandFlags.FireAndForget);
                 fromDb.StringSet(key, "foo", flags: CommandFlags.FireAndForget);
                 var dest = to.GetEndPoints(true).Single();
+                Log("Migrating key...");
                 fromDb.KeyMigrate(key, dest, migrateOptions: MigrateOptions.Replace);
+                Log("Migration command complete");
 
                 // this is *meant* to be synchronous at the redis level, but
                 // we keep seeing it fail on the CI server where the key has *left* the origin, but
                 // has *not* yet arrived at the destination; adding a pause while we investigate with
                 // the redis folks
-                await UntilCondition(TimeSpan.FromSeconds(5), () => !fromDb.KeyExists(key) && toDb.KeyExists(key));
+                await UntilConditionAsync(TimeSpan.FromSeconds(15), () => !fromDb.KeyExists(key) && toDb.KeyExists(key));
 
-                Assert.False(fromDb.KeyExists(key));
-                Assert.True(toDb.KeyExists(key));
+                Assert.False(fromDb.KeyExists(key), "Exists at source");
+                Assert.True(toDb.KeyExists(key), "Exists at destination");
                 string s = toDb.StringGet(key);
                 Assert.Equal("foo", s);
             }
         }
 
-        private async Task<bool> IsWindows(ConnectionMultiplexer conn)
+        private static async Task<bool> IsWindows(ConnectionMultiplexer conn)
         {
             var server = conn.GetServer(conn.GetEndPoints().First());
             var section = (await server.InfoAsync("server")).Single();

@@ -1,11 +1,10 @@
 ﻿using System;
 using System.Runtime.Serialization;
 
-#pragma warning disable RCS1194 // Implement exception constructors.
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// Indicates that a command was illegal and was not sent to the server
+    /// Indicates that a command was illegal and was not sent to the server.
     /// </summary>
     [Serializable]
     public sealed partial class RedisCommandException : Exception
@@ -43,7 +42,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// status of the command while communicating with Redis
+        /// status of the command while communicating with Redis.
         /// </summary>
         public CommandStatus Commandstatus { get; }
 
@@ -52,7 +51,7 @@ namespace StackExchange.Redis
             Commandstatus = (CommandStatus)info.GetValue("commandStatus", typeof(CommandStatus));
         }
         /// <summary>
-        /// Serialization implementation; not intended for general usage
+        /// Serialization implementation; not intended for general usage.
         /// </summary>
         /// <param name="info">Serialization info.</param>
         /// <param name="context">Serialization context.</param>
@@ -64,7 +63,7 @@ namespace StackExchange.Redis
     }
 
     /// <summary>
-    /// Indicates a connection fault when communicating with redis
+    /// Indicates a connection fault when communicating with redis.
     /// </summary>
     [Serializable]
     public sealed partial class RedisConnectionException : RedisException
@@ -98,12 +97,12 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// The type of connection failure
+        /// The type of connection failure.
         /// </summary>
         public ConnectionFailureType FailureType { get; }
 
         /// <summary>
-        /// status of the command while communicating with Redis
+        /// Status of the command while communicating with Redis.
         /// </summary>
         public CommandStatus CommandStatus { get; }
 
@@ -113,7 +112,7 @@ namespace StackExchange.Redis
             CommandStatus = (CommandStatus)info.GetValue("commandStatus", typeof(CommandStatus));
         }
         /// <summary>
-        /// Serialization implementation; not intended for general usage
+        /// Serialization implementation; not intended for general usage.
         /// </summary>
         /// <param name="info">Serialization info.</param>
         /// <param name="context">Serialization context.</param>
@@ -126,7 +125,7 @@ namespace StackExchange.Redis
     }
 
     /// <summary>
-    /// Indicates an issue communicating with redis
+    /// Indicates an issue communicating with redis.
     /// </summary>
     [Serializable]
     public partial class RedisException : Exception
@@ -145,7 +144,7 @@ namespace StackExchange.Redis
         public RedisException(string message, Exception innerException) : base(message, innerException) { }
 
         /// <summary>
-        /// Deserialization constructor; not intended for general usage
+        /// Deserialization constructor; not intended for general usage.
         /// </summary>
         /// <param name="info">Serialization info.</param>
         /// <param name="ctx">Serialization context.</param>
@@ -153,7 +152,7 @@ namespace StackExchange.Redis
     }
 
     /// <summary>
-    /// Indicates an exception raised by a redis server
+    /// Indicates an exception raised by a redis server.
     /// </summary>
     [Serializable]
     public sealed partial class RedisServerException : RedisException

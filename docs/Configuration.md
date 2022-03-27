@@ -1,6 +1,7 @@
 ﻿Configuration
 ===
 
+When connecting to Redis version 6 or above with an ACL configured, your ACL user needs to at least have permissions to run the ECHO command. We run this command to verify that we have a valid connection to the Redis service.
 Because there are lots of different ways to configure redis, StackExchange.Redis offers a rich configuration model, which is invoked when calling `Connect` (or `ConnectAsync`):
 
 ```csharp
@@ -30,11 +31,11 @@ var conn = ConnectionMultiplexer.Connect("redis0:6380,redis1:6380,allowAdmin=tru
 ```
 
 If you specify a serviceName in the connection string, it will trigger sentinel mode. This example will connect to a sentinel server on the local machine
-using the default sentinel port (26379), discover the current master server for the `mymaster` service and return a managed connection
-pointing to that master server that will automatically be updated if the master changes:
+using the default sentinel port (26379), discover the current primary server for the `myprimary` service and return a managed connection
+pointing to that primary server that will automatically be updated if the primary changes:
 
 ```csharp
-var conn = ConnectionMultiplexer.Connect("localhost,serviceName=mymaster");
+var conn = ConnectionMultiplexer.Connect("localhost,serviceName=myprimary");
 ```
 
 An overview of mapping between the `string` and `ConfigurationOptions` representation is shown below, but you can switch between them trivially:
@@ -85,20 +86,25 @@ The `ConfigurationOptions` object has a wide range of properties, all of which a
 | name={string}          | `ClientName`           | `null`                       | Identification for the connection within redis                                                            |
 | password={string}      | `Password`             | `null`                       | Password for the redis server                                                                             |
 | user={string}          | `User`                 | `null`                       | User for the redis server (for use with ACLs on redis 6 and above)                                        |
-| proxy={proxy type}     | `Proxy`                | `Proxy.None`                 | Type of proxy in use (if any); for example "twemproxy"                                                    |
+| proxy={proxy type}     | `Proxy`                | `Proxy.None`                 | Type of proxy in use (if any); for example "twemproxy/envoyproxy"                                         |
 | resolveDns={bool}      | `ResolveDns`           | `false`                      | Specifies that DNS resolution should be explicit and eager, rather than implicit                          |
-| serviceName={string}   | `ServiceName`          | `null`                       | Used for connecting to a sentinel master service                                                          |
+| serviceName={string}   | `ServiceName`          | `null`                       | Used for connecting to a sentinel primary service                                                          |
 | ssl={bool}             | `Ssl`                  | `false`                      | Specifies that SSL encryption should be used                                                              |
 | sslHost={string}       | `SslHost`              | `null`                       | Enforces a particular SSL host identity on the server's certificate                                       |
 | sslProtocols={enum}    | `SslProtocols`         | `null`                       | Ssl/Tls versions supported when using an encrypted connection.  Use '\|' to provide multiple values.      |
 | syncTimeout={int}      | `SyncTimeout`          | `5000`                       | Time (ms) to allow for synchronous operations                                                             |
 | asyncTimeout={int}     | `AsyncTimeout`          | `SyncTimeout`               | Time (ms) to allow for asynchronous operations                                                            |
-| tiebreaker={string}    | `TieBreaker`           | `__Booksleeve_TieBreak`      | Key to use for selecting a server in an ambiguous master scenario                                         |
+| tiebreaker={string}    | `TieBreaker`           | `__Booksleeve_TieBreak`      | Key to use for selecting a server in an ambiguous primary scenario                                         |
 | version={string}       | `DefaultVersion`       | (`3.0` in Azure, else `2.0`) | Redis version level (useful when the server does not make this available)                                 |
 |                        | `CheckCertificateRevocation` | `true`                 | A Boolean value that specifies whether the certificate revocation list is checked during authentication.  |
 
 Additional code-only options:
-- ReconnectRetryPolicy (`IReconnectRetryPolicy`) - Default: `ReconnectRetryPolicy = LinearRetry(ConnectTimeout);`
+- ReconnectRetryPolicy (`IReconnectRetryPolicy`) - Default: `ReconnectRetryPolicy = ExponentialRetry(ConnectTimeout / 2);`
+  - Determines how often a multiplexer will try to reconnect after a failure
+- BacklogPolicy - Default: `BacklogPolicy = BacklogPolicy.Default;`
+  - Determines how commands will be queued (or not) during a disconnect, for sending when it's available again
+- BeforeSocketConnect - Default: `null`
+  - Allows modifying a `Socket` before connecting (for advanced scenarios)
 
 Tokens in the configuration string are comma-separated; any without an `=` sign are assumed to be redis server endpoints. Endpoints without an explicit port will use 6379 if ssl is not enabled, and 6380 if ssl is enabled.
 Tokens starting with `$` are taken to represent command maps, for example: `$config=cfg`.
@@ -115,7 +121,7 @@ These options are parsed in connection strings for backwards compatibility (mean
 Automatic and Manual Configuration
 ---
 
-In many common scenarios, StackExchange.Redis will automatically configure a lot of settings, including the server type and version, connection timeouts, and master/replica relationships. Sometimes, though, the commands for this have been disabled on the redis server. In this case, it is useful to provide more information:
+In many common scenarios, StackExchange.Redis will automatically configure a lot of settings, including the server type and version, connection timeouts, and primary/replica relationships. Sometimes, though, the commands for this have been disabled on the redis server. In this case, it is useful to provide more information:
 
 ```csharp
 ConfigurationOptions config = new ConfigurationOptions
@@ -164,10 +170,10 @@ The above is equivalent to (in the connection string):
 $INFO=,$SELECT=use
 ```
 
-Twemproxy
+twemproxy
 ---
 
-[Twemproxy](https://github.com/twitter/twemproxy) is a tool that allows multiple redis instances to be used as though it were a single server, with inbuilt sharding and fault tolerance (much like redis cluster, but implemented separately). The feature-set available to Twemproxy is reduced. To avoid having to configure this manually, the `Proxy` option can be used:
+[twemproxy](https://github.com/twitter/twemproxy) is a tool that allows multiple redis instances to be used as though it were a single server, with inbuilt sharding and fault tolerance (much like redis cluster, but implemented separately). The feature-set available to Twemproxy is reduced. To avoid having to configure this manually, the `Proxy` option can be used:
 
 ```csharp
 var options = new ConfigurationOptions
@@ -177,16 +183,27 @@ var options = new ConfigurationOptions
 };
 ```
 
+envoyproxy
+---
+[Envoyproxy](https://github.com/envoyproxy/envoy) is a tool that allows to front a redis cluster with a set of proxies, with inbuilt discovery and fault tolerance. The feature-set available to Envoyproxy is reduced. To avoid having to configure this manually, the `Proxy` option can be used:
+```csharp
+var options = new ConfigurationOptions+{
+    EndPoints = { "my-proxy1", "my-proxy2", "my-proxy3" },
+    Proxy = Proxy.Envoyproxy
+};
+```
+
+
 Tiebreakers and Configuration Change Announcements
 ---
 
-Normally StackExchange.Redis will resolve master/replica nodes automatically. However, if you are not using a management tool such as redis-sentinel or redis cluster, there is a chance that occasionally you will get multiple master nodes (for example, while resetting a node for maintenance it may reappear on the network as a master). To help with this, StackExchange.Redis can use the notion of a *tie-breaker* - which is only used when multiple masters are detected (not including redis cluster, where multiple masters are *expected*). For compatibility with BookSleeve, this defaults to the key named `"__Booksleeve_TieBreak"` (always in database 0). This is used as a crude voting mechanism to help determine the *preferred* master, so that work is routed correctly.
+Normally StackExchange.Redis will resolve primary/replica nodes automatically. However, if you are not using a management tool such as redis-sentinel or redis cluster, there is a chance that occasionally you will get multiple primary nodes (for example, while resetting a node for maintenance it may reappear on the network as a primary). To help with this, StackExchange.Redis can use the notion of a *tie-breaker* - which is only used when multiple primaries are detected (not including redis cluster, where multiple primaries are *expected*). For compatibility with BookSleeve, this defaults to the key named `"__Booksleeve_TieBreak"` (always in database 0). This is used as a crude voting mechanism to help determine the *preferred* primary, so that work is routed correctly.
 
-Likewise, when the configuration is changed (especially the master/replica configuration), it will be important for connected instances to make themselves aware of the new situation (via `INFO`, `CONFIG`, etc - where available). StackExchange.Redis does this by automatically subscribing to a pub/sub channel upon which such notifications may be sent. For similar reasons, this defaults to `"__Booksleeve_MasterChanged"`.
+Likewise, when the configuration is changed (especially the primary/replica configuration), it will be important for connected instances to make themselves aware of the new situation (via `INFO`, `CONFIG`, etc - where available). StackExchange.Redis does this by automatically subscribing to a pub/sub channel upon which such notifications may be sent. For similar reasons, this defaults to `"__Booksleeve_MasterChanged"`.
 
 Both options can be customized or disabled (set to `""`), via the `.ConfigurationChannel` and `.TieBreaker` configuration properties.
 
-These settings are also used by the `IServer.MakeMaster()` method, which can set the tie-breaker in the database and broadcast the configuration change message. The configuration message can also be used separately to master/replica changes simply to request all nodes to refresh their configurations, via the `ConnectionMultiplexer.PublishReconfigure` method.
+These settings are also used by the `IServer.MakeMaster()` method, which can set the tie-breaker in the database and broadcast the configuration change message. The configuration message can also be used separately to primary/replica changes simply to request all nodes to refresh their configurations, via the `ConnectionMultiplexer.PublishReconfigure` method.
 
 ReconnectRetryPolicy
 ---

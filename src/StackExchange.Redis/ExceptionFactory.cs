@@ -60,7 +60,7 @@ namespace StackExchange.Redis
             return ex;
         }
 
-        internal static Exception MasterOnly(bool includeDetail, RedisCommand command, Message message, ServerEndPoint server)
+        internal static Exception PrimaryOnly(bool includeDetail, RedisCommand command, Message message, ServerEndPoint server)
         {
             string s = GetLabel(includeDetail, command, message);
             var ex = new RedisCommandException("Command cannot be issued to a replica: " + s);
@@ -98,7 +98,7 @@ namespace StackExchange.Redis
             ReadOnlySpan<ServerEndPoint> serverSnapshot = default,
             RedisCommand command = default)
         {
-            string commandLabel = GetLabel(multiplexer.IncludeDetailInExceptions, message?.Command ?? command, message);
+            string commandLabel = GetLabel(multiplexer.RawConfig.IncludeDetailInExceptions, message?.Command ?? command, message);
 
             if (server != null)
             {
@@ -122,7 +122,7 @@ namespace StackExchange.Redis
             else if (!multiplexer.RawConfig.AbortOnConnectFail && attempts > multiplexer.RawConfig.ConnectRetry && completions == 0)
             {
                 // Attempted use after a full initial retry connect count # of failures
-                // This can happen in Azure often, where user disables abort and has the wrong config
+                // This can happen in cloud environments often, where user disables abort and has the wrong config
                 initialMessage = $"Connection to Redis never succeeded (attempts: {attempts} - check your config), unable to service operation: ";
             }
             else
@@ -141,13 +141,13 @@ namespace StackExchange.Redis
 
             // Add counters and exception data if we have it
             List<Tuple<string, string>> data = null;
-            if (multiplexer.IncludeDetailInExceptions)
+            if (multiplexer.RawConfig.IncludeDetailInExceptions)
             {
                 data = new List<Tuple<string, string>>();
                 AddCommonDetail(data, sb, message, multiplexer, server);
             }
             var ex = new RedisConnectionException(ConnectionFailureType.UnableToResolvePhysicalConnection, sb.ToString(), innerException, message?.Status ?? CommandStatus.Unknown);
-            if (multiplexer.IncludeDetailInExceptions)
+            if (multiplexer.RawConfig.IncludeDetailInExceptions)
             {
                 CopyDataToException(data, ex);
                 sb.Append("; ").Append(PerfCounterHelper.GetThreadPoolAndCPUSummary(multiplexer.IncludePerformanceCountersInExceptions));
@@ -156,9 +156,7 @@ namespace StackExchange.Redis
             return ex;
         }
 
-#pragma warning disable RCS1231 // Make parameter ref read-only. - spans are tiny!
         internal static Exception PopulateInnerExceptions(ReadOnlySpan<ServerEndPoint> serverSnapshot)
-#pragma warning restore RCS1231 // Make parameter ref read-only.
         {
             var innerExceptions = new List<Exception>();
 
@@ -201,17 +199,6 @@ namespace StackExchange.Redis
             return new RedisCommandException("Command cannot be used with a cursor: " + s);
         }
 
-        private static string _libVersion;
-        internal static string GetLibVersion()
-        {
-            if (_libVersion == null)
-            {
-                var assembly = typeof(ConnectionMultiplexer).Assembly;
-                _libVersion = ((AssemblyFileVersionAttribute)Attribute.GetCustomAttribute(assembly, typeof(AssemblyFileVersionAttribute)))?.Version
-                    ?? assembly.GetName().Version.ToString();
-            }
-            return _libVersion;
-        }
         private static void Add(List<Tuple<string, string>> data, StringBuilder sb, string lk, string sk, string v)
         {
             if (v != null)
@@ -244,10 +231,6 @@ namespace StackExchange.Redis
                 Add(data, sb, "Timeout", "timeout", Format.ToString(multiplexer.TimeoutMilliseconds));
                 try
                 {
-#if DEBUG
-                    if (message.QueuePosition >= 0) Add(data, sb, "QueuePosition", null, message.QueuePosition.ToString()); // the position the item was when added to the queue
-                    if ((int)message.ConnectionWriteState >= 0) Add(data, sb, "WriteState", null, message.ConnectionWriteState.ToString()); // what the physical was doing when it was added to the queue
-#endif
                     if (message != null && message.TryGetPhysicalState(out var ws, out var rs, out var sentDelta, out var receivedDelta))
                     {
                         Add(data, sb, "Write-State", null, ws.ToString());
@@ -270,7 +253,7 @@ namespace StackExchange.Redis
 
             sb.Append(" (Please take a look at this article for some common client-side issues that can cause timeouts: ");
             sb.Append(timeoutHelpLink);
-            sb.Append(")");
+            sb.Append(')');
 
             var ex = new RedisTimeoutException(sb.ToString(), message?.Status ?? CommandStatus.Unknown)
             {
@@ -278,7 +261,7 @@ namespace StackExchange.Redis
             };
             CopyDataToException(data, ex);
 
-            if (multiplexer.IncludeDetailInExceptions) AddExceptionDetail(ex, message, server, null);
+            if (multiplexer.RawConfig.IncludeDetailInExceptions) AddExceptionDetail(ex, message, server, null);
             return ex;
         }
 
@@ -305,36 +288,37 @@ namespace StackExchange.Redis
             if (message != null)
             {
                 message.TryGetHeadMessages(out var now, out var next);
-                if (now != null) Add(data, sb, "Message-Current", "active", multiplexer.IncludeDetailInExceptions ? now.CommandAndKey : now.Command.ToString());
-                if (next != null) Add(data, sb, "Message-Next", "next", multiplexer.IncludeDetailInExceptions ? next.CommandAndKey : next.Command.ToString());
+                if (now != null) Add(data, sb, "Message-Current", "active", multiplexer.RawConfig.IncludeDetailInExceptions ? now.CommandAndKey : now.Command.ToString());
+                if (next != null) Add(data, sb, "Message-Next", "next", multiplexer.RawConfig.IncludeDetailInExceptions ? next.CommandAndKey : next.Command.ToString());
             }
 
             // Add server data, if we have it
             if (server != null && message != null)
             {
-                server.GetOutstandingCount(message.Command, out int inst, out int qs, out long @in, out int qu, out bool aw, out long toRead, out long toWrite, out var bs, out var rs, out var ws);
-                switch (rs)
+                var bs = server.GetBridgeStatus(message.IsForSubscriptionBridge ? ConnectionType.Subscription: ConnectionType.Interactive);
+
+                switch (bs.Connection.ReadStatus)
                 {
                     case PhysicalConnection.ReadStatus.CompletePendingMessageAsync:
                     case PhysicalConnection.ReadStatus.CompletePendingMessageSync:
                         sb.Append(" ** possible thread-theft indicated; see https://stackexchange.github.io/StackExchange.Redis/ThreadTheft ** ");
                         break;
                 }
-                Add(data, sb, "OpsSinceLastHeartbeat", "inst", inst.ToString());
-                Add(data, sb, "Queue-Awaiting-Write", "qu", qu.ToString());
-                Add(data, sb, "Queue-Awaiting-Response", "qs", qs.ToString());
-                Add(data, sb, "Active-Writer", "aw", aw.ToString());
-                if (qu != 0) Add(data, sb, "Backlog-Writer", "bw", bs.ToString());
-                if (rs != PhysicalConnection.ReadStatus.NA) Add(data, sb, "Read-State", "rs", rs.ToString());
-                if (ws != PhysicalConnection.WriteStatus.NA) Add(data, sb, "Write-State", "ws", ws.ToString());
+                Add(data, sb, "OpsSinceLastHeartbeat", "inst", bs.MessagesSinceLastHeartbeat.ToString());
+                Add(data, sb, "Queue-Awaiting-Write", "qu", bs.BacklogMessagesPending.ToString());
+                Add(data, sb, "Queue-Awaiting-Response", "qs", bs.Connection.MessagesSentAwaitingResponse.ToString());
+                Add(data, sb, "Active-Writer", "aw", bs.IsWriterActive.ToString());
+                Add(data, sb, "Backlog-Writer", "bw", bs.BacklogStatus.ToString());
+                if (bs.Connection.ReadStatus != PhysicalConnection.ReadStatus.NA) Add(data, sb, "Read-State", "rs", bs.Connection.ReadStatus.ToString());
+                if (bs.Connection.WriteStatus != PhysicalConnection.WriteStatus.NA) Add(data, sb, "Write-State", "ws", bs.Connection.WriteStatus.ToString());
 
-                if (@in >= 0) Add(data, sb, "Inbound-Bytes", "in", @in.ToString());
-                if (toRead >= 0) Add(data, sb, "Inbound-Pipe-Bytes", "in-pipe", toRead.ToString());
-                if (toWrite >= 0) Add(data, sb, "Outbound-Pipe-Bytes", "out-pipe", toWrite.ToString());
+                if (bs.Connection.BytesAvailableOnSocket >= 0) Add(data, sb, "Inbound-Bytes", "in", bs.Connection.BytesAvailableOnSocket.ToString());
+                if (bs.Connection.BytesInReadPipe >= 0) Add(data, sb, "Inbound-Pipe-Bytes", "in-pipe", bs.Connection.BytesInReadPipe.ToString());
+                if (bs.Connection.BytesInWritePipe >= 0) Add(data, sb, "Outbound-Pipe-Bytes", "out-pipe", bs.Connection.BytesInWritePipe.ToString());
 
-                if (multiplexer.StormLogThreshold >= 0 && qs >= multiplexer.StormLogThreshold && Interlocked.CompareExchange(ref multiplexer.haveStormLog, 1, 0) == 0)
+                if (multiplexer.StormLogThreshold >= 0 && bs.Connection.MessagesSentAwaitingResponse >= multiplexer.StormLogThreshold && Interlocked.CompareExchange(ref multiplexer.haveStormLog, 1, 0) == 0)
                 {
-                    var log = server.GetStormLog(message.Command);
+                    var log = server.GetStormLog(message);
                     if (string.IsNullOrWhiteSpace(log)) Interlocked.Exchange(ref multiplexer.haveStormLog, 0);
                     else Interlocked.Exchange(ref multiplexer.stormLogSnapshot, log);
                 }
@@ -353,9 +337,13 @@ namespace StackExchange.Redis
                     Add(data, sb, "Key-HashSlot", "PerfCounterHelperkeyHashSlot", message.GetHashSlot(multiplexer.ServerSelectionStrategy).ToString());
                 }
             }
-            int busyWorkerCount = PerfCounterHelper.GetThreadPoolStats(out string iocp, out string worker);
+            int busyWorkerCount = PerfCounterHelper.GetThreadPoolStats(out string iocp, out string worker, out string workItems);
             Add(data, sb, "ThreadPool-IO-Completion", "IOCP", iocp);
             Add(data, sb, "ThreadPool-Workers", "WORKER", worker);
+            if (workItems != null)
+            {
+                Add(data, sb, "ThreadPool-Items", "POOL", workItems);
+            }
             data.Add(Tuple.Create("Busy-Workers", busyWorkerCount.ToString()));
 
             if (multiplexer.IncludePerformanceCountersInExceptions)
@@ -363,7 +351,7 @@ namespace StackExchange.Redis
                 Add(data, sb, "Local-CPU", "Local-CPU", PerfCounterHelper.GetSystemCpuPercent());
             }
 
-            Add(data, sb, "Version", "v", GetLibVersion());
+            Add(data, sb, "Version", "v", Utils.GetLibVersion());
         }
 
         private static void AddExceptionDetail(Exception exception, Message message, ServerEndPoint server, string label)
@@ -395,9 +383,9 @@ namespace StackExchange.Redis
             if (muxer != null)
             {
                 if (muxer.AuthSuspect) sb.Append(" There was an authentication failure; check that passwords (or client certificates) are configured correctly.");
-                else if (!muxer.RawConfig.AbortOnConnectFail) sb.Append(" Error connecting right now. To allow this multiplexer to continue retrying until it's able to connect, use abortConnect=false in your connection string or AbortOnConnectFail=false; in your code.");
+                else if (muxer.RawConfig.AbortOnConnectFail) sb.Append(" Error connecting right now. To allow this multiplexer to continue retrying until it's able to connect, use abortConnect=false in your connection string or AbortOnConnectFail=false; in your code.");
             }
-            if (!string.IsNullOrWhiteSpace(failureMessage)) sb.Append(" ").Append(failureMessage.Trim());
+            if (!string.IsNullOrWhiteSpace(failureMessage)) sb.Append(' ').Append(failureMessage.Trim());
 
             return new RedisConnectionException(ConnectionFailureType.UnableToConnect, sb.ToString());
         }

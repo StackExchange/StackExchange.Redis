@@ -7,25 +7,22 @@ using System.Threading.Tasks;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// Represents a message that is broadcast via pub/sub
+    /// Represents a message that is broadcast via publish/subscribe.
     /// </summary>
     public readonly struct ChannelMessage
     {
-        private readonly ChannelMessageQueue _queue; // this is *smaller* than storing a RedisChannel for the subsribed channel
+        // this is *smaller* than storing a RedisChannel for the subscribed channel
+        private readonly ChannelMessageQueue _queue;
+
         /// <summary>
-        /// See Object.ToString
+        /// The Channel:Message string representation.
         /// </summary>
         public override string ToString() => ((string)Channel) + ":" + ((string)Message);
 
-        /// <summary>
-        /// See Object.GetHashCode
-        /// </summary>
+        /// <inheritdoc/>
         public override int GetHashCode() => Channel.GetHashCode() ^ Message.GetHashCode();
 
-        /// <summary>
-        /// See Object.Equals
-        /// </summary>
-        /// <param name="obj">The <see cref="object"/> to compare.</param>
+        /// <inheritdoc/>
         public override bool Equals(object obj) => obj is ChannelMessage cm
             && cm.Channel == Channel && cm.Message == Message;
         internal ChannelMessage(ChannelMessageQueue queue, in RedisChannel channel, in RedisValue value)
@@ -36,40 +33,54 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// The channel that the subscription was created from
+        /// The channel that the subscription was created from.
         /// </summary>
         public RedisChannel SubscriptionChannel => _queue.Channel;
 
         /// <summary>
-        /// The channel that the message was broadcast to
+        /// The channel that the message was broadcast to.
         /// </summary>
         public RedisChannel Channel { get; }
+
         /// <summary>
-        /// The value that was broadcast
+        /// The value that was broadcast.
         /// </summary>
         public RedisValue Message { get; }
+
+        /// <summary>
+        /// Checks if 2 messages are .Equal()
+        /// </summary>
+        public static bool operator ==(ChannelMessage left, ChannelMessage right) => left.Equals(right);
+
+        /// <summary>
+        /// Checks if 2 messages are not .Equal()
+        /// </summary>
+        public static bool operator !=(ChannelMessage left, ChannelMessage right) => !left.Equals(right);
     }
 
     /// <summary>
-    /// Represents a message queue of ordered pub/sub notifications
+    /// Represents a message queue of ordered pub/sub notifications.
     /// </summary>
-    /// <remarks>To create a ChannelMessageQueue, use ISubscriber.Subscribe[Async](RedisKey)</remarks>
+    /// <remarks>
+    /// To create a ChannelMessageQueue, use <see cref="ISubscriber.Subscribe(RedisChannel, CommandFlags)"/>
+    /// or <see cref="ISubscriber.SubscribeAsync(RedisChannel, CommandFlags)"/>.
+    /// </remarks>
     public sealed class ChannelMessageQueue
     {
         private readonly Channel<ChannelMessage> _queue;
         /// <summary>
-        /// The Channel that was subscribed for this queue
+        /// The Channel that was subscribed for this queue.
         /// </summary>
         public RedisChannel Channel { get; }
         private RedisSubscriber _parent;
 
         /// <summary>
-        /// See Object.ToString
+        /// The string representation of this channel.
         /// </summary>
         public override string ToString() => (string)Channel;
 
         /// <summary>
-        /// An awaitable task the indicates completion of the queue (including drain of data)
+        /// An awaitable task the indicates completion of the queue (including drain of data).
         /// </summary>
         public Task Completion => _queue.Reader.Completion;
 
@@ -87,9 +98,7 @@ namespace StackExchange.Redis
             AllowSynchronousContinuations = false,
         };
 
-#pragma warning disable RCS1231 // Make parameter ref read-only. - uses as a delegate for Action<RedisChannel, RedisValue>
         private void Write(in RedisChannel channel, in RedisValue value)
-#pragma warning restore RCS1231 // Make parameter ref read-only.
         {
             var writer = _queue.Writer;
             writer.TryWrite(new ChannelMessage(this, channel, value));

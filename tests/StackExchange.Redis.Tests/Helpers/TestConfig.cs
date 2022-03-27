@@ -2,6 +2,7 @@
 using System;
 using Newtonsoft.Json;
 using System.Threading;
+using System.Linq;
 
 namespace StackExchange.Redis.Tests
 {
@@ -12,7 +13,7 @@ namespace StackExchange.Redis.Tests
         public static Config Current { get; }
 
         private static int _db = 17;
-        public static int GetDedicatedDB(IConnectionMultiplexer conn = null)
+        public static int GetDedicatedDB(IConnectionMultiplexer? conn = null)
         {
             int db = Interlocked.Increment(ref _db);
             if (conn != null) Skip.IfMissingDatabase(conn, db);
@@ -30,7 +31,7 @@ namespace StackExchange.Redis.Tests
                     {
                         using (var reader = new StreamReader(stream))
                         {
-                            Current = JsonConvert.DeserializeObject<Config>(reader.ReadToEnd());
+                            Current = JsonConvert.DeserializeObject<Config>(reader.ReadToEnd()) ?? new Config();
                         }
                     }
                 }
@@ -47,9 +48,9 @@ namespace StackExchange.Redis.Tests
             public bool RunLongRunning { get; set; }
             public bool LogToConsole { get; set; }
 
-            public string MasterServer { get; set; } = "127.0.0.1";
-            public int MasterPort { get; set; } = 6379;
-            public string MasterServerAndPort => MasterServer + ":" + MasterPort.ToString();
+            public string PrimaryServer { get; set; } = "127.0.0.1";
+            public int PrimaryPort { get; set; } = 6379;
+            public string PrimaryServerAndPort => PrimaryServer + ":" + PrimaryPort.ToString();
 
             public string ReplicaServer { get; set; } = "127.0.0.1";
             public int ReplicaPort { get; set; } = 6380;
@@ -61,17 +62,13 @@ namespace StackExchange.Redis.Tests
             public string SecureServerAndPort => SecureServer + ":" + SecurePort.ToString();
 
             // Separate servers for failover tests, so they don't wreak havoc on all others
-            public string FailoverMasterServer { get; set; } = "127.0.0.1";
-            public int FailoverMasterPort { get; set; } = 6382;
-            public string FailoverMasterServerAndPort => FailoverMasterServer + ":" + FailoverMasterPort.ToString();
+            public string FailoverPrimaryServer { get; set; } = "127.0.0.1";
+            public int FailoverPrimaryPort { get; set; } = 6382;
+            public string FailoverPrimaryServerAndPort => FailoverPrimaryServer + ":" + FailoverPrimaryPort.ToString();
 
             public string FailoverReplicaServer { get; set; } = "127.0.0.1";
             public int FailoverReplicaPort { get; set; } = 6383;
             public string FailoverReplicaServerAndPort => FailoverReplicaServer + ":" + FailoverReplicaPort.ToString();
-
-            public string RediSearchServer { get; set; } = "127.0.0.1";
-            public int RediSearchPort { get; set; } = 6385;
-            public string RediSearchServerAndPort => RediSearchServer + ":" + RediSearchPort.ToString();
 
             public string IPv4Server { get; set; } = "127.0.0.1";
             public int IPv4Port { get; set; } = 6379;
@@ -86,24 +83,30 @@ namespace StackExchange.Redis.Tests
             public int SentinelPortA { get; set; } = 26379;
             public int SentinelPortB { get; set; } = 26380;
             public int SentinelPortC { get; set; } = 26381;
-            public string SentinelSeviceName { get; set; } = "mymaster";
+            public string SentinelSeviceName { get; set; } = "myprimary";
 
             public string ClusterServer { get; set; } = "127.0.0.1";
             public int ClusterStartPort { get; set; } = 7000;
             public int ClusterServerCount { get; set; } = 6;
+            public string ClusterServersAndPorts => string.Join(",", Enumerable.Range(ClusterStartPort, ClusterServerCount).Select(port => ClusterServer + ":" + port));
 
-            public string SslServer { get; set; }
+            public string? SslServer { get; set; }
             public int SslPort { get; set; }
 
-            public string RedisLabsSslServer { get; set; }
+            public string? RedisLabsSslServer { get; set; }
             public int RedisLabsSslPort { get; set; } = 6379;
-            public string RedisLabsPfxPath { get; set; }
+            public string? RedisLabsPfxPath { get; set; }
 
-            public string AzureCacheServer { get; set; }
-            public string AzureCachePassword { get; set; }
+            public string? AzureCacheServer { get; set; }
+            public string? AzureCachePassword { get; set; }
 
-            public string SSDBServer { get; set; }
+            public string? SSDBServer { get; set; }
             public int SSDBPort { get; set; } = 8888;
+
+            public string ProxyServer { get; set; } = "127.0.0.1";
+            public int ProxyPort { get; set; } = 7015;
+
+            public string ProxyServerAndPort => ProxyServer + ":" + ProxyPort.ToString();
         }
     }
 }

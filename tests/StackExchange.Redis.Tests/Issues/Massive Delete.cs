@@ -17,7 +17,7 @@ namespace StackExchange.Redis.Tests.Issues
             {
                 Skip.IfMissingDatabase(muxer, db);
                 GetServer(muxer).FlushDatabase(db);
-                Task last = null;
+                Task? last = null;
                 var conn = muxer.GetDatabase(db);
                 for (int i = 0; i < 10000; i++)
                 {
@@ -42,7 +42,7 @@ namespace StackExchange.Redis.Tests.Issues
                 var conn = muxer.GetDatabase(dbId);
                 var originally = await conn.SetLengthAsync(key).ForAwait();
                 int keepChecking = 1;
-                Task last = null;
+                Task? last = null;
                 while (Volatile.Read(ref keepChecking) == 1)
                 {
                     throttle.Wait(); // acquire

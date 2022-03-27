@@ -1,5 +1,5 @@
 ﻿using System;
-using System.Threading;
+using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -19,8 +19,8 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        [Fact(Skip = "needs investigation on netcoreapp3.1")]
-        public void MuxerIsCollected()
+        [Fact]
+        public async Task MuxerIsCollected()
         {
 #if DEBUG
             Skip.Inconclusive("Only predictable in release builds");
@@ -41,7 +41,7 @@ namespace StackExchange.Redis.Tests
             muxer = null;
 
             ForceGC();
-            Thread.Sleep(2000); // GC is twitchy
+            await Task.Delay(2000).ForAwait(); // GC is twitchy
             ForceGC();
 
             // should be collectable

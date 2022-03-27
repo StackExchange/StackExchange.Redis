@@ -4,6 +4,6 @@
     {
         Beginning = 0,
         Explicit = 1,
-        New = 2
+        New = 2,
     }
 }

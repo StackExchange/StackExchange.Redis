@@ -8,6 +8,7 @@ namespace StackExchange.Redis.Tests.Helpers
     public class TextWriterOutputHelper : TextWriter
     {
         private StringBuilder Buffer { get; } = new StringBuilder(2048);
+        private StringBuilder? Echo { get; set; }
         public override Encoding Encoding => Encoding.UTF8;
         private readonly ITestOutputHelper Output;
         private readonly bool ToConsole;
@@ -17,12 +18,37 @@ namespace StackExchange.Redis.Tests.Helpers
             ToConsole = echoToConsole;
         }
 
-        public override void WriteLine(string value)
+        public void EchoTo(StringBuilder sb) => Echo = sb;
+
+        public void WriteLineNoTime(string? value)
         {
             try
             {
-                base.Write(TestBase.Time());
-                base.Write(": ");
+                base.WriteLine(value);
+            }
+            catch (Exception ex)
+            {
+                Console.Write("Attempted to write: ");
+                Console.WriteLine(value);
+                Console.WriteLine(ex);
+            }
+        }
+
+        public override void WriteLine(string? value)
+        {
+            if (value is null)
+            {
+                return;
+            }
+
+            try
+            {
+                // Prevent double timestamps
+                if (value.Length < "HH:mm:ss.ffff:".Length || value["HH:mm:ss.ffff:".Length - 1] != ':')
+                {
+                    base.Write(TestBase.Time());
+                    base.Write(": ");
+                }
                 base.WriteLine(value);
             }
             catch (Exception ex)
@@ -61,7 +87,15 @@ namespace StackExchange.Redis.Tests.Helpers
         private void FlushBuffer()
         {
             var text = Buffer.ToString();
-            Output.WriteLine(text);
+            try
+            {
+                Output.WriteLine(text);
+            }
+            catch (InvalidOperationException)
+            {
+                // Thrown when writing from a handler after a test has ended - just bail in this case
+            }
+            Echo?.AppendLine(text);
             if (ToConsole)
             {
                 Console.WriteLine(text);

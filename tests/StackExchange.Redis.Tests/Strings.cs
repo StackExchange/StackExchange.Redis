@@ -34,16 +34,16 @@ namespace StackExchange.Redis.Tests
                 var s3 = conn.StringGetAsync(key);
                 var l2 = server.Features.StringLength ? conn.StringLengthAsync(key) : null;
 
-                Assert.Null((string)await s0);
+                Assert.Null((string?)await s0);
                 Assert.Equal("abc", await s1);
                 Assert.Equal(8, await result);
                 Assert.Equal("abcdefgh", await s3);
 
                 if (server.Features.StringLength)
                 {
-                    Assert.Equal(0, await l0);
-                    Assert.Equal(3, await l1);
-                    Assert.Equal(8, await l2);
+                    Assert.Equal(0, await l0!);
+                    Assert.Equal(3, await l1!);
+                    Assert.Equal(8, await l2!);
                 }
             }
         }
@@ -103,25 +103,6 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public async Task GetEx_Absolute()
-        {
-            using var muxer = Create();
-            Skip.IfMissingFeature(muxer, nameof(RedisFeatures.GetEx), r => r.GetEx);
-
-            var conn = muxer.GetDatabase();
-            var key = Me();
-            conn.KeyDelete(key, CommandFlags.FireAndForget);
-
-            conn.StringSet(key, "abc", TimeSpan.FromHours(1));
-            var val = conn.StringGetSetExpiryAsync(key, DateTime.UtcNow.AddMinutes(30));
-            var val_ttl = conn.KeyTimeToLiveAsync(key);
-
-            Assert.Equal("abc", await val);
-            var time = await val_ttl;
-            Assert.True(time > TimeSpan.FromMinutes(29.9) && time <= TimeSpan.FromMinutes(30));
-        }
-
-        [Fact]
         public async Task GetEx_Persist()
         {
             using var muxer = Create();
@@ -132,7 +113,7 @@ namespace StackExchange.Redis.Tests
             conn.KeyDelete(key, CommandFlags.FireAndForget);
 
             conn.StringSet(key, "abc", TimeSpan.FromHours(1));
-            var val = conn.StringGetRemoveExpiryAsync(key);
+            var val = conn.StringGetSetExpiryAsync(key, null);
             var val_ttl = conn.KeyTimeToLiveAsync(key);
 
             Assert.Equal("abc", await val);
@@ -179,6 +160,56 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void GetDelete()
+        {
+            using (var muxer = Create())
+            {
+                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.GetDelete), r => r.GetDelete);
+
+                var conn = muxer.GetDatabase();
+                var prefix = Me();
+                conn.KeyDelete(prefix + "1", CommandFlags.FireAndForget);
+                conn.KeyDelete(prefix + "2", CommandFlags.FireAndForget);
+                conn.StringSet(prefix + "1", "abc", flags: CommandFlags.FireAndForget);
+
+                Assert.True(conn.KeyExists(prefix + "1"));
+                Assert.False(conn.KeyExists(prefix + "2"));
+
+                var s0 = conn.StringGetDelete(prefix + "1");
+                var s2 = conn.StringGetDelete(prefix + "2");
+
+                Assert.False(conn.KeyExists(prefix + "1"));
+                Assert.Equal("abc", s0);
+                Assert.Equal(RedisValue.Null, s2);
+            }
+        }
+
+        [Fact]
+        public async Task GetDeleteAsync()
+        {
+            using (var muxer = Create())
+            {
+                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.GetDelete), r => r.GetDelete);
+
+                var conn = muxer.GetDatabase();
+                var prefix = Me();
+                conn.KeyDelete(prefix + "1", CommandFlags.FireAndForget);
+                conn.KeyDelete(prefix + "2", CommandFlags.FireAndForget);
+                conn.StringSet(prefix + "1", "abc", flags: CommandFlags.FireAndForget);
+
+                Assert.True(conn.KeyExists(prefix + "1"));
+                Assert.False(conn.KeyExists(prefix + "2"));
+
+                var s0 = conn.StringGetDeleteAsync(prefix + "1");
+                var s2 = conn.StringGetDeleteAsync(prefix + "2");
+
+                Assert.False(conn.KeyExists(prefix + "1"));
+                Assert.Equal("abc", await s0);
+                Assert.Equal(RedisValue.Null, await s2);
+            }
+        }
+
+        [Fact]
         public async Task SetNotExists()
         {
             using (var muxer = Create())
@@ -188,12 +219,16 @@ namespace StackExchange.Redis.Tests
                 conn.KeyDelete(prefix + "1", CommandFlags.FireAndForget);
                 conn.KeyDelete(prefix + "2", CommandFlags.FireAndForget);
                 conn.KeyDelete(prefix + "3", CommandFlags.FireAndForget);
+                conn.KeyDelete(prefix + "4", CommandFlags.FireAndForget);
+                conn.KeyDelete(prefix + "5", CommandFlags.FireAndForget);
                 conn.StringSet(prefix + "1", "abc", flags: CommandFlags.FireAndForget);
 
                 var x0 = conn.StringSetAsync(prefix + "1", "def", when: When.NotExists);
                 var x1 = conn.StringSetAsync(prefix + "1", Encode("def"), when: When.NotExists);
                 var x2 = conn.StringSetAsync(prefix + "2", "def", when: When.NotExists);
                 var x3 = conn.StringSetAsync(prefix + "3", Encode("def"), when: When.NotExists);
+                var x4 = conn.StringSetAsync(prefix + "4", "def", expiry: TimeSpan.FromSeconds(4), when: When.NotExists);
+                var x5 = conn.StringSetAsync(prefix + "5", "def", expiry: TimeSpan.FromMilliseconds(4001), when: When.NotExists);
 
                 var s0 = conn.StringGetAsync(prefix + "1");
                 var s2 = conn.StringGetAsync(prefix + "2");
@@ -203,9 +238,156 @@ namespace StackExchange.Redis.Tests
                 Assert.False(await x1);
                 Assert.True(await x2);
                 Assert.True(await x3);
+                Assert.True(await x4);
+                Assert.True(await x5);
                 Assert.Equal("abc", await s0);
                 Assert.Equal("def", await s2);
                 Assert.Equal("def", await s3);
+            }
+        }
+
+        [Fact]
+        public async Task SetKeepTtl()
+        {
+            using (var muxer = Create())
+            {
+                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.SetKeepTtl), r => r.SetKeepTtl);
+
+                var conn = muxer.GetDatabase();
+                var prefix = Me();
+                conn.KeyDelete(prefix + "1", CommandFlags.FireAndForget);
+                conn.KeyDelete(prefix + "2", CommandFlags.FireAndForget);
+                conn.KeyDelete(prefix + "3", CommandFlags.FireAndForget);
+                conn.StringSet(prefix + "1", "abc", flags: CommandFlags.FireAndForget);
+                conn.StringSet(prefix + "2", "abc", expiry: TimeSpan.FromMinutes(5), flags: CommandFlags.FireAndForget);
+                conn.StringSet(prefix + "3", "abc", expiry: TimeSpan.FromMinutes(10), flags: CommandFlags.FireAndForget);
+
+                var x0 = conn.KeyTimeToLiveAsync(prefix + "1");
+                var x1 = conn.KeyTimeToLiveAsync(prefix + "2");
+                var x2 = conn.KeyTimeToLiveAsync(prefix + "3");
+
+                Assert.Null(await x0);
+                Assert.True(await x1 > TimeSpan.FromMinutes(4), "Over 4");
+                Assert.True(await x1 <= TimeSpan.FromMinutes(5), "Under 5");
+                Assert.True(await x2 > TimeSpan.FromMinutes(9), "Over 9");
+                Assert.True(await x2 <= TimeSpan.FromMinutes(10), "Under 10");
+
+                conn.StringSet(prefix + "1", "def", keepTtl: true, flags: CommandFlags.FireAndForget);
+                conn.StringSet(prefix + "2", "def", flags: CommandFlags.FireAndForget);
+                conn.StringSet(prefix + "3", "def", keepTtl: true, flags: CommandFlags.FireAndForget);
+
+                var y0 = conn.KeyTimeToLiveAsync(prefix + "1");
+                var y1 = conn.KeyTimeToLiveAsync(prefix + "2");
+                var y2 = conn.KeyTimeToLiveAsync(prefix + "3");
+
+                Assert.Null(await y0);
+                Assert.Null(await y1);
+                Assert.True(await y2 > TimeSpan.FromMinutes(9), "Over 9");
+                Assert.True(await y2 <= TimeSpan.FromMinutes(10), "Under 10");
+            }
+        }
+
+        [Fact]
+        public async Task SetAndGet()
+        {
+            using (var muxer = Create())
+            {
+                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.SetAndGet), r => r.SetAndGet);
+
+                var conn = muxer.GetDatabase();
+                var prefix = Me();
+                conn.KeyDelete(prefix + "1", CommandFlags.FireAndForget);
+                conn.KeyDelete(prefix + "2", CommandFlags.FireAndForget);
+                conn.KeyDelete(prefix + "3", CommandFlags.FireAndForget);
+                conn.KeyDelete(prefix + "4", CommandFlags.FireAndForget);
+                conn.KeyDelete(prefix + "5", CommandFlags.FireAndForget);
+                conn.KeyDelete(prefix + "6", CommandFlags.FireAndForget);
+                conn.KeyDelete(prefix + "7", CommandFlags.FireAndForget);
+                conn.KeyDelete(prefix + "8", CommandFlags.FireAndForget);
+                conn.KeyDelete(prefix + "9", CommandFlags.FireAndForget);
+                conn.KeyDelete(prefix + "10", CommandFlags.FireAndForget);
+                conn.StringSet(prefix + "1", "abc", flags: CommandFlags.FireAndForget);
+                conn.StringSet(prefix + "2", "abc", flags: CommandFlags.FireAndForget);
+                conn.StringSet(prefix + "4", "abc", flags: CommandFlags.FireAndForget);
+                conn.StringSet(prefix + "6", "abc", flags: CommandFlags.FireAndForget);
+                conn.StringSet(prefix + "7", "abc", flags: CommandFlags.FireAndForget);
+                conn.StringSet(prefix + "8", "abc", flags: CommandFlags.FireAndForget);
+                conn.StringSet(prefix + "9", "abc", flags: CommandFlags.FireAndForget);
+                conn.StringSet(prefix + "10", "abc", expiry: TimeSpan.FromMinutes(10), flags: CommandFlags.FireAndForget);
+
+                var x0 = conn.StringSetAndGetAsync(prefix + "1", RedisValue.Null);
+                var x1 = conn.StringSetAndGetAsync(prefix + "2", "def");
+                var x2 = conn.StringSetAndGetAsync(prefix + "3", "def");
+                var x3 = conn.StringSetAndGetAsync(prefix + "4", "def", when: When.Exists);
+                var x4 = conn.StringSetAndGetAsync(prefix + "5", "def", when: When.Exists);
+                var x5 = conn.StringSetAndGetAsync(prefix + "6", "def", expiry: TimeSpan.FromSeconds(4));
+                var x6 = conn.StringSetAndGetAsync(prefix + "7", "def", expiry: TimeSpan.FromMilliseconds(4001));
+                var x7 = conn.StringSetAndGetAsync(prefix + "8", "def", expiry: TimeSpan.FromSeconds(4), when: When.Exists);
+                var x8 = conn.StringSetAndGetAsync(prefix + "9", "def", expiry: TimeSpan.FromMilliseconds(4001), when: When.Exists);
+
+                var y0 = conn.StringSetAndGetAsync(prefix + "10", "def", keepTtl: true);
+                var y1 = conn.KeyTimeToLiveAsync(prefix + "10");
+                var y2 = conn.StringGetAsync(prefix + "10");
+
+                var s0 = conn.StringGetAsync(prefix + "1");
+                var s1 = conn.StringGetAsync(prefix + "2");
+                var s2 = conn.StringGetAsync(prefix + "3");
+                var s3 = conn.StringGetAsync(prefix + "4");
+                var s4 = conn.StringGetAsync(prefix + "5");
+
+                Assert.Equal("abc", await x0);
+                Assert.Equal("abc", await x1);
+                Assert.Equal(RedisValue.Null, await x2);
+                Assert.Equal("abc", await x3);
+                Assert.Equal(RedisValue.Null, await x4);
+                Assert.Equal("abc", await x5);
+                Assert.Equal("abc", await x6);
+                Assert.Equal("abc", await x7);
+                Assert.Equal("abc", await x8);
+
+                Assert.Equal("abc", await y0);
+                Assert.True(await y1 <= TimeSpan.FromMinutes(10), "Under 10 min");
+                Assert.True(await y1 >= TimeSpan.FromMinutes(8), "Over 8 min");
+                Assert.Equal("def", await y2);
+
+                Assert.Equal(RedisValue.Null, await s0);
+                Assert.Equal("def", await s1);
+                Assert.Equal("def", await s2);
+                Assert.Equal("def", await s3);
+                Assert.Equal(RedisValue.Null, await s4);
+            }
+        }
+
+        [Fact]
+        public async Task SetNotExistsAndGet()
+        {
+            using (var muxer = Create())
+            {
+                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.SetNotExistsAndGet), r => r.SetNotExistsAndGet);
+
+                var conn = muxer.GetDatabase();
+                var prefix = Me();
+                conn.KeyDelete(prefix + "1", CommandFlags.FireAndForget);
+                conn.KeyDelete(prefix + "2", CommandFlags.FireAndForget);
+                conn.KeyDelete(prefix + "3", CommandFlags.FireAndForget);
+                conn.KeyDelete(prefix + "4", CommandFlags.FireAndForget);
+                conn.StringSet(prefix + "1", "abc", flags: CommandFlags.FireAndForget);
+
+                var x0 = conn.StringSetAndGetAsync(prefix + "1", "def", when: When.NotExists);
+                var x1 = conn.StringSetAndGetAsync(prefix + "2", "def", when: When.NotExists);
+                var x2 = conn.StringSetAndGetAsync(prefix + "3", "def", expiry: TimeSpan.FromSeconds(4), when: When.NotExists);
+                var x3 = conn.StringSetAndGetAsync(prefix + "4", "def", expiry: TimeSpan.FromMilliseconds(4001), when: When.NotExists);
+
+                var s0 = conn.StringGetAsync(prefix + "1");
+                var s1 = conn.StringGetAsync(prefix + "2");
+
+                Assert.Equal("abc", await x0);
+                Assert.Equal(RedisValue.Null, await x1);
+                Assert.Equal(RedisValue.Null, await x2);
+                Assert.Equal(RedisValue.Null, await x3);
+
+                Assert.Equal("abc", await s0);
+                Assert.Equal("def", await s1);
             }
         }
 
@@ -384,7 +566,7 @@ namespace StackExchange.Redis.Tests
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.HashStringLength), r => r.HashStringLength);
                 var database = conn.GetDatabase();
                 var key = Me();
-                var value = "hello world";
+                const string value = "hello world";
                 database.HashSet(key, "field", value);
                 var resAsync = database.HashStringLengthAsync(key, "field");
                 var resNonExistingAsync = database.HashStringLengthAsync(key, "non-existing-field");
@@ -401,7 +583,7 @@ namespace StackExchange.Redis.Tests
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.HashStringLength), r => r.HashStringLength);
                 var database = conn.GetDatabase();
                 var key = Me();
-                var value = "hello world";
+                const string value = "hello world";
                 database.HashSet(key, "field", value);
                 Assert.Equal(value.Length, database.HashStringLength(key, "field"));
                 Assert.Equal(0, database.HashStringLength(key, "non-existing-field"));

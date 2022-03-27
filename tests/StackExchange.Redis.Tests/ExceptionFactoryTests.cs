@@ -23,7 +23,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void CanGetVersion()
         {
-            var libVer = ExceptionFactory.GetLibVersion();
+            var libVer = Utils.GetLibVersion();
             Assert.Matches(@"2\.[0-9]+\.[0-9]+(\.[0-9]+)?", libVer);
         }
 
@@ -40,7 +40,7 @@ namespace StackExchange.Redis.Tests
 
                     foreach (var endpoint in muxer.GetEndPoints())
                     {
-                        muxer.GetServer(endpoint).SimulateConnectionFailure();
+                        muxer.GetServer(endpoint).SimulateConnectionFailure(SimulatedFailureType.All);
                     }
 
                     var ex = ExceptionFactory.NoConnectionAvailable(muxer as ConnectionMultiplexer, null, null);
@@ -63,12 +63,12 @@ namespace StackExchange.Redis.Tests
         {
             try
             {
-                using (var muxer = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true, shared: false))
+                using (var muxer = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true, shared: false, backlogPolicy: BacklogPolicy.FailFast))
                 {
                     muxer.GetDatabase();
                     muxer.AllowConnect = false;
 
-                    muxer.GetServer(muxer.GetEndPoints()[0]).SimulateConnectionFailure();
+                    muxer.GetServer(muxer.GetEndPoints()[0]).SimulateConnectionFailure(SimulatedFailureType.All);
 
                     var ex = ExceptionFactory.NoConnectionAvailable(muxer as ConnectionMultiplexer, null, muxer.GetServerSnapshot()[0]);
                     Assert.IsType<RedisConnectionException>(ex);
@@ -107,7 +107,7 @@ namespace StackExchange.Redis.Tests
         {
             try
             {
-                using (var muxer = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true, shared: false) as ConnectionMultiplexer)
+                using (var muxer = (Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true, shared: false) as ConnectionMultiplexer)!)
                 {
                     var server = GetServer(muxer);
                     muxer.AllowConnect = false;
@@ -120,9 +120,14 @@ namespace StackExchange.Redis.Tests
                     Assert.StartsWith("Test Timeout, command=PING", ex.Message);
                     Assert.Contains("clientName: " + nameof(TimeoutException), ex.Message);
                     // Ensure our pipe numbers are in place
-                    Assert.Contains("inst: 0, qu: 0, qs: 0, aw: False, in: 0, in-pipe: 0, out-pipe: 0", ex.Message);
+                    Assert.Contains("inst: 0, qu: 0, qs: 0, aw: False, bw: Inactive, in: 0, in-pipe: 0, out-pipe: 0", ex.Message);
                     Assert.Contains("mc: 1/1/0", ex.Message);
                     Assert.Contains("serverEndpoint: " + server.EndPoint, ex.Message);
+                    Assert.Contains("IOCP: ", ex.Message);
+                    Assert.Contains("WORKER: ", ex.Message);
+#if NETCOREAPP
+                    Assert.Contains("POOL: ", ex.Message);
+#endif
                     Assert.DoesNotContain("Unspecified/", ex.Message);
                     Assert.EndsWith(" (Please take a look at this article for some common client-side issues that can cause timeouts: https://stackexchange.github.io/StackExchange.Redis/Timeouts)", ex.Message);
                     Assert.Null(ex.InnerException);
@@ -151,7 +156,8 @@ namespace StackExchange.Redis.Tests
                 var options = new ConfigurationOptions()
                 {
                     AbortOnConnectFail = abortOnConnect,
-                    ConnectTimeout = 500,
+                    BacklogPolicy = BacklogPolicy.FailFast,
+                    ConnectTimeout = 1000,
                     SyncTimeout = 500,
                     KeepAlive = 5000
                 };
@@ -159,13 +165,13 @@ namespace StackExchange.Redis.Tests
                 ConnectionMultiplexer muxer;
                 if (abortOnConnect)
                 {
-                    options.EndPoints.Add(TestConfig.Current.MasterServerAndPort);
-                    muxer = ConnectionMultiplexer.Connect(options);
+                    options.EndPoints.Add(TestConfig.Current.PrimaryServerAndPort);
+                    muxer = ConnectionMultiplexer.Connect(options, Writer);
                 }
                 else
                 {
                     options.EndPoints.Add($"doesnot.exist.{Guid.NewGuid():N}:6379");
-                    muxer = ConnectionMultiplexer.Connect(options);
+                    muxer = ConnectionMultiplexer.Connect(options, Writer);
                 }
 
                 using (muxer)
@@ -174,8 +180,8 @@ namespace StackExchange.Redis.Tests
                     muxer.AllowConnect = false;
                     muxer._connectAttemptCount = connCount;
                     muxer._connectCompletedCount = completeCount;
-                    muxer.IncludeDetailInExceptions = hasDetail;
-                    muxer.IncludePerformanceCountersInExceptions = hasDetail;
+                    options.IncludeDetailInExceptions = hasDetail;
+                    options.IncludePerformanceCountersInExceptions = hasDetail;
 
                     var msg = Message.Create(-1, CommandFlags.None, RedisCommand.PING);
                     var rawEx = ExceptionFactory.NoConnectionAvailable(muxer, msg, new ServerEndPoint(muxer, server.EndPoint));
@@ -188,15 +194,15 @@ namespace StackExchange.Redis.Tests
                     // Ensure our pipe numbers are in place if they should be
                     if (hasDetail)
                     {
-                        Assert.Contains("inst: 0, qu: 0, qs: 0, aw: False, in: 0, in-pipe: 0, out-pipe: 0", ex.Message);
+                        Assert.Contains("inst: 0, qu: 0, qs: 0, aw: False, bw: Inactive, in: 0, in-pipe: 0, out-pipe: 0", ex.Message);
                         Assert.Contains($"mc: {connCount}/{completeCount}/0", ex.Message);
-                        Assert.Contains("serverEndpoint: " + server.EndPoint.ToString().Replace("Unspecified/", ""), ex.Message);
+                        Assert.Contains("serverEndpoint: " + server.EndPoint.ToString()?.Replace("Unspecified/", ""), ex.Message);
                     }
                     else
                     {
-                        Assert.DoesNotContain("inst: 0, qu: 0, qs: 0, aw: False, in: 0, in-pipe: 0, out-pipe: 0", ex.Message);
+                        Assert.DoesNotContain("inst: 0, qu: 0, qs: 0, aw: False, bw: Inactive, in: 0, in-pipe: 0, out-pipe: 0", ex.Message);
                         Assert.DoesNotContain($"mc: {connCount}/{completeCount}/0", ex.Message);
-                        Assert.DoesNotContain("serverEndpoint: " + server.EndPoint.ToString().Replace("Unspecified/", ""), ex.Message);
+                        Assert.DoesNotContain("serverEndpoint: " + server.EndPoint.ToString()?.Replace("Unspecified/", ""), ex.Message);
                     }
                     Assert.DoesNotContain("Unspecified/", ex.Message);
                 }
@@ -205,6 +211,28 @@ namespace StackExchange.Redis.Tests
             {
                 ClearAmbientFailures();
             }
+        }
+
+        [Theory]
+        [InlineData(true, ConnectionFailureType.ProtocolFailure, "ProtocolFailure on [0]:GET myKey (StringProcessor), my annotation")]
+        [InlineData(true, ConnectionFailureType.ConnectionDisposed, "ConnectionDisposed on [0]:GET myKey (StringProcessor), my annotation")]
+        [InlineData(false, ConnectionFailureType.ProtocolFailure, "ProtocolFailure on [0]:GET (StringProcessor), my annotation")]
+        [InlineData(false, ConnectionFailureType.ConnectionDisposed, "ConnectionDisposed on [0]:GET (StringProcessor), my annotation")]
+        public void MessageFail(bool includeDetail, ConnectionFailureType failType, string messageStart)
+        {
+            using var muxer = Create(shared: false);
+            muxer.RawConfig.IncludeDetailInExceptions = includeDetail;
+
+            var message = Message.Create(0, CommandFlags.None, RedisCommand.GET, (RedisKey)"myKey");
+            var resultBox = SimpleResultBox<string>.Create();
+            message.SetSource(ResultProcessor.String, resultBox);
+
+            message.Fail(failType, null, "my annotation", muxer as ConnectionMultiplexer);
+
+            resultBox.GetResult(out var ex);
+            Assert.NotNull(ex);
+
+            Assert.StartsWith(messageStart, ex.Message);
         }
     }
 }

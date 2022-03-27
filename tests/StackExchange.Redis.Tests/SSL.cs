@@ -57,7 +57,7 @@ namespace StackExchange.Redis.Tests
         {
             var server = TestConfig.Current.SslServer;
             int? port = TestConfig.Current.SslPort;
-            string password = "";
+            string? password = "";
             bool isAzure = false;
             if (string.IsNullOrWhiteSpace(server) && useSsl)
             {
@@ -75,7 +75,7 @@ namespace StackExchange.Redis.Tests
                 SyncTimeout = Debugger.IsAttached ? int.MaxValue : 5000,
                 Password = password,
             };
-            var map = new Dictionary<string, string>
+            var map = new Dictionary<string, string?>
             {
                 ["config"] = null // don't rely on config working
             };
@@ -94,7 +94,7 @@ namespace StackExchange.Redis.Tests
                 config.CertificateValidation += (sender, cert, chain, errors) =>
                 {
                     Log("errors: " + errors);
-                    Log("cert issued to: " + cert.Subject);
+                    Log("cert issued to: " + cert?.Subject);
                     return true; // fingers in ears, pretend we don't know this is wrong
                 };
             }
@@ -289,12 +289,8 @@ namespace StackExchange.Redis.Tests
                     }
                 }
             }
-            catch (RedisConnectionException ex)
+            catch (RedisConnectionException ex) when (!setEnv && ex.FailureType == ConnectionFailureType.UnableToConnect)
             {
-                if (setEnv || ex.FailureType != ConnectionFailureType.UnableToConnect)
-                {
-                    throw;
-                }
             }
             finally
             {
@@ -324,7 +320,7 @@ namespace StackExchange.Redis.Tests
             Assert.True(options.SslHost == null);
         }
 
-        private void Check(string name, object x, object y)
+        private void Check(string name, object? x, object? y)
         {
             Writer.WriteLine($"{name}: {(x == null ? "(null)" : x.ToString())} vs {(y == null ? "(null)" : y.ToString())}");
             Assert.Equal(x, y);
@@ -340,11 +336,11 @@ namespace StackExchange.Redis.Tests
                 Writer.WriteLine($"Checking {all.Length} cultures...");
                 foreach (var ci in all)
                 {
-                    Writer.WriteLine("Tessting: " + ci.Name);
+                    Writer.WriteLine("Testing: " + ci.Name);
                     CultureInfo.CurrentCulture = ci;
 
-                    var a = ConnectionMultiplexer.PrepareConfig("myDNS:883,password=mypassword,connectRetry=3,connectTimeout=5000,syncTimeout=5000,defaultDatabase=0,ssl=true,abortConnect=false");
-                    var b = ConnectionMultiplexer.PrepareConfig(new ConfigurationOptions
+                    var a = ConfigurationOptions.Parse("myDNS:883,password=mypassword,connectRetry=3,connectTimeout=5000,syncTimeout=5000,defaultDatabase=0,ssl=true,abortConnect=false");
+                    var b = new ConfigurationOptions
                     {
                         EndPoints = { { "myDNS", 883 } },
                         Password = "mypassword",
@@ -354,7 +350,7 @@ namespace StackExchange.Redis.Tests
                         DefaultDatabase = 0,
                         Ssl = true,
                         AbortOnConnectFail = false,
-                    });
+                    };
                     Writer.WriteLine($"computed: {b.ToString(true)}");
 
                     Writer.WriteLine("Checking endpoints...");
@@ -403,8 +399,12 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        public static RemoteCertificateValidationCallback ShowCertFailures(TextWriterOutputHelper output) {
-            if (output == null) return null;
+        public static RemoteCertificateValidationCallback? ShowCertFailures(TextWriterOutputHelper output)
+        {
+            if (output == null)
+            {
+                return null;
+            }
 
             return (sender, certificate, chain, sslPolicyErrors) =>
             {
@@ -464,7 +464,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void ConfigObject_Issue1407_ToStringIncludesSslProtocols()
         {
-            var sslProtocols = SslProtocols.Tls12 | SslProtocols.Tls;
+            const SslProtocols sslProtocols = SslProtocols.Tls12 | SslProtocols.Tls;
             var sourceOptions = new ConfigurationOptions
             {
                 AbortOnConnectFail = false,

@@ -316,6 +316,7 @@ return timeTaken
                     Assert.Equal(2L, c.Result);
 
                     Assert.True(QuickWait(b).IsFaulted, "should be faulted");
+                    Assert.NotNull(b.Exception);
                     Assert.Single(b.Exception.InnerExceptions);
                     var ex = b.Exception.InnerExceptions.Single();
                     Assert.IsType<RedisServerException>(ex);
@@ -411,7 +412,7 @@ return timeTaken
                 Skip.IfMissingFeature(conn0, nameof(RedisFeatures.Scripting), f => f.Scripting);
                 // note that these are on different connections (so we wouldn't expect
                 // the flush to drop the local cache - assume it is a surprise!)
-                var server = conn0.GetServer(TestConfig.Current.MasterServerAndPort);
+                var server = conn0.GetServer(TestConfig.Current.PrimaryServerAndPort);
                 var db = conn1.GetDatabase();
                 const string script = "return 1;";
 
@@ -460,7 +461,7 @@ return timeTaken
             using (var conn = Create(allowAdmin: true))
             {
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
-                var server = conn.GetServer(TestConfig.Current.MasterServerAndPort);
+                var server = conn.GetServer(TestConfig.Current.PrimaryServerAndPort);
                 server.ScriptFlush();
 
                 server.ScriptLoad(Script);
@@ -511,7 +512,7 @@ return timeTaken
             using (var conn = Create(allowAdmin: true))
             {
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
-                var server = conn.GetServer(TestConfig.Current.MasterServerAndPort);
+                var server = conn.GetServer(TestConfig.Current.PrimaryServerAndPort);
                 server.ScriptFlush();
 
                 byte[] hash = server.ScriptLoad(Script);
@@ -540,7 +541,7 @@ return timeTaken
             using (var conn = Create(allowAdmin: true))
             {
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
-                var server = conn.GetServer(TestConfig.Current.MasterServerAndPort);
+                var server = conn.GetServer(TestConfig.Current.PrimaryServerAndPort);
                 server.ScriptFlush();
 
                 var prepared = LuaScript.Prepare(Script);
@@ -592,7 +593,7 @@ return timeTaken
             using (var conn = Create(allowAdmin: true))
             {
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
-                var server = conn.GetServer(TestConfig.Current.MasterServerAndPort);
+                var server = conn.GetServer(TestConfig.Current.PrimaryServerAndPort);
                 server.ScriptFlush();
 
                 var db = conn.GetDatabase();
@@ -634,7 +635,6 @@ return timeTaken
             }
         }
 
-
         [Fact]
         public void LuaScriptWithKeys()
         {
@@ -643,7 +643,7 @@ return timeTaken
             using (var conn = Create(allowAdmin: true))
             {
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
-                var server = conn.GetServer(TestConfig.Current.MasterServerAndPort);
+                var server = conn.GetServer(TestConfig.Current.PrimaryServerAndPort);
                 server.ScriptFlush();
 
                 var script = LuaScript.Prepare(Script);
@@ -673,7 +673,7 @@ return timeTaken
             using (var conn = Create(allowAdmin: true))
             {
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
-                var server = conn.GetServer(TestConfig.Current.MasterServerAndPort);
+                var server = conn.GetServer(TestConfig.Current.PrimaryServerAndPort);
                 server.ScriptFlush();
 
                 var script = LuaScript.Prepare(Script);
@@ -709,7 +709,7 @@ return timeTaken
             using (var conn = Create(allowAdmin: true))
             {
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
-                var server = conn.GetServer(TestConfig.Current.MasterServerAndPort);
+                var server = conn.GetServer(TestConfig.Current.PrimaryServerAndPort);
                 server.ScriptFlush();
 
                 var prepared = LuaScript.Prepare(Script);
@@ -762,7 +762,7 @@ return timeTaken
             using (var conn = Create(allowAdmin: true))
             {
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
-                var server = conn.GetServer(TestConfig.Current.MasterServerAndPort);
+                var server = conn.GetServer(TestConfig.Current.PrimaryServerAndPort);
                 server.ScriptFlush();
 
                 var script = LuaScript.Prepare(Script);
@@ -801,7 +801,7 @@ return timeTaken
             Assert.False(ReferenceEquals(first, shouldBeNew));
         }
 
-        private static void _PurgeLuaScriptOnFinalize(string script)
+        private static void PurgeLuaScriptOnFinalizeImpl(string script)
         {
             var first = LuaScript.Prepare(script);
             var fromCache = LuaScript.Prepare(script);
@@ -818,12 +818,12 @@ return timeTaken
 
             // This has to be a separate method to guarantee that the created LuaScript objects go out of scope,
             //   and are thus available to be GC'd
-            _PurgeLuaScriptOnFinalize(Script);
+            PurgeLuaScriptOnFinalizeImpl(Script);
             CollectGarbage();
 
             Assert.Equal(0, LuaScript.GetCachedScriptCount());
 
-            var shouldBeNew = LuaScript.Prepare(Script);
+            LuaScript.Prepare(Script);
             Assert.Equal(1, LuaScript.GetCachedScriptCount());
         }
 
@@ -900,7 +900,7 @@ return timeTaken
             {
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
                 var db = conn.GetDatabase();
-                var wrappedDb = DatabaseExtensions.WithKeyPrefix(db, "prefix-");
+                var wrappedDb = db.WithKeyPrefix("prefix-");
                 var key = Me();
                 db.KeyDelete(key, CommandFlags.FireAndForget);
 
@@ -926,7 +926,7 @@ return timeTaken
             {
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
                 var db = conn.GetDatabase();
-                var wrappedDb = DatabaseExtensions.WithKeyPrefix(db, "prefix-");
+                var wrappedDb = db.WithKeyPrefix("prefix-");
                 var key = Me();
                 await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
 
@@ -952,7 +952,7 @@ return timeTaken
             {
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
                 var db = conn.GetDatabase();
-                var wrappedDb = DatabaseExtensions.WithKeyPrefix(db, "prefix2-");
+                var wrappedDb = db.WithKeyPrefix("prefix2-");
                 var key = Me();
                 db.KeyDelete(key, CommandFlags.FireAndForget);
 
@@ -979,7 +979,7 @@ return timeTaken
             {
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
                 var db = conn.GetDatabase();
-                var wrappedDb = DatabaseExtensions.WithKeyPrefix(db, "prefix2-");
+                var wrappedDb = db.WithKeyPrefix("prefix2-");
                 var key = Me();
                 await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
 
@@ -1047,10 +1047,10 @@ return arr;
             {
                 var p = conn.GetDatabase().WithKeyPrefix("prefix/");
                 var args = new { k = (RedisKey)"key", s = "str", v = 123 };
-                LuaScript lua = LuaScript.Prepare(@"return {@k, @s, @v}");
+                LuaScript lua = LuaScript.Prepare("return {@k, @s, @v}");
                 var viaArgs = (RedisValue[])p.ScriptEvaluate(lua, args);
 
-                var viaArr = (RedisValue[])p.ScriptEvaluate(@"return {KEYS[1], ARGV[1], ARGV[2]}", new[] { args.k }, new RedisValue[] { args.s, args.v });
+                var viaArr = (RedisValue[])p.ScriptEvaluate("return {KEYS[1], ARGV[1], ARGV[2]}", new[] { args.k }, new RedisValue[] { args.s, args.v });
                 Assert.Equal(string.Join(",", viaArr), string.Join(",", viaArgs));
             }
         }
@@ -1060,7 +1060,7 @@ return arr;
         [Fact]
         public void RedisResultUnderstandsNullArrayNull() => TestNullArray(null);
 
-        static void TestNullArray(RedisResult value)
+        private static void TestNullArray(RedisResult? value)
         {
             Assert.True(value == null || value.IsNull);
 
@@ -1081,7 +1081,7 @@ return arr;
         [Fact]
         public void RedisResultUnderstandsNullValue() => TestNullValue(RedisResult.Create(RedisValue.Null, ResultType.None));
 
-        static void TestNullValue(RedisResult value)
+        private static void TestNullValue(RedisResult? value)
         {
             Assert.True(value == null || value.IsNull);
 

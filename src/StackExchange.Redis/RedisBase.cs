@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace StackExchange.Redis
@@ -61,7 +60,7 @@ namespace StackExchange.Redis
             return new RedisFeatures(version);
         }
 
-        protected void WhenAlwaysOrExists(When when)
+        protected static void WhenAlwaysOrExists(When when)
         {
             switch (when)
             {
@@ -73,7 +72,7 @@ namespace StackExchange.Redis
             }
         }
 
-        protected void WhenAlwaysOrExistsOrNotExists(When when)
+        protected static void WhenAlwaysOrExistsOrNotExists(When when)
         {
             switch (when)
             {
@@ -86,7 +85,7 @@ namespace StackExchange.Redis
             }
         }
 
-        protected void WhenAlwaysOrNotExists(When when)
+        protected static void WhenAlwaysOrNotExists(When when)
         {
             switch (when)
             {
@@ -102,14 +101,14 @@ namespace StackExchange.Redis
         {
             // do the best we can with available commands
             var map = multiplexer.CommandMap;
-            if(map.IsAvailable(RedisCommand.PING))
+            if (map.IsAvailable(RedisCommand.PING))
                 return ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.PING);
-            if(map.IsAvailable(RedisCommand.TIME))
+            if (map.IsAvailable(RedisCommand.TIME))
                 return ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.TIME);
             if (map.IsAvailable(RedisCommand.ECHO))
                 return ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.ECHO, RedisLiterals.PING);
             // as our fallback, we'll do something odd... we'll treat a key like a value, out of sheer desperation
-            // note: this usually means: twemproxy - in which case we're fine anyway, since the proxy does the routing
+            // note: this usually means: twemproxy/envoyproxy - in which case we're fine anyway, since the proxy does the routing
             return ResultProcessor.TimingProcessor.CreateMessage(0, flags, RedisCommand.EXISTS, (RedisValue)multiplexer.UniqueId);
         }
 

@@ -12,7 +12,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void Int32_Matrix()
         {
-            void Check(RedisValue known, RedisValue test)
+            static void Check(RedisValue known, RedisValue test)
             {
                 KeysAndValues.CheckSame(known, test);
                 if (known.IsNull)
@@ -23,7 +23,7 @@ namespace StackExchange.Redis.Tests
                 else
                 {
                     Assert.False(test.IsNull);
-                    Assert.Equal((int)known, ((int?)test).Value);
+                    Assert.Equal((int)known, ((int?)test)!.Value);
                     Assert.Equal((int)known, (int)test);
                 }
                 Assert.Equal((int)known, (int)test);
@@ -51,7 +51,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void Int64_Matrix()
         {
-            void Check(RedisValue known, RedisValue test)
+            static void Check(RedisValue known, RedisValue test)
             {
                 KeysAndValues.CheckSame(known, test);
                 if (known.IsNull)
@@ -62,7 +62,7 @@ namespace StackExchange.Redis.Tests
                 else
                 {
                     Assert.False(test.IsNull);
-                    Assert.Equal((long)known, ((long?)test).Value);
+                    Assert.Equal((long)known, ((long?)test!).Value);
                     Assert.Equal((long)known, (long)test);
                 }
                 Assert.Equal((long)known, (long)test);
@@ -90,7 +90,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void Double_Matrix()
         {
-            void Check(RedisValue known, RedisValue test)
+            static void Check(RedisValue known, RedisValue test)
             {
                 KeysAndValues.CheckSame(known, test);
                 if (known.IsNull)
@@ -101,7 +101,7 @@ namespace StackExchange.Redis.Tests
                 else
                 {
                     Assert.False(test.IsNull);
-                    Assert.Equal((double)known, ((double?)test).Value);
+                    Assert.Equal((double)known, ((double?)test)!.Value);
                     Assert.Equal((double)known, (double)test);
                 }
                 Assert.Equal((double)known, (double)test);
@@ -150,9 +150,9 @@ namespace StackExchange.Redis.Tests
             Assert.True(s == expected, $"'{s}' vs '{expected}'");
         }
 
-        private static byte[] Bytes(string s) => s == null ? null : Encoding.UTF8.GetBytes(s);
+        private static byte[]? Bytes(string? s) => s == null ? null : Encoding.UTF8.GetBytes(s);
 
-        private string LineNumber([CallerLineNumber] int lineNumber = 0) => lineNumber.ToString();
+        private static string LineNumber([CallerLineNumber] int lineNumber = 0) => lineNumber.ToString();
 
         [Fact]
         public void RedisValueStartsWith()
@@ -213,9 +213,9 @@ namespace StackExchange.Redis.Tests
             Assert.True(((RedisValue)123.0).TryParse(out l));
             Assert.Equal(123, l);
 
-            Assert.False(((RedisValue)"abc").TryParse(out l));
-            Assert.False(((RedisValue)"123.1").TryParse(out l));
-            Assert.False(((RedisValue)123.1).TryParse(out l));
+            Assert.False(((RedisValue)"abc").TryParse(out long _));
+            Assert.False(((RedisValue)"123.1").TryParse(out long _));
+            Assert.False(((RedisValue)123.1).TryParse(out long _));
         }
 
         [Fact]
@@ -227,7 +227,7 @@ namespace StackExchange.Redis.Tests
             Assert.True(((RedisValue)123.0).TryParse(out i));
             Assert.Equal(123, i);
 
-            Assert.False(((RedisValue)(int.MaxValue + 123L)).TryParse(out i));
+            Assert.False(((RedisValue)(int.MaxValue + 123L)).TryParse(out int _));
 
             Assert.True(((RedisValue)"123").TryParse(out i));
             Assert.Equal(123, i);
@@ -241,9 +241,9 @@ namespace StackExchange.Redis.Tests
             Assert.True(((RedisValue)123.0).TryParse(out i));
             Assert.Equal(123, i);
 
-            Assert.False(((RedisValue)"abc").TryParse(out i));
-            Assert.False(((RedisValue)"123.1").TryParse(out i));
-            Assert.False(((RedisValue)123.1).TryParse(out i));
+            Assert.False(((RedisValue)"abc").TryParse(out int _));
+            Assert.False(((RedisValue)"123.1").TryParse(out int _));
+            Assert.False(((RedisValue)123.1).TryParse(out int _));
         }
 
         [Fact]
@@ -276,7 +276,7 @@ namespace StackExchange.Redis.Tests
             Assert.True(((RedisValue)"123.1").TryParse(out d));
             Assert.Equal(123.1, d);
 
-            Assert.False(((RedisValue)"abc").TryParse(out d));
+            Assert.False(((RedisValue)"abc").TryParse(out double _));
         }
     }
 }

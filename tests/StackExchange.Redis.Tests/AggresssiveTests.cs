@@ -80,11 +80,11 @@ namespace StackExchange.Redis.Tests
             {
                 var db = muxer.GetDatabase();
 
-                Thread x = new Thread(state => BatchRunPings((IDatabase)state))
+                Thread x = new Thread(state => BatchRunPings((IDatabase)state!))
                 {
                     Name = nameof(BatchRunPings)
                 };
-                Thread y = new Thread(state => BatchRunIntegers((IDatabase)state))
+                Thread y = new Thread(state => BatchRunIntegers((IDatabase)state!))
                 {
                     Name = nameof(BatchRunIntegers)
                 };
@@ -119,7 +119,7 @@ namespace StackExchange.Redis.Tests
             Writer.WriteLine($"tally: {count}");
         }
 
-        private void BatchRunPings(IDatabase db)
+        private static void BatchRunPings(IDatabase db)
         {
             Task[] tasks = new Task[InnerCount];
             for (int i = 0; i < IterationCount; i++)
@@ -175,7 +175,7 @@ namespace StackExchange.Redis.Tests
             Writer.WriteLine($"tally: {count}");
         }
 
-        private async Task BatchRunPingsAsync(IDatabase db)
+        private static async Task BatchRunPingsAsync(IDatabase db)
         {
             Task[] tasks = new Task[InnerCount];
             for (int i = 0; i < IterationCount; i++)
@@ -200,11 +200,11 @@ namespace StackExchange.Redis.Tests
             {
                 var db = muxer.GetDatabase();
 
-                Thread x = new Thread(state => TranRunPings((IDatabase)state))
+                Thread x = new Thread(state => TranRunPings((IDatabase)state!))
                 {
                     Name = nameof(BatchRunPings)
                 };
-                Thread y = new Thread(state => TranRunIntegers((IDatabase)state))
+                Thread y = new Thread(state => TranRunIntegers((IDatabase)state!))
                 {
                     Name = nameof(BatchRunIntegers)
                 };
@@ -240,7 +240,7 @@ namespace StackExchange.Redis.Tests
             Writer.WriteLine($"tally: {count}");
         }
 
-        private void TranRunPings(IDatabase db)
+        private static void TranRunPings(IDatabase db)
         {
             var key = Me();
             db.KeyDelete(key);
@@ -300,7 +300,7 @@ namespace StackExchange.Redis.Tests
             Writer.WriteLine($"tally: {count}");
         }
 
-        private async Task TranRunPingsAsync(IDatabase db)
+        private static async Task TranRunPingsAsync(IDatabase db)
         {
             var key = Me();
             db.KeyDelete(key);

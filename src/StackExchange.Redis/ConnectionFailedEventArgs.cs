@@ -5,7 +5,7 @@ using System.Text;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// Contains information about a server connection failure
+    /// Contains information about a server connection failure.
     /// </summary>
     public class ConnectionFailedEventArgs : EventArgs, ICompletable
     {
@@ -29,7 +29,7 @@ namespace StackExchange.Redis
         /// <param name="endPoint">Redis endpoint.</param>
         /// <param name="connectionType">Redis connection type.</param>
         /// <param name="failureType">Redis connection failure type.</param>
-        /// <param name="exception">The exception occured.</param>
+        /// <param name="exception">The exception that occurred.</param>
         /// <param name="physicalName">Connection physical name.</param>
         public ConnectionFailedEventArgs(object sender, EndPoint endPoint, ConnectionType connectionType, ConnectionFailureType failureType, Exception exception, string physicalName)
             : this (null, sender, endPoint, connectionType, failureType, exception, physicalName)
@@ -39,31 +39,27 @@ namespace StackExchange.Redis
         private readonly string _physicalName;
 
         /// <summary>
-        /// Gets the connection-type of the failing connection
+        /// Gets the connection-type of the failing connection.
         /// </summary>
         public ConnectionType ConnectionType { get; }
 
         /// <summary>
-        /// Gets the failing server-endpoint
+        /// Gets the failing server-endpoint.
         /// </summary>
         public EndPoint EndPoint { get; }
 
         /// <summary>
-        /// Gets the exception if available (this can be null)
+        /// Gets the exception if available (this can be null).
         /// </summary>
         public Exception Exception { get; }
 
         /// <summary>
-        /// The type of failure
+        /// The type of failure.
         /// </summary>
         public ConnectionFailureType FailureType { get; }
 
-        void ICompletable.AppendStormLog(StringBuilder sb)
-        {
-            sb.Append("event, connection-failed: ");
-            if (EndPoint == null) sb.Append("n/a");
-            else sb.Append(Format.ToString(EndPoint));
-        }
+        void ICompletable.AppendStormLog(StringBuilder sb) =>
+            sb.Append("event, connection-failed: ").Append(EndPoint != null ? Format.ToString(EndPoint) : "n/a");
 
         bool ICompletable.TryComplete(bool isAsync) => ConnectionMultiplexer.TryCompleteHandler(handler, sender, this, isAsync);
 

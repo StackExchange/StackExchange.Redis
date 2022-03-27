@@ -11,7 +11,7 @@ using System.Text;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// Represents values that can be stored in redis
+    /// Represents values that can be stored in redis.
     /// </summary>
     public readonly struct RedisValue : IEquatable<RedisValue>, IComparable<RedisValue>, IComparable, IConvertible
     {
@@ -21,7 +21,6 @@ namespace StackExchange.Redis
         private readonly ReadOnlyMemory<byte> _memory;
         private readonly long _overlappedBits64;
 
-        // internal bool IsNullOrDefaultValue {  get { return (valueBlob == null && valueInt64 == 0L) || ((object)valueBlob == (object)NullSentinel); } }
         private RedisValue(long overlappedValue64, ReadOnlyMemory<byte> memory, object objectOrSentinel)
         {
             _overlappedBits64 = overlappedValue64;
@@ -42,15 +41,15 @@ namespace StackExchange.Redis
         /// </summary>
         public RedisValue(string value) : this(0, default, value) { }
 
-#pragma warning disable RCS1085 // Use auto-implemented property.
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Roslynator", "RCS1085:Use auto-implemented property.", Justification = "Intentional field ref")]
         internal object DirectObject => _objectOrSentinel;
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Roslynator", "RCS1085:Use auto-implemented property.", Justification = "Intentional field ref")]
         internal long DirectOverlappedBits64 => _overlappedBits64;
-#pragma warning restore RCS1085 // Use auto-implemented property.
 
-        private readonly static object Sentinel_SignedInteger = new object();
-        private readonly static object Sentinel_UnsignedInteger = new object();
-        private readonly static object Sentinel_Raw = new object();
-        private readonly static object Sentinel_Double = new object();
+        private readonly static object Sentinel_SignedInteger = new();
+        private readonly static object Sentinel_UnsignedInteger = new();
+        private readonly static object Sentinel_Raw = new();
+        private readonly static object Sentinel_Double = new();
 
         /// <summary>
         /// Obtain this value as an object - to be used alongside Unbox
@@ -88,12 +87,12 @@ namespace StackExchange.Redis
         public static RedisValue Unbox(object value)
         {
             var val = TryParse(value, out var valid);
-            if (!valid) throw new ArgumentException(nameof(value));
+            if (!valid) throw new ArgumentException("Could not parse value", nameof(value));
             return val;
         }
 
         /// <summary>
-        /// Represents the string <c>""</c>
+        /// Represents the string <c>""</c>.
         /// </summary>
         public static RedisValue EmptyString { get; } = new RedisValue(0, default, Sentinel_Raw);
 
@@ -103,22 +102,22 @@ namespace StackExchange.Redis
         static readonly object[] s_CommonInt32 = Enumerable.Range(-1, 22).Select(i => (object)i).ToArray(); // [-1,20] = 22 values
 
         /// <summary>
-        /// A null value
+        /// A null value.
         /// </summary>
         public static RedisValue Null { get; } = new RedisValue(0, default, null);
 
         /// <summary>
-        /// Indicates whether the value is a primitive integer (signed or unsigned)
+        /// Indicates whether the value is a primitive integer (signed or unsigned).
         /// </summary>
         public bool IsInteger => _objectOrSentinel == Sentinel_SignedInteger || _objectOrSentinel == Sentinel_UnsignedInteger;
 
         /// <summary>
-        /// Indicates whether the value should be considered a null value
+        /// Indicates whether the value should be considered a null value.
         /// </summary>
         public bool IsNull => _objectOrSentinel == null;
 
         /// <summary>
-        /// Indicates whether the value is either null or a zero-length value
+        /// Indicates whether the value is either null or a zero-length value.
         /// </summary>
         public bool IsNullOrEmpty
         {
@@ -133,12 +132,12 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Indicates whether the value is greater than zero-length or has an integer value
+        /// Indicates whether the value is greater than zero-length or has an integer value.
         /// </summary>
         public bool HasValue => !IsNullOrEmpty;
 
         /// <summary>
-        /// Indicates whether two RedisValue values are equivalent
+        /// Indicates whether two RedisValue values are equivalent.
         /// </summary>
         /// <param name="x">The first <see cref="RedisValue"/> to compare.</param>
         /// <param name="y">The second <see cref="RedisValue"/> to compare.</param>
@@ -163,7 +162,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Indicates whether two RedisValue values are equivalent
+        /// Indicates whether two RedisValue values are equivalent.
         /// </summary>
         /// <param name="x">The first <see cref="RedisValue"/> to compare.</param>
         /// <param name="y">The second <see cref="RedisValue"/> to compare.</param>
@@ -214,7 +213,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// See Object.Equals()
+        /// See <see cref="object.Equals(object)"/>.
         /// </summary>
         /// <param name="obj">The other <see cref="RedisValue"/> to compare.</param>
         public override bool Equals(object obj)
@@ -226,37 +225,28 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Indicates whether two RedisValue values are equivalent
+        /// Indicates whether two RedisValue values are equivalent.
         /// </summary>
         /// <param name="other">The <see cref="RedisValue"/> to compare to.</param>
         public bool Equals(RedisValue other) => this == other;
 
-        /// <summary>
-        /// See Object.GetHashCode()
-        /// </summary>
+        /// <inheritdoc/>
         public override int GetHashCode() => GetHashCode(this);
         private static int GetHashCode(RedisValue x)
         {
             x = x.Simplify();
-            switch (x.Type)
+            return x.Type switch
             {
-                case StorageType.Null:
-                    return -1;
-                case StorageType.Double:
-                    return x.OverlappedValueDouble.GetHashCode();
-                case StorageType.Int64:
-                case StorageType.UInt64:
-                    return x._overlappedBits64.GetHashCode();
-                case StorageType.Raw:
-                    return ((string)x).GetHashCode(); // to match equality
-                case StorageType.String:
-                default:
-                    return x._objectOrSentinel.GetHashCode();
-            }
+                StorageType.Null => -1,
+                StorageType.Double => x.OverlappedValueDouble.GetHashCode(),
+                StorageType.Int64 or StorageType.UInt64 => x._overlappedBits64.GetHashCode(),
+                StorageType.Raw => ((string)x).GetHashCode(),// to match equality
+                _ => x._objectOrSentinel.GetHashCode(),
+            };
         }
 
         /// <summary>
-        /// Returns a string representation of the value
+        /// Returns a string representation of the value.
         /// </summary>
         public override string ToString() => (string)this;
 
@@ -309,7 +299,6 @@ namespace StackExchange.Redis
                 return acc;
             }
         }
-        
 
         internal void AssertNotNull()
         {
@@ -340,19 +329,16 @@ namespace StackExchange.Redis
         /// <summary>
         /// Get the size of this value in bytes
         /// </summary>
-        public long Length()
+        public long Length() => Type switch
         {
-            switch (Type)
-            {
-                case StorageType.Null: return 0;
-                case StorageType.Raw: return _memory.Length;
-                case StorageType.String: return Encoding.UTF8.GetByteCount((string)_objectOrSentinel);
-                default: throw new InvalidOperationException("Unable to compute length of type: " + Type);
-            }
-        }
+            StorageType.Null => 0,
+            StorageType.Raw => _memory.Length,
+            StorageType.String => Encoding.UTF8.GetByteCount((string)_objectOrSentinel),
+            _ => throw new InvalidOperationException("Unable to compute length of type: " + Type),
+        };
 
         /// <summary>
-        /// Compare against a RedisValue for relative order
+        /// Compare against a RedisValue for relative order.
         /// </summary>
         /// <param name="other">The other <see cref="RedisValue"/> to compare.</param>
         public int CompareTo(RedisValue other) => CompareTo(this, other);
@@ -477,7 +463,7 @@ namespace StackExchange.Redis
         [CLSCompliant(false)]
         public static implicit operator RedisValue(ulong value)
         {
-            const ulong MSB = (1UL) << 63;
+            const ulong MSB = 1UL << 63;
             return (value & MSB) == 0
                 ? new RedisValue((long)value, default, Sentinel_SignedInteger) // prefer signed whenever we can
                 : new RedisValue(unchecked((long)value), default, Sentinel_UnsignedInteger); // with unsigned as the fallback
@@ -579,15 +565,12 @@ namespace StackExchange.Redis
         /// Converts a <see cref="RedisValue"/> to a <see cref="bool"/>.
         /// </summary>
         /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
-        public static explicit operator bool(RedisValue value)
+        public static explicit operator bool(RedisValue value) => (long)value switch
         {
-            switch ((long)value)
-            {
-                case 0: return false;
-                case 1: return true;
-                default: throw new InvalidCastException();
-            }
-        }
+            0 => false,
+            1 => true,
+            _ => throw new InvalidCastException(),
+        };
 
         /// <summary>
         /// Converts a <see cref="RedisValue"/> to a <see cref="int"/>.
@@ -603,16 +586,13 @@ namespace StackExchange.Redis
         public static explicit operator long(RedisValue value)
         {
             value = value.Simplify();
-            switch (value.Type)
+            return value.Type switch
             {
-                case StorageType.Null:
-                    return 0; // in redis, an arithmetic zero is kinda the same thing as not-exists (think "incr")
-                case StorageType.Int64:
-                    return value.OverlappedValueInt64;
-                case StorageType.UInt64:
-                    return checked((long)value.OverlappedValueUInt64); // this will throw since unsigned is always 64-bit
-            }
-            throw new InvalidCastException($"Unable to cast from {value.Type} to long: '{value}'");
+                StorageType.Null => 0,// in redis, an arithmetic zero is kinda the same thing as not-exists (think "incr")
+                StorageType.Int64 => value.OverlappedValueInt64,
+                StorageType.UInt64 => checked((long)value.OverlappedValueUInt64),// this will throw since unsigned is always 64-bit
+                _ => throw new InvalidCastException($"Unable to cast from {value.Type} to long: '{value}'"),
+            };
         }
 
         /// <summary>
@@ -623,16 +603,13 @@ namespace StackExchange.Redis
         public static explicit operator uint(RedisValue value)
         {
             value = value.Simplify();
-            switch (value.Type)
+            return value.Type switch
             {
-                case StorageType.Null:
-                    return 0; // in redis, an arithmetic zero is kinda the same thing as not-exists (think "incr")
-                case StorageType.Int64:
-                    return checked((uint)value.OverlappedValueInt64);
-                case StorageType.UInt64:
-                    return checked((uint)value.OverlappedValueUInt64);
-            }
-            throw new InvalidCastException($"Unable to cast from {value.Type} to uint: '{value}'");
+                StorageType.Null => 0,// in redis, an arithmetic zero is kinda the same thing as not-exists (think "incr")
+                StorageType.Int64 => checked((uint)value.OverlappedValueInt64),
+                StorageType.UInt64 => checked((uint)value.OverlappedValueUInt64),
+                _ => throw new InvalidCastException($"Unable to cast from {value.Type} to uint: '{value}'"),
+            };
         }
 
         /// <summary>
@@ -643,16 +620,13 @@ namespace StackExchange.Redis
         public static explicit operator ulong(RedisValue value)
         {
             value = value.Simplify();
-            switch (value.Type)
+            return value.Type switch
             {
-                case StorageType.Null:
-                    return 0; // in redis, an arithmetic zero is kinda the same thing as not-exists (think "incr")
-                case StorageType.Int64:
-                    return checked((ulong)value.OverlappedValueInt64); // throw if negative
-                case StorageType.UInt64:
-                    return value.OverlappedValueUInt64;
-            }
-            throw new InvalidCastException($"Unable to cast from {value.Type} to ulong: '{value}'");
+                StorageType.Null => 0,// in redis, an arithmetic zero is kinda the same thing as not-exists (think "incr")
+                StorageType.Int64 => checked((ulong)value.OverlappedValueInt64),// throw if negative
+                StorageType.UInt64 => value.OverlappedValueUInt64,
+                _ => throw new InvalidCastException($"Unable to cast from {value.Type} to ulong: '{value}'"),
+            };
         }
 
         /// <summary>
@@ -662,18 +636,14 @@ namespace StackExchange.Redis
         public static explicit operator double(RedisValue value)
         {
             value = value.Simplify();
-            switch (value.Type)
+            return value.Type switch
             {
-                case StorageType.Null:
-                    return 0; // in redis, an arithmetic zero is kinda the same thing as not-exists (think "incr")
-                case StorageType.Int64:
-                    return value.OverlappedValueInt64;
-                case StorageType.UInt64:
-                    return value.OverlappedValueUInt64;
-                case StorageType.Double:
-                    return value.OverlappedValueDouble;
-            }
-            throw new InvalidCastException($"Unable to cast from {value.Type} to double: '{value}'");
+                StorageType.Null => 0,// in redis, an arithmetic zero is kinda the same thing as not-exists (think "incr")
+                StorageType.Int64 => value.OverlappedValueInt64,
+                StorageType.UInt64 => value.OverlappedValueUInt64,
+                StorageType.Double => value.OverlappedValueDouble,
+                _ => throw new InvalidCastException($"Unable to cast from {value.Type} to double: '{value}'"),
+            };
         }
 
         /// <summary>
@@ -683,18 +653,14 @@ namespace StackExchange.Redis
         public static explicit operator decimal(RedisValue value)
         {
             value = value.Simplify();
-            switch (value.Type)
+            return value.Type switch
             {
-                case StorageType.Null:
-                    return 0; // in redis, an arithmetic zero is kinda the same thing as not-exists (think "incr")
-                case StorageType.Int64:
-                    return value.OverlappedValueInt64;
-                case StorageType.UInt64:
-                    return value.OverlappedValueUInt64;
-                case StorageType.Double:
-                    return (decimal)value.OverlappedValueDouble;
-            }
-            throw new InvalidCastException($"Unable to cast from {value.Type} to decimal: '{value}'");
+                StorageType.Null => 0,// in redis, an arithmetic zero is kinda the same thing as not-exists (think "incr")
+                StorageType.Int64 => value.OverlappedValueInt64,
+                StorageType.UInt64 => value.OverlappedValueUInt64,
+                StorageType.Double => (decimal)value.OverlappedValueDouble,
+                _ => throw new InvalidCastException($"Unable to cast from {value.Type} to decimal: '{value}'"),
+            };
         }
 
         /// <summary>
@@ -704,18 +670,14 @@ namespace StackExchange.Redis
         public static explicit operator float(RedisValue value)
         {
             value = value.Simplify();
-            switch (value.Type)
+            return value.Type switch
             {
-                case StorageType.Null:
-                    return 0; // in redis, an arithmetic zero is kinda the same thing as not-exists (think "incr")
-                case StorageType.Int64:
-                    return value.OverlappedValueInt64;
-                case StorageType.UInt64:
-                    return value.OverlappedValueUInt64;
-                case StorageType.Double:
-                    return (float)value.OverlappedValueDouble;
-            }
-            throw new InvalidCastException($"Unable to cast from {value.Type} to double: '{value}'");
+                StorageType.Null => 0,// in redis, an arithmetic zero is kinda the same thing as not-exists (think "incr")
+                StorageType.Int64 => value.OverlappedValueInt64,
+                StorageType.UInt64 => value.OverlappedValueUInt64,
+                StorageType.Double => (float)value.OverlappedValueDouble,
+                _ => throw new InvalidCastException($"Unable to cast from {value.Type} to double: '{value}'"),
+            };
         }
 
         private static bool TryParseDouble(ReadOnlySpan<byte> blob, out double value)
@@ -882,7 +844,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Converts a <see cref="RedisValue"/> to a ReadOnlyMemory
+        /// Converts a <see cref="RedisValue"/> to a <see cref="ReadOnlyMemory{T}"/>.
         /// </summary>
         /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
         public static implicit operator ReadOnlyMemory<byte>(RedisValue value)
@@ -909,27 +871,26 @@ namespace StackExchange.Redis
             if (conversionType == typeof(byte[])) return (byte[])this;
             if (conversionType == typeof(ReadOnlyMemory<byte>)) return (ReadOnlyMemory<byte>)this;
             if (conversionType == typeof(RedisValue)) return this;
-            switch (System.Type.GetTypeCode(conversionType))
+            return System.Type.GetTypeCode(conversionType) switch
             {
-                case TypeCode.Boolean: return (bool)this;
-                case TypeCode.Byte: return checked((byte)(uint)this);
-                case TypeCode.Char: return checked((char)(uint)this);
-                case TypeCode.DateTime: return DateTime.Parse((string)this, provider);
-                case TypeCode.Decimal: return (decimal)this;
-                case TypeCode.Double: return (double)this;
-                case TypeCode.Int16: return (short)this;
-                case TypeCode.Int32: return (int)this;
-                case TypeCode.Int64: return (long)this;
-                case TypeCode.SByte: return (sbyte)this;
-                case TypeCode.Single: return (float)this;
-                case TypeCode.String: return (string)this;
-                case TypeCode.UInt16: return checked((ushort)(uint)this);
-                case TypeCode.UInt32: return (uint)this;
-                case TypeCode.UInt64: return (ulong)this;
-                case TypeCode.Object: return this;
-                default:
-                    throw new NotSupportedException();
-            }
+                TypeCode.Boolean => (bool)this,
+                TypeCode.Byte => checked((byte)(uint)this),
+                TypeCode.Char => checked((char)(uint)this),
+                TypeCode.DateTime => DateTime.Parse((string)this, provider),
+                TypeCode.Decimal => (decimal)this,
+                TypeCode.Double => (double)this,
+                TypeCode.Int16 => (short)this,
+                TypeCode.Int32 => (int)this,
+                TypeCode.Int64 => (long)this,
+                TypeCode.SByte => (sbyte)this,
+                TypeCode.Single => (float)this,
+                TypeCode.String => (string)this,
+                TypeCode.UInt16 => checked((ushort)(uint)this),
+                TypeCode.UInt32 => (uint)this,
+                TypeCode.UInt64 => (ulong)this,
+                TypeCode.Object => this,
+                _ => throw new NotSupportedException(),
+            };
         }
 
         ushort IConvertible.ToUInt16(IFormatProvider provider) => checked((ushort)(uint)this);
@@ -978,10 +939,10 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// <para>Convert to a signed long if possible, returning true.</para>
-        /// <para>Returns false otherwise.</para>
+        /// Convert to a signed <see cref="long"/> if possible.
         /// </summary>
         /// <param name="val">The <see cref="long"/> value, if conversion was possible.</param>
+        /// <returns><see langword="true"/> if successfully parsed, <see langword="false"/> otherwise.</returns>
         public bool TryParse(out long val)
         {
             switch (Type)
@@ -1012,10 +973,10 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// <para>Convert to a int if possible, returning true.</para>
-        /// <para>Returns false otherwise.</para>
+        /// Convert to an <see cref="int"/> if possible.
         /// </summary>
         /// <param name="val">The <see cref="int"/> value, if conversion was possible.</param>
+        /// <returns><see langword="true"/> if successfully parsed, <see langword="false"/> otherwise.</returns>
         public bool TryParse(out int val)
         {
             if (!TryParse(out long l) || l > int.MaxValue || l < int.MinValue)
@@ -1029,10 +990,10 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// <para>Convert to a double if possible, returning true.</para>
-        /// <para>Returns false otherwise.</para>
+        /// Convert to a <see cref="double"/> if possible.
         /// </summary>
         /// <param name="val">The <see cref="double"/> value, if conversion was possible.</param>
+        /// <returns><see langword="true"/> if successfully parsed, <see langword="false"/> otherwise.</returns>
         public bool TryParse(out double val)
         {
             switch (Type)
@@ -1060,8 +1021,8 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Create a RedisValue from a MemoryStream; it will *attempt* to use the internal buffer
-        /// directly, but if this isn't possibly it will fallback to ToArray
+        /// Create a <see cref="RedisValue"/> from a <see cref="MemoryStream"/>.
+        /// It will *attempt* to use the internal buffer directly, but if this isn't possible it will fallback to <see cref="MemoryStream.ToArray"/>.
         /// </summary>
         /// <param name="stream">The <see cref="MemoryStream"/> to create a value from.</param>
         public static RedisValue CreateFrom(MemoryStream stream)

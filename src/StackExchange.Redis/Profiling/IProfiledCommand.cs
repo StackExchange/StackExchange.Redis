@@ -85,7 +85,7 @@ namespace StackExchange.Redis.Profiling
         /// <summary>
         /// If RetransmissionOf is not null, this property will be set to either Ask or Moved to indicate
         /// what sort of response triggered the retransmission.
-        /// 
+        ///
         /// This can be useful for determining the root cause of extra commands.
         /// </summary>
         RetransmissionReasonType? RetransmissionReason { get; }

@@ -9,6 +9,10 @@ using Xunit;
 
 namespace StackExchange.Redis.Tests
 {
+    [CollectionDefinition(nameof(MoqDependentCollection), DisableParallelization = true)]
+    public class MoqDependentCollection { }
+
+    [Collection(nameof(MoqDependentCollection))]
     public sealed class DatabaseWrapperTests
     {
         private readonly Mock<IDatabase> mock;
@@ -23,7 +27,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void CreateBatch()
         {
-            object asyncState = new object();
+            object asyncState = new();
             IBatch innerBatch = new Mock<IBatch>().Object;
             mock.Setup(_ => _.CreateBatch(asyncState)).Returns(innerBatch);
             IBatch wrappedBatch = wrapper.CreateBatch(asyncState);
@@ -35,7 +39,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void CreateTransaction()
         {
-            object asyncState = new object();
+            object asyncState = new();
             ITransaction innerTransaction = new Mock<ITransaction>().Object;
             mock.Setup(_ => _.CreateTransaction(asyncState)).Returns(innerTransaction);
             ITransaction wrappedTransaction = wrapper.CreateTransaction(asyncState);
@@ -82,7 +86,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void HashDelete_2()
         {
-            RedisValue[] hashFields = new RedisValue[0];
+            RedisValue[] hashFields = Array.Empty<RedisValue>();
             wrapper.HashDelete("key", hashFields, CommandFlags.None);
             mock.Verify(_ => _.HashDelete("prefix:key", hashFields, CommandFlags.None));
         }
@@ -104,7 +108,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void HashGet_2()
         {
-            RedisValue[] hashFields = new RedisValue[0];
+            RedisValue[] hashFields = Array.Empty<RedisValue>();
             wrapper.HashGet("key", hashFields, CommandFlags.None);
             mock.Verify(_ => _.HashGet("prefix:key", hashFields, CommandFlags.None));
         }
@@ -161,7 +165,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void HashSet_1()
         {
-            HashEntry[] hashFields = new HashEntry[0];
+            HashEntry[] hashFields = Array.Empty<HashEntry>();
             wrapper.HashSet("key", hashFields, CommandFlags.None);
             mock.Verify(_ => _.HashSet("prefix:key", hashFields, CommandFlags.None));
         }
@@ -197,7 +201,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void HyperLogLogAdd_2()
         {
-            RedisValue[] values = new RedisValue[0];
+            RedisValue[] values = Array.Empty<RedisValue>();
             wrapper.HyperLogLogAdd("key", values, CommandFlags.None);
             mock.Verify(_ => _.HyperLogLogAdd("prefix:key", values, CommandFlags.None));
         }
@@ -316,7 +320,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void KeyRestore()
         {
-            byte[] value = new byte[0];
+            byte[] value = Array.Empty<byte>();
             TimeSpan expiry = TimeSpan.FromSeconds(123);
             wrapper.KeyRestore("key", value, expiry, CommandFlags.None);
             mock.Verify(_ => _.KeyRestore("prefix:key", value, expiry, CommandFlags.None));
@@ -365,6 +369,13 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void ListLeftPop_1()
+        {
+            wrapper.ListLeftPop("key", 123, CommandFlags.None);
+            mock.Verify(_ => _.ListLeftPop("prefix:key", 123, CommandFlags.None));
+        }
+
+        [Fact]
         public void ListLeftPush_1()
         {
             wrapper.ListLeftPush("key", "value", When.Exists, CommandFlags.None);
@@ -374,7 +385,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void ListLeftPush_2()
         {
-            RedisValue[] values = new RedisValue[0];
+            RedisValue[] values = Array.Empty<RedisValue>();
             wrapper.ListLeftPush("key", values, CommandFlags.None);
             mock.Verify(_ => _.ListLeftPush("prefix:key", values, CommandFlags.None));
         }
@@ -416,6 +427,13 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void ListRightPop_1()
+        {
+            wrapper.ListRightPop("key", 123, CommandFlags.None);
+            mock.Verify(_ => _.ListRightPop("prefix:key", 123, CommandFlags.None));
+        }
+
+        [Fact]
         public void ListRightPopLeftPush()
         {
             wrapper.ListRightPopLeftPush("source", "destination", CommandFlags.None);
@@ -432,7 +450,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void ListRightPush_2()
         {
-            RedisValue[] values = new RedisValue[0];
+            RedisValue[] values = Array.Empty<RedisValue>();
             wrapper.ListRightPush("key", values, CommandFlags.None);
             mock.Verify(_ => _.ListRightPush("prefix:key", values, CommandFlags.None));
         }
@@ -499,8 +517,8 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void ScriptEvaluate_1()
         {
-            byte[] hash = new byte[0];
-            RedisValue[] values = new RedisValue[0];
+            byte[] hash = Array.Empty<byte>();
+            RedisValue[] values = Array.Empty<RedisValue>();
             RedisKey[] keys = new RedisKey[] { "a", "b" };
             Expression<Func<RedisKey[], bool>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "prefix:b";
             wrapper.ScriptEvaluate(hash, keys, values, CommandFlags.None);
@@ -510,7 +528,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void ScriptEvaluate_2()
         {
-            RedisValue[] values = new RedisValue[0];
+            RedisValue[] values = Array.Empty<RedisValue>();
             RedisKey[] keys = new RedisKey[] { "a", "b" };
             Expression<Func<RedisKey[], bool>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "prefix:b";
             wrapper.ScriptEvaluate("script", keys, values, CommandFlags.None);
@@ -527,7 +545,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void SetAdd_2()
         {
-            RedisValue[] values = new RedisValue[0];
+            RedisValue[] values = Array.Empty<RedisValue>();
             wrapper.SetAdd("key", values, CommandFlags.None);
             mock.Verify(_ => _.SetAdd("prefix:key", values, CommandFlags.None));
         }
@@ -633,7 +651,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void SetRemove_2()
         {
-            RedisValue[] values = new RedisValue[0];
+            RedisValue[] values = Array.Empty<RedisValue>();
             wrapper.SetRemove("key", values, CommandFlags.None);
             mock.Verify(_ => _.SetRemove("prefix:key", values, CommandFlags.None));
         }
@@ -688,7 +706,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void SortedSetAdd_2()
         {
-            SortedSetEntry[] values = new SortedSetEntry[0];
+            SortedSetEntry[] values = Array.Empty<SortedSetEntry>();
             wrapper.SortedSetAdd("key", values, When.Exists, CommandFlags.None);
             mock.Verify(_ => _.SortedSetAdd("prefix:key", values, When.Exists, CommandFlags.None));
         }
@@ -796,7 +814,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void SortedSetRemove_2()
         {
-            RedisValue[] members = new RedisValue[0];
+            RedisValue[] members = Array.Empty<RedisValue>();
             wrapper.SortedSetRemove("key", members, CommandFlags.None);
             mock.Verify(_ => _.SortedSetRemove("prefix:key", members, CommandFlags.None));
         }
@@ -868,7 +886,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamAdd_2()
         {
-            var fields = new NameValueEntry[0];
+            var fields = Array.Empty<NameValueEntry>();
             wrapper.StreamAdd("key", fields, "*", 1000, true, CommandFlags.None);
             mock.Verify(_ => _.StreamAdd("prefix:key", fields, "*", 1000, true, CommandFlags.None));
         }
@@ -876,7 +894,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamClaimMessages()
         {
-            var messageIds = new RedisValue[0];
+            var messageIds = Array.Empty<RedisValue>();
             wrapper.StreamClaim("key", "group", "consumer", 1000, messageIds, CommandFlags.None);
             mock.Verify(_ => _.StreamClaim("prefix:key", "group", "consumer", 1000, messageIds, CommandFlags.None));
         }
@@ -884,7 +902,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamClaimMessagesReturningIds()
         {
-            var messageIds = new RedisValue[0];
+            var messageIds = Array.Empty<RedisValue>();
             wrapper.StreamClaimIdsOnly("key", "group", "consumer", 1000, messageIds, CommandFlags.None);
             mock.Verify(_ => _.StreamClaimIdsOnly("prefix:key", "group", "consumer", 1000, messageIds, CommandFlags.None));
         }
@@ -934,7 +952,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamMessagesDelete()
         {
-            var messageIds = new RedisValue[] { };
+            var messageIds = Array.Empty<RedisValue>();
             wrapper.StreamDelete("key", messageIds, CommandFlags.None);
             mock.Verify(_ => _.StreamDelete("prefix:key", messageIds, CommandFlags.None));
         }
@@ -977,7 +995,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamRead_1()
         {
-            var streamPositions = new StreamPosition[] { };
+            var streamPositions = Array.Empty<StreamPosition>();
             wrapper.StreamRead(streamPositions, null, CommandFlags.None);
             mock.Verify(_ => _.StreamRead(streamPositions, null, CommandFlags.None));
         }
@@ -999,7 +1017,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamStreamReadGroup_2()
         {
-            var streamPositions = new StreamPosition[] { };
+            var streamPositions = Array.Empty<StreamPosition>();
             wrapper.StreamReadGroup(streamPositions, "group", "consumer", 10, false, CommandFlags.None);
             mock.Verify(_ => _.StreamReadGroup(streamPositions, "group", "consumer", 10, false, CommandFlags.None));
         }
@@ -1100,6 +1118,13 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void StringGetDelete()
+        {
+            wrapper.StringGetDelete("key", CommandFlags.None);
+            mock.Verify(_ => _.StringGetDelete("prefix:key", CommandFlags.None));
+        }
+
+        [Fact]
         public void StringGetWithExpiry()
         {
             wrapper.StringGetWithExpiry("key", CommandFlags.None);
@@ -1137,6 +1162,14 @@ namespace StackExchange.Redis.Tests
 
         [Fact]
         public void StringSet_2()
+        {
+            TimeSpan? expiry = null;
+            wrapper.StringSet("key", "value", expiry, true, When.Exists, CommandFlags.None);
+            mock.Verify(_ => _.StringSet("prefix:key", "value", expiry, true, When.Exists, CommandFlags.None));
+        }
+
+        [Fact]
+        public void StringSet_3()
         {
             KeyValuePair<RedisKey, RedisValue>[] values = new KeyValuePair<RedisKey, RedisValue>[] { new KeyValuePair<RedisKey, RedisValue>("a", "x"), new KeyValuePair<RedisKey, RedisValue>("b", "y") };
             Expression<Func<KeyValuePair<RedisKey, RedisValue>[], bool>> valid = _ => _.Length == 2 && _[0].Key == "prefix:a" && _[0].Value == "x" && _[1].Key == "prefix:b" && _[1].Value == "y";

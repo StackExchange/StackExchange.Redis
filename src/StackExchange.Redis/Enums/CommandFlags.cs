@@ -3,10 +3,11 @@ using System.ComponentModel;
 
 namespace StackExchange.Redis
 {
-  /// <summary>
+    /// <summary>
     /// Behaviour markers associated with a given command
     /// </summary>
     [Flags]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1069:Enums values should not be duplicated", Justification = "Compatibility")]
     public enum CommandFlags
     {
         /// <summary>
@@ -17,7 +18,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// From 2.0, this flag is not used
         /// </summary>
-        [Obsolete("From 2.0, this flag is not used", false)]
+        [Obsolete("From 2.0, this flag is not used, this will be removed in 3.0.", false)]
         HighPriority = 1,
         /// <summary>
         /// The caller is not interested in the result; the caller will immediately receive a default-value
@@ -26,29 +27,27 @@ namespace StackExchange.Redis
         FireAndForget = 2,
 
         /// <summary>
-        /// This operation should be performed on the master if it is available, but read operations may
-        /// be performed on a replica if no master is available. This is the default option.
+        /// This operation should be performed on the primary if it is available, but read operations may
+        /// be performed on a replica if no primary is available. This is the default option.
         /// </summary>
         PreferMaster = 0,
 
         /// <summary>
-        /// This operation should only be performed on the master.
+        /// This operation should only be performed on the primary.
         /// </summary>
         DemandMaster = 4,
 
-
-
         /// <summary>
         /// This operation should be performed on the replica if it is available, but will be performed on
-        /// a master if no replicas are available. Suitable for read operations only.
+        /// a primary if no replicas are available. Suitable for read operations only.
         /// </summary>
-        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(PreferReplica) + " instead.")]
+        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(PreferReplica) + " instead, this will be removed in 3.0.")]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         PreferSlave = 8,
 
         /// <summary>
         /// This operation should be performed on the replica if it is available, but will be performed on
-        /// a master if no replicas are available. Suitable for read operations only.
+        /// a primary if no replicas are available. Suitable for read operations only.
         /// </summary>
         PreferReplica = 8, // note: we're using a 2-bit set here, which [Flags] formatting hates; position is doing the best we can for reasonable outcomes here
 
@@ -60,7 +59,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// This operation should only be performed on a replica. Suitable for read operations only.
         /// </summary>
-        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(DemandReplica) + " instead.")]
+        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(DemandReplica) + " instead, this will be removed in 3.0.")]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         DemandSlave = 12,
 
@@ -82,6 +81,8 @@ namespace StackExchange.Redis
         /// </summary>
         NoScriptCache = 512,
 
-        // 1024: used for timed-out; never user-specified, so not visible on the public API
+        // 1024: Removed - was used for async timeout checks; never user-specified, so not visible on the public API
+
+        // 2048: Use subscription connection type; never user-specified, so not visible on the public API
     }
 }

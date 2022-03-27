@@ -10,7 +10,7 @@ namespace StackExchange.Redis.Tests
     {
         public Expiry(ITestOutputHelper output, SharedConnectionFixture fixture) : base (output, fixture) { }
 
-        private static string[] GetMap(bool disablePTimes) => disablePTimes ? (new[] { "pexpire", "pexpireat", "pttl" }) : null;
+        private static string[]? GetMap(bool disablePTimes) => disablePTimes ? (new[] { "pexpire", "pexpireat", "pttl" }) : null;
 
         [Theory]
         [InlineData(true)]
@@ -63,7 +63,11 @@ namespace StackExchange.Redis.Tests
                 conn.KeyDelete(key, CommandFlags.FireAndForget);
 
                 var now = utc ? DateTime.UtcNow : DateTime.Now;
-                Log("Now: {0}", now);
+                var serverTime = GetServer(muxer).Time();
+                Log("Server time: {0}", serverTime);
+                var offset = DateTime.UtcNow - serverTime;
+
+                Log("Now (local time): {0}", now);
                 conn.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
                 var a = conn.KeyTimeToLiveAsync(key);
                 conn.KeyExpire(key, now.AddHours(1), CommandFlags.FireAndForget);
@@ -78,14 +82,22 @@ namespace StackExchange.Redis.Tests
                 var f = conn.KeyTimeToLiveAsync(key);
 
                 Assert.Null(await a);
-                var time = await b;
-                Assert.NotNull(time);
+                var timeResult = await b;
+                Assert.NotNull(timeResult);
+                TimeSpan time = timeResult.Value;
+
+                // Adjust for server time offset, if any when checking expectations
+                time -= offset;
+
                 Log("Time: {0}, Expected: {1}-{2}", time, TimeSpan.FromMinutes(59), TimeSpan.FromMinutes(60));
                 Assert.True(time >= TimeSpan.FromMinutes(59));
                 Assert.True(time <= TimeSpan.FromMinutes(60.1));
                 Assert.Null(await c);
-                time = await d;
-                Assert.NotNull(time);
+
+                timeResult = await d;
+                Assert.NotNull(timeResult);
+                time = timeResult.Value;
+
                 Assert.True(time >= TimeSpan.FromMinutes(89));
                 Assert.True(time <= TimeSpan.FromMinutes(90.1));
                 Assert.Null(await e);

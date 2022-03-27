@@ -48,6 +48,9 @@ dotnet_style_explicit_tuple_names = true:suggestion
 # Ignore silly if statements
 dotnet_style_prefer_conditional_expression_over_return = false:none
 
+# Don't warn on things that actually need suppressing
+dotnet_remove_unnecessary_suppression_exclusions = CA1009,CA1063,CA1069,CA1416,CA1816,CA1822,CA2202,CS0618,IDE0060,IDE0062,RCS1047,RCS1085,RCS1090,RCS1194,RCS1231
+
 # CSharp code style settings:
 [*.cs]
 # Prefer method-like constructs to have a expression-body
@@ -66,6 +69,11 @@ csharp_style_pattern_matching_over_as_with_null_check = true:suggestion
 csharp_style_inlined_variable_declaration = true:suggestion
 csharp_style_throw_expression = true:suggestion
 csharp_style_conditional_delegate_call = true:suggestion
+csharp_prefer_simple_using_statement = true:silent
+
+# Disable range operator suggestions
+csharp_style_prefer_range_operator = false:none
+csharp_style_prefer_index_operator = false:none
 
 # Newline settings
 csharp_new_line_before_open_brace = all
@@ -80,3 +88,21 @@ csharp_space_after_keywords_in_control_flow_statements = true:suggestion
 
 # Language settings
 csharp_prefer_simple_default_expression = false:none
+
+# IDE0090: Use 'new(...)'
+dotnet_diagnostic.IDE0090.severity = silent
+
+# RCS1098: Constant values should be placed on right side of comparisons.
+dotnet_diagnostic.RCS1098.severity = none
+
+# RCS1194: Implement exception constructors.
+dotnet_diagnostic.RCS1194.severity = none
+
+# RCS1229: Use async/await when necessary.
+dotnet_diagnostic.RCS1229.severity = none
+
+# RCS1233: Use short-circuiting operator.
+dotnet_diagnostic.RCS1233.severity = none
+
+# RCS1234: Duplicate enum value.
+dotnet_diagnostic.RCS1234.severity = none

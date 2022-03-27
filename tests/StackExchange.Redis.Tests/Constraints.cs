@@ -34,7 +34,7 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        public async Task<long?> ManualIncrAsync(IDatabase connection, RedisKey key)
+        public static async Task<long?> ManualIncrAsync(IDatabase connection, RedisKey key)
         {
             var oldVal = (long?)await connection.StringGetAsync(key).ForAwait();
             var newVal = (oldVal ?? 0) + 1;

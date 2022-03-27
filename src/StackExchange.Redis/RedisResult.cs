@@ -5,7 +5,7 @@ using System.Runtime.CompilerServices;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// Represents a general-purpose result from redis, that may be cast into various anticipated types
+    /// Represents a general-purpose result from redis, that may be cast into various anticipated types.
     /// </summary>
     public abstract class RedisResult
     {
@@ -35,18 +35,19 @@ namespace StackExchange.Redis
             => values == null ? NullArray : values.Length == 0 ? EmptyArray : new ArrayRedisResult(values);
 
         /// <summary>
-        /// An empty array result
+        /// An empty array result.
         /// </summary>
         internal static RedisResult EmptyArray { get; } = new ArrayRedisResult(Array.Empty<RedisResult>());
 
         /// <summary>
-        /// A null array result
+        /// A null array result.
         /// </summary>
         internal static RedisResult NullArray { get; } = new ArrayRedisResult(null);
 
-        // internally, this is very similar to RawResult, except it is designed to be usable
-        // outside of the IO-processing pipeline: the buffers are standalone, etc
-
+        /// <summary>
+        /// Internally, this is very similar to RawResult, except it is designed to be usable,
+        /// outside of the IO-processing pipeline: the buffers are standalone, etc.
+        /// </summary>
         internal static RedisResult TryCreate(PhysicalConnection connection, in RawResult result)
         {
             try
@@ -84,12 +85,12 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Indicate the type of result that was received from redis
+        /// Indicate the type of result that was received from redis.
         /// </summary>
         public abstract ResultType Type { get; }
 
         /// <summary>
-        /// Indicates whether this result was a null result
+        /// Indicates whether this result was a null result.
         /// </summary>
         public abstract bool IsNull { get; }
 
@@ -218,9 +219,9 @@ namespace StackExchange.Redis
         public static explicit operator RedisResult[](RedisResult result) => result?.AsRedisResultArray();
 
         /// <summary>
-        /// Interprets a multi-bulk result with successive key/name values as a dictionary keyed by name
+        /// Interprets a multi-bulk result with successive key/name values as a dictionary keyed by name.
         /// </summary>
-        /// <param name="comparer">The key comparator to use, or <see cref="StringComparer.InvariantCultureIgnoreCase"/> by default</param>
+        /// <param name="comparer">The key comparator to use, or <see cref="StringComparer.InvariantCultureIgnoreCase"/> by default.</param>
         public Dictionary<string, RedisResult> ToDictionary(IEqualityComparer<string> comparer = null)
         {
             var arr = AsRedisResultArray();
@@ -535,38 +536,24 @@ namespace StackExchange.Redis
             {
                 switch (System.Type.GetTypeCode(conversionType))
                 {
-                    case TypeCode.Boolean:
-                        return AsBoolean();
-                    case TypeCode.Char:
-                        checked { return (char)AsInt32(); }
-                    case TypeCode.SByte:
-                        checked { return (sbyte)AsInt32(); }
-                    case TypeCode.Byte:
-                        checked { return (byte)AsInt32(); }
-                    case TypeCode.Int16:
-                        checked { return (short)AsInt32(); }
-                    case TypeCode.UInt16:
-                        checked { return (ushort)AsInt32(); }
-                    case TypeCode.Int32:
-                        return AsInt32();
-                    case TypeCode.UInt32:
-                        checked { return (uint)AsInt64(); }
-                    case TypeCode.Int64:
-                        return AsInt64();
-                    case TypeCode.UInt64:
-                        checked { return (ulong)AsInt64(); }
-                    case TypeCode.Single:
-                        return (float)AsDouble();
-                    case TypeCode.Double:
-                        return AsDouble();
-                    case TypeCode.Decimal:
-                        if (Type == ResultType.Integer) return AsInt64();
-                        break;
-                    case TypeCode.String:
-                        return AsString();
+                    case TypeCode.Boolean: return AsBoolean();
+                    case TypeCode.Char: checked { return (char)AsInt32(); }
+                    case TypeCode.SByte: checked { return (sbyte)AsInt32(); }
+                    case TypeCode.Byte: checked { return (byte)AsInt32(); }
+                    case TypeCode.Int16: checked { return (short)AsInt32(); }
+                    case TypeCode.UInt16: checked { return (ushort)AsInt32(); }
+                    case TypeCode.Int32: return AsInt32();
+                    case TypeCode.UInt32: checked { return (uint)AsInt64(); }
+                    case TypeCode.Int64: return AsInt64();
+                    case TypeCode.UInt64: checked { return (ulong)AsInt64(); }
+                    case TypeCode.Single: return (float)AsDouble();
+                    case TypeCode.Double: return AsDouble();
+                    case TypeCode.Decimal when Type == ResultType.Integer: return AsInt64();
+                    case TypeCode.String: return AsString();
+                    default:
+                        ThrowNotSupported();
+                        return default;
                 }
-                ThrowNotSupported();
-                return default;
             }
 
             void ThrowNotSupported([CallerMemberName] string caller = null)

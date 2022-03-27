@@ -10,12 +10,12 @@ namespace StackExchange.Redis.Tests
     {
         public GeoTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base (output, fixture) { }
 
-        public static GeoEntry
+        private readonly static GeoEntry
             palermo = new GeoEntry(13.361389, 38.115556, "Palermo"),
             catania = new GeoEntry(15.087269, 37.502669, "Catania"),
             agrigento = new GeoEntry(13.5765, 37.311, "Agrigento"),
             cefalù = new GeoEntry(14.0188, 38.0084, "Cefalù");
-        public static GeoEntry[] all = { palermo, catania, agrigento, cefalù };
+        private readonly static GeoEntry[] all = { palermo, catania, agrigento, cefalù };
 
         [Fact]
         public void GeoAdd()
@@ -148,15 +148,21 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal(2, results.Length);
 
                 Assert.Equal(results[0].Member, cefalù.Member);
-                Assert.Equal(0, results[0].Distance.Value);
-                Assert.Equal(Math.Round(results[0].Position.Value.Longitude, 5), Math.Round(cefalù.Position.Longitude, 5));
-                Assert.Equal(Math.Round(results[0].Position.Value.Latitude, 5), Math.Round(cefalù.Position.Latitude, 5));
+                Assert.Equal(0, results[0].Distance);
+                var position0 = results[0].Position;
+                Assert.NotNull(position0);
+                Assert.Equal(Math.Round(position0.Value.Longitude, 5), Math.Round(cefalù.Position.Longitude, 5));
+                Assert.Equal(Math.Round(position0.Value.Latitude, 5), Math.Round(cefalù.Position.Latitude, 5));
                 Assert.False(results[0].Hash.HasValue);
 
                 Assert.Equal(results[1].Member, palermo.Member);
-                Assert.Equal(Math.Round(36.5319, 6), Math.Round(results[1].Distance.Value, 6));
-                Assert.Equal(Math.Round(results[1].Position.Value.Longitude, 5), Math.Round(palermo.Position.Longitude, 5));
-                Assert.Equal(Math.Round(results[1].Position.Value.Latitude, 5), Math.Round(palermo.Position.Latitude, 5));
+                var distance1 = results[1].Distance;
+                Assert.NotNull(distance1);
+                Assert.Equal(Math.Round(36.5319, 6), Math.Round(distance1.Value, 6));
+                var position1 = results[1].Position;
+                Assert.NotNull(position1);
+                Assert.Equal(Math.Round(position1.Value.Longitude, 5), Math.Round(palermo.Position.Longitude, 5));
+                Assert.Equal(Math.Round(position1.Value.Latitude, 5), Math.Round(palermo.Position.Latitude, 5));
                 Assert.False(results[1].Hash.HasValue);
 
                 results = db.GeoRadius(key, cefalù.Member, 60, GeoUnit.Miles, 2, Order.Ascending, GeoRadiusOptions.None);

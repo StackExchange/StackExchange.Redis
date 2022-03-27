@@ -1,10 +1,12 @@
 ﻿using System.Text;
+using System.Threading.Tasks;
 using Moq;
 using StackExchange.Redis.KeyspaceIsolation;
+using Xunit;
 
 namespace StackExchange.Redis.Tests
 {
-#pragma warning disable RCS1047 // Non-asynchronous method name should not end with 'Async'.
+    [Collection(nameof(MoqDependentCollection))]
     public sealed class TransactionWrapperTests
     {
         private readonly Mock<ITransaction> mock;
@@ -115,9 +117,9 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void ExecuteAsync()
+        public async Task ExecuteAsync()
         {
-            wrapper.ExecuteAsync(CommandFlags.None);
+            await wrapper.ExecuteAsync(CommandFlags.None);
             mock.Verify(_ => _.ExecuteAsync(CommandFlags.None), Times.Once());
         }
 
@@ -128,5 +130,4 @@ namespace StackExchange.Redis.Tests
             mock.Verify(_ => _.Execute(CommandFlags.None), Times.Once());
         }
     }
-#pragma warning restore RCS1047 // Non-asynchronous method name should not end with 'Async'.
 }

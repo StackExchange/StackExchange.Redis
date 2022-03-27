@@ -12,16 +12,18 @@ namespace StackExchange.Redis
     /// Public fields and properties of the passed in object are treated as parameters.
     /// </para>
     /// <para>
-    /// Parameters of type RedisKey are sent to Redis as KEY (https://redis.io/commands/eval) in addition to arguments, 
+    /// Parameters of type RedisKey are sent to Redis as KEY (https://redis.io/commands/eval) in addition to arguments,
     /// so as to play nicely with Redis Cluster.
     /// </para>
     /// <para>All members of this class are thread safe.</para>
     /// </summary>
     public sealed class LuaScript
     {
-        // Since the mapping of "script text" -> LuaScript doesn't depend on any particular details of
-        // the redis connection itself, this cache is global.
-        private static readonly ConcurrentDictionary<string, WeakReference> Cache = new ConcurrentDictionary<string, WeakReference>();
+        /// <summary>
+        /// Since the mapping of "script text" -> LuaScript doesn't depend on any particular details of
+        /// the redis connection itself, this cache is global.
+        /// </summary>
+        private static readonly ConcurrentDictionary<string, WeakReference> Cache = new();
 
         /// <summary>
         /// The original Lua script that was used to create this.
@@ -34,7 +36,9 @@ namespace StackExchange.Redis
         /// </summary>
         public string ExecutableScript { get; }
 
-        // Arguments are in the order they have to passed to the script in
+        /// <summary>
+        /// Arguments are in the order they have to passed to the script in.
+        /// </summary>
         internal string[] Arguments { get; }
 
         private bool HasArguments => Arguments?.Length > 0;
@@ -54,8 +58,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Finalizer, used to prompt cleanups of the script cache when
-        /// a LuaScript reference goes out of scope.
+        /// Finalizer - used to prompt cleanups of the script cache when a LuaScript reference goes out of scope.
         /// </summary>
         ~LuaScript()
         {
@@ -167,7 +170,7 @@ namespace StackExchange.Redis
         /// Loads this LuaScript into the given IServer so it can be run with it's SHA1 hash, instead of
         /// passing the full script on each Evaluate or EvaluateAsync call.
         /// </para>
-        /// <para>Note: the FireAndForget command flag cannot be set</para>
+        /// <para>Note: the FireAndForget command flag cannot be set.</para>
         /// </summary>
         /// <param name="server">The server to load the script on.</param>
         /// <param name="flags">The command flags to use.</param>
@@ -218,7 +221,7 @@ namespace StackExchange.Redis
     /// Public fields and properties of the passed in object are treated as parameters.
     /// </para>
     /// <para>
-    /// Parameters of type RedisKey are sent to Redis as KEY (https://redis.io/commands/eval) in addition to arguments, 
+    /// Parameters of type RedisKey are sent to Redis as KEY (https://redis.io/commands/eval) in addition to arguments,
     /// so as to play nicely with Redis Cluster.
     /// </para>
     /// <para>All members of this class are thread safe.</para>
@@ -253,8 +256,8 @@ namespace StackExchange.Redis
         /// <summary>
         /// <para>Evaluates this LoadedLuaScript against the given database, extracting parameters for the passed in object if any.</para>
         /// <para>
-        /// This method sends the SHA1 hash of the ExecutableScript instead of the script itself.  If the script has not
-        /// been loaded into the passed Redis instance it will fail.
+        /// This method sends the SHA1 hash of the ExecutableScript instead of the script itself.
+        /// If the script has not been loaded into the passed Redis instance, it will fail.
         /// </para>
         /// </summary>
         /// <param name="db">The redis database to evaluate against.</param>
@@ -270,8 +273,8 @@ namespace StackExchange.Redis
         /// <summary>
         /// <para>Evaluates this LoadedLuaScript against the given database, extracting parameters for the passed in object if any.</para>
         /// <para>
-        /// This method sends the SHA1 hash of the ExecutableScript instead of the script itself.  If the script has not
-        /// been loaded into the passed Redis instance it will fail.
+        /// This method sends the SHA1 hash of the ExecutableScript instead of the script itself.
+        /// If the script has not been loaded into the passed Redis instance, it will fail.
         /// </para>
         /// </summary>
         /// <param name="db">The redis database to evaluate against.</param>

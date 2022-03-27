@@ -42,7 +42,6 @@ namespace StackExchange.Redis.Server
 
         protected override IEnumerable<RedisKey> Keys(int database, RedisKey pattern)
         {
-            string s = pattern;
             foreach (var pair in _cache)
             {
                 if (IsMatch(pattern, pair.Key)) yield return pair.Key;

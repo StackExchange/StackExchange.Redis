@@ -12,18 +12,21 @@ namespace StackExchange.Redis.Tests.Issues
     {
         public Issue1101(ITestOutputHelper output) : base(output) { }
 
-        static void AssertCounts(ISubscriber pubsub, in RedisChannel channel,
+        private static void AssertCounts(ISubscriber pubsub, in RedisChannel channel,
             bool has, int handlers, int queues)
         {
-            var aHas = ((RedisSubscriber)pubsub).GetSubscriberCounts(channel, out var ah, out var aq);
-            Assert.Equal(has, aHas);
-            Assert.Equal(handlers, ah);
-            Assert.Equal(queues, aq);
+            if (pubsub.Multiplexer is ConnectionMultiplexer muxer)
+            {
+                var aHas = muxer.GetSubscriberCounts(channel, out var ah, out var aq);
+                Assert.Equal(has, aHas);
+                Assert.Equal(handlers, ah);
+                Assert.Equal(queues, aq);
+            }
         }
         [Fact]
         public async Task ExecuteWithUnsubscribeViaChannel()
         {
-            using (var muxer = Create())
+            using (var muxer = Create(log: Writer))
             {
                 RedisChannel name = Me();
                 var pubsub = muxer.GetSubscriber();
@@ -43,7 +46,7 @@ namespace StackExchange.Redis.Tests.Issues
                 second.OnMessage(_ => Interlocked.Increment(ref i));
                 await Task.Delay(200);
                 await pubsub.PublishAsync(name, "abc");
-                await UntilCondition(TimeSpan.FromSeconds(10), () => values.Count == 1);
+                await UntilConditionAsync(TimeSpan.FromSeconds(10), () => values.Count == 1);
                 lock (values)
                 {
                     Assert.Equal("abc", Assert.Single(values));
@@ -56,7 +59,7 @@ namespace StackExchange.Redis.Tests.Issues
                 await first.UnsubscribeAsync();
                 await Task.Delay(200);
                 await pubsub.PublishAsync(name, "def");
-                await UntilCondition(TimeSpan.FromSeconds(10), () => values.Count == 1 && Volatile.Read(ref i) == 2);
+                await UntilConditionAsync(TimeSpan.FromSeconds(10), () => values.Count == 1 && Volatile.Read(ref i) == 2);
                 lock (values)
                 {
                     Assert.Equal("abc", Assert.Single(values));
@@ -69,7 +72,7 @@ namespace StackExchange.Redis.Tests.Issues
                 await second.UnsubscribeAsync();
                 await Task.Delay(200);
                 await pubsub.PublishAsync(name, "ghi");
-                await UntilCondition(TimeSpan.FromSeconds(10), () => values.Count == 1);
+                await UntilConditionAsync(TimeSpan.FromSeconds(10), () => values.Count == 1);
                 lock (values)
                 {
                     Assert.Equal("abc", Assert.Single(values));
@@ -78,7 +81,6 @@ namespace StackExchange.Redis.Tests.Issues
                 Assert.True(first.Completion.IsCompleted, "completed");
                 Assert.True(second.Completion.IsCompleted, "completed");
                 AssertCounts(pubsub, name, false, 0, 0);
-
 
                 subs = muxer.GetServer(muxer.GetEndPoints().Single()).SubscriptionSubscriberCount(name);
                 Assert.Equal(0, subs);
@@ -90,7 +92,7 @@ namespace StackExchange.Redis.Tests.Issues
         [Fact]
         public async Task ExecuteWithUnsubscribeViaSubscriber()
         {
-            using (var muxer = Create())
+            using (var muxer = Create(shared: false, log: Writer))
             {
                 RedisChannel name = Me();
                 var pubsub = muxer.GetSubscriber();
@@ -111,7 +113,7 @@ namespace StackExchange.Redis.Tests.Issues
 
                 await Task.Delay(100);
                 await pubsub.PublishAsync(name, "abc");
-                await UntilCondition(TimeSpan.FromSeconds(10), () => values.Count == 1);
+                await UntilConditionAsync(TimeSpan.FromSeconds(10), () => values.Count == 1);
                 lock (values)
                 {
                     Assert.Equal("abc", Assert.Single(values));
@@ -124,7 +126,7 @@ namespace StackExchange.Redis.Tests.Issues
                 await pubsub.UnsubscribeAsync(name);
                 await Task.Delay(100);
                 await pubsub.PublishAsync(name, "def");
-                await UntilCondition(TimeSpan.FromSeconds(10), () => values.Count == 1);
+                await UntilConditionAsync(TimeSpan.FromSeconds(10), () => values.Count == 1);
                 lock (values)
                 {
                     Assert.Equal("abc", Assert.Single(values));
@@ -142,7 +144,7 @@ namespace StackExchange.Redis.Tests.Issues
         [Fact]
         public async Task ExecuteWithUnsubscribeViaClearAll()
         {
-            using (var muxer = Create())
+            using (var muxer = Create(log: Writer))
             {
                 RedisChannel name = Me();
                 var pubsub = muxer.GetSubscriber();
@@ -162,7 +164,7 @@ namespace StackExchange.Redis.Tests.Issues
                 second.OnMessage(_ => Interlocked.Increment(ref i));
                 await Task.Delay(100);
                 await pubsub.PublishAsync(name, "abc");
-                await UntilCondition(TimeSpan.FromSeconds(10), () => values.Count == 1);
+                await UntilConditionAsync(TimeSpan.FromSeconds(10), () => values.Count == 1);
                 lock (values)
                 {
                     Assert.Equal("abc", Assert.Single(values));
@@ -175,7 +177,7 @@ namespace StackExchange.Redis.Tests.Issues
                 await pubsub.UnsubscribeAllAsync();
                 await Task.Delay(100);
                 await pubsub.PublishAsync(name, "def");
-                await UntilCondition(TimeSpan.FromSeconds(10), () => values.Count == 1);
+                await UntilConditionAsync(TimeSpan.FromSeconds(10), () => values.Count == 1);
                 lock (values)
                 {
                     Assert.Equal("abc", Assert.Single(values));

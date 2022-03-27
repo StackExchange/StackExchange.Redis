@@ -7,7 +7,7 @@ using System.Text;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// Provides basic information about the features available on a particular version of Redis
+    /// Provides basic information about the features available on a particular version of Redis.
     /// </summary>
     public readonly struct RedisFeatures
     {
@@ -36,12 +36,14 @@ namespace StackExchange.Redis
                                          v4_0_0 = new Version(4, 0, 0),
                                          v4_9_1 = new Version(4, 9, 1), // 5.0 RC1 is version 4.9.1; // 5.0 RC1 is version 4.9.1
                                          v5_0_0 = new Version(5, 0, 0),
-                                         v6_2_0 = new Version(6, 2, 0);
+                                         v6_0_0 = new Version(6, 0, 0),
+                                         v6_2_0 = new Version(6, 2, 0),
+                                         v6_9_240 = new Version(6, 9, 240); // 7.0 RC1 is version 6.9.240
 
         private readonly Version version;
 
         /// <summary>
-        /// Create a new RedisFeatures instance for the given version
+        /// Create a new RedisFeatures instance for the given version.
         /// </summary>
         /// <param name="version">The version of redis to base the feature set on.</param>
         public RedisFeatures(Version version)
@@ -70,12 +72,22 @@ namespace StackExchange.Redis
         public bool ExpireOverwrite => Version >= v2_1_3;
 
         /// <summary>
+        /// Is GETDEL available?
+        /// </summary>
+        public bool GetDelete => Version >= v6_2_0;
+
+        /// <summary>
+        /// Does GETEX exist?
+        /// </summary>
+        internal bool GetEx => Version >= v6_2_0;
+
+        /// <summary>
         /// Is HSTRLEN available?
         /// </summary>
         public bool HashStringLength => Version >= v3_2_0;
 
         /// <summary>
-        /// Does HDEL support varadic usage?
+        /// Does HDEL support variadic usage?
         /// </summary>
         public bool HashVaradicDelete => Version >= v2_4_0;
 
@@ -135,12 +147,27 @@ namespace StackExchange.Redis
         public bool Scripting => Version >= v2_5_7;
 
         /// <summary>
+        /// Does SET support the GET option?
+        /// </summary>
+        public bool SetAndGet => Version >= v6_2_0;
+
+        /// <summary>
         /// Does SET have the EX|PX|NX|XX extensions?
         /// </summary>
         public bool SetConditional => Version >= v2_6_12;
 
         /// <summary>
-        /// Does SADD support varadic usage?
+        /// Does SET have the KEEPTTL extension?
+        /// </summary>
+        public bool SetKeepTtl => Version >= v6_0_0;
+
+        /// <summary>
+        /// Does SET allow the NX and GET options to be used together?
+        /// </summary>
+        public bool SetNotExistsAndGet => Version >= v6_9_240;
+
+        /// <summary>
+        /// Does SADD support variadic usage?
         /// </summary>
         public bool SetVaradicAddRemove => Version >= v2_4_0;
 
@@ -148,6 +175,11 @@ namespace StackExchange.Redis
         /// Is ZPOPMAX and ZPOPMIN available?
         /// </summary>
         public bool SortedSetPop => Version >= v4_9_1;
+
+        /// <summary>
+        /// Is ZRANGESTORE available?
+        /// </summary>
+        public bool SortedSetRangeStore => Version >= v6_2_0;
 
         /// <summary>
         /// Are Redis Streams available?
@@ -187,7 +219,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Is PFCOUNT supported on replicas?
         /// </summary>
-        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(HyperLogLogCountReplicaSafe) + " instead.")]
+        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(HyperLogLogCountReplicaSafe) + " instead, this will be removed in 3.0.")]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         public bool HyperLogLogCountSlaveSafe => HyperLogLogCountReplicaSafe;
 
@@ -227,17 +259,12 @@ namespace StackExchange.Redis
         public bool PushMultiple => Version >= v4_0_0;
 
         /// <summary>
-        /// Does GETEX exist?
-        /// </summary>
-        public bool GetEx => Version >= v6_2_0;
-
-        /// <summary>
         /// The Redis version of the server
         /// </summary>
         public Version Version => version ?? v2_0_0;
 
         /// <summary>
-        /// Create a string representation of the available features
+        /// Create a string representation of the available features.
         /// </summary>
         public override string ToString()
         {
@@ -265,9 +292,24 @@ namespace StackExchange.Redis
         /// <summary>Returns the hash code for this instance.</summary>
         /// <returns>A 32-bit signed integer that is the hash code for this instance.</returns>
         public override int GetHashCode() => Version.GetHashCode();
-        /// <summary>Indicates whether this instance and a specified object are equal.</summary>
-        /// <returns>true if <paramref name="obj" /> and this instance are the same type and represent the same value; otherwise, false. </returns>
-        /// <param name="obj">The object to compare with the current instance. </param>
+
+        /// <summary>
+        /// Indicates whether this instance and a specified object are equal.
+        /// </summary>
+        /// <returns>
+        /// <see langword="true"/> if <paramref name="obj" /> and this instance are the same type and represent the same value, <see langword="false"/> otherwise.
+        /// </returns>
+        /// <param name="obj">The object to compare with the current instance.</param>
         public override bool Equals(object obj) => obj is RedisFeatures f && f.Version == Version;
+
+        /// <summary>
+        /// Checks if 2 <see cref="RedisFeatures"/> are .Equal().
+        /// </summary>
+        public static bool operator ==(RedisFeatures left, RedisFeatures right) => left.Equals(right);
+
+        /// <summary>
+        /// Checks if 2 <see cref="RedisFeatures"/> are not .Equal().
+        /// </summary>
+        public static bool operator !=(RedisFeatures left, RedisFeatures right) => !left.Equals(right);
     }
 }

@@ -9,6 +9,7 @@ namespace StackExchange.Redis
             ASK = "ASK ",
             authFail_trimmed = CommandBytes.TrimToFit("ERR operation not permitted"),
             backgroundSavingStarted_trimmed = CommandBytes.TrimToFit("Background saving started"),
+            backgroundSavingAOFStarted_trimmed = CommandBytes.TrimToFit("Background append only file rewriting started"),
             databases = "databases",
             loading = "LOADING ",
             MOVED = "MOVED ",
@@ -48,6 +49,8 @@ namespace StackExchange.Redis
             AND = "AND",
             BEFORE = "BEFORE",
             BY = "BY",
+            BYLEX = "BYLEX",
+            BYSCORE = "BYSCORE",
             CHANNELS = "CHANNELS",
             COPY = "COPY",
             COUNT = "COUNT",
@@ -62,6 +65,7 @@ namespace StackExchange.Redis
             HISTORY = "HISTORY",
             ID = "ID",
             IDLETIME = "IDLETIME",
+            KEEPTTL = "KEEPTTL",
             KILL = "KILL",
             LATEST = "LATEST",
             LIMIT = "LIMIT",
@@ -88,6 +92,7 @@ namespace StackExchange.Redis
             REPLACE = "REPLACE",
             RESET = "RESET",
             RESETSTAT = "RESETSTAT",
+            REV = "REV",
             REWRITE = "REWRITE",
             SAVE = "SAVE",
             SEGFAULT = "SEGFAULT",
@@ -144,16 +149,13 @@ namespace StackExchange.Redis
             timeout = "timeout",
             yes = "yes";
 
-        internal static RedisValue Get(Bitwise operation)
+        internal static RedisValue Get(Bitwise operation) => operation switch
         {
-            switch (operation)
-            {
-                case Bitwise.And: return AND;
-                case Bitwise.Or: return OR;
-                case Bitwise.Xor: return XOR;
-                case Bitwise.Not: return NOT;
-                default: throw new ArgumentOutOfRangeException(nameof(operation));
-            }
-        }
+            Bitwise.And => AND,
+            Bitwise.Or => OR,
+            Bitwise.Xor => XOR,
+            Bitwise.Not => NOT,
+            _ => throw new ArgumentOutOfRangeException(nameof(operation)),
+        };
     }
 }

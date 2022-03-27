@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 
 namespace StackExchange.Redis.Tests
 {
@@ -7,7 +8,11 @@ namespace StackExchange.Redis.Tests
     {
         public static void Inconclusive(string message) => throw new SkipTestException(message);
 
-        public static void IfNoConfig(string prop, string value)
+        public static void IfNoConfig(string prop,
+#if NETCOREAPP
+            [NotNull]
+#endif
+            string? value)
         {
             if (string.IsNullOrEmpty(value))
             {
@@ -15,7 +20,11 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        public static void IfNoConfig(string prop, List<string> values)
+        public static void IfNoConfig(string prop,
+#if NETCOREAPP
+            [NotNull]
+#endif
+            List<string>? values)
         {
             if (values == null || values.Count == 0)
             {
@@ -42,12 +51,10 @@ namespace StackExchange.Redis.Tests
         }
     }
 
-#pragma warning disable RCS1194 // Implement exception constructors.
     public class SkipTestException : Exception
     {
-        public string MissingFeatures { get; set; }
+        public string? MissingFeatures { get; set; }
 
         public SkipTestException(string reason) : base(reason) { }
     }
-#pragma warning restore RCS1194 // Implement exception constructors.
 }

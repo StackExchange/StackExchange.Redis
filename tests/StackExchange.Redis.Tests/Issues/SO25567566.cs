@@ -7,7 +7,7 @@ namespace StackExchange.Redis.Tests.Issues
 {
     public class SO25567566 : TestBase
     {
-        protected override string GetConfiguration() => TestConfig.Current.MasterServerAndPort;
+        protected override string GetConfiguration() => TestConfig.Current.PrimaryServerAndPort;
         public SO25567566(ITestOutputHelper output) : base(output) { }
 
         [FactLongRunning]
@@ -22,7 +22,7 @@ namespace StackExchange.Redis.Tests.Issues
             }
         }
 
-        private async Task<string> DoStuff(ConnectionMultiplexer conn)
+        private static async Task<string> DoStuff(ConnectionMultiplexer conn)
         {
             var db = conn.GetDatabase();
 

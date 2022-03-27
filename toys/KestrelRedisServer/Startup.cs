@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using StackExchange.Redis.Server;
 
 namespace KestrelRedisServer
@@ -16,10 +17,14 @@ namespace KestrelRedisServer
         public void ConfigureServices(IServiceCollection services)
             => services.Add(new ServiceDescriptor(typeof(RespServer), _server));
 
-        public void Dispose() => _server.Dispose();
+        public void Dispose()
+        {
+            _server.Dispose();
+            GC.SuppressFinalize(this);
+        }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-        public void Configure(IApplicationBuilder app, IHostingEnvironment env, IApplicationLifetime lifetime)
+        public void Configure(IApplicationBuilder app, IWebHostEnvironment env, IHostApplicationLifetime lifetime)
         {
             _server.Shutdown.ContinueWith((t, s) =>
             {
@@ -27,7 +32,7 @@ namespace KestrelRedisServer
                 {   // if the resp server is shutdown by a client: stop the kestrel server too
                     if (t.Result == RespServer.ShutdownReason.ClientInitiated)
                     {
-                        ((IApplicationLifetime)s).StopApplication();
+                        ((IHostApplicationLifetime)s).StopApplication();
                     }
                 }
                 catch { /* Don't go boom on shutdown */ }

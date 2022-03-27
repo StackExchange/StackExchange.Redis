@@ -8,13 +8,13 @@ namespace StackExchange.Redis.Tests
 {
     public class ConnectionShutdown : TestBase
     {
-        protected override string GetConfiguration() => TestConfig.Current.MasterServerAndPort;
+        protected override string GetConfiguration() => TestConfig.Current.PrimaryServerAndPort;
         public ConnectionShutdown(ITestOutputHelper output) : base(output) { }
 
         [Fact(Skip = "Unfriendly")]
         public async Task ShutdownRaisesConnectionFailedAndRestore()
         {
-            using (var conn = Create(allowAdmin: true))
+            using (var conn = Create(allowAdmin: true, shared: false))
             {
                 int failed = 0, restored = 0;
                 Stopwatch watch = Stopwatch.StartNew();
@@ -35,10 +35,10 @@ namespace StackExchange.Redis.Tests
                 await Task.Delay(1).ForAwait(); // To make compiler happy in Release
 
                 conn.AllowConnect = false;
-                var server = conn.GetServer(TestConfig.Current.MasterServer, TestConfig.Current.MasterPort);
+                var server = conn.GetServer(TestConfig.Current.PrimaryServer, TestConfig.Current.PrimaryPort);
 
                 SetExpectedAmbientFailureCount(2);
-                server.SimulateConnectionFailure();
+                server.SimulateConnectionFailure(SimulatedFailureType.All);
 
                 db.Ping(CommandFlags.FireAndForget);
                 await Task.Delay(250).ForAwait();

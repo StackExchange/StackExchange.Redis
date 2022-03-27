@@ -71,13 +71,15 @@ How to configure this setting:
 
 > **Important Note:** the value specified in this configuration element is a *per-core* setting.  For example, if you have a 4 core machine and want your minIOThreads setting to be 200 at runtime, you would use `<processModel minIoThreads="50"/>`.
 
- - Outside of ASP.NET, use the [ThreadPool.SetMinThreads(…)](https://docs.microsoft.com/en-us/dotnet/api/system.threading.threadpool.setminthreads?view=netcore-2.0#System_Threading_ThreadPool_SetMinThreads_System_Int32_System_Int32_) API.
-
-- In .Net Core, add Environment Variable COMPlus_ThreadPool_ForceMinWorkerThreads to overwrite default MinThreads setting, according to [Environment/Registry Configuration Knobs](https://github.com/dotnet/coreclr/blob/master/Documentation/project-docs/clr-configuration-knobs.md) - You can also use the same ThreadPool.SetMinThreads() Method as described above.
+ - Outside of ASP.NET, use one of the methods described in [Run-time configuration options for threading
+](https://docs.microsoft.com/dotnet/core/run-time-config/threading#minimum-threads):
+   - [ThreadPool.SetMinThreads(…)](https://docs.microsoft.com/dotnet/api/system.threading.threadpool.setminthreads)
+   - The `ThreadPoolMinThreads` MSBuild property
+   - The `System.Threading.ThreadPool.MinThreads` setting in your `runtimeconfig.json`
 
 Explanation for abbreviations appearing in exception messages
 ---
-By default Redis Timeout exception(s) includes useful information, which can help in uderstanding & diagnosing the timeouts. Some of the abbrivations are as follows:
+By default Redis Timeout exception(s) includes useful information, which can help in understanding & diagnosing the timeouts. Some of the abbreviations are as follows:
 
 | Abbreviation   | Long Name | Meaning |
 | ------------- | ---------------------- | ---------------------------- | 
@@ -94,7 +96,8 @@ By default Redis Timeout exception(s) includes useful information, which can hel
 |mgr | 8 of 10 available|Redis Internal Dedicated Thread Pool State| 
 |IOCP | IOCP: (Busy=0,Free=500,Min=248,Max=500)| Runtime Global Thread Pool IO Threads. |
 |WORKER | WORKER: (Busy=170,Free=330,Min=248,Max=500)| Runtime Global Thread Pool Worker Threads.| 
-|v | Redis Version: version |Current redis version you are currently using in your application.|
+|POOL | POOL: (Threads=8,QueuedItems=0,CompletedItems=42)| Thread Pool Work Item Stats.| 
+|v | Redis Version: version |The `StackExchange.Redis` version you are currently using in your application.|
 |active | Message-Current: {string} |Included in exception message when `IncludeDetailInExceptions=True` on multiplexer|
 |next | Message-Next: {string} |When `IncludeDetailInExceptions=True` on multiplexer, it might include command and key, otherwise only command.|
 |Local-CPU | %CPU or Not Available |When  `IncludePerformanceCountersInExceptions=True` on multiplexer, Local CPU %age will be included in exception message. It might not work in all environments where application is hosted. |

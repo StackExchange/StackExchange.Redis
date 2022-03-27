@@ -39,7 +39,7 @@ namespace StackExchange.Redis
                 {
                     var prevChar = script[ix];
 
-                    // don't consider this a parameter if it's in the middle of word (ie. if it's preceeded by a letter)
+                    // don't consider this a parameter if it's in the middle of word (i.e. if it's preceded by a letter)
                     if (char.IsLetterOrDigit(prevChar) || prevChar == '_') continue;
 
                     // this is an escape, ignore it
@@ -75,7 +75,7 @@ namespace StackExchange.Redis
                 {
                     ret.Append("ARGV[");
                     ret.Append(argIx + 1);
-                    ret.Append("]");
+                    ret.Append(']');
                 }
                 else
                 {
@@ -125,8 +125,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Turns a script with @namedParameters into a LuaScript that can be executed
-        /// against a given IDatabase(Async) object
+        /// Turns a script with @namedParameters into a LuaScript that can be executed against a given IDatabase(Async) object.
         /// </summary>
         /// <param name="script">The script to prepare.</param>
         public static LuaScript PrepareScript(string script)
@@ -137,26 +136,26 @@ namespace StackExchange.Redis
             return new LuaScript(script, ordinalScript, ps);
         }
 
-        private static readonly HashSet<Type> ConvertableTypes =
-            new HashSet<Type> {
-                typeof(int),
-                typeof(int?),
-                typeof(long),
-                typeof(long?),
-                typeof(double),
-                typeof(double?),
-                typeof(string),
-                typeof(byte[]),
-                typeof(ReadOnlyMemory<byte>),
-                typeof(bool),
-                typeof(bool?),
+        private static readonly HashSet<Type> ConvertableTypes = new()
+        {
+            typeof(int),
+            typeof(int?),
+            typeof(long),
+            typeof(long?),
+            typeof(double),
+            typeof(double?),
+            typeof(string),
+            typeof(byte[]),
+            typeof(ReadOnlyMemory<byte>),
+            typeof(bool),
+            typeof(bool?),
 
-                typeof(RedisKey),
-                typeof(RedisValue)
-            };
+            typeof(RedisKey),
+            typeof(RedisValue)
+        };
 
         /// <summary>
-        /// Determines whether or not the given type can be used to provide parameters for the given LuaScript.
+        /// Determines whether or not the given type can be used to provide parameters for the given <see cref="LuaScript"/>.
         /// </summary>
         /// <param name="t">The type of the parameter.</param>
         /// <param name="script">The script to match against.</param>
@@ -175,7 +174,7 @@ namespace StackExchange.Redis
                     return false;
                 }
 
-                var memberType = member is FieldInfo ? ((FieldInfo)member).FieldType : ((PropertyInfo)member).PropertyType;
+                var memberType = member is FieldInfo memberFieldInfo ? memberFieldInfo.FieldType : ((PropertyInfo)member).PropertyType;
                 if (!ConvertableTypes.Contains(memberType))
                 {
                     missingMember = null;
@@ -199,7 +198,7 @@ namespace StackExchange.Redis
         /// types.
         /// </para>
         /// <para>
-        /// The created Func takes a RedisKey, which will be prefixed to all keys (and arguments of type RedisKey) for 
+        /// The created Func takes a RedisKey, which will be prefixed to all keys (and arguments of type RedisKey) for
         /// keyspace isolation.
         /// </para>
         /// </summary>
@@ -209,18 +208,12 @@ namespace StackExchange.Redis
         {
             if (!IsValidParameterHash(t, script, out _, out _)) throw new Exception("Shouldn't be possible");
 
-            Expression GetMember(Expression root, MemberInfo member)
+            static Expression GetMember(Expression root, MemberInfo member) => member.MemberType switch
             {
-                switch (member.MemberType)
-                {
-                    case MemberTypes.Property:
-                        return Expression.Property(root, (PropertyInfo)member);
-                    case MemberTypes.Field:
-                        return Expression.Field(root, (FieldInfo)member);
-                    default:
-                        throw new ArgumentException(nameof(member));
-                }
-            }
+                MemberTypes.Property => Expression.Property(root, (PropertyInfo)member),
+                MemberTypes.Field => Expression.Field(root, (FieldInfo)member),
+                _ => throw new ArgumentException($"Member type '{member.MemberType}' isn't recognized", nameof(member)),
+            };
             var keys = new List<MemberInfo>();
             var args = new List<MemberInfo>();
 
@@ -229,7 +222,7 @@ namespace StackExchange.Redis
                 var argName = script.Arguments[i];
                 var member = t.GetMember(argName).SingleOrDefault(m => m is PropertyInfo || m is FieldInfo);
 
-                var memberType = member is FieldInfo ? ((FieldInfo)member).FieldType : ((PropertyInfo)member).PropertyType;
+                var memberType = member is FieldInfo memberFieldInfo ? memberFieldInfo.FieldType : ((PropertyInfo)member).PropertyType;
 
                 if (memberType == typeof(RedisKey))
                 {
@@ -285,7 +278,7 @@ namespace StackExchange.Redis
                 valuesResult = Expression.NewArrayInit(typeof(RedisValue), args.Select(arg =>
                 {
                     var member = GetMember(objTyped, arg);
-                    if (member.Type == typeof(RedisValue)) return member; // pass-thru
+                    if (member.Type == typeof(RedisValue)) return member; // pass-through
                     if (member.Type == typeof(RedisKey))
                     { // need to apply prefix (note we can re-use the body from earlier)
                         var val = keysResultArr[keys.IndexOf(arg)];

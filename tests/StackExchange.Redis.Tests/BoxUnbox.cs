@@ -35,7 +35,7 @@ namespace StackExchange.Redis.Tests
             AssertEqualGiveOrTakeNaN(value, RedisValue.Unbox(y));
         }
 
-        static void AssertEqualGiveOrTakeNaN(RedisValue expected, RedisValue actual)
+        private static void AssertEqualGiveOrTakeNaN(RedisValue expected, RedisValue actual)
         {
             if (expected.Type == RedisValue.StorageType.Double && actual.Type == expected.Type)
             {
@@ -86,17 +86,17 @@ namespace StackExchange.Redis.Tests
                 new object[] { (RedisValue)double.NaN },
                 new object[] { (RedisValue)true },
                 new object[] { (RedisValue)false },
-                new object[] { (RedisValue)(string)null },
+                new object[] { (RedisValue)(string?)null },
                 new object[] { (RedisValue)"abc" },
                 new object[] { (RedisValue)s_abc },
                 new object[] { (RedisValue)new Memory<byte>(s_abc) },
                 new object[] { (RedisValue)new ReadOnlyMemory<byte>(s_abc) },
             };
 
-        public static IEnumerable<object[]> UnboxValues
+        public static IEnumerable<object?[]> UnboxValues
             => new []
             {
-                new object[] { null, RedisValue.Null },
+                new object?[] { null, RedisValue.Null },
                 new object[] { "", RedisValue.EmptyString },
                 new object[] { 0, (RedisValue)0 },
                 new object[] { 1, (RedisValue)1 },
