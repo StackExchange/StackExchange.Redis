@@ -567,7 +567,7 @@ namespace StackExchange.Redis
             }
             else
             {
-                if (Format.TryGetHostPort(primaryEndpoint, out string? hostRaw, out int portRaw))
+                if (Format.TryGetHostPort(primaryEndpoint, out string? hostRaw, out int? portRaw))
                 {
                     host = hostRaw;
                     port = portRaw;

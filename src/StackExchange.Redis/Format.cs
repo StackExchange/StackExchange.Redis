@@ -110,7 +110,7 @@ namespace StackExchange.Redis
                 _ => ""
             };
 
-        internal static bool TryGetHostPort(EndPoint? endpoint, [NotNullWhen(true)] out string? host, out int port)
+        internal static bool TryGetHostPort(EndPoint? endpoint, [NotNullWhen(true)] out string? host, [NotNullWhen(true)] out int? port)
         {
             if (endpoint is not null)
             {
@@ -128,7 +128,7 @@ namespace StackExchange.Redis
                 }
             }
             host = null;
-            port = 0;
+            port = null;
             return false;
         }
 

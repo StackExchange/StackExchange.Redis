@@ -136,7 +136,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// The port of the client.
         /// </summary>
-        public int Port => Format.TryGetHostPort(Address, out _, out int port) ? port : 0;
+        public int Port => Format.TryGetHostPort(Address, out _, out int? port) ? port.Value : 0;
 
         /// <summary>
         /// The raw content from redis.
