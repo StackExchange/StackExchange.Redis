@@ -1481,7 +1481,8 @@ namespace StackExchange.Redis
                         {
                             if (!items[2].IsEqual(CommonReplies.wildcard))
                             {
-                                blame = Format.TryParseEndPoint(items[2].GetString());
+                                // We don't want to fail here, just trying to identify
+                                _ = Format.TryParseEndPoint(items[2].GetString(), out blame);
                             }
                         }
                         catch { /* no biggie */ }

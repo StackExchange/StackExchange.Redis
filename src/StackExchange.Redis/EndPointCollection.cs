@@ -40,7 +40,7 @@ namespace StackExchange.Redis
         /// Attempt to parse a string into an <see cref="EndPoint"/>.
         /// </summary>
         /// <param name="endpoint">The endpoint string to parse.</param>
-        public static EndPoint? TryParse(string endpoint) => Format.TryParseEndPoint(endpoint);
+        public static EndPoint? TryParse(string endpoint) => Format.TryParseEndPoint(endpoint, out var result) ? result : null;
 
         /// <summary>
         /// Adds a new endpoint to the list.
@@ -48,8 +48,7 @@ namespace StackExchange.Redis
         /// <param name="hostAndPort">The host:port string to add an endpoint for to the collection.</param>
         public void Add(string hostAndPort)
         {
-            var endpoint = Format.TryParseEndPoint(hostAndPort);
-            if (endpoint == null)
+            if (!Format.TryParseEndPoint(hostAndPort, out var endpoint))
             {
                 throw new ArgumentException($"Could not parse host and port from '{hostAndPort}'", nameof(hostAndPort));
             }

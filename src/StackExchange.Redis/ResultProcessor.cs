@@ -214,9 +214,8 @@ namespace StackExchange.Redis
 
                     log = false;
                     string[] parts = result.GetString()!.Split(StringSplits.Space, 3);
-                    EndPoint? endpoint;
                     if (Format.TryParseInt32(parts[1], out int hashSlot)
-                        && (endpoint = Format.TryParseEndPoint(parts[2])) != null)
+                        && Format.TryParseEndPoint(parts[2], out var endpoint))
                     {
                         // no point sending back to same server, and no point sending to a dead server
                         if (!Equals(server?.EndPoint, endpoint))
@@ -751,10 +750,10 @@ namespace StackExchange.Redis
                                         server.RunId = val;
                                     }
                                 }
-                                if (roleSeen)
+                                if (roleSeen && Format.TryParseEndPoint(primaryHost!, primaryPort, out var sep))
                                 {
                                     // These are in the same section, if present
-                                    server.PrimaryEndPoint = Format.TryParseEndPoint(primaryHost!, primaryPort);
+                                    server.PrimaryEndPoint = sep;
                                 }
                             }
                         }

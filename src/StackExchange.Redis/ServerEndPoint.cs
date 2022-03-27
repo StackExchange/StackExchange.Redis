@@ -283,7 +283,7 @@ namespace StackExchange.Redis
 
         public void UpdateNodeRelations(ClusterConfiguration configuration)
         {
-            var thisNode = configuration.Nodes.FirstOrDefault(x => x.EndPoint.Equals(EndPoint));
+            var thisNode = configuration.Nodes.FirstOrDefault(x => x.EndPoint?.Equals(EndPoint) == true);
             if (thisNode != null)
             {
                 Multiplexer.Trace($"Updating node relations for {Format.ToString(thisNode.EndPoint)}...");
@@ -295,7 +295,7 @@ namespace StackExchange.Redis
                     {
                         primary = Multiplexer.GetServerEndPoint(node.EndPoint);
                     }
-                    else if (node.ParentNodeId == thisNode.NodeId)
+                    else if (node.ParentNodeId == thisNode.NodeId && node.EndPoint is not null)
                     {
                         (replicas ??= new List<ServerEndPoint>()).Add(Multiplexer.GetServerEndPoint(node.EndPoint));
                     }

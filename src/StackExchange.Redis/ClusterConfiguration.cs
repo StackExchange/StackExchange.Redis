@@ -295,7 +295,10 @@ namespace StackExchange.Redis
             int at = ep.IndexOf('@');
             if (at >= 0) ep = ep.Substring(0, at);
 
-            EndPoint = Format.TryParseEndPoint(ep)!;
+            if (Format.TryParseEndPoint(ep, out var epResult))
+            {
+                EndPoint = epResult;
+            }
             if (flags.Contains("myself"))
             {
                 IsMyself = true;
@@ -350,7 +353,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Gets the endpoint of the current node.
         /// </summary>
-        public EndPoint EndPoint { get; }
+        public EndPoint? EndPoint { get; }
 
         /// <summary>
         /// Gets whether this is the node which responded to the CLUSTER NODES request.

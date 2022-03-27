@@ -137,7 +137,7 @@ StackExchange.Redis.ClusterConfiguration.this[System.Net.EndPoint! endpoint].get
 StackExchange.Redis.ClusterNode
 StackExchange.Redis.ClusterNode.Children.get -> System.Collections.Generic.IList<StackExchange.Redis.ClusterNode!>!
 StackExchange.Redis.ClusterNode.CompareTo(StackExchange.Redis.ClusterNode? other) -> int
-StackExchange.Redis.ClusterNode.EndPoint.get -> System.Net.EndPoint!
+StackExchange.Redis.ClusterNode.EndPoint.get -> System.Net.EndPoint?
 StackExchange.Redis.ClusterNode.Equals(StackExchange.Redis.ClusterNode? other) -> bool
 StackExchange.Redis.ClusterNode.IsConnected.get -> bool
 StackExchange.Redis.ClusterNode.IsMyself.get -> bool

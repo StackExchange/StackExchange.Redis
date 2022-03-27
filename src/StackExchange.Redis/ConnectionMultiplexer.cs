@@ -1002,7 +1002,9 @@ namespace StackExchange.Redis
         /// <param name="hostAndPort">The "host:port" string to get a server for.</param>
         /// <param name="asyncState">The async state to pass into the resulting <see cref="RedisServer"/>.</param>
         public IServer GetServer(string hostAndPort, object? asyncState = null) =>
-            GetServer(Format.TryParseEndPoint(hostAndPort), asyncState);
+            Format.TryParseEndPoint(hostAndPort, out var ep)
+            ? GetServer(ep, asyncState)
+            : throw new ArgumentException($"The specified host and port could not be parsed: {hostAndPort}", nameof(hostAndPort));
 
         /// <summary>
         /// Obtain a configuration API for an individual server.
@@ -1518,7 +1520,11 @@ namespace StackExchange.Redis
             try
             {
                 var clusterConfig = await ExecuteAsyncImpl(message, ResultProcessor.ClusterNodes, null, server).ForAwait();
-                var clusterEndpoints = new EndPointCollection(clusterConfig!.Nodes.Select(node => node.EndPoint).ToList());
+                if (clusterConfig is null)
+                {
+                    return null;
+                }
+                var clusterEndpoints = new EndPointCollection(clusterConfig.Nodes.Where(node => node.EndPoint is not null).Select(node => node.EndPoint!).ToList());
                 // Loop through nodes in the cluster and update nodes relations to other nodes
                 ServerEndPoint? serverEndpoint = null;
                 foreach (EndPoint endpoint in clusterEndpoints)

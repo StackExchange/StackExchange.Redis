@@ -873,8 +873,10 @@ namespace StackExchange.Redis
                 }
                 else
                 {
-                    var ep = Format.TryParseEndPoint(option);
-                    if (ep != null && !EndPoints.Contains(ep)) EndPoints.Add(ep);
+                    if (Format.TryParseEndPoint(option, out var ep) && !EndPoints.Contains(ep))
+                    {
+                        EndPoints.Add(ep);
+                    }
                 }
             }
             if (map != null && map.Count != 0)

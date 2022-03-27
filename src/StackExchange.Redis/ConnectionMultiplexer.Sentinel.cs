@@ -32,10 +32,11 @@ public partial class ConnectionMultiplexer
 
         if (sub.SubscribedEndpoint("+switch-master") == null)
         {
-            sub.Subscribe("+switch-master", (_, message) =>
+            sub.Subscribe("+switch-master", (__, message) =>
             {
                 string[] messageParts = ((string)message!).Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                EndPoint? switchBlame = Format.TryParseEndPoint(string.Format("{0}:{1}", messageParts[1], messageParts[2]));
+                // We don't care about the result of this - we're just trying
+                _ = Format.TryParseEndPoint(string.Format("{0}:{1}", messageParts[1], messageParts[2]), out var switchBlame);
 
                 lock (sentinelConnectionChildren)
                 {

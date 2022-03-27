@@ -162,6 +162,7 @@ namespace StackExchange.Redis.Tests
                 Assert.NotNull(rightPrimaryNode);
                 Log("Right Primary: {0} {1}", rightPrimaryNode.EndPoint, rightPrimaryNode.NodeId);
 
+                Assert.NotNull(rightPrimaryNode.EndPoint);
                 string? a = StringGet(conn.GetServer(rightPrimaryNode.EndPoint), key);
                 Assert.Equal(value, a); // right primary
 
@@ -169,6 +170,7 @@ namespace StackExchange.Redis.Tests
                 Assert.NotNull(node);
                 Log("Using Primary: {0}", node.EndPoint, node.NodeId);
                 {
+                    Assert.NotNull(node.EndPoint);
                     string? b = StringGet(conn.GetServer(node.EndPoint), key);
                     Assert.Equal(value, b); // wrong primary, allow redirect
 
@@ -179,6 +181,7 @@ namespace StackExchange.Redis.Tests
                 node = config.Nodes.FirstOrDefault(x => x.IsReplica && x.ParentNodeId == rightPrimaryNode.NodeId);
                 Assert.NotNull(node);
                 {
+                    Assert.NotNull(node.EndPoint);
                     string? d = StringGet(conn.GetServer(node.EndPoint), key);
                     Assert.Equal(value, d); // right replica
                 }
@@ -186,6 +189,7 @@ namespace StackExchange.Redis.Tests
                 node = config.Nodes.FirstOrDefault(x => x.IsReplica && x.ParentNodeId != rightPrimaryNode.NodeId);
                 Assert.NotNull(node);
                 {
+                    Assert.NotNull(node.EndPoint);
                     string? e = StringGet(conn.GetServer(node.EndPoint), key);
                     Assert.Equal(value, e); // wrong replica, allow redirect
 
@@ -682,12 +686,14 @@ namespace StackExchange.Redis.Tests
                 var rightPrimaryNode = config.GetBySlot(Key);
                 Assert.NotNull(rightPrimaryNode);
 
+                Assert.NotNull(rightPrimaryNode.EndPoint);
                 string? a = (string?)conn.GetServer(rightPrimaryNode.EndPoint).Execute("GET", Key);
                 Assert.Equal(Value, a); // right primary
 
                 var wrongPrimaryNode = config.Nodes.FirstOrDefault(x => !x.IsReplica && x.NodeId != rightPrimaryNode.NodeId);
                 Assert.NotNull(wrongPrimaryNode);
 
+                Assert.NotNull(wrongPrimaryNode.EndPoint);
                 string? b = (string?)conn.GetServer(wrongPrimaryNode.EndPoint).Execute("GET", Key);
                 Assert.Equal(Value, b); // wrong primary, allow redirect
 

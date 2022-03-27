@@ -51,10 +51,15 @@ namespace StackExchange.Redis
             return new DnsEndPoint(host, port);
         }
 
-        internal static EndPoint? TryParseEndPoint(string host, string? port)
+        internal static bool TryParseEndPoint(string host, string? port, [NotNullWhen(true)] out EndPoint? endpoint)
         {
-            if (host.IsNullOrEmpty() || port.IsNullOrEmpty()) return null;
-            return TryParseInt32(port, out int i) ? ParseEndPoint(host, i) : null;
+            if (!host.IsNullOrEmpty() && !port.IsNullOrEmpty() && TryParseInt32(port, out int i))
+            {
+                endpoint = ParseEndPoint(host, i);
+                return true;
+            }
+            endpoint = null;
+            return false;
         }
 
         internal static string ToString(long value) => value.ToString(NumberFormatInfo.InvariantInfo);
@@ -229,7 +234,7 @@ namespace StackExchange.Redis
             return true;
         }
 
-        internal static EndPoint? TryParseEndPoint(string? addressWithPort)
+        internal static bool TryParseEndPoint(string? addressWithPort, [NotNullWhen(true)] out EndPoint? endpoint)
         {
             // Adapted from IPEndPointParser in Microsoft.AspNetCore
             // Link: https://github.com/aspnet/BasicMiddleware/blob/f320511b63da35571e890d53f3906c7761cd00a1/src/Microsoft.AspNetCore.HttpOverrides/Internal/IPEndPointParser.cs#L8
@@ -237,14 +242,23 @@ namespace StackExchange.Redis
             // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
             string addressPart;
             string? portPart = null;
-            if (addressWithPort.IsNullOrEmpty()) return null;
+            if (addressWithPort.IsNullOrEmpty())
+            {
+                endpoint = null;
+                return false;
+            }
 
             if (addressWithPort[0]=='!')
             {
-                if (addressWithPort.Length == 1) return null;
+                if (addressWithPort.Length == 1)
+                {
+                    endpoint = null;
+                    return false;
+                }
 
 #if UNIX_SOCKET
-                return new UnixDomainSocketEndPoint(addressWithPort.Substring(1));
+                endpoint = new UnixDomainSocketEndPoint(addressWithPort.Substring(1));
+                return true;
 #else
                 throw new PlatformNotSupportedException("Unix domain sockets require .NET Core 3 or above");
 #endif
@@ -290,22 +304,28 @@ namespace StackExchange.Redis
             int? port = 0;
             if (portPart != null)
             {
-                if (Format.TryParseInt32(portPart, out var portVal))
+                if (TryParseInt32(portPart, out var portVal))
                 {
                     port = portVal;
                 }
                 else
                 {
                     // Invalid port, return
-                    return null;
+                    endpoint = null;
+                    return false;
                 }
             }
 
             if (IPAddress.TryParse(addressPart, out IPAddress? address))
             {
-                return new IPEndPoint(address, port ?? 0);
+                endpoint = new IPEndPoint(address, port ?? 0);
+                return true;
             }
-            return new DnsEndPoint(addressPart, port ?? 0);
+            else
+            {
+                endpoint = new DnsEndPoint(addressPart, port ?? 0);
+                return true;
+            }
         }
 
         internal static string GetString(ReadOnlySequence<byte> buffer)
