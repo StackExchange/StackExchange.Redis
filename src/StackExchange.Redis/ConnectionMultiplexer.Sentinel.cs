@@ -224,7 +224,7 @@ public partial class ConnectionMultiplexer
             connection = ConnectImpl(config, log);
 
             // verify role is primary according to:
-            // https://redis.io/topics/sentinel-clientsS
+            // https://redis.io/topics/sentinel-clients
             if (connection.GetServer(newPrimaryEndPoint)?.Role()?.Value == (string?)RedisLiterals.master)
             {
                 success = true;
