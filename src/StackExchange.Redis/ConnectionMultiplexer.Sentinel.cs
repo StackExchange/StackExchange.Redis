@@ -186,20 +186,26 @@ public partial class ConnectionMultiplexer
         var sw = ValueStopwatch.StartNew();
         do
         {
-#pragma warning disable CS8600 // Converting null literal or possible null value to non-nullable type.
+            // Sentinel has some fun race behavior internally - give things a few shots for a quicker overall connect.
+            const int queryAttempts = 2;
             // Get an initial endpoint - try twice
-            EndPoint newPrimaryEndPoint = GetConfiguredPrimaryForService(serviceName)
-                                         ?? GetConfiguredPrimaryForService(serviceName);
+            EndPoint? newPrimaryEndPoint = null;
+            for (int i = 0; i < queryAttempts && newPrimaryEndPoint is null; i++)
+            {
+                newPrimaryEndPoint = GetConfiguredPrimaryForService(serviceName);
+            }
 
-            if (newPrimaryEndPoint == null)
+            if (newPrimaryEndPoint is null)
             {
                 throw new RedisConnectionException(ConnectionFailureType.UnableToConnect,
                     $"Sentinel: Failed connecting to configured primary for service: {config.ServiceName}");
             }
 
-            EndPoint[] replicaEndPoints = GetReplicasForService(serviceName)
-                                       ?? GetReplicasForService(serviceName);
-#pragma warning restore CS8600 // Converting null literal or possible null value to non-nullable type.
+            EndPoint[]? replicaEndPoints = null;
+            for (int i = 0; i < queryAttempts && replicaEndPoints is null; i++)
+            {
+                replicaEndPoints = GetReplicasForService(serviceName);
+            }
 
             // Replace the primary endpoint, if we found another one
             // If not, assume the last state is the best we have and minimize the race
