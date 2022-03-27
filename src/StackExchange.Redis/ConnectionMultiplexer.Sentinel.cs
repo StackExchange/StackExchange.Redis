@@ -188,7 +188,7 @@ public partial class ConnectionMultiplexer
         {
             // Sentinel has some fun race behavior internally - give things a few shots for a quicker overall connect.
             const int queryAttempts = 2;
-            // Get an initial endpoint - try twice
+
             EndPoint? newPrimaryEndPoint = null;
             for (int i = 0; i < queryAttempts && newPrimaryEndPoint is null; i++)
             {
