@@ -27,9 +27,7 @@ namespace StackExchange.Redis
             BackgroundSaveAOFStarted = new ExpectBasicStringProcessor(CommonReplies.backgroundSavingAOFStarted_trimmed, startsWith: true);
 
         public static readonly ResultProcessor<byte[]?>
-            ByteArray = new ByteArrayProcessor();
-
-        public static readonly ResultProcessor<byte[]>
+            ByteArray = new ByteArrayProcessor(),
             ScriptLoad = new ScriptLoadProcessor();
 
         public static readonly ResultProcessor<ClusterConfiguration>
@@ -453,7 +451,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal sealed class ScriptLoadProcessor : ResultProcessor<byte[]>
+        internal sealed class ScriptLoadProcessor : ResultProcessor<byte[]?>
         {
             private static readonly Regex sha1 = new Regex("^[0-9a-f]{40}$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
