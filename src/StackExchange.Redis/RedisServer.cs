@@ -1078,16 +1078,16 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, LatencyLatestEntry.ToArray, defaultValue: Array.Empty<LatencyLatestEntry>());
         }
 
-        public Task<string?> MemoryDoctorAsync(CommandFlags flags = CommandFlags.None)
+        public Task<string> MemoryDoctorAsync(CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(-1, flags, RedisCommand.MEMORY, RedisLiterals.DOCTOR);
-            return ExecuteAsync(msg, ResultProcessor.String);
+            return ExecuteAsync<string>(msg, ResultProcessor.String!, defaultValue: string.Empty);
         }
 
-        public string? MemoryDoctor(CommandFlags flags = CommandFlags.None)
+        public string MemoryDoctor(CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(-1, flags, RedisCommand.MEMORY, RedisLiterals.DOCTOR);
-            return ExecuteSync(msg, ResultProcessor.String);
+            return ExecuteSync(msg, ResultProcessor.String, defaultValue: string.Empty);
         }
 
         public Task MemoryPurgeAsync(CommandFlags flags = CommandFlags.None)

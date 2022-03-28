@@ -795,13 +795,13 @@ namespace StackExchange.Redis
         /// Reports about different memory-related issues that the Redis server experiences, and advises about possible remedies.
         /// </summary>
         /// <remarks>https://redis.io/commands/memory-doctor</remarks>
-        Task<string?> MemoryDoctorAsync(CommandFlags flags = CommandFlags.None);
+        Task<string> MemoryDoctorAsync(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Reports about different memory-related issues that the Redis server experiences, and advises about possible remedies.
         /// </summary>
         /// <remarks>https://redis.io/commands/memory-doctor</remarks>
-        string? MemoryDoctor(CommandFlags flags = CommandFlags.None);
+        string MemoryDoctor(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Attempts to purge dirty pages so these can be reclaimed by the allocator.
