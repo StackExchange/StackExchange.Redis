@@ -77,6 +77,11 @@ namespace StackExchange.Redis
         public bool GetDelete => Version >= v6_2_0;
 
         /// <summary>
+        /// Does GETEX exist?
+        /// </summary>
+        internal bool GetEx => Version >= v6_2_0;
+
+        /// <summary>
         /// Is HSTRLEN available?
         /// </summary>
         public bool HashStringLength => Version >= v3_2_0;
@@ -239,11 +244,6 @@ namespace StackExchange.Redis
         public bool SetPopMultiple => Version >= v3_2_0;
 
         /// <summary>
-        /// The Redis version of the server
-        /// </summary>
-        public Version Version => version ?? v2_0_0;
-
-        /// <summary>
         /// Are the Touch command available?
         /// </summary>
         public bool KeyTouch => Version >= v3_2_1;
@@ -257,6 +257,11 @@ namespace StackExchange.Redis
         /// Do list-push commands support multiple arguments?
         /// </summary>
         public bool PushMultiple => Version >= v4_0_0;
+
+        /// <summary>
+        /// The Redis version of the server
+        /// </summary>
+        public Version Version => version ?? v2_0_0;
 
         /// <summary>
         /// Create a string representation of the available features.
