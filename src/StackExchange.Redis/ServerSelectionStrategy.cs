@@ -102,10 +102,6 @@ namespace StackExchange.Redis
 
         public ServerEndPoint? Select(Message message, bool allowDisconnected = false)
         {
-            if (message is null)
-            {
-                throw new ArgumentNullException(nameof(message));
-            }
             int slot = NoSlot;
             switch (ServerType)
             {
