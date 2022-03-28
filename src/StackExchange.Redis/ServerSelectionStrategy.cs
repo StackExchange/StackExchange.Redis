@@ -249,7 +249,7 @@ namespace StackExchange.Redis
 
         private static ServerEndPoint? FindPrimary(ServerEndPoint endpoint, RedisCommand command)
         {
-            var cursor = endpoint;
+            ServerEndPoint? cursor = endpoint;
             int max = 5;
             do
             {
