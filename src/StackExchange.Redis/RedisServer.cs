@@ -349,16 +349,16 @@ namespace StackExchange.Redis
             }
         }
 
-        public Role? Role(CommandFlags flags = CommandFlags.None)
+        public Role Role(CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(-1, flags, RedisCommand.ROLE);
-            return ExecuteSync(msg, ResultProcessor.Role);
+            return ExecuteSync(msg, ResultProcessor.Role, defaultValue: Redis.Role.Null);
         }
 
-        public Task<Role?> RoleAsync(CommandFlags flags = CommandFlags.None)
+        public Task<Role> RoleAsync(CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(-1, flags, RedisCommand.ROLE);
-            return ExecuteAsync(msg, ResultProcessor.Role);
+            return ExecuteAsync(msg, ResultProcessor.Role, defaultValue: Redis.Role.Null);
         }
 
         public void Save(SaveType type, CommandFlags flags = CommandFlags.None)

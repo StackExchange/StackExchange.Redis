@@ -8,6 +8,8 @@ namespace StackExchange.Redis
     /// <remarks>https://redis.io/commands/role</remarks>
     public abstract class Role
     {
+        internal static Unknown Null { get; } = new Unknown("");
+
         /// <summary>
         /// One of "master", "slave" (aka replica), or "sentinel".
         /// </summary>

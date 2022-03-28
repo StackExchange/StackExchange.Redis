@@ -454,13 +454,13 @@ namespace StackExchange.Redis
         /// Returns the role info for the current server.
         /// </summary>
         /// <remarks>https://redis.io/commands/role</remarks>
-        Role? Role(CommandFlags flags = CommandFlags.None);
+        Role Role(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Returns the role info for the current server.
         /// </summary>
         /// <remarks>https://redis.io/commands/role</remarks>
-        Task<Role?> RoleAsync(CommandFlags flags = CommandFlags.None);
+        Task<Role> RoleAsync(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Explicitly request the database to persist the current state to disk.
