@@ -138,24 +138,28 @@ namespace StackExchange.Redis
         /// Obtains the current CLUSTER NODES output from a cluster server.
         /// </summary>
         /// <param name="flags">The command flags to use.</param>
+        /// <remarks>https://redis.io/commands/cluster-nodes/</remarks>
         ClusterConfiguration? ClusterNodes(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Obtains the current CLUSTER NODES output from a cluster server.
         /// </summary>
         /// <param name="flags">The command flags to use.</param>
+        /// <remarks>https://redis.io/commands/cluster-nodes/</remarks>
         Task<ClusterConfiguration?> ClusterNodesAsync(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Obtains the current raw CLUSTER NODES output from a cluster server.
         /// </summary>
         /// <param name="flags">The command flags to use.</param>
+        /// <remarks>https://redis.io/commands/cluster-nodes/</remarks>
         string? ClusterNodesRaw(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Obtains the current raw CLUSTER NODES output from a cluster server.
         /// </summary>
         /// <param name="flags">The command flags to use.</param>
+        /// <remarks>https://redis.io/commands/cluster-nodes/</remarks>
         Task<string?> ClusterNodesRawAsync(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -440,6 +444,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="options">The options to use for this topology change.</param>
         /// <param name="log">The log to write output to.</param>
+        /// <remarks>https://redis.io/commands/replicaof/</remarks>
         [Obsolete("Please use " + nameof(MakePrimaryAsync) + ", this will be removed in 3.0.")]
         void MakeMaster(ReplicationChangeOptions options, TextWriter? log = null);
 
@@ -448,6 +453,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="options">The options to use for this topology change.</param>
         /// <param name="log">The log to write output to.</param>
+        /// <remarks>https://redis.io/commands/replicaof/</remarks>
         Task MakePrimaryAsync(ReplicationChangeOptions options, TextWriter? log = null);
 
         /// <summary>
@@ -489,6 +495,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="script">The text of the script to check for on the server.</param>
         /// <param name="flags">The command flags to use.</param>
+        /// <remarks>https://redis.io/commands/script-exists/</remarks>
         bool ScriptExists(string script, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -496,6 +503,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="sha1">The SHA1 of the script to check for on the server.</param>
         /// <param name="flags">The command flags to use.</param>
+        /// <remarks>https://redis.io/commands/script-exists/</remarks>
         bool ScriptExists(byte[] sha1, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -503,6 +511,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="script">The text of the script to check for on the server.</param>
         /// <param name="flags">The command flags to use.</param>
+        /// <remarks>https://redis.io/commands/script-exists/</remarks>
         Task<bool> ScriptExistsAsync(string script, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -510,18 +519,21 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="sha1">The SHA1 of the script to check for on the server.</param>
         /// <param name="flags">The command flags to use.</param>
+        /// <remarks>https://redis.io/commands/script-exists/</remarks>
         Task<bool> ScriptExistsAsync(byte[] sha1, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Removes all cached scripts on this server.
         /// </summary>
         /// <param name="flags">The command flags to use.</param>
+        /// <remarks>https://redis.io/commands/script-flush/</remarks>
         void ScriptFlush(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Removes all cached scripts on this server.
         /// </summary>
         /// <param name="flags">The command flags to use.</param>
+        /// <remarks>https://redis.io/commands/script-flush/</remarks>
         Task ScriptFlushAsync(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -529,6 +541,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="script">The script to load.</param>
         /// <param name="flags">The command flags to use.</param>
+        /// <remark>https://redis.io/commands/script-load/</remark>
         byte[]? ScriptLoad(string script, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -536,6 +549,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="script">The script to load.</param>
         /// <param name="flags">The command flags to use.</param>
+        /// <remark>https://redis.io/commands/script-load/</remark>
         LoadedLuaScript ScriptLoad(LuaScript script, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -543,6 +557,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="script">The script to load.</param>
         /// <param name="flags">The command flags to use.</param>
+        /// <remark>https://redis.io/commands/script-load/</remark>
         Task<byte[]?> ScriptLoadAsync(string script, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -550,6 +565,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="script">The script to load.</param>
         /// <param name="flags">The command flags to use.</param>
+        /// <remark>https://redis.io/commands/script-load/</remark>
         Task<LoadedLuaScript> ScriptLoadAsync(LuaScript script, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
