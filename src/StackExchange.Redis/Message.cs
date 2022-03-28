@@ -338,6 +338,7 @@ namespace StackExchange.Redis
                 case RedisCommand.FLUSHALL:
                 case RedisCommand.FLUSHDB:
                 case RedisCommand.GETDEL:
+                case RedisCommand.GETEX:
                 case RedisCommand.GETSET:
                 case RedisCommand.HDEL:
                 case RedisCommand.HINCRBY:

@@ -2465,6 +2465,30 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.RedisValue);
         }
 
+        public RedisValue StringGetSetExpiry(RedisKey key, TimeSpan? expiry, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetStringGetExMessage(key, expiry, flags);
+            return ExecuteSync(msg, ResultProcessor.RedisValue);
+        }
+
+        public RedisValue StringGetSetExpiry(RedisKey key, DateTime expiry, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetStringGetExMessage(key, expiry, flags);
+            return ExecuteSync(msg, ResultProcessor.RedisValue);
+        }
+
+        public Task<RedisValue> StringGetSetExpiryAsync(RedisKey key, TimeSpan? expiry, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetStringGetExMessage(key, expiry, flags);
+            return ExecuteAsync(msg, ResultProcessor.RedisValue);
+        }
+
+        public Task<RedisValue> StringGetSetExpiryAsync(RedisKey key, DateTime expiry, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetStringGetExMessage(key, expiry, flags);
+            return ExecuteAsync(msg, ResultProcessor.RedisValue);
+        }
+
         public RedisValue[] StringGet(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
         {
             if (keys == null) throw new ArgumentNullException(nameof(keys));
@@ -2703,6 +2727,12 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.RedisValue);
         }
 
+        private long GetMillisecondsUntil(DateTime when) => when.Kind switch
+        {
+            DateTimeKind.Local or DateTimeKind.Utc => (when.ToUniversalTime() - RedisBase.UnixEpoch).Ticks / TimeSpan.TicksPerMillisecond,
+            _ => throw new ArgumentException("Expiry time must be either Utc or Local", nameof(when)),
+        };
+
         private Message GetExpiryMessage(in RedisKey key, CommandFlags flags, TimeSpan? expiry, out ServerEndPoint? server)
         {
             TimeSpan duration;
@@ -2733,16 +2763,7 @@ namespace StackExchange.Redis
                 server = null;
                 return Message.Create(Database, flags, RedisCommand.PERSIST, key);
             }
-            switch (when.Kind)
-            {
-                case DateTimeKind.Local:
-                case DateTimeKind.Utc:
-                    break; // fine, we can work with that
-                default:
-                    throw new ArgumentException("Expiry time must be either Utc or Local", nameof(expiry));
-            }
-            long milliseconds = (when.ToUniversalTime() - RedisBase.UnixEpoch).Ticks / TimeSpan.TicksPerMillisecond;
-
+            long milliseconds = GetMillisecondsUntil(when);
             if ((milliseconds % 1000) != 0)
             {
                 var features = GetFeatures(key, flags, out server);
@@ -3507,6 +3528,16 @@ namespace StackExchange.Redis
             slot = serverSelectionStrategy.CombineSlot(slot, second);
             return Message.CreateInSlot(Database, slot, flags, RedisCommand.BITOP, new[] { op, destination.AsRedisValue(), first.AsRedisValue(), second.AsRedisValue() });
         }
+
+        private Message GetStringGetExMessage(in RedisKey key, TimeSpan? expiry, CommandFlags flags = CommandFlags.None) => expiry switch
+        {
+            null => Message.Create(Database, flags, RedisCommand.GETEX, key, RedisLiterals.PERSIST),
+            _ => Message.Create(Database, flags, RedisCommand.GETEX, key, RedisLiterals.PX, (long)expiry.Value.TotalMilliseconds)
+        };
+
+        private Message GetStringGetExMessage(in RedisKey key, DateTime expiry, CommandFlags flags = CommandFlags.None) => expiry == DateTime.MaxValue
+            ? Message.Create(Database, flags, RedisCommand.GETEX, key, RedisLiterals.PERSIST)
+            : Message.Create(Database, flags, RedisCommand.GETEX, key, RedisLiterals.PXAT, GetMillisecondsUntil(expiry));
 
         private Message GetStringGetWithExpiryMessage(RedisKey key, CommandFlags flags, out ResultProcessor<RedisValueWithExpiry> processor, out ServerEndPoint? server)
         {

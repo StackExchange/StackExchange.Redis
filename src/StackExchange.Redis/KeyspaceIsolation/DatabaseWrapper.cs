@@ -514,6 +514,12 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public RedisValue StringGet(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.StringGet(ToInner(key), flags);
 
+        public RedisValue StringGetSetExpiry(RedisKey key, TimeSpan? expiry, CommandFlags flags = CommandFlags.None) =>
+            Inner.StringGetSetExpiry(ToInner(key), expiry, flags);
+
+        public RedisValue StringGetSetExpiry(RedisKey key, DateTime expiry, CommandFlags flags = CommandFlags.None) =>
+            Inner.StringGetSetExpiry(ToInner(key), expiry, flags);
+
         public Lease<byte>? StringGetLease(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.StringGetLease(ToInner(key), flags);
 

@@ -411,13 +411,13 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.DemandOK);
         }
 
-        public byte[]? ScriptLoad(string script, CommandFlags flags = CommandFlags.None)
+        public byte[] ScriptLoad(string script, CommandFlags flags = CommandFlags.None)
         {
             var msg = new RedisDatabase.ScriptLoadMessage(flags, script);
             return ExecuteSync(msg, ResultProcessor.ScriptLoad);
         }
 
-        public Task<byte[]?> ScriptLoadAsync(string script, CommandFlags flags = CommandFlags.None)
+        public Task<byte[]> ScriptLoadAsync(string script, CommandFlags flags = CommandFlags.None)
         {
             var msg = new RedisDatabase.ScriptLoadMessage(flags, script);
             return ExecuteAsync(msg, ResultProcessor.ScriptLoad);

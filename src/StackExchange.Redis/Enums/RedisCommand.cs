@@ -50,6 +50,7 @@
         GET,
         GETBIT,
         GETDEL,
+        GETEX,
         GETRANGE,
         GETSET,
 

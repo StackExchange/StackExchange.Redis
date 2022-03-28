@@ -529,6 +529,12 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public Task<RedisValue> StringGetAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.StringGetAsync(ToInner(key), flags);
+            
+        public Task<RedisValue> StringGetSetExpiryAsync(RedisKey key, TimeSpan? expiry, CommandFlags flags = CommandFlags.None) =>
+            Inner.StringGetSetExpiryAsync(ToInner(key), expiry, flags);
+
+        public Task<RedisValue> StringGetSetExpiryAsync(RedisKey key, DateTime expiry, CommandFlags flags = CommandFlags.None) =>
+            Inner.StringGetSetExpiryAsync(ToInner(key), expiry, flags);
 
         public Task<Lease<byte>?> StringGetLeaseAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.StringGetLeaseAsync(ToInner(key), flags);
