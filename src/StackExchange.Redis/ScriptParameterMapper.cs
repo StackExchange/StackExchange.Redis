@@ -229,7 +229,11 @@ namespace StackExchange.Redis
             for (var i = 0; i < script.Arguments.Length; i++)
             {
                 var argName = script.Arguments[i];
-                var member = t.GetMember(argName).SingleOrDefault(m => m is PropertyInfo || m is FieldInfo)!;
+                var member = t.GetMember(argName).SingleOrDefault(m => m is PropertyInfo || m is FieldInfo);
+                if (member is null)
+                {
+                    throw new ArgumentException($"There was no member found for {argName}");
+                }
 
                 var memberType = member is FieldInfo memberFieldInfo ? memberFieldInfo.FieldType : ((PropertyInfo)member).PropertyType;
 
