@@ -69,7 +69,7 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public async Task GetEx_NoValue()
+        public async Task StringGetSetExpiryNoValue()
         {
             using var muxer = Create();
             Skip.IfMissingFeature(muxer, nameof(RedisFeatures.GetEx), r => r.GetEx);
@@ -78,13 +78,13 @@ namespace StackExchange.Redis.Tests
             var key = Me();
             conn.KeyDelete(key, CommandFlags.FireAndForget);
 
-            var empty_val = await conn.StringGetSetExpiryAsync(key, TimeSpan.FromHours(1));
+            var emptyVal = await conn.StringGetSetExpiryAsync(key, TimeSpan.FromHours(1));
 
-            Assert.False(empty_val.HasValue);
+            Assert.Equal(RedisValue.Null, emptyVal);
         }
 
         [Fact]
-        public async Task GetEx_Relative()
+        public async Task StringGetSetExpiryRelative()
         {
             using var muxer = Create();
             Skip.IfMissingFeature(muxer, nameof(RedisFeatures.GetEx), r => r.GetEx);
@@ -94,16 +94,17 @@ namespace StackExchange.Redis.Tests
             conn.KeyDelete(key, CommandFlags.FireAndForget);
 
             conn.StringSet(key, "abc", TimeSpan.FromHours(1));
-            var relative_sec = conn.StringGetSetExpiryAsync(key, TimeSpan.FromMinutes(30));
-            var relative_sec_ttl = conn.KeyTimeToLiveAsync(key);
+            var relativeSec = conn.StringGetSetExpiryAsync(key, TimeSpan.FromMinutes(30));
+            var relativeSecTtl = conn.KeyTimeToLiveAsync(key);
 
-            Assert.Equal("abc", await relative_sec);
-            var time = await relative_sec_ttl;
-            Assert.True(time > TimeSpan.FromMinutes(29.9) && time <= TimeSpan.FromMinutes(30));
+            Assert.Equal("abc", await relativeSec);
+            var time = await relativeSecTtl;
+            Assert.NotNull(time);
+            Assert.InRange(time.Value, TimeSpan.FromMinutes(29.8), TimeSpan.FromMinutes(30));
         }
 
         [Fact]
-        public async Task GetEx_Absolute()
+        public async Task StringGetSetExpiryAbsolute()
         {
             using var muxer = Create();
             Skip.IfMissingFeature(muxer, nameof(RedisFeatures.GetEx), r => r.GetEx);
@@ -112,16 +113,18 @@ namespace StackExchange.Redis.Tests
             conn.KeyDelete(key, CommandFlags.FireAndForget);
 
             conn.StringSet(key, "abc", TimeSpan.FromHours(1));
-            var val = conn.StringGetSetExpiryAsync(key, DateTime.UtcNow.AddMinutes(30));
-            var val_ttl = conn.KeyTimeToLiveAsync(key);
+            var newDate = DateTime.UtcNow.AddMinutes(30);
+            var val = conn.StringGetSetExpiryAsync(key, newDate);
+            var valTtl = conn.KeyTimeToLiveAsync(key);
 
             Assert.Equal("abc", await val);
-            var time = await val_ttl;
-            Assert.True(time > TimeSpan.FromMinutes(29.9) && time <= TimeSpan.FromMinutes(30));
+            var time = await valTtl;
+            Assert.NotNull(time);
+            Assert.InRange(time.Value, TimeSpan.FromMinutes(29.8), TimeSpan.FromMinutes(30));
         }
 
         [Fact]
-        public async Task GetEx_Persist()
+        public async Task StringGetSetExpiryPersist()
         {
             using var muxer = Create();
             Skip.IfMissingFeature(muxer, nameof(RedisFeatures.GetEx), r => r.GetEx);
@@ -132,10 +135,10 @@ namespace StackExchange.Redis.Tests
 
             conn.StringSet(key, "abc", TimeSpan.FromHours(1));
             var val = conn.StringGetSetExpiryAsync(key, null);
-            var val_ttl = conn.KeyTimeToLiveAsync(key);
+            var valTtl = conn.KeyTimeToLiveAsync(key);
 
             Assert.Equal("abc", await val);
-            Assert.Null(await val_ttl);
+            Assert.Null(await valTtl);
         }
 
         [Fact]
