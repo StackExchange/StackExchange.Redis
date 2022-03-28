@@ -100,7 +100,7 @@ namespace StackExchange.Redis.Tests
             Assert.Equal("abc", await relativeSec);
             var time = await relativeSecTtl;
             Assert.NotNull(time);
-            Assert.InRange(time.Value, TimeSpan.FromMinutes(29.8), TimeSpan.FromMinutes(30));
+            Assert.InRange(time.Value, TimeSpan.FromMinutes(29.8), TimeSpan.FromMinutes(30.2));
         }
 
         [Fact]
@@ -120,7 +120,11 @@ namespace StackExchange.Redis.Tests
             Assert.Equal("abc", await val);
             var time = await valTtl;
             Assert.NotNull(time);
-            Assert.InRange(time.Value, TimeSpan.FromMinutes(29.8), TimeSpan.FromMinutes(30));
+            Assert.InRange(time.Value, TimeSpan.FromMinutes(29.8), TimeSpan.FromMinutes(30.2));
+
+            // And ensure our type checking works
+            var ex = await Assert.ThrowsAsync<ArgumentException>(() => conn.StringGetSetExpiryAsync(key, new DateTime(100, DateTimeKind.Unspecified)));
+            Assert.NotNull(ex);
         }
 
         [Fact]
