@@ -1114,16 +1114,16 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.String);
         }
 
-        public Task<RedisResult?> MemoryStatsAsync(CommandFlags flags = CommandFlags.None)
+        public Task<RedisResult> MemoryStatsAsync(CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(-1, flags, RedisCommand.MEMORY, RedisLiterals.STATS);
-            return ExecuteAsync(msg, ResultProcessor.ScriptResult);
+            return ExecuteAsync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullArray);
         }
 
-        public RedisResult? MemoryStats(CommandFlags flags = CommandFlags.None)
+        public RedisResult MemoryStats(CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(-1, flags, RedisCommand.MEMORY, RedisLiterals.STATS);
-            return ExecuteSync(msg, ResultProcessor.ScriptResult);
+            return ExecuteSync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullArray);
         }
     }
 }

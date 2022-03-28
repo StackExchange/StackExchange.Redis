@@ -819,13 +819,13 @@ namespace StackExchange.Redis
         /// Returns an array reply about the memory usage of the server.
         /// </summary>
         /// <remarks>https://redis.io/commands/memory-stats</remarks>
-        Task<RedisResult?> MemoryStatsAsync(CommandFlags flags = CommandFlags.None);
+        Task<RedisResult> MemoryStatsAsync(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Returns an array reply about the memory usage of the server.
         /// </summary>
         /// <remarks>https://redis.io/commands/memory-stats</remarks>
-        RedisResult? MemoryStats(CommandFlags flags = CommandFlags.None);
+        RedisResult MemoryStats(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Provides an internal statistics report from the memory allocator.

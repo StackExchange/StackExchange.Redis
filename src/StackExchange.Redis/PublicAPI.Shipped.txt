@@ -933,8 +933,8 @@ StackExchange.Redis.IServer.MemoryDoctor(StackExchange.Redis.CommandFlags flags 
 StackExchange.Redis.IServer.MemoryDoctorAsync(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<string!>!
 StackExchange.Redis.IServer.MemoryPurge(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> void
 StackExchange.Redis.IServer.MemoryPurgeAsync(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task!
-StackExchange.Redis.IServer.MemoryStats(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisResult?
-StackExchange.Redis.IServer.MemoryStatsAsync(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisResult?>!
+StackExchange.Redis.IServer.MemoryStats(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisResult!
+StackExchange.Redis.IServer.MemoryStatsAsync(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisResult!>!
 StackExchange.Redis.IServer.ReplicaOf(System.Net.EndPoint! master, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> void
 StackExchange.Redis.IServer.ReplicaOfAsync(System.Net.EndPoint! master, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task!
 StackExchange.Redis.IServer.Role(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.Role!
