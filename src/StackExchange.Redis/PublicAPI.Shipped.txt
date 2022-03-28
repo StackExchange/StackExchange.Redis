@@ -917,8 +917,8 @@ StackExchange.Redis.IServer.Keys(int database, StackExchange.Redis.RedisValue pa
 StackExchange.Redis.IServer.KeysAsync(int database = -1, StackExchange.Redis.RedisValue pattern = default(StackExchange.Redis.RedisValue), int pageSize = 250, long cursor = 0, int pageOffset = 0, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Collections.Generic.IAsyncEnumerable<StackExchange.Redis.RedisKey>!
 StackExchange.Redis.IServer.LastSave(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.DateTime
 StackExchange.Redis.IServer.LastSaveAsync(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<System.DateTime>!
-StackExchange.Redis.IServer.LatencyDoctor(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> string?
-StackExchange.Redis.IServer.LatencyDoctorAsync(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<string?>!
+StackExchange.Redis.IServer.LatencyDoctor(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> string!
+StackExchange.Redis.IServer.LatencyDoctorAsync(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<string!>!
 StackExchange.Redis.IServer.LatencyHistory(string! eventName, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.LatencyHistoryEntry[]!
 StackExchange.Redis.IServer.LatencyHistoryAsync(string! eventName, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.LatencyHistoryEntry[]!>!
 StackExchange.Redis.IServer.LatencyLatest(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.LatencyLatestEntry[]!

@@ -123,7 +123,7 @@ namespace StackExchange.Redis
         public static ResultProcessor<GeoRadiusResult[]> GeoRadiusArray(GeoRadiusOptions options) => GeoRadiusResultArrayProcessor.Get(options);
 
         public static readonly ResultProcessor<string?>
-                            String = new StringProcessor(),
+            String = new StringProcessor(),
             TieBreaker = new TieBreakerProcessor(),
             ClusterNodesRaw = new ClusterNodesRawProcessor();
 

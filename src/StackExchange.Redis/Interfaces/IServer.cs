@@ -748,15 +748,15 @@ namespace StackExchange.Redis
         Task<DateTime> TimeAsync(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Gets a text-based latency diagnostic
+        /// Gets a text-based latency diagnostic.
         /// </summary>
         /// <remarks>https://redis.io/topics/latency-monitor</remarks>
-        Task<string?> LatencyDoctorAsync(CommandFlags flags = CommandFlags.None);
+        Task<string> LatencyDoctorAsync(CommandFlags flags = CommandFlags.None);
         /// <summary>
-        /// Gets a text-based latency diagnostic
+        /// Gets a text-based latency diagnostic.
         /// </summary>
         /// <remarks>https://redis.io/topics/latency-monitor</remarks>
-        string? LatencyDoctor(CommandFlags flags = CommandFlags.None);
+        string LatencyDoctor(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Resets the given events (or all if none are specified), discarding the currently logged latency spike events, and resetting the maximum event time register.

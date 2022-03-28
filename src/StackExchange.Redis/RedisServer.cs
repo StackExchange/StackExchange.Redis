@@ -1013,16 +1013,16 @@ namespace StackExchange.Redis
         /// </summary>
         internal void SimulateConnectionFailure(SimulatedFailureType failureType) => server.SimulateConnectionFailure(failureType);
 
-        public Task<string?> LatencyDoctorAsync(CommandFlags flags = CommandFlags.None)
+        public Task<string> LatencyDoctorAsync(CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(-1, flags, RedisCommand.LATENCY, RedisLiterals.DOCTOR);
-            return ExecuteAsync(msg, ResultProcessor.String);
+            return ExecuteAsync<string>(msg, ResultProcessor.String!, defaultValue: string.Empty);
         }
 
-        public string? LatencyDoctor(CommandFlags flags = CommandFlags.None)
+        public string LatencyDoctor(CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(-1, flags, RedisCommand.LATENCY, RedisLiterals.DOCTOR);
-            return ExecuteSync(msg, ResultProcessor.String);
+            return ExecuteSync(msg, ResultProcessor.String, defaultValue: string.Empty);
         }
 
         private static Message LatencyResetCommand(string[]? eventNames, CommandFlags flags)
