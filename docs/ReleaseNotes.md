@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Adds: `GETEX` support with `.StringGetSetExpiry()`/`.StringGetSetExpiryAsync()` ([#1743 by benbryant0](https://github.com/StackExchange/StackExchange.Redis/pull/1743))
 - Fix [#1988](https://github.com/StackExchange/StackExchange.Redis/issues/1988): Don't issue `SELECT` commands if explicitly disabled ([#2023 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2023))
 - Adds: `KEEPTTL` support on `SET` operations ([#2029 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2029))
 - Fix: Allow `XTRIM` `MAXLEN` argument to be `0` ([#2030 by NicoAvanzDev](https://github.com/StackExchange/StackExchange.Redis/pull/2030))
@@ -10,6 +11,7 @@
 - Fix: `ClientKill`/`ClientKillAsync` when using `ClientType` ([#2048 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2048))
 - Adds: Most `ConfigurationOptions` changes after `ConnectionMultiplexer` connections will now be respected, e.g. changing a timeout will work and changing a password for auth rotation would be used at the next reconnect ([#2050 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2050))
   - **Obsolete**: This change also moves `ConnectionMultiplexer.IncludeDetailInExceptions` and `ConnectionMultiplexer.IncludePerformanceCountersInExceptions` to `ConfigurationOptions`. The old properties are `[Obsolete]` proxies that work until 3.0 for compatibility.
+- Adds: Support for `ZRANGESTORE` with `.SortedSetRangeAndStore()`/`.SortedSetRangeAndStoreAsync()` ([#2052 by slorello89](https://github.com/StackExchange/StackExchange.Redis/pull/2052))
 
 ## 2.5.43
 

@@ -69,6 +69,83 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public async Task StringGetSetExpiryNoValue()
+        {
+            using var muxer = Create();
+            Skip.IfMissingFeature(muxer, nameof(RedisFeatures.GetEx), r => r.GetEx);
+
+            var conn = muxer.GetDatabase();
+            var key = Me();
+            conn.KeyDelete(key, CommandFlags.FireAndForget);
+
+            var emptyVal = await conn.StringGetSetExpiryAsync(key, TimeSpan.FromHours(1));
+
+            Assert.Equal(RedisValue.Null, emptyVal);
+        }
+
+        [Fact]
+        public async Task StringGetSetExpiryRelative()
+        {
+            using var muxer = Create();
+            Skip.IfMissingFeature(muxer, nameof(RedisFeatures.GetEx), r => r.GetEx);
+
+            var conn = muxer.GetDatabase();
+            var key = Me();
+            conn.KeyDelete(key, CommandFlags.FireAndForget);
+
+            conn.StringSet(key, "abc", TimeSpan.FromHours(1));
+            var relativeSec = conn.StringGetSetExpiryAsync(key, TimeSpan.FromMinutes(30));
+            var relativeSecTtl = conn.KeyTimeToLiveAsync(key);
+
+            Assert.Equal("abc", await relativeSec);
+            var time = await relativeSecTtl;
+            Assert.NotNull(time);
+            Assert.InRange(time.Value, TimeSpan.FromMinutes(29.8), TimeSpan.FromMinutes(30.2));
+        }
+
+        [Fact]
+        public async Task StringGetSetExpiryAbsolute()
+        {
+            using var muxer = Create();
+            Skip.IfMissingFeature(muxer, nameof(RedisFeatures.GetEx), r => r.GetEx);
+            var conn = muxer.GetDatabase();
+            var key = Me();
+            conn.KeyDelete(key, CommandFlags.FireAndForget);
+
+            conn.StringSet(key, "abc", TimeSpan.FromHours(1));
+            var newDate = DateTime.UtcNow.AddMinutes(30);
+            var val = conn.StringGetSetExpiryAsync(key, newDate);
+            var valTtl = conn.KeyTimeToLiveAsync(key);
+
+            Assert.Equal("abc", await val);
+            var time = await valTtl;
+            Assert.NotNull(time);
+            Assert.InRange(time.Value, TimeSpan.FromMinutes(29.8), TimeSpan.FromMinutes(30.2));
+
+            // And ensure our type checking works
+            var ex = await Assert.ThrowsAsync<ArgumentException>(() => conn.StringGetSetExpiryAsync(key, new DateTime(100, DateTimeKind.Unspecified)));
+            Assert.NotNull(ex);
+        }
+
+        [Fact]
+        public async Task StringGetSetExpiryPersist()
+        {
+            using var muxer = Create();
+            Skip.IfMissingFeature(muxer, nameof(RedisFeatures.GetEx), r => r.GetEx);
+
+            var conn = muxer.GetDatabase();
+            var key = Me();
+            conn.KeyDelete(key, CommandFlags.FireAndForget);
+
+            conn.StringSet(key, "abc", TimeSpan.FromHours(1));
+            var val = conn.StringGetSetExpiryAsync(key, null);
+            var valTtl = conn.KeyTimeToLiveAsync(key);
+
+            Assert.Equal("abc", await val);
+            Assert.Null(await valTtl);
+        }
+
+        [Fact]
         public async Task GetLease()
         {
             using (var muxer = Create())

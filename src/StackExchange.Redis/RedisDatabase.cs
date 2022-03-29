@@ -1631,10 +1631,42 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.RedisValueArray);
         }
 
+        public long SortedSetRangeAndStore(
+            RedisKey sourceKey,
+            RedisKey destinationKey,
+            RedisValue start,
+            RedisValue stop,
+            SortedSetOrder sortedSetOrder = SortedSetOrder.ByRank,
+            Exclude exclude = Exclude.None,
+            Order order = Order.Ascending,
+            long skip = 0,
+            long? take = null,
+            CommandFlags flags = CommandFlags.None)
+        {
+            var msg = CreateSortedSetRangeStoreMessage(Database, flags, sourceKey, destinationKey, start, stop, sortedSetOrder, order, exclude, skip, take);
+            return ExecuteSync(msg, ResultProcessor.Int64);
+        }
+
         public Task<RedisValue[]> SortedSetRangeByRankAsync(RedisKey key, long start = 0, long stop = -1, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, order == Order.Descending ? RedisCommand.ZREVRANGE : RedisCommand.ZRANGE, key, start, stop);
             return ExecuteAsync(msg, ResultProcessor.RedisValueArray);
+        }
+
+        public Task<long> SortedSetRangeAndStoreAsync(
+            RedisKey sourceKey,
+            RedisKey destinationKey,
+            RedisValue start,
+            RedisValue stop,
+            SortedSetOrder sortedSetOrder = SortedSetOrder.ByRank,
+            Exclude exclude = Exclude.None,
+            Order order = Order.Ascending,
+            long skip = 0,
+            long? take = null,
+            CommandFlags flags = CommandFlags.None)
+        {
+            var msg = CreateSortedSetRangeStoreMessage(Database, flags, sourceKey, destinationKey, start, stop, sortedSetOrder, order, exclude, skip, take);
+            return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
         public SortedSetEntry[] SortedSetRangeByRankWithScores(RedisKey key, long start = 0, long stop = -1, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
@@ -2432,6 +2464,30 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.RedisValue);
         }
 
+        public RedisValue StringGetSetExpiry(RedisKey key, TimeSpan? expiry, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetStringGetExMessage(key, expiry, flags);
+            return ExecuteSync(msg, ResultProcessor.RedisValue);
+        }
+
+        public RedisValue StringGetSetExpiry(RedisKey key, DateTime expiry, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetStringGetExMessage(key, expiry, flags);
+            return ExecuteSync(msg, ResultProcessor.RedisValue);
+        }
+
+        public Task<RedisValue> StringGetSetExpiryAsync(RedisKey key, TimeSpan? expiry, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetStringGetExMessage(key, expiry, flags);
+            return ExecuteAsync(msg, ResultProcessor.RedisValue);
+        }
+
+        public Task<RedisValue> StringGetSetExpiryAsync(RedisKey key, DateTime expiry, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetStringGetExMessage(key, expiry, flags);
+            return ExecuteAsync(msg, ResultProcessor.RedisValue);
+        }
+
         public RedisValue[] StringGet(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
         {
             if (keys == null) throw new ArgumentNullException(nameof(keys));
@@ -2670,6 +2726,12 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.RedisValue);
         }
 
+        private long GetMillisecondsUntil(DateTime when) => when.Kind switch
+        {
+            DateTimeKind.Local or DateTimeKind.Utc => (when.ToUniversalTime() - RedisBase.UnixEpoch).Ticks / TimeSpan.TicksPerMillisecond,
+            _ => throw new ArgumentException("Expiry time must be either Utc or Local", nameof(when)),
+        };
+
         private Message GetExpiryMessage(in RedisKey key, CommandFlags flags, TimeSpan? expiry, out ServerEndPoint server)
         {
             TimeSpan duration;
@@ -2700,16 +2762,7 @@ namespace StackExchange.Redis
                 server = null;
                 return Message.Create(Database, flags, RedisCommand.PERSIST, key);
             }
-            switch (when.Kind)
-            {
-                case DateTimeKind.Local:
-                case DateTimeKind.Utc:
-                    break; // fine, we can work with that
-                default:
-                    throw new ArgumentException("Expiry time must be either Utc or Local", nameof(expiry));
-            }
-            long milliseconds = (when.ToUniversalTime() - RedisBase.UnixEpoch).Ticks / TimeSpan.TicksPerMillisecond;
-
+            long milliseconds = GetMillisecondsUntil(when);
             if ((milliseconds % 1000) != 0)
             {
                 var features = GetFeatures(key, flags, out server);
@@ -3475,6 +3528,16 @@ namespace StackExchange.Redis
             return Message.CreateInSlot(Database, slot, flags, RedisCommand.BITOP, new[] { op, destination.AsRedisValue(), first.AsRedisValue(), second.AsRedisValue() });
         }
 
+        private Message GetStringGetExMessage(in RedisKey key, TimeSpan? expiry, CommandFlags flags = CommandFlags.None) => expiry switch
+        {
+            null => Message.Create(Database, flags, RedisCommand.GETEX, key, RedisLiterals.PERSIST),
+            _ => Message.Create(Database, flags, RedisCommand.GETEX, key, RedisLiterals.PX, (long)expiry.Value.TotalMilliseconds)
+        };
+
+        private Message GetStringGetExMessage(in RedisKey key, DateTime expiry, CommandFlags flags = CommandFlags.None) => expiry == DateTime.MaxValue
+            ? Message.Create(Database, flags, RedisCommand.GETEX, key, RedisLiterals.PERSIST)
+            : Message.Create(Database, flags, RedisCommand.GETEX, key, RedisLiterals.PXAT, GetMillisecondsUntil(expiry));
+
         private Message GetStringGetWithExpiryMessage(RedisKey key, CommandFlags flags, out ResultProcessor<RedisValueWithExpiry> processor, out ServerEndPoint server)
         {
             if (this is IBatch)
@@ -3978,6 +4041,66 @@ namespace StackExchange.Redis
                 items.CopyTo(arr, (in RawResult r) => r.AsRedisValue());
                 return arr;
             }
+        }
+
+        private static Message CreateSortedSetRangeStoreMessage(
+            int db,
+            CommandFlags flags,
+            RedisKey sourceKey,
+            RedisKey destinationKey,
+            RedisValue start,
+            RedisValue stop,
+            SortedSetOrder sortedSetOrder,
+            Order order,
+            Exclude exclude,
+            long skip,
+            long? take)
+        {
+            if (sortedSetOrder == SortedSetOrder.ByRank)
+            {
+                if (take > 0)
+                {
+                    throw new ArgumentException("take argument is not valid when sortedSetOrder is ByRank you may want to try setting the SortedSetOrder to ByLex or ByScore", nameof(take));
+                }
+                if (exclude != Exclude.None)
+                {
+                    throw new ArgumentException("exclude argument is not valid when sortedSetOrder is ByRank, you may want to try setting the sortedSetOrder to ByLex or ByScore", nameof(exclude));
+                }
+
+                return order switch
+                {
+                    Order.Ascending => Message.Create(db, flags, RedisCommand.ZRANGESTORE, destinationKey, sourceKey, start, stop),
+                    Order.Descending => Message.Create(db, flags, RedisCommand.ZRANGESTORE, destinationKey, sourceKey, start, stop, RedisLiterals.REV),
+                    _ => throw new ArgumentOutOfRangeException(nameof(order))
+                };
+            }
+
+            RedisValue formattedStart = exclude switch
+            {
+                Exclude.Both or Exclude.Start => $"({start}",
+                _ when sortedSetOrder == SortedSetOrder.ByLex => $"[{start}",
+                _ => start
+            };
+
+            RedisValue formattedStop = exclude switch
+            {
+                Exclude.Both or Exclude.Stop => $"({stop}",
+                _ when sortedSetOrder == SortedSetOrder.ByLex => $"[{stop}",
+                _ => stop
+            };
+
+            return order switch
+            {
+                Order.Ascending when take != null && take > 0 =>
+                    Message.Create(db, flags, RedisCommand.ZRANGESTORE, destinationKey, sourceKey, formattedStart, formattedStop, sortedSetOrder.GetLiteral(), RedisLiterals.LIMIT, skip, take),
+                Order.Ascending =>
+                    Message.Create(db, flags, RedisCommand.ZRANGESTORE, destinationKey, sourceKey, formattedStart, formattedStop, sortedSetOrder.GetLiteral()),
+                Order.Descending when take != null && take > 0 =>
+                    Message.Create(db, flags, RedisCommand.ZRANGESTORE, destinationKey, sourceKey, formattedStart, formattedStop, sortedSetOrder.GetLiteral(), RedisLiterals.REV, RedisLiterals.LIMIT, skip, take),
+                Order.Descending =>
+                    Message.Create(db, flags, RedisCommand.ZRANGESTORE, destinationKey, sourceKey, formattedStart, formattedStop, sortedSetOrder.GetLiteral(), RedisLiterals.REV),
+                _ => throw new ArgumentOutOfRangeException(nameof(order))
+            };
         }
 
         private sealed class SortedSetCombineAndStoreCommandMessage : Message.CommandKeyBase // ZINTERSTORE and ZUNIONSTORE have a very unusual signature

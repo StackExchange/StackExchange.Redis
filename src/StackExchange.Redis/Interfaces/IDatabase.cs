@@ -1396,6 +1396,38 @@ namespace StackExchange.Redis
         RedisValue[] SortedSetRangeByRank(RedisKey key, long start = 0, long stop = -1, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Takes the specified range of elements in the sorted set of the <paramref name="sourceKey"/>
+        /// and stores them in a new sorted set at the <paramref name="destinationKey"/>.
+        /// </summary>
+        /// <param name="sourceKey">The sorted set to take the range from.</param>
+        /// <param name="destinationKey">Where the resulting set will be stored.</param>
+        /// <param name="start">The starting point in the sorted set. If <paramref name="sortedSetOrder"/> is <see cref="SortedSetOrder.ByLex"/>, this should be a string.</param>
+        /// <param name="stop">The stopping point in the range of the sorted set. If <paramref name="sortedSetOrder"/> is <see cref="SortedSetOrder.ByLex"/>, this should be a string.</param>
+        /// <param name="sortedSetOrder">The ordering criteria to use for the range. Choices are <see cref="SortedSetOrder.ByRank"/>, <see cref="SortedSetOrder.ByScore"/>, and <see cref="SortedSetOrder.ByLex"/> (defaults to <see cref="SortedSetOrder.ByRank"/>).</param>
+        /// <param name="exclude">Whether to exclude <paramref name="start"/> and <paramref name="stop"/> from the range check (defaults to both inclusive).</param>
+        /// <param name="order">
+        /// The direction to consider the <paramref name="start"/> and <paramref name="stop"/> in.
+        /// If <see cref="Order.Ascending"/>, the <paramref name="start"/> must be smaller than the <paramref name="stop"/>.
+        /// If <see cref="Order.Descending"/>, <paramref name="stop"/> must be smaller than <paramref name="start"/>.
+        /// </param>
+        /// <param name="skip">The number of elements into the sorted set to skip. Note: this iterates after sorting so incurs O(n) cost for large values.</param>
+        /// <param name="take">The maximum number of elements to pull into the new (<paramref name="destinationKey"/>) set.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <remarks>https://redis.io/commands/zrangestore</remarks>
+        /// <returns>The cardinality of (number of elements in) the newly created sorted set.</returns>
+        long SortedSetRangeAndStore(
+            RedisKey sourceKey,
+            RedisKey destinationKey,
+            RedisValue start,
+            RedisValue stop,
+            SortedSetOrder sortedSetOrder = SortedSetOrder.ByRank,
+            Exclude exclude = Exclude.None,
+            Order order = Order.Ascending,
+            long skip = 0,
+            long? take = null,
+            CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Returns the specified range of elements in the sorted set stored at key.
         /// By default the elements are considered to be ordered from the lowest to the highest score.
         /// Lexicographical order is used for elements with equal score.
@@ -2120,6 +2152,28 @@ namespace StackExchange.Redis
         /// <returns>The old value stored at key, or nil when key did not exist.</returns>
         /// <remarks>https://redis.io/commands/getset</remarks>
         RedisValue StringGetSet(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Gets the value of <paramref name="key"/> and update its (relative) expiry.
+        /// If the key does not exist, the result will be <see cref="RedisValue.Null"/>.
+        /// </summary>
+        /// <param name="key">The key of the string.</param>
+        /// <param name="expiry">The expiry to set. <see langword="null"/> will remove expiry.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The value of key, or nil when key does not exist.</returns>
+        /// <remarks>https://redis.io/commands/getex</remarks>
+        RedisValue StringGetSetExpiry(RedisKey key, TimeSpan? expiry, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Gets the value of <paramref name="key"/> and update its (absolute) expiry.
+        /// If the key does not exist, the result will be <see cref="RedisValue.Null"/>.
+        /// </summary>
+        /// <param name="key">The key of the string.</param>
+        /// <param name="expiry">The exact date and time to expire at. <see cref="DateTime.MaxValue"/> will remove expiry.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The value of key, or nil when key does not exist.</returns>
+        /// <remarks>https://redis.io/commands/getex</remarks>
+        RedisValue StringGetSetExpiry(RedisKey key, DateTime expiry, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Get the value of key and delete the key.

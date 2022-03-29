@@ -293,6 +293,31 @@ namespace StackExchange.Redis
         public static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisValue value0, in RedisValue value1, in RedisValue value2, in RedisValue value3, in RedisValue value4) =>
             new CommandValueValueValueValueValueMessage(db, flags, command, value0, value1, value2, value3, value4);
 
+        public static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisKey key0,
+            in RedisKey key1, in RedisValue value0, in RedisValue value1) =>
+            new CommandKeyKeyValueValueMessage(db, flags, command, key0, key1, value0, value1);
+
+        public static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisKey key0,
+            in RedisKey key1, in RedisValue value0, in RedisValue value1, in RedisValue value2) =>
+            new CommandKeyKeyValueValueValueMessage(db, flags, command, key0, key1, value0, value1, value2);
+
+        public static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisKey key0,
+            in RedisKey key1, in RedisValue value0, in RedisValue value1, in RedisValue value2, in RedisValue value3) =>
+            new CommandKeyKeyValueValueValueValueMessage(db, flags, command, key0, key1, value0, value1, value2, value3);
+
+        public static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisKey key0,
+            in RedisKey key1, in RedisValue value0, in RedisValue value1, in RedisValue value2, in RedisValue value3, in RedisValue value4) =>
+            new CommandKeyKeyValueValueValueValueValueMessage(db, flags, command, key0, key1, value0, value1, value2, value3, value4);
+
+        public static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisKey key0,
+            in RedisKey key1, in RedisValue value0, in RedisValue value1, in RedisValue value2, in RedisValue value3, in RedisValue value4, in RedisValue value5) =>
+            new CommandKeyKeyValueValueValueValueValueValueMessage(db, flags, command, key0, key1, value0, value1, value2, value3, value4, value5);
+
+        public static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisKey key0,
+            in RedisKey key1, in RedisValue value0, in RedisValue value1, in RedisValue value2, in RedisValue value3,
+            in RedisValue value4, in RedisValue value5, in RedisValue value6) =>
+            new CommandKeyKeyValueValueValueValueValueValueValueMessage(db, flags, command, key0, key1, value0, value1, value2, value3, value4, value5, value6);
+
         public static Message CreateInSlot(int db, int slot, CommandFlags flags, RedisCommand command, RedisValue[] values) =>
             new CommandSlotValuesMessage(db, slot, flags, command, values);
 
@@ -313,6 +338,7 @@ namespace StackExchange.Redis
                 case RedisCommand.FLUSHALL:
                 case RedisCommand.FLUSHDB:
                 case RedisCommand.GETDEL:
+                case RedisCommand.GETEX:
                 case RedisCommand.GETSET:
                 case RedisCommand.HDEL:
                 case RedisCommand.HINCRBY:
@@ -1136,6 +1162,219 @@ namespace StackExchange.Redis
                 physical.WriteBulkString(value4);
             }
             public override int ArgCount => 6;
+        }
+
+        private sealed class CommandKeyKeyValueValueMessage : CommandKeyBase
+        {
+            private readonly RedisValue value0, value1;
+            private readonly RedisKey key1;
+
+            public CommandKeyKeyValueValueMessage(int db, CommandFlags flags, RedisCommand command, in RedisKey key0,
+                in RedisKey key1, in RedisValue value0, in RedisValue value1) : base(db, flags, command, key0)
+            {
+                key1.AssertNotNull();
+                value0.AssertNotNull();
+                value1.AssertNotNull();
+                this.key1 = key1;
+                this.value0 = value0;
+                this.value1 = value1;
+            }
+
+            protected override void WriteImpl(PhysicalConnection physical)
+            {
+                physical.WriteHeader(Command, ArgCount);
+                physical.Write(Key);
+                physical.Write(key1);
+                physical.WriteBulkString(value0);
+                physical.WriteBulkString(value1);
+            }
+
+            public override int ArgCount => 4;
+        }
+
+        private sealed class CommandKeyKeyValueValueValueMessage : CommandKeyBase
+        {
+            private readonly RedisValue value0, value1, value2;
+            private readonly RedisKey key1;
+
+            public CommandKeyKeyValueValueValueMessage(int db, CommandFlags flags, RedisCommand command, in RedisKey key0,
+                in RedisKey key1, in RedisValue value0, in RedisValue value1, in RedisValue value2) : base(db, flags, command, key0)
+            {
+                key1.AssertNotNull();
+                value0.AssertNotNull();
+                value1.AssertNotNull();
+                value2.AssertNotNull();
+                this.key1 = key1;
+                this.value0 = value0;
+                this.value1 = value1;
+                this.value2 = value2;
+            }
+
+            protected override void WriteImpl(PhysicalConnection physical)
+            {
+                physical.WriteHeader(Command, ArgCount);
+                physical.Write(Key);
+                physical.Write(key1);
+                physical.WriteBulkString(value0);
+                physical.WriteBulkString(value1);
+                physical.WriteBulkString(value2);
+            }
+
+            public override int ArgCount => 5;
+        }
+
+        private sealed class CommandKeyKeyValueValueValueValueMessage : CommandKeyBase
+        {
+            private readonly RedisValue value0, value1, value2, value3;
+            private readonly RedisKey key1;
+
+            public CommandKeyKeyValueValueValueValueMessage(int db, CommandFlags flags, RedisCommand command, in RedisKey key0,
+                in RedisKey key1, in RedisValue value0, in RedisValue value1, in RedisValue value2, in RedisValue value3) : base(db, flags, command, key0)
+            {
+                key1.AssertNotNull();
+                value0.AssertNotNull();
+                value1.AssertNotNull();
+                value2.AssertNotNull();
+                value3.AssertNotNull();
+                this.key1 = key1;
+                this.value0 = value0;
+                this.value1 = value1;
+                this.value2 = value2;
+                this.value3 = value3;
+            }
+
+            protected override void WriteImpl(PhysicalConnection physical)
+            {
+                physical.WriteHeader(Command, ArgCount);
+                physical.Write(Key);
+                physical.Write(key1);
+                physical.WriteBulkString(value0);
+                physical.WriteBulkString(value1);
+                physical.WriteBulkString(value2);
+                physical.WriteBulkString(value3);
+            }
+
+            public override int ArgCount => 6;
+        }
+
+        private sealed class CommandKeyKeyValueValueValueValueValueMessage : CommandKeyBase
+        {
+            private readonly RedisValue value0, value1, value2, value3, value4;
+            private readonly RedisKey key1;
+
+            public CommandKeyKeyValueValueValueValueValueMessage(int db, CommandFlags flags, RedisCommand command, in RedisKey key0,
+                in RedisKey key1, in RedisValue value0, in RedisValue value1, in RedisValue value2, in RedisValue value3, in RedisValue value4) : base(db, flags, command, key0)
+            {
+                key1.AssertNotNull();
+                value0.AssertNotNull();
+                value1.AssertNotNull();
+                value2.AssertNotNull();
+                value3.AssertNotNull();
+                value4.AssertNotNull();
+                this.key1 = key1;
+                this.value0 = value0;
+                this.value1 = value1;
+                this.value2 = value2;
+                this.value3 = value3;
+                this.value4 = value4;
+            }
+
+            protected override void WriteImpl(PhysicalConnection physical)
+            {
+                physical.WriteHeader(Command, ArgCount);
+                physical.Write(Key);
+                physical.Write(key1);
+                physical.WriteBulkString(value0);
+                physical.WriteBulkString(value1);
+                physical.WriteBulkString(value2);
+                physical.WriteBulkString(value3);
+                physical.WriteBulkString(value4);
+            }
+
+            public override int ArgCount => 7;
+        }
+
+        private sealed class CommandKeyKeyValueValueValueValueValueValueMessage : CommandKeyBase
+        {
+            private readonly RedisValue value0, value1, value2, value3, value4, value5;
+            private readonly RedisKey key1;
+
+            public CommandKeyKeyValueValueValueValueValueValueMessage(int db, CommandFlags flags, RedisCommand command, in RedisKey key0,
+                in RedisKey key1, in RedisValue value0, in RedisValue value1, in RedisValue value2, in RedisValue value3, in RedisValue value4, in RedisValue value5) : base(db, flags, command, key0)
+            {
+                key1.AssertNotNull();
+                value0.AssertNotNull();
+                value1.AssertNotNull();
+                value2.AssertNotNull();
+                value3.AssertNotNull();
+                value4.AssertNotNull();
+                value5.AssertNotNull();
+                this.key1 = key1;
+                this.value0 = value0;
+                this.value1 = value1;
+                this.value2 = value2;
+                this.value3 = value3;
+                this.value4 = value4;
+                this.value5 = value5;
+            }
+
+            protected override void WriteImpl(PhysicalConnection physical)
+            {
+                physical.WriteHeader(Command, ArgCount);
+                physical.Write(Key);
+                physical.Write(key1);
+                physical.WriteBulkString(value0);
+                physical.WriteBulkString(value1);
+                physical.WriteBulkString(value2);
+                physical.WriteBulkString(value3);
+                physical.WriteBulkString(value4);
+                physical.WriteBulkString(value5);
+            }
+
+            public override int ArgCount => 8;
+        }
+
+        private sealed class CommandKeyKeyValueValueValueValueValueValueValueMessage : CommandKeyBase
+        {
+            private readonly RedisValue value0, value1, value2, value3, value4, value5, value6;
+            private readonly RedisKey key1;
+
+            public CommandKeyKeyValueValueValueValueValueValueValueMessage(int db, CommandFlags flags, RedisCommand command, in RedisKey key0,
+                in RedisKey key1, in RedisValue value0, in RedisValue value1, in RedisValue value2, in RedisValue value3, in RedisValue value4, in RedisValue value5, in RedisValue value6) : base(db, flags, command, key0)
+            {
+                key1.AssertNotNull();
+                value0.AssertNotNull();
+                value1.AssertNotNull();
+                value2.AssertNotNull();
+                value3.AssertNotNull();
+                value4.AssertNotNull();
+                value5.AssertNotNull();
+                value6.AssertNotNull();
+                this.key1 = key1;
+                this.value0 = value0;
+                this.value1 = value1;
+                this.value2 = value2;
+                this.value3 = value3;
+                this.value4 = value4;
+                this.value5 = value5;
+                this.value6 = value6;
+            }
+
+            protected override void WriteImpl(PhysicalConnection physical)
+            {
+                physical.WriteHeader(Command, ArgCount);
+                physical.Write(Key);
+                physical.Write(key1);
+                physical.WriteBulkString(value0);
+                physical.WriteBulkString(value1);
+                physical.WriteBulkString(value2);
+                physical.WriteBulkString(value3);
+                physical.WriteBulkString(value4);
+                physical.WriteBulkString(value5);
+                physical.WriteBulkString(value6);
+            }
+
+            public override int ArgCount => 9;
         }
 
         private sealed class CommandMessage : Message
