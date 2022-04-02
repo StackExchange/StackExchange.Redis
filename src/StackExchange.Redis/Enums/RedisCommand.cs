@@ -82,6 +82,7 @@
         LINDEX,
         LINSERT,
         LLEN,
+        LOLWUT,
         LPOP,
         LPUSH,
         LPUSHX,
