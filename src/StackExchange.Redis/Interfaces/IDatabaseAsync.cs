@@ -896,6 +896,16 @@ namespace StackExchange.Redis
         Task<bool> LockTakeAsync(RedisKey key, RedisValue value, TimeSpan expiry, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Displays the Redis version, as a side effect of doing so, it outputs a piece of generative computer art
+        /// that is different with each version of Redis.
+        /// </summary>
+        /// <param name="version">Optional version to display.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <param name="otherArguments">Manipulate the output by providing one or more numerical arguments.</param>
+        /// <returns>A string containing the generative computer art, and text describing the Redis version.</returns>
+        Task<RedisValue> LolWutAsync(int? version = default, CommandFlags flags = CommandFlags.None, params int[] otherArguments);
+
+        /// <summary>
         /// Posts a message to the given channel.
         /// </summary>
         /// <param name="channel">The channel to publish to.</param>
