@@ -194,7 +194,8 @@ namespace StackExchange.Redis.Tests
                         || shortName.StartsWith("Script")
                         || shortName.StartsWith("SortedSet")
                         || shortName.StartsWith("String")
-                        || shortName.StartsWith("Stream");
+                        || shortName.StartsWith("Stream")
+                        || shortName.StartsWith("LolWut");
                     Log(fullName + ": " + (isValid ? "valid" : "invalid"));
                     Assert.True(isValid, fullName + ":Prefix");
                     break;
