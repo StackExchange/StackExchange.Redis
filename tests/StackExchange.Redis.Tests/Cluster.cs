@@ -195,7 +195,7 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void IntentionalWrongServeronTransaction()
+        public void IntentionalWrongServerForTransaction()
         {
             static string[] TransactionalReplace(IServer server, RedisKey key, RedisValue newRedisValue, CommandFlags flags = CommandFlags.None)
             {
@@ -241,6 +241,9 @@ namespace StackExchange.Redis.Tests
                 string[] responses = TransactionalReplace(conn.GetServer(rightPrimaryNode.EndPoint), key, newValue);
                 Assert.Equal(value, responses[0]); // right primary
                 Assert.Equal(newValue, responses[1]);
+
+                db.KeyDelete(key, CommandFlags.FireAndForget);
+                db.StringSet(key, value, flags: CommandFlags.FireAndForget);
 
                 var node = config.Nodes.FirstOrDefault(x => !x.IsReplica && x.NodeId != rightPrimaryNode.NodeId);
                 Assert.NotNull(node);
