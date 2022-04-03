@@ -2020,6 +2020,31 @@ namespace StackExchange.Redis
         long StringBitCount(RedisKey key, long start = 0, long end = -1, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// The command treats a Redis string as an array of bits, and is capable of addressing specific
+        /// integer fields of varying bit widths and arbitrary non (necessary) aligned offset.
+        /// The following is the list of supported commands:
+        /// GET encoding offset -- Returns the specified bit field.
+        /// SET encoding offset value -- Set the specified bit field and returns its old value.
+        /// INCRBY encoding offset increment -- Increments or decrements (if a negative increment
+        /// is given) the specified bit field and returns the new value.
+        /// OVERFLOW [WRAP|SAT|FAIL]
+        /// </summary>
+        /// <param name="key">The key of the string.</param>
+        /// <param name="args">may be used with optional arguments</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>Array with each entry being the corresponding result of the sub command given at
+        /// the same position. OVERFLOW subcommands don't count as generating a reply.</returns>
+        /// <remarks>https://redis.io/commands/bitfield</remarks>
+        int[] StringBitField(RedisKey key, RedisValue[] args, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Read-only variant of the BITFIELD command. It is like the original BITFIELD but only accepts
+        /// GET subcommand and can safely be used in read-only replicas.
+        /// </summary>
+        /// <remarks>https://redis.io/commands/bitfield_ro</remarks>
+        int[] StringBitFieldReadOnly(RedisKey key, RedisValue[] args, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Perform a bitwise operation between multiple keys (containing string values) and store the result in the destination key.
         /// The BITOP command supports four bitwise operations; note that NOT is a unary operator: the second key should be omitted in this case
         /// and only the first key will be considered.

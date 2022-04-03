@@ -2396,6 +2396,18 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
+        public int[] StringBitField(RedisKey key, RedisValue[] args, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetStringBitFieldMessage(key, args, flags);
+            return ExecuteSync(msg, ResultProcessor.IntegerArray);
+        }
+
+        public int[] StringBitFieldReadOnly(RedisKey key, RedisValue[] args, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetStringBitFieldMessage(key, args, flags);
+            return ExecuteSync(msg, ResultProcessor.IntegerArray);
+        }
+
         public Task<long> StringBitCountAsync(RedisKey key, long start = 0, long end = -1, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.BITCOUNT, key, start, end);
@@ -3527,6 +3539,14 @@ namespace StackExchange.Redis
             slot = serverSelectionStrategy.CombineSlot(slot, second);
             return Message.CreateInSlot(Database, slot, flags, RedisCommand.BITOP, new[] { op, destination.AsRedisValue(), first.AsRedisValue(), second.AsRedisValue() });
         }
+
+        private Message GetStringBitFieldMessage(RedisKey key, RedisValue[] args, CommandFlags flags)
+        {
+            var serverSelectionStrategy = multiplexer.ServerSelectionStrategy;
+            int slot = serverSelectionStrategy.HashSlot(key);
+            return Message.CreateInSlot(Database, slot, flags, RedisCommand.BITFIELD, args);
+        }
+
 
         private Message GetStringGetExMessage(in RedisKey key, TimeSpan? expiry, CommandFlags flags = CommandFlags.None) => expiry switch
         {

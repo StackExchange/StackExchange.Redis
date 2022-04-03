@@ -262,6 +262,9 @@ namespace StackExchange.Redis
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal string[] GetItemsAsStrings() => this.ToArray<string>((in RawResult x) => (string)x.AsRedisValue());
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal int[] GetItemsAsIntegers() => this.ToArray<int>((in RawResult x) => (int)x.AsRedisValue());
+
         internal GeoPosition? GetItemsAsGeoPosition()
         {
             var items = GetItems();

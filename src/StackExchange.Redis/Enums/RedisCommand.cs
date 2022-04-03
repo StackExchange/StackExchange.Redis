@@ -11,6 +11,8 @@
         BGREWRITEAOF,
         BGSAVE,
         BITCOUNT,
+        BITFIELD,
+        BITFIELD_RO,
         BITOP,
         BITPOS,
         BLPOP,

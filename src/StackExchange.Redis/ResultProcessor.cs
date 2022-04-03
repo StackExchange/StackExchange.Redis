@@ -79,6 +79,9 @@ namespace StackExchange.Redis
         public static readonly ResultProcessor<string[]>
             StringArray = new StringArrayProcessor();
 
+        public static readonly ResultProcessor<int[]>
+            IntegerArray = new IntegerArrayProcessor();
+
         public static readonly ResultProcessor<GeoPosition?[]>
             RedisGeoPositionArray = new RedisValueGeoPositionArrayProcessor();
         public static readonly ResultProcessor<GeoPosition?>
@@ -1272,6 +1275,22 @@ namespace StackExchange.Redis
                 {
                     case ResultType.MultiBulk:
                         var arr = result.GetItemsAsStrings();
+
+                        SetResult(message, arr);
+                        return true;
+                }
+                return false;
+            }
+        }
+
+        private sealed class IntegerArrayProcessor : ResultProcessor<int[]>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                switch (result.Type)
+                {
+                    case ResultType.MultiBulk:
+                        var arr = result.GetItemsAsIntegers();
 
                         SetResult(message, arr);
                         return true;
