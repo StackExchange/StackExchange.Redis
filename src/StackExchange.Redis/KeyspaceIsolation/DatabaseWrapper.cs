@@ -396,6 +396,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.LockTake(ToInner(key), value, expiry, flags);
         }
 
+        public RedisValue LolWut(int? version = default, CommandFlags flags = CommandFlags.None, params int[] otherArguments)
+            => Inner.LolWut(version, flags, otherArguments);
+
         public long Publish(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None)
         {
             return Inner.Publish(ToInner(channel), message, flags);

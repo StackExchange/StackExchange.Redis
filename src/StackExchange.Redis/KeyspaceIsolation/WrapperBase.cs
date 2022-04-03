@@ -381,6 +381,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.LockTakeAsync(ToInner(key), value, expiry, flags);
         }
 
+        public Task<RedisValue> LolWutAsync(int? version = default, CommandFlags flags = CommandFlags.None, params int[] otherArguments)
+            => Inner.LolWutAsync(version, flags, otherArguments);
+
         public Task<long> PublishAsync(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None)
         {
             return Inner.PublishAsync(ToInner(channel), message, flags);
