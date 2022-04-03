@@ -940,7 +940,7 @@ namespace StackExchange.Redis
         /// note that this doesn't mean much in a cluster as clients can get the message through other nodes.
         /// </returns>
         /// <remarks>https://redis.io/commands/publish</remarks>
-        long Publish(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None);
+        string Publish(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Execute an arbitrary command against the server; this is primarily intended for executing modules,

@@ -1,1 +1,2 @@
-﻿
+﻿StackExchange.Redis.IDatabase.LolWut(int? version = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, params int[] otherArguments) -> StackExchange.Redis.RedisValue
+StackExchange.Redis.IDatabaseAsync.LolWutAsync(int? version = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, params int[] otherArguments) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue>

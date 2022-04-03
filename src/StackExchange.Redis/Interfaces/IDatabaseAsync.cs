@@ -902,7 +902,7 @@ namespace StackExchange.Redis
         /// <param name="version">Optional version to display.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <param name="otherArguments">Manipulate the output by providing one or more numerical arguments.</param>
-        /// <returns>A string containing the generative computer art, and text describing the Redis version.</returns>
+        /// <returns>A value containing the generative computer art, and text describing the Redis version.</returns>
         Task<RedisValue> LolWutAsync(int? version = default, CommandFlags flags = CommandFlags.None, params int[] otherArguments);
 
         /// <summary>

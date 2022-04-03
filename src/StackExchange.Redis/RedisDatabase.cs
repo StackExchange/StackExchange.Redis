@@ -1190,6 +1190,39 @@ namespace StackExchange.Redis
             return StringSetAsync(key, value, expiry, When.NotExists, flags);
         }
 
+        private static readonly RedisValue VERSION = Encoding.ASCII.GetBytes("VERSION");
+
+        private Message GetLolWutMessage(int? version, int[] otherArguments, CommandFlags flags)
+        {
+            var args = new List<RedisValue>();
+
+            if (version.HasValue)
+            {
+                args.Add(VERSION);
+                args.Add(version);
+            }
+
+            if (otherArguments.Length > 0)
+            {
+                foreach (var otherArgument in otherArguments)
+                {
+                    args.Add(otherArgument);
+                }
+            }
+
+            return Message.Create(Database, flags, RedisCommand.LOLWUT, args);
+        }
+
+        public RedisValue LolWut(int? version = default, CommandFlags flags = CommandFlags.None, params int[] otherArguments)
+        {
+            return ExecuteSync(GetLolWutMessage(version, otherArguments, flags), ResultProcessor.RedisValue);
+        }
+
+        public Task<RedisValue> LolWutAsync(int? version = default, CommandFlags flags = CommandFlags.None, params int[] otherArguments)
+        {
+            return ExecuteAsync(GetLolWutMessage(version, otherArguments, flags), ResultProcessor.RedisValue);
+        }
+
         public long Publish(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None)
         {
             if (channel.IsNullOrEmpty) throw new ArgumentNullException(nameof(channel));
@@ -4220,5 +4253,7 @@ namespace StackExchange.Redis
                 return false;
             }
         }
+
+
     }
 }
