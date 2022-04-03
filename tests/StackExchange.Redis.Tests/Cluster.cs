@@ -171,7 +171,7 @@ namespace StackExchange.Redis.Tests
                     string b = StringGet(conn.GetServer(node.EndPoint), key);
                     Assert.Equal(value, b); // wrong primary, allow redirect
 
-                    var ex = Assert.Throws<RedisServerException>(() => StringGet(conn.GetServer(node.EndPoint), key, CommandFlags.NoRedirect));
+                    var ex = Assert.Throws<RedisHashslotMigratedAndNoRedirectException>(() => StringGet(conn.GetServer(node.EndPoint), key, CommandFlags.NoRedirect));
                     Assert.StartsWith($"Key has MOVED to Endpoint {rightPrimaryNode.EndPoint} and hashslot {slot}", ex.Message);
                 }
 
