@@ -447,7 +447,7 @@ namespace StackExchange.Redis
 
         bool ICompletable.TryComplete(bool isAsync) { Complete(); return true; }
 
-        public void Complete()
+        public virtual void Complete()
         {
             //Ensure we can never call Complete on the same resultBox from two threads by grabbing it now
             var currBox = Interlocked.Exchange(ref resultBox, null);

@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -144,6 +146,33 @@ namespace StackExchange.Redis
             {
                 message.SetNoRedirect();
                 Wrapped = message;
+            }
+
+            // for transactions, the inner operations should only be marked completed when the the final EXEC has been processed
+            /// <summary>
+            /// For queued messages (InnerOperations) in a the transaction, we cannot actually mark it complete until the exec
+            /// function has returned with the state of the transaction.
+            ///
+            /// Calling the base complete resets the ResultBox, 
+            /// </summary>
+            public override void Complete()
+            {
+                // still need to activate continuations for GetMessages(),
+                // which might be waiting for the last innerOperation to
+                // complete.
+                ResultBox?.ActivateContinuations();
+            }
+
+            /// <summary>
+            /// This is called when the transaction has been complete (Exec), and marks the operations as complete, updates performance,
+            /// and clears the ResultBox.
+            ///
+            /// It also triggers the ActivateContinuations() for a second time.
+            /// 
+            /// </summary>
+            public void TransactionComplete()
+            {
+                base.Complete();
             }
 
             public bool WasQueued
@@ -428,6 +457,21 @@ namespace StackExchange.Redis
                 }
                 return result;
             }
+
+            /// <summary>
+            /// When the transaction completed, the innerOperations needs to be informed that the transaction has been completed.
+            /// </summary>
+            public override void Complete()
+            {
+                // let all the inneroperations know that the transaction is complete
+                foreach (var msg in InnerOperations)
+                {
+                    msg.TransactionComplete();
+                }
+
+                // continue marking this message as complete.
+                base.Complete();
+            }
         }
 
         private class TransactionProcessor : ResultProcessor<bool>
@@ -439,13 +483,90 @@ namespace StackExchange.Redis
                 if (result.IsError && message is TransactionMessage tran)
                 {
                     string error = result.GetString();
+                    bool isMoved = true;
+                    var migratedErrorMessage = new HashSet<string>();
+                    RedisHashslotMigratedAndNoRedirectException migratedException;
+
                     foreach (var op in tran.InnerOperations)
                     {
-                        var inner = op.Wrapped;
-                        ServerFail(inner, error);
-                        inner.Complete();
+                        var opResultBox = op.ResultBox;
+                        // check if this internal operation errored out
+                        if (opResultBox.IsFaulted)
+                        {
+                            // if this resultbox is one that allows us access to the error
+                            if (opResultBox is IResultBox<bool>)
+                            {
+                                // get the error of the inner operation
+                                var simpleOpResultBox = opResultBox as IResultBox<bool>;
+                                Exception exception;
+                                simpleOpResultBox.GetResult(out exception);
+
+                                // append the inneroperation error to the transaction error
+                                error += "\n\n" + op.Command.ToString() + ": " + exception?.Message;
+
+                                // if the error is related to a hashslot being migrated, then add the error to a set.
+                                // if ALL the errors are related to this hashslot being moved, then it's possibly to retry
+                                // the transaction on the new endpoint
+                                if (exception is RedisHashslotMigratedAndNoRedirectException)
+                                {
+                                    migratedException = exception as RedisHashslotMigratedAndNoRedirectException;
+                                    migratedErrorMessage.Add(migratedException.GetMovedErrorMessage());
+                                } else
+                                {
+                                    isMoved = false;
+                                }
+
+                            } else
+                            {
+                                error += "\n\n" + op.Command.ToString() + ": Undeterminted Error";
+                                // have to assume it's false
+                                isMoved = false;
+                            }   
+                        }
                     }
+
+                    // all failed due to a hashslot move
+                    if (isMoved && migratedErrorMessage.Count > 0)
+                    {
+                        // there should be a SINGLE MOVED error in the set (same endpoint and hashslot)
+                        if (migratedErrorMessage.Count == 1)
+                        {
+                            // prepend the "MOVED" error to the start of the error, so the ResultProcessor
+                            // is able to detect it, and retry the transaction
+                            error = migratedErrorMessage.First() + " " + error;
+                            foreach (var op in tran.InnerOperations)
+                            {
+                                // reset the state of the internal operations
+                                var wasQueued = SimpleResultBox<bool>.Create();
+                                op.SetSource(wasQueued, QueuedProcessor.Default);
+                            }
+                        }
+                        // the transaction must have utilized multiple hashslots, with multiple ones that moved
+                        else
+                        {
+                            isMoved = false;
+                            error = "Multiple hashslots and/or endpoints detected as MOVED in a single transaction \n\n" + error;
+                        }
+                    }
+
+                    // if this is not a recoverable MOVED error,
+                    if(!isMoved)
+                    {
+                        // then mark all the inneroperation's wrapped operations as failed, and complete
+                        foreach (var op in tran.InnerOperations)
+                        {
+                            var inner = op.Wrapped;
+                            ServerFail(inner, error);
+                            inner.Complete();
+                        }
+                    }
+
+                    // take our updated error message, and pass it to the base ResultProcessor.
+                    var newResult = new ReadOnlySequence<byte>(Encoding.UTF8.GetBytes(error));
+                    return base.SetResult(connection, message, new RawResult(ResultType.Error, newResult, false));
                 }
+
+                // allow the base processor to process to result of the transaction
                 return base.SetResult(connection, message, result);
             }
 

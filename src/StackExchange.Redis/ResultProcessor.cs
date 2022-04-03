@@ -175,6 +175,11 @@ namespace StackExchange.Redis
             SetException(message, new RedisConnectionException(fail, errorMessage));
         }
 
+        public static void HashSlotMigratedAndNoRedirectAllowedFail(Message message, int hashSlot, string endpoint, string errorMessage)
+        {
+            SetException(message, new RedisHashslotMigratedAndNoRedirectException(errorMessage, hashSlot, endpoint));
+        }
+
         public static void ServerFail(Message message, string errorMessage)
         {
             SetException(message, new RedisServerException(errorMessage));
@@ -207,14 +212,17 @@ namespace StackExchange.Redis
                 bool wasNoRedirect = (message.Flags & CommandFlags.NoRedirect) != 0;
                 string err = string.Empty;
                 bool unableToConnectError = false;
+                bool hashslotMigratedAndNoRedirectError = false;
+                int hashSlot = -1;
+                EndPoint endpoint = null;
                 if (isMoved || result.StartsWith(CommonReplies.ASK))
                 {
                     message.SetResponseReceived();
 
                     log = false;
-                    string[] parts = result.GetString().Split(StringSplits.Space, 3);
-                    EndPoint endpoint;
-                    if (Format.TryParseInt32(parts[1], out int hashSlot)
+                    string[] parts = result.GetString().Split(StringSplits.Space, 4);
+                    
+                    if (Format.TryParseInt32(parts[1], out hashSlot)
                         && (endpoint = Format.TryParseEndPoint(parts[2])) != null)
                     {
                         // no point sending back to same server, and no point sending to a dead server
@@ -231,6 +239,7 @@ namespace StackExchange.Redis
                             {
                                 if (isMoved && wasNoRedirect)
                                 {
+                                    hashslotMigratedAndNoRedirectError = true;
                                     err = $"Key has MOVED to Endpoint {endpoint} and hashslot {hashSlot} but CommandFlags.NoRedirect was specified - redirect not followed for {message.CommandAndKey}. ";
                                 }
                                 else
@@ -257,6 +266,11 @@ namespace StackExchange.Redis
                 if (unableToConnectError)
                 {
                     ConnectionFail(message, ConnectionFailureType.UnableToConnect, err);
+                }
+                // if this message has an error due to the hashslot being moved, and the command has been marked as NO REDIRECT.
+                else if(hashslotMigratedAndNoRedirectError && endpoint != null)
+                {
+                    HashSlotMigratedAndNoRedirectAllowedFail(message, hashSlot, Format.ToString(endpoint), err);
                 }
                 else
                 {
