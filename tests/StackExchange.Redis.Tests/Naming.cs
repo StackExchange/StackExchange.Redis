@@ -81,6 +81,8 @@ namespace StackExchange.Redis.Tests
                     case nameof(IDatabase.StreamReadAsync):
                     case nameof(IDatabase.StreamReadGroup):
                     case nameof(IDatabase.StreamReadGroupAsync):
+                    case nameof(IDatabase.LolWut):
+                    case nameof(IDatabaseAsync.LolWutAsync):
                         continue; // they're fine, but don't want to widen check to return type
                 }
 
