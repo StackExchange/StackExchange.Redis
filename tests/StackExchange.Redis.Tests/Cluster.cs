@@ -200,17 +200,14 @@ namespace StackExchange.Redis.Tests
             static string[] TransactionalReplace(IServer server, RedisKey key, RedisValue newRedisValue, CommandFlags flags = CommandFlags.None)
             {
                 var database = server.Multiplexer.GetDatabase();
-                var transaction = (RedisTransaction)database.CreateTransaction();
+                var transaction = database.CreateTransaction();
                 var serverEndpoint = new ServerEndPoint((ConnectionMultiplexer) server.Multiplexer, server.EndPoint);
 
-                var getMessage = Message.Create(database.Database, flags, RedisCommand.GET, key);
-                Task<RedisValue> originalVal = transaction.ExecuteAsync<RedisValue>(getMessage, ResultProcessor.RedisValue, serverEndpoint);
-                var setMessage = Message.Create(database.Database, flags, RedisCommand.SET, key, newRedisValue);
-                Task<bool> writeVal = transaction.ExecuteAsync<bool>(setMessage, ResultProcessor.Boolean, serverEndpoint);
-                var getNewMessage = Message.Create(database.Database, flags, RedisCommand.GET, key);
-                Task<RedisValue> newVal = transaction.ExecuteAsync<RedisValue>(getNewMessage, ResultProcessor.RedisValue, serverEndpoint);
+                Task<RedisValue> originalVal = transaction.StringGetAsync(key, flags);
+                Task<bool> writeVal = transaction.StringSetAsync(key, newRedisValue, null, false, When.Always, flags);
+                Task<RedisValue> newVal = transaction.StringGetAsync(key, flags);
 
-                var result = transaction.Execute(flags);
+                var result = ((RedisTransaction)transaction).ExecuteInternal(flags, serverEndpoint);
                 Assert.True(result);
                 Assert.True(writeVal.Result);
 

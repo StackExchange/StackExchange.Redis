@@ -58,6 +58,12 @@ namespace StackExchange.Redis
             return base.ExecuteAsync(msg, proc); // need base to avoid our local wrapping override
         }
 
+        internal bool ExecuteInternal(CommandFlags flags, ServerEndPoint endpoint = null)
+        {
+            var msg = CreateMessage(flags, out ResultProcessor<bool> proc);
+            return base.ExecuteSync(msg, proc, endpoint); // need base to avoid our local "not supported" override
+        }
+
         internal override Task<T> ExecuteAsync<T>(Message message, ResultProcessor<T> processor, ServerEndPoint server = null)
         {
             if (message == null) return CompletedTask<T>.Default(asyncState);
