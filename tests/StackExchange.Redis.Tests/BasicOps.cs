@@ -481,7 +481,7 @@ namespace StackExchange.Redis.Tests
                 var ke1 = db.KeyCopyAsync(src, dest).ForAwait();
                 var ke2 = db.KeyCopyAsync(src, dest, replace: true).ForAwait();
                 var ku1 = db.StringGet(dest);
-                Assert.False(await ke1); // Should fail when not using replace and destination key exists
+                Assert.False(await ke1); // Should fail when not using replace and destination key exist
                 Assert.True(await ke2);
                 Assert.True(ku1.Equals("foo1"));
             }
