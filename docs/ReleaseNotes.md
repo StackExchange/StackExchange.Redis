@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+
+## 2.5.61
+
 - Adds: `GETEX` support with `.StringGetSetExpiry()`/`.StringGetSetExpiryAsync()` ([#1743 by benbryant0](https://github.com/StackExchange/StackExchange.Redis/pull/1743))
 - Fix [#1988](https://github.com/StackExchange/StackExchange.Redis/issues/1988): Don't issue `SELECT` commands if explicitly disabled ([#2023 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2023))
 - Adds: `KEEPTTL` support on `SET` operations ([#2029 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2029))
