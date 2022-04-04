@@ -1336,9 +1336,9 @@ StackExchange.Redis.StreamEntry
 StackExchange.Redis.StreamEntry.Id.get -> StackExchange.Redis.RedisValue
 StackExchange.Redis.StreamEntry.IsNull.get -> bool
 StackExchange.Redis.StreamEntry.StreamEntry() -> void
-StackExchange.Redis.StreamEntry.StreamEntry(StackExchange.Redis.RedisValue id, StackExchange.Redis.NameValueEntry[]? values) -> void
+StackExchange.Redis.StreamEntry.StreamEntry(StackExchange.Redis.RedisValue id, StackExchange.Redis.NameValueEntry[]! values) -> void
 StackExchange.Redis.StreamEntry.this[StackExchange.Redis.RedisValue fieldName].get -> StackExchange.Redis.RedisValue
-StackExchange.Redis.StreamEntry.Values.get -> StackExchange.Redis.NameValueEntry[]?
+StackExchange.Redis.StreamEntry.Values.get -> StackExchange.Redis.NameValueEntry[]!
 StackExchange.Redis.StreamGroupInfo
 StackExchange.Redis.StreamGroupInfo.ConsumerCount.get -> int
 StackExchange.Redis.StreamGroupInfo.LastDeliveredId.get -> string?

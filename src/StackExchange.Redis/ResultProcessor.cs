@@ -2009,7 +2009,7 @@ The coordinates as a two items x,y array (longitude,latitude).
             protected StreamEntry[] ParseRedisStreamEntries(in RawResult result) =>
                 result.GetItems().ToArray((in RawResult item, in StreamProcessorBase<T> _) => ParseRedisStreamEntry(item), this);
 
-            protected static NameValueEntry[]? ParseStreamEntryValues(in RawResult result)
+            protected static NameValueEntry[] ParseStreamEntryValues(in RawResult result)
             {
                 // The XRANGE, XREVRANGE, XREAD commands return stream entries
                 // in the following format.  The name/value pairs are interleaved
@@ -2028,7 +2028,7 @@ The coordinates as a two items x,y array (longitude,latitude).
 
                 if (result.Type != ResultType.MultiBulk || result.IsNull)
                 {
-                    return null;
+                    return Array.Empty<NameValueEntry>();
                 }
 
                 var arr = result.GetItems();

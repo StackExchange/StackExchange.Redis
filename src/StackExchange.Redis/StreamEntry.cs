@@ -1,4 +1,6 @@
-﻿namespace StackExchange.Redis
+﻿using System;
+
+namespace StackExchange.Redis
 {
     /// <summary>
     /// Describes an entry contained in a Redis Stream.
@@ -8,7 +10,7 @@
         /// <summary>
         /// Creates an stream entry.
         /// </summary>
-        public StreamEntry(RedisValue id, NameValueEntry[]? values)
+        public StreamEntry(RedisValue id, NameValueEntry[] values)
         {
             Id = id;
             Values = values;
@@ -17,7 +19,7 @@
         /// <summary>
         /// A null stream entry.
         /// </summary>
-        public static StreamEntry Null { get; } = new StreamEntry(RedisValue.Null, null);
+        public static StreamEntry Null { get; } = new StreamEntry(RedisValue.Null, Array.Empty<NameValueEntry>());
 
         /// <summary>
         /// The ID assigned to the message.
@@ -27,7 +29,7 @@
         /// <summary>
         /// The values contained within the message.
         /// </summary>
-        public NameValueEntry[]? Values { get; }
+        public NameValueEntry[] Values { get; }
 
         /// <summary>
         /// Search for a specific field by name, returning the value.
@@ -52,6 +54,6 @@
         /// <summary>
         /// Indicates that the Redis Stream Entry is null.
         /// </summary>
-        public bool IsNull => Id == RedisValue.Null && Values == null;
+        public bool IsNull => Id == RedisValue.Null && Values == Array.Empty<NameValueEntry>();
     }
 }

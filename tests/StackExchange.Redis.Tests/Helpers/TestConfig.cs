@@ -20,6 +20,19 @@ namespace StackExchange.Redis.Tests
             return db;
         }
 
+        /// <summary>
+        /// The command treats a Redis string as an array of bits, and is capable of addressing specific
+        /// integer fields of varying bit widths and arbitrary non (necessary) aligned offset.
+        /// The following is the list of supported commands:
+        /// <list type="bullet">
+        ///   <item>GET encoding offset -- Returns the specified bit field.</item>
+        ///   <item>SET encoding offset value -- Set the specified bit field and returns its old value.</item>
+        ///   <item>
+        ///     INCRBY encoding offset increment -- Increments or decrements (if a negative increment is given)
+        ///     the specified bit field and returns the new value. OVERFLOW can be [WRAP|SAT|FAIL]
+        ///   </item>
+        /// </list>
+        /// </summary>
         static TestConfig()
         {
             Current = new Config();
