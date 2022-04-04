@@ -999,13 +999,13 @@ namespace StackExchange.Redis
 
         public RedisValue ListMove(RedisKey sourceKey, RedisKey destinationKey, ListSide whereFrom, ListSide whereTo, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(Database, flags, RedisCommand.LMOVE, sourceKey, destinationKey, whereFrom.ToString(), whereTo.ToString());
+            var msg = Message.Create(Database, flags, RedisCommand.LMOVE, sourceKey, destinationKey, whereFrom == ListSide.Left ? "Left" : "right", whereTo == ListSide.Left ? "Left" : "right");
             return ExecuteSync(msg, ResultProcessor.RedisValue);
         }
 
         public Task<RedisValue> ListMoveAsync(RedisKey sourceKey, RedisKey destinationKey, ListSide whereFrom, ListSide whereTo, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(Database, flags, RedisCommand.LMOVE, sourceKey, destinationKey, whereFrom.ToString(), whereTo.ToString());
+            var msg = Message.Create(Database, flags, RedisCommand.LMOVE, sourceKey, destinationKey, whereFrom == ListSide.Left ? "Left" : "right", whereTo == ListSide.Left ? "Left" : "right");
             return ExecuteAsync(msg, ResultProcessor.RedisValue);
         }
 

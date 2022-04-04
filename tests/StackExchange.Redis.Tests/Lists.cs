@@ -40,7 +40,7 @@ namespace StackExchange.Redis.Tests
             using (var conn = Create())
             {
                 var db = conn.GetDatabase();
-                RedisKey key = "testlist";
+                RedisKey key = Me();
                 db.KeyDelete(key, CommandFlags.FireAndForget);
                 var result = db.ListLeftPush(key, Array.Empty<RedisValue>(), When.Always, CommandFlags.None);
                 Assert.Equal(0, result);
@@ -53,7 +53,7 @@ namespace StackExchange.Redis.Tests
             using (var conn = Create())
             {
                 var db = conn.GetDatabase();
-                RedisKey key = "testlist";
+                RedisKey key = Me();
                 db.KeyDelete(key, CommandFlags.FireAndForget);
                 var result = db.ListLeftPush(key, new RedisValue[] { "testvalue" }, When.Exists, CommandFlags.None);
                 Assert.Equal(0, result);
@@ -66,7 +66,7 @@ namespace StackExchange.Redis.Tests
             using (var conn = Create())
             {
                 var db = conn.GetDatabase();
-                RedisKey key = "testlist";
+                RedisKey key = Me();
                 db.KeyDelete(key, CommandFlags.FireAndForget);
 
                 var pushResult = db.ListLeftPush(key, new RedisValue[] { "testvalue1" }, CommandFlags.None);
@@ -88,7 +88,7 @@ namespace StackExchange.Redis.Tests
             {
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.PushMultiple), f => f.PushMultiple);
                 var db = conn.GetDatabase();
-                RedisKey key = "testlist";
+                RedisKey key = Me();
                 db.KeyDelete(key, CommandFlags.FireAndForget);
 
                 var pushResult = db.ListLeftPush(key, new RedisValue[] { "testvalue1" }, CommandFlags.None);
@@ -110,7 +110,7 @@ namespace StackExchange.Redis.Tests
             using (var conn = Create())
             {
                 var db = conn.GetDatabase();
-                RedisKey key = "testlist";
+                RedisKey key = Me();
                 db.KeyDelete(key, CommandFlags.FireAndForget);
                 var result = await db.ListLeftPushAsync(key, Array.Empty<RedisValue>(), When.Always, CommandFlags.None);
                 Assert.Equal(0, result);
@@ -123,7 +123,7 @@ namespace StackExchange.Redis.Tests
             using (var conn = Create())
             {
                 var db = conn.GetDatabase();
-                RedisKey key = "testlist";
+                RedisKey key = Me();
                 db.KeyDelete(key, CommandFlags.FireAndForget);
                 var result = await db.ListLeftPushAsync(key, new RedisValue[] { "testvalue" }, When.Exists, CommandFlags.None);
                 Assert.Equal(0, result);
@@ -136,7 +136,7 @@ namespace StackExchange.Redis.Tests
             using (var conn = Create())
             {
                 var db = conn.GetDatabase();
-                RedisKey key = "testlist";
+                RedisKey key = Me();
                 db.KeyDelete(key, CommandFlags.FireAndForget);
 
                 var pushResult = await db.ListLeftPushAsync(key, new RedisValue[] { "testvalue1" }, CommandFlags.None);
@@ -158,7 +158,7 @@ namespace StackExchange.Redis.Tests
             {
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.PushMultiple), f => f.PushMultiple);
                 var db = conn.GetDatabase();
-                RedisKey key = "testlist";
+                RedisKey key = Me();
                 db.KeyDelete(key, CommandFlags.FireAndForget);
 
                 var pushResult = await db.ListLeftPushAsync(key, new RedisValue[] { "testvalue1" }, CommandFlags.None);
@@ -180,7 +180,7 @@ namespace StackExchange.Redis.Tests
             using (var conn = Create())
             {
                 var db = conn.GetDatabase();
-                RedisKey key = "testlist";
+                RedisKey key = Me();
                 db.KeyDelete(key, CommandFlags.FireAndForget);
                 var result = db.ListRightPush(key, Array.Empty<RedisValue>(), When.Always, CommandFlags.None);
                 Assert.Equal(0, result);
@@ -193,7 +193,7 @@ namespace StackExchange.Redis.Tests
             using (var conn = Create())
             {
                 var db = conn.GetDatabase();
-                RedisKey key = "testlist";
+                RedisKey key = Me();
                 db.KeyDelete(key, CommandFlags.FireAndForget);
                 var result = db.ListRightPush(key, new RedisValue[] { "testvalue" }, When.Exists, CommandFlags.None);
                 Assert.Equal(0, result);
@@ -206,7 +206,7 @@ namespace StackExchange.Redis.Tests
             using (var conn = Create())
             {
                 var db = conn.GetDatabase();
-                RedisKey key = "testlist";
+                RedisKey key = Me();
                 db.KeyDelete(key, CommandFlags.FireAndForget);
 
                 var pushResult = db.ListRightPush(key, new RedisValue[] { "testvalue1" }, CommandFlags.None);
@@ -228,7 +228,7 @@ namespace StackExchange.Redis.Tests
             {
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.PushMultiple), f => f.PushMultiple);
                 var db = conn.GetDatabase();
-                RedisKey key = "testlist";
+                RedisKey key = Me();
                 db.KeyDelete(key, CommandFlags.FireAndForget);
 
                 var pushResult = db.ListRightPush(key, new RedisValue[] { "testvalue1" }, CommandFlags.None);
@@ -250,7 +250,7 @@ namespace StackExchange.Redis.Tests
             using (var conn = Create())
             {
                 var db = conn.GetDatabase();
-                RedisKey key = "testlist";
+                RedisKey key = Me();
                 db.KeyDelete(key, CommandFlags.FireAndForget);
                 var result = await db.ListRightPushAsync(key, Array.Empty<RedisValue>(), When.Always, CommandFlags.None);
                 Assert.Equal(0, result);
@@ -263,7 +263,7 @@ namespace StackExchange.Redis.Tests
             using (var conn = Create())
             {
                 var db = conn.GetDatabase();
-                RedisKey key = "testlist";
+                RedisKey key = Me();
                 db.KeyDelete(key, CommandFlags.FireAndForget);
                 var result = await db.ListRightPushAsync(key, new RedisValue[] { "testvalue" }, When.Exists, CommandFlags.None);
                 Assert.Equal(0, result);
@@ -276,7 +276,7 @@ namespace StackExchange.Redis.Tests
             using (var conn = Create())
             {
                 var db = conn.GetDatabase();
-                RedisKey key = "testlist";
+                RedisKey key = Me();
                 db.KeyDelete(key, CommandFlags.FireAndForget);
 
                 var pushResult = await db.ListRightPushAsync(key, new RedisValue[] { "testvalue1" }, CommandFlags.None);
@@ -298,7 +298,7 @@ namespace StackExchange.Redis.Tests
             {
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.PushMultiple), f => f.PushMultiple);
                 var db = conn.GetDatabase();
-                RedisKey key = "testlist";
+                RedisKey key = Me();
                 db.KeyDelete(key, CommandFlags.FireAndForget);
 
                 var pushResult = await db.ListRightPushAsync(key, new RedisValue[] { "testvalue1" }, CommandFlags.None);
@@ -320,15 +320,36 @@ namespace StackExchange.Redis.Tests
             using (var conn = Create())
             {
                 var db = conn.GetDatabase();
-                RedisKey src = "testlist";
-                RedisKey dest = "destinationlist";
+                RedisKey src = Me();
+                RedisKey dest = Me() + "dest";
                 db.KeyDelete(src, CommandFlags.FireAndForget);
 
-                var pushResult = await db.ListRightPushAsync(src, new RedisValue[] { "testvalue1" });
-                Assert.Equal(1, pushResult);
+                var pushResult = await db.ListRightPushAsync(src, new RedisValue[] { "testvalue1" , "testvalue2" });
+                Assert.Equal(2, pushResult);
 
-                var rangeResult = db.ListMove(src, dest, ListSide.Left, ListSide.Right);
-                Assert.Equal("testvalue1" , rangeResult);
+                var rangeResult1 = db.ListMove(src, dest, ListSide.Left, ListSide.Right);
+                var rangeResult2 = db.ListMove(src, dest, ListSide.Left, ListSide.Left);
+                var rangeResult3 = db.ListMove(dest, src, ListSide.Right, ListSide.Right);
+                var rangeResult4 = db.ListMove(dest, src, ListSide.Right, ListSide.Left);
+                Assert.Equal("testvalue1" , rangeResult1);
+                Assert.Equal("testvalue2" , rangeResult2);
+                Assert.Equal("testvalue1" , rangeResult3);
+                Assert.Equal("testvalue2" , rangeResult4);
+            }
+        }
+
+        [Fact]
+        public void ListMoveKeyDoesNotExist()
+        {
+            using (var conn = Create())
+            {
+                var db = conn.GetDatabase();
+                RedisKey src = Me();
+                RedisKey dest = Me() + "dest";
+                db.KeyDelete(src, CommandFlags.FireAndForget);
+
+                var rangeResult1 = db.ListMove(src, dest, ListSide.Left, ListSide.Right);
+                Assert.True(rangeResult1.IsNull);
             }
         }
     }

@@ -742,7 +742,7 @@ namespace StackExchange.Redis
         /// <param name="whereFrom">What side of the list to remove from.</param>
         /// <param name="whereTo">What side of the list to move to.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The element being popped and pushed.</returns>
+        /// <returns>The element being popped and pushed or null if no element to move.</returns>
         /// <remarks>https://redis.io/commands/lmove</remarks>
         Task<RedisValue> ListMoveAsync(RedisKey sourceKey, RedisKey destinationKey, ListSide whereFrom, ListSide whereTo, CommandFlags flags = CommandFlags.None);
 
