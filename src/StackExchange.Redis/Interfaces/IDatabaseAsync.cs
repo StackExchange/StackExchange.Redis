@@ -449,11 +449,11 @@ namespace StackExchange.Redis
         Task<EndPoint> IdentifyEndpointAsync(RedisKey key = default(RedisKey), CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Copy the value from the selected key to the specified destination key.
+        /// Copies the value from the <paramref name="sourceKey"/> to the specified <paramref name="destinationKey"/>.
         /// </summary>
         /// <param name="sourceKey">Copy the value stored at the source.</param>
         /// <param name="destinationKey">Copy the value to destination in the logical database used by the connection.</param>
-        /// <param name="destinationDatabase">Specifying an alternative logical database index for the destination key.</param>
+        /// <param name="destinationDatabase">Specifying an alternative logical database index for the destination key. If default (-1), current database is used.</param>
         /// <param name="replace">Removes the destination key before copying the value to it.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns><see langword="true"/> if key was copied. <see langword="false"/> if key was not copied.</returns>

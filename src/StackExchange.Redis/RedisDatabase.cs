@@ -2744,26 +2744,15 @@ namespace StackExchange.Redis
             _ => throw new ArgumentException("Expiry time must be either Utc or Local", nameof(when)),
         };
 
-        private Message GetCopyMessage(in RedisKey sourceKey, RedisKey destinationKey, int destinationDatabase, bool replace, CommandFlags flags)
-        {
-            if (destinationDatabase < -1) throw new ArgumentOutOfRangeException(nameof(destinationDatabase));
-            else if (destinationDatabase == -1)
+        private Message GetCopyMessage(in RedisKey sourceKey, RedisKey destinationKey, int destinationDatabase, bool replace, CommandFlags flags) =>
+            destinationDatabase switch
             {
-                return replace switch
-                {
-                    true  => Message.Create(Database, flags, RedisCommand.COPY, sourceKey, destinationKey, RedisLiterals.REPLACE),
-                    false => Message.Create(Database, flags, RedisCommand.COPY, sourceKey, destinationKey),
-                };
-            }
-            else
-            {
-                return replace switch
-                {
-                    true  => Message.Create(Database, flags, RedisCommand.COPY, sourceKey, destinationKey, destinationDatabase, RedisLiterals.REPLACE),
-                    false => Message.Create(Database, flags, RedisCommand.COPY, sourceKey, destinationKey, destinationDatabase),
-                };
-            }
-        }
+                < -1 => throw new ArgumentOutOfRangeException(nameof(destinationDatabase)),
+                -1 when replace => Message.Create(Database, flags, RedisCommand.COPY, sourceKey, destinationKey, RedisLiterals.REPLACE),
+                -1              => Message.Create(Database, flags, RedisCommand.COPY, sourceKey, destinationKey),
+                _ when replace  => Message.Create(Database, flags, RedisCommand.COPY, sourceKey, destinationKey, RedisLiterals.DB, destinationDatabase, RedisLiterals.REPLACE),
+                _               => Message.Create(Database, flags, RedisCommand.COPY, sourceKey, destinationKey, RedisLiterals.DB, destinationDatabase),
+            };
 
         private Message GetExpiryMessage(in RedisKey key, CommandFlags flags, TimeSpan? expiry, out ServerEndPoint server)
         {
