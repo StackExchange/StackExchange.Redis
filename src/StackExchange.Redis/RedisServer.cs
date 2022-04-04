@@ -411,16 +411,16 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.DemandOK);
         }
 
-        public byte[]? ScriptLoad(string script, CommandFlags flags = CommandFlags.None)
+        public byte[] ScriptLoad(string script, CommandFlags flags = CommandFlags.None)
         {
             var msg = new RedisDatabase.ScriptLoadMessage(flags, script);
-            return ExecuteSync(msg, ResultProcessor.ScriptLoad);
+            return ExecuteSync(msg, ResultProcessor.ScriptLoad, defaultValue: Array.Empty<byte>()); // Note: default isn't used on failure - we'll throw
         }
 
-        public Task<byte[]?> ScriptLoadAsync(string script, CommandFlags flags = CommandFlags.None)
+        public Task<byte[]> ScriptLoadAsync(string script, CommandFlags flags = CommandFlags.None)
         {
             var msg = new RedisDatabase.ScriptLoadMessage(flags, script);
-            return ExecuteAsync(msg, ResultProcessor.ScriptLoad);
+            return ExecuteAsync(msg, ResultProcessor.ScriptLoad, defaultValue: Array.Empty<byte>()); // Note: default isn't used on failure - we'll throw
         }
 
         public LoadedLuaScript ScriptLoad(LuaScript script, CommandFlags flags = CommandFlags.None)

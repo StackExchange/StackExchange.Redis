@@ -27,7 +27,9 @@ namespace StackExchange.Redis
             BackgroundSaveAOFStarted = new ExpectBasicStringProcessor(CommonReplies.backgroundSavingAOFStarted_trimmed, startsWith: true);
 
         public static readonly ResultProcessor<byte[]?>
-            ByteArray = new ByteArrayProcessor(),
+            ByteArray = new ByteArrayProcessor();
+
+        public static readonly ResultProcessor<byte[]>
             ScriptLoad = new ScriptLoadProcessor();
 
         public static readonly ResultProcessor<ClusterConfiguration>
@@ -451,15 +453,23 @@ namespace StackExchange.Redis
             }
         }
 
-        internal sealed class ScriptLoadProcessor : ResultProcessor<byte[]?>
+        internal sealed class ScriptLoadProcessor : ResultProcessor<byte[]>
         {
             private static readonly Regex sha1 = new Regex("^[0-9a-f]{40}$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
             internal static bool IsSHA1(string script) => script is not null && sha1.IsMatch(script);
 
             internal const int Sha1HashLength = 20;
-            internal static byte[]? ParseSHA1(byte[] value)
+            internal static byte[] ParseSHA1(byte[] value)
             {
+                static int FromHex(char c)
+                {
+                    if (c >= '0' && c <= '9') return c - '0';
+                    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+                    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+                    return -1;
+                }
+
                 if (value?.Length == Sha1HashLength * 2)
                 {
                     var tmp = new byte[Sha1HashLength];
@@ -467,38 +477,17 @@ namespace StackExchange.Redis
                     for (int i = 0; i < tmp.Length; i++)
                     {
                         int x = FromHex((char)value[charIndex++]), y = FromHex((char)value[charIndex++]);
-                        if (x < 0 || y < 0) return null;
+                        if (x < 0 || y < 0)
+                        {
+                            throw new ArgumentException("Unable to parse response as SHA1", nameof(value));
+                        }
                         tmp[i] = (byte)((x << 4) | y);
                     }
                     return tmp;
                 }
-                return null;
+                throw new ArgumentException("Unable to parse response as SHA1", nameof(value));
             }
 
-            internal static byte[]? ParseSHA1(string value)
-            {
-                if (value?.Length == (Sha1HashLength * 2) && sha1.IsMatch(value))
-                {
-                    var tmp = new byte[Sha1HashLength];
-                    int charIndex = 0;
-                    for (int i = 0; i < tmp.Length; i++)
-                    {
-                        int x = FromHex(value[charIndex++]), y = FromHex(value[charIndex++]);
-                        if (x < 0 || y < 0) return null;
-                        tmp[i] = (byte)((x << 4) | y);
-                    }
-                    return tmp;
-                }
-                return null;
-            }
-
-            private static int FromHex(char c)
-            {
-                if (c >= '0' && c <= '9') return c - '0';
-                if (c >= 'a' && c <= 'f') return c - 'a' + 10;
-                if (c >= 'A' && c <= 'F') return c - 'A' + 10;
-                return -1;
-            }
             // note that top-level error messages still get handled by SetResult, but nested errors
             // (is that a thing?) will be wrapped in the RedisResult
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
@@ -509,11 +498,10 @@ namespace StackExchange.Redis
                         var asciiHash = result.GetBlob();
                         if (asciiHash == null || asciiHash.Length != (Sha1HashLength * 2)) return false;
 
-                        byte[]? hash = null;
-                        if (!message.IsInternalCall)
-                        {
-                            hash = ParseSHA1(asciiHash); // external caller wants the hex bytes, not the ASCII bytes
-                        }
+                        // External caller wants the hex bytes, not the ASCII bytes
+                        // For nullability/consistency reasons, we always do the parse here.
+                        byte[] hash = ParseSHA1(asciiHash);
+
                         if (message is RedisDatabase.ScriptLoadMessage sl)
                         {
                             connection.BridgeCouldBeNull?.ServerEndPoint?.AddScript(sl.Script, asciiHash);

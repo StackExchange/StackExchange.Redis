@@ -952,9 +952,9 @@ StackExchange.Redis.IServer.ScriptExistsAsync(string! script, StackExchange.Redi
 StackExchange.Redis.IServer.ScriptFlush(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> void
 StackExchange.Redis.IServer.ScriptFlushAsync(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task!
 StackExchange.Redis.IServer.ScriptLoad(StackExchange.Redis.LuaScript! script, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.LoadedLuaScript!
-StackExchange.Redis.IServer.ScriptLoad(string! script, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> byte[]?
+StackExchange.Redis.IServer.ScriptLoad(string! script, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> byte[]!
 StackExchange.Redis.IServer.ScriptLoadAsync(StackExchange.Redis.LuaScript! script, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.LoadedLuaScript!>!
-StackExchange.Redis.IServer.ScriptLoadAsync(string! script, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<byte[]?>!
+StackExchange.Redis.IServer.ScriptLoadAsync(string! script, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<byte[]!>!
 StackExchange.Redis.IServer.SentinelFailover(string! serviceName, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> void
 StackExchange.Redis.IServer.SentinelFailoverAsync(string! serviceName, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task!
 StackExchange.Redis.IServer.SentinelGetMasterAddressByName(string! serviceName, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Net.EndPoint?

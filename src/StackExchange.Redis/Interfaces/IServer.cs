@@ -542,7 +542,7 @@ namespace StackExchange.Redis
         /// <param name="script">The script to load.</param>
         /// <param name="flags">The command flags to use.</param>
         /// <remark>https://redis.io/commands/script-load/</remark>
-        byte[]? ScriptLoad(string script, CommandFlags flags = CommandFlags.None);
+        byte[] ScriptLoad(string script, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Explicitly defines a script on the server.
@@ -558,7 +558,7 @@ namespace StackExchange.Redis
         /// <param name="script">The script to load.</param>
         /// <param name="flags">The command flags to use.</param>
         /// <remark>https://redis.io/commands/script-load/</remark>
-        Task<byte[]?> ScriptLoadAsync(string script, CommandFlags flags = CommandFlags.None);
+        Task<byte[]> ScriptLoadAsync(string script, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Explicitly defines a script on the server.
