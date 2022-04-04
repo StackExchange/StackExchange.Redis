@@ -6,12 +6,12 @@
     public enum ListSide
     {
         /// <summary>
-        /// Referce to the head of the list.
+        /// The head of the list.
         /// </summary>
         Left,
         /// <summary>
-        /// Referce to the tail of the list.
+        /// The tail of the list.
         /// </summary>
-        Right
+        Right,
     }
 }
