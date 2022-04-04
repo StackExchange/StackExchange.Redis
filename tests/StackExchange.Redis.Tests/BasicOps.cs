@@ -432,6 +432,22 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public async Task Copy()
+        {
+            using (var muxer = Create())
+            {
+                var db = muxer.GetDatabase();
+                var src = Me();
+                var dest = Me() + "2";
+                _ = db.StringSetAsync(src, "Heyyyyy");
+                var ke1 = db.KeyCopyAsync(src, dest).ForAwait();
+                var ku1 = db.StringGet(dest);
+                Assert.True(await ke1);
+                Assert.True(ku1.Equals("Heyyyyy"));
+            }
+        }
+
+        [Fact]
         public async Task Delete()
         {
             using (var muxer = Create())

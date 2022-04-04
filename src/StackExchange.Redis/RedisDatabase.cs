@@ -601,6 +601,18 @@ namespace StackExchange.Redis
             return server?.IsConnected == true;
         }
 
+        public bool KeyCopy(RedisKey source, RedisKey destination, int database = 0, bool replace = false, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetCopyMessage(source, destination, database, replace, flags);
+            return ExecuteSync(msg, ResultProcessor.Boolean);
+        }
+
+        public Task<bool> KeyCopyAsync(RedisKey source, RedisKey destination, int database = 0, bool replace = false, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetCopyMessage(source, destination, database, replace, flags);
+            return ExecuteAsync(msg, ResultProcessor.Boolean);
+        }
+
         public bool KeyDelete(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             var cmd = GetDeleteCommand(key, flags, out var server);
@@ -2731,6 +2743,23 @@ namespace StackExchange.Redis
             DateTimeKind.Local or DateTimeKind.Utc => (when.ToUniversalTime() - RedisBase.UnixEpoch).Ticks / TimeSpan.TicksPerMillisecond,
             _ => throw new ArgumentException("Expiry time must be either Utc or Local", nameof(when)),
         };
+
+        private Message GetCopyMessage(in RedisKey source, RedisKey destination, int database, bool replace, CommandFlags flags)
+        {
+            if (database < 0) throw new ArgumentOutOfRangeException(nameof(database));
+            else if (database == 0)
+            {
+                return replace?
+                    Message.Create(Database, flags, RedisCommand.COPY, source, destination):
+                    Message.Create(Database, flags, RedisCommand.COPY, source, destination, RedisLiterals.REPLACE);
+            }
+            else
+            {
+                return replace?
+                    Message.Create(Database, flags, RedisCommand.COPY, source, destination, database):
+                    Message.Create(Database, flags, RedisCommand.COPY, source, destination, database, RedisLiterals.REPLACE);
+            }
+        }
 
         private Message GetExpiryMessage(in RedisKey key, CommandFlags flags, TimeSpan? expiry, out ServerEndPoint server)
         {

@@ -202,6 +202,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.IdentifyEndpoint(ToInner(key), flags);
         }
 
+        public bool KeyCopy(RedisKey source, RedisKey destination, int database = 0, bool replace = false, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.KeyCopy(ToInner(source), ToInner(destination), database, replace, flags);
+        }
+
         public long KeyDelete(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
         {
             return Inner.KeyDelete(ToInner(keys), flags);
@@ -250,7 +255,6 @@ namespace StackExchange.Redis.KeyspaceIsolation
         {
             return Inner.KeyMove(ToInner(key), database, flags);
         }
-
         public bool KeyPersist(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             return Inner.KeyPersist(ToInner(key), flags);

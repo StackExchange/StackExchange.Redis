@@ -197,6 +197,13 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void KeyCopyAsync()
+        {
+            wrapper.KeyCopyAsync("key", "destination", flags: CommandFlags.None);
+            mock.Verify(_ => _.KeyCopyAsync("prefix:key", "prefix:destination", 0, false, CommandFlags.None));
+        }
+
+        [Fact]
         public void KeyDeleteAsync_1()
         {
             wrapper.KeyDeleteAsync("key", CommandFlags.None);
