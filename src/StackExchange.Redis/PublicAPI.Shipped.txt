@@ -410,6 +410,9 @@ StackExchange.Redis.GeoUnit.Feet = 3 -> StackExchange.Redis.GeoUnit
 StackExchange.Redis.GeoUnit.Kilometers = 1 -> StackExchange.Redis.GeoUnit
 StackExchange.Redis.GeoUnit.Meters = 0 -> StackExchange.Redis.GeoUnit
 StackExchange.Redis.GeoUnit.Miles = 2 -> StackExchange.Redis.GeoUnit
+StackExchange.Redis.ListSide
+StackExchange.Redis.ListSide.Left = 0 -> StackExchange.Redis.ListSide
+StackExchange.Redis.ListSide.Right = 1 -> StackExchange.Redis.ListSide
 StackExchange.Redis.HashEntry
 StackExchange.Redis.HashEntry.Equals(StackExchange.Redis.HashEntry other) -> bool
 StackExchange.Redis.HashEntry.HashEntry() -> void
@@ -535,6 +538,7 @@ StackExchange.Redis.IDatabase.KeyType(StackExchange.Redis.RedisKey key, StackExc
 StackExchange.Redis.IDatabase.ListGetByIndex(StackExchange.Redis.RedisKey key, long index, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue
 StackExchange.Redis.IDatabase.ListInsertAfter(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue pivot, StackExchange.Redis.RedisValue value, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
 StackExchange.Redis.IDatabase.ListInsertBefore(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue pivot, StackExchange.Redis.RedisValue value, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
+StackExchange.Redis.IDatabase.ListMove(StackExchange.Redis.RedisKey sourceKey, StackExchange.Redis.RedisKey destinationKey, StackExchange.Redis.ListSide whereFrom, StackExchange.Redis.ListSide whereTo, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue
 StackExchange.Redis.IDatabase.ListLeftPop(StackExchange.Redis.RedisKey key, long count, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue[]
 StackExchange.Redis.IDatabase.ListLeftPop(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue
 StackExchange.Redis.IDatabase.ListLeftPush(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue value, StackExchange.Redis.When when = StackExchange.Redis.When.Always, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
@@ -729,6 +733,7 @@ StackExchange.Redis.IDatabaseAsync.ListLeftPushAsync(StackExchange.Redis.RedisKe
 StackExchange.Redis.IDatabaseAsync.ListLeftPushAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue[] values, StackExchange.Redis.CommandFlags flags) -> System.Threading.Tasks.Task<long>
 StackExchange.Redis.IDatabaseAsync.ListLeftPushAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue[] values, StackExchange.Redis.When when = StackExchange.Redis.When.Always, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>
 StackExchange.Redis.IDatabaseAsync.ListLengthAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>
+StackExchange.Redis.IDatabaseAsync.ListMoveAsync(StackExchange.Redis.RedisKey sourceKey, StackExchange.Redis.RedisKey destinationKey, StackExchange.Redis.ListSide whereFrom, StackExchange.Redis.ListSide whereTo, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue>
 StackExchange.Redis.IDatabaseAsync.ListRangeAsync(StackExchange.Redis.RedisKey key, long start = 0, long stop = -1, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue[]>
 StackExchange.Redis.IDatabaseAsync.ListRemoveAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue value, long count = 0, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>
 StackExchange.Redis.IDatabaseAsync.ListRightPopAsync(StackExchange.Redis.RedisKey key, long count, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue[]>

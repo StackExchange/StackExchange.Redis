@@ -997,6 +997,18 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
+        public RedisValue ListMove(RedisKey sourceKey, RedisKey destinationKey, ListSide whereFrom, ListSide whereTo, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.LMOVE, sourceKey, destinationKey, whereFrom.ToString(), whereTo.ToString());
+            return ExecuteSync(msg, ResultProcessor.RedisValue);
+        }
+
+        public Task<RedisValue> ListMoveAsync(RedisKey sourceKey, RedisKey destinationKey, ListSide whereFrom, ListSide whereTo, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.LMOVE, sourceKey, destinationKey, whereFrom.ToString(), whereTo.ToString());
+            return ExecuteAsync(msg, ResultProcessor.RedisValue);
+        }
+
         public RedisValue[] ListRange(RedisKey key, long start = 0, long stop = -1, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.LRANGE, key, start, stop);

@@ -311,6 +311,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.ListLengthAsync(ToInner(key), flags);
         }
 
+        public Task<RedisValue> ListMoveAsync(RedisKey sourceKey, RedisKey destinationKey, ListSide whereFrom, ListSide whereTo, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.ListMoveAsync(ToInner(sourceKey), ToInner(destinationKey), whereFrom, whereTo);
+        }
+
         public Task<RedisValue[]> ListRangeAsync(RedisKey key, long start = 0, long stop = -1, CommandFlags flags = CommandFlags.None)
         {
             return Inner.ListRangeAsync(ToInner(key), start, stop, flags);

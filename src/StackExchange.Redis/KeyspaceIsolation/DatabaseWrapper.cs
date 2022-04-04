@@ -326,6 +326,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.ListLength(ToInner(key), flags);
         }
 
+        public RedisValue ListMove(RedisKey source, RedisKey destination, ListSide whereFrom, ListSide whereTo, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.ListMove(ToInner(source), ToInner(destination), whereFrom, whereTo);
+        }
+
         public RedisValue[] ListRange(RedisKey key, long start = 0, long stop = -1, CommandFlags flags = CommandFlags.None)
         {
             return Inner.ListRange(ToInner(key), start, stop, flags);

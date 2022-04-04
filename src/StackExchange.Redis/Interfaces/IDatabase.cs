@@ -758,6 +758,19 @@ namespace StackExchange.Redis
         long ListLength(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Returns and removes the first/last element of the list stored at source, and pushes the element
+        /// at the first/last element of the list stored at destination.
+        /// </summary>
+        /// <param name="sourceKey">The key of the list to remove from.</param>
+        /// <param name="destinationKey">The key of the list to move to.</param>
+        /// <param name="whereFrom">What side of the list to remove from.</param>
+        /// <param name="whereTo">What side of the list to move to.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The element being popped and pushed.</returns>
+        /// <remarks>https://redis.io/commands/lmove</remarks>
+        RedisValue ListMove(RedisKey sourceKey, RedisKey destinationKey, ListSide whereFrom, ListSide whereTo, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Returns the specified elements of the list stored at key.
         /// The offsets start and stop are zero-based indexes, with 0 being the first element of the list (the head of the list), 1 being the next element and so on.
         /// These offsets can also be negative numbers indicating offsets starting at the end of the list.For example, -1 is the last element of the list, -2 the penultimate, and so on.

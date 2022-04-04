@@ -313,5 +313,23 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal("testvalue3", rangeResult[2]);
             }
         }
+
+        [Fact]
+        public async Task ListMove()
+        {
+            using (var conn = Create())
+            {
+                var db = conn.GetDatabase();
+                RedisKey src = "testlist";
+                RedisKey dest = "destinationlist";
+                db.KeyDelete(src, CommandFlags.FireAndForget);
+
+                var pushResult = await db.ListRightPushAsync(src, new RedisValue[] { "testvalue1" });
+                Assert.Equal(1, pushResult);
+
+                var rangeResult = db.ListMove(src, dest, ListSide.Left, ListSide.Right);
+                Assert.Equal("testvalue1" , rangeResult);
+            }
+        }
     }
 }
