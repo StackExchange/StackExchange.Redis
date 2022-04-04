@@ -319,6 +319,8 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.ListMove), f => f.ListMove);
+
                 var db = conn.GetDatabase();
                 RedisKey src = Me();
                 RedisKey dest = Me() + "dest";
@@ -343,6 +345,8 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.ListMove), f => f.ListMove);
+
                 var db = conn.GetDatabase();
                 RedisKey src = Me();
                 RedisKey dest = Me() + "dest";
