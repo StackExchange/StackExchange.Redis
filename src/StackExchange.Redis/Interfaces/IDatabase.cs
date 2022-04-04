@@ -758,8 +758,8 @@ namespace StackExchange.Redis
         long ListLength(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Returns and removes the first/last element of the list stored at source, and pushes the element
-        /// at the first/last element of the list stored at destination.
+        /// Returns and removes the first or last element of the list stored at <paramref name="sourceKey"/>, and pushes the element
+        /// as the first or last element of the list stored at <paramref name="destinationKey"/>.
         /// </summary>
         /// <param name="sourceKey">The key of the list to remove from.</param>
         /// <param name="destinationKey">The key of the list to move to.</param>
