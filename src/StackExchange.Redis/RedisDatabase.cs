@@ -601,15 +601,15 @@ namespace StackExchange.Redis
             return server?.IsConnected == true;
         }
 
-        public bool KeyCopy(RedisKey source, RedisKey destination, int destinationDatabase = -1, bool replace = false, CommandFlags flags = CommandFlags.None)
+        public bool KeyCopy(RedisKey sourceKey, RedisKey destinationKey, int destinationDatabase = -1, bool replace = false, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetCopyMessage(source, destination, destinationDatabase, replace, flags);
+            var msg = GetCopyMessage(sourceKey, destinationKey, destinationDatabase, replace, flags);
             return ExecuteSync(msg, ResultProcessor.Boolean);
         }
 
-        public Task<bool> KeyCopyAsync(RedisKey source, RedisKey destination, int destinationDatabase = -1, bool replace = false, CommandFlags flags = CommandFlags.None)
+        public Task<bool> KeyCopyAsync(RedisKey sourceKey, RedisKey destinationKey, int destinationDatabase = -1, bool replace = false, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetCopyMessage(source, destination, destinationDatabase, replace, flags);
+            var msg = GetCopyMessage(sourceKey, destinationKey, destinationDatabase, replace, flags);
             return ExecuteAsync(msg, ResultProcessor.Boolean);
         }
 
@@ -2744,20 +2744,24 @@ namespace StackExchange.Redis
             _ => throw new ArgumentException("Expiry time must be either Utc or Local", nameof(when)),
         };
 
-        private Message GetCopyMessage(in RedisKey source, RedisKey destination, int database, bool replace, CommandFlags flags)
+        private Message GetCopyMessage(in RedisKey sourceKey, RedisKey destinationKey, int destinationDatabase, bool replace, CommandFlags flags)
         {
-            if (database < -1) throw new ArgumentOutOfRangeException(nameof(database));
-            else if (database == -1)
+            if (destinationDatabase < -1) throw new ArgumentOutOfRangeException(nameof(destinationDatabase));
+            else if (destinationDatabase == -1)
             {
-                return replace?
-                    Message.Create(Database, flags, RedisCommand.COPY, source, destination, RedisLiterals.REPLACE):
-                    Message.Create(Database, flags, RedisCommand.COPY, source, destination);
+                return replace switch
+                {
+                    true  => Message.Create(Database, flags, RedisCommand.COPY, sourceKey, destinationKey, RedisLiterals.REPLACE),
+                    false => Message.Create(Database, flags, RedisCommand.COPY, sourceKey, destinationKey),
+                };
             }
             else
             {
-                return replace?
-                    Message.Create(Database, flags, RedisCommand.COPY, source, destination, database, RedisLiterals.REPLACE):
-                    Message.Create(Database, flags, RedisCommand.COPY, source, destination, database);
+                return replace switch
+                {
+                    true  => Message.Create(Database, flags, RedisCommand.COPY, sourceKey, destinationKey, destinationDatabase, RedisLiterals.REPLACE),
+                    false => Message.Create(Database, flags, RedisCommand.COPY, sourceKey, destinationKey, destinationDatabase),
+                };
             }
         }
 
