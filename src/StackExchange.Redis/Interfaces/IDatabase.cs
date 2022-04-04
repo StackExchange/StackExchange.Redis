@@ -763,8 +763,8 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="sourceKey">The key of the list to remove from.</param>
         /// <param name="destinationKey">The key of the list to move to.</param>
-        /// <param name="whereFrom">What side of the list to remove from.</param>
-        /// <param name="whereTo">What side of the list to move to.</param>
+        /// <param name="whereFrom">What side of the <paramref name="sourceKey"/> list to remove from.</param>
+        /// <param name="whereTo">What side of the <paramref name="destinationKey"/> list to move to.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The element being popped and pushed.</returns>
         /// <remarks>https://redis.io/commands/lmove</remarks>
