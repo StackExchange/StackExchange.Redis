@@ -535,7 +535,7 @@ namespace StackExchange.Redis.Tests
                             Monitor.PulseAll(syncLock);
                         }
                     }
-                    // TODO: What the freaking hell was this ever trying to do?
+                    // Making sure we cope with null being returned here by a handler
                     return i % 2 == 0 ? null! : Task.CompletedTask;
                 });
                 await sub.PingAsync().ForAwait();
