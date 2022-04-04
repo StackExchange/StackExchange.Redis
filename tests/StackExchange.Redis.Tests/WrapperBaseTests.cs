@@ -200,7 +200,7 @@ namespace StackExchange.Redis.Tests
         public void KeyCopyAsync()
         {
             wrapper.KeyCopyAsync("key", "destination", flags: CommandFlags.None);
-            mock.Verify(_ => _.KeyCopyAsync("prefix:key", "prefix:destination", 0, false, CommandFlags.None));
+            mock.Verify(_ => _.KeyCopyAsync("prefix:key", "prefix:destination", -1, false, CommandFlags.None));
         }
 
         [Fact]

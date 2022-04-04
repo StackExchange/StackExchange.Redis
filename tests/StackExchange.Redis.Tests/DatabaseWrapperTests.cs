@@ -240,7 +240,7 @@ namespace StackExchange.Redis.Tests
         public void KeyCopy()
         {
             wrapper.KeyCopy("key", "destination", flags: CommandFlags.None);
-            mock.Verify(_ => _.KeyCopy("prefix:key", "prefix:destination", 0, false, CommandFlags.None));
+            mock.Verify(_ => _.KeyCopy("prefix:key", "prefix:destination", -1, false, CommandFlags.None));
         }
 
         [Fact]

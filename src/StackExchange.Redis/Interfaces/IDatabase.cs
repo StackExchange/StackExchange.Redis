@@ -477,12 +477,12 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="source">Copy the value stored at the source.</param>
         /// <param name="destination">Copy the value to destination in the logical database used by the connection.</param>
-        /// <param name="database">Specifying an alternative logical database index for the destination key.</param>
+        /// <param name="destinationDatabase">Specifying an alternative logical database index for the destination key.</param>
         /// <param name="replace">Removes the destination key before copying the value to it.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns><see langword="true"/> if key was copied. <see langword="false"/> if key was not copied.</returns>
         /// <remarks>https://redis.io/commands/copy</remarks>
-        bool KeyCopy(RedisKey source, RedisKey destination, int database = 0, bool replace = false, CommandFlags flags = CommandFlags.None);
+        bool KeyCopy(RedisKey source, RedisKey destination, int destinationDatabase = -1, bool replace = false, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Removes the specified key. A key is ignored if it does not exist.

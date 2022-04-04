@@ -202,9 +202,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.IdentifyEndpoint(ToInner(key), flags);
         }
 
-        public bool KeyCopy(RedisKey source, RedisKey destination, int database = 0, bool replace = false, CommandFlags flags = CommandFlags.None)
+        public bool KeyCopy(RedisKey source, RedisKey destination, int destinationDatabase = -1, bool replace = false, CommandFlags flags = CommandFlags.None)
         {
-            return Inner.KeyCopy(ToInner(source), ToInner(destination), database, replace, flags);
+            return Inner.KeyCopy(ToInner(source), ToInner(destination), destinationDatabase, replace, flags);
         }
 
         public long KeyDelete(RedisKey[] keys, CommandFlags flags = CommandFlags.None)

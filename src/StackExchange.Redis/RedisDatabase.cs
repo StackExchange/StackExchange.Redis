@@ -601,15 +601,15 @@ namespace StackExchange.Redis
             return server?.IsConnected == true;
         }
 
-        public bool KeyCopy(RedisKey source, RedisKey destination, int database = 0, bool replace = false, CommandFlags flags = CommandFlags.None)
+        public bool KeyCopy(RedisKey source, RedisKey destination, int destinationDatabase = -1, bool replace = false, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetCopyMessage(source, destination, database, replace, flags);
+            var msg = GetCopyMessage(source, destination, destinationDatabase, replace, flags);
             return ExecuteSync(msg, ResultProcessor.Boolean);
         }
 
-        public Task<bool> KeyCopyAsync(RedisKey source, RedisKey destination, int database = 0, bool replace = false, CommandFlags flags = CommandFlags.None)
+        public Task<bool> KeyCopyAsync(RedisKey source, RedisKey destination, int destinationDatabase = -1, bool replace = false, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetCopyMessage(source, destination, database, replace, flags);
+            var msg = GetCopyMessage(source, destination, destinationDatabase, replace, flags);
             return ExecuteAsync(msg, ResultProcessor.Boolean);
         }
 
@@ -2746,18 +2746,18 @@ namespace StackExchange.Redis
 
         private Message GetCopyMessage(in RedisKey source, RedisKey destination, int database, bool replace, CommandFlags flags)
         {
-            if (database < 0) throw new ArgumentOutOfRangeException(nameof(database));
-            else if (database == 0)
+            if (database < -1) throw new ArgumentOutOfRangeException(nameof(database));
+            else if (database == -1)
             {
                 return replace?
-                    Message.Create(Database, flags, RedisCommand.COPY, source, destination):
-                    Message.Create(Database, flags, RedisCommand.COPY, source, destination, RedisLiterals.REPLACE);
+                    Message.Create(Database, flags, RedisCommand.COPY, source, destination, RedisLiterals.REPLACE):
+                    Message.Create(Database, flags, RedisCommand.COPY, source, destination);
             }
             else
             {
                 return replace?
-                    Message.Create(Database, flags, RedisCommand.COPY, source, destination, database):
-                    Message.Create(Database, flags, RedisCommand.COPY, source, destination, database, RedisLiterals.REPLACE);
+                    Message.Create(Database, flags, RedisCommand.COPY, source, destination, database, RedisLiterals.REPLACE):
+                    Message.Create(Database, flags, RedisCommand.COPY, source, destination, database);
             }
         }
 
