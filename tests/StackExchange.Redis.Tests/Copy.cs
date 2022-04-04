@@ -1,7 +1,5 @@
 ﻿using System;
-using System.Diagnostics;
 using System.Threading.Tasks;
-using StackExchange.Redis.KeyspaceIsolation;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -48,6 +46,8 @@ namespace StackExchange.Redis.Tests
                 var ku1 = dbDest.StringGet(dest);
                 Assert.True(await ke1);
                 Assert.True(ku1.Equals("Heyyyyy"));
+
+                await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => db.KeyCopyAsync(src, dest, destinationDatabase: -10));
             }
         }
 
