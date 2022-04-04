@@ -152,6 +152,51 @@ namespace StackExchange.Redis
     }
 
     /// <summary>
+    /// Indicates an exception raised by a redis server due to a hashslot being migrated, but command had a flag set to not
+    /// allow redirects
+    /// </summary>
+    [Serializable]
+    public sealed partial class RedisHashslotMigratedAndNoRedirectException : RedisException
+    {
+        /// <summary>
+        /// The hashslot that was migrated
+        /// </summary>
+        public int HashSlot
+        {
+            get;
+        }
+
+        /// <summary>
+        /// The new endpoint that hashslot is located on
+        /// </summary>
+        public string Endpoint
+        {
+            get;
+        }
+
+        /// <summary>
+        /// Creates a new <see cref="RedisHashslotMigratedAndNoRedirectException"/>.
+        /// </summary>
+        /// <param name="message">The message for the exception.</param>
+        /// <param name="hashSlot">The hashslot that was migrated.</param>
+        /// <param name="endpoint">The endpoint where the hashslot is now located</param>
+        public RedisHashslotMigratedAndNoRedirectException(string message, int hashSlot, string endpoint) : base(message)
+        {
+            HashSlot = hashSlot;
+            Endpoint = endpoint;
+        }
+
+        /// <summary>
+        /// Returns the error message in the format MOVED [HASH_SLOT] [NEW ENDPOINT]
+        /// </summary>
+        /// <returns></returns>
+        public string GetMovedErrorMessage()
+        {
+            return CommonReplies.MOVED.ToString() + HashSlot.ToString() + " " + Endpoint;
+        }
+    }
+
+    /// <summary>
     /// Indicates an exception raised by a redis server.
     /// </summary>
     [Serializable]

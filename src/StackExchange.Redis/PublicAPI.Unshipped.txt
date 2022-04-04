@@ -1,1 +1,5 @@
-﻿
+﻿StackExchange.Redis.RedisHashslotMigratedAndNoRedirectException
+StackExchange.Redis.RedisHashslotMigratedAndNoRedirectException.Endpoint.get -> string
+StackExchange.Redis.RedisHashslotMigratedAndNoRedirectException.GetMovedErrorMessage() -> string
+StackExchange.Redis.RedisHashslotMigratedAndNoRedirectException.HashSlot.get -> int
+StackExchange.Redis.RedisHashslotMigratedAndNoRedirectException.RedisHashslotMigratedAndNoRedirectException(string message, int hashSlot, string endpoint) -> void

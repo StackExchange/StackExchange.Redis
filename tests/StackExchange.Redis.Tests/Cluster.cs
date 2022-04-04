@@ -171,7 +171,7 @@ namespace StackExchange.Redis.Tests
                     string b = StringGet(conn.GetServer(node.EndPoint), key);
                     Assert.Equal(value, b); // wrong primary, allow redirect
 
-                    var ex = Assert.Throws<RedisServerException>(() => StringGet(conn.GetServer(node.EndPoint), key, CommandFlags.NoRedirect));
+                    var ex = Assert.Throws<RedisHashslotMigratedAndNoRedirectException>(() => StringGet(conn.GetServer(node.EndPoint), key, CommandFlags.NoRedirect));
                     Assert.StartsWith($"Key has MOVED to Endpoint {rightPrimaryNode.EndPoint} and hashslot {slot}", ex.Message);
                 }
 
@@ -188,7 +188,69 @@ namespace StackExchange.Redis.Tests
                     string e = StringGet(conn.GetServer(node.EndPoint), key);
                     Assert.Equal(value, e); // wrong replica, allow redirect
 
-                    var ex = Assert.Throws<RedisServerException>(() => StringGet(conn.GetServer(node.EndPoint), key, CommandFlags.NoRedirect));
+                    var ex = Assert.Throws<RedisHashslotMigratedAndNoRedirectException>(() => StringGet(conn.GetServer(node.EndPoint), key, CommandFlags.NoRedirect));
+                    Assert.StartsWith($"Key has MOVED to Endpoint {rightPrimaryNode.EndPoint} and hashslot {slot}", ex.Message);
+                }
+            }
+        }
+
+        [Fact]
+        public void IntentionalWrongServerForTransaction()
+        {
+            static string[] TransactionalReplace(IServer server, RedisKey key, RedisValue newRedisValue, CommandFlags flags = CommandFlags.None)
+            {
+                var database = server.Multiplexer.GetDatabase();
+                var transaction = database.CreateTransaction();
+                var serverEndpoint = new ServerEndPoint((ConnectionMultiplexer) server.Multiplexer, server.EndPoint);
+
+                Task<RedisValue> originalVal = transaction.StringGetAsync(key, flags);
+                Task<bool> writeVal = transaction.StringSetAsync(key, newRedisValue, null, false, When.Always, flags);
+                Task<RedisValue> newVal = transaction.StringGetAsync(key, flags);
+
+                var result = ((RedisTransaction)transaction).ExecuteInternal(flags, serverEndpoint);
+                Assert.True(result);
+                Assert.True(writeVal.Result);
+
+                return new string[] {
+                    originalVal.Result, newVal.Result
+                };
+            }
+
+            using (var conn = Create())
+            {
+                var endpoints = conn.GetEndPoints();
+                var servers = endpoints.Select(e => conn.GetServer(e)).ToList();
+
+                var key = Me();
+                const string value = "abc";
+                const string newValue = "def";
+                var db = conn.GetDatabase();
+                db.KeyDelete(key, CommandFlags.FireAndForget);
+                db.StringSet(key, value, flags: CommandFlags.FireAndForget);
+                servers[0].Ping();
+                var config = servers[0].ClusterConfiguration;
+                Assert.NotNull(config);
+                int slot = conn.HashSlot(key);
+                var rightPrimaryNode = config.GetBySlot(key);
+                Assert.NotNull(rightPrimaryNode);
+                Log("Right Primary: {0} {1}", rightPrimaryNode.EndPoint, rightPrimaryNode.NodeId);
+
+                string[] responses = TransactionalReplace(conn.GetServer(rightPrimaryNode.EndPoint), key, newValue);
+                Assert.Equal(value, responses[0]); // right primary
+                Assert.Equal(newValue, responses[1]);
+
+                db.KeyDelete(key, CommandFlags.FireAndForget);
+                db.StringSet(key, value, flags: CommandFlags.FireAndForget);
+
+                var node = config.Nodes.FirstOrDefault(x => !x.IsReplica && x.NodeId != rightPrimaryNode.NodeId);
+                Assert.NotNull(node);
+                Log("Using Primary: {0}", node.EndPoint, node.NodeId);
+                {
+                    string[] otherResponses = TransactionalReplace(conn.GetServer(node.EndPoint), key, newValue);
+                    Assert.Equal(value, otherResponses[0]); // right primary
+                    Assert.Equal(newValue, otherResponses[1]);
+
+                    var ex = Assert.Throws<RedisHashslotMigratedAndNoRedirectException>(() => TransactionalReplace(conn.GetServer(node.EndPoint), key, newValue, CommandFlags.NoRedirect));
                     Assert.StartsWith($"Key has MOVED to Endpoint {rightPrimaryNode.EndPoint} and hashslot {slot}", ex.Message);
                 }
             }
