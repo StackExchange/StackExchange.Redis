@@ -65,6 +65,10 @@ namespace StackExchange.Redis
             }
         }
 
+        /// <summary>
+        /// Nullable because during simulation of failure, we'll null out.
+        /// ...but in those cases, we'll accept any null ref in a race - it's fine.
+        /// </summary>
         private IDuplexPipe? _ioPipe;
         internal bool HasOutputPipe => _ioPipe?.Output != null;
 
