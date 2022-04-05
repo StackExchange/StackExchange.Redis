@@ -2038,13 +2038,6 @@ namespace StackExchange.Redis
         int[] StringBitField(RedisKey key, RedisValue[] args, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Read-only variant of the BITFIELD command. It is like the original BITFIELD but only accepts
-        /// GET subcommand and can safely be used in read-only replicas.
-        /// </summary>
-        /// <remarks>https://redis.io/commands/bitfield_ro</remarks>
-        int[] StringBitFieldReadOnly(RedisKey key, RedisValue[] args, CommandFlags flags = CommandFlags.None);
-
-        /// <summary>
         /// Perform a bitwise operation between multiple keys (containing string values) and store the result in the destination key.
         /// The BITOP command supports four bitwise operations; note that NOT is a unary operator: the second key should be omitted in this case
         /// and only the first key will be considered.

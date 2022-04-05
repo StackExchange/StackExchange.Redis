@@ -792,6 +792,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.StringBitCountAsync(ToInner(key), start, end, flags);
         }
 
+        public Task<int[]> StringBitFieldAsync(RedisKey key, RedisValue[] args, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.StringBitFieldAsync(ToInner(key), args, flags);
+        }
+
         public Task<long> StringBitOperationAsync(Bitwise operation, RedisKey destination, RedisKey[] keys, CommandFlags flags = CommandFlags.None)
         {
             return Inner.StringBitOperationAsync(operation, ToInner(destination), ToInner(keys), flags);

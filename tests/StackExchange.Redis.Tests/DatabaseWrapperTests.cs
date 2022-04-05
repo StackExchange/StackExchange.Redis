@@ -1051,13 +1051,6 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void StringBitFieldReadOnly()
-        {
-            wrapper.StringBitFieldReadOnly("key", new RedisValue[] {"mystring", "SET", "i8", "#0", "100"}, CommandFlags.None);
-            mock.Verify(_ => _.StringBitFieldReadOnly("prefix:key", new RedisValue[] {"mystring", "SET", "i8", "#0", "100"}, CommandFlags.None));
-        }
-
-        [Fact]
         public void StringBitOperation_1()
         {
             wrapper.StringBitOperation(Bitwise.Xor, "destination", "first", "second", CommandFlags.None);

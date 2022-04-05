@@ -806,11 +806,6 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.StringBitField(ToInner(key), args, flags);
         }
 
-        public int[] StringBitFieldReadOnly(RedisKey key, RedisValue[] args, CommandFlags flags = CommandFlags.None)
-        {
-            return Inner.StringBitFieldReadOnly(ToInner(key), args, flags);
-        }
-
         public long StringBitOperation(Bitwise operation, RedisKey destination, RedisKey[] keys, CommandFlags flags = CommandFlags.None)
         {
             return Inner.StringBitOperation(operation, ToInner(destination), ToInner(keys), flags);

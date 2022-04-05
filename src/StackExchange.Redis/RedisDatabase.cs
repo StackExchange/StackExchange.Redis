@@ -2396,22 +2396,22 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
+        public Task<long> StringBitCountAsync(RedisKey key, long start = 0, long end = -1, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.BITCOUNT, key, start, end);
+            return ExecuteAsync(msg, ResultProcessor.Int64);
+        }
+
         public int[] StringBitField(RedisKey key, RedisValue[] args, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStringBitFieldMessage(key, args, flags);
             return ExecuteSync(msg, ResultProcessor.IntegerArray);
         }
 
-        public int[] StringBitFieldReadOnly(RedisKey key, RedisValue[] args, CommandFlags flags = CommandFlags.None)
+        public Task<int[]> StringBitFieldAsync(RedisKey key, RedisValue[] args, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStringBitFieldMessage(key, args, flags);
-            return ExecuteSync(msg, ResultProcessor.IntegerArray);
-        }
-
-        public Task<long> StringBitCountAsync(RedisKey key, long start = 0, long end = -1, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(Database, flags, RedisCommand.BITCOUNT, key, start, end);
-            return ExecuteAsync(msg, ResultProcessor.Int64);
+            return ExecuteAsync(msg, ResultProcessor.IntegerArray);
         }
 
         public long StringBitOperation(Bitwise operation, RedisKey destination, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None)
