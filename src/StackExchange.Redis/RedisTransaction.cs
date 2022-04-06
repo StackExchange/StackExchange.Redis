@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading;
@@ -152,9 +153,9 @@ namespace StackExchange.Redis
                 set => wasQueued = value;
             }
 
-            protected override void WriteImpl(PhysicalConnection physical)
+            protected override void WriteImpl(PhysicalConnection physical, IBufferWriter<byte> output)
             {
-                Wrapped.WriteTo(physical);
+                Wrapped.WriteTo(physical, output);
                 Wrapped.SetRequestSent();
             }
             public override int ArgCount => Wrapped.ArgCount;
@@ -406,7 +407,8 @@ namespace StackExchange.Redis
                 }
             }
 
-            protected override void WriteImpl(PhysicalConnection physical) => physical.WriteHeader(Command, 0);
+            protected override void WriteImpl(PhysicalConnection physical, IBufferWriter<byte> output)
+                => physical.WriteHeader(output, Command, 0);
 
             public override int ArgCount => 0;
 

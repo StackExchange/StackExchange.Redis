@@ -689,26 +689,26 @@ namespace StackExchange.Redis
             currentDatabase = -1;
         }
 
-        internal void Write(in RedisKey key)
+        internal void Write(IBufferWriter<byte> output, in RedisKey key)
         {
             var val = key.KeyValue;
             if (val is string s)
             {
-                WriteUnifiedPrefixedString(_ioPipe.Output, key.KeyPrefix, s);
+                WriteUnifiedPrefixedString(output, key.KeyPrefix, s);
             }
             else
             {
-                WriteUnifiedPrefixedBlob(_ioPipe.Output, key.KeyPrefix, (byte[])val);
+                WriteUnifiedPrefixedBlob(output, key.KeyPrefix, (byte[])val);
             }
         }
 
-        internal void Write(in RedisChannel channel)
-            => WriteUnifiedPrefixedBlob(_ioPipe.Output, ChannelPrefix, channel.Value);
+        internal void Write(IBufferWriter<byte> output, in RedisChannel channel)
+            => WriteUnifiedPrefixedBlob(output, ChannelPrefix, channel.Value);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal void WriteBulkString(in RedisValue value)
-            => WriteBulkString(value, _ioPipe.Output);
-        internal static void WriteBulkString(in RedisValue value, PipeWriter output)
+        internal void WriteBulkString(IBufferWriter<byte> output, in RedisValue value)
+            => WriteBulkString(value, output);
+        internal static void WriteBulkString(in RedisValue value, IBufferWriter<byte> output)
         {
             switch (value.Type)
             {
@@ -735,7 +735,7 @@ namespace StackExchange.Redis
 
         internal const int REDIS_MAX_ARGS = 1024 * 1024; // there is a <= 1024*1024 max constraint inside redis itself: https://github.com/antirez/redis/blob/6c60526db91e23fb2d666fc52facc9a11780a2a3/src/networking.c#L1024
 
-        internal void WriteHeader(RedisCommand command, int arguments, CommandBytes commandBytes = default)
+        internal void WriteHeader(IBufferWriter<byte> output, RedisCommand command, int arguments, CommandBytes commandBytes = default)
         {
             var bridge = BridgeCouldBeNull;
             if (bridge == null) throw new ObjectDisposedException(ToString());
@@ -761,20 +761,22 @@ namespace StackExchange.Redis
             // *{argCount}\r\n      = 3 + MaxInt32TextLen
             // ${cmd-len}\r\n       = 3 + MaxInt32TextLen
             // {cmd}\r\n            = 2 + commandBytes.Length
-            var span = _ioPipe.Output.GetSpan(commandBytes.Length + 8 + MaxInt32TextLen + MaxInt32TextLen);
+            var span = output.GetSpan(commandBytes.Length + 8 + MaxInt32TextLen + MaxInt32TextLen);
             span[0] = (byte)'*';
 
             int offset = WriteRaw(span, arguments + 1, offset: 1);
 
             offset = AppendToSpanCommand(span, commandBytes, offset: offset);
 
-            _ioPipe.Output.Advance(offset);
+            output.Advance(offset);
         }
+
+        internal IBufferWriter<byte> DefaultOutput => _ioPipe.Output;
 
         internal void RecordQuit() // don't blame redis if we fired the first shot
             => (_ioPipe as SocketConnection)?.TrySetProtocolShutdown(PipeShutdownKind.ProtocolExitClient);
 
-        internal static void WriteMultiBulkHeader(PipeWriter output, long count)
+        internal static void WriteMultiBulkHeader(IBufferWriter<byte> output, long count)
         {
             // *{count}\r\n         = 3 + MaxInt32TextLen
             var span = output.GetSpan(3 + MaxInt32TextLen);
@@ -796,12 +798,12 @@ namespace StackExchange.Redis
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static void WriteCrlf(PipeWriter writer)
+        internal static void WriteCrlf(IBufferWriter<byte> output)
         {
-            var span = writer.GetSpan(2);
+            var span = output.GetSpan(2);
             span[0] = (byte)'\r';
             span[1] = (byte)'\n';
-            writer.Advance(2);
+            output.Advance(2);
         }
 
         internal static int WriteRaw(Span<byte> span, long value, bool withLengthPrefix = false, int offset = 0)
@@ -969,20 +971,20 @@ namespace StackExchange.Redis
 
         private static readonly ReadOnlyMemory<byte> NullBulkString = Encoding.ASCII.GetBytes("$-1\r\n"), EmptyBulkString = Encoding.ASCII.GetBytes("$0\r\n\r\n");
 
-        private static void WriteUnifiedBlob(PipeWriter writer, byte[] value)
+        private static void WriteUnifiedBlob(IBufferWriter<byte> output, byte[] value)
         {
             if (value == null)
             {
                 // special case:
-                writer.Write(NullBulkString.Span);
+                output.Write(NullBulkString.Span);
             }
             else
             {
-                WriteUnifiedSpan(writer, new ReadOnlySpan<byte>(value));
+                WriteUnifiedSpan(output, new ReadOnlySpan<byte>(value));
             }
         }
 
-        private static void WriteUnifiedSpan(PipeWriter writer, ReadOnlySpan<byte> value)
+        private static void WriteUnifiedSpan(IBufferWriter<byte> output, ReadOnlySpan<byte> value)
         {
             // ${len}\r\n           = 3 + MaxInt32TextLen
             // {value}\r\n          = 2 + value.Length
@@ -991,26 +993,26 @@ namespace StackExchange.Redis
             if (value.Length == 0)
             {
                 // special case:
-                writer.Write(EmptyBulkString.Span);
+                output.Write(EmptyBulkString.Span);
             }
             else if (value.Length <= MaxQuickSpanSize)
             {
-                var span = writer.GetSpan(5 + MaxInt32TextLen + value.Length);
+                var span = output.GetSpan(5 + MaxInt32TextLen + value.Length);
                 span[0] = (byte)'$';
                 int bytes = AppendToSpan(span, value, 1);
-                writer.Advance(bytes);
+                output.Advance(bytes);
             }
             else
             {
                 // too big to guarantee can do in a single span
-                var span = writer.GetSpan(3 + MaxInt32TextLen);
+                var span = output.GetSpan(3 + MaxInt32TextLen);
                 span[0] = (byte)'$';
                 int bytes = WriteRaw(span, value.Length, offset: 1);
-                writer.Advance(bytes);
+                output.Advance(bytes);
 
-                writer.Write(value);
+                output.Write(value);
 
-                WriteCrlf(writer);
+                WriteCrlf(output);
             }
         }
 
@@ -1032,19 +1034,18 @@ namespace StackExchange.Redis
             return WriteCrlf(span, offset);
         }
 
-        internal void WriteSha1AsHex(byte[] value)
+        internal void WriteSha1AsHex(IBufferWriter<byte> output, byte[] value)
         {
-            var writer = _ioPipe.Output;
             if (value == null)
             {
-                writer.Write(NullBulkString.Span);
+                output.Write(NullBulkString.Span);
             }
             else if (value.Length == ResultProcessor.ScriptLoadProcessor.Sha1HashLength)
             {
                 // $40\r\n              = 5
                 // {40 bytes}\r\n       = 42
 
-                var span = writer.GetSpan(47);
+                var span = output.GetSpan(47);
                 span[0] = (byte)'$';
                 span[1] = (byte)'4';
                 span[2] = (byte)'0';
@@ -1061,7 +1062,7 @@ namespace StackExchange.Redis
                 span[offset++] = (byte)'\r';
                 span[offset++] = (byte)'\n';
 
-                writer.Advance(offset);
+                output.Advance(offset);
             }
             else
             {
@@ -1074,12 +1075,12 @@ namespace StackExchange.Redis
             return value < 10 ? (byte)('0' + value) : (byte)('a' - 10 + value);
         }
 
-        internal static void WriteUnifiedPrefixedString(PipeWriter writer, byte[] prefix, string value)
+        internal static void WriteUnifiedPrefixedString(IBufferWriter<byte> output, byte[] prefix, string value)
         {
             if (value == null)
             {
                 // special case
-                writer.Write(NullBulkString.Span);
+                output.Write(NullBulkString.Span);
             }
             else
             {
@@ -1092,18 +1093,18 @@ namespace StackExchange.Redis
                 if (totalLength == 0)
                 {
                     // special-case
-                    writer.Write(EmptyBulkString.Span);
+                    output.Write(EmptyBulkString.Span);
                 }
                 else
                 {
-                    var span = writer.GetSpan(3 + MaxInt32TextLen);
+                    var span = output.GetSpan(3 + MaxInt32TextLen);
                     span[0] = (byte)'$';
                     int bytes = WriteRaw(span, totalLength, offset: 1);
-                    writer.Advance(bytes);
+                    output.Advance(bytes);
 
-                    if (prefixLength != 0) writer.Write(prefix);
-                    if (encodedLength != 0) WriteRaw(writer, value, encodedLength);
-                    WriteCrlf(writer);
+                    if (prefixLength != 0) output.Write(prefix);
+                    if (encodedLength != 0) WriteRaw(output, value, encodedLength);
+                    WriteCrlf(output);
                 }
             }
         }
@@ -1124,7 +1125,7 @@ namespace StackExchange.Redis
             return encoder;
         }
 
-        unsafe static internal void WriteRaw(PipeWriter writer, string value, int expectedLength)
+        unsafe static internal void WriteRaw(IBufferWriter<byte> output, string value, int expectedLength)
         {
             const int MaxQuickEncodeSize = 512;
 
@@ -1134,12 +1135,12 @@ namespace StackExchange.Redis
                 if (expectedLength <= MaxQuickEncodeSize)
                 {
                     // encode directly in one hit
-                    var span = writer.GetSpan(expectedLength);
+                    var span = output.GetSpan(expectedLength);
                     fixed (byte* bPtr = span)
                     {
                         totalBytes = Encoding.UTF8.GetBytes(cPtr, value.Length, bPtr, expectedLength);
                     }
-                    writer.Advance(expectedLength);
+                    output.Advance(expectedLength);
                 }
                 else
                 {
@@ -1151,7 +1152,7 @@ namespace StackExchange.Redis
                     bool final = false;
                     while (true)
                     {
-                        var span = writer.GetSpan(5); // get *some* memory - at least enough for 1 character (but hopefully lots more)
+                        var span = output.GetSpan(5); // get *some* memory - at least enough for 1 character (but hopefully lots more)
 
                         int charsUsed, bytesUsed;
                         bool completed;
@@ -1159,7 +1160,7 @@ namespace StackExchange.Redis
                         {
                             encoder.Convert(cPtr + charOffset, charsRemaining, bPtr, span.Length, final, out charsUsed, out bytesUsed, out completed);
                         }
-                        writer.Advance(bytesUsed);
+                        output.Advance(bytesUsed);
                         totalBytes += bytesUsed;
                         charOffset += charsUsed;
                         charsRemaining -= charsUsed;
@@ -1177,53 +1178,53 @@ namespace StackExchange.Redis
             }
         }
 
-        private static void WriteUnifiedPrefixedBlob(PipeWriter writer, byte[] prefix, byte[] value)
+        private static void WriteUnifiedPrefixedBlob(IBufferWriter<byte> output, byte[] prefix, byte[] value)
         {
             // ${total-len}\r\n 
             // {prefix}{value}\r\n
             if (prefix == null || prefix.Length == 0 || value == null)
             {   // if no prefix, just use the non-prefixed version;
                 // even if prefixed, a null value writes as null, so can use the non-prefixed version
-                WriteUnifiedBlob(writer, value);
+                WriteUnifiedBlob(output, value);
             }
             else
             {
-                var span = writer.GetSpan(3 + MaxInt32TextLen); // note even with 2 max-len, we're still in same text range
+                var span = output.GetSpan(3 + MaxInt32TextLen); // note even with 2 max-len, we're still in same text range
                 span[0] = (byte)'$';
                 int bytes = WriteRaw(span, prefix.LongLength + value.LongLength, offset: 1);
-                writer.Advance(bytes);
+                output.Advance(bytes);
 
-                writer.Write(prefix);
-                writer.Write(value);
+                output.Write(prefix);
+                output.Write(value);
 
-                span = writer.GetSpan(2);
+                span = output.GetSpan(2);
                 WriteCrlf(span, 0);
-                writer.Advance(2);
+                output.Advance(2);
             }
         }
 
-        private static void WriteUnifiedInt64(PipeWriter writer, long value)
+        private static void WriteUnifiedInt64(IBufferWriter<byte> output, long value)
         {
             // note from specification: A client sends to the Redis server a RESP Array consisting of just Bulk Strings.
             // (i.e. we can't just send ":123\r\n", we need to send "$3\r\n123\r\n"
 
             // ${asc-len}\r\n           = 3 + MaxInt32TextLen
             // {asc}\r\n                = MaxInt64TextLen + 2
-            var span = writer.GetSpan(5 + MaxInt32TextLen + MaxInt64TextLen);
+            var span = output.GetSpan(5 + MaxInt32TextLen + MaxInt64TextLen);
 
             span[0] = (byte)'$';
             var bytes = WriteRaw(span, value, withLengthPrefix: true, offset: 1);
-            writer.Advance(bytes);
+            output.Advance(bytes);
         }
 
-        private static void WriteUnifiedUInt64(PipeWriter writer, ulong value)
+        private static void WriteUnifiedUInt64(IBufferWriter<byte> output, ulong value)
         {
             // note from specification: A client sends to the Redis server a RESP Array consisting of just Bulk Strings.
             // (i.e. we can't just send ":123\r\n", we need to send "$3\r\n123\r\n"
 
             // ${asc-len}\r\n           = 3 + MaxInt32TextLen
             // {asc}\r\n                = MaxInt64TextLen + 2
-            var span = writer.GetSpan(5 + MaxInt32TextLen + MaxInt64TextLen);
+            var span = output.GetSpan(5 + MaxInt32TextLen + MaxInt64TextLen);
 
             Span<byte> valueSpan = stackalloc byte[MaxInt64TextLen];
             if (!Utf8Formatter.TryFormat(value, valueSpan, out var len))
@@ -1233,18 +1234,18 @@ namespace StackExchange.Redis
             valueSpan.Slice(0, len).CopyTo(span.Slice(offset));
             offset += len;
             offset = WriteCrlf(span, offset);
-            writer.Advance(offset);
+            output.Advance(offset);
         }
-        internal static void WriteInteger(PipeWriter writer, long value)
+        internal static void WriteInteger(IBufferWriter<byte> output, long value)
         {
             //note: client should never write integer; only server does this
 
             // :{asc}\r\n                = MaxInt64TextLen + 3
-            var span = writer.GetSpan(3 + MaxInt64TextLen);
+            var span = output.GetSpan(3 + MaxInt64TextLen);
 
             span[0] = (byte)':';
             var bytes = WriteRaw(span, value, withLengthPrefix: false, offset: 1);
-            writer.Advance(bytes);
+            output.Advance(bytes);
         }
 
         internal readonly struct ConnectionStatus

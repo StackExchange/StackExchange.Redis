@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
 
 namespace StackExchange.Redis
@@ -403,21 +404,21 @@ namespace StackExchange.Redis
                     this.value1 = value1; // note no assert here
                 }
 
-                protected override void WriteImpl(PhysicalConnection physical)
+                protected override void WriteImpl(PhysicalConnection physical, IBufferWriter<byte> output)
                 {
                     if (value.IsNull)
                     {
-                        physical.WriteHeader(command, 1);
-                        physical.Write(Key);
+                        physical.WriteHeader(output, command, 1);
+                        physical.Write(output, Key);
                     }
                     else
                     {
-                        physical.WriteHeader(command, value1.IsNull ? 2 : 3);
-                        physical.Write(Key);
-                        physical.WriteBulkString(value);
+                        physical.WriteHeader(output, command, value1.IsNull ? 2 : 3);
+                        physical.Write(output, Key);
+                        physical.WriteBulkString(output, value);
                         if (!value1.IsNull)
                         {
-                            physical.WriteBulkString(value1);
+                            physical.WriteBulkString(output, value1);
                         }
                     }
                 }

@@ -1349,7 +1349,7 @@ namespace StackExchange.Redis
                 if (sel != null)
                 {
                     connection.EnqueueInsideWriteLock(sel);
-                    sel.WriteTo(connection);
+                    sel.WriteTo(connection, connection.DefaultOutput);
                     sel.SetRequestSent();
                     IncrementOpCount();
                 }
@@ -1397,7 +1397,7 @@ namespace StackExchange.Redis
                         if (readmode != null)
                         {
                             connection.EnqueueInsideWriteLock(readmode);
-                            readmode.WriteTo(connection);
+                            readmode.WriteTo(connection, connection.DefaultOutput);
                             readmode.SetRequestSent();
                             IncrementOpCount();
                         }
@@ -1406,7 +1406,7 @@ namespace StackExchange.Redis
                     {
                         var asking = ReusableAskingCommand;
                         connection.EnqueueInsideWriteLock(asking);
-                        asking.WriteTo(connection);
+                        asking.WriteTo(connection, connection.DefaultOutput);
                         asking.SetRequestSent();
                         IncrementOpCount();
                     }
@@ -1426,7 +1426,7 @@ namespace StackExchange.Redis
 
                 connection.EnqueueInsideWriteLock(message);
                 isQueued = true;
-                message.WriteTo(connection);
+                message.WriteTo(connection, connection.DefaultOutput);
 
                 message.SetRequestSent();
                 IncrementOpCount();
