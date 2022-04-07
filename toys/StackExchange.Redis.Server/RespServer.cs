@@ -307,11 +307,11 @@ namespace StackExchange.Redis.Server
 
         public static async ValueTask WriteResponseAsync(RedisClient client, PipeWriter output, TypedRedisValue value)
         {
-            static void WritePrefix(PipeWriter ooutput, char pprefix)
+            static void WritePrefix(PipeWriter output, char prefix)
             {
-                var span = ooutput.GetSpan(1);
-                span[0] = (byte)pprefix;
-                ooutput.Advance(1);
+                var span = output.GetSpan(1);
+                span[0] = (byte)prefix;
+                output.Advance(1);
             }
 
             if (value.IsNil) return; // not actually a request (i.e. empty/whitespace request)
@@ -335,7 +335,7 @@ namespace StackExchange.Redis.Server
                     PhysicalConnection.WriteCrlf(output);
                     break;
                 case ResultType.BulkString:
-                    PhysicalConnection.WriteBulkString(value.AsRedisValue(), output);
+                    PhysicalConnection.WriteBulkString(output, value.AsRedisValue());
                     break;
                 case ResultType.MultiBulk:
                     if (value.IsNullArray)

@@ -689,7 +689,7 @@ namespace StackExchange.Redis
             currentDatabase = -1;
         }
 
-        internal void Write(IBufferWriter<byte> output, in RedisKey key)
+        internal static void Write(IBufferWriter<byte> output, in RedisKey key)
         {
             var val = key.KeyValue;
             if (val is string s)
@@ -702,13 +702,10 @@ namespace StackExchange.Redis
             }
         }
 
-        internal void Write(IBufferWriter<byte> output, in RedisChannel channel)
-            => WriteUnifiedPrefixedBlob(output, ChannelPrefix, channel.Value);
+        internal static void Write(IWriteState writeState, IBufferWriter<byte> output, in RedisChannel channel)
+            => WriteUnifiedPrefixedBlob(output, writeState.ChannelPrefix, channel.Value);
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal void WriteBulkString(IBufferWriter<byte> output, in RedisValue value)
-            => WriteBulkString(value, output);
-        internal static void WriteBulkString(in RedisValue value, IBufferWriter<byte> output)
+        internal static void WriteBulkString(IBufferWriter<byte> output, in RedisValue value)
         {
             switch (value.Type)
             {
@@ -735,10 +732,11 @@ namespace StackExchange.Redis
 
         internal const int REDIS_MAX_ARGS = 1024 * 1024; // there is a <= 1024*1024 max constraint inside redis itself: https://github.com/antirez/redis/blob/6c60526db91e23fb2d666fc52facc9a11780a2a3/src/networking.c#L1024
 
-        internal void WriteHeader(IBufferWriter<byte> output, RedisCommand command, int arguments, CommandBytes commandBytes = default)
+
+        internal static void WriteHeader(IWriteState writeState, IBufferWriter<byte> output, RedisCommand command, int arguments, CommandBytes commandBytes = default)
         {
-            var bridge = BridgeCouldBeNull;
-            if (bridge == null) throw new ObjectDisposedException(ToString());
+            if (writeState is null) ThrowDisposed();
+            static void ThrowDisposed() => throw new ObjectDisposedException("No write-state; connection has been detached");
 
             if (command == RedisCommand.UNKNOWN)
             {
@@ -751,7 +749,7 @@ namespace StackExchange.Redis
                 if (arguments >= REDIS_MAX_ARGS) throw ExceptionFactory.TooManyArgs(command.ToString(), arguments);
 
                 // for everything that isn't custom commands: ask the muxer for the actual bytes
-                commandBytes = bridge.Multiplexer.CommandMap.GetBytes(command);
+                commandBytes = writeState.CommandMap.GetBytes(command);
             }
 
             // in theory we should never see this; CheckMessage dealt with "regular" messages, and
@@ -1034,7 +1032,7 @@ namespace StackExchange.Redis
             return WriteCrlf(span, offset);
         }
 
-        internal void WriteSha1AsHex(IBufferWriter<byte> output, byte[] value)
+        internal static void WriteSha1AsHex(IBufferWriter<byte> output, byte[] value)
         {
             if (value == null)
             {

@@ -381,17 +381,17 @@ namespace StackExchange.Redis
                     this.value = value;
                 }
 
-                protected override void WriteImpl(PhysicalConnection physical, IBufferWriter<byte> output)
+                protected override void WriteImpl(IWriteState writeState, IBufferWriter<byte> output)
                 {
                     StartedWritingTimestamp = Stopwatch.GetTimestamp();
                     if (value.IsNull)
                     {
-                        physical.WriteHeader(output, command, 0);
+                        PhysicalConnection.WriteHeader(writeState, output, command, 0);
                     }
                     else
                     {
-                        physical.WriteHeader(output, command, 1);
-                        physical.WriteBulkString(output, value);
+                        PhysicalConnection.WriteHeader(writeState, output, command, 1);
+                        PhysicalConnection.WriteBulkString(output, value);
                     }
                 }
                 public override int ArgCount => value.IsNull ? 0 : 1;

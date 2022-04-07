@@ -404,21 +404,21 @@ namespace StackExchange.Redis
                     this.value1 = value1; // note no assert here
                 }
 
-                protected override void WriteImpl(PhysicalConnection physical, IBufferWriter<byte> output)
+                protected override void WriteImpl(IWriteState writeState, IBufferWriter<byte> output)
                 {
                     if (value.IsNull)
                     {
-                        physical.WriteHeader(output, command, 1);
-                        physical.Write(output, Key);
+                        PhysicalConnection.WriteHeader(writeState, output, command, 1);
+                        PhysicalConnection.Write(output, Key);
                     }
                     else
                     {
-                        physical.WriteHeader(output, command, value1.IsNull ? 2 : 3);
-                        physical.Write(output, Key);
-                        physical.WriteBulkString(output, value);
+                        PhysicalConnection.WriteHeader(writeState, output, command, value1.IsNull ? 2 : 3);
+                        PhysicalConnection.Write(output, Key);
+                        PhysicalConnection.WriteBulkString(output, value);
                         if (!value1.IsNull)
                         {
-                            physical.WriteBulkString(output, value1);
+                            PhysicalConnection.WriteBulkString(output, value1);
                         }
                     }
                 }

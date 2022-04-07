@@ -153,11 +153,14 @@ namespace StackExchange.Redis
                 set => wasQueued = value;
             }
 
-            protected override void WriteImpl(PhysicalConnection physical, IBufferWriter<byte> output)
+            internal override void WriteTo(PhysicalConnection physical, IBufferWriter<byte> output)
             {
                 Wrapped.WriteTo(physical, output);
                 Wrapped.SetRequestSent();
             }
+
+            protected override void WriteImpl(IWriteState writeState, IBufferWriter<byte> output) => throw new InvalidOperationException(); // should never be called; Wrapped writes instead
+
             public override int ArgCount => Wrapped.ArgCount;
             public override string CommandAndKey => Wrapped.CommandAndKey;
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
@@ -407,8 +410,8 @@ namespace StackExchange.Redis
                 }
             }
 
-            protected override void WriteImpl(PhysicalConnection physical, IBufferWriter<byte> output)
-                => physical.WriteHeader(output, Command, 0);
+            protected override void WriteImpl(IWriteState writeState, IBufferWriter<byte> output)
+                => PhysicalConnection.WriteHeader(writeState, output, Command, 0);
 
             public override int ArgCount => 0;
 

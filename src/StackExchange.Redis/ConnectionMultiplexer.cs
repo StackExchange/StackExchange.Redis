@@ -19,7 +19,7 @@ namespace StackExchange.Redis
     /// A reference to this should be held and re-used.
     /// </summary>
     /// <remarks>https://stackexchange.github.io/StackExchange.Redis/PipelinesMultiplexers</remarks>
-    public sealed partial class ConnectionMultiplexer : IInternalConnectionMultiplexer // implies : IConnectionMultiplexer and : IDisposable
+    public sealed partial class ConnectionMultiplexer : IInternalConnectionMultiplexer, IWriteState // implies : IConnectionMultiplexer and : IDisposable
     {
         internal const int MillisecondsPerHeartbeat = 1000;
 
@@ -44,7 +44,24 @@ namespace StackExchange.Redis
 
         internal CommandMap CommandMap { get; }
         internal EndPointCollection EndPoints { get; }
-        internal ConfigurationOptions RawConfig { get; }
+
+        private byte[] _channelPrefix;
+        private ConfigurationOptions _rawConfig;
+        internal ConfigurationOptions RawConfig {
+            get => _rawConfig;
+            set
+            {
+                _rawConfig = value;
+                _channelPrefix = _rawConfig.ChannelPrefix;
+                if (_channelPrefix is { Length: 0 })
+                {   // easier to test null than length, later
+                    _channelPrefix = null;
+                }
+            }
+        }
+        byte[] IWriteState.ChannelPrefix => _channelPrefix;
+        CommandMap IWriteState.CommandMap => CommandMap;
+
         internal ServerSelectionStrategy ServerSelectionStrategy { get; }
         internal Exception LastException { get; set; }
 
