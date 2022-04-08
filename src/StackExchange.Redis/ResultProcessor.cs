@@ -2,6 +2,7 @@
 using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -25,8 +26,10 @@ namespace StackExchange.Redis
             BackgroundSaveStarted = new ExpectBasicStringProcessor(CommonReplies.backgroundSavingStarted_trimmed, startsWith: true),
             BackgroundSaveAOFStarted = new ExpectBasicStringProcessor(CommonReplies.backgroundSavingAOFStarted_trimmed, startsWith: true);
 
+        public static readonly ResultProcessor<byte[]?>
+            ByteArray = new ByteArrayProcessor();
+
         public static readonly ResultProcessor<byte[]>
-            ByteArray = new ByteArrayProcessor(),
             ScriptLoad = new ScriptLoadProcessor();
 
         public static readonly ResultProcessor<ClusterConfiguration>
@@ -76,7 +79,7 @@ namespace StackExchange.Redis
         public static readonly ResultProcessor<RedisValue[]>
             RedisValueArray = new RedisValueArrayProcessor();
 
-        public static readonly ResultProcessor<string[]>
+        public static readonly ResultProcessor<string?[]>
             StringArray = new StringArrayProcessor();
 
         public static readonly ResultProcessor<GeoPosition?[]>
@@ -121,14 +124,14 @@ namespace StackExchange.Redis
 
         public static ResultProcessor<GeoRadiusResult[]> GeoRadiusArray(GeoRadiusOptions options) => GeoRadiusResultArrayProcessor.Get(options);
 
-        public static readonly ResultProcessor<string>
-                            String = new StringProcessor(),
+        public static readonly ResultProcessor<string?>
+            String = new StringProcessor(),
             TieBreaker = new TieBreakerProcessor(),
             ClusterNodesRaw = new ClusterNodesRawProcessor();
 
         #region Sentinel
 
-        public static readonly ResultProcessor<EndPoint>
+        public static readonly ResultProcessor<EndPoint?>
             SentinelPrimaryEndpoint = new SentinelGetPrimaryAddressByNameProcessor();
 
         public static readonly ResultProcessor<EndPoint[]>
@@ -151,7 +154,7 @@ namespace StackExchange.Redis
             HashEntryArray = new HashEntryArrayProcessor();
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Conditionally run on instance")]
-        public void ConnectionFail(Message message, ConnectionFailureType fail, Exception innerException, string annotation, ConnectionMultiplexer muxer)
+        public void ConnectionFail(Message message, ConnectionFailureType fail, Exception? innerException, string? annotation, ConnectionMultiplexer? muxer)
         {
             PhysicalConnection.IdentifyFailureType(innerException, ref fail);
 
@@ -170,17 +173,13 @@ namespace StackExchange.Redis
             SetException(message, ex);
         }
 
-        public static void ConnectionFail(Message message, ConnectionFailureType fail, string errorMessage)
-        {
+        public static void ConnectionFail(Message message, ConnectionFailureType fail, string errorMessage) =>
             SetException(message, new RedisConnectionException(fail, errorMessage));
-        }
 
-        public static void ServerFail(Message message, string errorMessage)
-        {
+        public static void ServerFail(Message message, string errorMessage) =>
             SetException(message, new RedisServerException(errorMessage));
-        }
 
-        public static void SetException(Message message, Exception ex)
+        public static void SetException(Message? message, Exception ex)
         {
             var box = message?.ResultBox;
             box?.SetException(ex);
@@ -201,27 +200,28 @@ namespace StackExchange.Redis
             {
                 if (result.StartsWith(CommonReplies.NOAUTH)) bridge?.Multiplexer?.SetAuthSuspect();
 
-                var server = bridge.ServerEndPoint;
+                var server = bridge?.ServerEndPoint;
                 bool log = !message.IsInternalCall;
                 bool isMoved = result.StartsWith(CommonReplies.MOVED);
                 bool wasNoRedirect = (message.Flags & CommandFlags.NoRedirect) != 0;
-                string err = string.Empty;
+                string? err = string.Empty;
                 bool unableToConnectError = false;
                 if (isMoved || result.StartsWith(CommonReplies.ASK))
                 {
                     message.SetResponseReceived();
 
                     log = false;
-                    string[] parts = result.GetString().Split(StringSplits.Space, 3);
-                    EndPoint endpoint;
+                    string[] parts = result.GetString()!.Split(StringSplits.Space, 3);
                     if (Format.TryParseInt32(parts[1], out int hashSlot)
-                        && (endpoint = Format.TryParseEndPoint(parts[2])) != null)
+                        && Format.TryParseEndPoint(parts[2], out var endpoint))
                     {
                         // no point sending back to same server, and no point sending to a dead server
-                        if (!Equals(server.EndPoint, endpoint))
+                        if (!Equals(server?.EndPoint, endpoint))
                         {
                             if (bridge == null)
-                            { } // already toast
+                            {
+                                // already toast
+                            }
                             else if (bridge.Multiplexer.TryResend(hashSlot, message, endpoint, isMoved))
                             {
                                 bridge.Multiplexer.Trace(message.Command + " re-issued to " + endpoint, isMoved ? "MOVED" : "ASK");
@@ -246,12 +246,12 @@ namespace StackExchange.Redis
 
                 if (string.IsNullOrWhiteSpace(err))
                 {
-                    err = result.GetString();
+                    err = result.GetString()!;
                 }
 
-                if (log)
+                if (log && server != null)
                 {
-                    bridge.Multiplexer.OnErrorMessage(server.EndPoint, err);
+                    bridge?.Multiplexer.OnErrorMessage(server.EndPoint, err);
                 }
                 bridge?.Multiplexer?.Trace("Completed with error: " + err + " (" + GetType().Name + ")", ToString());
                 if (unableToConnectError)
@@ -341,10 +341,8 @@ namespace StackExchange.Redis
         {
             private static readonly double TimestampToTicks = TimeSpan.TicksPerSecond / (double)Stopwatch.Frequency;
 
-            public static TimerMessage CreateMessage(int db, CommandFlags flags, RedisCommand command, RedisValue value = default(RedisValue))
-            {
-                return new TimerMessage(db, flags, command, value);
-            }
+            public static TimerMessage CreateMessage(int db, CommandFlags flags, RedisCommand command, RedisValue value = default) =>
+                new TimerMessage(db, flags, command, value);
 
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
@@ -400,8 +398,8 @@ namespace StackExchange.Redis
 
         public sealed class TrackSubscriptionsProcessor : ResultProcessor<bool>
         {
-            private ConnectionMultiplexer.Subscription Subscription { get; }
-            public TrackSubscriptionsProcessor(ConnectionMultiplexer.Subscription sub) => Subscription = sub;
+            private ConnectionMultiplexer.Subscription? Subscription { get; }
+            public TrackSubscriptionsProcessor(ConnectionMultiplexer.Subscription? sub) => Subscription = sub;
 
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
@@ -459,14 +457,19 @@ namespace StackExchange.Redis
         {
             private static readonly Regex sha1 = new Regex("^[0-9a-f]{40}$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-            internal static bool IsSHA1(string script)
-            {
-                return script != null && sha1.IsMatch(script);
-            }
+            internal static bool IsSHA1(string script) => script is not null && sha1.IsMatch(script);
 
             internal const int Sha1HashLength = 20;
             internal static byte[] ParseSHA1(byte[] value)
             {
+                static int FromHex(char c)
+                {
+                    if (c >= '0' && c <= '9') return c - '0';
+                    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+                    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+                    return -1;
+                }
+
                 if (value?.Length == Sha1HashLength * 2)
                 {
                     var tmp = new byte[Sha1HashLength];
@@ -474,38 +477,17 @@ namespace StackExchange.Redis
                     for (int i = 0; i < tmp.Length; i++)
                     {
                         int x = FromHex((char)value[charIndex++]), y = FromHex((char)value[charIndex++]);
-                        if (x < 0 || y < 0) return null;
+                        if (x < 0 || y < 0)
+                        {
+                            throw new ArgumentException("Unable to parse response as SHA1", nameof(value));
+                        }
                         tmp[i] = (byte)((x << 4) | y);
                     }
                     return tmp;
                 }
-                return null;
+                throw new ArgumentException("Unable to parse response as SHA1", nameof(value));
             }
 
-            internal static byte[] ParseSHA1(string value)
-            {
-                if (value?.Length == (Sha1HashLength * 2) && sha1.IsMatch(value))
-                {
-                    var tmp = new byte[Sha1HashLength];
-                    int charIndex = 0;
-                    for (int i = 0; i < tmp.Length; i++)
-                    {
-                        int x = FromHex(value[charIndex++]), y = FromHex(value[charIndex++]);
-                        if (x < 0 || y < 0) return null;
-                        tmp[i] = (byte)((x << 4) | y);
-                    }
-                    return tmp;
-                }
-                return null;
-            }
-
-            private static int FromHex(char c)
-            {
-                if (c >= '0' && c <= '9') return c - '0';
-                if (c >= 'a' && c <= 'f') return c - 'a' + 10;
-                if (c >= 'A' && c <= 'F') return c - 'A' + 10;
-                return -1;
-            }
             // note that top-level error messages still get handled by SetResult, but nested errors
             // (is that a thing?) will be wrapped in the RedisResult
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
@@ -516,11 +498,10 @@ namespace StackExchange.Redis
                         var asciiHash = result.GetBlob();
                         if (asciiHash == null || asciiHash.Length != (Sha1HashLength * 2)) return false;
 
-                        byte[] hash = null;
-                        if (!message.IsInternalCall)
-                        {
-                            hash = ParseSHA1(asciiHash); // external caller wants the hex bytes, not the ASCII bytes
-                        }
+                        // External caller wants the hex bytes, not the ASCII bytes
+                        // For nullability/consistency reasons, we always do the parse here.
+                        byte[] hash = ParseSHA1(asciiHash);
+
                         if (message is RedisDatabase.ScriptLoadMessage sl)
                         {
                             connection.BridgeCouldBeNull?.ServerEndPoint?.AddScript(sl.Script, asciiHash);
@@ -568,26 +549,22 @@ namespace StackExchange.Redis
 
         internal sealed class SortedSetEntryArrayProcessor : ValuePairInterleavedProcessorBase<SortedSetEntry>
         {
-            protected override SortedSetEntry Parse(in RawResult first, in RawResult second)
-            {
-                return new SortedSetEntry(first.AsRedisValue(), second.TryGetDouble(out double val) ? val : double.NaN);
-            }
+            protected override SortedSetEntry Parse(in RawResult first, in RawResult second) =>
+                new SortedSetEntry(first.AsRedisValue(), second.TryGetDouble(out double val) ? val : double.NaN);
         }
 
         internal sealed class HashEntryArrayProcessor : ValuePairInterleavedProcessorBase<HashEntry>
         {
-            protected override HashEntry Parse(in RawResult first, in RawResult second)
-            {
-                return new HashEntry(first.AsRedisValue(), second.AsRedisValue());
-            }
+            protected override HashEntry Parse(in RawResult first, in RawResult second) =>
+                new HashEntry(first.AsRedisValue(), second.AsRedisValue());
         }
 
         internal abstract class ValuePairInterleavedProcessorBase<T> : ResultProcessor<T[]>
         {
-            public bool TryParse(in RawResult result, out T[] pairs)
+            public bool TryParse(in RawResult result, out T[]? pairs)
                 => TryParse(result, out pairs, false, out _);
 
-            public bool TryParse(in RawResult result, out T[] pairs, bool allowOversized, out int count)
+            public bool TryParse(in RawResult result, out T[]? pairs, bool allowOversized, out int count)
             {
                 count = 0;
                 switch (result.Type)
@@ -637,9 +614,9 @@ namespace StackExchange.Redis
             protected abstract T Parse(in RawResult first, in RawResult second);
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
-                if (TryParse(result, out T[] arr))
+                if (TryParse(result, out T[]? arr))
                 {
-                    SetResult(message, arr);
+                    SetResult(message, arr!);
                     return true;
                 }
                 return false;
@@ -648,8 +625,8 @@ namespace StackExchange.Redis
 
         internal sealed class AutoConfigureProcessor : ResultProcessor<bool>
         {
-            private LogProxy Log { get; }
-            public AutoConfigureProcessor(LogProxy log = null) => Log = log;
+            private LogProxy? Log { get; }
+            public AutoConfigureProcessor(LogProxy? log = null) => Log = log;
 
             public override bool SetResult(PhysicalConnection connection, Message message, in RawResult result)
             {
@@ -675,21 +652,24 @@ namespace StackExchange.Redis
                     case ResultType.BulkString:
                         if (message?.Command == RedisCommand.INFO)
                         {
-                            string info = result.GetString(), line;
+                            string? info = result.GetString();
                             if (string.IsNullOrWhiteSpace(info))
                             {
                                 SetResult(message, true);
                                 return true;
                             }
-                            string primaryHost = null, primaryPort = null;
+                            string? primaryHost = null, primaryPort = null;
                             bool roleSeen = false;
                             using (var reader = new StringReader(info))
                             {
-                                while ((line = reader.ReadLine()) != null)
+                                while (reader.ReadLine() is string line)
                                 {
-                                    if (string.IsNullOrWhiteSpace(line) || line.StartsWith("# ")) continue;
+                                    if (string.IsNullOrWhiteSpace(line) || line.StartsWith("# "))
+                                    {
+                                        continue;
+                                    }
 
-                                    string val;
+                                    string? val;
                                     if ((val = Extract(line, "role:")) != null)
                                     {
                                         roleSeen = true;
@@ -716,7 +696,7 @@ namespace StackExchange.Redis
                                     }
                                     else if ((val = Extract(line, "redis_version:")) != null)
                                     {
-                                        if (Version.TryParse(val, out Version version))
+                                        if (Version.TryParse(val, out Version? version))
                                         {
                                             server.Version = version;
                                             Log?.WriteLine($"{Format.ToString(server)}: Auto-configured (INFO) version: " + version);
@@ -745,10 +725,10 @@ namespace StackExchange.Redis
                                         server.RunId = val;
                                     }
                                 }
-                                if (roleSeen)
+                                if (roleSeen && Format.TryParseEndPoint(primaryHost!, primaryPort, out var sep))
                                 {
                                     // These are in the same section, if present
-                                    server.PrimaryEndPoint = Format.TryParseEndPoint(primaryHost, primaryPort);
+                                    server.PrimaryEndPoint = sep;
                                 }
                             }
                         }
@@ -819,7 +799,7 @@ namespace StackExchange.Redis
                 return false;
             }
 
-            private static string Extract(string line, string prefix)
+            private static string? Extract(string line, string prefix)
             {
                 if (line.StartsWith(prefix)) return line.Substring(prefix.Length).Trim();
                 return null;
@@ -864,7 +844,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private sealed class ByteArrayProcessor : ResultProcessor<byte[]>
+        private sealed class ByteArrayProcessor : ResultProcessor<byte[]?>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
@@ -895,7 +875,7 @@ namespace StackExchange.Redis
                 switch (result.Type)
                 {
                     case ResultType.BulkString:
-                        string nodes = result.GetString();
+                        string nodes = result.GetString()!;
                         var bridge = connection.BridgeCouldBeNull;
                         if (bridge != null) bridge.ServerEndPoint.ServerType = ServerType.Cluster;
                         var config = Parse(connection, nodes);
@@ -906,7 +886,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private sealed class ClusterNodesRawProcessor : ResultProcessor<string>
+        private sealed class ClusterNodesRawProcessor : ResultProcessor<string?>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
@@ -915,7 +895,7 @@ namespace StackExchange.Redis
                     case ResultType.Integer:
                     case ResultType.SimpleString:
                     case ResultType.BulkString:
-                        string nodes = result.GetString();
+                        string nodes = result.GetString()!;
                         try
                         { ClusterNodesProcessor.Parse(connection, nodes); }
                         catch
@@ -931,8 +911,12 @@ namespace StackExchange.Redis
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
-                SetResult(message, connection.BridgeCouldBeNull?.ServerEndPoint?.EndPoint);
-                return true;
+                if (connection.BridgeCouldBeNull is PhysicalBridge bridge)
+                {
+                    SetResult(message, bridge.ServerEndPoint.EndPoint);
+                    return true;
+                }
+                return false;
             }
         }
 
@@ -1034,11 +1018,11 @@ namespace StackExchange.Redis
             {
                 if (result.Type == ResultType.BulkString)
                 {
-                    string category = Normalize(null), line;
+                    string category = Normalize(null);
                     var list = new List<Tuple<string, KeyValuePair<string, string>>>();
-                    using (var reader = new StringReader(result.GetString()))
+                    using (var reader = new StringReader(result.GetString()!))
                     {
-                        while ((line = reader.ReadLine()) != null)
+                        while (reader.ReadLine() is string line)
                         {
                             if (string.IsNullOrWhiteSpace(line)) continue;
                             if (line.StartsWith("# "))
@@ -1061,10 +1045,8 @@ namespace StackExchange.Redis
                 return false;
             }
 
-            private static string Normalize(string category)
-            {
-                return string.IsNullOrWhiteSpace(category) ? "miscellaneous" : category.Trim();
-            }
+            private static string Normalize(string? category) =>
+                category.IsNullOrWhiteSpace() ? "miscellaneous" : category.Trim();
         }
 
         private class Int64Processor : ResultProcessor<long>
@@ -1167,9 +1149,9 @@ namespace StackExchange.Redis
 
             private readonly struct ChannelState // I would use a value-tuple here, but that is binding hell
             {
-                public readonly byte[] Prefix;
+                public readonly byte[]? Prefix;
                 public readonly RedisChannel.PatternMode Mode;
-                public ChannelState(byte[] prefix, RedisChannel.PatternMode mode)
+                public ChannelState(byte[]? prefix, RedisChannel.PatternMode mode)
                 {
                     Prefix = prefix;
                     Mode = mode;
@@ -1182,7 +1164,7 @@ namespace StackExchange.Redis
                     case ResultType.MultiBulk:
                         var final = result.ToArray(
                                 (in RawResult item, in ChannelState state) => item.AsRedisChannel(state.Prefix, state.Mode),
-                                new ChannelState(connection.ChannelPrefix, mode));
+                                new ChannelState(connection.ChannelPrefix, mode))!;
 
                         SetResult(message, final);
                         return true;
@@ -1198,7 +1180,7 @@ namespace StackExchange.Redis
                 switch (result.Type)
                 {
                     case ResultType.MultiBulk:
-                        var arr = result.GetItemsAsKeys();
+                        var arr = result.GetItemsAsKeys()!;
                         SetResult(message, arr);
                         return true;
                 }
@@ -1230,7 +1212,7 @@ namespace StackExchange.Redis
                 {
                     case ResultType.SimpleString:
                     case ResultType.BulkString:
-                        string s = result.GetString();
+                        string s = result.GetString()!;
                         RedisType value;
                         if (string.Equals(s, "zset", StringComparison.OrdinalIgnoreCase)) value = Redis.RedisType.SortedSet;
                         else if (!Enum.TryParse<RedisType>(s, true, out value)) value = global::StackExchange.Redis.RedisType.Unknown;
@@ -1256,7 +1238,7 @@ namespace StackExchange.Redis
                         SetResult(message, arr);
                         return true;
                     case ResultType.MultiBulk:
-                        arr = result.GetItemsAsValues();
+                        arr = result.GetItemsAsValues()!;
                         SetResult(message, arr);
                         return true;
                 }
@@ -1264,14 +1246,14 @@ namespace StackExchange.Redis
             }
         }
 
-        private sealed class StringArrayProcessor : ResultProcessor<string[]>
+        private sealed class StringArrayProcessor : ResultProcessor<string?[]>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
                 switch (result.Type)
                 {
                     case ResultType.MultiBulk:
-                        var arr = result.GetItemsAsStrings();
+                        var arr = result.GetItemsAsStrings()!;
 
                         SetResult(message, arr);
                         return true;
@@ -1303,7 +1285,7 @@ namespace StackExchange.Redis
                 switch (result.Type)
                 {
                     case ResultType.MultiBulk:
-                        var arr = result.GetItemsAsGeoPositionArray();
+                        var arr = result.GetItemsAsGeoPositionArray()!;
 
                         SetResult(message, arr);
                         return true;
@@ -1341,7 +1323,7 @@ namespace StackExchange.Redis
                 {
                     case ResultType.MultiBulk:
                         var typed = result.ToArray(
-                            (in RawResult item, in GeoRadiusOptions radiusOptions) => Parse(item, radiusOptions), options);
+                            (in RawResult item, in GeoRadiusOptions radiusOptions) => Parse(item, radiusOptions), options)!;
                         SetResult(message, typed);
                         return true;
                 }
@@ -1408,19 +1390,19 @@ The coordinates as a two items x,y array (longitude,latitude).
                 }
 
                 ref var val = ref items[0];
-                Role role;
+                Role? role;
                 if (val.IsEqual(RedisLiterals.master)) role = ParsePrimary(items);
-                else if (val.IsEqual(RedisLiterals.slave)) role = ParseReplica(items, RedisLiterals.slave);
-                else if (val.IsEqual(RedisLiterals.replica)) role = ParseReplica(items, RedisLiterals.replica); // for when "slave" is deprecated
+                else if (val.IsEqual(RedisLiterals.slave)) role = ParseReplica(items, RedisLiterals.slave!);
+                else if (val.IsEqual(RedisLiterals.replica)) role = ParseReplica(items, RedisLiterals.replica!); // for when "slave" is deprecated
                 else if (val.IsEqual(RedisLiterals.sentinel)) role = ParseSentinel(items);
-                else role = new Role.Unknown(val.GetString());
+                else role = new Role.Unknown(val.GetString()!);
 
                 if (role is null) return false;
                 SetResult(message, role);
                 return true;
             }
 
-            private static Role ParsePrimary(in Sequence<RawResult> items)
+            private static Role? ParsePrimary(in Sequence<RawResult> items)
             {
                 if (items.Length < 3)
                 {
@@ -1465,7 +1447,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                     return false;
                 }
 
-                var primaryIp = items[0].GetString();
+                var primaryIp = items[0].GetString()!;
 
                 if (!items[1].TryGetInt64(out var primaryPort) || primaryPort > int.MaxValue)
                 {
@@ -1483,14 +1465,14 @@ The coordinates as a two items x,y array (longitude,latitude).
                 return true;
             }
 
-            private static Role ParseReplica(in Sequence<RawResult> items, string role)
+            private static Role? ParseReplica(in Sequence<RawResult> items, string role)
             {
                 if (items.Length < 5)
                 {
                     return null;
                 }
 
-                var primaryIp = items[1].GetString();
+                var primaryIp = items[1].GetString()!;
 
                 if (!items[2].TryGetInt64(out var primaryPort) || primaryPort > int.MaxValue)
                 {
@@ -1499,13 +1481,13 @@ The coordinates as a two items x,y array (longitude,latitude).
 
                 ref var val = ref items[3];
                 string replicationState;
-                if (val.IsEqual(RedisLiterals.connect)) replicationState = RedisLiterals.connect;
-                else if (val.IsEqual(RedisLiterals.connecting)) replicationState = RedisLiterals.connecting;
-                else if (val.IsEqual(RedisLiterals.sync)) replicationState = RedisLiterals.sync;
-                else if (val.IsEqual(RedisLiterals.connected)) replicationState = RedisLiterals.connected;
-                else if (val.IsEqual(RedisLiterals.none)) replicationState = RedisLiterals.none;
-                else if (val.IsEqual(RedisLiterals.handshake)) replicationState = RedisLiterals.handshake;
-                else replicationState = val.GetString();
+                if (val.IsEqual(RedisLiterals.connect)) replicationState = RedisLiterals.connect!;
+                else if (val.IsEqual(RedisLiterals.connecting)) replicationState = RedisLiterals.connecting!;
+                else if (val.IsEqual(RedisLiterals.sync)) replicationState = RedisLiterals.sync!;
+                else if (val.IsEqual(RedisLiterals.connected)) replicationState = RedisLiterals.connected!;
+                else if (val.IsEqual(RedisLiterals.none)) replicationState = RedisLiterals.none!;
+                else if (val.IsEqual(RedisLiterals.handshake)) replicationState = RedisLiterals.handshake!;
+                else replicationState = val.GetString()!;
 
                 if (!items[4].TryGetInt64(out var replicationOffset))
                 {
@@ -1515,13 +1497,13 @@ The coordinates as a two items x,y array (longitude,latitude).
                 return new Role.Replica(role, primaryIp, (int)primaryPort, replicationState, replicationOffset);
             }
 
-            private static Role ParseSentinel(in Sequence<RawResult> items)
+            private static Role? ParseSentinel(in Sequence<RawResult> items)
             {
                 if (items.Length < 2)
                 {
                     return null;
                 }
-                var primaries = items[1].GetItemsAsStrings();
+                var primaries = items[1].GetItemsAsStrings()!;
                 return new Role.Sentinel(primaries);
             }
         }
@@ -1535,7 +1517,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                     case ResultType.Integer:
                     case ResultType.SimpleString:
                     case ResultType.BulkString:
-                        SetResult(message, result.AsLease());
+                        SetResult(message, result.AsLease()!);
                         return true;
                 }
                 return false;
@@ -1559,8 +1541,7 @@ The coordinates as a two items x,y array (longitude,latitude).
             // (is that a thing?) will be wrapped in the RedisResult
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
-                var value = Redis.RedisResult.TryCreate(connection, result);
-                if (value != null)
+                if (RedisResult.TryCreate(connection, result, out var value))
                 {
                     SetResult(message, value);
                     return true;
@@ -1682,7 +1663,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                     // details[0] = Name of the Stream
                     // details[1] = Multibulk Array of Stream Entries
                     return new RedisStream(key: details[0].AsRedisKey(),
-                        entries: obj.ParseRedisStreamEntries(details[1]));
+                        entries: obj.ParseRedisStreamEntries(details[1])!);
                 }, this);
 
                 SetResult(message, streams);
@@ -1712,7 +1693,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                 //    6) (integer)83841983
 
                 var arr = result.GetItems();
-                string name = default;
+                string? name = default;
                 int pendingMessageCount = default;
                 long idleTimeInMilliseconds = default;
 
@@ -1720,7 +1701,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                 KeyValuePairParser.TryRead(arr, KeyValuePairParser.Pending, ref pendingMessageCount);
                 KeyValuePairParser.TryRead(arr, KeyValuePairParser.Idle, ref idleTimeInMilliseconds);
 
-                return new StreamConsumerInfo(name, pendingMessageCount, idleTimeInMilliseconds);
+                return new StreamConsumerInfo(name!, pendingMessageCount, idleTimeInMilliseconds);
             }
         }
 
@@ -1759,14 +1740,14 @@ The coordinates as a two items x,y array (longitude,latitude).
                 return false;
             }
 
-            internal static bool TryRead(Sequence<RawResult> pairs, in CommandBytes key, ref string value)
+            internal static bool TryRead(Sequence<RawResult> pairs, in CommandBytes key, [NotNullWhen(true)] ref string? value)
             {
                 var len = pairs.Length / 2;
                 for (int i = 0; i < len; i++)
                 {
                     if (pairs[i * 2].IsEqual(key))
                     {
-                        value = pairs[(i * 2) + 1].GetString();
+                        value = pairs[(i * 2) + 1].GetString()!;
                         return true;
                     }
                 }
@@ -1800,7 +1781,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                 //    8) "1588152498034-0"
 
                 var arr = result.GetItems();
-                string name = default, lastDeliveredId = default;
+                string? name = default, lastDeliveredId = default;
                 int consumerCount = default, pendingMessageCount = default;
 
                 KeyValuePairParser.TryRead(arr, KeyValuePairParser.Name, ref name);
@@ -1808,7 +1789,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                 KeyValuePairParser.TryRead(arr, KeyValuePairParser.Pending, ref pendingMessageCount);
                 KeyValuePairParser.TryRead(arr, KeyValuePairParser.LastDeliveredId, ref lastDeliveredId);
 
-                return new StreamGroupInfo(name, consumerCount, pendingMessageCount, lastDeliveredId);
+                return new StreamGroupInfo(name!, consumerCount, pendingMessageCount, lastDeliveredId);
             }
         }
 
@@ -1943,7 +1924,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                     return false;
                 }
 
-                StreamConsumer[] consumers = null;
+                StreamConsumer[]? consumers = null;
 
                 // If there are no consumers as of yet for the given group, the last
                 // item in the response array will be null.
@@ -2013,16 +1994,8 @@ The coordinates as a two items x,y array (longitude,latitude).
                 return new StreamEntry(id: entryDetails[0].AsRedisValue(),
                     values: ParseStreamEntryValues(entryDetails[1]));
             }
-            protected StreamEntry[] ParseRedisStreamEntries(in RawResult result)
-            {
-                if (result.Type != ResultType.MultiBulk)
-                {
-                    return null;
-                }
-
-                return result.GetItems().ToArray(
-                    (in RawResult item, in StreamProcessorBase<T> _) => ParseRedisStreamEntry(item), this);
-            }
+            protected StreamEntry[] ParseRedisStreamEntries(in RawResult result) =>
+                result.GetItems().ToArray((in RawResult item, in StreamProcessorBase<T> _) => ParseRedisStreamEntry(item), this);
 
             protected static NameValueEntry[] ParseStreamEntryValues(in RawResult result)
             {
@@ -2043,7 +2016,7 @@ The coordinates as a two items x,y array (longitude,latitude).
 
                 if (result.Type != ResultType.MultiBulk || result.IsNull)
                 {
-                    return null;
+                    return Array.Empty<NameValueEntry>();
                 }
 
                 var arr = result.GetItems();
@@ -2068,13 +2041,11 @@ The coordinates as a two items x,y array (longitude,latitude).
 
         private sealed class StringPairInterleavedProcessor : ValuePairInterleavedProcessorBase<KeyValuePair<string, string>>
         {
-            protected override KeyValuePair<string, string> Parse(in RawResult first, in RawResult second)
-            {
-                return new KeyValuePair<string, string>(first.GetString(), second.GetString());
-            }
+            protected override KeyValuePair<string, string> Parse(in RawResult first, in RawResult second) =>
+                new KeyValuePair<string, string>(first.GetString()!, second.GetString()!);
         }
 
-        private sealed class StringProcessor : ResultProcessor<string>
+        private sealed class StringProcessor : ResultProcessor<string?>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
@@ -2098,7 +2069,7 @@ The coordinates as a two items x,y array (longitude,latitude).
             }
         }
 
-        private sealed class TieBreakerProcessor : ResultProcessor<string>
+        private sealed class TieBreakerProcessor : ResultProcessor<string?>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
@@ -2106,7 +2077,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                 {
                     case ResultType.SimpleString:
                     case ResultType.BulkString:
-                        var tieBreaker = result.GetString();
+                        var tieBreaker = result.GetString()!;
                         SetResult(message, tieBreaker);
 
                         try
@@ -2135,7 +2106,7 @@ The coordinates as a two items x,y array (longitude,latitude).
 
             public override bool SetResult(PhysicalConnection connection, Message message, in RawResult result)
             {
-                connection?.BridgeCouldBeNull?.Multiplexer.OnInfoMessage($"got '{result}' for '{message.CommandAndKey}' on '{connection}'");
+                connection.BridgeCouldBeNull?.Multiplexer.OnInfoMessage($"got '{result}' for '{message.CommandAndKey}' on '{connection}'");
                 var final = base.SetResult(connection, message, result);
                 if (result.IsError)
                 {
@@ -2219,7 +2190,7 @@ The coordinates as a two items x,y array (longitude,latitude).
 
         #region Sentinel
 
-        private sealed class SentinelGetPrimaryAddressByNameProcessor : ResultProcessor<EndPoint>
+        private sealed class SentinelGetPrimaryAddressByNameProcessor : ResultProcessor<EndPoint?>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
@@ -2233,7 +2204,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                         }
                         else if (items.Length == 2 && items[1].TryGetInt64(out var port))
                         {
-                            SetResult(message, Format.ParseEndPoint(items[0].GetString(), checked((int)port)));
+                            SetResult(message, Format.ParseEndPoint(items[0].GetString()!, checked((int)port)));
                             return true;
                         }
                         else if (items.Length == 0)
@@ -2259,7 +2230,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                         foreach (RawResult item in result.GetItems())
                         {
                             var pairs = item.GetItems();
-                            string ip = null;
+                            string? ip = null;
                             int port = default;
                             if (KeyValuePairParser.TryRead(pairs, in KeyValuePairParser.IP, ref ip)
                                 && KeyValuePairParser.TryRead(pairs, in KeyValuePairParser.Port, ref port))
@@ -2293,7 +2264,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                         foreach (RawResult item in result.GetItems())
                         {
                             var pairs = item.GetItems();
-                            string ip = null;
+                            string? ip = null;
                             int port = default;
                             if (KeyValuePairParser.TryRead(pairs, in KeyValuePairParser.IP, ref ip)
                                 && KeyValuePairParser.TryRead(pairs, in KeyValuePairParser.Port, ref port))
@@ -2337,15 +2308,15 @@ The coordinates as a two items x,y array (longitude,latitude).
                         var returnArray = result.ToArray<KeyValuePair<string, string>[], StringPairInterleavedProcessor>(
                             (in RawResult rawInnerArray, in StringPairInterleavedProcessor proc) =>
                             {
-                                if (proc.TryParse(rawInnerArray, out KeyValuePair<string, string>[] kvpArray))
+                                if (proc.TryParse(rawInnerArray, out KeyValuePair<string, string>[]? kvpArray))
                                 {
-                                    return kvpArray;
+                                    return kvpArray!;
                                 }
                                 else
                                 {
                                     throw new ArgumentOutOfRangeException(nameof(rawInnerArray), $"Error processing {message.CommandAndKey}, could not decode array '{rawInnerArray}'");
                                 }
-                            }, innerProcessor);
+                            }, innerProcessor)!;
 
                         SetResult(message, returnArray);
                         return true;
@@ -2359,7 +2330,7 @@ The coordinates as a two items x,y array (longitude,latitude).
 
     internal abstract class ResultProcessor<T> : ResultProcessor
     {
-        protected static void SetResult(Message message, T value)
+        protected static void SetResult(Message? message, T value)
         {
             if (message == null) return;
             var box = message.ResultBox as IResultBox<T>;

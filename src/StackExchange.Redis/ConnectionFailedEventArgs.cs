@@ -9,9 +9,9 @@ namespace StackExchange.Redis
     /// </summary>
     public class ConnectionFailedEventArgs : EventArgs, ICompletable
     {
-        private readonly EventHandler<ConnectionFailedEventArgs> handler;
+        private readonly EventHandler<ConnectionFailedEventArgs>? handler;
         private readonly object sender;
-        internal ConnectionFailedEventArgs(EventHandler<ConnectionFailedEventArgs> handler, object sender, EndPoint endPoint, ConnectionType connectionType, ConnectionFailureType failureType, Exception exception, string physicalName)
+        internal ConnectionFailedEventArgs(EventHandler<ConnectionFailedEventArgs>? handler, object sender, EndPoint? endPoint, ConnectionType connectionType, ConnectionFailureType failureType, Exception? exception, string? physicalName)
         {
             this.handler = handler;
             this.sender = sender;
@@ -46,12 +46,12 @@ namespace StackExchange.Redis
         /// <summary>
         /// Gets the failing server-endpoint.
         /// </summary>
-        public EndPoint EndPoint { get; }
+        public EndPoint? EndPoint { get; }
 
         /// <summary>
         /// Gets the exception if available (this can be null).
         /// </summary>
-        public Exception Exception { get; }
+        public Exception? Exception { get; }
 
         /// <summary>
         /// The type of failure.
@@ -66,6 +66,6 @@ namespace StackExchange.Redis
         /// <summary>
         /// Returns the physical name of the connection.
         /// </summary>
-        public override string ToString() => _physicalName ?? base.ToString();
+        public override string ToString() => _physicalName;
     }
 }

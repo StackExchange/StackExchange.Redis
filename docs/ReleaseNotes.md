@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Adds: [Nullable reference type](https://docs.microsoft.com/en-us/dotnet/csharp/nullable-references) annotations ([#2041 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2041))
+  - Adds annotations themselves for nullability to everything in the library
+  - Fixes a few internal edge cases that will now throw proper errors (rather than a downstream null reference)
+  - Fixes inconsistencies with `null` vs. empty array returns (preferring an not-null empty array in those edge cases)
+  - Note: does *not* increment a major version (as these are warnings to consumers), because: they're warnings (errors are opt-in), removing obsolete types with a 3.0 rev _would_ be binary breaking (this isn't), and reving to 3.0 would cause binding redirect pain for consumers. Bumping from 2.5 to 2.6 only for this change.
+- Adds: Support for `COPY` ([#2064 by Avital-Fine](https://github.com/StackExchange/StackExchange.Redis/pull/2064))
+
+## 2.5.61
+
 - Adds: `GETEX` support with `.StringGetSetExpiry()`/`.StringGetSetExpiryAsync()` ([#1743 by benbryant0](https://github.com/StackExchange/StackExchange.Redis/pull/1743))
 - Fix [#1988](https://github.com/StackExchange/StackExchange.Redis/issues/1988): Don't issue `SELECT` commands if explicitly disabled ([#2023 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2023))
 - Adds: `KEEPTTL` support on `SET` operations ([#2029 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2029))

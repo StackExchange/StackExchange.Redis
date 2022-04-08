@@ -10,23 +10,23 @@ namespace StackExchange.Redis.Profiling
         /// <summary>
         /// Caller-defined state object.
         /// </summary>
-        public object UserToken { get; }
+        public object? UserToken { get; }
         /// <summary>
         /// Create a new profiling session, optionally including a caller-defined state object.
         /// </summary>
         /// <param name="userToken">The state object to use for this session.</param>
-        public ProfilingSession(object userToken = null) => UserToken = userToken;
+        public ProfilingSession(object? userToken = null) => UserToken = userToken;
 
-        private object _untypedHead;
+        private object? _untypedHead;
 
         internal void Add(ProfiledCommand command)
         {
             if (command == null) return;
 
-            object cur = Thread.VolatileRead(ref _untypedHead);
+            object? cur = Thread.VolatileRead(ref _untypedHead);
             while (true)
             {
-                command.NextElement = (ProfiledCommand)cur;
+                command.NextElement = (ProfiledCommand?)cur;
                 var got = Interlocked.CompareExchange(ref _untypedHead, command, cur);
                 if (ReferenceEquals(got, cur)) break; // successful update
                 cur = got; // retry; no need to re-fetch the field, we just did that
@@ -39,12 +39,12 @@ namespace StackExchange.Redis.Profiling
         /// </summary>
         public ProfiledCommandEnumerable FinishProfiling()
         {
-            var head = (ProfiledCommand)Interlocked.Exchange(ref _untypedHead, null);
+            var head = (ProfiledCommand?)Interlocked.Exchange(ref _untypedHead, null);
 
             // reverse the list so everything is ordered the way the consumer expected them
             int count = 0;
-            ProfiledCommand previous = null, current = head, next;
-            while(current != null)
+            ProfiledCommand? previous = null, current = head, next;
+            while (current != null)
             {
                 next = current.NextElement;
                 current.NextElement = previous;

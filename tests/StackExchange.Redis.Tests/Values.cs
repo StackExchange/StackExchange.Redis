@@ -19,7 +19,7 @@ namespace StackExchange.Redis.Tests
             Assert.True(four.HasValue);
             Assert.False(four.IsNullOrEmpty);
 
-            RedisValue n = default(RedisValue);
+            RedisValue n = default;
             Assert.True(n.IsNull);
             Assert.False(n.IsInteger);
             Assert.False(n.HasValue);

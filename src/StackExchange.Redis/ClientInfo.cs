@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Net;
 
@@ -14,7 +15,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Address (host and port) of the client.
         /// </summary>
-        public EndPoint Address { get; private set; }
+        public EndPoint? Address { get; private set; }
 
         /// <summary>
         /// Total duration of the connection in seconds.
@@ -105,12 +106,12 @@ namespace StackExchange.Redis
         /// </list>
         /// </summary>
         /// <remarks>https://redis.io/commands/client-list</remarks>
-        public string FlagsRaw { get; private set; }
+        public string? FlagsRaw { get; private set; }
 
         /// <summary>
         /// The host of the client (typically an IP address).
         /// </summary>
-        public string Host => Format.TryGetHostPort(Address, out string host, out _) ? host : null;
+        public string? Host => Format.TryGetHostPort(Address, out string? host, out _) ? host : null;
 
         /// <summary>
         /// Idle time of the connection in seconds.
@@ -120,12 +121,12 @@ namespace StackExchange.Redis
         /// <summary>
         /// Last command played.
         /// </summary>
-        public string LastCommand { get; private set; }
+        public string? LastCommand { get; private set; }
 
         /// <summary>
         /// The name allocated to this connection, if any.
         /// </summary>
-        public string Name { get; private set; }
+        public string? Name { get; private set; }
 
         /// <summary>
         /// Number of pattern matching subscriptions.
@@ -135,12 +136,12 @@ namespace StackExchange.Redis
         /// <summary>
         /// The port of the client.
         /// </summary>
-        public int Port => Format.TryGetHostPort(Address, out _, out int port) ? port : 0;
+        public int Port => Format.TryGetHostPort(Address, out _, out int? port) ? port.Value : 0;
 
         /// <summary>
         /// The raw content from redis.
         /// </summary>
-        public string Raw { get; private set; }
+        public string? Raw { get; private set; }
 
         /// <summary>
         /// Number of channel subscriptions.
@@ -179,15 +180,18 @@ namespace StackExchange.Redis
             }
         }
 
-        internal static ClientInfo[] Parse(string input)
+        internal static bool TryParse(string? input, [NotNullWhen(true)] out ClientInfo[]? clientList)
         {
-            if (input == null) return null;
+            if (input == null)
+            {
+                clientList = null;
+                return false;
+            }
 
             var clients = new List<ClientInfo>();
             using (var reader = new StringReader(input))
             {
-                string line;
-                while ((line = reader.ReadLine()) != null)
+                while (reader.ReadLine() is string line)
                 {
                     var client = new ClientInfo
                     {
@@ -203,7 +207,7 @@ namespace StackExchange.Redis
 
                         switch (key)
                         {
-                            case "addr": client.Address = Format.TryParseEndPoint(value); break;
+                            case "addr" when Format.TryParseEndPoint(value, out var addr): client.Address = addr; break;
                             case "age": client.AgeSeconds = Format.ParseInt32(value); break;
                             case "idle": client.IdleSeconds = Format.ParseInt32(value); break;
                             case "db": client.Database = Format.ParseInt32(value); break;
@@ -243,7 +247,8 @@ namespace StackExchange.Redis
                 }
             }
 
-            return clients.ToArray();
+            clientList = clients.ToArray();
+            return true;
         }
 
         private static void AddFlag(ref ClientFlags value, string raw, ClientFlags toAdd, char token)
@@ -258,11 +263,13 @@ namespace StackExchange.Redis
                 switch(result.Type)
                 {
                     case ResultType.BulkString:
-
                         var raw = result.GetString();
-                        var clients = Parse(raw);
-                        SetResult(message, clients);
-                        return true;
+                        if (TryParse(raw, out var clients))
+                        {
+                            SetResult(message, clients);
+                            return true;
+                        }
+                        break;
                 }
                 return false;
             }

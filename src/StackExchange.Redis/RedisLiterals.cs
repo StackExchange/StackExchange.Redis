@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Text;
 
 namespace StackExchange.Redis
 {
@@ -54,6 +53,7 @@ namespace StackExchange.Redis
             CHANNELS = "CHANNELS",
             COPY = "COPY",
             COUNT = "COUNT",
+            DB = "DB",
             DESC = "DESC",
             DOCTOR = "DOCTOR",
             EX = "EX",

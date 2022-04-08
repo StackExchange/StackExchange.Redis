@@ -25,7 +25,7 @@ namespace StackExchange.Redis.Tests.Issues
                     conn.StringSetAsync(iKey, iKey);
                     last = conn.SetAddAsync(key, iKey);
                 }
-                conn.Wait(last);
+                conn.Wait(last!);
             }
         }
 
@@ -51,13 +51,13 @@ namespace StackExchange.Redis.Tests.Issues
                         throttle.Release();
                         if (task.IsCompleted)
                         {
-                            if ((string)task.Result == null)
+                            if ((string?)task.Result == null)
                             {
                                 Volatile.Write(ref keepChecking, 0);
                             }
                             else
                             {
-                                last = conn.KeyDeleteAsync((string)task.Result);
+                                last = conn.KeyDeleteAsync((string?)task.Result);
                             }
                         }
                     });

@@ -14,14 +14,14 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="channel">The channel to identify the server endpoint by.</param>
         /// <param name="flags">The command flags to use.</param>
-        EndPoint IdentifyEndpoint(RedisChannel channel, CommandFlags flags = CommandFlags.None);
+        EndPoint? IdentifyEndpoint(RedisChannel channel, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Indicate exactly which redis server we are talking to.
         /// </summary>
         /// <param name="channel">The channel to identify the server endpoint by.</param>
         /// <param name="flags">The command flags to use.</param>
-        Task<EndPoint> IdentifyEndpointAsync(RedisChannel channel, CommandFlags flags = CommandFlags.None);
+        Task<EndPoint?> IdentifyEndpointAsync(RedisChannel channel, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Indicates whether the instance can communicate with the server.
@@ -30,7 +30,7 @@ namespace StackExchange.Redis
         /// server is chosen arbitrarily from the primaries.
         /// </summary>
         /// <param name="channel">The channel to identify the server endpoint by.</param>
-        bool IsConnected(RedisChannel channel = default(RedisChannel));
+        bool IsConnected(RedisChannel channel = default);
 
         /// <summary>
         /// Posts a message to the given channel.
@@ -103,7 +103,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="channel">The channel to check which server endpoint was subscribed on.</param>
         /// <returns>The subscribed endpoint for the given <paramref name="channel"/>, <see langword="null"/> if the channel is not actively subscribed.</returns>
-        EndPoint SubscribedEndpoint(RedisChannel channel);
+        EndPoint? SubscribedEndpoint(RedisChannel channel);
 
         /// <summary>
         /// Unsubscribe from a specified message channel.
@@ -115,7 +115,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The command flags to use.</param>
         /// <remarks>https://redis.io/commands/unsubscribe</remarks>
         /// <remarks>https://redis.io/commands/punsubscribe</remarks>
-        void Unsubscribe(RedisChannel channel, Action<RedisChannel, RedisValue> handler = null, CommandFlags flags = CommandFlags.None);
+        void Unsubscribe(RedisChannel channel, Action<RedisChannel, RedisValue>? handler = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Unsubscribe all subscriptions on this instance.
@@ -143,6 +143,6 @@ namespace StackExchange.Redis
         /// <param name="flags">The command flags to use.</param>
         /// <remarks>https://redis.io/commands/unsubscribe</remarks>
         /// <remarks>https://redis.io/commands/punsubscribe</remarks>
-        Task UnsubscribeAsync(RedisChannel channel, Action<RedisChannel, RedisValue> handler = null, CommandFlags flags = CommandFlags.None);
+        Task UnsubscribeAsync(RedisChannel channel, Action<RedisChannel, RedisValue>? handler = null, CommandFlags flags = CommandFlags.None);
     }
 }

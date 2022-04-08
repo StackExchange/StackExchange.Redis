@@ -118,6 +118,7 @@ namespace StackExchange.Redis.Tests
             foreach (var server in SentinelsServers)
             {
                 var role = server.Role();
+                Assert.NotNull(role);
                 Assert.Equal(role.Value, RedisLiterals.sentinel);
                 var sentinel = role as Role.Sentinel;
                 Assert.NotNull(sentinel);

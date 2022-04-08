@@ -5,7 +5,7 @@ namespace StackExchange.Redis;
 
 public partial class ConnectionMultiplexer
 {
-    private Func<ProfilingSession> _profilingSessionProvider;
+    private Func<ProfilingSession>? _profilingSessionProvider;
 
     /// <summary>
     /// Register a callback to provide an on-demand ambient session provider based on the

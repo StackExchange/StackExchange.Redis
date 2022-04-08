@@ -15,7 +15,7 @@ namespace StackExchange.Redis.Maintenance
         /// <summary>
         /// Raw message received from the server.
         /// </summary>
-        public string RawMessage { get; protected set; }
+        public string? RawMessage { get; protected set; }
 
         /// <summary>
         /// The time the event was received. If we know when the event is expected to start <see cref="StartTimeUtc"/> will be populated.
@@ -30,7 +30,7 @@ namespace StackExchange.Redis.Maintenance
         /// <summary>
         /// Returns a string representing the maintenance event with all of its properties.
         /// </summary>
-        public override string ToString() => RawMessage;
+        public override string? ToString() => RawMessage;
 
         /// <summary>
         /// Notifies a ConnectionMultiplexer of this event, for anyone observing its <see cref="ConnectionMultiplexer.ServerMaintenanceEvent"/> handler.

@@ -40,7 +40,7 @@ namespace StackExchange.Redis.Tests
                 var db = conn.GetDatabase();
                 var messageId = db.StreamAdd(GetUniqueKey("auto_id"), "field1", "value1");
 
-                Assert.True(messageId != RedisValue.Null && ((string)messageId).Length > 0);
+                Assert.True(messageId != RedisValue.Null && ((string?)messageId)?.Length > 0);
             }
         }
 
@@ -66,11 +66,13 @@ namespace StackExchange.Redis.Tests
 
                 Assert.Single(entries);
                 Assert.Equal(messageId, entries[0].Id);
-                Assert.Equal(2, entries[0].Values.Length);
-                Assert.Equal("field1", entries[0].Values[0].Name);
-                Assert.Equal("value1", entries[0].Values[0].Value);
-                Assert.Equal("field2", entries[0].Values[1].Name);
-                Assert.Equal("value2", entries[0].Values[1].Value);
+                var vals = entries[0].Values;
+                Assert.NotNull(vals);
+                Assert.Equal(2, vals.Length);
+                Assert.Equal("field1", vals[0].Name);
+                Assert.Equal("value1", vals[0].Value);
+                Assert.Equal("field2", vals[1].Name);
+                Assert.Equal("value2", vals[1].Value);
             }
         }
 
@@ -238,15 +240,12 @@ namespace StackExchange.Redis.Tests
                 var db = conn.GetDatabase();
 
                 // Pass 'false' for 'createStream' to ensure that an
-                // execption is thrown when the stream doesn't exist.
-                Assert.ThrowsAny<RedisServerException>(() =>
-                {
-                    db.StreamCreateConsumerGroup(
+                // exception is thrown when the stream doesn't exist.
+                Assert.ThrowsAny<RedisServerException>(() => db.StreamCreateConsumerGroup(
                         key,
                         "consumerGroup",
                         StreamPosition.NewMessages,
-                        createStream: false);
-                });
+                        createStream: false));
             }
         }
 
@@ -999,9 +998,9 @@ namespace StackExchange.Redis.Tests
                 Assert.True(IsMessageId(groupInfoList[1].LastDeliveredId)); // can't test actual - will vary
             }
 
-            static bool IsMessageId(string value)
+            static bool IsMessageId(string? value)
             {
-                if (string.IsNullOrWhiteSpace(value)) return false;
+                if (value.IsNullOrWhiteSpace()) return false;
                 return value.Length >= 3 && value.Contains('-');
             }
         }
@@ -1304,7 +1303,7 @@ namespace StackExchange.Redis.Tests
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
 
                 var db = conn.GetDatabase();
-                Assert.Throws<ArgumentNullException>(() => db.StreamRead(null));
+                Assert.Throws<ArgumentNullException>(() => db.StreamRead(null!));
             }
         }
 
@@ -1807,13 +1806,13 @@ namespace StackExchange.Redis.Tests
 
                 await db.StreamAddAsync(streamName, new[] {
                     new NameValueEntry("x", "blah"),
-                    new NameValueEntry("msg", @"{""name"":""test"",""id"":123}"),
+                    new NameValueEntry("msg", /*lang=json,strict*/ @"{""name"":""test"",""id"":123}"),
                     new NameValueEntry("y", "more blah"),
                 });
 
                 var streamResult = await db.StreamRangeAsync(streamName, count: 1000);
                 var evntJson = streamResult
-                    .Select(x => (dynamic?)JsonConvert.DeserializeObject(x["msg"]))
+                    .Select(x => (dynamic?)JsonConvert.DeserializeObject(x["msg"]!))
                     .ToList();
                 var obj = Assert.Single(evntJson);
                 Assert.Equal(123, (int)obj!.id);

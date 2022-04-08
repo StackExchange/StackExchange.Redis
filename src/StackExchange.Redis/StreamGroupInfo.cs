@@ -6,7 +6,7 @@ namespace StackExchange.Redis
     /// </summary>
     public readonly struct StreamGroupInfo
     {
-        internal StreamGroupInfo(string name, int consumerCount, int pendingMessageCount, string lastDeliveredId)
+        internal StreamGroupInfo(string name, int consumerCount, int pendingMessageCount, string? lastDeliveredId)
         {
             Name = name;
             ConsumerCount = consumerCount;
@@ -33,6 +33,6 @@ namespace StackExchange.Redis
         /// <summary>
         /// The Id of the last message delivered to the group.
         /// </summary>
-        public string LastDeliveredId { get; }
+        public string? LastDeliveredId { get; }
     }
 }

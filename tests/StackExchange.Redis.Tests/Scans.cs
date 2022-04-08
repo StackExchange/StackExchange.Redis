@@ -117,7 +117,7 @@ namespace StackExchange.Redis.Tests
                     db.StringSet(prefix + ":" + i, Guid.NewGuid().ToString());
                 }
 
-                var expected = new HashSet<string>();
+                var expected = new HashSet<string?>();
                 long snapCursor = 0;
                 int snapOffset = 0, snapPageSize = 0;
 

@@ -18,7 +18,7 @@ namespace StackExchange.Redis
             this.handler = handler;
         }
 
-        public override string ToString() => (string)channel;
+        public override string? ToString() => (string?)channel;
 
         public bool TryComplete(bool isAsync)
         {
@@ -26,7 +26,7 @@ namespace StackExchange.Redis
             {
                 if (handler != null)
                 {
-                    ConnectionMultiplexer.TraceWithoutContext("Invoking (async)...: " + (string)channel, "Subscription");
+                    ConnectionMultiplexer.TraceWithoutContext("Invoking (async)...: " + (string?)channel, "Subscription");
                     if (handler.IsSingle())
                     {
                         try { handler(channel, message); } catch { }
@@ -48,6 +48,6 @@ namespace StackExchange.Redis
             }
         }
 
-        void ICompletable.AppendStormLog(StringBuilder sb) => sb.Append("event, pub/sub: ").Append((string)channel);
+        void ICompletable.AppendStormLog(StringBuilder sb) => sb.Append("event, pub/sub: ").Append((string?)channel);
     }
 }

@@ -70,13 +70,11 @@ namespace StackExchange.Redis.Server
             AppendStats(sb);
             return sb.ToString();
         }
-        protected virtual void AppendStats(StringBuilder sb)
-        {
+        protected virtual void AppendStats(StringBuilder sb) =>
             sb.Append("Current clients:\t").Append(ClientCount).AppendLine()
-                .Append("Total clients:\t").Append(TotalClientCount).AppendLine()
-                .Append("Total operations:\t").Append(TotalCommandsProcesed).AppendLine()
-                .Append("Error replies:\t").Append(TotalErrorCount).AppendLine();
-        }
+              .Append("Total clients:\t").Append(TotalClientCount).AppendLine()
+              .Append("Total operations:\t").Append(TotalCommandsProcesed).AppendLine()
+              .Append("Error replies:\t").Append(TotalErrorCount).AppendLine();
 
         [AttributeUsage(AttributeTargets.Method, AllowMultiple = false, Inherited = true)]
         protected sealed class RedisCommandAttribute : Attribute

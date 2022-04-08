@@ -12,7 +12,7 @@ namespace StackExchange.Redis
         /// Creates a <see cref="ServerCounters"/> instance for an <see cref="EndPoint"/>.
         /// </summary>
         /// <param name="endpoint">The <see cref="EndPoint"/> to create counters for.</param>
-        public ServerCounters(EndPoint endpoint)
+        public ServerCounters(EndPoint? endpoint)
         {
             EndPoint = endpoint;
             Interactive = new ConnectionCounters(ConnectionType.Interactive);
@@ -23,7 +23,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// The endpoint to which this data relates (this can be null if the data represents all servers).
         /// </summary>
-        public EndPoint EndPoint { get; }
+        public EndPoint? EndPoint { get; }
 
         /// <summary>
         /// Counters associated with the interactive (non pub-sub) connection.

@@ -19,7 +19,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// A null stream entry.
         /// </summary>
-        public static StreamEntry Null { get; } = new StreamEntry(RedisValue.Null, null);
+        public static StreamEntry Null { get; } = new StreamEntry(RedisValue.Null, Array.Empty<NameValueEntry>());
 
         /// <summary>
         /// The ID assigned to the message.
@@ -54,6 +54,6 @@ namespace StackExchange.Redis
         /// <summary>
         /// Indicates that the Redis Stream Entry is null.
         /// </summary>
-        public bool IsNull => Id == RedisValue.Null && Values == null;
+        public bool IsNull => Id == RedisValue.Null && Values == Array.Empty<NameValueEntry>();
     }
 }

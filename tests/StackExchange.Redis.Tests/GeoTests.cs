@@ -10,12 +10,12 @@ namespace StackExchange.Redis.Tests
     {
         public GeoTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base (output, fixture) { }
 
-        private readonly static GeoEntry
+        private static readonly GeoEntry
             palermo = new GeoEntry(13.361389, 38.115556, "Palermo"),
             catania = new GeoEntry(15.087269, 37.502669, "Catania"),
             agrigento = new GeoEntry(13.5765, 37.311, "Agrigento"),
             cefalù = new GeoEntry(14.0188, 38.0084, "Cefalù");
-        private readonly static GeoEntry[] all = { palermo, catania, agrigento, cefalù };
+        private static readonly GeoEntry[] all = { palermo, catania, agrigento, cefalù };
 
         [Fact]
         public void GeoAdd()
@@ -76,6 +76,7 @@ namespace StackExchange.Redis.Tests
                 db.GeoAdd(key, all, CommandFlags.FireAndForget);
 
                 var hashes = db.GeoHash(key, new RedisValue[] { palermo.Member, "Nowhere", agrigento.Member });
+                Assert.NotNull(hashes);
                 Assert.Equal(3, hashes.Length);
                 Assert.Equal("sqc8b49rny0", hashes[0]);
                 Assert.Null(hashes[1]);

@@ -10,7 +10,7 @@ namespace StackExchange.Redis
         private readonly int deltaBackOffMilliseconds;
         private readonly int maxDeltaBackOffMilliseconds = (int)TimeSpan.FromSeconds(10).TotalMilliseconds;
         [ThreadStatic]
-        private static Random r;
+        private static Random? r;
 
         /// <summary>
         /// Initializes a new instance using the specified back off interval with default maxDeltaBackOffMilliseconds of 10 seconds.
