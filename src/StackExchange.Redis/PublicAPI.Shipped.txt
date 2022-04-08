@@ -1166,7 +1166,6 @@ StackExchange.Redis.RedisFeatures.MultipleRandom.get -> bool
 StackExchange.Redis.RedisFeatures.Persist.get -> bool
 StackExchange.Redis.RedisFeatures.PushIfNotExists.get -> bool
 StackExchange.Redis.RedisFeatures.PushMultiple.get -> bool
-StackExchange.Redis.RedisFeatures.ListMove.get -> bool
 StackExchange.Redis.RedisFeatures.RedisFeatures() -> void
 StackExchange.Redis.RedisFeatures.RedisFeatures(System.Version! version) -> void
 StackExchange.Redis.RedisFeatures.ReplicaCommands.get -> bool

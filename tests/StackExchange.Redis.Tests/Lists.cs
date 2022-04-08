@@ -317,44 +317,40 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task ListMove()
         {
-            using (var conn = Create())
-            {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.ListMove), f => f.ListMove);
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
 
-                var db = conn.GetDatabase();
-                RedisKey src = Me();
-                RedisKey dest = Me() + "dest";
-                db.KeyDelete(src, CommandFlags.FireAndForget);
+            var db = conn.GetDatabase();
+            RedisKey src = Me();
+            RedisKey dest = Me() + "dest";
+            db.KeyDelete(src, CommandFlags.FireAndForget);
 
-                var pushResult = await db.ListRightPushAsync(src, new RedisValue[] { "testvalue1" , "testvalue2" });
-                Assert.Equal(2, pushResult);
+            var pushResult = await db.ListRightPushAsync(src, new RedisValue[] { "testvalue1", "testvalue2" });
+            Assert.Equal(2, pushResult);
 
-                var rangeResult1 = db.ListMove(src, dest, ListSide.Left, ListSide.Right);
-                var rangeResult2 = db.ListMove(src, dest, ListSide.Left, ListSide.Left);
-                var rangeResult3 = db.ListMove(dest, src, ListSide.Right, ListSide.Right);
-                var rangeResult4 = db.ListMove(dest, src, ListSide.Right, ListSide.Left);
-                Assert.Equal("testvalue1" , rangeResult1);
-                Assert.Equal("testvalue2" , rangeResult2);
-                Assert.Equal("testvalue1" , rangeResult3);
-                Assert.Equal("testvalue2" , rangeResult4);
-            }
+            var rangeResult1 = db.ListMove(src, dest, ListSide.Left, ListSide.Right);
+            var rangeResult2 = db.ListMove(src, dest, ListSide.Left, ListSide.Left);
+            var rangeResult3 = db.ListMove(dest, src, ListSide.Right, ListSide.Right);
+            var rangeResult4 = db.ListMove(dest, src, ListSide.Right, ListSide.Left);
+            Assert.Equal("testvalue1", rangeResult1);
+            Assert.Equal("testvalue2", rangeResult2);
+            Assert.Equal("testvalue1", rangeResult3);
+            Assert.Equal("testvalue2", rangeResult4);
         }
 
         [Fact]
         public void ListMoveKeyDoesNotExist()
         {
-            using (var conn = Create())
-            {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.ListMove), f => f.ListMove);
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
 
-                var db = conn.GetDatabase();
-                RedisKey src = Me();
-                RedisKey dest = Me() + "dest";
-                db.KeyDelete(src, CommandFlags.FireAndForget);
+            var db = conn.GetDatabase();
+            RedisKey src = Me();
+            RedisKey dest = Me() + "dest";
+            db.KeyDelete(src, CommandFlags.FireAndForget);
 
-                var rangeResult1 = db.ListMove(src, dest, ListSide.Left, ListSide.Right);
-                Assert.True(rangeResult1.IsNull);
-            }
+            var rangeResult1 = db.ListMove(src, dest, ListSide.Left, ListSide.Right);
+            Assert.True(rangeResult1.IsNull);
         }
     }
 }

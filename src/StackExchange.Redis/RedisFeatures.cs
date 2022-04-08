@@ -254,11 +254,6 @@ namespace StackExchange.Redis
         public bool PushMultiple => Version >= v4_0_0;
 
         /// <summary>
-        /// Is LMOVE available?
-        /// </summary>
-        public bool ListMove => Version >= v6_2_0;
-
-        /// <summary>
         /// The Redis version of the server
         /// </summary>
         public Version Version => version ?? v2_0_0;
