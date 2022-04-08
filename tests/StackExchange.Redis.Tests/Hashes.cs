@@ -188,7 +188,7 @@ namespace StackExchange.Redis.Tests
                 }
 
                 var inRedis = (await conn.HashGetAllAsync(key).ForAwait()).ToDictionary(
-                    x => Guid.Parse(x.Name), x => int.Parse(x.Value));
+                    x => Guid.Parse(x.Name!), x => int.Parse(x.Value!));
 
                 Assert.Equal(shouldMatch.Count, inRedis.Count);
 
@@ -222,7 +222,7 @@ namespace StackExchange.Redis.Tests
                 foreach (var k in shouldMatch.Keys)
                 {
                     var inRedis = await conn.HashGetAsync(key, k.ToString()).ForAwait();
-                    var num = int.Parse(inRedis);
+                    var num = int.Parse(inRedis!);
 
                     Assert.Equal(shouldMatch[k], num);
                 }
@@ -253,7 +253,7 @@ namespace StackExchange.Redis.Tests
                 var val5 = conn.HashGetAsync(hashkey, "empty_type2").ForAwait();
 
                 await del;
-                Assert.Null((string)(await val0));
+                Assert.Null((string?)(await val0));
                 Assert.True(await set0);
                 Assert.Equal("value1", await val1);
                 Assert.False(await set1);
@@ -289,7 +289,7 @@ namespace StackExchange.Redis.Tests
                 var set3 = conn.HashSetAsync(hashkey, "field-blob", Encoding.UTF8.GetBytes("value3"), When.NotExists).ForAwait();
 
                 await del;
-                Assert.Null((string)(await val0));
+                Assert.Null((string?)(await val0));
                 Assert.True(await set0);
                 Assert.Equal("value1", await val1);
                 Assert.False(await set1);
@@ -461,8 +461,8 @@ namespace StackExchange.Redis.Tests
 
                 var arr = await keys1;
                 Assert.Equal(2, arr.Length);
-                Assert.Equal("abc", Encoding.UTF8.GetString(arr[0]));
-                Assert.Equal("def", Encoding.UTF8.GetString(arr[1]));
+                Assert.Equal("abc", Encoding.UTF8.GetString(arr[0]!));
+                Assert.Equal("def", Encoding.UTF8.GetString(arr[1]!));
             }
         }
 
@@ -506,19 +506,19 @@ namespace StackExchange.Redis.Tests
                 var arr2 = await conn.HashGetAsync(hashkey, fields).ForAwait();
 
                 Assert.Equal(3, arr0.Length);
-                Assert.Null((string)arr0[0]);
-                Assert.Null((string)arr0[1]);
-                Assert.Null((string)arr0[2]);
+                Assert.Null((string?)arr0[0]);
+                Assert.Null((string?)arr0[1]);
+                Assert.Null((string?)arr0[2]);
 
                 Assert.Equal(3, arr1.Length);
                 Assert.Equal("abc", arr1[0]);
                 Assert.Equal("def", arr1[1]);
-                Assert.Null((string)arr1[2]);
+                Assert.Null((string?)arr1[2]);
 
                 Assert.Equal(3, arr2.Length);
                 Assert.Equal("abc", arr2[0]);
                 Assert.Equal("def", arr2[1]);
-                Assert.Null((string)arr2[2]);
+                Assert.Null((string?)arr2[2]);
             }
         }
 

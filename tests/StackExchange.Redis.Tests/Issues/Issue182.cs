@@ -20,8 +20,8 @@ namespace StackExchange.Redis.Tests.Issues
                 conn.ConnectionFailed += (s, a) =>
                 {
                     Log(a.FailureType.ToString());
-                    Log(a.Exception.Message);
-                    Log(a.Exception.StackTrace);
+                    Log(a.Exception?.Message);
+                    Log(a.Exception?.StackTrace);
                 };
                 var db = conn.GetDatabase();
 

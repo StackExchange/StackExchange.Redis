@@ -545,13 +545,7 @@ namespace RedisSharp
             return SendExpectInt("TTL {0}\r\n", key);
         }
 
-        public int DbSize
-        {
-            get
-            {
-                return SendExpectInt("DBSIZE\r\n");
-            }
-        }
+        public int DbSize => SendExpectInt("DBSIZE\r\n");
 
         public string Save()
         {

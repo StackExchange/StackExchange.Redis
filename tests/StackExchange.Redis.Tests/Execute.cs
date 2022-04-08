@@ -19,10 +19,10 @@ namespace StackExchange.Redis.Tests
                 RedisKey key = Me();
                 db.StringSet(key, "some value");
 
-                var actual = (string)db.Execute("GET", key);
+                var actual = (string?)db.Execute("GET", key);
                 Assert.Equal("some value", actual);
 
-                actual = (string)await db.ExecuteAsync("GET", key).ForAwait();
+                actual = (string?)await db.ExecuteAsync("GET", key).ForAwait();
                 Assert.Equal("some value", actual);
             }
         }
@@ -33,10 +33,10 @@ namespace StackExchange.Redis.Tests
             using (var conn = Create())
             {
                 var server = conn.GetServer(conn.GetEndPoints().First());
-                var actual = (string)server.Execute("echo", "some value");
+                var actual = (string?)server.Execute("echo", "some value");
                 Assert.Equal("some value", actual);
 
-                actual = (string)await server.ExecuteAsync("echo", "some value").ForAwait();
+                actual = (string?)await server.ExecuteAsync("echo", "some value").ForAwait();
                 Assert.Equal("some value", actual);
             }
         }

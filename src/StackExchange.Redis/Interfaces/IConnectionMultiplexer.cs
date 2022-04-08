@@ -154,14 +154,14 @@ namespace StackExchange.Redis
         /// Obtain a pub/sub subscriber connection to the specified server.
         /// </summary>
         /// <param name="asyncState">The async state to pass to the created <see cref="ISubscriber"/>.</param>
-        ISubscriber GetSubscriber(object asyncState = null);
+        ISubscriber GetSubscriber(object? asyncState = null);
 
         /// <summary>
         /// Obtain an interactive connection to a database inside redis.
         /// </summary>
         /// <param name="db">The database ID to get.</param>
         /// <param name="asyncState">The async state to pass to the created <see cref="IDatabase"/>.</param>
-        IDatabase GetDatabase(int db = -1, object asyncState = null);
+        IDatabase GetDatabase(int db = -1, object? asyncState = null);
 
         /// <summary>
         /// Obtain a configuration API for an individual server.
@@ -169,14 +169,14 @@ namespace StackExchange.Redis
         /// <param name="host">The host to get a server for.</param>
         /// <param name="port">The specific port for <paramref name="host"/> to get a server for.</param>
         /// <param name="asyncState">The async state to pass to the created <see cref="IServer"/>.</param>
-        IServer GetServer(string host, int port, object asyncState = null);
+        IServer GetServer(string host, int port, object? asyncState = null);
 
         /// <summary>
         /// Obtain a configuration API for an individual server.
         /// </summary>
         /// <param name="hostAndPort">The "host:port" string to get a server for.</param>
         /// <param name="asyncState">The async state to pass to the created <see cref="IServer"/>.</param>
-        IServer GetServer(string hostAndPort, object asyncState = null);
+        IServer GetServer(string hostAndPort, object? asyncState = null);
 
         /// <summary>
         /// Obtain a configuration API for an individual server.
@@ -190,19 +190,19 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="endpoint">The endpoint to get a server for.</param>
         /// <param name="asyncState">The async state to pass to the created <see cref="IServer"/>.</param>
-        IServer GetServer(EndPoint endpoint, object asyncState = null);
+        IServer GetServer(EndPoint endpoint, object? asyncState = null);
 
         /// <summary>
         /// Reconfigure the current connections based on the existing configuration.
         /// </summary>
         /// <param name="log">The log to write output to.</param>
-        Task<bool> ConfigureAsync(TextWriter log = null);
+        Task<bool> ConfigureAsync(TextWriter? log = null);
 
         /// <summary>
         /// Reconfigure the current connections based on the existing configuration.
         /// </summary>
         /// <param name="log">The log to write output to.</param>
-        bool Configure(TextWriter log = null);
+        bool Configure(TextWriter? log = null);
 
         /// <summary>
         /// Provides a text overview of the status of all connections.
@@ -235,7 +235,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Obtains the log of unusual busy patterns.
         /// </summary>
-        string GetStormLog();
+        string? GetStormLog();
 
         /// <summary>
         /// Resets the log of unusual busy patterns.

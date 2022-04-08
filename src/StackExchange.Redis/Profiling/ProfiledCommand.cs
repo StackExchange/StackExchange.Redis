@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -13,13 +14,13 @@ namespace StackExchange.Redis.Profiling
         #region IProfiledCommand Impl
         public EndPoint EndPoint => Server.EndPoint;
 
-        public int Db => Message.Db;
+        public int Db => Message!.Db;
 
-        public string Command => Message is RedisDatabase.ExecuteMessage em ? em.Command.ToString() : Message.Command.ToString();
+        public string Command => Message is RedisDatabase.ExecuteMessage em ? em.Command.ToString() : Message!.Command.ToString();
 
-        public CommandFlags Flags => Message.Flags;
+        public CommandFlags Flags => Message!.Flags;
 
-        public DateTime CommandCreated => MessageCreatedDateTime;
+        public DateTime CommandCreated { get; private set; }
 
         public TimeSpan CreationToEnqueued => GetElapsedTime(EnqueuedTimeStamp - MessageCreatedTimeStamp);
 
@@ -37,19 +38,17 @@ namespace StackExchange.Redis.Profiling
             return new TimeSpan((long)(TimestampToTicks * timestampDelta));
         }
 
-        public IProfiledCommand RetransmissionOf => OriginalProfiling;
+        public IProfiledCommand? RetransmissionOf => OriginalProfiling;
 
         public RetransmissionReasonType? RetransmissionReason { get; }
 
         #endregion
 
-        public ProfiledCommand NextElement { get; set; }
+        public ProfiledCommand? NextElement { get; set; }
 
-        private Message Message;
+        private Message? Message;
         private readonly ServerEndPoint Server;
-        private readonly ProfiledCommand OriginalProfiling;
-
-        private DateTime MessageCreatedDateTime;
+        private readonly ProfiledCommand? OriginalProfiling;
         private long MessageCreatedTimeStamp;
         private long EnqueuedTimeStamp;
         private long RequestSentTimeStamp;
@@ -59,7 +58,7 @@ namespace StackExchange.Redis.Profiling
 
         private readonly ProfilingSession PushToWhenFinished;
 
-        private ProfiledCommand(ProfilingSession pushTo, ServerEndPoint server, ProfiledCommand resentFor, RetransmissionReasonType? reason)
+        private ProfiledCommand(ProfilingSession pushTo, ServerEndPoint server, ProfiledCommand? resentFor, RetransmissionReasonType? reason)
         {
             PushToWhenFinished = pushTo;
             OriginalProfiling = resentFor;
@@ -77,13 +76,17 @@ namespace StackExchange.Redis.Profiling
             return new ProfiledCommand(resentFor.PushToWhenFinished, server, resentFor, isMoved ? RetransmissionReasonType.Moved : RetransmissionReasonType.Ask);
         }
 
+        [MemberNotNull(nameof(Message))]
         public void SetMessage(Message msg)
         {
             // This method should never be called twice
-            if (Message != null) throw new InvalidOperationException($"{nameof(SetMessage)} called more than once");
+            if (Message is not null)
+            {
+                throw new InvalidOperationException($"{nameof(SetMessage)} called more than once");
+            }
 
             Message = msg;
-            MessageCreatedDateTime = msg.CreatedDateTime;
+            CommandCreated = msg.CreatedDateTime;
             MessageCreatedTimeStamp = msg.CreatedTimestamp;
         }
 

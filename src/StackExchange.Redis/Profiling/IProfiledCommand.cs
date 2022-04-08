@@ -80,7 +80,7 @@ namespace StackExchange.Redis.Profiling
         /// </para>
         /// <para>This can only be set if redis is configured as a cluster.</para>
         /// </summary>
-        IProfiledCommand RetransmissionOf { get; }
+        IProfiledCommand? RetransmissionOf { get; }
 
         /// <summary>
         /// If RetransmissionOf is not null, this property will be set to either Ask or Moved to indicate

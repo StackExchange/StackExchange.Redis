@@ -46,7 +46,7 @@ namespace StackExchange.Redis
 
             internal static Version ParseVersion(string key, string value)
             {
-                if (!System.Version.TryParse(value, out Version tmp)) throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' requires a version value; the value '{value}' is not recognised.");
+                if (!System.Version.TryParse(value, out Version? tmp)) throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' requires a version value; the value '{value}' is not recognised.");
                 return tmp;
             }
 
@@ -56,7 +56,7 @@ namespace StackExchange.Redis
                 return tmp;
             }
 
-            internal static SslProtocols ParseSslProtocols(string key, string value)
+            internal static SslProtocols ParseSslProtocols(string key, string? value)
             {
                 //Flags expect commas as separators, but we need to use '|' since commas are already used in the connection string to mean something else
                 value = value?.Replace("|", ",");
@@ -66,10 +66,8 @@ namespace StackExchange.Redis
                 return tmp;
             }
 
-            internal static void Unknown(string key)
-            {
+            internal static void Unknown(string key) =>
                 throw new ArgumentException($"Keyword '{key}' is not supported.", key);
-            }
 
             internal const string
                 AbortOnConnectFail = "abortConnect",
@@ -132,7 +130,7 @@ namespace StackExchange.Redis
 
             public static string TryNormalize(string value)
             {
-                if (value != null && normalizedOptions.TryGetValue(value, out string tmp))
+                if (value != null && normalizedOptions.TryGetValue(value, out string? tmp))
                 {
                     return tmp ?? "";
                 }
@@ -140,38 +138,38 @@ namespace StackExchange.Redis
             }
         }
 
-        private DefaultOptionsProvider defaultOptions;
+        private DefaultOptionsProvider? defaultOptions;
 
         private bool? allowAdmin, abortOnConnectFail, resolveDns, ssl, checkCertificateRevocation,
                       includeDetailInExceptions, includePerformanceCountersInExceptions;
 
-        private string tieBreaker, sslHost, configChannel;
+        private string? tieBreaker, sslHost, configChannel;
 
-        private CommandMap commandMap;
+        private CommandMap? commandMap;
 
-        private Version defaultVersion;
+        private Version? defaultVersion;
 
         private int? keepAlive, asyncTimeout, syncTimeout, connectTimeout, responseTimeout, connectRetry, configCheckSeconds;
 
         private Proxy? proxy;
 
-        private IReconnectRetryPolicy reconnectRetryPolicy;
+        private IReconnectRetryPolicy? reconnectRetryPolicy;
 
-        private BacklogPolicy backlogPolicy;
+        private BacklogPolicy? backlogPolicy;
 
         /// <summary>
         /// A LocalCertificateSelectionCallback delegate responsible for selecting the certificate used for authentication; note
         /// that this cannot be specified in the configuration-string.
         /// </summary>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Design", "CA1009:DeclareEventHandlersCorrectly")]
-        public event LocalCertificateSelectionCallback CertificateSelection;
+        public event LocalCertificateSelectionCallback? CertificateSelection;
 
         /// <summary>
         /// A RemoteCertificateValidationCallback delegate responsible for validating the certificate supplied by the remote party; note
         /// that this cannot be specified in the configuration-string.
         /// </summary>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Design", "CA1009:DeclareEventHandlersCorrectly")]
-        public event RemoteCertificateValidationCallback CertificateValidation;
+        public event RemoteCertificateValidationCallback? CertificateValidation;
 
         /// <summary>
         /// The default (not explicitly configured) options for this connection, fetched based on our parsed endpoints.
@@ -187,7 +185,7 @@ namespace StackExchange.Redis
         /// Passed in is the endpoint we're connecting to, which type of connection it is, and the socket itself.
         /// For example, a specific local IP endpoint could be bound, linger time altered, etc.
         /// </summary>
-        public Action<EndPoint, ConnectionType, Socket> BeforeSocketConnect { get; set; }
+        public Action<EndPoint, ConnectionType, Socket>? BeforeSocketConnect { get; set; }
 
         internal Func<ConnectionMultiplexer, Action<string>, Task> AfterConnectAsync => Defaults.AfterConnectAsync;
 
@@ -262,7 +260,7 @@ namespace StackExchange.Redis
         {
             if (issuer == null) throw new ArgumentNullException(nameof(issuer));
 
-            return (object _, X509Certificate certificate, X509Chain __, SslPolicyErrors sslPolicyError)
+            return (object _, X509Certificate? certificate, X509Chain? __, SslPolicyErrors sslPolicyError)
                 => sslPolicyError == SslPolicyErrors.RemoteCertificateChainErrors
                     && certificate is X509Certificate2 v2
                     && CheckTrustedIssuer(v2, issuer);
@@ -285,7 +283,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// The client name to use for all connections.
         /// </summary>
-        public string ClientName { get; set; }
+        public string? ClientName { get; set; }
 
         /// <summary>
         /// The number of times to repeat the initial connect cycle if no servers respond promptly.
@@ -413,12 +411,12 @@ namespace StackExchange.Redis
         /// <summary>
         /// The user to use to authenticate with the server.
         /// </summary>
-        public string User { get; set; }
+        public string? User { get; set; }
 
         /// <summary>
         /// The password to use to authenticate with the server.
         /// </summary>
-        public string Password { get; set; }
+        public string? Password { get; set; }
 
         /// <summary>
         /// Specifies whether asynchronous operations should be invoked in a way that guarantees their original delivery order.
@@ -480,7 +478,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// The service name used to resolve a service via sentinel.
         /// </summary>
-        public string ServiceName { get; set; }
+        public string? ServiceName { get; set; }
 
         /// <summary>
         /// Gets or sets the SocketManager instance to be used with these options.
@@ -490,7 +488,7 @@ namespace StackExchange.Redis
         /// This is only used when a <see cref="ConnectionMultiplexer"/> is created.
         /// Modifying it afterwards will have no effect on already-created multiplexers.
         /// </remarks>
-        public SocketManager SocketManager { get; set; }
+        public SocketManager? SocketManager { get; set; }
 
         /// <summary>
         /// Indicates whether the connection should be encrypted.
@@ -504,7 +502,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// The target-host to use when validating SSL certificate; setting a value here enables SSL mode.
         /// </summary>
-        public string SslHost
+        public string? SslHost
         {
             get => sslHost ?? Defaults.GetSslHostFromEndpoints(EndPoints);
             set => sslHost = value;
@@ -543,14 +541,14 @@ namespace StackExchange.Redis
             set { }
         }
 
-        internal LocalCertificateSelectionCallback CertificateSelectionCallback
+        internal LocalCertificateSelectionCallback? CertificateSelectionCallback
         {
             get => CertificateSelection;
             private set => CertificateSelection = value;
         }
 
         // these just rip out the underlying handlers, bypassing the event accessors - needed when creating the SSL stream
-        internal RemoteCertificateValidationCallback CertificateValidationCallback
+        internal RemoteCertificateValidationCallback? CertificateValidationCallback
         {
             get => CertificateValidation;
             private set => CertificateValidation = value;
@@ -615,8 +613,8 @@ namespace StackExchange.Redis
             configCheckSeconds = configCheckSeconds,
             responseTimeout = responseTimeout,
             DefaultDatabase = DefaultDatabase,
-            ReconnectRetryPolicy = reconnectRetryPolicy,
-            BacklogPolicy = backlogPolicy,
+            reconnectRetryPolicy = reconnectRetryPolicy,
+            backlogPolicy = backlogPolicy,
             SslProtocols = SslProtocols,
             checkCertificateRevocation = checkCertificateRevocation,
             BeforeSocketConnect = BeforeSocketConnect,
@@ -694,7 +692,7 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.ConfigChannel, configChannel);
             Append(sb, OptionKeys.AbortOnConnectFail, abortOnConnectFail);
             Append(sb, OptionKeys.ResolveDns, resolveDns);
-            Append(sb, OptionKeys.ChannelPrefix, (string)ChannelPrefix);
+            Append(sb, OptionKeys.ChannelPrefix, (string?)ChannelPrefix);
             Append(sb, OptionKeys.ConnectRetry, connectRetry);
             Append(sb, OptionKeys.Proxy, proxy);
             Append(sb, OptionKeys.ConfigCheckSeconds, configCheckSeconds);
@@ -715,9 +713,9 @@ namespace StackExchange.Redis
             }
         }
 
-        private static void Append(StringBuilder sb, string prefix, object value)
+        private static void Append(StringBuilder sb, string prefix, object? value)
         {
-            string s = value?.ToString();
+            string? s = value?.ToString();
             if (!string.IsNullOrWhiteSpace(s))
             {
                 if (sb.Length != 0) sb.Append(',');
@@ -763,7 +761,7 @@ namespace StackExchange.Redis
 
             // break it down by commas
             var arr = configuration.Split(StringSplits.Comma);
-            Dictionary<string, string> map = null;
+            Dictionary<string, string?>? map = null;
             foreach (var paddedOption in arr)
             {
                 var option = paddedOption.Trim();
@@ -860,7 +858,7 @@ namespace StackExchange.Redis
                                 var cmdName = option.Substring(1, idx - 1);
                                 if (Enum.TryParse(cmdName, true, out RedisCommand cmd))
                                 {
-                                    map ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                                    map ??= new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
                                     map[cmdName] = value;
                                 }
                             }
@@ -873,8 +871,10 @@ namespace StackExchange.Redis
                 }
                 else
                 {
-                    var ep = Format.TryParseEndPoint(option);
-                    if (ep != null && !EndPoints.Contains(ep)) EndPoints.Add(ep);
+                    if (Format.TryParseEndPoint(option, out var ep) && !EndPoints.Contains(ep))
+                    {
+                        EndPoints.Add(ep);
+                    }
                 }
             }
             if (map != null && map.Count != 0)
