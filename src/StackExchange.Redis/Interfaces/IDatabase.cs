@@ -477,7 +477,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="sourceKey">The key of the source value to copy.</param>
         /// <param name="destinationKey">The destination key to copy the source to.</param>
-        /// <param name="destinationDatabase">Specifying database ID for the destination key.  If default (-1), current database is used.</param>
+        /// <param name="destinationDatabase">The database ID to store <paramref name="destinationKey"/> in. If default (-1), current database is used.</param>
         /// <param name="replace">Whether to overwrite an existing values at <paramref name="destinationKey"/>. If <see langword="false"/> and the key exists, the copy will not succeed.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns><see langword="true"/> if key was copied. <see langword="false"/> if key was not copied.</returns>
