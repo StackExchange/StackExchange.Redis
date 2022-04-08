@@ -205,7 +205,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create())
             {
-                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.KeyTouch), r => r.KeyTouch);
+                Skip.IfBelow(muxer, RedisFeatures.v3_2_1);
 
                 RedisKey key = Me();
                 var db = muxer.GetDatabase();
@@ -249,7 +249,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create())
             {
-                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.KeyTouch), r => r.KeyTouch);
+                Skip.IfBelow(muxer, RedisFeatures.v3_2_1);
 
                 RedisKey key = Me();
                 var db = muxer.GetDatabase();

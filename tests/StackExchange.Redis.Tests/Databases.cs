@@ -91,7 +91,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create(allowAdmin: true))
             {
-                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.SwapDB), r => r.SwapDB);
+                Skip.IfBelow(muxer, RedisFeatures.v4_0_0);
 
                 RedisKey key = Me();
                 var db0id = TestConfig.GetDedicatedDB(muxer);
@@ -127,7 +127,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create(allowAdmin: true))
             {
-                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.SwapDB), r => r.SwapDB);
+                Skip.IfBelow(muxer, RedisFeatures.v4_0_0);
 
                 RedisKey key = Me();
                 var db0id = TestConfig.GetDedicatedDB(muxer);

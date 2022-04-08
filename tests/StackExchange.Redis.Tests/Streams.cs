@@ -17,9 +17,8 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
                 var key = GetUniqueKey("type_check");
-
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
 
                 var db = conn.GetDatabase();
                 db.StreamAdd(key, "field1", "value1");
@@ -35,7 +34,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
                 var messageId = db.StreamAdd(GetUniqueKey("auto_id"), "field1", "value1");
@@ -49,7 +48,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var key = GetUniqueKey("multiple_value_pairs");
 
@@ -84,7 +83,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
                 var messageId = db.StreamAdd(key, "field1", "value1", id);
@@ -101,7 +100,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
 
@@ -130,7 +129,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
 
@@ -164,7 +163,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
 
@@ -189,7 +188,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
 
@@ -210,7 +209,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
 
@@ -235,7 +234,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
 
@@ -256,7 +255,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
 
@@ -282,7 +281,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
 
@@ -308,7 +307,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
 
@@ -333,7 +332,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
 
@@ -363,7 +362,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
 
@@ -406,7 +405,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
 
@@ -457,7 +456,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
 
@@ -511,7 +510,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
 
@@ -553,7 +552,7 @@ namespace StackExchange.Redis.Tests
             var stream2 = GetUniqueKey("stream2b");
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
 
@@ -589,7 +588,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
 
@@ -632,7 +631,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
 
@@ -673,7 +672,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
 
@@ -699,7 +698,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
 
@@ -727,7 +726,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
 
@@ -769,7 +768,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
 
@@ -810,7 +809,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
 
@@ -847,7 +846,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
 
@@ -882,7 +881,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
 
@@ -913,7 +912,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
 
@@ -937,7 +936,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
 
@@ -965,7 +964,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
                 db.KeyDelete(key);
@@ -1015,7 +1014,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
 
@@ -1048,7 +1047,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
 
@@ -1074,7 +1073,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
 
@@ -1101,7 +1100,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
 
@@ -1122,7 +1121,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
 
@@ -1184,7 +1183,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
 
@@ -1209,7 +1208,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
 
@@ -1236,7 +1235,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
 
@@ -1268,7 +1267,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var streamPositions = new []
                 {
@@ -1288,7 +1287,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
                 Assert.Throws<ArgumentOutOfRangeException>(() => db.StreamRead(key, "0-0", 0));
@@ -1300,7 +1299,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
                 Assert.Throws<ArgumentNullException>(() => db.StreamRead(null!));
@@ -1312,7 +1311,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
 
@@ -1330,7 +1329,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
 
@@ -1370,7 +1369,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
 
@@ -1408,7 +1407,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
 
@@ -1443,7 +1442,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
 
@@ -1473,7 +1472,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
 
@@ -1495,7 +1494,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
 
@@ -1517,7 +1516,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
 
@@ -1541,7 +1540,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
 
@@ -1562,7 +1561,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
 
@@ -1584,7 +1583,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
 
@@ -1605,7 +1604,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
 
@@ -1628,7 +1627,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
 
@@ -1653,7 +1652,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
 
@@ -1678,7 +1677,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
 
@@ -1699,7 +1698,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
                 await db.StreamAddAsync(key, "field", "value", maxLength: 10, useApproximateMaxLength: true, flags: CommandFlags.None).ConfigureAwait(false);
@@ -1713,7 +1712,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
                 db.StreamAdd(key, "field", "value", maxLength: 10, useApproximateMaxLength: true, flags: CommandFlags.None);
@@ -1729,7 +1728,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
 
@@ -1760,7 +1759,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
 
@@ -1800,7 +1799,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
 

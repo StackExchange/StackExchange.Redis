@@ -20,7 +20,7 @@ namespace StackExchange.Redis.Tests
             if (Debugger.IsAttached) syncTimeout = 500000;
             var muxer = Create(allowAdmin: allowAdmin, syncTimeout: syncTimeout);
 
-            Skip.IfMissingFeature(muxer, nameof(RedisFeatures.Scripting), r => r.Scripting);
+            Skip.IfBelow(muxer, RedisFeatures.v2_6_0);
             return muxer;
         }
 
@@ -388,7 +388,8 @@ return timeTaken
         {
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
+                Skip.IfBelow(conn, RedisFeatures.v2_6_0);
+
                 RedisValue newId = Guid.NewGuid().ToString();
                 RedisKey key = Me();
                 var db = conn.GetDatabase();
@@ -414,7 +415,8 @@ return timeTaken
             using (var conn0 = Create(allowAdmin: true))
             using (var conn1 = Create(allowAdmin: true))
             {
-                Skip.IfMissingFeature(conn0, nameof(RedisFeatures.Scripting), f => f.Scripting);
+                Skip.IfBelow(conn0, RedisFeatures.v2_6_0);
+
                 // note that these are on different connections (so we wouldn't expect
                 // the flush to drop the local cache - assume it is a surprise!)
                 var server = conn0.GetServer(TestConfig.Current.PrimaryServerAndPort);
@@ -465,7 +467,8 @@ return timeTaken
 
             using (var conn = Create(allowAdmin: true))
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
+                Skip.IfBelow(conn, RedisFeatures.v2_6_0);
+
                 var server = conn.GetServer(TestConfig.Current.PrimaryServerAndPort);
                 server.ScriptFlush();
 
@@ -516,7 +519,8 @@ return timeTaken
 
             using (var conn = Create(allowAdmin: true))
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
+                Skip.IfBelow(conn, RedisFeatures.v2_6_0);
+
                 var server = conn.GetServer(TestConfig.Current.PrimaryServerAndPort);
                 server.ScriptFlush();
 
@@ -546,7 +550,8 @@ return timeTaken
 
             using (var conn = Create(allowAdmin: true))
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
+                Skip.IfBelow(conn, RedisFeatures.v2_6_0);
+
                 var server = conn.GetServer(TestConfig.Current.PrimaryServerAndPort);
                 server.ScriptFlush();
 
@@ -602,7 +607,8 @@ return timeTaken
 
             using (var conn = Create(allowAdmin: true))
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
+                Skip.IfBelow(conn, RedisFeatures.v2_6_0);
+
                 var server = conn.GetServer(TestConfig.Current.PrimaryServerAndPort);
                 server.ScriptFlush();
 
@@ -656,7 +662,8 @@ return timeTaken
 
             using (var conn = Create(allowAdmin: true))
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
+                Skip.IfBelow(conn, RedisFeatures.v2_6_0);
+
                 var server = conn.GetServer(TestConfig.Current.PrimaryServerAndPort);
                 server.ScriptFlush();
 
@@ -686,7 +693,8 @@ return timeTaken
             const string Script = "redis.call('set', @key, 'hello@example')";
             using (var conn = Create(allowAdmin: true))
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
+                Skip.IfBelow(conn, RedisFeatures.v2_6_0);
+
                 var server = conn.GetServer(TestConfig.Current.PrimaryServerAndPort);
                 server.ScriptFlush();
 
@@ -722,7 +730,8 @@ return timeTaken
 
             using (var conn = Create(allowAdmin: true))
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
+                Skip.IfBelow(conn, RedisFeatures.v2_6_0);
+
                 var server = conn.GetServer(TestConfig.Current.PrimaryServerAndPort);
                 server.ScriptFlush();
 
@@ -779,7 +788,8 @@ return timeTaken
 
             using (var conn = Create(allowAdmin: true))
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
+                Skip.IfBelow(conn, RedisFeatures.v2_6_0);
+
                 var server = conn.GetServer(TestConfig.Current.PrimaryServerAndPort);
                 server.ScriptFlush();
 
@@ -852,7 +862,8 @@ return timeTaken
 
             using (var conn = Create(allowAdmin: true))
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
+                Skip.IfBelow(conn, RedisFeatures.v2_6_0);
+
                 var script = LuaScript.Prepare(Script);
                 var db = conn.GetDatabase();
                 var key = Me();
@@ -876,7 +887,8 @@ return timeTaken
 
             using (var conn = Create(allowAdmin: true))
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
+                Skip.IfBelow(conn, RedisFeatures.v2_6_0);
+
                 var script = LuaScript.Prepare(Script);
                 var server = conn.GetServer(conn.GetEndPoints()[0]);
                 var db = conn.GetDatabase();
@@ -917,7 +929,8 @@ return timeTaken
 
             using (var conn = Create(allowAdmin: true))
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
+                Skip.IfBelow(conn, RedisFeatures.v2_6_0);
+
                 var db = conn.GetDatabase();
                 var wrappedDb = db.WithKeyPrefix("prefix-");
                 var key = Me();
@@ -943,7 +956,8 @@ return timeTaken
 
             using (var conn = Create(allowAdmin: true))
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
+                Skip.IfBelow(conn, RedisFeatures.v2_6_0);
+
                 var db = conn.GetDatabase();
                 var wrappedDb = db.WithKeyPrefix("prefix-");
                 var key = Me();
@@ -969,7 +983,8 @@ return timeTaken
 
             using (var conn = Create(allowAdmin: true))
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
+                Skip.IfBelow(conn, RedisFeatures.v2_6_0);
+
                 var db = conn.GetDatabase();
                 var wrappedDb = db.WithKeyPrefix("prefix2-");
                 var key = Me();
@@ -996,7 +1011,8 @@ return timeTaken
 
             using (var conn = Create(allowAdmin: true))
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
+                Skip.IfBelow(conn, RedisFeatures.v2_6_0);
+
                 var db = conn.GetDatabase();
                 var wrappedDb = db.WithKeyPrefix("prefix2-");
                 var key = Me();

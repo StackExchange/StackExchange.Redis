@@ -38,7 +38,7 @@ namespace StackExchange.Redis
                                          v5_0_0 = new Version(5, 0, 0),
                                          v6_0_0 = new Version(6, 0, 0),
                                          v6_2_0 = new Version(6, 2, 0),
-                                         v6_9_240 = new Version(6, 9, 240); // 7.0 RC1 is version 6.9.240
+                                         v7_0_0_rc1 = new Version(6, 9, 240); // 7.0 RC1 is version 6.9.240
 
         private readonly Version version;
 
@@ -54,7 +54,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Does BITOP / BITCOUNT exist?
         /// </summary>
-        public bool BitwiseOperations => Version >= v2_5_10;
+        public bool BitwiseOperations => Version >= v2_6_0;
 
         /// <summary>
         /// Is CLIENT SETNAME available?
@@ -89,7 +89,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Does INCRBYFLOAT / HINCRBYFLOAT exist?
         /// </summary>
-        public bool IncrementFloat => Version >= v2_5_7;
+        public bool IncrementFloat => Version >= v2_6_0;
 
         /// <summary>
         /// Does INFO support sections?
@@ -139,7 +139,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Does EVAL / EVALSHA / etc exist?
         /// </summary>
-        public bool Scripting => Version >= v2_5_7;
+        public bool Scripting => Version >= v2_6_0;
 
         /// <summary>
         /// Does SET support the GET option?
@@ -159,7 +159,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Does SET allow the NX and GET options to be used together?
         /// </summary>
-        public bool SetNotExistsAndGet => Version >= v6_9_240;
+        public bool SetNotExistsAndGet => Version >= v7_0_0_rc1;
 
         /// <summary>
         /// Does SADD support variadic usage?
@@ -169,7 +169,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Is ZPOPMAX and ZPOPMIN available?
         /// </summary>
-        public bool SortedSetPop => Version >= v4_9_1;
+        public bool SortedSetPop => Version >= v5_0_0;
 
         /// <summary>
         /// Is ZRANGESTORE available?

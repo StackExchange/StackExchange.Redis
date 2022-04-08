@@ -22,7 +22,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Geo), r => r.Geo);
+                Skip.IfBelow(conn, RedisFeatures.v3_2_0);
                 var db = conn.GetDatabase();
                 RedisKey key = Me();
                 db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -50,7 +50,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Geo), r => r.Geo);
+                Skip.IfBelow(conn, RedisFeatures.v3_2_0);
                 var db = conn.GetDatabase();
                 RedisKey key = Me();
                 db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -69,7 +69,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Geo), r => r.Geo);
+                Skip.IfBelow(conn, RedisFeatures.v3_2_0);
                 var db = conn.GetDatabase();
                 RedisKey key = Me();
                 db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -95,7 +95,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Geo), r => r.Geo);
+                Skip.IfBelow(conn, RedisFeatures.v3_2_0);
                 var db = conn.GetDatabase();
                 RedisKey key = Me();
                 db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -116,7 +116,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Geo), r => r.Geo);
+                Skip.IfBelow(conn, RedisFeatures.v3_2_0);
                 var db = conn.GetDatabase();
                 RedisKey key = Me();
                 db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -139,7 +139,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Geo), r => r.Geo);
+                Skip.IfBelow(conn, RedisFeatures.v3_2_0);
                 var db = conn.GetDatabase();
                 RedisKey key = Me();
                 db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -185,7 +185,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Geo), r => r.Geo);
+                Skip.IfBelow(conn, RedisFeatures.v3_2_0);
                 var db = conn.GetDatabase();
                 RedisKey key = Me();
                 db.KeyDelete(key, CommandFlags.FireAndForget);
