@@ -135,6 +135,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public bool IsConnected(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.IsConnected(ToInner(key), flags);
 
+        public Task<bool> KeyCopyAsync(RedisKey sourceKey, RedisKey destinationKey, int destinationDatabase = -1, bool replace = false, CommandFlags flags = CommandFlags.None) =>
+            Inner.KeyCopyAsync(ToInner(sourceKey), ToInner(destinationKey), destinationDatabase, replace, flags);
+
         public Task<long> KeyDeleteAsync(RedisKey[] keys, CommandFlags flags = CommandFlags.None) =>
             Inner.KeyDeleteAsync(ToInner(keys), flags);
 

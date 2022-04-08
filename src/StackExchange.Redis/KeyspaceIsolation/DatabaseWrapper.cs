@@ -126,6 +126,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public EndPoint? IdentifyEndpoint(RedisKey key = default, CommandFlags flags = CommandFlags.None) =>
             Inner.IdentifyEndpoint(ToInner(key), flags);
 
+        public bool KeyCopy(RedisKey sourceKey, RedisKey destinationKey, int destinationDatabase = -1, bool replace = false, CommandFlags flags = CommandFlags.None) =>
+            Inner.KeyCopy(ToInner(sourceKey), ToInner(destinationKey), destinationDatabase, replace, flags);
+
         public long KeyDelete(RedisKey[] keys, CommandFlags flags = CommandFlags.None) =>
             Inner.KeyDelete(ToInner(keys), flags);
 

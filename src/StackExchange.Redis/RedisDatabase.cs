@@ -601,6 +601,18 @@ namespace StackExchange.Redis
             return server?.IsConnected == true;
         }
 
+        public bool KeyCopy(RedisKey sourceKey, RedisKey destinationKey, int destinationDatabase = -1, bool replace = false, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetCopyMessage(sourceKey, destinationKey, destinationDatabase, replace, flags);
+            return ExecuteSync(msg, ResultProcessor.Boolean);
+        }
+
+        public Task<bool> KeyCopyAsync(RedisKey sourceKey, RedisKey destinationKey, int destinationDatabase = -1, bool replace = false, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetCopyMessage(sourceKey, destinationKey, destinationDatabase, replace, flags);
+            return ExecuteAsync(msg, ResultProcessor.Boolean);
+        }
+
         public bool KeyDelete(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             var cmd = GetDeleteCommand(key, flags, out var server);
@@ -2732,6 +2744,16 @@ namespace StackExchange.Redis
             DateTimeKind.Local or DateTimeKind.Utc => (when.ToUniversalTime() - RedisBase.UnixEpoch).Ticks / TimeSpan.TicksPerMillisecond,
             _ => throw new ArgumentException("Expiry time must be either Utc or Local", nameof(when)),
         };
+
+        private Message GetCopyMessage(in RedisKey sourceKey, RedisKey destinationKey, int destinationDatabase, bool replace, CommandFlags flags) =>
+            destinationDatabase switch
+            {
+                < -1 => throw new ArgumentOutOfRangeException(nameof(destinationDatabase)),
+                -1 when replace => Message.Create(Database, flags, RedisCommand.COPY, sourceKey, destinationKey, RedisLiterals.REPLACE),
+                -1              => Message.Create(Database, flags, RedisCommand.COPY, sourceKey, destinationKey),
+                _ when replace  => Message.Create(Database, flags, RedisCommand.COPY, sourceKey, destinationKey, RedisLiterals.DB, destinationDatabase, RedisLiterals.REPLACE),
+                _               => Message.Create(Database, flags, RedisCommand.COPY, sourceKey, destinationKey, RedisLiterals.DB, destinationDatabase),
+            };
 
         private Message GetExpiryMessage(in RedisKey key, CommandFlags flags, TimeSpan? expiry, out ServerEndPoint? server)
         {

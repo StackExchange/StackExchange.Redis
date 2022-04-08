@@ -72,7 +72,7 @@ namespace StackExchange.Redis.Tests
         public async Task StringGetSetExpiryNoValue()
         {
             using var muxer = Create();
-            Skip.IfMissingFeature(muxer, nameof(RedisFeatures.GetEx), r => r.GetEx);
+            Skip.IfBelow(muxer, RedisFeatures.v6_2_0);
 
             var conn = muxer.GetDatabase();
             var key = Me();
@@ -87,7 +87,7 @@ namespace StackExchange.Redis.Tests
         public async Task StringGetSetExpiryRelative()
         {
             using var muxer = Create();
-            Skip.IfMissingFeature(muxer, nameof(RedisFeatures.GetEx), r => r.GetEx);
+            Skip.IfBelow(muxer, RedisFeatures.v6_2_0);
 
             var conn = muxer.GetDatabase();
             var key = Me();
@@ -107,7 +107,8 @@ namespace StackExchange.Redis.Tests
         public async Task StringGetSetExpiryAbsolute()
         {
             using var muxer = Create();
-            Skip.IfMissingFeature(muxer, nameof(RedisFeatures.GetEx), r => r.GetEx);
+            Skip.IfBelow(muxer, RedisFeatures.v6_2_0);
+
             var conn = muxer.GetDatabase();
             var key = Me();
             conn.KeyDelete(key, CommandFlags.FireAndForget);
@@ -131,7 +132,7 @@ namespace StackExchange.Redis.Tests
         public async Task StringGetSetExpiryPersist()
         {
             using var muxer = Create();
-            Skip.IfMissingFeature(muxer, nameof(RedisFeatures.GetEx), r => r.GetEx);
+            Skip.IfBelow(muxer, RedisFeatures.v6_2_0);
 
             var conn = muxer.GetDatabase();
             var key = Me();

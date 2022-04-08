@@ -20,6 +20,7 @@
         CLIENT,
         CLUSTER,
         CONFIG,
+        COPY,
 
         DBSIZE,
         DEBUG,
