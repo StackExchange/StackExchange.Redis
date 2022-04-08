@@ -61,7 +61,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SetPopMultiple), r => r.SetPopMultiple);
+                Skip.IfBelow(conn, RedisFeatures.v3_2_0);
 
                 var db = conn.GetDatabase();
                 var key = Me();
@@ -117,7 +117,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SetPopMultiple), r => r.SetPopMultiple);
+                Skip.IfBelow(conn, RedisFeatures.v3_2_0);
 
                 var db = conn.GetDatabase();
                 var key = Me();
@@ -232,7 +232,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SetPopMultiple), r => r.SetPopMultiple);
+                Skip.IfBelow(conn, RedisFeatures.v3_2_0);
 
                 var db = conn.GetDatabase();
                 var key = Me();
