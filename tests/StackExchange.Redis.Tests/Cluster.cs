@@ -133,15 +133,16 @@ namespace StackExchange.Redis.Tests
             {
                 RedisKey key = Guid.NewGuid().ToByteArray();
                 var ep = conn.GetDatabase().IdentifyEndpoint(key);
-                Assert.Equal(ep, conn.GetServer(ep).ClusterConfiguration.GetBySlot(key).EndPoint);
+                Assert.NotNull(ep);
+                Assert.Equal(ep, conn.GetServer(ep).ClusterConfiguration?.GetBySlot(key)?.EndPoint);
             }
         }
 
         [Fact]
         public void IntentionalWrongServer()
         {
-            static string StringGet(IServer server, RedisKey key, CommandFlags flags = CommandFlags.None)
-                => (string)server.Execute("GET", new object[] { key }, flags);
+            static string? StringGet(IServer server, RedisKey key, CommandFlags flags = CommandFlags.None)
+                => (string?)server.Execute("GET", new object[] { key }, flags);
 
             using (var conn = Create())
             {
@@ -161,14 +162,16 @@ namespace StackExchange.Redis.Tests
                 Assert.NotNull(rightPrimaryNode);
                 Log("Right Primary: {0} {1}", rightPrimaryNode.EndPoint, rightPrimaryNode.NodeId);
 
-                string a = StringGet(conn.GetServer(rightPrimaryNode.EndPoint), key);
+                Assert.NotNull(rightPrimaryNode.EndPoint);
+                string? a = StringGet(conn.GetServer(rightPrimaryNode.EndPoint), key);
                 Assert.Equal(value, a); // right primary
 
                 var node = config.Nodes.FirstOrDefault(x => !x.IsReplica && x.NodeId != rightPrimaryNode.NodeId);
                 Assert.NotNull(node);
                 Log("Using Primary: {0}", node.EndPoint, node.NodeId);
                 {
-                    string b = StringGet(conn.GetServer(node.EndPoint), key);
+                    Assert.NotNull(node.EndPoint);
+                    string? b = StringGet(conn.GetServer(node.EndPoint), key);
                     Assert.Equal(value, b); // wrong primary, allow redirect
 
                     var ex = Assert.Throws<RedisServerException>(() => StringGet(conn.GetServer(node.EndPoint), key, CommandFlags.NoRedirect));
@@ -178,14 +181,16 @@ namespace StackExchange.Redis.Tests
                 node = config.Nodes.FirstOrDefault(x => x.IsReplica && x.ParentNodeId == rightPrimaryNode.NodeId);
                 Assert.NotNull(node);
                 {
-                    string d = StringGet(conn.GetServer(node.EndPoint), key);
+                    Assert.NotNull(node.EndPoint);
+                    string? d = StringGet(conn.GetServer(node.EndPoint), key);
                     Assert.Equal(value, d); // right replica
                 }
 
                 node = config.Nodes.FirstOrDefault(x => x.IsReplica && x.ParentNodeId != rightPrimaryNode.NodeId);
                 Assert.NotNull(node);
                 {
-                    string e = StringGet(conn.GetServer(node.EndPoint), key);
+                    Assert.NotNull(node.EndPoint);
+                    string? e = StringGet(conn.GetServer(node.EndPoint), key);
                     Assert.Equal(value, e); // wrong replica, allow redirect
 
                     var ex = Assert.Throws<RedisServerException>(() => StringGet(conn.GetServer(node.EndPoint), key, CommandFlags.NoRedirect));
@@ -212,6 +217,7 @@ namespace StackExchange.Redis.Tests
                     // invent 2 keys that we believe are served by different nodes
                     string x = Guid.NewGuid().ToString(), y;
                     var xNode = config.GetBySlot(x);
+                    Assert.NotNull(xNode);
                     int abort = 1000;
                     do
                     {
@@ -219,6 +225,7 @@ namespace StackExchange.Redis.Tests
                     } while (--abort > 0 && config.GetBySlot(y) == xNode);
                     if (abort == 0) Skip.Inconclusive("failed to find a different node to use");
                     var yNode = config.GetBySlot(y);
+                    Assert.NotNull(yNode);
                     Log("x={0}, served by {1}", x, xNode.NodeId);
                     Log("y={0}, served by {1}", y, yNode.NodeId);
                     Assert.NotEqual(xNode.NodeId, yNode.NodeId);
@@ -275,7 +282,9 @@ namespace StackExchange.Redis.Tests
                     } while (--abort > 0 && config.GetBySlot(y) != xNode);
                     if (abort == 0) Skip.Inconclusive("failed to find a key with the same node to use");
                     var yNode = config.GetBySlot(y);
+                    Assert.NotNull(xNode);
                     Log("x={0}, served by {1}", x, xNode.NodeId);
+                    Assert.NotNull(yNode);
                     Log("y={0}, served by {1}", y, yNode.NodeId);
                     Assert.Equal(xNode.NodeId, yNode.NodeId);
 
@@ -326,7 +335,9 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal(muxer.HashSlot(x), muxer.HashSlot(y));
                 var xNode = config.GetBySlot(x);
                 var yNode = config.GetBySlot(y);
+                Assert.NotNull(xNode);
                 Log("x={0}, served by {1}", x, xNode.NodeId);
+                Assert.NotNull(yNode);
                 Log("y={0}, served by {1}", y, yNode.NodeId);
                 Assert.Equal(xNode.NodeId, yNode.NodeId);
 
@@ -443,6 +454,7 @@ namespace StackExchange.Redis.Tests
                 var endpoints = muxer.GetEndPoints();
                 var server = muxer.GetServer(endpoints[0]);
                 var nodes = server.ClusterNodes();
+                Assert.NotNull(nodes);
 
                 Log("Endpoints:");
                 foreach (var endpoint in endpoints)
@@ -469,6 +481,7 @@ namespace StackExchange.Redis.Tests
                 int slotMovedCount = 0;
                 conn.HashSlotMoved += (s, a) =>
                 {
+                    Assert.NotNull(a.OldEndPoint);
                     Log("{0} moved from {1} to {2}", a.HashSlot, Describe(a.OldEndPoint), Describe(a.NewEndPoint));
                     Interlocked.Increment(ref slotMovedCount);
                 };
@@ -545,6 +558,7 @@ namespace StackExchange.Redis.Tests
                 {
                     var key = Guid.NewGuid().ToString();
                     var endpoint = db.IdentifyEndpoint(key, flags);
+                    Assert.NotNull(endpoint);
                     var server = muxer.GetServer(endpoint);
                     Assert.Equal(isReplica, server.IsReplica);
                 }
@@ -672,13 +686,15 @@ namespace StackExchange.Redis.Tests
                 var rightPrimaryNode = config.GetBySlot(Key);
                 Assert.NotNull(rightPrimaryNode);
 
-                string a = (string)conn.GetServer(rightPrimaryNode.EndPoint).Execute("GET", Key);
+                Assert.NotNull(rightPrimaryNode.EndPoint);
+                string? a = (string?)conn.GetServer(rightPrimaryNode.EndPoint).Execute("GET", Key);
                 Assert.Equal(Value, a); // right primary
 
                 var wrongPrimaryNode = config.Nodes.FirstOrDefault(x => !x.IsReplica && x.NodeId != rightPrimaryNode.NodeId);
                 Assert.NotNull(wrongPrimaryNode);
 
-                string b = (string)conn.GetServer(wrongPrimaryNode.EndPoint).Execute("GET", Key);
+                Assert.NotNull(wrongPrimaryNode.EndPoint);
+                string? b = (string?)conn.GetServer(wrongPrimaryNode.EndPoint).Execute("GET", Key);
                 Assert.Equal(Value, b); // wrong primary, allow redirect
 
                 var msgs = profiler.GetSession().FinishProfiling().ToList();

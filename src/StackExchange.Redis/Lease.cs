@@ -16,7 +16,7 @@ namespace StackExchange.Redis
         /// </summary>
         public static Lease<T> Empty { get; } = new Lease<T>(System.Array.Empty<T>(), 0);
 
-        private T[] _arr;
+        private T[]? _arr;
 
         /// <summary>
         /// The length of the lease.

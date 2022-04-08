@@ -6,7 +6,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
     {
         public TransactionWrapper(ITransaction inner, byte[] prefix) : base(inner, prefix) { }
 
-        public ConditionResult AddCondition(Condition condition) => Inner.AddCondition(condition?.MapKeys(GetMapFunction()));
+        public ConditionResult AddCondition(Condition condition) => Inner.AddCondition(condition.MapKeys(GetMapFunction()));
 
         public bool Execute(CommandFlags flags = CommandFlags.None) => Inner.Execute(flags);
 

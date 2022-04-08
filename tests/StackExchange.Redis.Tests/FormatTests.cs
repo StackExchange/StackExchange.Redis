@@ -39,7 +39,7 @@ namespace StackExchange.Redis.Tests
         [MemberData(nameof(EndpointData))]
         public void ParseEndPoint(string data, EndPoint expected)
         {
-            var result = Format.TryParseEndPoint(data);
+            _ = Format.TryParseEndPoint(data, out var result);
             Assert.Equal(expected, result);
         }
 

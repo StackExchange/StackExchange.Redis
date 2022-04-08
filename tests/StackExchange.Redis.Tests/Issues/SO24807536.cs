@@ -42,7 +42,7 @@ namespace StackExchange.Redis.Tests.Issues
                 Assert.Null(ttl);
                 var r = await fullWait;
                 Assert.True(r.IsNull);
-                Assert.Null((string)r);
+                Assert.Null((string?)r);
             }
         }
     }

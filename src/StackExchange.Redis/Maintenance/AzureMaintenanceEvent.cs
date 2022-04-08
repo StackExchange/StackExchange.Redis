@@ -114,7 +114,7 @@ namespace StackExchange.Redis.Maintenance
             }
         }
 
-        internal async static Task AddListenerAsync(ConnectionMultiplexer multiplexer, Action<string> log = null)
+        internal async static Task AddListenerAsync(ConnectionMultiplexer multiplexer, Action<string>? log = null)
         {
             if (!multiplexer.CommandMap.IsAvailable(RedisCommand.SUBSCRIBE))
             {
@@ -132,7 +132,7 @@ namespace StackExchange.Redis.Maintenance
 
                 await sub.SubscribeAsync(PubSubChannelName, async (_, message) =>
                 {
-                    var newMessage = new AzureMaintenanceEvent(message);
+                    var newMessage = new AzureMaintenanceEvent(message!);
                     newMessage.NotifyMultiplexer(multiplexer);
 
                     switch (newMessage.NotificationType)
@@ -154,7 +154,7 @@ namespace StackExchange.Redis.Maintenance
         /// <summary>
         /// Indicates the type of event (raw string form).
         /// </summary>
-        public string NotificationTypeString { get; }
+        public string NotificationTypeString { get; } = "Unknown";
 
         /// <summary>
         /// The parsed version of <see cref="NotificationTypeString"/> for easier consumption.
@@ -169,7 +169,7 @@ namespace StackExchange.Redis.Maintenance
         /// <summary>
         /// IPAddress of the node event is intended for.
         /// </summary>
-        public IPAddress IPAddress { get; }
+        public IPAddress? IPAddress { get; }
 
         /// <summary>
         /// SSL Port.

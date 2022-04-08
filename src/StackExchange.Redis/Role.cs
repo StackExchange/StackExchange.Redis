@@ -8,6 +8,8 @@ namespace StackExchange.Redis
     /// <remarks>https://redis.io/commands/role</remarks>
     public abstract class Role
     {
+        internal static Unknown Null { get; } = new Unknown("");
+
         /// <summary>
         /// One of "master", "slave" (aka replica), or "sentinel".
         /// </summary>
@@ -62,7 +64,7 @@ namespace StackExchange.Redis
                 }
             }
 
-            internal Master(long offset, ICollection<Replica> replicas) : base(RedisLiterals.master)
+            internal Master(long offset, ICollection<Replica> replicas) : base(RedisLiterals.master!)
             {
                 ReplicationOffset = offset;
                 Replicas = replicas;
@@ -113,9 +115,9 @@ namespace StackExchange.Redis
             /// <summary>
             /// Primary names monitored by this sentinel node.
             /// </summary>
-            public ICollection<string> MonitoredMasters { get; }
+            public ICollection<string?> MonitoredMasters { get; }
 
-            internal Sentinel(ICollection<string> primaries) : base(RedisLiterals.sentinel)
+            internal Sentinel(ICollection<string?> primaries) : base(RedisLiterals.sentinel!)
             {
                 MonitoredMasters = primaries;
             }

@@ -21,10 +21,10 @@ namespace StackExchange.Redis.Tests
             var value = result.AsRedisValue();
 
             Assert.True(value.IsNull);
-            string s = value;
+            string? s = value;
             Assert.Null(s);
 
-            byte[] arr = (byte[])value;
+            byte[]? arr = (byte[]?)value;
             Assert.Null(arr);
         }
 
@@ -38,10 +38,10 @@ namespace StackExchange.Redis.Tests
             var value = result.AsRedisValue();
 
             Assert.True(value.IsNull);
-            var s = (string)value;
+            var s = (string?)value;
             Assert.Null(s);
 
-            var arr = (byte[])value;
+            var arr = (byte[]?)value;
             Assert.Null(arr);
         }
 
@@ -55,10 +55,10 @@ namespace StackExchange.Redis.Tests
             var value = result.AsRedisValue();
 
             Assert.True(value.IsNull);
-            var s = (string)value;
+            var s = (string?)value;
             Assert.Null(s);
 
-            var arr = (byte[])value;
+            var arr = (byte[]?)value;
             Assert.Null(arr);
         }
     }

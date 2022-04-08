@@ -47,8 +47,8 @@ namespace StackExchange.Redis.Tests
                 var key = Me();
 
                 RedisValue[]? values = null;
-                Assert.Throws<ArgumentNullException>(() => db.SetRemove(key, values));
-                await Assert.ThrowsAsync<ArgumentNullException>(async () => await db.SetRemoveAsync(key, values).ForAwait()).ForAwait();
+                Assert.Throws<ArgumentNullException>(() => db.SetRemove(key, values!));
+                await Assert.ThrowsAsync<ArgumentNullException>(async () => await db.SetRemoveAsync(key, values!).ForAwait()).ForAwait();
 
                 values = Array.Empty<RedisValue>();
                 Assert.Equal(0, db.SetRemove(key, values));

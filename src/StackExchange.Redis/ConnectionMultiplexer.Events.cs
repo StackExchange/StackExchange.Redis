@@ -10,8 +10,8 @@ public partial class ConnectionMultiplexer
     /// <summary>
     /// Raised whenever a physical connection fails.
     /// </summary>
-    public event EventHandler<ConnectionFailedEventArgs> ConnectionFailed;
-    internal void OnConnectionFailed(EndPoint endpoint, ConnectionType connectionType, ConnectionFailureType failureType, Exception exception, bool reconfigure, string physicalName)
+    public event EventHandler<ConnectionFailedEventArgs>? ConnectionFailed;
+    internal void OnConnectionFailed(EndPoint endpoint, ConnectionType connectionType, ConnectionFailureType failureType, Exception exception, bool reconfigure, string? physicalName)
     {
         if (_isDisposed) return;
         var handler = ConnectionFailed;
@@ -28,8 +28,8 @@ public partial class ConnectionMultiplexer
     /// <summary>
     /// Raised whenever an internal error occurs (this is primarily for debugging).
     /// </summary>
-    public event EventHandler<InternalErrorEventArgs> InternalError;
-    internal void OnInternalError(Exception exception, EndPoint endpoint = null, ConnectionType connectionType = ConnectionType.None, [CallerMemberName] string origin = null)
+    public event EventHandler<InternalErrorEventArgs>? InternalError;
+    internal void OnInternalError(Exception exception, EndPoint? endpoint = null, ConnectionType connectionType = ConnectionType.None, [CallerMemberName] string? origin = null)
     {
         try
         {
@@ -50,8 +50,8 @@ public partial class ConnectionMultiplexer
     /// <summary>
     /// Raised whenever a physical connection is established.
     /// </summary>
-    public event EventHandler<ConnectionFailedEventArgs> ConnectionRestored;
-    internal void OnConnectionRestored(EndPoint endpoint, ConnectionType connectionType, string physicalName)
+    public event EventHandler<ConnectionFailedEventArgs>? ConnectionRestored;
+    internal void OnConnectionRestored(EndPoint endpoint, ConnectionType connectionType, string? physicalName)
     {
         if (_isDisposed) return;
         var handler = ConnectionRestored;
@@ -65,17 +65,17 @@ public partial class ConnectionMultiplexer
     /// <summary>
     /// Raised when configuration changes are detected.
     /// </summary>
-    public event EventHandler<EndPointEventArgs> ConfigurationChanged;
+    public event EventHandler<EndPointEventArgs>? ConfigurationChanged;
     internal void OnConfigurationChanged(EndPoint endpoint) => OnEndpointChanged(endpoint, ConfigurationChanged);
 
     /// <summary>
     /// Raised when nodes are explicitly requested to reconfigure via broadcast.
     /// This usually means primary/replica changes.
     /// </summary>
-    public event EventHandler<EndPointEventArgs> ConfigurationChangedBroadcast;
+    public event EventHandler<EndPointEventArgs>? ConfigurationChangedBroadcast;
     internal void OnConfigurationChangedBroadcast(EndPoint endpoint) => OnEndpointChanged(endpoint, ConfigurationChangedBroadcast);
 
-    private void OnEndpointChanged(EndPoint endpoint, EventHandler<EndPointEventArgs> handler)
+    private void OnEndpointChanged(EndPoint endpoint, EventHandler<EndPointEventArgs>? handler)
     {
         if (_isDisposed) return;
         if (handler != null)
@@ -87,15 +87,15 @@ public partial class ConnectionMultiplexer
     /// <summary>
     /// Raised when server indicates a maintenance event is going to happen.
     /// </summary>
-    public event EventHandler<ServerMaintenanceEvent> ServerMaintenanceEvent;
+    public event EventHandler<ServerMaintenanceEvent>? ServerMaintenanceEvent;
     internal void OnServerMaintenanceEvent(ServerMaintenanceEvent e) =>
         ServerMaintenanceEvent?.Invoke(this, e);
 
     /// <summary>
     /// Raised when a hash-slot has been relocated.
     /// </summary>
-    public event EventHandler<HashSlotMovedEventArgs> HashSlotMoved;
-    internal void OnHashSlotMoved(int hashSlot, EndPoint old, EndPoint @new)
+    public event EventHandler<HashSlotMovedEventArgs>? HashSlotMoved;
+    internal void OnHashSlotMoved(int hashSlot, EndPoint? old, EndPoint @new)
     {
         var handler = HashSlotMoved;
         if (handler != null)
@@ -107,7 +107,7 @@ public partial class ConnectionMultiplexer
     /// <summary>
     /// Raised when a server replied with an error message.
     /// </summary>
-    public event EventHandler<RedisErrorEventArgs> ErrorMessage;
+    public event EventHandler<RedisErrorEventArgs>? ErrorMessage;
     internal void OnErrorMessage(EndPoint endpoint, string message)
     {
         if (_isDisposed) return;

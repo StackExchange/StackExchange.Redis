@@ -71,7 +71,7 @@ namespace StackExchange.Redis
         /// Compares two values for equality.
         /// </summary>
         /// <param name="obj">The <see cref="SortedSetEntry"/> to compare to.</param>
-        public override bool Equals(object obj) => obj is SortedSetEntry ssObj && Equals(ssObj);
+        public override bool Equals(object? obj) => obj is SortedSetEntry ssObj && Equals(ssObj);
 
         /// <summary>
         /// Compares two values for equality.
@@ -89,7 +89,7 @@ namespace StackExchange.Redis
         /// Compares two values by score.
         /// </summary>
         /// <param name="obj">The <see cref="SortedSetEntry"/> to compare to.</param>
-        public int CompareTo(object obj) => obj is SortedSetEntry ssObj ? CompareTo(ssObj) : -1;
+        public int CompareTo(object? obj) => obj is SortedSetEntry ssObj ? CompareTo(ssObj) : -1;
 
         /// <summary>
         /// Compares two values for equality.

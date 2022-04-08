@@ -40,7 +40,7 @@ namespace StackExchange.Redis.Tests
 
                 Assert.False(fromDb.KeyExists(key), "Exists at source");
                 Assert.True(toDb.KeyExists(key), "Exists at destination");
-                string s = toDb.StringGet(key);
+                string? s = toDb.StringGet(key);
                 Assert.Equal("foo", s);
             }
         }

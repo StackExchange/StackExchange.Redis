@@ -15,13 +15,13 @@ namespace StackExchange.Redis
 
         public static Task ObserveErrors(this Task task)
         {
-            task?.ContinueWith(observeErrors, TaskContinuationOptions.OnlyOnFaulted);
+            task.ContinueWith(observeErrors, TaskContinuationOptions.OnlyOnFaulted);
             return task;
         }
 
         public static Task<T> ObserveErrors<T>(this Task<T> task)
         {
-            task?.ContinueWith(observeErrors, TaskContinuationOptions.OnlyOnFaulted);
+            task.ContinueWith(observeErrors, TaskContinuationOptions.OnlyOnFaulted);
             return task;
         }
 

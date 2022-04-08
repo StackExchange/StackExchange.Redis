@@ -43,7 +43,7 @@ namespace StackExchange.Redis
 
         private bool HasArguments => Arguments?.Length > 0;
 
-        private readonly Hashtable ParameterMappers;
+        private readonly Hashtable? ParameterMappers;
 
         internal LuaScript(string originalScript, string executableScript, string[] arguments)
         {
@@ -87,9 +87,7 @@ namespace StackExchange.Redis
         /// <param name="script">The script to prepare.</param>
         public static LuaScript Prepare(string script)
         {
-            LuaScript ret;
-
-            if (!Cache.TryGetValue(script, out WeakReference weakRef) || (ret = (LuaScript)weakRef.Target) == null)
+            if (!Cache.TryGetValue(script, out WeakReference? weakRef) || weakRef.Target is not LuaScript ret)
             {
                 ret = ScriptParameterMapper.PrepareScript(script);
                 Cache[script] = new WeakReference(ret);
@@ -98,22 +96,22 @@ namespace StackExchange.Redis
             return ret;
         }
 
-        internal void ExtractParameters(object ps, RedisKey? keyPrefix, out RedisKey[] keys, out RedisValue[] args)
+        internal void ExtractParameters(object? ps, RedisKey? keyPrefix, out RedisKey[]? keys, out RedisValue[]? args)
         {
             if (HasArguments)
             {
                 if (ps == null) throw new ArgumentNullException(nameof(ps), "Script requires parameters");
 
                 var psType = ps.GetType();
-                var mapper = (Func<object, RedisKey?, ScriptParameterMapper.ScriptParameters>)ParameterMappers[psType];
+                var mapper = (Func<object, RedisKey?, ScriptParameterMapper.ScriptParameters>?)ParameterMappers![psType];
                 if (mapper == null)
                 {
                     lock (ParameterMappers)
                     {
-                        mapper = (Func<object, RedisKey?, ScriptParameterMapper.ScriptParameters>)ParameterMappers[psType];
+                        mapper = (Func<object, RedisKey?, ScriptParameterMapper.ScriptParameters>?)ParameterMappers[psType];
                         if (mapper == null)
                         {
-                            if (!ScriptParameterMapper.IsValidParameterHash(psType, this, out string missingMember, out string badMemberType))
+                            if (!ScriptParameterMapper.IsValidParameterHash(psType, this, out string? missingMember, out string? badMemberType))
                             {
                                 if (missingMember != null)
                                 {
@@ -146,9 +144,9 @@ namespace StackExchange.Redis
         /// <param name="ps">The parameter object to use.</param>
         /// <param name="withKeyPrefix">The key prefix to use, if any.</param>
         /// <param name="flags">The command flags to use.</param>
-        public RedisResult Evaluate(IDatabase db, object ps = null, RedisKey? withKeyPrefix = null, CommandFlags flags = CommandFlags.None)
+        public RedisResult Evaluate(IDatabase db, object? ps = null, RedisKey? withKeyPrefix = null, CommandFlags flags = CommandFlags.None)
         {
-            ExtractParameters(ps, withKeyPrefix, out RedisKey[] keys, out RedisValue[] args);
+            ExtractParameters(ps, withKeyPrefix, out RedisKey[]? keys, out RedisValue[]? args);
             return db.ScriptEvaluate(ExecutableScript, keys, args, flags);
         }
 
@@ -159,9 +157,9 @@ namespace StackExchange.Redis
         /// <param name="ps">The parameter object to use.</param>
         /// <param name="withKeyPrefix">The key prefix to use, if any.</param>
         /// <param name="flags">The command flags to use.</param>
-        public Task<RedisResult> EvaluateAsync(IDatabaseAsync db, object ps = null, RedisKey? withKeyPrefix = null, CommandFlags flags = CommandFlags.None)
+        public Task<RedisResult> EvaluateAsync(IDatabaseAsync db, object? ps = null, RedisKey? withKeyPrefix = null, CommandFlags flags = CommandFlags.None)
         {
-            ExtractParameters(ps, withKeyPrefix, out RedisKey[] keys, out RedisValue[] args);
+            ExtractParameters(ps, withKeyPrefix, out RedisKey[]? keys, out RedisValue[]? args);
             return db.ScriptEvaluateAsync(ExecutableScript, keys, args, flags);
         }
 
@@ -182,7 +180,7 @@ namespace StackExchange.Redis
             }
 
             var hash = server.ScriptLoad(ExecutableScript, flags);
-            return new LoadedLuaScript(this, hash);
+            return new LoadedLuaScript(this, hash!); // not nullable because fire and forget is disabled
         }
 
         /// <summary>
@@ -201,8 +199,8 @@ namespace StackExchange.Redis
                 throw new ArgumentOutOfRangeException(nameof(flags), "Loading a script cannot be FireAndForget");
             }
 
-            var hash = await server.ScriptLoadAsync(ExecutableScript, flags).ForAwait();
-            return new LoadedLuaScript(this, hash);
+            var hash = await server.ScriptLoadAsync(ExecutableScript, flags).ForAwait()!;
+            return new LoadedLuaScript(this, hash!); // not nullable because fire and forget is disabled
         }
     }
 
@@ -264,9 +262,9 @@ namespace StackExchange.Redis
         /// <param name="ps">The parameter object to use.</param>
         /// <param name="withKeyPrefix">The key prefix to use, if any.</param>
         /// <param name="flags">The command flags to use.</param>
-        public RedisResult Evaluate(IDatabase db, object ps = null, RedisKey? withKeyPrefix = null, CommandFlags flags = CommandFlags.None)
+        public RedisResult Evaluate(IDatabase db, object? ps = null, RedisKey? withKeyPrefix = null, CommandFlags flags = CommandFlags.None)
         {
-            Original.ExtractParameters(ps, withKeyPrefix, out RedisKey[] keys, out RedisValue[] args);
+            Original.ExtractParameters(ps, withKeyPrefix, out RedisKey[]? keys, out RedisValue[]? args);
             return db.ScriptEvaluate(Hash, keys, args, flags);
         }
 
@@ -281,9 +279,9 @@ namespace StackExchange.Redis
         /// <param name="ps">The parameter object to use.</param>
         /// <param name="withKeyPrefix">The key prefix to use, if any.</param>
         /// <param name="flags">The command flags to use.</param>
-        public Task<RedisResult> EvaluateAsync(IDatabaseAsync db, object ps = null, RedisKey? withKeyPrefix = null, CommandFlags flags = CommandFlags.None)
+        public Task<RedisResult> EvaluateAsync(IDatabaseAsync db, object? ps = null, RedisKey? withKeyPrefix = null, CommandFlags flags = CommandFlags.None)
         {
-            Original.ExtractParameters(ps, withKeyPrefix, out RedisKey[] keys, out RedisValue[] args);
+            Original.ExtractParameters(ps, withKeyPrefix, out RedisKey[]? keys, out RedisValue[]? args);
             return db.ScriptEvaluateAsync(Hash, keys, args, flags);
         }
     }

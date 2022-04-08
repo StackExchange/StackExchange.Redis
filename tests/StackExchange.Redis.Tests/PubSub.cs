@@ -59,7 +59,7 @@ namespace StackExchange.Redis.Tests
                 var pub = GetAnyPrimary(muxer);
                 var sub = muxer.GetSubscriber();
                 await PingAsync(pub, sub).ForAwait();
-                HashSet<string> received = new();
+                HashSet<string?> received = new();
                 int secondHandler = 0;
                 string subChannel = (wildCard ? "a*c" : "abc") + breaker;
                 string pubChannel = "abc" + breaker;
@@ -140,7 +140,7 @@ namespace StackExchange.Redis.Tests
                 var sub = muxer.GetSubscriber();
 
                 RedisChannel key = Me() + Guid.NewGuid();
-                HashSet<string> received = new();
+                HashSet<string?> received = new();
                 int secondHandler = 0;
                 await PingAsync(pub, sub).ForAwait();
                 sub.Subscribe(key, (channel, payload) =>
@@ -211,7 +211,7 @@ namespace StackExchange.Redis.Tests
                 var pub = GetAnyPrimary(muxer);
                 var sub = muxer.GetSubscriber();
 
-                HashSet<string> received = new();
+                HashSet<string?> received = new();
                 int secondHandler = 0;
                 sub.Subscribe("a*c", (channel, payload) =>
                 {
@@ -332,7 +332,7 @@ namespace StackExchange.Redis.Tests
                     bool pulse;
                     lock (data)
                     {
-                        data.Add(int.Parse(Encoding.UTF8.GetString(val)));
+                        data.Add(int.Parse(Encoding.UTF8.GetString(val!)));
                         pulse = data.Count == count;
                         if ((data.Count % 100) == 99) Log(data.Count.ToString());
                     }
@@ -384,7 +384,7 @@ namespace StackExchange.Redis.Tests
                     while (!subChannel.Completion.IsCompleted)
                     {
                         var work = await subChannel.ReadAsync().ForAwait();
-                        int i = int.Parse(Encoding.UTF8.GetString(work.Message));
+                        int i = int.Parse(Encoding.UTF8.GetString(work.Message!));
                         lock (data)
                         {
                             data.Add(i);
@@ -451,7 +451,7 @@ namespace StackExchange.Redis.Tests
                 var subChannel = await sub.SubscribeAsync(channel).ForAwait();
                 subChannel.OnMessage(msg =>
                 {
-                    int i = int.Parse(Encoding.UTF8.GetString(msg.Message));
+                    int i = int.Parse(Encoding.UTF8.GetString(msg.Message!));
                     bool pulse = false;
                     lock (data)
                     {
@@ -520,7 +520,7 @@ namespace StackExchange.Redis.Tests
                 var subChannel = await sub.SubscribeAsync(channel).ForAwait();
                 subChannel.OnMessage(msg =>
                 {
-                    int i = int.Parse(Encoding.UTF8.GetString(msg.Message));
+                    int i = int.Parse(Encoding.UTF8.GetString(msg.Message!));
                     bool pulse = false;
                     lock (data)
                     {
@@ -535,7 +535,8 @@ namespace StackExchange.Redis.Tests
                             Monitor.PulseAll(syncLock);
                         }
                     }
-                    return i % 2 == 0 ? null : Task.CompletedTask;
+                    // Making sure we cope with null being returned here by a handler
+                    return i % 2 == 0 ? null! : Task.CompletedTask;
                 });
                 await sub.PingAsync().ForAwait();
 
