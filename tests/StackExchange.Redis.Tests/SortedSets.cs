@@ -57,7 +57,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetPop), r => r.SortedSetPop);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
                 var key = Me();
@@ -83,7 +83,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetPop), r => r.SortedSetPop);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
                 var key = Me();
@@ -108,7 +108,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetPop), r => r.SortedSetPop);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
                 var key = Me();
@@ -134,7 +134,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetPop), r => r.SortedSetPop);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
                 var key = Me();
@@ -159,7 +159,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetPop), r => r.SortedSetPop);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
                 var key = Me();
@@ -181,7 +181,7 @@ namespace StackExchange.Redis.Tests
         public async Task SortedSetRangeStoreByRankAsync()
         {
             using var conn = Create();
-            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
             var db = conn.GetDatabase();
             var me = Me();
             var sourceKey = $"{me}:ZSetSource";
@@ -197,7 +197,7 @@ namespace StackExchange.Redis.Tests
         public async Task SortedSetRangeStoreByRankLimitedAsync()
         {
             using var conn = Create();
-            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
 
             var db = conn.GetDatabase();
             var me = Me();
@@ -219,7 +219,7 @@ namespace StackExchange.Redis.Tests
         public async Task SortedSetRangeStoreByScoreAsync()
         {
             using var conn = Create();
-            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
 
             var db = conn.GetDatabase();
             var me = Me();
@@ -241,7 +241,7 @@ namespace StackExchange.Redis.Tests
         public async Task SortedSetRangeStoreByScoreAsyncDefault()
         {
             using var conn = Create();
-            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
 
             var db = conn.GetDatabase();
             var me = Me();
@@ -263,7 +263,7 @@ namespace StackExchange.Redis.Tests
         public async Task SortedSetRangeStoreByScoreAsyncLimited()
         {
             using var conn = Create();
-            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
 
             var db = conn.GetDatabase();
             var me = Me();
@@ -285,7 +285,7 @@ namespace StackExchange.Redis.Tests
         public async Task SortedSetRangeStoreByScoreAsyncExclusiveRange()
         {
             using var conn = Create();
-            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
 
             var db = conn.GetDatabase();
             var me = Me();
@@ -307,7 +307,7 @@ namespace StackExchange.Redis.Tests
         public async Task SortedSetRangeStoreByScoreAsyncReverse()
         {
             using var conn = Create();
-            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
 
             var db = conn.GetDatabase();
             var me = Me();
@@ -329,7 +329,7 @@ namespace StackExchange.Redis.Tests
         public async Task SortedSetRangeStoreByLexAsync()
         {
             using var conn = Create();
-            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
 
             var db = conn.GetDatabase();
             var me = Me();
@@ -351,7 +351,7 @@ namespace StackExchange.Redis.Tests
         public async Task SortedSetRangeStoreByLexExclusiveRangeAsync()
         {
             using var conn = Create();
-            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
 
             var db = conn.GetDatabase();
             var me = Me();
@@ -373,7 +373,7 @@ namespace StackExchange.Redis.Tests
         public async Task SortedSetRangeStoreByLexRevRangeAsync()
         {
             using var conn = Create();
-            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
 
             var db = conn.GetDatabase();
             var me = Me();
@@ -395,7 +395,7 @@ namespace StackExchange.Redis.Tests
         public void SortedSetRangeStoreByRank()
         {
             using var conn = Create();
-            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
 
             var db = conn.GetDatabase();
             var me = Me();
@@ -412,7 +412,7 @@ namespace StackExchange.Redis.Tests
         public void SortedSetRangeStoreByRankLimited()
         {
             using var conn = Create();
-            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
 
             var db = conn.GetDatabase();
             var me = Me();
@@ -434,7 +434,7 @@ namespace StackExchange.Redis.Tests
         public void SortedSetRangeStoreByScore()
         {
             using var conn = Create();
-            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
 
             var db = conn.GetDatabase();
             var me = Me();
@@ -456,7 +456,7 @@ namespace StackExchange.Redis.Tests
         public void SortedSetRangeStoreByScoreDefault()
         {
             using var conn = Create();
-            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
 
             var db = conn.GetDatabase();
             var me = Me();
@@ -478,7 +478,7 @@ namespace StackExchange.Redis.Tests
         public void SortedSetRangeStoreByScoreLimited()
         {
             using var conn = Create();
-            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
 
             var db = conn.GetDatabase();
             var me = Me();
@@ -500,7 +500,7 @@ namespace StackExchange.Redis.Tests
         public void SortedSetRangeStoreByScoreExclusiveRange()
         {
             using var conn = Create();
-            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
 
             var db = conn.GetDatabase();
             var me = Me();
@@ -522,7 +522,7 @@ namespace StackExchange.Redis.Tests
         public void SortedSetRangeStoreByScoreReverse()
         {
             using var conn = Create();
-            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
 
             var db = conn.GetDatabase();
             var me = Me();
@@ -544,7 +544,7 @@ namespace StackExchange.Redis.Tests
         public void SortedSetRangeStoreByLex()
         {
             using var conn = Create();
-            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
 
             var db = conn.GetDatabase();
             var me = Me();
@@ -566,7 +566,7 @@ namespace StackExchange.Redis.Tests
         public void SortedSetRangeStoreByLexExclusiveRange()
         {
             using var conn = Create();
-            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
 
             var db = conn.GetDatabase();
             var me = Me();
@@ -588,7 +588,7 @@ namespace StackExchange.Redis.Tests
         public void SortedSetRangeStoreByLexRevRange()
         {
             using var conn = Create();
-            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
 
             var db = conn.GetDatabase();
             var me = Me();
@@ -610,7 +610,7 @@ namespace StackExchange.Redis.Tests
         public void SortedSetRangeStoreFailErroneousTake()
         {
             using var conn = Create();
-            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
 
             var db = conn.GetDatabase();
             var me = Me();
@@ -627,7 +627,7 @@ namespace StackExchange.Redis.Tests
         public void SortedSetRangeStoreFailExclude()
         {
             using var conn = Create();
-            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
 
             var db = conn.GetDatabase();
             var me = Me();

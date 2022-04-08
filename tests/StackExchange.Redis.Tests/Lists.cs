@@ -86,7 +86,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.PushMultiple), f => f.PushMultiple);
+                Skip.IfBelow(conn, RedisFeatures.v4_0_0);
                 var db = conn.GetDatabase();
                 RedisKey key = "testlist";
                 db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -156,7 +156,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.PushMultiple), f => f.PushMultiple);
+                Skip.IfBelow(conn, RedisFeatures.v4_0_0);
                 var db = conn.GetDatabase();
                 RedisKey key = "testlist";
                 db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -226,7 +226,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.PushMultiple), f => f.PushMultiple);
+                Skip.IfBelow(conn, RedisFeatures.v4_0_0);
                 var db = conn.GetDatabase();
                 RedisKey key = "testlist";
                 db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -296,7 +296,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.PushMultiple), f => f.PushMultiple);
+                Skip.IfBelow(conn, RedisFeatures.v4_0_0);
                 var db = conn.GetDatabase();
                 RedisKey key = "testlist";
                 db.KeyDelete(key, CommandFlags.FireAndForget);
