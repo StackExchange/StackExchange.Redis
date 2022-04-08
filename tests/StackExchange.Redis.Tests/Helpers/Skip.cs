@@ -24,6 +24,18 @@ namespace StackExchange.Redis.Tests
             }
         }
 
+        public static void IfBelow(IConnectionMultiplexer conn, Version minVersion)
+        {
+            var serverVersion = conn.GetServer(conn.GetEndPoints()[0]).Version;
+            if (minVersion > serverVersion)
+            {
+                throw new SkipTestException($"Requires server version {minVersion}, but server is only {serverVersion}.")
+                {
+                    MissingFeatures = $"Server version >= {minVersion}."
+                };
+            }
+        }
+
         public static void IfMissingFeature(IConnectionMultiplexer conn, string feature, Func<RedisFeatures, bool> check)
         {
             var features = conn.GetServer(conn.GetEndPoints()[0]).Features;

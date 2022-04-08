@@ -77,11 +77,6 @@ namespace StackExchange.Redis
         public bool GetDelete => Version >= v6_2_0;
 
         /// <summary>
-        /// Does GETEX exist?
-        /// </summary>
-        internal bool GetEx => Version >= v6_2_0;
-
-        /// <summary>
         /// Is HSTRLEN available?
         /// </summary>
         public bool HashStringLength => Version >= v3_2_0;
