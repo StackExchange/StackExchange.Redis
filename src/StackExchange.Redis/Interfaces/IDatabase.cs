@@ -778,7 +778,7 @@ namespace StackExchange.Redis
         /// <param name="sourceSide">What side of the <paramref name="sourceKey"/> list to remove from.</param>
         /// <param name="destinationSide">What side of the <paramref name="destinationKey"/> list to move to.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The element being popped and pushed or null if there is no element to move.</returns>
+        /// <returns>The element being popped and pushed or <see cref="RedisValue.Null"/> if there is no element to move.</returns>
         /// <remarks>https://redis.io/commands/lmove</remarks>
         RedisValue ListMove(RedisKey sourceKey, RedisKey destinationKey, ListSide sourceSide, ListSide destinationSide, CommandFlags flags = CommandFlags.None);
 
