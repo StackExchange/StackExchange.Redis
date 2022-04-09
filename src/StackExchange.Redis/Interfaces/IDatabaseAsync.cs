@@ -746,17 +746,17 @@ namespace StackExchange.Redis
         Task<long> ListLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Returns and removes the first/last element of the list stored at source, and pushes the element
-        /// at the first/last element of the list stored at destination.
+        /// Returns and removes the first or last element of the list stored at <paramref name="sourceKey"/>, and pushes the element
+        /// as the first or last element of the list stored at <paramref name="destinationKey"/>.
         /// </summary>
         /// <param name="sourceKey">The key of the list to remove from.</param>
         /// <param name="destinationKey">The key of the list to move to.</param>
-        /// <param name="whereFrom">What side of the list to remove from.</param>
-        /// <param name="whereTo">What side of the list to move to.</param>
+        /// <param name="sourceSide">What side of the <paramref name="sourceKey"/> list to remove from.</param>
+        /// <param name="destinationSide">What side of the <paramref name="destinationKey"/> list to move to.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The element being popped and pushed or null if there is no element to move.</returns>
         /// <remarks>https://redis.io/commands/lmove</remarks>
-        Task<RedisValue> ListMoveAsync(RedisKey sourceKey, RedisKey destinationKey, ListSide whereFrom, ListSide whereTo, CommandFlags flags = CommandFlags.None);
+        Task<RedisValue> ListMoveAsync(RedisKey sourceKey, RedisKey destinationKey, ListSide sourceSide, ListSide destinationSide, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Returns the specified elements of the list stored at key.

@@ -203,8 +203,8 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public long ListLength(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.ListLength(ToInner(key), flags);
 
-        public RedisValue ListMove(RedisKey source, RedisKey destination, ListSide whereFrom, ListSide whereTo, CommandFlags flags = CommandFlags.None) =>
-            Inner.ListMove(ToInner(source), ToInner(destination), whereFrom, whereTo);
+        public RedisValue ListMove(RedisKey sourceKey, RedisKey destinationKey, ListSide sourceSide, ListSide destinationSide, CommandFlags flags = CommandFlags.None) =>
+            Inner.ListMove(ToInner(sourceKey), ToInner(destinationKey), sourceSide, destinationSide);
 
         public RedisValue[] ListRange(RedisKey key, long start = 0, long stop = -1, CommandFlags flags = CommandFlags.None) =>
             Inner.ListRange(ToInner(key), start, stop, flags);
