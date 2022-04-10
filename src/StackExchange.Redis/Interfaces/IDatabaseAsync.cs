@@ -1079,6 +1079,19 @@ namespace StackExchange.Redis
         Task<bool> SetContainsAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Returns whether each member is a member of the set stored at key.
+        /// </summary>
+        /// <param name="key">The key of the set.</param>
+        /// <param name="values">The members to check for.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>
+        /// <see langword="true"/> if the element is a member of the set.
+        /// <see langword="false"/> if the element is not a member of the set, or if key does not exist.
+        /// </returns>
+        /// <remarks>https://redis.io/commands/smismember</remarks>
+        Task<bool[]> SetContainsAsync(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Returns the set cardinality (number of elements) of the set stored at key.
         /// </summary>
         /// <param name="key">The key of the set.</param>

@@ -301,6 +301,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<bool> SetContainsAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None) =>
             Inner.SetContainsAsync(ToInner(key), value, flags);
 
+        public Task<bool[]> SetContainsAsync(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None) =>
+            Inner.SetContainsAsync(ToInner(key), values, flags);
+
         public Task<long> SetLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.SetLengthAsync(ToInner(key), flags);
 
@@ -532,7 +535,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public Task<RedisValue> StringGetAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.StringGetAsync(ToInner(key), flags);
-            
+
         public Task<RedisValue> StringGetSetExpiryAsync(RedisKey key, TimeSpan? expiry, CommandFlags flags = CommandFlags.None) =>
             Inner.StringGetSetExpiryAsync(ToInner(key), expiry, flags);
 

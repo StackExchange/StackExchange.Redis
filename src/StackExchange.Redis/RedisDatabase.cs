@@ -1371,6 +1371,18 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Boolean);
         }
 
+        public bool[] SetContains(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.SMISMEMBER, key, values);
+            return ExecuteSync(msg, ResultProcessor.BooleanArray, defaultValue: Array.Empty<bool>());
+        }
+
+        public Task<bool[]> SetContainsAsync(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.SMISMEMBER, key, values);
+            return ExecuteAsync(msg, ResultProcessor.BooleanArray, defaultValue: Array.Empty<bool>());
+        }
+
         public long SetLength(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.SCARD, key);

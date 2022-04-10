@@ -39,6 +39,31 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void SetContains()
+        {
+            using (var conn = Create())
+            {
+                var server = GetAnyPrimary(conn);
+
+                RedisKey key = Me();
+                var db = conn.GetDatabase();
+                for (int i = 1; i < 1001; i++)
+                {
+                    db.SetAdd(key, i, CommandFlags.FireAndForget);
+                }
+
+                // Single member
+                var isMemeber = db.SetContains(key, 1);
+                Assert.True(isMemeber);
+
+                // Multi members
+                var areMemebers = db.SetContains(key, new RedisValue[] {1, 2, 3});
+                Assert.Equal(3, areMemebers.Length);
+                Assert.True(areMemebers[1]);
+            }
+        }
+
+        [Fact]
         public async Task SetRemoveArgTests()
         {
             using (var conn = Create())
