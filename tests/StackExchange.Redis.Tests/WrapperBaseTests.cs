@@ -711,6 +711,14 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void SortedSetIntersectionLengthAsync()
+        {
+            RedisKey[] keys = new RedisKey[] { "a", "b" };
+            wrapper.SortedSetIntersectionLengthAsync(keys, 1, CommandFlags.None);
+            mock.Verify(_ => _.SortedSetIntersectionLengthAsync(keys, 1, CommandFlags.None));
+        }
+
+        [Fact]
         public void SortedSetLengthAsync()
         {
             wrapper.SortedSetLengthAsync("key", 1.23, 1.23, Exclude.Start, CommandFlags.None);
