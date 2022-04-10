@@ -709,6 +709,27 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void SortedSetRandomMemberAsync_1()
+        {
+            wrapper.SortedSetRandomMemberAsync("key", CommandFlags.None);
+            mock.Verify(_ => _.SortedSetRandomMemberAsync("prefix:key", CommandFlags.None));
+        }
+
+        [Fact]
+        public void SortedSetRandomMemberAsync_2()
+        {
+            wrapper.SortedSetRandomMemberAsync("key", 2, CommandFlags.None);
+            mock.Verify(_ => _.SortedSetRandomMemberAsync("prefix:key", 2, CommandFlags.None));
+        }
+
+        [Fact]
+        public void SortedSetRandomMemberWithScoresAsync()
+        {
+            wrapper.SortedSetRandomMemberWithScoresAsync("key", 2, CommandFlags.None);
+            mock.Verify(_ => _.SortedSetRandomMemberWithScoresAsync("prefix:key", 2, CommandFlags.None));
+        }
+
+        [Fact]
         public void SortedSetRangeByRankAsync()
         {
             wrapper.SortedSetRangeByRankAsync("key", 123, 456, Order.Descending, CommandFlags.None);

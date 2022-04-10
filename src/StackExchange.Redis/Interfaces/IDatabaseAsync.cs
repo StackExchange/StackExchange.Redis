@@ -1356,6 +1356,37 @@ namespace StackExchange.Redis
         Task<long> SortedSetLengthByValueAsync(RedisKey key, RedisValue min, RedisValue max, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Returns a random element from the sorted set value stored at key.
+        /// </summary>
+        /// <param name="key">The key of the sorted set.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The randomly selected element.</returns>
+        /// <remarks>https://redis.io/commands/zrandmember</remarks>
+        Task<RedisValue> SortedSetRandomMemberAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Returns an array of random elements from the sorted set value stored at key.
+        /// </summary>
+        /// <param name="key">The key of the sorted set.</param>
+        /// <param name="count">If the provided count argument is positive, return an array of distinct elements. The array's length is either count or the sorted set's cardinality (ZCARD), whichever is lower.
+        /// If called with a negative count, the behavior changes and the command is allowed to return the same element multiple times. In this case, the number of returned elements is the absolute value of the specified count.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The randomly selected elements.</returns>
+        /// <remarks>https://redis.io/commands/zrandmember</remarks>
+        Task<RedisValue[]> SortedSetRandomMemberAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Returns an array of random elements from the sorted set value stored at key.
+        /// </summary>
+        /// <param name="key">The key of the sorted set.</param>
+        /// <param name="count">If the provided count argument is positive, return an array of distinct elements. The array's length is either count or the sorted set's cardinality (ZCARD), whichever is lower.
+        /// If called with a negative count, the behavior changes and the command is allowed to return the same element multiple times. In this case, the number of returned elements is the absolute value of the specified count.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The randomly selected elements with scores.</returns>
+        /// <remarks>https://redis.io/commands/zrandmember</remarks>
+        Task<SortedSetEntry[]> SortedSetRandomMemberWithScoresAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Returns the specified range of elements in the sorted set stored at key.
         /// By default the elements are considered to be ordered from the lowest to the highest score.
         /// Lexicographical order is used for elements with equal score.

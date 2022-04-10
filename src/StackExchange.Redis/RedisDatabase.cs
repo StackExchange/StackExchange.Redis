@@ -1638,6 +1638,42 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
+        public RedisValue SortedSetRandomMember(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.ZRANDMEMBER, key);
+            return ExecuteSync(msg, ResultProcessor.RedisValue);
+        }
+
+        public RedisValue[] SortedSetRandomMember(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.ZRANDMEMBER, key, count);
+            return ExecuteSync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
+        }
+
+        public SortedSetEntry[] SortedSetRandomMemberWithScores(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.ZRANDMEMBER, key, count, RedisLiterals.WITHSCORES);
+            return ExecuteSync(msg, ResultProcessor.SortedSetWithScores, defaultValue: Array.Empty<SortedSetEntry>());
+        }
+
+        public Task<RedisValue> SortedSetRandomMemberAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.ZRANDMEMBER, key);
+            return ExecuteAsync(msg, ResultProcessor.RedisValue);
+        }
+
+        public Task<RedisValue[]> SortedSetRandomMemberAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.ZRANDMEMBER, key, count);
+            return ExecuteAsync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
+        }
+
+        public Task<SortedSetEntry[]> SortedSetRandomMemberWithScoresAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.ZRANDMEMBER, key, count, RedisLiterals.WITHSCORES);
+            return ExecuteAsync(msg, ResultProcessor.SortedSetWithScores, defaultValue: Array.Empty<SortedSetEntry>());
+        }
+
         public RedisValue[] SortedSetRangeByRank(RedisKey key, long start = 0, long stop = -1, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, order == Order.Descending ? RedisCommand.ZREVRANGE : RedisCommand.ZRANGE, key, start, stop);

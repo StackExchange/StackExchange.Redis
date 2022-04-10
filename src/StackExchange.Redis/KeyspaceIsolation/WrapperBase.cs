@@ -367,6 +367,15 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<long> SortedSetLengthByValueAsync(RedisKey key, RedisValue min, RedisValue max, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetLengthByValueAsync(ToInner(key), min, max, exclude, flags);
 
+        public Task<RedisValue> SortedSetRandomMemberAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
+            Inner.SortedSetRandomMemberAsync(ToInner(key), flags);
+
+        public Task<RedisValue[]> SortedSetRandomMemberAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None) =>
+            Inner.SortedSetRandomMemberAsync(ToInner(key), count, flags);
+
+        public Task<SortedSetEntry[]> SortedSetRandomMemberWithScoresAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None) =>
+            Inner.SortedSetRandomMemberWithScoresAsync(ToInner(key), count, flags);
+
         public Task<long> SortedSetRangeAndStoreAsync(
             RedisKey sourceKey,
             RedisKey destinationKey,
@@ -532,7 +541,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public Task<RedisValue> StringGetAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.StringGetAsync(ToInner(key), flags);
-            
+
         public Task<RedisValue> StringGetSetExpiryAsync(RedisKey key, TimeSpan? expiry, CommandFlags flags = CommandFlags.None) =>
             Inner.StringGetSetExpiryAsync(ToInner(key), expiry, flags);
 
