@@ -192,7 +192,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create())
             {
-                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.GetDelete), r => r.GetDelete);
+                Skip.IfBelow(muxer, RedisFeatures.v6_2_0);
 
                 var conn = muxer.GetDatabase();
                 var prefix = Me();
@@ -217,7 +217,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create())
             {
-                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.GetDelete), r => r.GetDelete);
+                Skip.IfBelow(muxer, RedisFeatures.v6_2_0);
 
                 var conn = muxer.GetDatabase();
                 var prefix = Me();
@@ -279,7 +279,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create())
             {
-                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.SetKeepTtl), r => r.SetKeepTtl);
+                Skip.IfBelow(muxer, RedisFeatures.v6_0_0);
 
                 var conn = muxer.GetDatabase();
                 var prefix = Me();
@@ -320,7 +320,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create())
             {
-                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.SetAndGet), r => r.SetAndGet);
+                Skip.IfBelow(muxer, RedisFeatures.v6_2_0);
 
                 var conn = muxer.GetDatabase();
                 var prefix = Me();
@@ -391,7 +391,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create())
             {
-                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.SetNotExistsAndGet), r => r.SetNotExistsAndGet);
+                Skip.IfBelow(muxer, RedisFeatures.v7_0_0_rc1);
 
                 var conn = muxer.GetDatabase();
                 var prefix = Me();
@@ -424,7 +424,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create())
             {
-                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.StringSetRange), r => r.StringSetRange);
+                Skip.IfBelow(muxer, RedisFeatures.v2_1_8);
                 var conn = muxer.GetDatabase();
                 var key = Me();
 
@@ -473,7 +473,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create())
             {
-                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.IncrementFloat), r => r.IncrementFloat);
+                Skip.IfBelow(muxer, RedisFeatures.v2_6_0);
                 var conn = muxer.GetDatabase();
                 var key = Me();
                 conn.KeyDelete(key, CommandFlags.FireAndForget);
@@ -521,7 +521,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create())
             {
-                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.BitwiseOperations), r => r.BitwiseOperations);
+                Skip.IfBelow(muxer, RedisFeatures.v2_6_0);
 
                 var conn = muxer.GetDatabase();
                 var key = Me();
@@ -541,7 +541,8 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create())
             {
-                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.BitwiseOperations), r => r.BitwiseOperations);
+                Skip.IfBelow(muxer, RedisFeatures.v2_6_0);
+
                 var conn = muxer.GetDatabase();
                 var prefix = Me();
                 var key1 = prefix + "1";
@@ -591,7 +592,8 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.HashStringLength), r => r.HashStringLength);
+                Skip.IfBelow(conn, RedisFeatures.v3_2_0);
+
                 var database = conn.GetDatabase();
                 var key = Me();
                 const string value = "hello world";
@@ -608,7 +610,8 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.HashStringLength), r => r.HashStringLength);
+                Skip.IfBelow(conn, RedisFeatures.v3_2_0);
+
                 var database = conn.GetDatabase();
                 var key = Me();
                 const string value = "hello world";

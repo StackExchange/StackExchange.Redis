@@ -14,7 +14,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Memory), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v4_0_0);
                 var server = conn.GetServer(conn.GetEndPoints()[0]);
                 string? doctor = server.MemoryDoctor();
                 Assert.NotNull(doctor);
@@ -31,7 +31,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Memory), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v4_0_0);
                 var server = conn.GetServer(conn.GetEndPoints()[0]);
                 server.MemoryPurge();
                 await server.MemoryPurgeAsync();
@@ -45,7 +45,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Memory), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v4_0_0);
                 var server = conn.GetServer(conn.GetEndPoints()[0]);
 
                 var stats = server.MemoryAllocatorStats();
@@ -61,7 +61,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Memory), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v4_0_0);
                 var server = conn.GetServer(conn.GetEndPoints()[0]);
                 var stats = server.MemoryStats();
                 Assert.NotNull(stats);

@@ -7,8 +7,9 @@
   - Fixes a few internal edge cases that will now throw proper errors (rather than a downstream null reference)
   - Fixes inconsistencies with `null` vs. empty array returns (preferring an not-null empty array in those edge cases)
   - Note: does *not* increment a major version (as these are warnings to consumers), because: they're warnings (errors are opt-in), removing obsolete types with a 3.0 rev _would_ be binary breaking (this isn't), and reving to 3.0 would cause binding redirect pain for consumers. Bumping from 2.5 to 2.6 only for this change.
-- Adds: Support for `COPY` ([#2064 by Avital-Fine](https://github.com/StackExchange/StackExchange.Redis/pull/2064))
-- Adds: Support for `ZRANDMEMBER` ([#2076 by Avital-Fine](https://github.com/StackExchange/StackExchange.Redis/pull/2076))
+- Adds: Support for `COPY` with `.KeyCopy()`/`.KeyCopyAsync()` ([#2064 by Avital-Fine](https://github.com/StackExchange/StackExchange.Redis/pull/2064))
+- Adds: Support for `LMOVE` with `.ListMove()`/`.ListMoveAsync()` ([#2065 by Avital-Fine](https://github.com/StackExchange/StackExchange.Redis/pull/2065))
+- Adds: Support for `ZRANDMEMBER` with `.SortedSetRandomMember()`/`.SortedSetRandomMemberAsync()`, `.SortedSetRandomMembers()`/`.SortedSetRandomMembersAsync()`, and `.SortedSetRandomMembersWithScores()`/`.SortedSetRandomMembersWithScoresAsync()` ([#2076 by Avital-Fine](https://github.com/StackExchange/StackExchange.Redis/pull/2076))
 
 ## 2.5.61
 
