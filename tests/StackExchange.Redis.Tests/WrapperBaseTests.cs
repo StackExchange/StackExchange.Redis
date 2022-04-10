@@ -373,6 +373,13 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void ListMoveAsync()
+        {
+            wrapper.ListMoveAsync("key", "destination", ListSide.Left, ListSide.Right, CommandFlags.None);
+            mock.Verify(_ => _.ListMoveAsync("prefix:key", "prefix:destination", ListSide.Left, ListSide.Right, CommandFlags.None));
+        }
+
+        [Fact]
         public void ListRangeAsync()
         {
             wrapper.ListRangeAsync("key", 123, 456, CommandFlags.None);

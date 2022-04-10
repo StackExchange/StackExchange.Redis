@@ -213,6 +213,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<long> ListLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.ListLengthAsync(ToInner(key), flags);
 
+        public Task<RedisValue> ListMoveAsync(RedisKey sourceKey, RedisKey destinationKey, ListSide sourceSide, ListSide destinationSide, CommandFlags flags = CommandFlags.None) =>
+            Inner.ListMoveAsync(ToInner(sourceKey), ToInner(destinationKey), sourceSide, destinationSide);
+
         public Task<RedisValue[]> ListRangeAsync(RedisKey key, long start = 0, long stop = -1, CommandFlags flags = CommandFlags.None) =>
             Inner.ListRangeAsync(ToInner(key), start, stop, flags);
 
@@ -532,7 +535,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public Task<RedisValue> StringGetAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.StringGetAsync(ToInner(key), flags);
-            
+
         public Task<RedisValue> StringGetSetExpiryAsync(RedisKey key, TimeSpan? expiry, CommandFlags flags = CommandFlags.None) =>
             Inner.StringGetSetExpiryAsync(ToInner(key), expiry, flags);
 
