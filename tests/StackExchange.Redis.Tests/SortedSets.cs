@@ -38,6 +38,15 @@ namespace StackExchange.Redis.Tests
             new SortedSetEntry("j", 512)
         };
 
+        private static readonly SortedSetEntry[] entriesPow3 = new SortedSetEntry[]
+        {
+            new SortedSetEntry("a", 1),
+            new SortedSetEntry("c", 4),
+            new SortedSetEntry("e", 16),
+            new SortedSetEntry("g", 64),
+            new SortedSetEntry("i", 256),
+        };
+
         private static readonly SortedSetEntry[] lexEntries = new SortedSetEntry[]
         {
             new SortedSetEntry("a", 0),
@@ -51,6 +60,153 @@ namespace StackExchange.Redis.Tests
             new SortedSetEntry("i", 0),
             new SortedSetEntry("j", 0)
         };
+
+        [Fact]
+        public void SortedSetCombine()
+        {
+            using (var conn = Create())
+            {
+                Skip.IfBelow(conn, RedisFeatures.v6_2_0);
+
+                var db = conn.GetDatabase();
+                var key1 = Me();
+                db.KeyDelete(key1, CommandFlags.FireAndForget);
+                var key2 = Me() + "2";
+                db.KeyDelete(key2, CommandFlags.FireAndForget);
+
+                db.SortedSetAdd(key1, entries);
+                db.SortedSetAdd(key2, entriesPow3);
+
+                var diff = db.SortedSetCombine(SetOperation.Difference, new RedisKey[]{ key1, key2});
+                Assert.Equal(5, diff.Length);
+                Assert.Equal("b", diff[0]);
+
+                var inter = db.SortedSetCombine(SetOperation.Intersect, new RedisKey[]{ key1, key2});
+                Assert.Equal(5, inter.Length);
+                Assert.Equal("a", inter[0]);
+
+                var union = db.SortedSetCombine(SetOperation.Union, new RedisKey[]{ key1, key2});
+                Assert.Equal(10, union.Length);
+                Assert.Equal("a", union[0]);
+            }
+        }
+
+        [Fact]
+        public void SortedSetCombineWithScores()
+        {
+            using (var conn = Create())
+            {
+                Skip.IfBelow(conn, RedisFeatures.v6_2_0);
+
+                var db = conn.GetDatabase();
+                var key1 = Me();
+                db.KeyDelete(key1, CommandFlags.FireAndForget);
+                var key2 = Me() + "2";
+                db.KeyDelete(key2, CommandFlags.FireAndForget);
+
+                db.SortedSetAdd(key1, entries);
+                db.SortedSetAdd(key2, entriesPow3);
+
+                var diff = db.SortedSetCombineWithScores(SetOperation.Difference, new RedisKey[]{ key1, key2});
+                Assert.Equal(5, diff.Length);
+                Assert.Equal(new SortedSetEntry("b", 2), diff[0]);
+
+                var inter = db.SortedSetCombineWithScores(SetOperation.Intersect, new RedisKey[]{ key1, key2});
+                Assert.Equal(5, inter.Length);
+                Assert.Equal(new SortedSetEntry("a", 2), inter[0]);
+
+                var union = db.SortedSetCombineWithScores(SetOperation.Union, new RedisKey[]{ key1, key2});
+                Assert.Equal(10, union.Length);
+                Assert.Equal(new SortedSetEntry("a", 2), union[0]);
+            }
+        }
+
+        [Fact]
+        public void SortedSetCombineAndStore()
+        {
+            using (var conn = Create())
+            {
+                Skip.IfBelow(conn, RedisFeatures.v6_2_0);
+
+                var db = conn.GetDatabase();
+                var key1 = Me();
+                db.KeyDelete(key1, CommandFlags.FireAndForget);
+                var key2 = Me() + "2";
+                db.KeyDelete(key2, CommandFlags.FireAndForget);
+                var destination = Me() + "dest";
+                db.KeyDelete(destination, CommandFlags.FireAndForget);
+
+                db.SortedSetAdd(key1, entries);
+                db.SortedSetAdd(key2, entriesPow3);
+
+                var diff = db.SortedSetCombineAndStore(SetOperation.Difference, destination, new RedisKey[]{ key1, key2});
+                Assert.Equal(5, diff);
+
+                var inter = db.SortedSetCombineAndStore(SetOperation.Intersect, destination, new RedisKey[]{ key1, key2});
+                Assert.Equal(5, inter);
+
+                var union = db.SortedSetCombineAndStore(SetOperation.Union, destination, new RedisKey[]{ key1, key2});
+                Assert.Equal(10, union);
+            }
+        }
+
+        [Fact]
+        public void SortedSetCombineErrors()
+        {
+            using (var conn = Create())
+            {
+                Skip.IfBelow(conn, RedisFeatures.v6_2_0);
+
+                var db = conn.GetDatabase();
+                var key1 = Me();
+                db.KeyDelete(key1, CommandFlags.FireAndForget);
+                var key2 = Me() + "2";
+                db.KeyDelete(key2, CommandFlags.FireAndForget);
+                var destination = Me() + "dest";
+                db.KeyDelete(destination, CommandFlags.FireAndForget);
+
+                db.SortedSetAdd(key1, entries);
+                db.SortedSetAdd(key2, entriesPow3);
+
+                // ZDIFF can't be used with weights
+                Assert.Throws<ArgumentException>(() => db.SortedSetCombine(SetOperation.Difference, new RedisKey[]{ key1, key2 }, new double[]{ 1, 2 }));
+                Assert.Throws<ArgumentException>(() => db.SortedSetCombineWithScores(SetOperation.Difference, new RedisKey[]{ key1, key2 }, new double[]{ 1, 2 }));
+                Assert.Throws<ArgumentException>(() => db.SortedSetCombineAndStore(SetOperation.Difference, destination, new RedisKey[]{ key1, key2 }, new double[]{ 1, 2 }));
+                // ZDIFF can't be used with aggregation
+                Assert.Throws<ArgumentException>(() => db.SortedSetCombine(SetOperation.Difference, new RedisKey[]{ key1, key2 }, aggregate: Aggregate.Max));
+                Assert.Throws<ArgumentException>(() => db.SortedSetCombineWithScores(SetOperation.Difference, new RedisKey[]{ key1, key2 }, aggregate: Aggregate.Max));
+                Assert.Throws<ArgumentException>(() => db.SortedSetCombineAndStore(SetOperation.Difference, destination, new RedisKey[]{ key1, key2 }, aggregate: Aggregate.Max));
+                // too many weights
+                Assert.Throws<StackExchange.Redis.RedisServerException>(() => db.SortedSetCombine(SetOperation.Union, new RedisKey[]{ key1, key2 }, new double[]{ 1, 2, 3 }));
+                Assert.Throws<StackExchange.Redis.RedisServerException>(() => db.SortedSetCombineWithScores(SetOperation.Union, new RedisKey[]{ key1, key2 }, new double[]{ 1, 2, 3 }));
+                Assert.Throws<StackExchange.Redis.RedisServerException>(() => db.SortedSetCombineAndStore(SetOperation.Union, destination, new RedisKey[]{ key1, key2 }, new double[]{ 1, 2, 3 }));
+            }
+        }
+
+        [Fact]
+        public void SortedSetIntersectionLength()
+        {
+            using (var conn = Create())
+            {
+                Skip.IfBelow(conn, RedisFeatures.v6_9_240);
+
+                var db = conn.GetDatabase();
+                var key1 = Me();
+                db.KeyDelete(key1, CommandFlags.FireAndForget);
+                var key2 = Me() + "2";
+                db.KeyDelete(key2, CommandFlags.FireAndForget);
+
+                db.SortedSetAdd(key1, entries);
+                db.SortedSetAdd(key2, entriesPow3);
+
+                var inter = db.SortedSetIntersectionLength(new RedisKey[]{ key1, key2});
+                Assert.Equal(5, inter);
+
+                // with limit
+                inter = db.SortedSetIntersectionLength(new RedisKey[]{ key1, key2}, 3);
+                Assert.Equal(3, inter);
+            }
+        }
 
         [Fact]
         public void SortedSetPopMulti_Multi()

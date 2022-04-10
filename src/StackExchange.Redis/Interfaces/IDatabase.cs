@@ -1313,6 +1313,36 @@ namespace StackExchange.Redis
         long SortedSetAdd(RedisKey key, SortedSetEntry[] values, When when = When.Always, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Computes a set operation multiple sorted sets (optionally using per-set weights), and returns to the client, optionally performing
+        /// a specific aggregation (defaults to sum).
+        /// </summary>
+        /// <param name="operation">The operation to perform.</param>
+        /// <param name="keys">The keys of the sorted sets.</param>
+        /// <param name="weights">The optional weights per set that correspond to <paramref name="keys"/>.</param>
+        /// <param name="aggregate">The aggregation method (defaults to sum).</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <remarks>https://redis.io/commands/zunion</remarks>
+        /// <remarks>https://redis.io/commands/zinter</remarks>
+        /// <remarks>https://redis.io/commands/zdiff</remarks>
+        /// <returns>The resulting sorted set.</returns>
+        RedisValue[] SortedSetCombine(SetOperation operation, RedisKey[] keys, double[]? weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Computes a set operation multiple sorted sets (optionally using per-set weights), and returns to the client with scores, optionally performing
+        /// a specific aggregation (defaults to sum).
+        /// </summary>
+        /// <param name="operation">The operation to perform.</param>
+        /// <param name="keys">The keys of the sorted sets.</param>
+        /// <param name="weights">The optional weights per set that correspond to <paramref name="keys"/>.</param>
+        /// <param name="aggregate">The aggregation method (defaults to sum).</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <remarks>https://redis.io/commands/zunion</remarks>
+        /// <remarks>https://redis.io/commands/zinter</remarks>
+        /// <remarks>https://redis.io/commands/zdiff</remarks>
+        /// <returns>The resulting sorted set with scores.</returns>
+        SortedSetEntry[] SortedSetCombineWithScores(SetOperation operation, RedisKey[] keys, double[]? weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Computes a set operation over two sorted sets, and stores the result in destination, optionally performing
         /// a specific aggregation (defaults to sum).
         /// </summary>
@@ -1324,6 +1354,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <remarks>https://redis.io/commands/zunionstore</remarks>
         /// <remarks>https://redis.io/commands/zinterstore</remarks>
+        /// <remarks>https://redis.io/commands/zdiffstore</remarks>
         /// <returns>The number of elements in the resulting sorted set at destination.</returns>
         long SortedSetCombineAndStore(SetOperation operation, RedisKey destination, RedisKey first, RedisKey second, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None);
 
@@ -1339,6 +1370,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <remarks>https://redis.io/commands/zunionstore</remarks>
         /// <remarks>https://redis.io/commands/zinterstore</remarks>
+        /// <remarks>https://redis.io/commands/zdiffstore</remarks>
         /// <returns>The number of elements in the resulting sorted set at destination.</returns>
         long SortedSetCombineAndStore(SetOperation operation, RedisKey destination, RedisKey[] keys, double[]? weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None);
 
@@ -1364,6 +1396,16 @@ namespace StackExchange.Redis
         /// <returns>The new score of member.</returns>
         /// <remarks>https://redis.io/commands/zincrby</remarks>
         double SortedSetIncrement(RedisKey key, RedisValue member, double value, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Returns the cardinality of the intersaction of the Sorted sets.
+        /// </summary>
+        /// <param name="keys">The keys of the sorted sets.</param>
+        /// <param name="limit">If the intersection cardinality reaches limit partway through the computation, the algorithm will exit and yield limit as the cardinality (defaults to 0 and means unlimited).</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The number of elements in the resulting intersection.</returns>
+        /// <remarks>https://redis.io/commands/zintercard</remarks>
+        long SortedSetIntersectionLength(RedisKey[] keys, long limit = 0, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Returns the sorted set cardinality (number of elements) of the sorted set stored at key.

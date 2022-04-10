@@ -665,6 +665,22 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void SortedSetCombineAsync()
+        {
+            RedisKey[] keys = new RedisKey[] { "a", "b" };
+            wrapper.SortedSetCombineAsync(SetOperation.Intersect, keys);
+            mock.Verify(_ => _.SortedSetCombineAsync(SetOperation.Intersect, keys, null, Aggregate.Sum, CommandFlags.None));
+        }
+
+        [Fact]
+        public void SortedSetCombineWithScoresAsync()
+        {
+            RedisKey[] keys = new RedisKey[] { "a", "b" };
+            wrapper.SortedSetCombineWithScoresAsync(SetOperation.Intersect, keys);
+            mock.Verify(_ => _.SortedSetCombineWithScoresAsync(SetOperation.Intersect, keys, null, Aggregate.Sum, CommandFlags.None));
+        }
+
+        [Fact]
         public void SortedSetCombineAndStoreAsync_1()
         {
             wrapper.SortedSetCombineAndStoreAsync(SetOperation.Intersect, "destination", "first", "second", Aggregate.Max, CommandFlags.None);
