@@ -179,74 +179,70 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void SortedSetRandomMember()
+        public void SortedSetRandomMembers()
         {
-           using (var conn = Create())
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
+
+            var db = conn.GetDatabase();
+            var key = Me();
+
+            db.KeyDelete(key, CommandFlags.FireAndForget);
+            db.SortedSetAdd(key, entries, CommandFlags.FireAndForget);
+
+            var randMember = db.SortedSetRandomMember(key);
+            Assert.True(Array.Exists(entries, element => element.Element.Equals(randMember)));
+
+            // with count
+            var randMemberArray = db.SortedSetRandomMembers(key, 5);
+            Assert.Equal(5, randMemberArray.Length);
+            randMemberArray = db.SortedSetRandomMembers(key, 15);
+            Assert.Equal(10, randMemberArray.Length);
+            randMemberArray = db.SortedSetRandomMembers(key, -5);
+            Assert.Equal(5, randMemberArray.Length);
+            randMemberArray = db.SortedSetRandomMembers(key, -15);
+            Assert.Equal(15, randMemberArray.Length);
+
+            // with scores
+            var randMemberArray2 = db.SortedSetRandomMembersWithScores(key, 2);
+            Assert.Equal(2, randMemberArray2.Length);
+            foreach (var member in randMemberArray2)
             {
-                Skip.IfBelow(conn, RedisFeatures.v6_2_0);
-
-                var db = conn.GetDatabase();
-                var key = Me();
-
-                db.KeyDelete(key, CommandFlags.FireAndForget);
-                db.SortedSetAdd(key, entries, CommandFlags.FireAndForget);
-
-                var randMember = db.SortedSetRandomMember(key);
-                Assert.True(Array.Exists(entries, element => element.Element.Equals(randMember)));
-
-                // with count
-                var randMemberArray = db.SortedSetRandomMember(key, 5);
-                Assert.Equal(5, randMemberArray.Length);
-                randMemberArray = db.SortedSetRandomMember(key, 15);
-                Assert.Equal(10, randMemberArray.Length);
-                randMemberArray = db.SortedSetRandomMember(key, -5);
-                Assert.Equal(5, randMemberArray.Length);
-                randMemberArray = db.SortedSetRandomMember(key, -15);
-                Assert.Equal(15, randMemberArray.Length);
-
-                // with scores
-                var randMemberArray2 = db.SortedSetRandomMemberWithScores(key, 2);
-                Assert.Equal(2, randMemberArray2.Length);
-                foreach (var member in randMemberArray2)
-                {
-                    Assert.True(Array.Exists(entries, element => element.Equals(member)));
-                }
+                Assert.True(Array.Exists(entries, element => element.Equals(member)));
             }
         }
 
         [Fact]
-        public async Task SortedSetRandomMemberAsync()
+        public async Task SortedSetRandomMembersAsync()
         {
-           using (var conn = Create())
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
+
+            var db = conn.GetDatabase();
+            var key = Me();
+
+            db.KeyDelete(key, CommandFlags.FireAndForget);
+            db.SortedSetAdd(key, entries, CommandFlags.FireAndForget);
+
+            var randMember = await db.SortedSetRandomMemberAsync(key);
+            Assert.True(Array.Exists(entries, element => element.Element.Equals(randMember)));
+
+            // with count
+            var randMemberArray = await db.SortedSetRandomMembersAsync(key, 5);
+            Assert.Equal(5, randMemberArray.Length);
+            randMemberArray = await db.SortedSetRandomMembersAsync(key, 15);
+            Assert.Equal(10, randMemberArray.Length);
+            randMemberArray = await db.SortedSetRandomMembersAsync(key, -5);
+            Assert.Equal(5, randMemberArray.Length);
+            randMemberArray = await db.SortedSetRandomMembersAsync(key, -15);
+            Assert.Equal(15, randMemberArray.Length);
+
+            // with scores
+            var randMemberArray2 = await db.SortedSetRandomMembersWithScoresAsync(key, 2);
+            Assert.Equal(2, randMemberArray2.Length);
+            foreach (var member in randMemberArray2)
             {
-                Skip.IfBelow(conn, RedisFeatures.v6_2_0);
-
-                var db = conn.GetDatabase();
-                var key = Me();
-
-                db.KeyDelete(key, CommandFlags.FireAndForget);
-                db.SortedSetAdd(key, entries, CommandFlags.FireAndForget);
-
-                var randMember = await db.SortedSetRandomMemberAsync(key);
-                Assert.True(Array.Exists(entries, element => element.Element.Equals(randMember)));
-
-                // with count
-                var randMemberArray = await db.SortedSetRandomMemberAsync(key, 5);
-                Assert.Equal(5, randMemberArray.Length);
-                randMemberArray = await db.SortedSetRandomMemberAsync(key, 15);
-                Assert.Equal(10, randMemberArray.Length);
-                randMemberArray = await db.SortedSetRandomMemberAsync(key, -5);
-                Assert.Equal(5, randMemberArray.Length);
-                randMemberArray = await db.SortedSetRandomMemberAsync(key, -15);
-                Assert.Equal(15, randMemberArray.Length);
-
-                // with scores
-                var randMemberArray2 = await db.SortedSetRandomMemberWithScoresAsync(key, 2);
-                Assert.Equal(2, randMemberArray2.Length);
-                foreach (var member in randMemberArray2)
-                {
-                    Assert.True(Array.Exists(entries, element => element.Equals(member)));
-                }
+                Assert.True(Array.Exists(entries, element => element.Equals(member)));
             }
         }
 

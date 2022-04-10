@@ -1169,11 +1169,11 @@ namespace StackExchange.Redis
         RedisValue[] SetPop(RedisKey key, long count, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Return a random element from the set value stored at key.
+        /// Return a random element from the set value stored at <paramref name="key"/>.
         /// </summary>
         /// <param name="key">The key of the set.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The randomly selected element, or nil when key does not exist.</returns>
+        /// <returns>The randomly selected element, or <see cref="RedisValue.Null"/> when <paramref name="key"/> does not exist.</returns>
         /// <remarks>https://redis.io/commands/srandmember</remarks>
         RedisValue SetRandomMember(RedisKey key, CommandFlags flags = CommandFlags.None);
 
@@ -1185,7 +1185,7 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the set.</param>
         /// <param name="count">The count of members to get.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>An array of elements, or an empty array when key does not exist.</returns>
+        /// <returns>An array of elements, or an empty array when <paramref name="key"/> does not exist.</returns>
         /// <remarks>https://redis.io/commands/srandmember</remarks>
         RedisValue[] SetRandomMembers(RedisKey key, long count, CommandFlags flags = CommandFlags.None);
 
@@ -1404,35 +1404,51 @@ namespace StackExchange.Redis
         long SortedSetLengthByValue(RedisKey key, RedisValue min, RedisValue max, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Returns a random element from the sorted set value stored at key.
+        /// Returns a random element from the sorted set value stored at <paramref name="key"/>.
         /// </summary>
         /// <param name="key">The key of the sorted set.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The randomly selected element.</returns>
+        /// <returns>The randomly selected element, or <see cref="RedisValue.Null"/> when <paramref name="key"/> does not exist.</returns>
         /// <remarks>https://redis.io/commands/zrandmember</remarks>
         RedisValue SortedSetRandomMember(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Returns an array of random elements from the sorted set value stored at key.
+        /// Returns an array of random elements from the sorted set value stored at <paramref name="key"/>.
         /// </summary>
         /// <param name="key">The key of the sorted set.</param>
-        /// <param name="count">If the provided count argument is positive, return an array of distinct elements. The array's length is either count or the sorted set's cardinality (ZCARD), whichever is lower.
-        /// If called with a negative count, the behavior changes and the command is allowed to return the same element multiple times. In this case, the number of returned elements is the absolute value of the specified count.</param>
+        /// <param name="count">
+        ///   <para>
+        ///     If the provided count argument is positive, returns an array of distinct elements.
+        ///     The array's length is either <paramref name="count"/> or the sorted set's cardinality (ZCARD), whichever is lower.
+        ///   </para>
+        ///   <para>
+        ///     If called with a negative count, the behavior changes and the command is allowed to return the same element multiple times.
+        ///     In this case, the number of returned elements is the absolute value of the specified count.
+        ///   </para>
+        /// </param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The randomly selected elements.</returns>
+        /// <returns>The randomly selected elements, or an empty array when <paramref name="key"/> does not exist.</returns>
         /// <remarks>https://redis.io/commands/zrandmember</remarks>
-        RedisValue[] SortedSetRandomMember(RedisKey key, long count, CommandFlags flags = CommandFlags.None);
+        RedisValue[] SortedSetRandomMembers(RedisKey key, long count, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Returns an array of random elements from the sorted set value stored at key.
+        /// Returns an array of random elements from the sorted set value stored at <paramref name="key"/>.
         /// </summary>
         /// <param name="key">The key of the sorted set.</param>
-        /// <param name="count">If the provided count argument is positive, return an array of distinct elements. The array's length is either count or the sorted set's cardinality (ZCARD), whichever is lower.
-        /// If called with a negative count, the behavior changes and the command is allowed to return the same element multiple times. In this case, the number of returned elements is the absolute value of the specified count.</param>
+        /// <param name="count">
+        ///   <para>
+        ///     If the provided count argument is positive, returns an array of distinct elements.
+        ///     The array's length is either <paramref name="count"/> or the sorted set's cardinality (ZCARD), whichever is lower.
+        ///   </para>
+        ///   <para>
+        ///     If called with a negative count, the behavior changes and the command is allowed to return the same element multiple times.
+        ///     In this case, the number of returned elements is the absolute value of the specified count.
+        ///   </para>
+        /// </param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The randomly selected elements with scores.</returns>
+        /// <returns>The randomly selected elements with scores, or an empty array when <paramref name="key"/> does not exist.</returns>
         /// <remarks>https://redis.io/commands/zrandmember</remarks>
-        SortedSetEntry[] SortedSetRandomMemberWithScores(RedisKey key, long count, CommandFlags flags = CommandFlags.None);
+        SortedSetEntry[] SortedSetRandomMembersWithScores(RedisKey key, long count, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Returns the specified range of elements in the sorted set stored at key.

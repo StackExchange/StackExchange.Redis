@@ -360,11 +360,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public RedisValue SortedSetRandomMember(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetRandomMember(ToInner(key), flags);
 
-        public RedisValue[] SortedSetRandomMember(RedisKey key, long count, CommandFlags flags = CommandFlags.None) =>
-            Inner.SortedSetRandomMember(ToInner(key), count, flags);
+        public RedisValue[] SortedSetRandomMembers(RedisKey key, long count, CommandFlags flags = CommandFlags.None) =>
+            Inner.SortedSetRandomMembers(ToInner(key), count, flags);
 
-        public SortedSetEntry[] SortedSetRandomMemberWithScores(RedisKey key, long count, CommandFlags flags = CommandFlags.None) =>
-            Inner.SortedSetRandomMemberWithScores(ToInner(key), count, flags);
+        public SortedSetEntry[] SortedSetRandomMembersWithScores(RedisKey key, long count, CommandFlags flags = CommandFlags.None) =>
+            Inner.SortedSetRandomMembersWithScores(ToInner(key), count, flags);
 
         public RedisValue[] SortedSetRangeByRank(RedisKey key, long start = 0, long stop = -1, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetRangeByRank(ToInner(key), start, stop, order, flags);
