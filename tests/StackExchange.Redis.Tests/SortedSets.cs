@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
@@ -211,9 +210,10 @@ namespace StackExchange.Redis.Tests
             // with scores
             var randMemberArray2 = db.SortedSetRandomMembersWithScores(key, 2);
             Assert.Equal(2, randMemberArray2.Length);
-            Assert.True(randMemberArray2.All(
-                member => Array.Exists(entries, element => element.Equals(member))
-            ));
+            foreach (var member in randMemberArray2)
+            {
+                Assert.Contains(member, entries);
+            }
 
             // check missing key case
             randMember = db.SortedSetRandomMember(key0);
@@ -254,9 +254,10 @@ namespace StackExchange.Redis.Tests
             // with scores
             var randMemberArray2 = await db.SortedSetRandomMembersWithScoresAsync(key, 2);
             Assert.Equal(2, randMemberArray2.Length);
-            Assert.True(randMemberArray2.All(
-                member => Array.Exists(entries, element => element.Equals(member))
-            ));
+            foreach (var member in randMemberArray2)
+            {
+                Assert.Contains(member, entries);
+            }
 
             // check missing key case
             randMember = await db.SortedSetRandomMemberAsync(key0);
