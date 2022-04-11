@@ -1092,6 +1092,16 @@ namespace StackExchange.Redis
         Task<bool> SetContainsAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Returns the set cardinality (number of elements) of the intersection between the sets stored at the given keys.
+        /// </summary>
+        /// <param name="keys">The keys of the sets.</param>
+        /// <param name="limit">If the intersection cardinality reaches limit partway through the computation, the algorithm will exit and yield limit as the cardinality (defaults to 0 and means unlimited).</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The cardinality (number of elements) of the set, or 0 if key does not exist.</returns>
+        /// <remarks>https://redis.io/commands/scard</remarks>
+        Task<long> SetIntersectionLengthAsync(RedisKey[] keys, long limit = 0, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Returns the set cardinality (number of elements) of the set stored at key.
         /// </summary>
         /// <param name="key">The key of the set.</param>
