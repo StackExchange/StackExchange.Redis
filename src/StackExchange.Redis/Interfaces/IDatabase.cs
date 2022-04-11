@@ -1315,6 +1315,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Computes a set operation multiple sorted sets (optionally using per-set weights), and returns to the client, optionally performing
         /// a specific aggregation (defaults to sum).
+        /// The different operations can't be used with weights or aggregation.
         /// </summary>
         /// <param name="operation">The operation to perform.</param>
         /// <param name="keys">The keys of the sorted sets.</param>
@@ -1330,6 +1331,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Computes a set operation multiple sorted sets (optionally using per-set weights), and returns to the client with scores, optionally performing
         /// a specific aggregation (defaults to sum).
+        /// The different operations can't be used with weights or aggregation.
         /// </summary>
         /// <param name="operation">The operation to perform.</param>
         /// <param name="keys">The keys of the sorted sets.</param>
@@ -1345,6 +1347,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Computes a set operation over two sorted sets, and stores the result in destination, optionally performing
         /// a specific aggregation (defaults to sum).
+        /// The different operations can't be used with weights or aggregation.
         /// </summary>
         /// <param name="operation">The operation to perform.</param>
         /// <param name="destination">The key to store the results in.</param>
@@ -1361,6 +1364,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Computes a set operation over multiple sorted sets (optionally using per-set weights), and stores the result in destination, optionally performing
         /// a specific aggregation (defaults to sum).
+        /// The different operations can't be used with weights or aggregation.
         /// </summary>
         /// <param name="operation">The operation to perform.</param>
         /// <param name="destination">The key to store the results in.</param>

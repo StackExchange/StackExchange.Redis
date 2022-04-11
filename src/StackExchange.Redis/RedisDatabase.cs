@@ -1582,25 +1582,25 @@ namespace StackExchange.Redis
 
         public RedisValue[] SortedSetCombine(SetOperation operation, RedisKey[] keys, double[]? weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetSortedSetCombineCommandMessage(operation, keys, weights, aggregate, false, flags);
+            var msg = GetSortedSetCombineCommandMessage(operation, keys, weights, aggregate, withScores: false, flags);
             return ExecuteSync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
         }
 
         public Task<RedisValue[]> SortedSetCombineAsync(SetOperation operation, RedisKey[] keys, double[]? weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetSortedSetCombineCommandMessage(operation, keys, weights, aggregate, false, flags);
+            var msg = GetSortedSetCombineCommandMessage(operation, keys, weights, aggregate, withScores: false, flags);
             return ExecuteAsync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
         }
 
         public SortedSetEntry[] SortedSetCombineWithScores(SetOperation operation, RedisKey[] keys, double[]? weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetSortedSetCombineCommandMessage(operation, keys, weights, aggregate, true, flags);
+            var msg = GetSortedSetCombineCommandMessage(operation, keys, weights, aggregate, withScores: true, flags);
             return ExecuteSync(msg, ResultProcessor.SortedSetWithScores, defaultValue: Array.Empty<SortedSetEntry>());
         }
 
         public Task<SortedSetEntry[]> SortedSetCombineWithScoresAsync(SetOperation operation, RedisKey[] keys, double[]? weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetSortedSetCombineCommandMessage(operation, keys, weights, aggregate, true, flags);
+            var msg = GetSortedSetCombineCommandMessage(operation, keys, weights, aggregate, withScores: true, flags);
             return ExecuteAsync(msg, ResultProcessor.SortedSetWithScores, defaultValue: Array.Empty<SortedSetEntry>());
         }
 
@@ -3160,7 +3160,7 @@ namespace StackExchange.Redis
             if (operation == SetOperation.Difference && (weights != null || aggregate != Aggregate.Sum))
                 throw new ArgumentException("ZDIFFSTORE cannot be used with weights or with aggregation.");
 
-            List<RedisValue>? values = new List<RedisValue>();
+            List<RedisValue>? values = null;
             AddWeightsAndAggregation(ref values, weights, aggregate);
             return new SortedSetCombineAndStoreCommandMessage(Database, flags, command, destination, keys, values?.ToArray() ?? RedisValue.EmptyArray);
         }
@@ -3175,40 +3175,42 @@ namespace StackExchange.Redis
                 _ => throw new ArgumentOutOfRangeException(nameof(operation)),
             };
             if (keys == null) throw new ArgumentNullException(nameof(keys));
-            // Difference operation can't have weights or aggregation
-            if (operation == SetOperation.Difference && (weights != null || aggregate != Aggregate.Sum))
-                throw new ArgumentException("ZDIFF cannot be used with weights or with aggregation.");
 
-            List<RedisValue>? values = new List<RedisValue>();
+            var values = new List<RedisValue>(
+                keys.Length +
+                (weights != null ? 1 + weights.Length : 0) +
+                (aggregate != Aggregate.Sum ? 2 : 0)
+            );
+
             values.Add(keys.Length);
             foreach(var key in keys)
                 values.Add(key.AsRedisValue());
             AddWeightsAndAggregation(ref values, weights, aggregate);
             if (withScores)
             {
-                values.Add(RedisLiterals.WITHSCORES);
+                values?.Add(RedisLiterals.WITHSCORES);
             }
             return Message.Create(Database, flags, command, values?.ToArray() ?? RedisValue.EmptyArray);
         }
 
-        private void AddWeightsAndAggregation(ref List<RedisValue> args, double[]? weights, Aggregate aggregate)
+        private void AddWeightsAndAggregation(ref List<RedisValue>? values, double[]? weights, Aggregate aggregate)
         {
             if (weights != null && weights.Length != 0)
             {
-                (args ??= new List<RedisValue>()).Add(RedisLiterals.WEIGHTS);
+                (values ??= new List<RedisValue>()).Add(RedisLiterals.WEIGHTS);
                 foreach (var weight in weights)
-                    args.Add(weight);
+                    values.Add(weight);
             }
             switch (aggregate)
             {
                 case Aggregate.Sum: break; // default
                 case Aggregate.Min:
-                    (args ??= new List<RedisValue>()).Add(RedisLiterals.AGGREGATE);
-                    args.Add(RedisLiterals.MIN);
+                    (values ??= new List<RedisValue>()).Add(RedisLiterals.AGGREGATE);
+                    values.Add(RedisLiterals.MIN);
                     break;
                 case Aggregate.Max:
-                    (args ??= new List<RedisValue>()).Add(RedisLiterals.AGGREGATE);
-                    args.Add(RedisLiterals.MAX);
+                    (values ??= new List<RedisValue>()).Add(RedisLiterals.AGGREGATE);
+                    values.Add(RedisLiterals.MAX);
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(aggregate));
@@ -3229,7 +3231,7 @@ namespace StackExchange.Redis
         {
             if (keys == null) throw new ArgumentNullException(nameof(keys));
 
-            List<RedisValue>? values = new List<RedisValue>();
+            var values = new List<RedisValue>(1 + keys.Length + (limit > 0 ? 2 : 0));
             values.Add(keys.Length);
             foreach(var key in keys)
                 values.Add(key.AsRedisValue());
