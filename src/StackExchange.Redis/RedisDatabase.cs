@@ -3013,14 +3013,17 @@ namespace StackExchange.Redis
         {
             if (keys == null) throw new ArgumentNullException(nameof(keys));
 
-            var values = new List<RedisValue>(1 + keys.Length + (limit > 0 ? 2 : 0));
-            values.Add(keys.Length);
-            foreach(var key in keys)
-                values.Add(key.AsRedisValue());
-
-            if (limit > 0) {
-                values.Add(RedisLiterals.LIMIT);
-                values.Add(limit);
+            var values = new RedisValue[1 + keys.Length + (limit > 0 ? 2 : 0)];
+            int i = 0;
+            values[i++] = keys.Length;
+            for (var j = 0; j < keys.Length; j++)
+            {
+                values[i++] = keys[j].AsRedisValue();
+            }
+            if (limit > 0)
+            {
+                values[i++] = RedisLiterals.LIMIT;
+                values[i] = limit;
             }
 
             return Message.Create(Database, flags, RedisCommand.SINTERCARD, values);

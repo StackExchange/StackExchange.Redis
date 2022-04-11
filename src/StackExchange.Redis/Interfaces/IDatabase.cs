@@ -1116,10 +1116,16 @@ namespace StackExchange.Redis
         bool SetContains(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Returns the set cardinality (number of elements) of the intersection between the sets stored at the given keys.
+        ///   <para>
+        ///     Returns the set cardinality (number of elements) of the intersection between the sets stored at the given <paramref name="keys"/>.
+        ///   </para>
+        ///   <para>
+        ///     If the intersection cardinality reaches <paramref name="limit"/> partway through the computation,
+        ///     the algorithm will exit and yield <paramref name="limit"/> as the cardinality.
+        ///   </para>
         /// </summary>
         /// <param name="keys">The keys of the sets.</param>
-        /// <param name="limit">If the intersection cardinality reaches limit partway through the computation, the algorithm will exit and yield limit as the cardinality (defaults to 0 and means unlimited).</param>
+        /// <param name="limit">The number of elements to check (defaults to 0 and means unlimited).</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The cardinality (number of elements) of the set, or 0 if key does not exist.</returns>
         /// <remarks>https://redis.io/commands/scard</remarks>
