@@ -1271,7 +1271,7 @@ namespace StackExchange.Redis
             {
                 switch (result.Type)
                 {
-                    case ResultType.MultiBulk:
+                    case ResultType.MultiBulk when !result.IsNull:
                         var arr = result.GetItemsAsBooleans()!;
 
                         SetResult(message, arr);

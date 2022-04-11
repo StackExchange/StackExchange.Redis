@@ -41,26 +41,33 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void SetContains()
         {
-            using (var conn = Create())
+            using var muxer = Create();
+            Skip.IfBelow(muxer, RedisFeatures.v6_2_0);
+
+            RedisKey key = Me();
+            var db = muxer.GetDatabase();
+            for (int i = 1; i < 1001; i++)
             {
-                var server = GetAnyPrimary(conn);
-
-                RedisKey key = Me();
-                var db = conn.GetDatabase();
-                for (int i = 1; i < 1001; i++)
-                {
-                    db.SetAdd(key, i, CommandFlags.FireAndForget);
-                }
-
-                // Single member
-                var isMemeber = db.SetContains(key, 1);
-                Assert.True(isMemeber);
-
-                // Multi members
-                var areMemebers = db.SetContains(key, new RedisValue[] {1, 2, 3});
-                Assert.Equal(3, areMemebers.Length);
-                Assert.True(areMemebers[1]);
+                db.SetAdd(key, i, CommandFlags.FireAndForget);
             }
+
+            // Single member
+            var isMemeber = db.SetContains(key, 1);
+            Assert.True(isMemeber);
+
+            // Multi members
+            var areMemebers = db.SetContains(key, new RedisValue[] { 0, 1, 2 });
+            Assert.Equal(3, areMemebers.Length);
+            Assert.False(areMemebers[0]);
+            Assert.True(areMemebers[1]);
+
+            // key not exists
+            RedisKey key1 = Me() + "non-exists";
+            isMemeber = db.SetContains(key1, 1);
+            Assert.False(isMemeber);
+            areMemebers = db.SetContains(key1, new RedisValue[] { 0, 1, 2 });
+            Assert.Equal(3, areMemebers.Length);
+            Assert.True(areMemebers.All(i => !i)); // Check that all the elements are False 
         }
 
         [Fact]
