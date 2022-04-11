@@ -604,6 +604,14 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void SetIntersectionLength()
+        {
+            var keys = new RedisKey[] { "key1", "key2" };
+            wrapper.SetIntersectionLength(keys);
+            mock.Verify(_ => _.SetIntersectionLength(keys, 0, CommandFlags.None));
+        }
+
+        [Fact]
         public void SetLength()
         {
             wrapper.SetLength("key", CommandFlags.None);
