@@ -1109,6 +1109,7 @@ namespace StackExchange.Redis
         /// <param name="values">The members to check for.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>
+        /// An array of booleans corresponding to <paramref name="values"/>, for each:
         /// <see langword="true"/> if the element is a member of the set.
         /// <see langword="false"/> if the element is not a member of the set, or if key does not exist.
         /// </returns>
