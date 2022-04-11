@@ -325,7 +325,8 @@ return timeTaken
                     Assert.Single(b.Exception.InnerExceptions);
                     var ex = b.Exception.InnerExceptions.Single();
                     Assert.IsType<RedisServerException>(ex);
-                    Assert.Equal("ERR oops", ex.Message);
+                    // 7.0 slightly changes the error format, accept either.
+                    Assert.Contains(ex.Message, new[] { "ERR oops", "oops" });
                 }
                 var afterTran = conn.StringGetAsync(key);
                 Assert.Equal(2L, (long)conn.Wait(afterTran));
