@@ -1265,7 +1265,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private sealed class BooleanArrayProcessor : ResultProcessor<Boolean[]>
+        private sealed class BooleanArrayProcessor : ResultProcessor<bool[]>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
