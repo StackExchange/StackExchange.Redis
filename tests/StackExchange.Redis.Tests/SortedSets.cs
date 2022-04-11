@@ -179,7 +179,7 @@ namespace StackExchange.Redis.Tests
         public void SortedSetIntersectionLength()
         {
             using var conn = Create();
-            Skip.IfBelow(conn, RedisFeatures.v6_9_240);
+            Skip.IfBelow(conn, RedisFeatures.v7_0_0_rc1);
 
             var db = conn.GetDatabase();
             var key1 = Me();
