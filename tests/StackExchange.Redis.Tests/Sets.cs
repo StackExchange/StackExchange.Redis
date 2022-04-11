@@ -12,13 +12,65 @@ namespace StackExchange.Redis.Tests
         public Sets(ITestOutputHelper output, SharedConnectionFixture fixture) : base (output, fixture) { }
 
         [Fact]
+        public void SetIntersectionLength()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v7_0_0_rc1);
+            var db = conn.GetDatabase();
+
+            var key1 = Me() + "1";
+            db.KeyDelete(key1, CommandFlags.FireAndForget);
+            db.SetAdd(key1, new RedisValue[] { 0, 1, 2, 3, 4 }, CommandFlags.FireAndForget);
+            var key2 = Me() + "2";
+            db.KeyDelete(key2, CommandFlags.FireAndForget);
+            db.SetAdd(key2, new RedisValue[] { 1, 2, 3, 4, 5 }, CommandFlags.FireAndForget);
+
+            Assert.Equal(4, db.SetIntersectionLength(new RedisKey[]{ key1, key2}));
+            // with limit
+            Assert.Equal(3, db.SetIntersectionLength(new RedisKey[]{ key1, key2}, 3));
+
+            // Missing keys should be 0
+            var key3 = Me() + "3";
+            var key4 = Me() + "4";
+            db.KeyDelete(key3, CommandFlags.FireAndForget);
+            Assert.Equal(0, db.SetIntersectionLength(new RedisKey[] { key1, key3 }));
+            Assert.Equal(0, db.SetIntersectionLength(new RedisKey[] { key3, key4 }));
+        }
+
+        [Fact]
+        public async Task SetIntersectionLengthAsync()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v7_0_0_rc1);
+            var db = conn.GetDatabase();
+
+            var key1 = Me() + "1";
+            db.KeyDelete(key1, CommandFlags.FireAndForget);
+            db.SetAdd(key1, new RedisValue[] { 0, 1, 2, 3, 4 }, CommandFlags.FireAndForget);
+            var key2 = Me() + "2";
+            db.KeyDelete(key2, CommandFlags.FireAndForget);
+            db.SetAdd(key2, new RedisValue[] { 1, 2, 3, 4, 5 }, CommandFlags.FireAndForget);
+
+            Assert.Equal(4, await db.SetIntersectionLengthAsync(new RedisKey[]{ key1, key2}));
+            // with limit
+            Assert.Equal(3, await db.SetIntersectionLengthAsync(new RedisKey[]{ key1, key2}, 3));
+
+            // Missing keys should be 0
+            var key3 = Me() + "3";
+            var key4 = Me() + "4";
+            db.KeyDelete(key3, CommandFlags.FireAndForget);
+            Assert.Equal(0, await db.SetIntersectionLengthAsync(new RedisKey[] { key1, key3 }));
+            Assert.Equal(0, await db.SetIntersectionLengthAsync(new RedisKey[] { key3, key4 }));
+        }
+
+        [Fact]
         public void SScan()
         {
             using (var conn = Create())
             {
                 var server = GetAnyPrimary(conn);
 
-                RedisKey key = Me();
+                var key = Me();
                 var db = conn.GetDatabase();
                 int totalUnfiltered = 0, totalFiltered = 0;
                 for (int i = 1; i < 1001; i++)
