@@ -43,9 +43,9 @@ namespace StackExchange.Redis.Tests
         {
             using var muxer = Create();
             Skip.IfBelow(muxer, RedisFeatures.v6_2_0);
+            var db = muxer.GetDatabase();
 
             RedisKey key = Me();
-            var db = muxer.GetDatabase();
             for (int i = 1; i < 1001; i++)
             {
                 db.SetAdd(key, i, CommandFlags.FireAndForget);
@@ -67,7 +67,7 @@ namespace StackExchange.Redis.Tests
             Assert.False(isMemeber);
             areMemebers = db.SetContains(key1, new RedisValue[] { 0, 1, 2 });
             Assert.Equal(3, areMemebers.Length);
-            Assert.True(areMemebers.All(i => !i)); // Check that all the elements are False 
+            Assert.True(areMemebers.All(i => !i)); // Check that all the elements are False
         }
 
         [Fact]
