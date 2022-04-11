@@ -195,7 +195,6 @@ namespace StackExchange.Redis.Tests
             var randMember = db.SortedSetRandomMember(key);
             Assert.True(Array.Exists(entries, element => element.Element.Equals(randMember)));
 
-
             // with count
             var randMemberArray = db.SortedSetRandomMembers(key, 5);
             Assert.Equal(5, randMemberArray.Length);
@@ -205,7 +204,6 @@ namespace StackExchange.Redis.Tests
             Assert.Equal(5, randMemberArray.Length);
             randMemberArray = db.SortedSetRandomMembers(key, -15);
             Assert.Equal(15, randMemberArray.Length);
-
 
             // with scores
             var randMemberArray2 = db.SortedSetRandomMembersWithScores(key, 2);
