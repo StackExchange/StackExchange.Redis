@@ -14,38 +14,36 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void SScan()
         {
-            using (var conn = Create())
+            using var conn = Create();
+            var server = GetAnyPrimary(conn);
+
+            RedisKey key = Me();
+            var db = conn.GetDatabase();
+            int totalUnfiltered = 0, totalFiltered = 0;
+            for (int i = 1; i < 1001; i++)
             {
-                var server = GetAnyPrimary(conn);
+                db.SetAdd(key, i, CommandFlags.FireAndForget);
+                totalUnfiltered += i;
+                if (i.ToString().Contains('3')) totalFiltered += i;
+            }
 
-                RedisKey key = Me();
-                var db = conn.GetDatabase();
-                int totalUnfiltered = 0, totalFiltered = 0;
-                for (int i = 1; i < 1001; i++)
-                {
-                    db.SetAdd(key, i, CommandFlags.FireAndForget);
-                    totalUnfiltered += i;
-                    if (i.ToString().Contains('3')) totalFiltered += i;
-                }
-
-                var unfilteredActual = db.SetScan(key).Select(x => (int)x).Sum();
-                Assert.Equal(totalUnfiltered, unfilteredActual);
-                if (server.Features.Scan)
-                {
-                    var filteredActual = db.SetScan(key, "*3*").Select(x => (int)x).Sum();
-                    Assert.Equal(totalFiltered, filteredActual);
-                }
+            var unfilteredActual = db.SetScan(key).Select(x => (int)x).Sum();
+            Assert.Equal(totalUnfiltered, unfilteredActual);
+            if (server.Features.Scan)
+            {
+                var filteredActual = db.SetScan(key, "*3*").Select(x => (int)x).Sum();
+                Assert.Equal(totalFiltered, filteredActual);
             }
         }
 
         [Fact]
         public void SetContains()
         {
-            using var muxer = Create();
-            Skip.IfBelow(muxer, RedisFeatures.v6_2_0);
-            var db = muxer.GetDatabase();
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
 
             RedisKey key = Me();
+            var db = conn.GetDatabase();
             for (int i = 1; i < 1001; i++)
             {
                 db.SetAdd(key, i, CommandFlags.FireAndForget);
@@ -73,207 +71,187 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task SetRemoveArgTests()
         {
-            using (var conn = Create())
-            {
-                var db = conn.GetDatabase();
-                var key = Me();
+            using var conn = Create();
+            var db = conn.GetDatabase();
+            var key = Me();
 
-                RedisValue[]? values = null;
-                Assert.Throws<ArgumentNullException>(() => db.SetRemove(key, values!));
-                await Assert.ThrowsAsync<ArgumentNullException>(async () => await db.SetRemoveAsync(key, values!).ForAwait()).ForAwait();
+            RedisValue[]? values = null;
+            Assert.Throws<ArgumentNullException>(() => db.SetRemove(key, values!));
+            await Assert.ThrowsAsync<ArgumentNullException>(async () => await db.SetRemoveAsync(key, values!).ForAwait()).ForAwait();
 
-                values = Array.Empty<RedisValue>();
-                Assert.Equal(0, db.SetRemove(key, values));
-                Assert.Equal(0, await db.SetRemoveAsync(key, values).ForAwait());
-            }
+            values = Array.Empty<RedisValue>();
+            Assert.Equal(0, db.SetRemove(key, values));
+            Assert.Equal(0, await db.SetRemoveAsync(key, values).ForAwait());
         }
 
         [Fact]
         public void SetPopMulti_Multi()
         {
-            using (var conn = Create())
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v3_2_0);
+
+            var db = conn.GetDatabase();
+            var key = Me();
+
+            db.KeyDelete(key, CommandFlags.FireAndForget);
+            for (int i = 1; i < 11; i++)
             {
-                Skip.IfBelow(conn, RedisFeatures.v3_2_0);
-
-                var db = conn.GetDatabase();
-                var key = Me();
-
-                db.KeyDelete(key, CommandFlags.FireAndForget);
-                for (int i = 1; i < 11; i++)
-                {
-                    db.SetAddAsync(key, i, CommandFlags.FireAndForget);
-                }
-
-                var random = db.SetPop(key);
-                Assert.False(random.IsNull);
-                Assert.True((int)random > 0);
-                Assert.True((int)random <= 10);
-                Assert.Equal(9, db.SetLength(key));
-
-                var moreRandoms = db.SetPop(key, 2);
-                Assert.Equal(2, moreRandoms.Length);
-                Assert.False(moreRandoms[0].IsNull);
-                Assert.Equal(7, db.SetLength(key));
+                db.SetAddAsync(key, i, CommandFlags.FireAndForget);
             }
+
+            var random = db.SetPop(key);
+            Assert.False(random.IsNull);
+            Assert.True((int)random > 0);
+            Assert.True((int)random <= 10);
+            Assert.Equal(9, db.SetLength(key));
+
+            var moreRandoms = db.SetPop(key, 2);
+            Assert.Equal(2, moreRandoms.Length);
+            Assert.False(moreRandoms[0].IsNull);
+            Assert.Equal(7, db.SetLength(key));
         }
 
         [Fact]
         public void SetPopMulti_Single()
         {
-            using (var conn = Create())
+            using var conn = Create();
+            var db = conn.GetDatabase();
+            var key = Me();
+
+            db.KeyDelete(key, CommandFlags.FireAndForget);
+            for (int i = 1; i < 11; i++)
             {
-                var db = conn.GetDatabase();
-                var key = Me();
-
-                db.KeyDelete(key, CommandFlags.FireAndForget);
-                for (int i = 1; i < 11; i++)
-                {
-                    db.SetAdd(key, i, CommandFlags.FireAndForget);
-                }
-
-                var random = db.SetPop(key);
-                Assert.False(random.IsNull);
-                Assert.True((int)random > 0);
-                Assert.True((int)random <= 10);
-                Assert.Equal(9, db.SetLength(key));
-
-                var moreRandoms = db.SetPop(key, 1);
-                Assert.Single(moreRandoms);
-                Assert.False(moreRandoms[0].IsNull);
-                Assert.Equal(8, db.SetLength(key));
+                db.SetAdd(key, i, CommandFlags.FireAndForget);
             }
+
+            var random = db.SetPop(key);
+            Assert.False(random.IsNull);
+            Assert.True((int)random > 0);
+            Assert.True((int)random <= 10);
+            Assert.Equal(9, db.SetLength(key));
+
+            var moreRandoms = db.SetPop(key, 1);
+            Assert.Single(moreRandoms);
+            Assert.False(moreRandoms[0].IsNull);
+            Assert.Equal(8, db.SetLength(key));
         }
 
         [Fact]
         public async Task SetPopMulti_Multi_Async()
         {
-            using (var conn = Create())
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v3_2_0);
+
+            var db = conn.GetDatabase();
+            var key = Me();
+
+            db.KeyDelete(key, CommandFlags.FireAndForget);
+            for (int i = 1; i < 11; i++)
             {
-                Skip.IfBelow(conn, RedisFeatures.v3_2_0);
-
-                var db = conn.GetDatabase();
-                var key = Me();
-
-                db.KeyDelete(key, CommandFlags.FireAndForget);
-                for (int i = 1; i < 11; i++)
-                {
-                    db.SetAdd(key, i, CommandFlags.FireAndForget);
-                }
-
-                var random = await db.SetPopAsync(key).ForAwait();
-                Assert.False(random.IsNull);
-                Assert.True((int)random > 0);
-                Assert.True((int)random <= 10);
-                Assert.Equal(9, db.SetLength(key));
-
-                var moreRandoms = await db.SetPopAsync(key, 2).ForAwait();
-                Assert.Equal(2, moreRandoms.Length);
-                Assert.False(moreRandoms[0].IsNull);
-                Assert.Equal(7, db.SetLength(key));
+                db.SetAdd(key, i, CommandFlags.FireAndForget);
             }
+
+            var random = await db.SetPopAsync(key).ForAwait();
+            Assert.False(random.IsNull);
+            Assert.True((int)random > 0);
+            Assert.True((int)random <= 10);
+            Assert.Equal(9, db.SetLength(key));
+
+            var moreRandoms = await db.SetPopAsync(key, 2).ForAwait();
+            Assert.Equal(2, moreRandoms.Length);
+            Assert.False(moreRandoms[0].IsNull);
+            Assert.Equal(7, db.SetLength(key));
         }
 
         [Fact]
         public async Task SetPopMulti_Single_Async()
         {
-            using (var conn = Create())
+            using var conn = Create();
+            var db = conn.GetDatabase();
+            var key = Me();
+
+            db.KeyDelete(key, CommandFlags.FireAndForget);
+            for (int i = 1; i < 11; i++)
             {
-                var db = conn.GetDatabase();
-                var key = Me();
-
-                db.KeyDelete(key, CommandFlags.FireAndForget);
-                for (int i = 1; i < 11; i++)
-                {
-                    db.SetAdd(key, i, CommandFlags.FireAndForget);
-                }
-
-                var random = await db.SetPopAsync(key).ForAwait();
-                Assert.False(random.IsNull);
-                Assert.True((int)random > 0);
-                Assert.True((int)random <= 10);
-                Assert.Equal(9, db.SetLength(key));
-
-                var moreRandoms = db.SetPop(key, 1);
-                Assert.Single(moreRandoms);
-                Assert.False(moreRandoms[0].IsNull);
-                Assert.Equal(8, db.SetLength(key));
+                db.SetAdd(key, i, CommandFlags.FireAndForget);
             }
+
+            var random = await db.SetPopAsync(key).ForAwait();
+            Assert.False(random.IsNull);
+            Assert.True((int)random > 0);
+            Assert.True((int)random <= 10);
+            Assert.Equal(9, db.SetLength(key));
+
+            var moreRandoms = db.SetPop(key, 1);
+            Assert.Single(moreRandoms);
+            Assert.False(moreRandoms[0].IsNull);
+            Assert.Equal(8, db.SetLength(key));
         }
 
         [Fact]
         public async Task SetPopMulti_Zero_Async()
         {
-            using (var conn = Create())
+            using var conn = Create();
+            var db = conn.GetDatabase();
+            var key = Me();
+
+            db.KeyDelete(key, CommandFlags.FireAndForget);
+            for (int i = 1; i < 11; i++)
             {
-                var db = conn.GetDatabase();
-                var key = Me();
-
-                db.KeyDelete(key, CommandFlags.FireAndForget);
-                for (int i = 1; i < 11; i++)
-                {
-                    db.SetAdd(key, i, CommandFlags.FireAndForget);
-                }
-
-                var t = db.SetPopAsync(key, count: 0);
-                Assert.True(t.IsCompleted); // sync
-                var arr = await t;
-                Assert.Empty(arr);
-
-                Assert.Equal(10, db.SetLength(key));
+                db.SetAdd(key, i, CommandFlags.FireAndForget);
             }
+
+            var t = db.SetPopAsync(key, count: 0);
+            Assert.True(t.IsCompleted); // sync
+            var arr = await t;
+            Assert.Empty(arr);
+            Assert.Equal(10, db.SetLength(key));
         }
 
         [Fact]
         public void SetAdd_Zero()
         {
-            using (var conn = Create())
-            {
-                var db = conn.GetDatabase();
-                var key = Me();
+            using var conn = Create();
+            var db = conn.GetDatabase();
+            var key = Me();
 
-                db.KeyDelete(key, CommandFlags.FireAndForget);
+            db.KeyDelete(key, CommandFlags.FireAndForget);
 
-                var result = db.SetAdd(key, Array.Empty<RedisValue>());
-                Assert.Equal(0, result);
+            var result = db.SetAdd(key, Array.Empty<RedisValue>());
+            Assert.Equal(0, result);
 
-                Assert.Equal(0, db.SetLength(key));
-            }
+            Assert.Equal(0, db.SetLength(key));
         }
 
         [Fact]
         public async Task SetAdd_Zero_Async()
         {
-            using (var conn = Create())
-            {
-                var db = conn.GetDatabase();
-                var key = Me();
+            using var conn = Create();
+            var db = conn.GetDatabase();
+            var key = Me();
 
-                db.KeyDelete(key, CommandFlags.FireAndForget);
+            db.KeyDelete(key, CommandFlags.FireAndForget);
 
-                var t = db.SetAddAsync(key, Array.Empty<RedisValue>());
-                Assert.True(t.IsCompleted); // sync
-                var count = await t;
-                Assert.Equal(0, count);
-
-                Assert.Equal(0, db.SetLength(key));
-            }
+            var t = db.SetAddAsync(key, Array.Empty<RedisValue>());
+            Assert.True(t.IsCompleted); // sync
+            var count = await t;
+            Assert.Equal(0, count);
+            Assert.Equal(0, db.SetLength(key));
         }
 
         [Fact]
         public void SetPopMulti_Nil()
         {
-            using (var conn = Create())
-            {
-                Skip.IfBelow(conn, RedisFeatures.v3_2_0);
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v3_2_0);
 
-                var db = conn.GetDatabase();
-                var key = Me();
+            var db = conn.GetDatabase();
+            var key = Me();
 
-                db.KeyDelete(key, CommandFlags.FireAndForget);
+            db.KeyDelete(key, CommandFlags.FireAndForget);
 
-                var arr = db.SetPop(key, 1);
-                Assert.Empty(arr);
-            }
+            var arr = db.SetPop(key, 1);
+            Assert.Empty(arr);
         }
     }
 }
