@@ -112,6 +112,7 @@ namespace StackExchange.Redis
             // Sentinel Literals
             MASTERS = "MASTERS",
             MASTER = "MASTER",
+            REPLICAS = "REPLICAS",
             SLAVES = "SLAVES",
             GETMASTERADDRBYNAME = "GET-MASTER-ADDR-BY-NAME",
             //            RESET = "RESET",
