@@ -1342,14 +1342,14 @@ namespace StackExchange.Redis
         long SortedSetAdd(RedisKey key, SortedSetEntry[] values, When when = When.Always, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Computes a set operation multiple sorted sets (optionally using per-set weights), and returns to the client, optionally performing
-        /// a specific aggregation (defaults to sum).
-        /// The different operations can't be used with weights or aggregation.
+        /// Computes a set operation for multiple sorted sets (optionally using per-set <paramref name="weights"/>),
+        /// optionally performing a specific aggregation (defaults to <see cref="Aggregate.Sum"/>).
+        /// <see cref="SetOperation.Difference"/> cannot be used with weights or aggregation.
         /// </summary>
         /// <param name="operation">The operation to perform.</param>
         /// <param name="keys">The keys of the sorted sets.</param>
         /// <param name="weights">The optional weights per set that correspond to <paramref name="keys"/>.</param>
-        /// <param name="aggregate">The aggregation method (defaults to sum).</param>
+        /// <param name="aggregate">The aggregation method (defaults to <see cref="Aggregate.Sum"/>).</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <remarks>https://redis.io/commands/zunion</remarks>
         /// <remarks>https://redis.io/commands/zinter</remarks>
@@ -1358,14 +1358,14 @@ namespace StackExchange.Redis
         RedisValue[] SortedSetCombine(SetOperation operation, RedisKey[] keys, double[]? weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Computes a set operation multiple sorted sets (optionally using per-set weights), and returns to the client with scores, optionally performing
-        /// a specific aggregation (defaults to sum).
-        /// The different operations can't be used with weights or aggregation.
+        /// Computes a set operation for multiple sorted sets (optionally using per-set <paramref name="weights"/>),
+        /// optionally performing a specific aggregation (defaults to <see cref="Aggregate.Sum"/>).
+        /// <see cref="SetOperation.Difference"/> cannot be used with weights or aggregation.
         /// </summary>
         /// <param name="operation">The operation to perform.</param>
         /// <param name="keys">The keys of the sorted sets.</param>
         /// <param name="weights">The optional weights per set that correspond to <paramref name="keys"/>.</param>
-        /// <param name="aggregate">The aggregation method (defaults to sum).</param>
+        /// <param name="aggregate">The aggregation method (defaults to <see cref="Aggregate.Sum"/>).</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <remarks>https://redis.io/commands/zunion</remarks>
         /// <remarks>https://redis.io/commands/zinter</remarks>
@@ -1376,7 +1376,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Computes a set operation over two sorted sets, and stores the result in destination, optionally performing
         /// a specific aggregation (defaults to sum).
-        /// The different operations can't be used with weights or aggregation.
+        /// <see cref="SetOperation.Difference"/> cannot be used with aggregation.
         /// </summary>
         /// <param name="operation">The operation to perform.</param>
         /// <param name="destination">The key to store the results in.</param>
@@ -1393,7 +1393,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Computes a set operation over multiple sorted sets (optionally using per-set weights), and stores the result in destination, optionally performing
         /// a specific aggregation (defaults to sum).
-        /// The different operations can't be used with weights or aggregation.
+        /// <see cref="SetOperation.Difference"/> cannot be used with aggregation.
         /// </summary>
         /// <param name="operation">The operation to perform.</param>
         /// <param name="destination">The key to store the results in.</param>
@@ -1431,7 +1431,7 @@ namespace StackExchange.Redis
         double SortedSetIncrement(RedisKey key, RedisValue member, double value, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Returns the cardinality of the intersaction of the Sorted sets.
+        /// Returns the cardinality of the intersection of the sorted sets at <paramref name="keys"/>.
         /// </summary>
         /// <param name="keys">The keys of the sorted sets.</param>
         /// <param name="limit">If the intersection cardinality reaches limit partway through the computation, the algorithm will exit and yield limit as the cardinality (defaults to 0 and means unlimited).</param>
