@@ -17,7 +17,7 @@ namespace StackExchange.Redis.Tests
             using var conn = Create();
             var server = GetAnyPrimary(conn);
 
-            RedisKey key = Me();
+            var key = Me();
             var db = conn.GetDatabase();
             int totalUnfiltered = 0, totalFiltered = 0;
             for (int i = 1; i < 1001; i++)
@@ -42,7 +42,7 @@ namespace StackExchange.Redis.Tests
             using var conn = Create();
             Skip.IfBelow(conn, RedisFeatures.v6_2_0);
 
-            RedisKey key = Me();
+            var key = Me();
             var db = conn.GetDatabase();
             for (int i = 1; i < 1001; i++)
             {
@@ -60,7 +60,7 @@ namespace StackExchange.Redis.Tests
             Assert.True(areMemebers[1]);
 
             // key not exists
-            RedisKey key1 = Me() + "non-exists";
+            var key1 = Me() + "non-exists";
             isMemeber = db.SetContains(key1, 1);
             Assert.False(isMemeber);
             areMemebers = db.SetContains(key1, new RedisValue[] { 0, 1, 2 });
