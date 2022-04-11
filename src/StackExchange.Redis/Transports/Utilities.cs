@@ -1,11 +1,14 @@
 ﻿using System;
 using System.Buffers;
+using System.IO;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Threading;
+using System.Threading.Tasks;
 #nullable enable
 
-namespace StackExchange.Redis.Connections
+namespace StackExchange.Redis.Transports
 {
     internal static class Utilities
     {
@@ -68,6 +71,20 @@ namespace StackExchange.Redis.Connections
                 }
             }
         }
+        public static void Preserve<T>(this in ReadOnlySequence<T> value)
+        {
+            if (value.IsSingleSegment)
+            {
+                value.First.Preserve();
+            }
+            else
+            {
+                foreach (var segment in value)
+                {
+                    segment.Preserve();
+                }
+            }
+        }
 
 #if NETSTANDARD2_0_OR_GREATER || NET461_OR_GREATER
         // note: here we use the sofware fallback implementation from the BCL
@@ -109,6 +126,9 @@ namespace StackExchange.Redis.Connections
             08, 12, 20, 28, 15, 17, 24, 07,
             19, 27, 23, 06, 26, 05, 04, 31
         };
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static ReadOnlySequence<T> AsReadOnlySequence<T>(this Memory<T> memory)
+            => AsReadOnlySequence((ReadOnlyMemory<T>)memory);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static ReadOnlySequence<T> AsReadOnlySequence<T>(this ReadOnlyMemory<T> memory)
@@ -116,20 +136,20 @@ namespace StackExchange.Redis.Connections
             // netfx has a nasty bug if you use `new ROS(memory)` with a custom manager with non-zero start; the bug
             // doesn't apply to sequence segments, though - so if we have a custom manager that doesn't support arrays: use that
             if (memory.IsEmpty) return default;
+
+            if (MemoryMarshal.TryGetMemoryManager<T, MemoryManager<T>>(memory, out var manager, out var start, out var length)
+                    && start != 0)
+            {
+                var seqSegment = manager is RefCountedMemoryManager<T> basic ? basic.SharedSegment : new IsolatedSequenceSegment<T>(manager.Memory);
+                return new ReadOnlySequence<T>(seqSegment, start, seqSegment, start + length);
+            }
+
+            // push array optimizations below memory manager, because we usually want to retain the original manager (for release)
             if (MemoryMarshal.TryGetArray(memory, out var segment))
                 return new ReadOnlySequence<T>(segment.Array, segment.Offset, segment.Count);
-            return ViaManager(memory);
 
-            static ReadOnlySequence<T> ViaManager(ReadOnlyMemory<T> memory)
-            {
-                if (MemoryMarshal.TryGetMemoryManager<T, MemoryManager<T>>(memory, out var manager, out var start, out var length)
-                    && start != 0)
-                {
-                    var seqSegment = manager is RefCountedMemoryManager<T> basic ? basic.SharedSegment : new IsolatedSequenceSegment<T>(manager.Memory);
-                    return new ReadOnlySequence<T>(seqSegment, start, seqSegment, start + length);
-                }
-                return new ReadOnlySequence<T>(memory);
-            }
+            // (shrug)
+            return new ReadOnlySequence<T>(memory);
         }
 #else
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -142,6 +162,76 @@ namespace StackExchange.Redis.Connections
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static ReadOnlySequence<T> AsReadOnlySequence<T>(this ReadOnlyMemory<T> memory) => new ReadOnlySequence<T>(memory);
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static ReadOnlySequence<T> AsReadOnlySequence<T>(this Memory<T> memory) => new ReadOnlySequence<T>(memory);
+#endif
+
+#if !(NETCOREAPP3_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER)
+        public static ValueTask<int> ReadAsync(this Stream stream, Memory<byte> value, CancellationToken cancellationToken)
+        {
+            return MemoryMarshal.TryGetArray<byte>(value, out var segment)
+                ? new ValueTask<int>(stream.ReadAsync(segment.Array, segment.Offset, segment.Count, cancellationToken))
+                : SlowReadAsync(stream, value, cancellationToken);
+
+            static ValueTask<int> SlowReadAsync(Stream stream, Memory<byte> value, CancellationToken cancellationToken)
+            {
+                var oversized = ArrayPool<byte>.Shared.Rent(value.Length);
+                var pending = stream.ReadAsync(oversized, 0, value.Length, cancellationToken);
+                if (pending.Status == TaskStatus.RanToCompletion)
+                {
+                    var result = pending.Result;
+                    new ReadOnlySpan<byte>(oversized, 0, result).CopyTo(value.Span);
+                    ArrayPool<byte>.Shared.Return(oversized);
+                    return new ValueTask<int>(result);
+                }
+                return Awaited(value, pending, oversized);
+            }
+
+            static async ValueTask<int> Awaited(Memory<byte> value, Task<int> pending, byte[] oversized)
+            {
+                try
+                {
+                    var result = await pending;
+                    new ReadOnlySpan<byte>(oversized, 0, result).CopyTo(value.Span);
+                    return result;
+                }
+                finally
+                {
+                    ArrayPool<byte>.Shared.Return(oversized);
+                }
+            }
+        }
+        public static ValueTask WriteAsync(this Stream stream, ReadOnlyMemory<byte> value, CancellationToken cancellationToken)
+        {
+            return MemoryMarshal.TryGetArray<byte>(value, out var segment)
+                ? new ValueTask(stream.WriteAsync(segment.Array, segment.Offset, segment.Count, cancellationToken))
+                : SlowWriteAsync(stream, value, cancellationToken);
+
+            static ValueTask SlowWriteAsync(Stream stream, ReadOnlyMemory<byte> value, CancellationToken cancellationToken)
+            {
+                var oversized = ArrayPool<byte>.Shared.Rent(value.Length);
+                value.CopyTo(oversized);
+                var pending = stream.WriteAsync(oversized, 0, value.Length, cancellationToken);
+                if (pending.IsCompleted)
+                {
+                    ArrayPool<byte>.Shared.Return(oversized);
+                    return new ValueTask(pending);
+                }
+                return Awaited(pending, oversized);
+            }
+
+            static async ValueTask Awaited(Task pending, byte[] oversized)
+            {
+                try
+                {
+                    await pending;
+                }
+                finally
+                {
+                    ArrayPool<byte>.Shared.Return(oversized);
+                }
+            }
+        }
 #endif
     }
 #if NETSTANDARD2_0_OR_GREATER || NET461_OR_GREATER

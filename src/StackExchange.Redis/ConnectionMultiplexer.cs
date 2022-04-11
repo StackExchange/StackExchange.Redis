@@ -11,6 +11,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Pipelines.Sockets.Unofficial;
 using StackExchange.Redis.Profiling;
+using StackExchange.Redis.Transports;
 
 namespace StackExchange.Redis
 {
@@ -19,7 +20,7 @@ namespace StackExchange.Redis
     /// A reference to this should be held and re-used.
     /// </summary>
     /// <remarks>https://stackexchange.github.io/StackExchange.Redis/PipelinesMultiplexers</remarks>
-    public sealed partial class ConnectionMultiplexer : IInternalConnectionMultiplexer, IWriteState // implies : IConnectionMultiplexer and : IDisposable
+    public sealed partial class ConnectionMultiplexer : IInternalConnectionMultiplexer, ITransportState // implies : IConnectionMultiplexer and : IDisposable
     {
         internal const int MillisecondsPerHeartbeat = 1000;
 
@@ -59,8 +60,11 @@ namespace StackExchange.Redis
                 }
             }
         }
-        byte[] IWriteState.ChannelPrefix => _channelPrefix;
-        CommandMap IWriteState.CommandMap => CommandMap;
+        byte[] ITransportState.ChannelPrefix => _channelPrefix;
+        CommandMap ITransportState.CommandMap => CommandMap;
+        ServerEndPoint ITransportState.ServerEndPoint => null;
+
+        void ITransportState.OnTransactionLogImpl(string message) => OnTransactionLog(message);
 
         internal ServerSelectionStrategy ServerSelectionStrategy { get; }
         internal Exception LastException { get; set; }

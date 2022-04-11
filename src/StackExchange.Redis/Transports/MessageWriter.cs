@@ -5,7 +5,7 @@ using System.Diagnostics;
 using System.Linq;
 #nullable enable
 
-namespace StackExchange.Redis.Connections
+namespace StackExchange.Redis.Transports
 {
     internal class MessageWriter : IBufferWriter<byte>
     {
@@ -51,11 +51,19 @@ namespace StackExchange.Redis.Connections
         {
             if (_committed == 0)
             {
-                _current.Release();
+                _pool.Return(_current);
+            }
+            else if (_committed == _current.Length)
+            {
+                // full buffer; no need to slice or add a reference -
+                // we just transfer ownership
+                _buffers.Add(_current);
             }
             else
             {
+                _current.Preserve(); // we'll now have an extra segment, logically
                 _buffers.Add(_current.Slice(0, _committed));
+                _pool.Return(_current.Slice(_committed));
                 _committed = 0;
             }
             _current = default;
@@ -97,15 +105,13 @@ namespace StackExchange.Redis.Connections
                 }
                 else
                 {
-                    // since there are headers between payloads, we are never
-                    // able to merge frames to make a larger payload buffer; that's fine
                     last = new FrameSequenceSegment(last, buffer);
                     if (first is null) first = last;
                 }
             }
 
             if (first is null) return default;
-#if !NET472 // avoid this optimization on netfx; due to the ROS bug, this might end up allocating a second ReadOnlySequenceSegment (if no array support)
+#if !(NETSTANDARD2_0_OR_GREATER || NET461_OR_GREATER) // avoid this optimization on netfx; due to the ROS bug, this might end up allocating a second ReadOnlySequenceSegment (if no array support)
             if (ReferenceEquals(first, last)) return first.Memory.AsReadOnlySequence();
 #endif
             return new ReadOnlySequence<byte>(first, 0, last!, last!.Memory.Length);

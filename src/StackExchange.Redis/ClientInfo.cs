@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.IO;
 using System.Net;
+using StackExchange.Redis.Transports;
 
 namespace StackExchange.Redis
 {
@@ -253,7 +254,7 @@ namespace StackExchange.Redis
 
         private class ClientInfoProcessor : ResultProcessor<ClientInfo[]>
         {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            protected override bool SetResultCore(ITransportState transport, Message message, in RawResult result)
             {
                 switch(result.Type)
                 {

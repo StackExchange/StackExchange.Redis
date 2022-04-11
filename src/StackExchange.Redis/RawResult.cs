@@ -2,22 +2,142 @@
 using System.Buffers;
 using System.Runtime.CompilerServices;
 using System.Text;
-using Pipelines.Sockets.Unofficial.Arenas;
+using StackExchange.Redis.Transports;
 
 namespace StackExchange.Redis
 {
+    internal readonly struct RawResultBuffer
+    {
+        public readonly ITransportState Transport;
+        public readonly ReadOnlySequence<byte> Buffer;
+        public readonly RawResult Result;
+        public RawResultBuffer(ITransportState transport, in ReadOnlySequence<byte> buffer, in RawResult result)
+        {
+            Transport = transport;
+            Buffer = buffer;
+            Result = result;
+        }
+    }
     internal readonly struct RawResult
     {
-        internal ref RawResult this[int index] => ref GetItems()[index];
+        internal ref readonly RawResult this[int index] => ref GetRef<RawResult>(index);
 
-        internal int ItemsCount => (int)_items.Length;
-        internal ReadOnlySequence<byte> Payload { get; }
+        internal int ItemsCount => _type == (ResultType.MultiBulk | NonNullFlag) ? GetLength<RawResult>() : 0;
+        internal ReadOnlySequence<byte> Payload => Type == ResultType.MultiBulk ? default : GetSequence<byte>();
 
-        internal static readonly RawResult NullMultiBulk = new RawResult(default(Sequence<RawResult>), isNull: true);
-        internal static readonly RawResult EmptyMultiBulk = new RawResult(default(Sequence<RawResult>), isNull: false);
+        private ReadOnlySequence<T> GetSequence<T>()
+        {
+            if (_startObject is ReadOnlySequenceSegment<T> startSegment)
+                return new ReadOnlySequence<T>(startSegment, _startIndex, (ReadOnlySequenceSegment<T>)_endObject, _endIndex);
+
+            if (_startObject is null)
+                return default;
+
+            var length = _endIndex - _startIndex;
+            if (_startObject is T[] arr)
+                return new ReadOnlySequence<T>(arr, _startIndex, length);
+
+            ReadOnlyMemory<T> mem;
+            if (_startObject is MemoryManager<T> manager)
+            {
+                mem = manager.Memory;
+            }
+            else if (typeof(T) == typeof(char) && _startObject is string s)
+            {
+                mem = FromString<T>(s);
+            }
+            else
+            {
+                // _startObject could be null for a default sequence
+                if (_startObject is not null) ThrowUnexpected(_startObject);
+                mem = default;
+            }
+            if (_startIndex != 0 || length != mem.Length) mem = mem.Slice(_startIndex, length);
+            return new ReadOnlySequence<T>(mem);
+        }
+
+        private ref readonly T GetRef<T>(int index)
+        {
+            ReadOnlySpan<T> span;
+            int length;
+            if (_startObject is ReadOnlySequenceSegment<T> segment)
+            {
+                var endSegment = (ReadOnlySequenceSegment<T>)_endObject;
+                length = checked((int)((endSegment.RunningIndex + _endIndex) - (segment.RunningIndex + _startIndex)));
+                if (index < 0 || index >= length) Throw();
+                span = segment.Memory.Span.Slice(_startIndex);
+                while (true)
+                {
+                    if (index < span.Length) return ref span[index];
+                    index -= span.Length;
+                    segment = segment.Next;
+                    span = segment.Memory.Span;
+                }
+            }
+
+            length = _endIndex - _startIndex;
+            if (index < 0 || index >= length) Throw();
+            if (_startObject is T[] arr)
+                return ref arr[_startIndex + index];
+
+            if (_startObject is MemoryManager<T> manager)
+            {
+                span = manager.Memory.Span;
+            }
+            else if (typeof(T) == typeof(char) && _startObject is string s)
+            {
+                span = FromString<T>(s).Span;
+            }
+            else
+            {
+                // _startObject could be null for a default sequence
+                if (_startObject is not null) ThrowUnexpected(_startObject);
+                span = default;
+            }
+            return ref span[_startIndex + index];
+
+            static void Throw() => throw new IndexOutOfRangeException(nameof(index));
+        }
+
+        private int GetLength<T>()
+        {
+            if (_startObject == _endObject) return _endIndex - _startIndex;
+
+            // multi-segment length calculation
+            var startSegment = (ReadOnlySequenceSegment<T>)_startObject;
+            var endSegment = (ReadOnlySequenceSegment<T>)_endObject;
+            return checked((int)((endSegment.RunningIndex + _endIndex) - (startSegment.RunningIndex + _startIndex)));
+        }
+
+        static void ThrowUnexpected(object obj)
+            => throw new InvalidOperationException($"Unexpected sequence start object: {obj.GetType().FullName}");
+        static ReadOnlyMemory<T> FromString<T>(string s)
+        {
+            var sMem = s.AsMemory();
+            return Unsafe.As<ReadOnlyMemory<char>, ReadOnlyMemory<T>>(ref sMem);
+        }
+
+        internal static readonly RawResult NullMultiBulk = new RawResult(ResultType.MultiBulk);
+        internal static readonly RawResult EmptyMultiBulk = new RawResult(ResultType.MultiBulk | NonNullFlag);
         internal static readonly RawResult Nil = default;
-        // Note: can't use Memory<RawResult> here - struct recursion breaks runtime
-        private readonly Sequence _items;
+
+        internal void ReleaseItemsRecursive()
+        {
+            if (_type == (ResultType.MultiBulk | NonNullFlag))
+            {
+                var seq = GetSequence<RawResult>();
+                foreach (var segment in seq)
+                {
+                    var span = segment.Span;
+                    foreach (var item in span)
+                        item.ReleaseItemsRecursive();
+                    segment.Release();
+                }
+            }
+        }
+
+        private readonly object _startObject, _endObject;
+        private readonly int _startIndex, _endIndex;
         private readonly ResultType _type;
 
         private const ResultType NonNullFlag = (ResultType)128;
@@ -36,15 +156,30 @@ namespace StackExchange.Redis
             }
             if (!isNull) resultType |= NonNullFlag;
             _type = resultType;
-            Payload = payload;
-            _items = default;
+            var position = payload.Start;
+            _startObject = position.GetObject();
+            _startIndex = position.GetInteger();
+            position = payload.End;
+            _endObject = position.GetObject();
+            _endIndex = position.GetInteger();
         }
 
-        public RawResult(Sequence<RawResult> items, bool isNull)
+        private RawResult(ResultType type)
         {
-            _type = isNull ? ResultType.MultiBulk : (ResultType.MultiBulk | NonNullFlag);
-            Payload = default;
-            _items = items.Untyped();
+            _type = type;
+            _startObject = _endObject = null;
+            _startIndex = _endIndex = 0;
+        }
+
+        public RawResult(ReadOnlySequence<RawResult> items)
+        {
+            _type = ResultType.MultiBulk | NonNullFlag;
+            var position = items.Start;
+            _startObject = position.GetObject();
+            _startIndex = position.GetInteger();
+            position = items.End;
+            _endObject = position.GetObject();
+            _endIndex = position.GetInteger();
         }
 
         public bool IsError => Type == ResultType.Error;
@@ -219,7 +354,7 @@ namespace StackExchange.Redis
             if (rangeToCheck.IsSingleSegment) return rangeToCheck.First.Span.SequenceEqual(expected);
 
             int offset = 0;
-            foreach(var segment in rangeToCheck)
+            foreach (var segment in rangeToCheck)
             {
                 var from = segment.Span;
                 var to = new Span<byte>(expected, offset, from.Length);
@@ -251,7 +386,7 @@ namespace StackExchange.Redis
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal Sequence<RawResult> GetItems() => _items.Cast<RawResult>();
+        internal ReadOnlySequence<RawResult> GetItems() => _type == (ResultType.MultiBulk | NonNullFlag) ? GetSequence<RawResult>() : default;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal RedisKey[] GetItemsAsKeys() => this.ToArray<RedisKey>((in RawResult x) => x.AsRedisKey());
@@ -270,7 +405,7 @@ namespace StackExchange.Redis
                 return null;
             }
 
-            ref RawResult root = ref items[0];
+            ref readonly RawResult root = ref items.First.Span[0];
             if (root.IsNull)
             {
                 return null;
@@ -278,19 +413,19 @@ namespace StackExchange.Redis
             return AsGeoPosition(root.GetItems());
         }
 
-        private static GeoPosition AsGeoPosition(in Sequence<RawResult> coords)
+        private static GeoPosition AsGeoPosition(in ReadOnlySequence<RawResult> coords)
         {
             double longitude, latitude;
             if (coords.IsSingleSegment)
             {
-                var span = coords.FirstSpan;
+                var span = coords.First.Span;
                 longitude = (double)span[0].AsRedisValue();
                 latitude = (double)span[1].AsRedisValue();
             }
             else
             {
-                longitude = (double)coords[0].AsRedisValue();
-                latitude = (double)coords[1].AsRedisValue();
+                longitude = (double)coords.GetRef(0).AsRedisValue();
+                latitude = (double)coords.GetRef(1).AsRedisValue();
             }
 
             return new GeoPosition(longitude, latitude);
@@ -310,12 +445,12 @@ namespace StackExchange.Redis
             }
             var decoder = Encoding.UTF8.GetDecoder();
             int charCount = 0;
-            foreach(var segment in Payload)
+            foreach (var segment in Payload)
             {
                 var span = segment.Span;
                 if (span.IsEmpty) continue;
 
-                fixed(byte* bPtr = span)
+                fixed (byte* bPtr = span)
                 {
                     charCount += decoder.GetCharCount(bPtr, span.Length, false);
                 }

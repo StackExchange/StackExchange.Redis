@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Buffers;
 using System.Collections.Generic;
+using StackExchange.Redis.Transports;
 
 namespace StackExchange.Redis
 {
@@ -372,9 +373,9 @@ namespace StackExchange.Redis
                 new ConditionMessage(condition, db, flags, command, key, value, value1);
 
             [System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0071:Simplify interpolation", Justification = "Allocations (string.Concat vs. string.Format)")]
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            protected override bool SetResultCore(ITransportState transport, Message message, in RawResult result)
             {
-                connection?.BridgeCouldBeNull?.Multiplexer?.OnTransactionLog($"condition '{message.CommandAndKey}' got '{result.ToString()}'");
+                transport.OnTransactionLog($"condition '{message.CommandAndKey}' got '{result.ToString()}'");
                 var msg = message as ConditionMessage;
                 var condition = msg?.Condition;
                 if (condition != null && condition.TryValidate(result, out bool final))
@@ -404,7 +405,7 @@ namespace StackExchange.Redis
                     this.value1 = value1; // note no assert here
                 }
 
-                protected override void WriteImpl(IWriteState writeState, IBufferWriter<byte> output)
+                protected override void WriteImpl(ITransportState writeState, IBufferWriter<byte> output)
                 {
                     if (value.IsNull)
                     {

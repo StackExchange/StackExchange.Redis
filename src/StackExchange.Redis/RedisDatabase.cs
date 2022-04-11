@@ -5,6 +5,7 @@ using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 using Pipelines.Sockets.Unofficial.Arenas;
+using StackExchange.Redis.Transports;
 
 namespace StackExchange.Redis
 {
@@ -754,7 +755,7 @@ namespace StackExchange.Redis
                 this.migrateOptions = migrateOptions;
             }
 
-            protected override void WriteImpl(IWriteState writeState, IBufferWriter<byte> output)
+            protected override void WriteImpl(ITransportState writeState, IBufferWriter<byte> output)
             {
                 bool isCopy = (migrateOptions & MigrateOptions.Copy) != 0;
                 bool isReplace = (migrateOptions & MigrateOptions.Replace) != 0;
@@ -3833,7 +3834,7 @@ namespace StackExchange.Redis
                 Script = script ?? throw new ArgumentNullException(nameof(script));
             }
 
-            protected override void WriteImpl(IWriteState writeState, IBufferWriter<byte> output)
+            protected override void WriteImpl(ITransportState writeState, IBufferWriter<byte> output)
             {
                 PhysicalConnection.WriteHeader(writeState, output, Command, 2);
                 PhysicalConnection.WriteBulkString(output, RedisLiterals.LOAD);
@@ -3854,7 +3855,7 @@ namespace StackExchange.Redis
         {
             protected abstract T[] Parse(in RawResult result, out int count);
 
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            protected override bool SetResultCore(ITransportState transport, Message message, in RawResult result)
             {
                 switch (result.Type)
                 {
@@ -3862,8 +3863,8 @@ namespace StackExchange.Redis
                         var arr = result.GetItems();
                         if (arr.Length == 2)
                         {
-                            ref RawResult inner = ref arr[1];
-                            if (inner.Type == ResultType.MultiBulk && arr[0].TryGetInt64(out var i64))
+                            ref readonly RawResult inner = ref arr.GetRef(1);
+                            if (inner.Type == ResultType.MultiBulk && arr.GetRef(0).TryGetInt64(out var i64))
                             {
                                 T[] oversized = Parse(inner, out int count);
                                 var sscanResult = new ScanEnumerable<T>.ScanResult(i64, oversized, count, true);
@@ -3893,7 +3894,7 @@ namespace StackExchange.Redis
                 _args = args ?? Array.Empty<object>();
             }
 
-            protected override void WriteImpl(IWriteState writeState, IBufferWriter<byte> output)
+            protected override void WriteImpl(ITransportState writeState, IBufferWriter<byte> output)
             {
                 PhysicalConnection.WriteHeader(writeState, output, RedisCommand.UNKNOWN, _args.Count, Command);
                 foreach (object arg in _args)
@@ -3998,7 +3999,7 @@ namespace StackExchange.Redis
                 yield return this;
             }
 
-            protected override void WriteImpl(IWriteState writeState, IBufferWriter<byte> output)
+            protected override void WriteImpl(ITransportState writeState, IBufferWriter<byte> output)
             {
                 if (hexHash != null)
                 {
@@ -4126,7 +4127,7 @@ namespace StackExchange.Redis
                 return slot;
             }
 
-            protected override void WriteImpl(IWriteState writeState, IBufferWriter<byte> output)
+            protected override void WriteImpl(ITransportState writeState, IBufferWriter<byte> output)
             {
                 PhysicalConnection.WriteHeader(writeState, output, Command, 2 + keys.Length + values.Length);
                 PhysicalConnection.Write(output, Key);
@@ -4183,7 +4184,7 @@ namespace StackExchange.Redis
                 return false;
             }
 
-            protected override void WriteImpl(IWriteState writeState, IBufferWriter<byte> output)
+            protected override void WriteImpl(ITransportState writeState, IBufferWriter<byte> output)
             {
                 PhysicalConnection.WriteHeader(writeState, output, command, 1);
                 PhysicalConnection.Write(output, Key);
@@ -4195,7 +4196,7 @@ namespace StackExchange.Redis
         {
             public static readonly ResultProcessor<RedisValueWithExpiry> Default = new StringGetWithExpiryProcessor();
             private StringGetWithExpiryProcessor() { }
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            protected override bool SetResultCore(ITransportState transport, Message message, in RawResult result)
             {
                 switch (result.Type)
                 {

@@ -8,6 +8,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using Pipelines.Sockets.Unofficial.Arenas;
+using StackExchange.Redis.Transports;
 
 namespace StackExchange.Redis
 {
@@ -813,14 +814,14 @@ namespace StackExchange.Redis
             public static readonly ResultProcessor<ScanResult> processor = new ScanResultProcessor();
             private class ScanResultProcessor : ResultProcessor<ScanResult>
             {
-                protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+                protected override bool SetResultCore(ITransportState transport, Message message, in RawResult result)
                 {
                     switch (result.Type)
                     {
                         case ResultType.MultiBulk:
                             var arr = result.GetItems();
                             RawResult inner;
-                            if (arr.Length == 2 && (inner = arr[1]).Type == ResultType.MultiBulk)
+                            if (arr.Length == 2 && (inner = arr.GetRef(1)).Type == ResultType.MultiBulk)
                             {
                                 var items = inner.GetItems();
                                 RedisKey[] keys;
@@ -836,7 +837,7 @@ namespace StackExchange.Redis
                                     keys = ArrayPool<RedisKey>.Shared.Rent(count);
                                     items.CopyTo(keys, (in RawResult r) => r.AsRedisKey());
                                 }
-                                var keysResult = new ScanResult(arr[0].AsRedisValue(), keys, count, true);
+                                var keysResult = new ScanResult(arr.GetRef(0).AsRedisValue(), keys, count, true);
                                 SetResult(message, keysResult);
                                 return true;
                             }

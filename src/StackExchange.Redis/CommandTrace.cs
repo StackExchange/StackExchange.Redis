@@ -1,4 +1,5 @@
 ﻿using System;
+using StackExchange.Redis.Transports;
 
 namespace StackExchange.Redis
 {
@@ -71,7 +72,7 @@ namespace StackExchange.Redis
 
         private class CommandTraceProcessor : ResultProcessor<CommandTrace[]>
         {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            protected override bool SetResultCore(ITransportState transport, Message message, in RawResult result)
             {
                 switch(result.Type)
                 {
@@ -79,12 +80,13 @@ namespace StackExchange.Redis
                         var parts = result.GetItems();
                         CommandTrace[] arr = new CommandTrace[parts.Length];
                         int i = 0;
-                        foreach(var item in parts)
+                        var iter = parts.AllEnumerator();
+                        while (iter.MoveNext())
                         {
-                            var subParts = item.GetItems();
-                            if (!subParts[0].TryGetInt64(out long uniqueid) || !subParts[1].TryGetInt64(out long time) || !subParts[2].TryGetInt64(out long duration))
+                            var subParts = iter.Current.GetItems();
+                            if (!subParts.GetRef(0).TryGetInt64(out long uniqueid) || !subParts.GetRef(1).TryGetInt64(out long time) || !subParts.GetRef(2).TryGetInt64(out long duration))
                                 return false;
-                             arr[i++] = new CommandTrace(uniqueid, time, duration, subParts[3].GetItemsAsValues());
+                             arr[i++] = new CommandTrace(uniqueid, time, duration, subParts.GetRef(3).GetItemsAsValues());
                         }
                         SetResult(message, arr);
                         return true;

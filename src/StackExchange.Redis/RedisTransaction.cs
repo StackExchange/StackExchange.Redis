@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using StackExchange.Redis.Transports;
 
 namespace StackExchange.Redis
 {
@@ -159,7 +160,7 @@ namespace StackExchange.Redis
                 Wrapped.SetRequestSent();
             }
 
-            protected override void WriteImpl(IWriteState writeState, IBufferWriter<byte> output) => throw new InvalidOperationException(); // should never be called; Wrapped writes instead
+            protected override void WriteImpl(ITransportState writeState, IBufferWriter<byte> output) => throw new InvalidOperationException(); // should never be called; Wrapped writes instead
 
             public override int ArgCount => Wrapped.ArgCount;
             public override string CommandAndKey => Wrapped.CommandAndKey;
@@ -171,13 +172,13 @@ namespace StackExchange.Redis
         {
             public static readonly ResultProcessor<bool> Default = new QueuedProcessor();
 
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            protected override bool SetResultCore(ITransportState transport, Message message, in RawResult result)
             {
                 if (result.Type == ResultType.SimpleString && result.IsEqual(CommonReplies.QUEUED))
                 {
                     if (message is QueuedMessage q)
                     {
-                        connection?.BridgeCouldBeNull?.Multiplexer?.OnTransactionLog("Observed QUEUED for " + q.Wrapped?.CommandAndKey);
+                        transaction.OnTransactionLog("Observed QUEUED for " + q.Wrapped?.CommandAndKey);
                         q.WasQueued = true;
                     }
                     return true;
@@ -410,7 +411,7 @@ namespace StackExchange.Redis
                 }
             }
 
-            protected override void WriteImpl(IWriteState writeState, IBufferWriter<byte> output)
+            protected override void WriteImpl(ITransportState writeState, IBufferWriter<byte> output)
                 => PhysicalConnection.WriteHeader(writeState, output, Command, 0);
 
             public override int ArgCount => 0;
@@ -439,7 +440,7 @@ namespace StackExchange.Redis
         {
             public static readonly TransactionProcessor Default = new();
 
-            public override bool SetResult(PhysicalConnection connection, Message message, in RawResult result)
+            public override bool SetResult(ITransportState transport, Message message, in RawResult result)
             {
                 if (result.IsError && message is TransactionMessage tran)
                 {
@@ -451,12 +452,12 @@ namespace StackExchange.Redis
                         inner.Complete();
                     }
                 }
-                return base.SetResult(connection, message, result);
+                return base.SetResult(transport, message, result);
             }
 
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            protected override bool SetResultCore(ITransportState transport, Message message, in RawResult result)
             {
-                connection?.BridgeCouldBeNull?.Multiplexer?.OnTransactionLog($"got {result} for {message.CommandAndKey}");
+                transport.OnTransactionLog($"got {result} for {message.CommandAndKey}");
                 if (message is TransactionMessage tran)
                 {
                     var wrapped = tran.InnerOperations;
@@ -490,7 +491,7 @@ namespace StackExchange.Redis
                                 var arr = result.GetItems();
                                 if (result.IsNull)
                                 {
-                                    connection?.BridgeCouldBeNull?.Multiplexer?.OnTransactionLog("Aborting wrapped messages (failed watch)");
+                                    transport.OnTransactionLog("Aborting wrapped messages (failed watch)");
                                     connection.Trace("Server aborted due to failed WATCH");
                                     foreach (var op in wrapped)
                                     {
@@ -504,14 +505,14 @@ namespace StackExchange.Redis
                                 else if (wrapped.Length == arr.Length)
                                 {
                                     connection.Trace("Server committed; processing nested replies");
-                                    connection?.BridgeCouldBeNull?.Multiplexer?.OnTransactionLog($"Processing {arr.Length} wrapped messages");
+                                    transport.OnTransactionLog($"Processing {arr.Length} wrapped messages");
 
                                     int i = 0;
-                                    foreach(ref RawResult item in arr)
+                                    var iter = arr.AllEnumerator();
                                     {
                                         var inner = wrapped[i++].Wrapped;
-                                        connection?.BridgeCouldBeNull?.Multiplexer?.OnTransactionLog($"> got {item} for {inner.CommandAndKey}");
-                                        if (inner.ComputeResult(connection, in item))
+                                        transport.OnTransactionLog($"> got {iter.Current.ToString()} for {inner.CommandAndKey}");
+                                        if (inner.ComputeResult(connection, in iter.Current))
                                         {
                                             inner.Complete();
                                         }

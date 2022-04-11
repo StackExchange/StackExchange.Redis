@@ -1,8 +1,10 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
 using System.Net.Security;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
@@ -280,5 +282,263 @@ namespace StackExchange.Redis
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static TTo[] ToArray<TTo, TState>(in this RawResult result, Projection<RawResult, TState, TTo> selector, in TState state)
             => result.IsNull ? null : result.GetItems().ToArray(selector, in state);
+
+        /// <summary>
+        /// Create an array with the contents of the sequence, applying a projection
+        /// </summary>
+        internal static TTo[] ToArray<TFrom, TTo>(this in ReadOnlySequence<TFrom> source, Projection<TFrom, TTo> projection)
+        {
+            if (source.IsEmpty) return Array.Empty<TTo>();
+            var arr = new TTo[source.Length];
+            source.CopyTo(arr, projection);
+            return arr;
+        }
+
+        /// <summary>
+        /// Create an array with the contents of the sequence, applying a projection
+        /// </summary>
+        internal static TTo[] ToArray<TFrom, TState, TTo>(this in ReadOnlySequence<TFrom> source, Projection<TFrom, TState, TTo> projection, in TState state)
+        {
+            if (source.IsEmpty) return Array.Empty<TTo>();
+            var arr = new TTo[source.Length];
+            source.CopyTo(arr, projection, in state);
+            return arr;
+        }
+
+        /// <summary>
+        /// Copy the data from a sequence to a span, applying a projection
+        /// </summary>
+        internal static void CopyTo<TFrom, TTo>(this in ReadOnlySequence<TFrom> source, Span<TTo> destination, Projection<TFrom, TTo> projection)
+        {
+            if (!TryCopyTo<TFrom, TTo>(in source, destination, projection))
+                Throw();
+            static void Throw() => throw new InvalidOperationException();
+        }
+
+        /// <summary>
+        /// Copy the data from a sequence to a span, applying a projection
+        /// </summary>
+        internal static void CopyTo<TFrom, TState, TTo>(this in ReadOnlySequence<TFrom> source, Span<TTo> destination, Projection<TFrom, TState, TTo> projection, in TState state)
+        {
+            if (!TryCopyTo<TFrom, TState, TTo>(in source, destination, projection, in state))
+                Throw();
+            static void Throw() => throw new InvalidOperationException();
+        }
+
+        /// <summary>
+        /// Copy the data from a sequence to a span, applying a projection
+        /// </summary>
+        internal static bool TryCopyTo<TFrom, TTo>(this in ReadOnlySequence<TFrom> source, Span<TTo> destination, Projection<TFrom, TTo> projection)
+        {
+            static void ThrowNoProjection() => throw new ArgumentNullException(nameof(projection));
+
+            if (projection == null) ThrowNoProjection();
+            if (source.Length > destination.Length) return false;
+
+            if (source.IsSingleSegment)
+            {
+                var span = source.First.Span;
+                for (int i = 0; i < span.Length; i++)
+                {
+                    destination[i] = projection(in span[i]);
+                }
+            }
+            else
+            {
+                int offset = 0;
+                foreach (var segment in source)
+                {
+                    var span = segment.Span;
+                    for (int i = 0; i < span.Length; i++)
+                    {
+                        destination[offset++] = projection(in span[i]);
+                    }
+                }
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// Copy the data from a sequence to a span, applying a projection
+        /// </summary>
+        internal static bool TryCopyTo<TFrom, TState, TTo>(this in ReadOnlySequence<TFrom> source, Span<TTo> destination, Projection<TFrom, TState, TTo> projection, in TState state)
+        {
+            static void ThrowNoProjection() => throw new ArgumentNullException(nameof(projection));
+
+            if (projection == null) ThrowNoProjection();
+            if (source.Length > destination.Length) return false;
+
+            if (source.IsSingleSegment)
+            {
+                var span = source.First.Span;
+                for (int i = 0; i < span.Length; i++)
+                {
+                    destination[i] = projection(in span[i], in state);
+                }
+            }
+            else
+            {
+                int offset = 0;
+                foreach (var segment in source)
+                {
+                    var span = segment.Span;
+                    for (int i = 0; i < span.Length; i++)
+                    {
+                        destination[offset++] = projection(in span[i], in state);
+                    }
+                }
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// Create an array with the contents of the sequence; if possible, an existing
+        /// wrapped array may be reused
+        /// </summary>
+        internal static T[] ToArray<T>(this in ReadOnlySequence<T> source)
+        {
+            if (source.IsEmpty) return Array.Empty<T>();
+            if (source.IsSingleSegment)
+            {
+                if (MemoryMarshal.TryGetArray(source.First, out var segment)
+                    && segment.Offset == 0 && segment.Array != null && segment.Count == segment.Array.Length)
+                {
+                    return segment.Array; // the source was wrapping an array *exactly*
+                }
+            }
+            var arr = new T[source.Length];
+            source.CopyTo(arr);
+            return arr;
+        }
+
+        /// <summary>
+        /// Copy the contents of the sequence into a contiguous region
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static void CopyTo<T>(this in ReadOnlySequence<T> source, Span<T> destination)
+        {
+            if (source.IsSingleSegment) source.First.Span.CopyTo(destination);
+            else if (!TrySlowCopy(source, destination)) ThrowLengthError();
+
+            static bool TrySlowCopy(in ReadOnlySequence<T> source, Span< T> destination)
+            {
+                if (destination.Length < source.Length) return false;
+
+                foreach (var span in source)
+                {
+                    span.Span.CopyTo(destination);
+                    destination = destination.Slice(span.Length);
+                }
+                return true;
+            }
+            static void ThrowLengthError()
+            {
+                Span<int> one = stackalloc int[1];
+                one.CopyTo(default); // this should give use the CLR's error text (let's hope it doesn't mention sizes!)
+            }
+        }
+
+        internal static ref readonly T GetRef<T>(this in ReadOnlySequence<T> sequence, int index)
+        {
+            if (sequence.IsSingleSegment) return ref sequence.First.Span[index];
+            foreach (var segment in sequence)
+            {
+                var span = segment.Span;
+                if (index < span.Length) return ref span[index];
+                index -= span.Length;
+            }
+            return ref Throw();
+            static ref readonly T Throw() => throw new IndexOutOfRangeException(nameof(index));
+        }
+
+        internal static ReadOnlySequenceEnumerator<T> AllEnumerator<T>(this in ReadOnlySequence<T> value)
+            => new ReadOnlySequenceEnumerator<T>(in value);
+
+        internal ref struct ReadOnlySequenceEnumerator<T>
+        {
+            private int _remainingThisSpan, _offsetThisSpan;
+            private long _remainingOtherSegments;
+            private ReadOnlySequenceSegment<T> _nextSegment;
+            private ReadOnlySpan<T> _span;
+
+            internal ReadOnlySequenceEnumerator(in ReadOnlySequence<T> value)
+            {
+                _span = value.First.Span;
+                _remainingThisSpan = _span.Length;
+                _offsetThisSpan = -1;
+                if (value.IsSingleSegment)
+                {
+                    _remainingOtherSegments = 0;
+                    _nextSegment = null;
+                }
+                else
+                {
+                    _nextSegment = ((ReadOnlySequenceSegment<T>)value.Start.GetObject()).Next;
+                    _remainingOtherSegments = value.Length - _span.Length;
+                }
+                _offsetThisSpan = -1;
+            }
+
+            /// <summary>
+            /// Attempt to move the next value
+            /// </summary>
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public bool MoveNext()
+            {
+                if (_remainingThisSpan == 0) return MoveNextNonEmptySegment();
+                _offsetThisSpan++;
+                _remainingThisSpan--;
+                return true;
+            }
+
+            /// <summary>
+            /// Obtain a reference to the current value
+            /// </summary>
+            public ref readonly T Current
+            {
+                [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                get => ref _span[_offsetThisSpan];
+            }
+
+            private bool MoveNextNonEmptySegment()
+            {
+                ReadOnlySpan<T> span;
+                do
+                {
+                    if (_remainingOtherSegments == 0) return false;
+
+                    span = _nextSegment.Memory.Span;
+                    _nextSegment = _nextSegment.Next;
+
+                    if (_remainingOtherSegments <= span.Length)
+                    {   // we're at the end
+                        span = span.Slice(0, (int)_remainingOtherSegments);
+                        _remainingOtherSegments = 0;
+                    }
+                    else
+                    {
+                        _remainingOtherSegments -= span.Length;
+                    }
+
+                } while (span.IsEmpty); // check for empty segment
+
+                _span = span;
+                _remainingThisSpan = span.Length - 1; // because we're consuming one
+                _offsetThisSpan = 0;
+                return true;
+            }
+
+            /// <summary>
+            /// Progresses the iterator, asserting that space is available, returning a reference to the next value
+            /// </summary>
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public ref readonly T GetNext()
+            {
+                if (!MoveNext()) Throw();
+                return ref Current;
+
+                static void Throw() => throw new InvalidOperationException($"Enumerator moved out of range");
+            }
+        }
     }
 }

@@ -7,12 +7,12 @@ using System.Runtime.InteropServices;
 using System.Threading;
 
 #nullable enable
-namespace StackExchange.Redis.Connections;
+namespace StackExchange.Redis.Transports;
 
 /// <summary>
 /// A <see cref="MemoryPool{T}"/> implementation that incorporates reference-counted tracking.
 /// </summary>
-internal abstract class RefCountedMemoryPool<T> : MemoryPool<T>
+internal abstract class RefCountedMemoryPool<T> : MemoryPool<T>, IAllocator<T>
 {
     /// <summary>
     /// Gets a <see cref="RefCountedMemoryPool{T}"/> that uses <see cref="ArrayPool{T}"/>.
@@ -113,7 +113,7 @@ internal abstract class RefCountedMemoryPool<T> : MemoryPool<T>
 
         if (unused.Length >= MIN_USEFUL_SIZE && (start + unused.Length != manager.Memory.Length))
         {   // only recycle if we have a sensible amount of space left, and we're returning the entire tail of the buffer
-            var slot = GetCacheSlot(unused.Length);
+            var slot = Math.Min(GetCacheSlot(unused.Length), CACHE_SLOTS - 1);
             while (slot >= 0)
             {
                 var store = Get(slot);
@@ -144,6 +144,22 @@ internal abstract class RefCountedMemoryPool<T> : MemoryPool<T>
             value = Interlocked.CompareExchange(ref _fragments[scale], value, null) ?? value;
         }
         return value;
+    }
+
+    Memory<T> IAllocator<T>.Allocate(int count)
+    {
+        if (count == 0) return default;
+        if (count < 0) ThrowOutOfRange();
+
+        var memory = RentMemory(count);
+        if (memory.Length > count)
+        {
+            Return(memory.Slice(count));
+            memory = memory.Slice(0, count);
+        }
+        return memory;
+
+        static void ThrowOutOfRange() => throw new ArgumentOutOfRangeException(nameof(count));
     }
 
     private ConcurrentQueue<Memory<T>>?[] _fragments = new ConcurrentQueue<Memory<T>>?[CACHE_SLOTS];

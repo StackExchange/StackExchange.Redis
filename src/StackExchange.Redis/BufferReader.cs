@@ -44,7 +44,7 @@ namespace StackExchange.Redis
             return true;
         }
 
-        public BufferReader(ReadOnlySequence<byte> buffer)
+        public BufferReader(in ReadOnlySequence<byte> buffer)
         {
             _buffer = buffer;
             _lastSnapshotPosition = buffer.Start;

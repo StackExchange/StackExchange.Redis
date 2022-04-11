@@ -17,6 +17,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Pipelines.Sockets.Unofficial;
 using Pipelines.Sockets.Unofficial.Arenas;
+using StackExchange.Redis.Transports;
 
 namespace StackExchange.Redis
 {
@@ -264,7 +265,6 @@ namespace StackExchange.Redis
                 RecordConnectionFailed(ConnectionFailureType.ConnectionDisposed);
             }
             OnCloseEcho();
-            _arena.Dispose();
             _reusableFlushSyncTokenSource?.Dispose();
             GC.SuppressFinalize(this);
         }
@@ -702,7 +702,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal static void Write(IWriteState writeState, IBufferWriter<byte> output, in RedisChannel channel)
+        internal static void Write(ITransportState writeState, IBufferWriter<byte> output, in RedisChannel channel)
             => WriteUnifiedPrefixedBlob(output, writeState.ChannelPrefix, channel.Value);
 
         internal static void WriteBulkString(IBufferWriter<byte> output, in RedisValue value)
@@ -733,7 +733,7 @@ namespace StackExchange.Redis
         internal const int REDIS_MAX_ARGS = 1024 * 1024; // there is a <= 1024*1024 max constraint inside redis itself: https://github.com/antirez/redis/blob/6c60526db91e23fb2d666fc52facc9a11780a2a3/src/networking.c#L1024
 
 
-        internal static void WriteHeader(IWriteState writeState, IBufferWriter<byte> output, RedisCommand command, int arguments, CommandBytes commandBytes = default)
+        internal static void WriteHeader(ITransportState writeState, IBufferWriter<byte> output, RedisCommand command, int arguments, CommandBytes commandBytes = default)
         {
             if (writeState is null) ThrowDisposed();
             static void ThrowDisposed() => throw new ObjectDisposedException("No write-state; connection has been detached");
@@ -1452,92 +1452,7 @@ namespace StackExchange.Redis
 
         private void MatchResult(in RawResult result)
         {
-            // check to see if it could be an out-of-band pubsub message
-            if (connectionType == ConnectionType.Subscription && result.Type == ResultType.MultiBulk)
-            {
-                var muxer = BridgeCouldBeNull?.Multiplexer;
-                if (muxer == null) return;
-
-                // out of band message does not match to a queued message
-                var items = result.GetItems();
-                if (items.Length >= 3 && items[0].IsEqual(message))
-                {
-                    _readStatus = ReadStatus.PubSubMessage;
-
-                    // special-case the configuration change broadcasts (we don't keep that in the usual pub/sub registry)
-                    var configChanged = muxer.ConfigurationChangedChannel;
-                    if (configChanged != null && items[1].IsEqual(configChanged))
-                    {
-                        EndPoint blame = null;
-                        try
-                        {
-                            if (!items[2].IsEqual(CommonReplies.wildcard))
-                            {
-                                blame = Format.TryParseEndPoint(items[2].GetString());
-                            }
-                        }
-                        catch { /* no biggie */ }
-                        Trace("Configuration changed: " + Format.ToString(blame));
-                        _readStatus = ReadStatus.Reconfigure;
-                        muxer.ReconfigureIfNeeded(blame, true, "broadcast");
-                    }
-
-                    // invoke the handlers
-                    var channel = items[1].AsRedisChannel(ChannelPrefix, RedisChannel.PatternMode.Literal);
-                    Trace("MESSAGE: " + channel);
-                    if (!channel.IsNull)
-                    {
-                        _readStatus = ReadStatus.InvokePubSub;
-                        muxer.OnMessage(channel, channel, items[2].AsRedisValue());
-                    }
-                    return; // AND STOP PROCESSING!
-                }
-                else if (items.Length >= 4 && items[0].IsEqual(pmessage))
-                {
-                    _readStatus = ReadStatus.PubSubPMessage;
-
-                    var channel = items[2].AsRedisChannel(ChannelPrefix, RedisChannel.PatternMode.Literal);
-                    Trace("PMESSAGE: " + channel);
-                    if (!channel.IsNull)
-                    {
-                        var sub = items[1].AsRedisChannel(ChannelPrefix, RedisChannel.PatternMode.Pattern);
-                        _readStatus = ReadStatus.InvokePubSub;
-                        muxer.OnMessage(sub, channel, items[3].AsRedisValue());
-                    }
-                    return; // AND STOP PROCESSING!
-                }
-
-                // if it didn't look like "[p]message", then we still need to process the pending queue
-            }
-            Trace("Matching result...");
-            Message msg;
-            _readStatus = ReadStatus.DequeueResult;
-            lock (_writtenAwaitingResponse)
-            {
-#if NET5_0_OR_GREATER
-                if (!_writtenAwaitingResponse.TryDequeue(out msg))
-                {
-                    throw new InvalidOperationException("Received response with no message waiting: " + result.ToString());
-                }
-#else
-                if (_writtenAwaitingResponse.Count == 0)
-                {
-                    throw new InvalidOperationException("Received response with no message waiting: " + result.ToString());
-                }
-                msg = _writtenAwaitingResponse.Dequeue();
-#endif
-            }
-            _activeMessage = msg;
-
-            Trace("Response to: " + msg);
-            _readStatus = ReadStatus.ComputeResult;
-            if (msg.ComputeResult(this, result))
-            {
-                _readStatus = msg.ResultBoxIsAsync ? ReadStatus.CompletePendingMessageAsync : ReadStatus.CompletePendingMessageSync;
-                msg.Complete();
-            }
-            _readStatus = ReadStatus.MatchResultComplete;
-            _activeMessage = null;
+            throw new NotImplementedException();
         }
 
         private volatile Message _activeMessage;
@@ -1567,6 +1482,7 @@ namespace StackExchange.Redis
         partial void OnWrapForLogging(ref IDuplexPipe pipe, string name, SocketManager mgr);
 
         internal void UpdateLastReadTime() => Interlocked.Exchange(ref lastReadTickCount, Environment.TickCount);
+
         private async Task ReadFromPipe()
         {
             bool allowSyncRead = true, isReading = false;
@@ -1641,9 +1557,6 @@ namespace StackExchange.Redis
             }
         }
 
-        private static readonly ArenaOptions s_arenaOptions = new ArenaOptions();
-        private readonly Arena<RawResult> _arena = new Arena<RawResult>(s_arenaOptions);
-
         private int ProcessBuffer(ref ReadOnlySequence<byte> buffer)
         {
             int messageCount = 0;
@@ -1652,7 +1565,7 @@ namespace StackExchange.Redis
             {
                 _readStatus = ReadStatus.TryParseResult;
                 var reader = new BufferReader(buffer);
-                var result = TryParseResult(_arena, in buffer, ref reader, IncludeDetailInExceptions, BridgeCouldBeNull?.ServerEndPoint);
+                var result = TryParseResult(RefCountedMemoryPool<RawResult>.Shared, ref reader, IncludeDetailInExceptions, BridgeCouldBeNull?.ServerEndPoint);
                 try
                 {
                     if (result.HasValue)
@@ -1672,7 +1585,6 @@ namespace StackExchange.Redis
                 finally
                 {
                     _readStatus = ReadStatus.ResetArena;
-                    _arena.Reset();
                 }
             }
             _readStatus = ReadStatus.ProcessBufferComplete;
@@ -1703,7 +1615,7 @@ namespace StackExchange.Redis
         //    }
         //}
 
-        private static RawResult ReadArray(Arena<RawResult> arena, in ReadOnlySequence<byte> buffer, ref BufferReader reader, bool includeDetailInExceptions, ServerEndPoint server)
+        private static RawResult ReadArray(IAllocator<RawResult> allocator, ref BufferReader reader, bool includeDetailInExceptions, ServerEndPoint server)
         {
             var itemCount = ReadLineTerminatedString(ResultType.Integer, ref reader);
             if (itemCount.HasValue)
@@ -1722,34 +1634,44 @@ namespace StackExchange.Redis
                     return RawResult.EmptyMultiBulk;
                 }
 
-                var oversized = arena.Allocate(itemCountActual);
-                var result = new RawResult(oversized, false);
-
-                if (oversized.IsSingleSegment)
+                var memory = allocator.Allocate(itemCountActual);
+                //var seq = memory.AsReadOnlySequence();
+                var result = new RawResult(memory.AsReadOnlySequence());
+                var span = memory.Span;
+                for (int i = 0; i < span.Length; i++)
                 {
-                    var span = oversized.FirstSpan;
-                    for(int i = 0; i < span.Length; i++)
+                    if (!(span[i] = TryParseResult(allocator, ref reader, includeDetailInExceptions, server)).HasValue)
                     {
-                        if (!(span[i] = TryParseResult(arena, in buffer, ref reader, includeDetailInExceptions, server)).HasValue)
-                        {
-                            return RawResult.Nil;
-                        }
-                    }
-                }
-                else
-                {
-                    foreach(var span in oversized.Spans)
-                    {
-                        for (int i = 0; i < span.Length; i++)
-                        {
-                            if (!(span[i] = TryParseResult(arena, in buffer, ref reader, includeDetailInExceptions, server)).HasValue)
-                            {
-                                return RawResult.Nil;
-                            }
-                        }
+                        memory.Release();
+                        return RawResult.Nil;
                     }
                 }
                 return result;
+                //if (seq.IsSingleSegment)
+                //{
+                //    var span = seq.First.Span;
+                //    for(int i = 0; i < span.Length; i++)
+                //    {
+                //        if (!(span[i] = TryParseResult(allocator, ref reader, includeDetailInExceptions, server)).HasValue)
+                //        {
+                //            return RawResult.Nil;
+                //        }
+                //    }
+                //}
+                //else
+                //{
+                //    foreach(var segment in seq)
+                //    {
+                //        var span = segment.Span;
+                //        for (int i = 0; i < span.Length; i++)
+                //        {
+                //            if (!(span[i] = TryParseResult(allocator, ref reader, includeDetailInExceptions, server)).HasValue)
+                //            {
+                //                return RawResult.Nil;
+                //            }
+                //        }
+                //    }
+                //}
             }
             return RawResult.Nil;
         }
@@ -1824,7 +1746,7 @@ namespace StackExchange.Redis
 
         internal void StartReading() => ReadFromPipe().RedisFireAndForget();
 
-        internal static RawResult TryParseResult(Arena<RawResult> arena, in ReadOnlySequence<byte> buffer, ref BufferReader reader,
+        internal static RawResult TryParseResult(IAllocator<RawResult> allocator, ref BufferReader reader,
             bool includeDetilInExceptions, ServerEndPoint server, bool allowInlineProtocol = false)
         {
             var prefix = reader.PeekByte();
@@ -1845,15 +1767,15 @@ namespace StackExchange.Redis
                     return ReadBulkString(ref reader, includeDetilInExceptions, server);
                 case '*': // array
                     reader.Consume(1);
-                    return ReadArray(arena, in buffer, ref reader, includeDetilInExceptions, server);
+                    return ReadArray(allocator, ref reader, includeDetilInExceptions, server);
                 default:
                     // string s = Format.GetString(buffer);
-                    if (allowInlineProtocol) return ParseInlineProtocol(arena, ReadLineTerminatedString(ResultType.SimpleString, ref reader));
+                    if (allowInlineProtocol) return ParseInlineProtocol(allocator, ReadLineTerminatedString(ResultType.SimpleString, ref reader));
                     throw new InvalidOperationException("Unexpected response prefix: " + (char)prefix);
             }
         }
 
-        private static RawResult ParseInlineProtocol(Arena<RawResult> arena, in RawResult line)
+        private static RawResult ParseInlineProtocol(IAllocator<RawResult> arena, in RawResult line)
         {
             if (!line.HasValue) return RawResult.Nil; // incomplete line
 
@@ -1861,12 +1783,13 @@ namespace StackExchange.Redis
             foreach (var _ in line.GetInlineTokenizer()) count++;
             var block = arena.Allocate(count);
 
-            var iter = block.GetEnumerator();
+            var span = block.Span;
+            int index = 0;
             foreach (var token in line.GetInlineTokenizer())
-            {   // this assigns *via a reference*, returned via the iterator; just... sweet
-                iter.GetNext() = new RawResult(line.Type, token, false);
+            {
+                span[index++] = new RawResult(line.Type, token, false);
             }
-            return new RawResult(block, false);
+            return new RawResult(block.AsReadOnlySequence());
         }
     }
 }

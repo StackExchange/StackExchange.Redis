@@ -1003,8 +1003,8 @@ namespace StackExchange.Redis
                 {
                     var items = raw.GetItems();
                     if (items.Length >= 2
-                        && items[0].TryGetInt64(out var timestamp)
-                        && items[1].TryGetInt64(out var duration))
+                        && items.GetRef(0).TryGetInt64(out var timestamp)
+                        && items.GetRef(1).TryGetInt64(out var duration))
                     {
                         parsed = new LatencyHistoryEntry(timestamp, duration);
                         return true;
@@ -1047,11 +1047,11 @@ namespace StackExchange.Redis
                 {
                     var items = raw.GetItems();
                     if (items.Length >= 4
-                        && items[1].TryGetInt64(out var timestamp)
-                        && items[2].TryGetInt64(out var duration)
-                        && items[3].TryGetInt64(out var maxDuration))
+                        && items.GetRef(1).TryGetInt64(out var timestamp)
+                        && items.GetRef(2).TryGetInt64(out var duration)
+                        && items.GetRef(3).TryGetInt64(out var maxDuration))
                     {
-                        parsed = new LatencyLatestEntry(items[0].GetString(), timestamp, duration, maxDuration);
+                        parsed = new LatencyLatestEntry(items.GetRef(0).GetString(), timestamp, duration, maxDuration);
                         return true;
                     }
                 }

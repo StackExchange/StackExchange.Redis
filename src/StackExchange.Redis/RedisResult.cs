@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using StackExchange.Redis.Transports;
 
 namespace StackExchange.Redis
 {
@@ -48,7 +49,7 @@ namespace StackExchange.Redis
         /// Internally, this is very similar to RawResult, except it is designed to be usable,
         /// outside of the IO-processing pipeline: the buffers are standalone, etc.
         /// </summary>
-        internal static RedisResult TryCreate(PhysicalConnection connection, in RawResult result)
+        internal static RedisResult TryCreate(ITransportState transport, in RawResult result)
         {
             try
             {
@@ -64,9 +65,10 @@ namespace StackExchange.Redis
                         if (items.Length == 0) return EmptyArray;
                         var arr = new RedisResult[items.Length];
                         int i = 0;
-                        foreach (ref RawResult item in items)
+                        var iter = items.AllEnumerator();
+                        while (iter.MoveNext())
                         {
-                            var next = TryCreate(connection, in item);
+                            var next = TryCreate(transport, in iter.Current);
                             if (next == null) return null; // means we didn't understand
                             arr[i++] = next;
                         }
@@ -79,7 +81,7 @@ namespace StackExchange.Redis
             }
             catch (Exception ex)
             {
-                connection?.OnInternalError(ex);
+                transport?.OnInternalError(ex);
                 return null; // will be logged as a protocol fail by the processor
             }
         }
