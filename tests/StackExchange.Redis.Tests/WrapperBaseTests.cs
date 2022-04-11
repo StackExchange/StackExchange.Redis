@@ -197,6 +197,13 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void KeyCopyAsync()
+        {
+            wrapper.KeyCopyAsync("key", "destination", flags: CommandFlags.None);
+            mock.Verify(_ => _.KeyCopyAsync("prefix:key", "prefix:destination", -1, false, CommandFlags.None));
+        }
+
+        [Fact]
         public void KeyDeleteAsync_1()
         {
             wrapper.KeyDeleteAsync("key", CommandFlags.None);
@@ -363,6 +370,13 @@ namespace StackExchange.Redis.Tests
         {
             wrapper.ListLengthAsync("key", CommandFlags.None);
             mock.Verify(_ => _.ListLengthAsync("prefix:key", CommandFlags.None));
+        }
+
+        [Fact]
+        public void ListMoveAsync()
+        {
+            wrapper.ListMoveAsync("key", "destination", ListSide.Left, ListSide.Right, CommandFlags.None);
+            mock.Verify(_ => _.ListMoveAsync("prefix:key", "prefix:destination", ListSide.Left, ListSide.Right, CommandFlags.None));
         }
 
         [Fact]

@@ -48,7 +48,7 @@ namespace StackExchange.Redis
 
         private RedisTimeoutException(SerializationInfo info, StreamingContext ctx) : base(info, ctx)
         {
-            Commandstatus = (CommandStatus)info.GetValue("commandStatus", typeof(CommandStatus));
+            Commandstatus = info.GetValue("commandStatus", typeof(CommandStatus)) as CommandStatus? ?? CommandStatus.Unknown;
         }
         /// <summary>
         /// Serialization implementation; not intended for general usage.
@@ -81,7 +81,7 @@ namespace StackExchange.Redis
         /// <param name="failureType">The type of connection failure.</param>
         /// <param name="message">The message for the exception.</param>
         /// <param name="innerException">The inner exception.</param>
-        public RedisConnectionException(ConnectionFailureType failureType, string message, Exception innerException) : this(failureType, message, innerException, CommandStatus.Unknown) {}
+        public RedisConnectionException(ConnectionFailureType failureType, string message, Exception? innerException) : this(failureType, message, innerException, CommandStatus.Unknown) {}
 
         /// <summary>
         /// Creates a new <see cref="RedisConnectionException"/>.
@@ -90,7 +90,7 @@ namespace StackExchange.Redis
         /// <param name="message">The message for the exception.</param>
         /// <param name="innerException">The inner exception.</param>
         /// <param name="commandStatus">The status of the command.</param>
-        public RedisConnectionException(ConnectionFailureType failureType, string message, Exception innerException, CommandStatus commandStatus) : base(message, innerException)
+        public RedisConnectionException(ConnectionFailureType failureType, string message, Exception? innerException, CommandStatus commandStatus) : base(message, innerException)
         {
             FailureType = failureType;
             CommandStatus = commandStatus;
@@ -109,7 +109,7 @@ namespace StackExchange.Redis
         private RedisConnectionException(SerializationInfo info, StreamingContext ctx) : base(info, ctx)
         {
             FailureType = (ConnectionFailureType)info.GetInt32("failureType");
-            CommandStatus = (CommandStatus)info.GetValue("commandStatus", typeof(CommandStatus));
+            CommandStatus = info.GetValue("commandStatus", typeof(CommandStatus)) as CommandStatus? ?? CommandStatus.Unknown;
         }
         /// <summary>
         /// Serialization implementation; not intended for general usage.
@@ -141,7 +141,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="message">The message for the exception.</param>
         /// <param name="innerException">The inner exception.</param>
-        public RedisException(string message, Exception innerException) : base(message, innerException) { }
+        public RedisException(string message, Exception? innerException) : base(message, innerException) { }
 
         /// <summary>
         /// Deserialization constructor; not intended for general usage.

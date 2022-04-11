@@ -8,7 +8,7 @@ namespace StackExchange.Redis
     /// </summary>
     public readonly struct RedisChannel : IEquatable<RedisChannel>
     {
-        internal readonly byte[] Value;
+        internal readonly byte[]? Value;
         internal readonly bool IsPatternBased;
 
         /// <summary>
@@ -23,7 +23,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="value">The name of the channel to create.</param>
         /// <param name="mode">The mode for name matching.</param>
-        public RedisChannel(byte[] value, PatternMode mode) : this(value, DeterminePatternBased(value, mode)) {}
+        public RedisChannel(byte[]? value, PatternMode mode) : this(value, DeterminePatternBased(value, mode)) {}
 
         /// <summary>
         /// Create a new redis channel from a string, explicitly controlling the pattern mode.
@@ -32,13 +32,13 @@ namespace StackExchange.Redis
         /// <param name="mode">The mode for name matching.</param>
         public RedisChannel(string value, PatternMode mode) : this(value == null ? null : Encoding.UTF8.GetBytes(value), mode) {}
 
-        private RedisChannel(byte[] value, bool isPatternBased)
+        private RedisChannel(byte[]? value, bool isPatternBased)
         {
             Value = value;
             IsPatternBased = isPatternBased;
         }
 
-        private static bool DeterminePatternBased(byte[] value, PatternMode mode) => mode switch
+        private static bool DeterminePatternBased(byte[]? value, PatternMode mode) => mode switch
         {
             PatternMode.Auto => value != null && Array.IndexOf(value, (byte)'*') >= 0,
             PatternMode.Literal => false,
@@ -123,7 +123,7 @@ namespace StackExchange.Redis
         /// See <see cref="object.Equals(object)"/>.
         /// </summary>
         /// <param name="obj">The <see cref="RedisChannel"/> to compare to.</param>
-        public override bool Equals(object obj) => obj switch
+        public override bool Equals(object? obj) => obj switch
         {
             RedisChannel rcObj => RedisValue.Equals(Value, rcObj.Value),
             string sObj => RedisValue.Equals(Value, Encoding.UTF8.GetBytes(sObj)),
@@ -143,7 +143,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Obtains a string representation of the channel name.
         /// </summary>
-        public override string ToString() => ((string)this) ?? "(null)";
+        public override string ToString() => ((string?)this) ?? "(null)";
 
         internal static bool AssertStarts(byte[] value, byte[] expected)
         {
@@ -159,7 +159,7 @@ namespace StackExchange.Redis
             if (IsNull) throw new ArgumentException("A null key is not valid in this context");
         }
 
-        internal RedisChannel Clone() => (byte[])Value?.Clone();
+        internal RedisChannel Clone() => (byte[]?)Value?.Clone() ?? default;
 
         /// <summary>
         /// The matching pattern for this channel.
@@ -186,7 +186,7 @@ namespace StackExchange.Redis
         /// <param name="key">The string to get a channel from.</param>
         public static implicit operator RedisChannel(string key)
         {
-            if (key == null) return default(RedisChannel);
+            if (key == null) return default;
             return new RedisChannel(Encoding.UTF8.GetBytes(key), PatternMode.Auto);
         }
 
@@ -194,9 +194,9 @@ namespace StackExchange.Redis
         /// Create a channel name from a <see cref="T:byte[]"/>.
         /// </summary>
         /// <param name="key">The byte array to get a channel from.</param>
-        public static implicit operator RedisChannel(byte[] key)
+        public static implicit operator RedisChannel(byte[]? key)
         {
-            if (key == null) return default(RedisChannel);
+            if (key == null) return default;
             return new RedisChannel(key, PatternMode.Auto);
         }
 
@@ -204,16 +204,19 @@ namespace StackExchange.Redis
         /// Obtain the channel name as a <see cref="T:byte[]"/>.
         /// </summary>
         /// <param name="key">The channel to get a byte[] from.</param>
-        public static implicit operator byte[] (RedisChannel key) => key.Value;
+        public static implicit operator byte[]? (RedisChannel key) => key.Value;
 
         /// <summary>
         /// Obtain the channel name as a <see cref="string"/>.
         /// </summary>
         /// <param name="key">The channel to get a string from.</param>
-        public static implicit operator string (RedisChannel key)
+        public static implicit operator string? (RedisChannel key)
         {
             var arr = key.Value;
-            if (arr == null) return null;
+            if (arr == null)
+            {
+                return null;
+            }
             try
             {
                 return Encoding.UTF8.GetString(arr);

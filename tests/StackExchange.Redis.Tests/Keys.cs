@@ -42,12 +42,13 @@ namespace StackExchange.Redis.Tests
                 var db = conn.GetDatabase(dbId);
                 var prefix = Me();
                 conn.GetServer(TestConfig.Current.PrimaryServerAndPort).FlushDatabase(dbId, CommandFlags.FireAndForget);
-                string anyKey = db.KeyRandom();
+                string? anyKey = db.KeyRandom();
 
                 Assert.Null(anyKey);
                 db.StringSet(prefix + "abc", "def");
-                byte[] keyBytes = db.KeyRandom();
+                byte[]? keyBytes = db.KeyRandom();
 
+                Assert.NotNull(keyBytes);
                 Assert.Equal(prefix + "abc", Encoding.UTF8.GetString(keyBytes));
             }
         }
@@ -204,7 +205,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create())
             {
-                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.KeyTouch), r => r.KeyTouch);
+                Skip.IfBelow(muxer, RedisFeatures.v3_2_1);
 
                 RedisKey key = Me();
                 var db = muxer.GetDatabase();
@@ -248,7 +249,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create())
             {
-                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.KeyTouch), r => r.KeyTouch);
+                Skip.IfBelow(muxer, RedisFeatures.v3_2_1);
 
                 RedisKey key = Me();
                 var db = muxer.GetDatabase();

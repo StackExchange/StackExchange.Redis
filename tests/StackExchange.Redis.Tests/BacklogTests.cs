@@ -29,8 +29,8 @@ namespace StackExchange.Redis.Tests
                     Writer.WriteLine($"      UnselectableFlags: {server.GetUnselectableFlags()}");
                     var bridge = server.GetBridge(RedisCommand.PING, create: false);
                     Writer.WriteLine($"      GetBridge: {bridge}");
-                    Writer.WriteLine($"        IsConnected: {bridge.IsConnected}");
-                    Writer.WriteLine($"        ConnectionState: {bridge.ConnectionState}");
+                    Writer.WriteLine($"        IsConnected: {bridge?.IsConnected}");
+                    Writer.WriteLine($"        ConnectionState: {bridge?.ConnectionState}");
                 }
             }
 

@@ -65,7 +65,7 @@ namespace StackExchange.Redis
         /// Compares two values for equality.
         /// </summary>
         /// <param name="obj">The <see cref="HashEntry"/> to compare to.</param>
-        public override bool Equals(object obj) => obj is HashEntry heObj && Equals(heObj);
+        public override bool Equals(object? obj) => obj is HashEntry heObj && Equals(heObj);
 
         /// <summary>
         /// Compares two values for equality.

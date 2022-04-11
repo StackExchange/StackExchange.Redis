@@ -189,7 +189,7 @@ namespace StackExchange.Redis.Tests
 
                         server.SimulateConnectionFailure(SimulatedFailureType.All);
 
-                        var lastFailure = ((RedisConnectionException)muxer.GetServerSnapshot()[0].LastException).FailureType;
+                        var lastFailure = ((RedisConnectionException?)muxer.GetServerSnapshot()[0].LastException)!.FailureType;
                         // Depending on heartbat races, the last exception will be a socket failure or an internal (follow-up) failure
                         Assert.Contains(lastFailure, new[] { ConnectionFailureType.SocketFailure, ConnectionFailureType.InternalFailure });
 

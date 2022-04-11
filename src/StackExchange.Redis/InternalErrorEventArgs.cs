@@ -9,9 +9,9 @@ namespace StackExchange.Redis
     /// </summary>
     public class InternalErrorEventArgs : EventArgs, ICompletable
     {
-        private readonly EventHandler<InternalErrorEventArgs> handler;
+        private readonly EventHandler<InternalErrorEventArgs>? handler;
         private readonly object sender;
-        internal InternalErrorEventArgs(EventHandler<InternalErrorEventArgs> handler, object sender, EndPoint endpoint, ConnectionType connectionType, Exception exception, string origin)
+        internal InternalErrorEventArgs(EventHandler<InternalErrorEventArgs>? handler, object sender, EndPoint? endpoint, ConnectionType connectionType, Exception exception, string? origin)
         {
             this.handler = handler;
             this.sender = sender;
@@ -42,7 +42,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Gets the failing server-endpoint (this can be null).
         /// </summary>
-        public EndPoint EndPoint { get; }
+        public EndPoint? EndPoint { get; }
 
         /// <summary>
         /// Gets the exception if available (this can be null).
@@ -52,7 +52,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// The underlying origin of the error.
         /// </summary>
-        public string Origin { get; }
+        public string? Origin { get; }
 
         void ICompletable.AppendStormLog(StringBuilder sb)
         {

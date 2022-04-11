@@ -28,7 +28,7 @@ namespace StackExchange.Redis.Tests
         [MemberData(nameof(InternedValues))]
         public void ReturnInternedBoxesForCommonValues(RedisValue value, bool expectSameReference)
         {
-            object x = value.Box(), y = value.Box();
+            object? x = value.Box(), y = value.Box();
             Assert.Equal(expectSameReference, ReferenceEquals(x, y));
             // check we got the right values!
             AssertEqualGiveOrTakeNaN(value, RedisValue.Unbox(x));

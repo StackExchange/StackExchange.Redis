@@ -231,31 +231,31 @@ namespace BasicTest
             db = mux.GetDatabase();
         }
 
-        private const int max = 100000;
-        [Benchmark(OperationsPerInvoke = max)]
+        private const int Max = 100000;
+        [Benchmark(OperationsPerInvoke = Max)]
         public void Load()
         {
-            for (int i = 0; i < max; ++i)
+            for (int i = 0; i < Max; ++i)
             {
                 db.StringSet(i.ToString(), i);
             }
         }
-        [Benchmark(OperationsPerInvoke = max)]
+        [Benchmark(OperationsPerInvoke = Max)]
         public async Task LoadAsync()
         {
-            for (int i = 0; i < max; ++i)
+            for (int i = 0; i < Max; ++i)
             {
                 await db.StringSetAsync(i.ToString(), i).ConfigureAwait(false);
             }
         }
-        [Benchmark(OperationsPerInvoke = max)]
+        [Benchmark(OperationsPerInvoke = Max)]
         public void Sample()
         {
             var rnd = new Random();
 
-            for (int i = 0; i < max; ++i)
+            for (int i = 0; i < Max; ++i)
             {
-                var r = rnd.Next(0, max - 1);
+                var r = rnd.Next(0, Max - 1);
 
                 var rv = db.StringGet(r.ToString());
                 if (rv != r)
@@ -265,14 +265,14 @@ namespace BasicTest
             }
         }
 
-        [Benchmark(OperationsPerInvoke = max)]
+        [Benchmark(OperationsPerInvoke = Max)]
         public async Task SampleAsync()
         {
             var rnd = new Random();
 
-            for (int i = 0; i < max; ++i)
+            for (int i = 0; i < Max; ++i)
             {
-                var r = rnd.Next(0, max - 1);
+                var r = rnd.Next(0, Max - 1);
 
                 var rv = await db.StringGetAsync(r.ToString()).ConfigureAwait(false);
                 if (rv != r)

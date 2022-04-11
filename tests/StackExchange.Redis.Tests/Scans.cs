@@ -104,8 +104,8 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create(allowAdmin: true))
             {
-                // only goes up to 3.*, so...
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scan), x => x.Scan);
+                Skip.IfBelow(conn, RedisFeatures.v2_8_0);
+
                 var dbId = TestConfig.GetDedicatedDB(conn);
                 var db = conn.GetDatabase(dbId);
                 var prefix = Me();
@@ -117,7 +117,7 @@ namespace StackExchange.Redis.Tests
                     db.StringSet(prefix + ":" + i, Guid.NewGuid().ToString());
                 }
 
-                var expected = new HashSet<string>();
+                var expected = new HashSet<string?>();
                 long snapCursor = 0;
                 int snapOffset = 0, snapPageSize = 0;
 

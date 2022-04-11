@@ -22,6 +22,7 @@
         CLIENT,
         CLUSTER,
         CONFIG,
+        COPY,
 
         DBSIZE,
         DEBUG,
@@ -84,6 +85,7 @@
         LINDEX,
         LINSERT,
         LLEN,
+        LMOVE,
         LPOP,
         LPUSH,
         LPUSHX,

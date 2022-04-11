@@ -72,7 +72,7 @@ namespace StackExchange.Redis.Tests
         public async Task StringGetSetExpiryNoValue()
         {
             using var muxer = Create();
-            Skip.IfMissingFeature(muxer, nameof(RedisFeatures.GetEx), r => r.GetEx);
+            Skip.IfBelow(muxer, RedisFeatures.v6_2_0);
 
             var conn = muxer.GetDatabase();
             var key = Me();
@@ -87,7 +87,7 @@ namespace StackExchange.Redis.Tests
         public async Task StringGetSetExpiryRelative()
         {
             using var muxer = Create();
-            Skip.IfMissingFeature(muxer, nameof(RedisFeatures.GetEx), r => r.GetEx);
+            Skip.IfBelow(muxer, RedisFeatures.v6_2_0);
 
             var conn = muxer.GetDatabase();
             var key = Me();
@@ -107,7 +107,8 @@ namespace StackExchange.Redis.Tests
         public async Task StringGetSetExpiryAbsolute()
         {
             using var muxer = Create();
-            Skip.IfMissingFeature(muxer, nameof(RedisFeatures.GetEx), r => r.GetEx);
+            Skip.IfBelow(muxer, RedisFeatures.v6_2_0);
+
             var conn = muxer.GetDatabase();
             var key = Me();
             conn.KeyDelete(key, CommandFlags.FireAndForget);
@@ -131,7 +132,7 @@ namespace StackExchange.Redis.Tests
         public async Task StringGetSetExpiryPersist()
         {
             using var muxer = Create();
-            Skip.IfMissingFeature(muxer, nameof(RedisFeatures.GetEx), r => r.GetEx);
+            Skip.IfBelow(muxer, RedisFeatures.v6_2_0);
 
             var conn = muxer.GetDatabase();
             var key = Me();
@@ -157,7 +158,7 @@ namespace StackExchange.Redis.Tests
                 conn.StringSet(key, "abc", flags: CommandFlags.FireAndForget);
                 using (var v1 = await conn.StringGetLeaseAsync(key).ConfigureAwait(false))
                 {
-                    string s = v1.DecodeString();
+                    string? s = v1?.DecodeString();
                     Assert.Equal("abc", s);
                 }
             }
@@ -173,7 +174,9 @@ namespace StackExchange.Redis.Tests
                 conn.KeyDelete(key, CommandFlags.FireAndForget);
 
                 conn.StringSet(key, "abc", flags: CommandFlags.FireAndForget);
-                using (var v1 = (await conn.StringGetLeaseAsync(key).ConfigureAwait(false)).AsStream())
+                var lease = await conn.StringGetLeaseAsync(key).ConfigureAwait(false);
+                Assert.NotNull(lease);
+                using (var v1 = lease.AsStream())
                 {
                     using (var sr = new StreamReader(v1))
                     {
@@ -189,7 +192,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create())
             {
-                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.GetDelete), r => r.GetDelete);
+                Skip.IfBelow(muxer, RedisFeatures.v6_2_0);
 
                 var conn = muxer.GetDatabase();
                 var prefix = Me();
@@ -214,7 +217,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create())
             {
-                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.GetDelete), r => r.GetDelete);
+                Skip.IfBelow(muxer, RedisFeatures.v6_2_0);
 
                 var conn = muxer.GetDatabase();
                 var prefix = Me();
@@ -276,7 +279,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create())
             {
-                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.SetKeepTtl), r => r.SetKeepTtl);
+                Skip.IfBelow(muxer, RedisFeatures.v6_0_0);
 
                 var conn = muxer.GetDatabase();
                 var prefix = Me();
@@ -317,7 +320,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create())
             {
-                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.SetAndGet), r => r.SetAndGet);
+                Skip.IfBelow(muxer, RedisFeatures.v6_2_0);
 
                 var conn = muxer.GetDatabase();
                 var prefix = Me();
@@ -388,7 +391,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create())
             {
-                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.SetNotExistsAndGet), r => r.SetNotExistsAndGet);
+                Skip.IfBelow(muxer, RedisFeatures.v7_0_0_rc1);
 
                 var conn = muxer.GetDatabase();
                 var prefix = Me();
@@ -421,7 +424,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create())
             {
-                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.StringSetRange), r => r.StringSetRange);
+                Skip.IfBelow(muxer, RedisFeatures.v2_1_8);
                 var conn = muxer.GetDatabase();
                 var key = Me();
 
@@ -470,7 +473,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create())
             {
-                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.IncrementFloat), r => r.IncrementFloat);
+                Skip.IfBelow(muxer, RedisFeatures.v2_6_0);
                 var conn = muxer.GetDatabase();
                 var key = Me();
                 conn.KeyDelete(key, CommandFlags.FireAndForget);
@@ -518,7 +521,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create())
             {
-                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.BitwiseOperations), r => r.BitwiseOperations);
+                Skip.IfBelow(muxer, RedisFeatures.v2_6_0);
 
                 var conn = muxer.GetDatabase();
                 var key = Me();
@@ -538,7 +541,8 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create())
             {
-                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.BitwiseOperations), r => r.BitwiseOperations);
+                Skip.IfBelow(muxer, RedisFeatures.v2_6_0);
+
                 var conn = muxer.GetDatabase();
                 var prefix = Me();
                 var key1 = prefix + "1";
@@ -558,10 +562,10 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal(1, await len_xor);
                 Assert.Equal(1, await len_not);
 
-                var r_and = ((byte[])(await conn.StringGetAsync("and").ForAwait())).Single();
-                var r_or = ((byte[])(await conn.StringGetAsync("or").ForAwait())).Single();
-                var r_xor = ((byte[])(await conn.StringGetAsync("xor").ForAwait())).Single();
-                var r_not = ((byte[])(await conn.StringGetAsync("not").ForAwait())).Single();
+                var r_and = ((byte[]?)(await conn.StringGetAsync("and").ForAwait()))?.Single();
+                var r_or = ((byte[]?)(await conn.StringGetAsync("or").ForAwait()))?.Single();
+                var r_xor = ((byte[]?)(await conn.StringGetAsync("xor").ForAwait()))?.Single();
+                var r_not = ((byte[]?)(await conn.StringGetAsync("not").ForAwait()))?.Single();
 
                 Assert.Equal((byte)(3 & 6 & 12), r_and);
                 Assert.Equal((byte)(3 | 6 | 12), r_or);
@@ -588,7 +592,8 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.HashStringLength), r => r.HashStringLength);
+                Skip.IfBelow(conn, RedisFeatures.v3_2_0);
+
                 var database = conn.GetDatabase();
                 var key = Me();
                 const string value = "hello world";
@@ -605,7 +610,8 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.HashStringLength), r => r.HashStringLength);
+                Skip.IfBelow(conn, RedisFeatures.v3_2_0);
+
                 var database = conn.GetDatabase();
                 var key = Me();
                 const string value = "hello world";
@@ -616,6 +622,6 @@ namespace StackExchange.Redis.Tests
         }
 
         private static byte[] Encode(string value) => Encoding.UTF8.GetBytes(value);
-        private static string Decode(byte[] value) => Encoding.UTF8.GetString(value);
+        private static string? Decode(byte[]? value) => value is null ? null : Encoding.UTF8.GetString(value);
     }
 }

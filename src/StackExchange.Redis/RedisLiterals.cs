@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Text;
 
 namespace StackExchange.Redis
 {
@@ -54,6 +53,7 @@ namespace StackExchange.Redis
             CHANNELS = "CHANNELS",
             COPY = "COPY",
             COUNT = "COUNT",
+            DB = "DB",
             DESC = "DESC",
             DOCTOR = "DOCTOR",
             EX = "EX",
@@ -68,6 +68,7 @@ namespace StackExchange.Redis
             KEEPTTL = "KEEPTTL",
             KILL = "KILL",
             LATEST = "LATEST",
+            LEFT = "LEFT",
             LIMIT = "LIMIT",
             LIST = "LIST",
             LOAD = "LOAD",
@@ -89,6 +90,7 @@ namespace StackExchange.Redis
             PURGE = "PURGE",
             PX = "PX",
             PXAT = "PXAT",
+            RIGHT = "RIGHT",
             REPLACE = "REPLACE",
             RESET = "RESET",
             RESETSTAT = "RESETSTAT",
