@@ -698,6 +698,31 @@ namespace StackExchange.Redis
         Task<RedisValue[]> ListLeftPopAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Scans through the list stored at <paramref name="key"/> looking for <paramref name="element"/>, returning the 0-based
+        /// index of the first matching element.
+        /// </summary>
+        /// <param name="key">The key of the list.</param>
+        /// <param name="element">The element to search for.</param>
+        /// <param name="rank">The rank of the first element to return, within the sub-list of matching indexes in the case of multiple matches.</param>
+        /// <param name="maxLength">The maximum number of elements to scan through before stopping, defaults to 0 (a full scan of the list.)</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The 0-based index of the first matching element, null if not found.</returns>
+        Task<long?> ListPositionAsync(RedisKey key, RedisValue element, long rank = 1, long maxLength = 0, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Scans through the list stored at <paramref name="key"/> looking for <paramref name="count"/> instances of <paramref name="element"/>, returning the 0-based
+        /// indexes of the the matching elements.
+        /// </summary>
+        /// <param name="key">The key of the list.</param>
+        /// <param name="element">The element to search for.</param>
+        /// <param name="count">The number of matches to find. A count of 0 will return the indexes of all occurrences of the element.</param>
+        /// <param name="rank">The rank of the first element to return, within the sub-list of matching indexes in the case of multiple matches.</param>
+        /// <param name="maxLength">The maximum number of elements to scan through before stopping, defaults to 0 (a full scan of the list.)</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>An array of at most <paramref name="count"/> of indexes of matching elements. If none are found, and empty array is returned</returns>
+        Task<RedisValue[]> ListPositionsAsync(RedisKey key, RedisValue element, long count, long rank = 1, long maxLength = 0, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Insert the specified value at the head of the list stored at key.
         /// If key does not exist, it is created as empty list before performing the push operations.
         /// </summary>

@@ -37,6 +37,7 @@ namespace StackExchange.Redis
                                          v4_9_1 = new Version(4, 9, 1), // 5.0 RC1 is version 4.9.1; // 5.0 RC1 is version 4.9.1
                                          v5_0_0 = new Version(5, 0, 0),
                                          v6_0_0 = new Version(6, 0, 0),
+                                         v6_0_6 = new Version(6, 0, 6),
                                          v6_2_0 = new Version(6, 2, 0),
                                          v7_0_0_rc1 = new Version(6, 9, 240); // 7.0 RC1 is version 6.9.240
 
