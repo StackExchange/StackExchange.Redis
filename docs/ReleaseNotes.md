@@ -9,6 +9,7 @@
   - Note: does *not* increment a major version (as these are warnings to consumers), because: they're warnings (errors are opt-in), removing obsolete types with a 3.0 rev _would_ be binary breaking (this isn't), and reving to 3.0 would cause binding redirect pain for consumers. Bumping from 2.5 to 2.6 only for this change.
 - Adds: Support for `COPY` with `.KeyCopy()`/`.KeyCopyAsync()` ([#2064 by Avital-Fine](https://github.com/StackExchange/StackExchange.Redis/pull/2064))
 - Adds: Support for `LMOVE` with `.ListMove()`/`.ListMoveAsync()` ([#2065 by Avital-Fine](https://github.com/StackExchange/StackExchange.Redis/pull/2065))
+- Adds: Support for `SINTERCARD` with `.SetIntersectionLength()`/`.SetIntersectionLengthAsync()` ([#2078 by Avital-Fine](https://github.com/StackExchange/StackExchange.Redis/pull/2078))
 
 ## 2.5.61
 
@@ -25,7 +26,7 @@
 
 ## 2.5.43
 
-- Adds: Bounds checking for `ExponentialRetry` backoff policy ([#1921 by gliljas](https://github.com/StackExchange/StackExchange.Redis/pull/1921)) 
+- Adds: Bounds checking for `ExponentialRetry` backoff policy ([#1921 by gliljas](https://github.com/StackExchange/StackExchange.Redis/pull/1921))
 - Adds: `DefaultOptionsProvider` support for endpoint-based defaults configuration ([#1987 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/1987))
 - Adds: Envoy proxy support ([#1989 by rkarthick](https://github.com/StackExchange/StackExchange.Redis/pull/1989))
 - Performance: When `SUBSCRIBE` is disabled, give proper errors and connect faster ([#2001 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2001))
