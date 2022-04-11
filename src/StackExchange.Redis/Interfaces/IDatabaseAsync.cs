@@ -746,6 +746,19 @@ namespace StackExchange.Redis
         Task<long> ListLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Returns and removes the first or last element of the list stored at <paramref name="sourceKey"/>, and pushes the element
+        /// as the first or last element of the list stored at <paramref name="destinationKey"/>.
+        /// </summary>
+        /// <param name="sourceKey">The key of the list to remove from.</param>
+        /// <param name="destinationKey">The key of the list to move to.</param>
+        /// <param name="sourceSide">What side of the <paramref name="sourceKey"/> list to remove from.</param>
+        /// <param name="destinationSide">What side of the <paramref name="destinationKey"/> list to move to.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The element being popped and pushed or <see cref="RedisValue.Null"/> if there is no element to move.</returns>
+        /// <remarks>https://redis.io/commands/lmove</remarks>
+        Task<RedisValue> ListMoveAsync(RedisKey sourceKey, RedisKey destinationKey, ListSide sourceSide, ListSide destinationSide, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Returns the specified elements of the list stored at key.
         /// The offsets start and stop are zero-based indexes, with 0 being the first element of the list (the head of the list), 1 being the next element and so on.
         /// These offsets can also be negative numbers indicating offsets starting at the end of the list.For example, -1 is the last element of the list, -2 the penultimate, and so on.

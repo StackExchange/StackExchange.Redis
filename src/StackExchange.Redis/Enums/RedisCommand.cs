@@ -83,6 +83,7 @@
         LINDEX,
         LINSERT,
         LLEN,
+        LMOVE,
         LPOP,
         LPUSH,
         LPUSHX,

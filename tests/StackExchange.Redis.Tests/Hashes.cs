@@ -44,7 +44,8 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create())
             {
-                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.Scan), r => r.Scan);
+                Skip.IfBelow(muxer, RedisFeatures.v2_8_0);
+
                 var conn = muxer.GetDatabase();
                 var key = Me();
                 await conn.KeyDeleteAsync(key);
@@ -92,7 +93,8 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create())
             {
-                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.Scan), r => r.Scan);
+                Skip.IfBelow(muxer, RedisFeatures.v2_8_0);
+
                 var conn = muxer.GetDatabase();
 
                 var key = Me();
@@ -146,7 +148,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create())
             {
-                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.IncrementFloat), r => r.IncrementFloat);
+                Skip.IfBelow(muxer, RedisFeatures.v2_6_0);
                 var conn = muxer.GetDatabase();
                 var key = Me();
                 _ = conn.KeyDeleteAsync(key).ForAwait();

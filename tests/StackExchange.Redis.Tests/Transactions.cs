@@ -1110,7 +1110,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create())
             {
-                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.Streams), r => r.Streams);
+                Skip.IfBelow(muxer, RedisFeatures.v5_0_0);
 
                 RedisKey key = Me(), key2 = Me() + "2";
                 var db = muxer.GetDatabase();

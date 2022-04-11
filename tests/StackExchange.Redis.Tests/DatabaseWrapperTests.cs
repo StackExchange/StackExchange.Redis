@@ -413,6 +413,13 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void ListMove()
+        {
+            wrapper.ListMove("key", "destination", ListSide.Left, ListSide.Right, CommandFlags.None);
+            mock.Verify(_ => _.ListMove("prefix:key", "prefix:destination", ListSide.Left, ListSide.Right, CommandFlags.None));
+        }
+
+        [Fact]
         public void ListRange()
         {
             wrapper.ListRange("key", 123, 456, CommandFlags.None);
