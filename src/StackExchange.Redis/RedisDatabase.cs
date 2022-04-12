@@ -3204,20 +3204,14 @@ namespace StackExchange.Redis
 
         private Message GetSortedSetCombineAndStoreCommandMessage(SetOperation operation, RedisKey destination, RedisKey[] keys, double[]? weights, Aggregate aggregate, CommandFlags flags)
         {
-            var command = operation switch
-            {
-                SetOperation.Intersect => RedisCommand.ZINTERSTORE,
-                SetOperation.Union => RedisCommand.ZUNIONSTORE,
-                SetOperation.Difference =>
-                    // Difference can't have weights or aggregation
-                    weights != null || aggregate != Aggregate.Sum
-                    ? throw new ArgumentException("ZDIFFSTORE cannot be used with weights or aggregation.")
-                    : RedisCommand.ZDIFFSTORE,
-                _ => throw new ArgumentOutOfRangeException(nameof(operation)),
-            };
+            var command = operation.ToCommand(store: true);
             if (keys == null)
             {
                 throw new ArgumentNullException(nameof(keys));
+            }
+            if (command == RedisCommand.ZDIFFSTORE && (weights != null || aggregate != Aggregate.Sum))
+            {
+                throw new ArgumentException("ZDIFFSTORE cannot be used with weights or aggregation.");
             }
             if (weights != null && keys.Length != weights.Length)
             {
@@ -3237,20 +3231,14 @@ namespace StackExchange.Redis
 
         private Message GetSortedSetCombineCommandMessage(SetOperation operation, RedisKey[] keys, double[]? weights, Aggregate aggregate, bool withScores, CommandFlags flags)
         {
-            var command = operation switch
-            {
-                SetOperation.Intersect => RedisCommand.ZINTER,
-                SetOperation.Union => RedisCommand.ZUNION,
-                SetOperation.Difference =>
-                    // Difference can't have weights or aggregation
-                    weights != null || aggregate != Aggregate.Sum
-                    ? throw new ArgumentException("ZDIFF cannot be used with weights or aggregation.")
-                    : RedisCommand.ZDIFF,
-                _ => throw new ArgumentOutOfRangeException(nameof(operation)),
-            };
+            var command = operation.ToCommand(store: false);
             if (keys == null)
             {
                 throw new ArgumentNullException(nameof(keys));
+            }
+            if (command == RedisCommand.ZDIFF && (weights != null || aggregate != Aggregate.Sum))
+            {
+                throw new ArgumentException("ZDIFF cannot be used with weights or aggregation.");
             }
             if (weights != null && keys.Length != weights.Length)
             {
