@@ -353,7 +353,6 @@ namespace StackExchange.Redis.Tests
             Assert.True(rangeResult1.IsNull);
         }
 
-        #region List Position Sync
         [Fact]
         public void ListPositionHappyPath()
         {
@@ -586,9 +585,6 @@ namespace StackExchange.Redis.Tests
 
             Assert.Equal(-1, res);
         }
-        #endregion
-
-        #region ListPosition Async
 
         [Fact]
         public async Task ListPositionHappyPathAsync()
@@ -822,6 +818,5 @@ namespace StackExchange.Redis.Tests
 
             Assert.Equal(-1, res);
         }
-        #endregion
     }
 }
