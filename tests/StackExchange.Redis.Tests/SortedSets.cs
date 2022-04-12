@@ -162,17 +162,26 @@ namespace StackExchange.Redis.Tests
             db.SortedSetAdd(key2, entriesPow3);
 
             // ZDIFF can't be used with weights
-            Assert.Throws<StackExchange.Redis.RedisServerException>(() => db.SortedSetCombine(SetOperation.Difference, new RedisKey[]{ key1, key2 }, new double[]{ 1, 2 }));
-            Assert.Throws<StackExchange.Redis.RedisServerException>(() => db.SortedSetCombineWithScores(SetOperation.Difference, new RedisKey[]{ key1, key2 }, new double[]{ 1, 2 }));
-            Assert.Throws<StackExchange.Redis.RedisServerException>(() => db.SortedSetCombineAndStore(SetOperation.Difference, destination, new RedisKey[]{ key1, key2 }, new double[]{ 1, 2 }));
+            var ex = Assert.Throws<ArgumentException>(() => db.SortedSetCombine(SetOperation.Difference, new RedisKey[] { key1, key2 }, new double[] { 1, 2 }));
+            Assert.Equal("ZDIFF cannot be used with weights or aggregation.", ex.Message);
+            ex = Assert.Throws<ArgumentException>(() => db.SortedSetCombineWithScores(SetOperation.Difference, new RedisKey[] { key1, key2 }, new double[] { 1, 2 }));
+            Assert.Equal("ZDIFF cannot be used with weights or aggregation.", ex.Message);
+            ex = Assert.Throws<ArgumentException>(() => db.SortedSetCombineAndStore(SetOperation.Difference, destination, new RedisKey[] { key1, key2 }, new double[] { 1, 2 }));
+            Assert.Equal("ZDIFFSTORE cannot be used with weights or aggregation.", ex.Message);
             // ZDIFF can't be used with aggregation
-            Assert.Throws<StackExchange.Redis.RedisServerException>(() => db.SortedSetCombine(SetOperation.Difference, new RedisKey[]{ key1, key2 }, aggregate: Aggregate.Max));
-            Assert.Throws<StackExchange.Redis.RedisServerException>(() => db.SortedSetCombineWithScores(SetOperation.Difference, new RedisKey[]{ key1, key2 }, aggregate: Aggregate.Max));
-            Assert.Throws<StackExchange.Redis.RedisServerException>(() => db.SortedSetCombineAndStore(SetOperation.Difference, destination, new RedisKey[]{ key1, key2 }, aggregate: Aggregate.Max));
-            // too many weights
-            Assert.Throws<StackExchange.Redis.RedisServerException>(() => db.SortedSetCombine(SetOperation.Union, new RedisKey[]{ key1, key2 }, new double[]{ 1, 2, 3 }));
-            Assert.Throws<StackExchange.Redis.RedisServerException>(() => db.SortedSetCombineWithScores(SetOperation.Union, new RedisKey[]{ key1, key2 }, new double[]{ 1, 2, 3 }));
-            Assert.Throws<StackExchange.Redis.RedisServerException>(() => db.SortedSetCombineAndStore(SetOperation.Union, destination, new RedisKey[]{ key1, key2 }, new double[]{ 1, 2, 3 }));
+            ex = Assert.Throws<ArgumentException>(() => db.SortedSetCombine(SetOperation.Difference, new RedisKey[] { key1, key2 }, aggregate: Aggregate.Max));
+            Assert.Equal("ZDIFF cannot be used with weights or aggregation.", ex.Message);
+            ex = Assert.Throws<ArgumentException>(() => db.SortedSetCombineWithScores(SetOperation.Difference, new RedisKey[] { key1, key2 }, aggregate: Aggregate.Max));
+            Assert.Equal("ZDIFF cannot be used with weights or aggregation.", ex.Message);
+            ex = Assert.Throws<ArgumentException>(() => db.SortedSetCombineAndStore(SetOperation.Difference, destination, new RedisKey[] { key1, key2 }, aggregate: Aggregate.Max));
+            Assert.Equal("ZDIFFSTORE cannot be used with weights or aggregation.", ex.Message);
+            // Too many weights
+            ex = Assert.Throws<ArgumentException>(() => db.SortedSetCombine(SetOperation.Union, new RedisKey[] { key1, key2 }, new double[] { 1, 2, 3 }));
+            Assert.StartsWith("Keys and weights should have the same number of elements.", ex.Message);
+            ex = Assert.Throws<ArgumentException>(() => db.SortedSetCombineWithScores(SetOperation.Union, new RedisKey[] { key1, key2 }, new double[] { 1, 2, 3 }));
+            Assert.StartsWith("Keys and weights should have the same number of elements.", ex.Message);
+            ex = Assert.Throws<ArgumentException>(() => db.SortedSetCombineAndStore(SetOperation.Union, destination, new RedisKey[] { key1, key2 }, new double[] { 1, 2, 3 }));
+            Assert.StartsWith("Keys and weights should have the same number of elements.", ex.Message);
         }
 
         [Fact]

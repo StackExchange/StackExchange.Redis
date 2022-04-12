@@ -3196,17 +3196,31 @@ namespace StackExchange.Redis
             {
                 SetOperation.Intersect => RedisCommand.ZINTERSTORE,
                 SetOperation.Union => RedisCommand.ZUNIONSTORE,
-                SetOperation.Difference => RedisCommand.ZDIFFSTORE,
+                SetOperation.Difference =>
+                    // Difference can't have weights or aggregation
+                    weights != null || aggregate != Aggregate.Sum
+                    ? throw new ArgumentException("ZDIFFSTORE cannot be used with weights or aggregation.")
+                    : RedisCommand.ZDIFFSTORE,
                 _ => throw new ArgumentOutOfRangeException(nameof(operation)),
             };
-            if (keys == null) throw new ArgumentNullException(nameof(keys));
-            // Difference operation can't have weights or aggregation
-            if (operation == SetOperation.Difference && (weights != null || aggregate != Aggregate.Sum))
-                throw new ArgumentException("ZDIFFSTORE cannot be used with weights or with aggregation.");
+            if (keys == null)
+            {
+                throw new ArgumentNullException(nameof(keys));
+            }
+            if (weights != null && keys.Length != weights.Length)
+            {
+                throw new ArgumentException("Keys and weights should have the same number of elements.", nameof(weights));
+            }
 
-            List<RedisValue>? values = null;
-            AddWeightsAndAggregation(ref values, weights, aggregate);
-            return new SortedSetCombineAndStoreCommandMessage(Database, flags, command, destination, keys, values?.ToArray() ?? RedisValue.EmptyArray);
+            RedisValue[] values = RedisValue.EmptyArray;
+
+            var argsLength = (weights?.Length > 0 ? 1 + weights.Length : 0) + (aggregate != Aggregate.Sum ? 2 : 0);
+            if (argsLength > 0)
+            {
+                values = new RedisValue[argsLength];
+                AddWeightsAggregationAndScore(values, weights, aggregate);
+            }
+            return new SortedSetCombineAndStoreCommandMessage(Database, flags, command, destination, keys, values);
         }
 
         private Message GetSortedSetCombineCommandMessage(SetOperation operation, RedisKey[] keys, double[]? weights, Aggregate aggregate, bool withScores, CommandFlags flags)
@@ -3215,49 +3229,65 @@ namespace StackExchange.Redis
             {
                 SetOperation.Intersect => RedisCommand.ZINTER,
                 SetOperation.Union => RedisCommand.ZUNION,
-                SetOperation.Difference => RedisCommand.ZDIFF,
+                SetOperation.Difference =>
+                    // Difference can't have weights or aggregation
+                    weights != null || aggregate != Aggregate.Sum
+                    ? throw new ArgumentException("ZDIFF cannot be used with weights or aggregation.")
+                    : RedisCommand.ZDIFF,
                 _ => throw new ArgumentOutOfRangeException(nameof(operation)),
             };
-            if (keys == null) throw new ArgumentNullException(nameof(keys));
-
-            var values = new List<RedisValue>(
-                keys.Length +
-                (weights != null ? 1 + weights.Length : 0) +
-                (aggregate != Aggregate.Sum ? 2 : 0)
-            );
-
-            values.Add(keys.Length);
-            foreach(var key in keys)
-                values.Add(key.AsRedisValue());
-            AddWeightsAndAggregation(ref values, weights, aggregate);
-            if (withScores)
+            if (keys == null)
             {
-                values?.Add(RedisLiterals.WITHSCORES);
+                throw new ArgumentNullException(nameof(keys));
             }
-            return Message.Create(Database, flags, command, values?.ToArray() ?? RedisValue.EmptyArray);
+            if (weights != null && keys.Length != weights.Length)
+            {
+                throw new ArgumentException("Keys and weights should have the same number of elements.", nameof(weights));
+            }
+
+            var i = 0;
+            var values = new RedisValue[1 + keys.Length +
+                                        (weights?.Length > 0 ? 1 + weights.Length : 0) +
+                                        (aggregate != Aggregate.Sum ? 2 : 0) +
+                                        (withScores ? 1 : 0)];
+            values[i++] = keys.Length;
+            foreach (var key in keys)
+            {
+                values[i++] = key.AsRedisValue();
+            }
+            AddWeightsAggregationAndScore(values.AsSpan(i), weights, aggregate, withScores: withScores);
+            return Message.Create(Database, flags, command, values ?? RedisValue.EmptyArray);
         }
 
-        private void AddWeightsAndAggregation(ref List<RedisValue>? values, double[]? weights, Aggregate aggregate)
+        private void AddWeightsAggregationAndScore(Span<RedisValue> values, double[]? weights, Aggregate aggregate, bool withScores = false)
         {
-            if (weights != null && weights.Length != 0)
+            int i = 0;
+            if (weights?.Length > 0)
             {
-                (values ??= new List<RedisValue>()).Add(RedisLiterals.WEIGHTS);
+                values[i++] = RedisLiterals.WEIGHTS;
                 foreach (var weight in weights)
-                    values.Add(weight);
+                {
+                    values[i++] = weight;
+                }
             }
             switch (aggregate)
             {
-                case Aggregate.Sum: break; // default
+                case Aggregate.Sum:
+                    break; // add nothing - Redis default
                 case Aggregate.Min:
-                    (values ??= new List<RedisValue>()).Add(RedisLiterals.AGGREGATE);
-                    values.Add(RedisLiterals.MIN);
+                    values[i++] = RedisLiterals.AGGREGATE;
+                    values[i++] = RedisLiterals.MIN;
                     break;
                 case Aggregate.Max:
-                    (values ??= new List<RedisValue>()).Add(RedisLiterals.AGGREGATE);
-                    values.Add(RedisLiterals.MAX);
+                    values[i++] = RedisLiterals.AGGREGATE;
+                    values[i++] = RedisLiterals.MAX;
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(aggregate));
+            }
+            if (withScores)
+            {
+                values[i++] = RedisLiterals.WITHSCORES;
             }
         }
 
@@ -3275,16 +3305,18 @@ namespace StackExchange.Redis
         {
             if (keys == null) throw new ArgumentNullException(nameof(keys));
 
-            var values = new List<RedisValue>(1 + keys.Length + (limit > 0 ? 2 : 0));
-            values.Add(keys.Length);
-            foreach(var key in keys)
-                values.Add(key.AsRedisValue());
-
-            if (limit > 0) {
-                values.Add(RedisLiterals.LIMIT);
-                values.Add(limit);
+            var i = 0;
+            var values = new RedisValue[1 + keys.Length + (limit > 0 ? 2 : 0)];
+            values[i++] = keys.Length;
+            foreach (var key in keys)
+            {
+                values[i++] = key.AsRedisValue();
             }
-
+            if (limit > 0)
+            {
+                values[i++] = RedisLiterals.LIMIT;
+                values[i++] = limit;
+            }
             return Message.Create(Database, flags, RedisCommand.ZINTERCARD, values);
         }
 

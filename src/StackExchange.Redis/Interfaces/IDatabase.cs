@@ -1434,7 +1434,7 @@ namespace StackExchange.Redis
         /// Returns the cardinality of the intersection of the sorted sets at <paramref name="keys"/>.
         /// </summary>
         /// <param name="keys">The keys of the sorted sets.</param>
-        /// <param name="limit">If the intersection cardinality reaches limit partway through the computation, the algorithm will exit and yield limit as the cardinality (defaults to 0 and means unlimited).</param>
+        /// <param name="limit">If the intersection cardinality reaches <paramref name="limit"/> partway through the computation, the algorithm will exit and yield <paramref name="limit"/> as the cardinality (defaults to 0 meaning unlimited).</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of elements in the resulting intersection.</returns>
         /// <remarks>https://redis.io/commands/zintercard</remarks>
