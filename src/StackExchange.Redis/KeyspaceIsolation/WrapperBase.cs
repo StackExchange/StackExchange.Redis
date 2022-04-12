@@ -304,6 +304,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<bool> SetContainsAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None) =>
             Inner.SetContainsAsync(ToInner(key), value, flags);
 
+        public Task<bool[]> SetContainsAsync(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None) =>
+            Inner.SetContainsAsync(ToInner(key), values, flags);
+
         public Task<long> SetIntersectionLengthAsync(RedisKey[] keys, long limit = 0, CommandFlags flags = CommandFlags.None) =>
             Inner.SetIntersectionLengthAsync(keys, limit, flags);
 
