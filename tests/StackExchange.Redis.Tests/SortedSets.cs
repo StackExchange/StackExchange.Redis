@@ -649,10 +649,12 @@ namespace StackExchange.Redis.Tests
             var db = conn.GetDatabase();
             var me = Me();
 
-            var setKey = $"{me}:ZScoreSet";
-            var memberName = $"{me}:ZScoreMember";
+            var setKey = $"{me}:ZScoreSetSingle";
+            var memberName = "member";
 
+            db.KeyDelete(setKey);
             db.SortedSetAdd(setKey, memberName, 1.5);
+
             var score = db.SortedSetScore(setKey, memberName);
 
             Assert.NotNull(score);
@@ -660,7 +662,66 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void SortedSetScoreSingle_ReturnsNull()
+        public async Task SortedSetScoreSingleAsync()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v2_1_0);
+
+            var db = conn.GetDatabase();
+            var me = Me();
+
+            var setKey = $"{me}:ZScoreSetSingleAsync";
+            var memberName = "member";
+
+            await db.KeyDeleteAsync(setKey);
+            await db.SortedSetAddAsync(setKey, memberName, 1.5);
+
+            var score = await db.SortedSetScoreAsync(setKey, memberName);
+
+            Assert.NotNull(score);
+            Assert.Equal((double)1.5, score.Value);
+        }
+
+        [Fact]
+        public void SortedSetScoreSingle_MissingSetStillReturnsNull()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v2_1_0);
+
+            var db = conn.GetDatabase();
+            var me = Me();
+
+            var setKey = $"{me}:ZScoreMissingSetSingle";
+
+            db.KeyDelete(setKey);
+
+            // Attempt to retrieve score for a missing set, should still return null.
+            var score = db.SortedSetScore(setKey, "bogusMemberName");
+
+            Assert.Null(score);
+        }
+
+        [Fact]
+        public async Task SortedSetScoreSingle_MissingSetStillReturnsNullAsync()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v2_1_0);
+
+            var db = conn.GetDatabase();
+            var me = Me();
+
+            var setKey = $"{me}:ZScoreMissingSetSingleAsync";
+
+            await db.KeyDeleteAsync(setKey);
+
+            // Attempt to retrieve score for a missing set, should still return null.
+            var score = await db.SortedSetScoreAsync(setKey, "bogusMemberName");
+
+            Assert.Null(score);
+        }
+
+        [Fact]
+        public void SortedSetScoreSingle_ReturnsNullForMissingMember()
         {
             using var conn = Create();
             Skip.IfBelow(conn, RedisFeatures.v2_1_0);
@@ -669,7 +730,32 @@ namespace StackExchange.Redis.Tests
             var me = Me();
 
             var setKey = $"{me}:ZScoreSetNullValue";
+
+            db.KeyDelete(setKey);
+            db.SortedSetAdd(setKey, "member1", 1.5);
+
+            // Attempt to retrieve score for a missing member, should return null.
             var score = db.SortedSetScore(setKey, "bogusMemberName");
+
+            Assert.Null(score);
+        }
+
+        [Fact]
+        public async Task SortedSetScoreSingle_ReturnsNullForMissingMemberAsync()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v2_1_0);
+
+            var db = conn.GetDatabase();
+            var me = Me();
+
+            var setKey = $"{me}:ZScoreSetNullValueAsync";
+
+            await db.KeyDeleteAsync(setKey);
+            await db.SortedSetAddAsync(setKey, "member1", 1.5);
+
+            // Attempt to retrieve score for a missing member, should return null.
+            var score = await db.SortedSetScoreAsync(setKey, "bogusMemberName");
 
             Assert.Null(score);
         }
@@ -684,10 +770,11 @@ namespace StackExchange.Redis.Tests
             var me = Me();
 
             var setKey = $"{me}:ZScoreSetMultiple";
-            var member1 = $"{me}:ZScoreSetMultiple_Member1";
-            var member2 = $"{me}:ZScoreSetMultiple_Member2";
-            var member3 = $"{me}:ZScoreSetMultiple_Member3";
+            var member1 = "member1";
+            var member2 = "member2";
+            var member3 = "member3";
 
+            db.KeyDelete(setKey);
             db.SortedSetAdd(setKey, member1, 1.5);
             db.SortedSetAdd(setKey, member2, 1.75);
             db.SortedSetAdd(setKey, member3, 2);
@@ -698,11 +785,11 @@ namespace StackExchange.Redis.Tests
             Assert.Equal(3, scores.Length);
             Assert.Equal((double)1.5, scores[0]);
             Assert.Equal((double)1.75, scores[1]);
-            Assert.Equal((double)2, scores[2]);
+            Assert.Equal(2, scores[2]);
         }
 
         [Fact]
-        public void SortedSetScoreMultiple_ReturnsNullItems()
+        public async Task SortedSetScoreMultipleAsync()
         {
             using var conn = Create();
             Skip.IfBelow(conn, RedisFeatures.v6_2_0);
@@ -710,17 +797,124 @@ namespace StackExchange.Redis.Tests
             var db = conn.GetDatabase();
             var me = Me();
 
-            var setKey = $"{me}:ZScoreSetMultiple";
-            var member1 = $"{me}:ZScoreSetMultiple_Member1";
-            var member2 = $"{me}:ZScoreSetMultiple_Member2";
-            var member3 = $"{me}:ZScoreSetMultiple_Member3";
-            var bogusMember = $"{me}:ZScoreSetMultiple_BogusMember";
+            var setKey = $"{me}:ZScoreSetMultipleAsync";
+            var member1 = "member1";
+            var member2 = "member2";
+            var member3 = "member3";
+
+            await db.KeyDeleteAsync(setKey);
+            await db.SortedSetAddAsync(setKey, member1, 1.5);
+            await db.SortedSetAddAsync(setKey, member2, 1.75);
+            await db.SortedSetAddAsync(setKey, member3, 2);
+
+            var scores = await db.SortedSetScoreAsync(setKey, new RedisValue[] { member1, member2, member3 });
+
+            Assert.NotNull(scores);
+            Assert.Equal(3, scores.Length);
+            Assert.Equal((double)1.5, scores[0]);
+            Assert.Equal((double)1.75, scores[1]);
+            Assert.Equal(2, scores[2]);
+        }
+
+        [Fact]
+        public void SortedSetScoreMultiple_ReturnsNullItemsForMissingSet()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
+
+            var db = conn.GetDatabase();
+            var me = Me();
+
+            var setKey = $"{me}:ZScoreSetMultipleMissingSet";
+
+            db.KeyDelete(setKey);
+
+            // Missing set but should still return an array of nulls.
+            var scores = db.SortedSetScore(setKey, new RedisValue[] { "bogus1", "bogus2", "bogus3" });
+
+            Assert.NotNull(scores);
+            Assert.Equal(3, scores.Length);
+            Assert.Null(scores[0]);
+            Assert.Null(scores[1]);
+            Assert.Null(scores[2]);
+        }
+
+        [Fact]
+        public async Task SortedSetScoreMultiple_ReturnsNullItemsForMissingSetAsync()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
+
+            var db = conn.GetDatabase();
+            var me = Me();
+
+            var setKey = $"{me}:ZScoreSetMultipleMissingSetAsync";
+
+            await db.KeyDeleteAsync(setKey);
+
+            // Missing set but should still return an array of nulls.
+            var scores = await db.SortedSetScoreAsync(setKey, new RedisValue[] { "bogus1", "bogus2", "bogus3" });
+
+            Assert.NotNull(scores);
+            Assert.Equal(3, scores.Length);
+            Assert.Null(scores[0]);
+            Assert.Null(scores[1]);
+            Assert.Null(scores[2]);
+        }
+
+        [Fact]
+        public void SortedSetScoreMultiple_ReturnsScoresAndNullItems()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
+
+            var db = conn.GetDatabase();
+            var me = Me();
+
+            var setKey = $"{me}:ZScoreSetMultipleScoresAndNull";
+            var member1 = "member1";
+            var member2 = "member2";
+            var member3 = "member3";
+            var bogusMember = "bogusMember";
+
+            db.KeyDelete(setKey);
 
             db.SortedSetAdd(setKey, member1, 1.5);
             db.SortedSetAdd(setKey, member2, 1.75);
             db.SortedSetAdd(setKey, member3, 2);
 
             var scores = db.SortedSetScore(setKey, new RedisValue[] { member1, bogusMember, member2, member3 });
+
+            Assert.NotNull(scores);
+            Assert.Equal(4, scores.Length);
+            Assert.Null(scores[1]);
+            Assert.Equal((double)1.5, scores[0]);
+            Assert.Equal((double)1.75, scores[2]);
+            Assert.Equal(2, scores[3]);
+        }
+
+        [Fact]
+        public async Task SortedSetScoreMultiple_ReturnsScoresAndNullItemsAsync()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
+
+            var db = conn.GetDatabase();
+            var me = Me();
+
+            var setKey = $"{me}:ZScoreSetMultipleScoresAndNullAsync";
+            var member1 = "member1";
+            var member2 = "member2";
+            var member3 = "member3";
+            var bogusMember = "bogusMember";
+
+            await db.KeyDeleteAsync(setKey);
+
+            await db.SortedSetAddAsync(setKey, member1, 1.5);
+            await db.SortedSetAddAsync(setKey, member2, 1.75);
+            await db.SortedSetAddAsync(setKey, member3, 2);
+
+            var scores = await db.SortedSetScoreAsync(setKey, new RedisValue[] { member1, bogusMember, member2, member3 });
 
             Assert.NotNull(scores);
             Assert.Equal(4, scores.Length);

@@ -1091,15 +1091,11 @@ namespace StackExchange.Redis
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
-                switch (result.Type)
+                if (result.Type == ResultType.MultiBulk && !result.IsNull)
                 {
-                    case ResultType.Integer:
-                    case ResultType.SimpleString:
-                    case ResultType.BulkString:
-                    case ResultType.MultiBulk:
-                        var values = result.GetItemsAsDoubles()!;
-                        SetResult(message, values);
-                        return true;
+                    var arr = result.GetItemsAsDoubles()!;
+                    SetResult(message, arr);
+                    return true;
                 }
                 return false;
             }
