@@ -1395,6 +1395,18 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.BooleanArray, defaultValue: Array.Empty<bool>());
         }
 
+        public long SetIntersectionLength(RedisKey[] keys, long limit = 0, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetSetIntersectionLengthMessage(keys, limit, flags);
+            return ExecuteSync(msg, ResultProcessor.Int64);
+        }
+
+        public Task<long> SetIntersectionLengthAsync(RedisKey[] keys, long limit = 0, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetSetIntersectionLengthMessage(keys, limit, flags);
+            return ExecuteAsync(msg, ResultProcessor.Int64);
+        }
+
         public long SetLength(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.SCARD, key);
@@ -3007,6 +3019,26 @@ namespace StackExchange.Redis
         {
             long pttl = (expiry == null || expiry.Value == TimeSpan.MaxValue) ? 0 : (expiry.Value.Ticks / TimeSpan.TicksPerMillisecond);
             return Message.Create(Database, flags, RedisCommand.RESTORE, key, pttl, value);
+        }
+
+        private Message GetSetIntersectionLengthMessage(RedisKey[] keys, long limit = 0, CommandFlags flags = CommandFlags.None)
+        {
+            if (keys == null) throw new ArgumentNullException(nameof(keys));
+
+            var values = new RedisValue[1 + keys.Length + (limit > 0 ? 2 : 0)];
+            int i = 0;
+            values[i++] = keys.Length;
+            for (var j = 0; j < keys.Length; j++)
+            {
+                values[i++] = keys[j].AsRedisValue();
+            }
+            if (limit > 0)
+            {
+                values[i++] = RedisLiterals.LIMIT;
+                values[i] = limit;
+            }
+
+            return Message.Create(Database, flags, RedisCommand.SINTERCARD, values);
         }
 
         private Message GetSortedSetAddMessage(RedisKey key, RedisValue member, double score, When when, CommandFlags flags)

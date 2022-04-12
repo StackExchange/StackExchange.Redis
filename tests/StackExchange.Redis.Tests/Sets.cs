@@ -12,31 +12,6 @@ namespace StackExchange.Redis.Tests
         public Sets(ITestOutputHelper output, SharedConnectionFixture fixture) : base (output, fixture) { }
 
         [Fact]
-        public void SScan()
-        {
-            using var conn = Create();
-            var server = GetAnyPrimary(conn);
-
-            var key = Me();
-            var db = conn.GetDatabase();
-            int totalUnfiltered = 0, totalFiltered = 0;
-            for (int i = 1; i < 1001; i++)
-            {
-                db.SetAdd(key, i, CommandFlags.FireAndForget);
-                totalUnfiltered += i;
-                if (i.ToString().Contains('3')) totalFiltered += i;
-            }
-
-            var unfilteredActual = db.SetScan(key).Select(x => (int)x).Sum();
-            Assert.Equal(totalUnfiltered, unfilteredActual);
-            if (server.Features.Scan)
-            {
-                var filteredActual = db.SetScan(key, "*3*").Select(x => (int)x).Sum();
-                Assert.Equal(totalFiltered, filteredActual);
-            }
-        }
-
-        [Fact]
         public void SetContains()
         {
             using var conn = Create();
@@ -66,6 +41,83 @@ namespace StackExchange.Redis.Tests
             areMemebers = db.SetContains(key1, new RedisValue[] { 0, 1, 2 });
             Assert.Equal(3, areMemebers.Length);
             Assert.True(areMemebers.All(i => !i)); // Check that all the elements are False
+        }
+        
+        [Fact]
+        public void SetIntersectionLength()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v7_0_0_rc1);
+            var db = conn.GetDatabase();
+
+            var key1 = Me() + "1";
+            db.KeyDelete(key1, CommandFlags.FireAndForget);
+            db.SetAdd(key1, new RedisValue[] { 0, 1, 2, 3, 4 }, CommandFlags.FireAndForget);
+            var key2 = Me() + "2";
+            db.KeyDelete(key2, CommandFlags.FireAndForget);
+            db.SetAdd(key2, new RedisValue[] { 1, 2, 3, 4, 5 }, CommandFlags.FireAndForget);
+
+            Assert.Equal(4, db.SetIntersectionLength(new RedisKey[]{ key1, key2}));
+            // with limit
+            Assert.Equal(3, db.SetIntersectionLength(new RedisKey[]{ key1, key2}, 3));
+
+            // Missing keys should be 0
+            var key3 = Me() + "3";
+            var key4 = Me() + "4";
+            db.KeyDelete(key3, CommandFlags.FireAndForget);
+            Assert.Equal(0, db.SetIntersectionLength(new RedisKey[] { key1, key3 }));
+            Assert.Equal(0, db.SetIntersectionLength(new RedisKey[] { key3, key4 }));
+        }
+
+        [Fact]
+        public async Task SetIntersectionLengthAsync()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v7_0_0_rc1);
+            var db = conn.GetDatabase();
+
+            var key1 = Me() + "1";
+            db.KeyDelete(key1, CommandFlags.FireAndForget);
+            db.SetAdd(key1, new RedisValue[] { 0, 1, 2, 3, 4 }, CommandFlags.FireAndForget);
+            var key2 = Me() + "2";
+            db.KeyDelete(key2, CommandFlags.FireAndForget);
+            db.SetAdd(key2, new RedisValue[] { 1, 2, 3, 4, 5 }, CommandFlags.FireAndForget);
+
+            Assert.Equal(4, await db.SetIntersectionLengthAsync(new RedisKey[]{ key1, key2}));
+            // with limit
+            Assert.Equal(3, await db.SetIntersectionLengthAsync(new RedisKey[]{ key1, key2}, 3));
+
+            // Missing keys should be 0
+            var key3 = Me() + "3";
+            var key4 = Me() + "4";
+            db.KeyDelete(key3, CommandFlags.FireAndForget);
+            Assert.Equal(0, await db.SetIntersectionLengthAsync(new RedisKey[] { key1, key3 }));
+            Assert.Equal(0, await db.SetIntersectionLengthAsync(new RedisKey[] { key3, key4 }));
+        }
+
+        [Fact]
+        public void SScan()
+        {
+            using var conn = Create();
+            var server = GetAnyPrimary(conn);
+
+            var key = Me();
+            var db = conn.GetDatabase();
+            int totalUnfiltered = 0, totalFiltered = 0;
+            for (int i = 1; i < 1001; i++)
+            {
+                db.SetAdd(key, i, CommandFlags.FireAndForget);
+                totalUnfiltered += i;
+                if (i.ToString().Contains('3')) totalFiltered += i;
+            }
+
+            var unfilteredActual = db.SetScan(key).Select(x => (int)x).Sum();
+            Assert.Equal(totalUnfiltered, unfilteredActual);
+            if (server.Features.Scan)
+            {
+                var filteredActual = db.SetScan(key, "*3*").Select(x => (int)x).Sum();
+                Assert.Equal(totalFiltered, filteredActual);
+            }
         }
 
         [Fact]

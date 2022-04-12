@@ -132,8 +132,6 @@ namespace StackExchange.Redis
             TieBreaker = new TieBreakerProcessor(),
             ClusterNodesRaw = new ClusterNodesRawProcessor();
 
-        #region Sentinel
-
         public static readonly ResultProcessor<EndPoint?>
             SentinelPrimaryEndpoint = new SentinelGetPrimaryAddressByNameProcessor();
 
@@ -145,8 +143,6 @@ namespace StackExchange.Redis
 
         public static readonly ResultProcessor<KeyValuePair<string, string>[][]>
             SentinelArrayOfArrays = new SentinelArrayOfArraysProcessor();
-
-        #endregion
 
         public static readonly ResultProcessor<KeyValuePair<string, string>[]>
             StringPairInterleaved = new StringPairInterleavedProcessor();
@@ -2207,8 +2203,6 @@ The coordinates as a two items x,y array (longitude,latitude).
             }
         }
 
-        #region Sentinel
-
         private sealed class SentinelGetPrimaryAddressByNameProcessor : ResultProcessor<EndPoint?>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
@@ -2343,8 +2337,6 @@ The coordinates as a two items x,y array (longitude,latitude).
                 return false;
             }
         }
-
-        #endregion
     }
 
     internal abstract class ResultProcessor<T> : ResultProcessor
