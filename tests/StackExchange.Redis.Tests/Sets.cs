@@ -19,7 +19,7 @@ namespace StackExchange.Redis.Tests
 
             var key = Me();
             var db = conn.GetDatabase();
-            db.KeyDelete(key);
+            db.KeyDelete(key, CommandFlags.FireAndForget);
             for (int i = 1; i < 1001; i++)
             {
                 db.SetAdd(key, i, CommandFlags.FireAndForget);
@@ -36,11 +36,10 @@ namespace StackExchange.Redis.Tests
             Assert.True(areMemebers[1]);
 
             // key not exists
-            var key1 = Me() + "non-exists";
-            db.KeyDelete(key1);
-            isMemeber = db.SetContains(key1, 1);
+            db.KeyDelete(key, CommandFlags.FireAndForget);
+            isMemeber = db.SetContains(key, 1);
             Assert.False(isMemeber);
-            areMemebers = db.SetContains(key1, new RedisValue[] { 0, 1, 2 });
+            areMemebers = db.SetContains(key, new RedisValue[] { 0, 1, 2 });
             Assert.Equal(3, areMemebers.Length);
             Assert.True(areMemebers.All(i => !i)); // Check that all the elements are False
         }
@@ -70,11 +69,10 @@ namespace StackExchange.Redis.Tests
             Assert.True(areMemebers[1]);
 
             // key not exists
-            var key1 = Me() + "non-exists";
-            await db.KeyDeleteAsync(key1);
-            isMemeber = await db.SetContainsAsync(key1, 1);
+            await db.KeyDeleteAsync(key);
+            isMemeber = await db.SetContainsAsync(key, 1);
             Assert.False(isMemeber);
-            areMemebers = await db.SetContainsAsync(key1, new RedisValue[] { 0, 1, 2 });
+            areMemebers = await db.SetContainsAsync(key, new RedisValue[] { 0, 1, 2 });
             Assert.Equal(3, areMemebers.Length);
             Assert.True(areMemebers.All(i => !i)); // Check that all the elements are False
         }
