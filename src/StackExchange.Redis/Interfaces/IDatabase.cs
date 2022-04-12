@@ -1698,6 +1698,20 @@ namespace StackExchange.Redis
         double? SortedSetScore(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Returns the scores of members in the sorted set at key.
+        /// If a member does not exist in the sorted set, or key does not exist, nil is returned.
+        /// </summary>
+        /// <param name="key">The key of the sorted set.</param>
+        /// <param name="members">The members to get a score for.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>
+        /// The scores of the members in the same order as the <paramref name="members"/> array. If a member does
+        /// not exist in the set, nil is returned.
+        /// </returns>
+        /// <remarks>https://redis.io/commands/zmscore</remarks>
+        double?[] SortedSetScore(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Removes and returns the first element from the sorted set stored at key, by default with the scores ordered from low to high.
         /// </summary>
         /// <param name="key">The key of the sorted set.</param>

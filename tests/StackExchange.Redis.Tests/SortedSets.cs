@@ -639,5 +639,95 @@ namespace StackExchange.Redis.Tests
             var exception = Assert.Throws<ArgumentException>(()=>db.SortedSetRangeAndStore(sourceKey, destinationKey,0,-1, exclude: Exclude.Both));
             Assert.Equal("exclude", exception.ParamName);
         }
+
+        [Fact]
+        public void SortedSetScoreSingle()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v2_1_0);
+
+            var db = conn.GetDatabase();
+            var me = Me();
+
+            var setKey = $"{me}:ZScoreSet";
+            var memberName = $"{me}:ZScoreMember";
+
+            db.SortedSetAdd(setKey, memberName, 1.5);
+            var score = db.SortedSetScore(setKey, memberName);
+
+            Assert.NotNull(score);
+            Assert.Equal((double)1.5, score.Value);
+        }
+
+        [Fact]
+        public void SortedSetScoreSingle_ReturnsNull()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v2_1_0);
+
+            var db = conn.GetDatabase();
+            var me = Me();
+
+            var setKey = $"{me}:ZScoreSetNullValue";
+            var score = db.SortedSetScore(setKey, "bogusMemberName");
+
+            Assert.Null(score);
+        }
+
+        [Fact]
+        public void SortedSetScoreMultiple()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
+
+            var db = conn.GetDatabase();
+            var me = Me();
+
+            var setKey = $"{me}:ZScoreSetMultiple";
+            var member1 = $"{me}:ZScoreSetMultiple_Member1";
+            var member2 = $"{me}:ZScoreSetMultiple_Member2";
+            var member3 = $"{me}:ZScoreSetMultiple_Member3";
+
+            db.SortedSetAdd(setKey, member1, 1.5);
+            db.SortedSetAdd(setKey, member2, 1.75);
+            db.SortedSetAdd(setKey, member3, 2);
+
+            var scores = db.SortedSetScore(setKey, new RedisValue[] { member1, member2, member3 });
+
+            Assert.NotNull(scores);
+            Assert.Equal(3, scores.Length);
+            Assert.Equal((double)1.5, scores[0]);
+            Assert.Equal((double)1.75, scores[1]);
+            Assert.Equal((double)2, scores[2]);
+        }
+
+        [Fact]
+        public void SortedSetScoreMultiple_ReturnsNullItems()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
+
+            var db = conn.GetDatabase();
+            var me = Me();
+
+            var setKey = $"{me}:ZScoreSetMultiple";
+            var member1 = $"{me}:ZScoreSetMultiple_Member1";
+            var member2 = $"{me}:ZScoreSetMultiple_Member2";
+            var member3 = $"{me}:ZScoreSetMultiple_Member3";
+            var bogusMember = $"{me}:ZScoreSetMultiple_BogusMember";
+
+            db.SortedSetAdd(setKey, member1, 1.5);
+            db.SortedSetAdd(setKey, member2, 1.75);
+            db.SortedSetAdd(setKey, member3, 2);
+
+            var scores = db.SortedSetScore(setKey, new RedisValue[] { member1, bogusMember, member2, member3 });
+
+            Assert.NotNull(scores);
+            Assert.Equal(4, scores.Length);
+            Assert.Null(scores[1]);
+            Assert.Equal((double)1.5, scores[0]);
+            Assert.Equal((double)1.75, scores[2]);
+            Assert.Equal(2, scores[3]);
+        }
     }
 }

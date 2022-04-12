@@ -425,6 +425,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<double?> SortedSetScoreAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetScoreAsync(ToInner(key), member, flags);
 
+        public Task<double?[]> SortedSetScoreAsync(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None) =>
+            Inner.SortedSetScoreAsync(ToInner(key), members, flags);
+
         public IAsyncEnumerable<SortedSetEntry> SortedSetScanAsync(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags) =>
             Inner.SortedSetScanAsync(ToInner(key), pattern, pageSize, cursor, pageOffset, flags);
 
