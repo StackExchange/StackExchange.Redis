@@ -11,7 +11,6 @@ namespace StackExchange.Redis.Profiling
     {
         private static readonly double TimestampToTicks = TimeSpan.TicksPerSecond / (double)Stopwatch.Frequency;
 
-        #region IProfiledCommand Impl
         public EndPoint EndPoint => Server.EndPoint;
 
         public int Db => Message!.Db;
@@ -41,8 +40,6 @@ namespace StackExchange.Redis.Profiling
         public IProfiledCommand? RetransmissionOf => OriginalProfiling;
 
         public RetransmissionReasonType? RetransmissionReason { get; }
-
-        #endregion
 
         public ProfiledCommand? NextElement { get; set; }
 
