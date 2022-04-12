@@ -12,6 +12,72 @@ namespace StackExchange.Redis.Tests
         public Sets(ITestOutputHelper output, SharedConnectionFixture fixture) : base (output, fixture) { }
 
         [Fact]
+        public void SetContains()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
+
+            var key = Me();
+            var db = conn.GetDatabase();
+            db.KeyDelete(key);
+            for (int i = 1; i < 1001; i++)
+            {
+                db.SetAdd(key, i, CommandFlags.FireAndForget);
+            }
+
+            // Single member
+            var isMemeber = db.SetContains(key, 1);
+            Assert.True(isMemeber);
+
+            // Multi members
+            var areMemebers = db.SetContains(key, new RedisValue[] { 0, 1, 2 });
+            Assert.Equal(3, areMemebers.Length);
+            Assert.False(areMemebers[0]);
+            Assert.True(areMemebers[1]);
+
+            // key not exists
+            db.KeyDelete(key);
+            isMemeber = db.SetContains(key, 1);
+            Assert.False(isMemeber);
+            areMemebers = db.SetContains(key, new RedisValue[] { 0, 1, 2 });
+            Assert.Equal(3, areMemebers.Length);
+            Assert.True(areMemebers.All(i => !i)); // Check that all the elements are False
+        }
+
+        [Fact]
+        public async Task SetContainsAsync()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
+
+            var key = Me();
+            var db = conn.GetDatabase();
+            await db.KeyDeleteAsync(key);
+            for (int i = 1; i < 1001; i++)
+            {
+                db.SetAdd(key, i, CommandFlags.FireAndForget);
+            }
+
+            // Single member
+            var isMemeber = await db.SetContainsAsync(key, 1);
+            Assert.True(isMemeber);
+
+            // Multi members
+            var areMemebers = await db.SetContainsAsync(key, new RedisValue[] { 0, 1, 2 });
+            Assert.Equal(3, areMemebers.Length);
+            Assert.False(areMemebers[0]);
+            Assert.True(areMemebers[1]);
+
+            // key not exists
+            await db.KeyDeleteAsync(key);
+            isMemeber = await db.SetContainsAsync(key, 1);
+            Assert.False(isMemeber);
+            areMemebers = await db.SetContainsAsync(key, new RedisValue[] { 0, 1, 2 });
+            Assert.Equal(3, areMemebers.Length);
+            Assert.True(areMemebers.All(i => !i)); // Check that all the elements are False
+        }
+
+        [Fact]
         public void SetIntersectionLength()
         {
             using var conn = Create();

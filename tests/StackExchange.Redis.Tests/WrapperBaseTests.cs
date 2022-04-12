@@ -564,6 +564,14 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void SetContainsAsync_2()
+        {
+            RedisValue[] values = new RedisValue[] { "value1", "value2" };
+            wrapper.SetContainsAsync("key", values, CommandFlags.None);
+            mock.Verify(_ => _.SetContainsAsync("prefix:key", values, CommandFlags.None));
+        }
+
+        [Fact]
         public void SetIntersectionLengthAsync()
         {
             var keys = new RedisKey[] { "key1", "key2" };
@@ -721,6 +729,27 @@ namespace StackExchange.Redis.Tests
         {
             wrapper.SortedSetLengthByValueAsync("key", "min", "max", Exclude.Start, CommandFlags.None);
             mock.Verify(_ => _.SortedSetLengthByValueAsync("prefix:key", "min", "max", Exclude.Start, CommandFlags.None));
+        }
+
+        [Fact]
+        public void SortedSetRandomMemberAsync()
+        {
+            wrapper.SortedSetRandomMemberAsync("key", CommandFlags.None);
+            mock.Verify(_ => _.SortedSetRandomMemberAsync("prefix:key", CommandFlags.None));
+        }
+
+        [Fact]
+        public void SortedSetRandomMembersAsync()
+        {
+            wrapper.SortedSetRandomMembersAsync("key", 2, CommandFlags.None);
+            mock.Verify(_ => _.SortedSetRandomMembersAsync("prefix:key", 2, CommandFlags.None));
+        }
+
+        [Fact]
+        public void SortedSetRandomMemberWithScoresAsync()
+        {
+            wrapper.SortedSetRandomMembersWithScoresAsync("key", 2, CommandFlags.None);
+            mock.Verify(_ => _.SortedSetRandomMembersWithScoresAsync("prefix:key", 2, CommandFlags.None));
         }
 
         [Fact]

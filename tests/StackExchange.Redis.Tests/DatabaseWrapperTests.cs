@@ -604,6 +604,14 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void SetContains_2()
+        {
+            RedisValue[] values = new RedisValue[] { "value1", "value2" };
+            wrapper.SetContains("key", values, CommandFlags.None);
+            mock.Verify(_ => _.SetContains("prefix:key", values, CommandFlags.None));
+        }
+
+        [Fact]
         public void SetIntersectionLength()
         {
             var keys = new RedisKey[] { "key1", "key2" };
@@ -768,6 +776,27 @@ namespace StackExchange.Redis.Tests
         {
             wrapper.SortedSetLength("key", 1.23, 1.23, Exclude.Start, CommandFlags.None);
             mock.Verify(_ => _.SortedSetLength("prefix:key", 1.23, 1.23, Exclude.Start, CommandFlags.None));
+        }
+
+        [Fact]
+        public void SortedSetRandomMember()
+        {
+            wrapper.SortedSetRandomMember("key", CommandFlags.None);
+            mock.Verify(_ => _.SortedSetRandomMember("prefix:key", CommandFlags.None));
+        }
+
+        [Fact]
+        public void SortedSetRandomMembers()
+        {
+            wrapper.SortedSetRandomMembers("key", 2, CommandFlags.None);
+            mock.Verify(_ => _.SortedSetRandomMembers("prefix:key", 2, CommandFlags.None));
+        }
+
+        [Fact]
+        public void SortedSetRandomMembersWithScores()
+        {
+            wrapper.SortedSetRandomMembersWithScores("key", 2, CommandFlags.None);
+            mock.Verify(_ => _.SortedSetRandomMembersWithScores("prefix:key", 2, CommandFlags.None));
         }
 
         [Fact]

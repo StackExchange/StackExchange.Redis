@@ -201,6 +201,12 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<RedisValue[]> ListLeftPopAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None) =>
             Inner.ListLeftPopAsync(ToInner(key), count, flags);
 
+        public Task<long> ListPositionAsync(RedisKey key, RedisValue element, long rank = 1, long maxLength = 0, CommandFlags flags = CommandFlags.None) =>
+            Inner.ListPositionAsync(ToInner(key), element, rank, maxLength, flags);
+
+        public Task<long[]> ListPositionsAsync(RedisKey key, RedisValue element, long count, long rank = 1, long maxLength = 0, CommandFlags flags = CommandFlags.None) =>
+            Inner.ListPositionsAsync(ToInner(key), element, count, rank, maxLength, flags);
+
         public Task<long> ListLeftPushAsync(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None) =>
             Inner.ListLeftPushAsync(ToInner(key), values, flags);
 
@@ -304,6 +310,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<bool> SetContainsAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None) =>
             Inner.SetContainsAsync(ToInner(key), value, flags);
 
+        public Task<bool[]> SetContainsAsync(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None) =>
+            Inner.SetContainsAsync(ToInner(key), values, flags);
+
         public Task<long> SetIntersectionLengthAsync(RedisKey[] keys, long limit = 0, CommandFlags flags = CommandFlags.None) =>
             Inner.SetIntersectionLengthAsync(keys, limit, flags);
 
@@ -372,6 +381,15 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public Task<long> SortedSetLengthByValueAsync(RedisKey key, RedisValue min, RedisValue max, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetLengthByValueAsync(ToInner(key), min, max, exclude, flags);
+
+        public Task<RedisValue> SortedSetRandomMemberAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
+            Inner.SortedSetRandomMemberAsync(ToInner(key), flags);
+
+        public Task<RedisValue[]> SortedSetRandomMembersAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None) =>
+            Inner.SortedSetRandomMembersAsync(ToInner(key), count, flags);
+
+        public Task<SortedSetEntry[]> SortedSetRandomMembersWithScoresAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None) =>
+            Inner.SortedSetRandomMembersWithScoresAsync(ToInner(key), count, flags);
 
         public Task<long> SortedSetRangeAndStoreAsync(
             RedisKey sourceKey,

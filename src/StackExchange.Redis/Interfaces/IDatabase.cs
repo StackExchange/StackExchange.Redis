@@ -722,6 +722,31 @@ namespace StackExchange.Redis
         RedisValue[] ListLeftPop(RedisKey key, long count, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Scans through the list stored at <paramref name="key"/> looking for <paramref name="element"/>, returning the 0-based
+        /// index of the first matching element.
+        /// </summary>
+        /// <param name="key">The key of the list.</param>
+        /// <param name="element">The element to search for.</param>
+        /// <param name="rank">The rank of the first element to return, within the sub-list of matching indexes in the case of multiple matches.</param>
+        /// <param name="maxLength">The maximum number of elements to scan through before stopping, defaults to 0 (a full scan of the list.)</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The 0-based index of the first matching element, or -1 if not found.</returns>
+        long ListPosition(RedisKey key, RedisValue element, long rank = 1, long maxLength = 0, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Scans through the list stored at <paramref name="key"/> looking for <paramref name="count"/> instances of <paramref name="element"/>, returning the 0-based
+        /// indexes of any matching elements.
+        /// </summary>
+        /// <param name="key">The key of the list.</param>
+        /// <param name="element">The element to search for.</param>
+        /// <param name="count">The number of matches to find. A count of 0 will return the indexes of all occurrences of the element.</param>
+        /// <param name="rank">The rank of the first element to return, within the sub-list of matching indexes in the case of multiple matches.</param>
+        /// <param name="maxLength">The maximum number of elements to scan through before stopping, defaults to 0 (a full scan of the list.)</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>An array of at most <paramref name="count"/> of indexes of matching elements. If none are found, and empty array is returned.</returns>
+        long[] ListPositions(RedisKey key, RedisValue element, long count, long rank = 1, long maxLength = 0, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Insert the specified value at the head of the list stored at key.
         /// If key does not exist, it is created as empty list before performing the push operations.
         /// </summary>
@@ -1103,10 +1128,10 @@ namespace StackExchange.Redis
         long SetCombineAndStore(SetOperation operation, RedisKey destination, RedisKey[] keys, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Returns if member is a member of the set stored at key.
+        /// Returns whether <paramref name="value"/> is a member of the set stored at <paramref name="key"/>.
         /// </summary>
         /// <param name="key">The key of the set.</param>
-        /// <param name="value">The value to check for .</param>
+        /// <param name="value">The value to check for.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>
         /// <see langword="true"/> if the element is a member of the set.
@@ -1114,6 +1139,20 @@ namespace StackExchange.Redis
         /// </returns>
         /// <remarks>https://redis.io/commands/sismember</remarks>
         bool SetContains(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Returns whether each of <paramref name="values"/> is a member of the set stored at <paramref name="key"/>.
+        /// </summary>
+        /// <param name="key">The key of the set.</param>
+        /// <param name="values">The members to check for.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>
+        /// An array of booleans corresponding to <paramref name="values"/>, for each:
+        /// <see langword="true"/> if the element is a member of the set.
+        /// <see langword="false"/> if the element is not a member of the set, or if key does not exist.
+        /// </returns>
+        /// <remarks>https://redis.io/commands/smismember</remarks>
+        bool[] SetContains(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         ///   <para>
@@ -1185,11 +1224,11 @@ namespace StackExchange.Redis
         RedisValue[] SetPop(RedisKey key, long count, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Return a random element from the set value stored at key.
+        /// Return a random element from the set value stored at <paramref name="key"/>.
         /// </summary>
         /// <param name="key">The key of the set.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The randomly selected element, or nil when key does not exist.</returns>
+        /// <returns>The randomly selected element, or <see cref="RedisValue.Null"/> when <paramref name="key"/> does not exist.</returns>
         /// <remarks>https://redis.io/commands/srandmember</remarks>
         RedisValue SetRandomMember(RedisKey key, CommandFlags flags = CommandFlags.None);
 
@@ -1201,7 +1240,7 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the set.</param>
         /// <param name="count">The count of members to get.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>An array of elements, or an empty array when key does not exist.</returns>
+        /// <returns>An array of elements, or an empty array when <paramref name="key"/> does not exist.</returns>
         /// <remarks>https://redis.io/commands/srandmember</remarks>
         RedisValue[] SetRandomMembers(RedisKey key, long count, CommandFlags flags = CommandFlags.None);
 
@@ -1418,6 +1457,53 @@ namespace StackExchange.Redis
         /// <returns>The number of elements in the specified score range.</returns>
         /// <remarks>https://redis.io/commands/zlexcount</remarks>
         long SortedSetLengthByValue(RedisKey key, RedisValue min, RedisValue max, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Returns a random element from the sorted set value stored at <paramref name="key"/>.
+        /// </summary>
+        /// <param name="key">The key of the sorted set.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The randomly selected element, or <see cref="RedisValue.Null"/> when <paramref name="key"/> does not exist.</returns>
+        /// <remarks>https://redis.io/commands/zrandmember</remarks>
+        RedisValue SortedSetRandomMember(RedisKey key, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Returns an array of random elements from the sorted set value stored at <paramref name="key"/>.
+        /// </summary>
+        /// <param name="key">The key of the sorted set.</param>
+        /// <param name="count">
+        ///   <para>
+        ///     If the provided count argument is positive, returns an array of distinct elements.
+        ///     The array's length is either <paramref name="count"/> or the sorted set's cardinality (ZCARD), whichever is lower.
+        ///   </para>
+        ///   <para>
+        ///     If called with a negative count, the behavior changes and the command is allowed to return the same element multiple times.
+        ///     In this case, the number of returned elements is the absolute value of the specified count.
+        ///   </para>
+        /// </param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The randomly selected elements, or an empty array when <paramref name="key"/> does not exist.</returns>
+        /// <remarks>https://redis.io/commands/zrandmember</remarks>
+        RedisValue[] SortedSetRandomMembers(RedisKey key, long count, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Returns an array of random elements from the sorted set value stored at <paramref name="key"/>.
+        /// </summary>
+        /// <param name="key">The key of the sorted set.</param>
+        /// <param name="count">
+        ///   <para>
+        ///     If the provided count argument is positive, returns an array of distinct elements.
+        ///     The array's length is either <paramref name="count"/> or the sorted set's cardinality (ZCARD), whichever is lower.
+        ///   </para>
+        ///   <para>
+        ///     If called with a negative count, the behavior changes and the command is allowed to return the same element multiple times.
+        ///     In this case, the number of returned elements is the absolute value of the specified count.
+        ///   </para>
+        /// </param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The randomly selected elements with scores, or an empty array when <paramref name="key"/> does not exist.</returns>
+        /// <remarks>https://redis.io/commands/zrandmember</remarks>
+        SortedSetEntry[] SortedSetRandomMembersWithScores(RedisKey key, long count, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Returns the specified range of elements in the sorted set stored at key.
