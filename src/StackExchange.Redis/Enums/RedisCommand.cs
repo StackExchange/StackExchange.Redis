@@ -201,6 +201,7 @@
         ZLEXCOUNT,
         ZPOPMAX,
         ZPOPMIN,
+        ZRANDMEMBER,
         ZRANGE,
         ZRANGEBYLEX,
         ZRANGEBYSCORE,
