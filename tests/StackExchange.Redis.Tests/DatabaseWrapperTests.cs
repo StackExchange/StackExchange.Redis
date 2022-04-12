@@ -886,8 +886,8 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void SortedSetScore_Multiple()
         {
-            wrapper.SortedSetScore("key", new RedisValue[] { "member1", "member2" }, CommandFlags.None);
-            mock.Verify(_ => _.SortedSetScore("prefix:key", new RedisValue[] { "member1", "member2" }, CommandFlags.None));
+            wrapper.SortedSetScores("key", new RedisValue[] { "member1", "member2" }, CommandFlags.None);
+            mock.Verify(_ => _.SortedSetScores("prefix:key", new RedisValue[] { "member1", "member2" }, CommandFlags.None));
         }
 
         [Fact]

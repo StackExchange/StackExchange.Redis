@@ -641,7 +641,7 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void SortedSetScoreSingle()
+        public void SortedSetScoresSingle()
         {
             using var conn = Create();
             Skip.IfBelow(conn, RedisFeatures.v2_1_0);
@@ -660,7 +660,7 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public async Task SortedSetScoreSingleAsync()
+        public async Task SortedSetScoresSingleAsync()
         {
             using var conn = Create();
             Skip.IfBelow(conn, RedisFeatures.v2_1_0);
@@ -679,7 +679,7 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void SortedSetScoreSingle_MissingSetStillReturnsNull()
+        public void SortedSetScoresSingle_MissingSetStillReturnsNull()
         {
             using var conn = Create();
             Skip.IfBelow(conn, RedisFeatures.v2_1_0);
@@ -696,7 +696,7 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public async Task SortedSetScoreSingle_MissingSetStillReturnsNullAsync()
+        public async Task SortedSetScoresSingle_MissingSetStillReturnsNullAsync()
         {
             using var conn = Create();
             Skip.IfBelow(conn, RedisFeatures.v2_1_0);
@@ -713,7 +713,7 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void SortedSetScoreSingle_ReturnsNullForMissingMember()
+        public void SortedSetScoresSingle_ReturnsNullForMissingMember()
         {
             using var conn = Create();
             Skip.IfBelow(conn, RedisFeatures.v2_1_0);
@@ -731,7 +731,7 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public async Task SortedSetScoreSingle_ReturnsNullForMissingMemberAsync()
+        public async Task SortedSetScoresSingle_ReturnsNullForMissingMemberAsync()
         {
             using var conn = Create();
             Skip.IfBelow(conn, RedisFeatures.v2_1_0);
@@ -749,7 +749,7 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void SortedSetScoreMultiple()
+        public void SortedSetScoresMultiple()
         {
             using var conn = Create();
             Skip.IfBelow(conn, RedisFeatures.v6_2_0);
@@ -765,7 +765,7 @@ namespace StackExchange.Redis.Tests
             db.SortedSetAdd(key, member2, 1.75);
             db.SortedSetAdd(key, member3, 2);
 
-            var scores = db.SortedSetScore(key, new RedisValue[] { member1, member2, member3 });
+            var scores = db.SortedSetScores(key, new RedisValue[] { member1, member2, member3 });
 
             Assert.NotNull(scores);
             Assert.Equal(3, scores.Length);
@@ -775,7 +775,7 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public async Task SortedSetScoreMultipleAsync()
+        public async Task SortedSetScoresMultipleAsync()
         {
             using var conn = Create();
             Skip.IfBelow(conn, RedisFeatures.v6_2_0);
@@ -791,7 +791,7 @@ namespace StackExchange.Redis.Tests
             await db.SortedSetAddAsync(key, member2, 1.75);
             await db.SortedSetAddAsync(key, member3, 2);
 
-            var scores = await db.SortedSetScoreAsync(key, new RedisValue[] { member1, member2, member3 });
+            var scores = await db.SortedSetScoresAsync(key, new RedisValue[] { member1, member2, member3 });
 
             Assert.NotNull(scores);
             Assert.Equal(3, scores.Length);
@@ -801,7 +801,7 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void SortedSetScoreMultiple_ReturnsNullItemsForMissingSet()
+        public void SortedSetScoresMultiple_ReturnsNullItemsForMissingSet()
         {
             using var conn = Create();
             Skip.IfBelow(conn, RedisFeatures.v6_2_0);
@@ -812,7 +812,7 @@ namespace StackExchange.Redis.Tests
             db.KeyDelete(key);
 
             // Missing set but should still return an array of nulls.
-            var scores = db.SortedSetScore(key, new RedisValue[] { "bogus1", "bogus2", "bogus3" });
+            var scores = db.SortedSetScores(key, new RedisValue[] { "bogus1", "bogus2", "bogus3" });
 
             Assert.NotNull(scores);
             Assert.Equal(3, scores.Length);
@@ -822,7 +822,7 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public async Task SortedSetScoreMultiple_ReturnsNullItemsForMissingSetAsync()
+        public async Task SortedSetScoresMultiple_ReturnsNullItemsForMissingSetAsync()
         {
             using var conn = Create();
             Skip.IfBelow(conn, RedisFeatures.v6_2_0);
@@ -833,7 +833,7 @@ namespace StackExchange.Redis.Tests
             await db.KeyDeleteAsync(key);
 
             // Missing set but should still return an array of nulls.
-            var scores = await db.SortedSetScoreAsync(key, new RedisValue[] { "bogus1", "bogus2", "bogus3" });
+            var scores = await db.SortedSetScoresAsync(key, new RedisValue[] { "bogus1", "bogus2", "bogus3" });
 
             Assert.NotNull(scores);
             Assert.Equal(3, scores.Length);
@@ -843,7 +843,7 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void SortedSetScoreMultiple_ReturnsScoresAndNullItems()
+        public void SortedSetScoresMultiple_ReturnsScoresAndNullItems()
         {
             using var conn = Create();
             Skip.IfBelow(conn, RedisFeatures.v6_2_0);
@@ -861,7 +861,7 @@ namespace StackExchange.Redis.Tests
             db.SortedSetAdd(key, member2, 1.75);
             db.SortedSetAdd(key, member3, 2);
 
-            var scores = db.SortedSetScore(key, new RedisValue[] { member1, bogusMember, member2, member3 });
+            var scores = db.SortedSetScores(key, new RedisValue[] { member1, bogusMember, member2, member3 });
 
             Assert.NotNull(scores);
             Assert.Equal(4, scores.Length);
@@ -872,7 +872,7 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public async Task SortedSetScoreMultiple_ReturnsScoresAndNullItemsAsync()
+        public async Task SortedSetScoresMultiple_ReturnsScoresAndNullItemsAsync()
         {
             using var conn = Create();
             Skip.IfBelow(conn, RedisFeatures.v6_2_0);
@@ -890,7 +890,7 @@ namespace StackExchange.Redis.Tests
             await db.SortedSetAddAsync(key, member2, 1.75);
             await db.SortedSetAddAsync(key, member3, 2);
 
-            var scores = await db.SortedSetScoreAsync(key, new RedisValue[] { member1, bogusMember, member2, member3 });
+            var scores = await db.SortedSetScoresAsync(key, new RedisValue[] { member1, bogusMember, member2, member3 });
 
             Assert.NotNull(scores);
             Assert.Equal(4, scores.Length);

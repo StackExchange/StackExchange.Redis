@@ -1827,7 +1827,7 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.NullableDouble);
         }
 
-        public double?[] SortedSetScore(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)
+        public double?[] SortedSetScores(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.ZMSCORE, key, members);
             return ExecuteSync(msg, ResultProcessor.NullableDoubleArray, defaultValue: Array.Empty<double?>());
@@ -1839,7 +1839,7 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.NullableDouble);
         }
 
-        public Task<double?[]> SortedSetScoreAsync(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)
+        public Task<double?[]> SortedSetScoresAsync(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.ZMSCORE, key, members);
             return ExecuteAsync(msg, ResultProcessor.NullableDoubleArray, defaultValue: Array.Empty<double?>());

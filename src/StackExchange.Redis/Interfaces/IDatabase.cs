@@ -1709,7 +1709,7 @@ namespace StackExchange.Redis
         /// If a member does not exist in the set, <see langword="null"/> is returned.
         /// </returns>
         /// <remarks>https://redis.io/commands/zmscore</remarks>
-        double?[] SortedSetScore(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None);
+        double?[] SortedSetScores(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Removes and returns the first element from the sorted set stored at key, by default with the scores ordered from low to high.

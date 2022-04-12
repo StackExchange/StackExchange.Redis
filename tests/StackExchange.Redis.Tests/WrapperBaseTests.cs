@@ -818,8 +818,8 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void SortedSetScoreAsync_Multiple()
         {
-            wrapper.SortedSetScoreAsync("key", new RedisValue[] { "member1", "member2" }, CommandFlags.None);
-            mock.Verify(_ => _.SortedSetScoreAsync("prefix:key", new RedisValue[] { "member1", "member2" }, CommandFlags.None));
+            wrapper.SortedSetScoresAsync("key", new RedisValue[] { "member1", "member2" }, CommandFlags.None);
+            mock.Verify(_ => _.SortedSetScoresAsync("prefix:key", new RedisValue[] { "member1", "member2" }, CommandFlags.None));
         }
 
         [Fact]
