@@ -1071,7 +1071,7 @@ namespace StackExchange.Redis
                     case ResultType.BulkString:
                         if (result.IsNull)
                         {
-                            SetResult(message, -1);
+                            SetResult(message, _defaultValue);
                             return true;
                         }
                         if (result.TryGetInt64(out var i64))
@@ -1079,7 +1079,7 @@ namespace StackExchange.Redis
                             SetResult(message, i64);
                             return true;
                         }
-                        return false;
+                        break;
                 }
 
                 return false;
