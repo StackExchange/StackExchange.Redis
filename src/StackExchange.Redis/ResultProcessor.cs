@@ -1072,14 +1072,13 @@ namespace StackExchange.Redis
                         if (result.IsNull)
                         {
                             SetResult(message, -1);
+                            return true;
                         }
-
                         if (result.TryGetInt64(out var i64))
                         {
                             SetResult(message, i64);
                             return true;
                         }
-
                         return false;
                 }
 
