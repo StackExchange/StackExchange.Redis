@@ -155,6 +155,7 @@
         SLAVEOF,
         SLOWLOG,
         SMEMBERS,
+        SMISMEMBER,
         SMOVE,
         SORT,
         SPOP,

@@ -86,6 +86,9 @@ namespace StackExchange.Redis
         public static readonly ResultProcessor<string?[]>
             StringArray = new StringArrayProcessor();
 
+        public static readonly ResultProcessor<bool[]>
+            BooleanArray = new BooleanArrayProcessor();
+
         public static readonly ResultProcessor<GeoPosition?[]>
             RedisGeoPositionArray = new RedisValueGeoPositionArrayProcessor();
         public static readonly ResultProcessor<GeoPosition?>
@@ -1294,6 +1297,20 @@ namespace StackExchange.Redis
 
                         SetResult(message, arr);
                         return true;
+                }
+                return false;
+            }
+        }
+
+        private sealed class BooleanArrayProcessor : ResultProcessor<bool[]>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                if (result.Type == ResultType.MultiBulk && !result.IsNull)
+                {
+                    var arr = result.GetItemsAsBooleans()!;
+                    SetResult(message, arr);
+                    return true;
                 }
                 return false;
             }

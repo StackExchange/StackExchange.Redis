@@ -1128,10 +1128,10 @@ namespace StackExchange.Redis
         long SetCombineAndStore(SetOperation operation, RedisKey destination, RedisKey[] keys, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Returns if member is a member of the set stored at key.
+        /// Returns whether <paramref name="value"/> is a member of the set stored at <paramref name="key"/>.
         /// </summary>
         /// <param name="key">The key of the set.</param>
-        /// <param name="value">The value to check for .</param>
+        /// <param name="value">The value to check for.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>
         /// <see langword="true"/> if the element is a member of the set.
@@ -1139,6 +1139,20 @@ namespace StackExchange.Redis
         /// </returns>
         /// <remarks>https://redis.io/commands/sismember</remarks>
         bool SetContains(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Returns whether each of <paramref name="values"/> is a member of the set stored at <paramref name="key"/>.
+        /// </summary>
+        /// <param name="key">The key of the set.</param>
+        /// <param name="values">The members to check for.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>
+        /// An array of booleans corresponding to <paramref name="values"/>, for each:
+        /// <see langword="true"/> if the element is a member of the set.
+        /// <see langword="false"/> if the element is not a member of the set, or if key does not exist.
+        /// </returns>
+        /// <remarks>https://redis.io/commands/smismember</remarks>
+        bool[] SetContains(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         ///   <para>
