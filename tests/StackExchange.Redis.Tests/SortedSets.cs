@@ -210,116 +210,126 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void SortedSetPopMulti_Multi()
         {
-            using var conn = Create();
-            Skip.IfBelow(conn, RedisFeatures.v5_0_0);
+            using (var conn = Create())
+            {
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
-            var db = conn.GetDatabase();
-            var key = Me();
+                var db = conn.GetDatabase();
+                var key = Me();
 
-            db.KeyDelete(key, CommandFlags.FireAndForget);
-            db.SortedSetAdd(key, entries, CommandFlags.FireAndForget);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
+                db.SortedSetAdd(key, entries, CommandFlags.FireAndForget);
 
-            var first = db.SortedSetPop(key, Order.Ascending);
-            Assert.True(first.HasValue);
-            Assert.Equal(entries[0], first.Value);
-            Assert.Equal(9, db.SortedSetLength(key));
+                var first = db.SortedSetPop(key, Order.Ascending);
+                Assert.True(first.HasValue);
+                Assert.Equal(entries[0], first.Value);
+                Assert.Equal(9, db.SortedSetLength(key));
 
-            var lasts = db.SortedSetPop(key, 2, Order.Descending);
-            Assert.Equal(2, lasts.Length);
-            Assert.Equal(entries[9], lasts[0]);
-            Assert.Equal(entries[8], lasts[1]);
-            Assert.Equal(7, db.SortedSetLength(key));
+                var lasts = db.SortedSetPop(key, 2, Order.Descending);
+                Assert.Equal(2, lasts.Length);
+                Assert.Equal(entries[9], lasts[0]);
+                Assert.Equal(entries[8], lasts[1]);
+                Assert.Equal(7, db.SortedSetLength(key));
+            }
         }
 
         [Fact]
         public void SortedSetPopMulti_Single()
         {
-            using var conn = Create();
-            Skip.IfBelow(conn, RedisFeatures.v5_0_0);
+            using (var conn = Create())
+            {
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
-            var db = conn.GetDatabase();
-            var key = Me();
+                var db = conn.GetDatabase();
+                var key = Me();
 
-            db.KeyDelete(key, CommandFlags.FireAndForget);
-            db.SortedSetAdd(key, entries, CommandFlags.FireAndForget);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
+                db.SortedSetAdd(key, entries, CommandFlags.FireAndForget);
 
-            var last = db.SortedSetPop(key, Order.Descending);
-            Assert.True(last.HasValue);
-            Assert.Equal(entries[9], last.Value);
-            Assert.Equal(9, db.SortedSetLength(key));
+                var last = db.SortedSetPop(key, Order.Descending);
+                Assert.True(last.HasValue);
+                Assert.Equal(entries[9], last.Value);
+                Assert.Equal(9, db.SortedSetLength(key));
 
-            var firsts = db.SortedSetPop(key, 1, Order.Ascending);
-            Assert.Single(firsts);
-            Assert.Equal(entries[0], firsts[0]);
-            Assert.Equal(8, db.SortedSetLength(key));
+                var firsts = db.SortedSetPop(key, 1, Order.Ascending);
+                Assert.Single(firsts);
+                Assert.Equal(entries[0], firsts[0]);
+                Assert.Equal(8, db.SortedSetLength(key));
+            }
         }
 
         [Fact]
         public async Task SortedSetPopMulti_Multi_Async()
         {
-            using var conn = Create();
-            Skip.IfBelow(conn, RedisFeatures.v5_0_0);
+            using (var conn = Create())
+            {
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
-            var db = conn.GetDatabase();
-            var key = Me();
+                var db = conn.GetDatabase();
+                var key = Me();
 
-            db.KeyDelete(key, CommandFlags.FireAndForget);
-            db.SortedSetAdd(key, entries, CommandFlags.FireAndForget);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
+                db.SortedSetAdd(key, entries, CommandFlags.FireAndForget);
 
-            var last = await db.SortedSetPopAsync(key, Order.Descending).ForAwait();
-            Assert.True(last.HasValue);
-            Assert.Equal(entries[9], last.Value);
-            Assert.Equal(9, db.SortedSetLength(key));
+                var last = await db.SortedSetPopAsync(key, Order.Descending).ForAwait();
+                Assert.True(last.HasValue);
+                Assert.Equal(entries[9], last.Value);
+                Assert.Equal(9, db.SortedSetLength(key));
 
-            var moreLasts = await db.SortedSetPopAsync(key, 2, Order.Descending).ForAwait();
-            Assert.Equal(2, moreLasts.Length);
-            Assert.Equal(entries[8], moreLasts[0]);
-            Assert.Equal(entries[7], moreLasts[1]);
-            Assert.Equal(7, db.SortedSetLength(key));
+                var moreLasts = await db.SortedSetPopAsync(key, 2, Order.Descending).ForAwait();
+                Assert.Equal(2, moreLasts.Length);
+                Assert.Equal(entries[8], moreLasts[0]);
+                Assert.Equal(entries[7], moreLasts[1]);
+                Assert.Equal(7, db.SortedSetLength(key));
+            }
         }
 
         [Fact]
         public async Task SortedSetPopMulti_Single_Async()
         {
-            using var conn = Create();
-            Skip.IfBelow(conn, RedisFeatures.v5_0_0);
+            using (var conn = Create())
+            {
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
-            var db = conn.GetDatabase();
-            var key = Me();
+                var db = conn.GetDatabase();
+                var key = Me();
 
-            db.KeyDelete(key, CommandFlags.FireAndForget);
-            db.SortedSetAdd(key, entries, CommandFlags.FireAndForget);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
+                db.SortedSetAdd(key, entries, CommandFlags.FireAndForget);
 
-            var first = await db.SortedSetPopAsync(key).ForAwait();
-            Assert.True(first.HasValue);
-            Assert.Equal(entries[0], first.Value);
-            Assert.Equal(9, db.SortedSetLength(key));
+                var first = await db.SortedSetPopAsync(key).ForAwait();
+                Assert.True(first.HasValue);
+                Assert.Equal(entries[0], first.Value);
+                Assert.Equal(9, db.SortedSetLength(key));
 
-            var moreFirsts = await db.SortedSetPopAsync(key, 1).ForAwait();
-            Assert.Single(moreFirsts);
-            Assert.Equal(entries[1], moreFirsts[0]);
-            Assert.Equal(8, db.SortedSetLength(key));
+                var moreFirsts = await db.SortedSetPopAsync(key, 1).ForAwait();
+                Assert.Single(moreFirsts);
+                Assert.Equal(entries[1], moreFirsts[0]);
+                Assert.Equal(8, db.SortedSetLength(key));
+            }
         }
 
         [Fact]
         public async Task SortedSetPopMulti_Zero_Async()
         {
-            using var conn = Create();
-            Skip.IfBelow(conn, RedisFeatures.v5_0_0);
+            using (var conn = Create())
+            {
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
-            var db = conn.GetDatabase();
-            var key = Me();
+                var db = conn.GetDatabase();
+                var key = Me();
 
-            db.KeyDelete(key, CommandFlags.FireAndForget);
-            db.SortedSetAdd(key, entries, CommandFlags.FireAndForget);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
+                db.SortedSetAdd(key, entries, CommandFlags.FireAndForget);
 
-            var t = db.SortedSetPopAsync(key, count: 0);
-            Assert.True(t.IsCompleted); // sync
-            var arr = await t;
-            Assert.NotNull(arr);
-            Assert.Empty(arr);
+                var t = db.SortedSetPopAsync(key, count: 0);
+                Assert.True(t.IsCompleted); // sync
+                var arr = await t;
+                Assert.NotNull(arr);
+                Assert.Empty(arr);
 
-            Assert.Equal(10, db.SortedSetLength(key));
+                Assert.Equal(10, db.SortedSetLength(key));
+            }
         }
 
         [Fact]
@@ -327,13 +337,12 @@ namespace StackExchange.Redis.Tests
         {
             using var conn = Create();
             Skip.IfBelow(conn, RedisFeatures.v6_2_0);
-
             var db = conn.GetDatabase();
             var me = Me();
             var sourceKey = $"{me}:ZSetSource";
             var destinationKey = $"{me}:ZSetDestination";
 
-            db.KeyDelete(new RedisKey[] { sourceKey, destinationKey }, CommandFlags.FireAndForget);
+            db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
             await db.SortedSetAddAsync(sourceKey, entries, CommandFlags.FireAndForget);
             var res = await db.SortedSetRangeAndStoreAsync(sourceKey, destinationKey, 0, -1);
             Assert.Equal(entries.Length, res);
@@ -350,7 +359,7 @@ namespace StackExchange.Redis.Tests
             var sourceKey = $"{me}:ZSetSource";
             var destinationKey = $"{me}:ZSetDestination";
 
-            db.KeyDelete(new RedisKey[] { sourceKey, destinationKey }, CommandFlags.FireAndForget);
+            db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
             await db.SortedSetAddAsync(sourceKey, entries, CommandFlags.FireAndForget);
             var res = await db.SortedSetRangeAndStoreAsync(sourceKey, destinationKey, 1, 4);
             var range = await db.SortedSetRangeByRankWithScoresAsync(destinationKey);
@@ -372,7 +381,7 @@ namespace StackExchange.Redis.Tests
             var sourceKey = $"{me}:ZSetSource";
             var destinationKey = $"{me}:ZSetDestination";
 
-            db.KeyDelete(new RedisKey[] { sourceKey, destinationKey }, CommandFlags.FireAndForget);
+            db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
             await db.SortedSetAddAsync(sourceKey, entriesPow2, CommandFlags.FireAndForget);
             var res = await db.SortedSetRangeAndStoreAsync(sourceKey, destinationKey, 64, 128, SortedSetOrder.ByScore);
             var range = await db.SortedSetRangeByRankWithScoresAsync(destinationKey);
@@ -394,7 +403,7 @@ namespace StackExchange.Redis.Tests
             var sourceKey = $"{me}:ZSetSource";
             var destinationKey = $"{me}:ZSetDestination";
 
-            db.KeyDelete(new RedisKey[] { sourceKey, destinationKey }, CommandFlags.FireAndForget);
+            db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
             await db.SortedSetAddAsync(sourceKey, entriesPow2, CommandFlags.FireAndForget);
             var res = await db.SortedSetRangeAndStoreAsync(sourceKey, destinationKey, double.NegativeInfinity, double.PositiveInfinity, SortedSetOrder.ByScore);
             var range = await db.SortedSetRangeByRankWithScoresAsync(destinationKey);
@@ -416,7 +425,7 @@ namespace StackExchange.Redis.Tests
             var sourceKey = $"{me}:ZSetSource";
             var destinationKey = $"{me}:ZSetDestination";
 
-            db.KeyDelete(new RedisKey[] { sourceKey, destinationKey }, CommandFlags.FireAndForget);
+            db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
             await db.SortedSetAddAsync(sourceKey, entriesPow2, CommandFlags.FireAndForget);
             var res = await db.SortedSetRangeAndStoreAsync(sourceKey, destinationKey, double.NegativeInfinity, double.PositiveInfinity, SortedSetOrder.ByScore, skip: 1, take: 6);
             var range = await db.SortedSetRangeByRankWithScoresAsync(destinationKey);
@@ -438,7 +447,7 @@ namespace StackExchange.Redis.Tests
             var sourceKey = $"{me}:ZSetSource";
             var destinationKey = $"{me}:ZSetDestination";
 
-            db.KeyDelete(new RedisKey[] { sourceKey, destinationKey }, CommandFlags.FireAndForget);
+            db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
             await db.SortedSetAddAsync(sourceKey, entriesPow2, CommandFlags.FireAndForget);
             var res = await db.SortedSetRangeAndStoreAsync(sourceKey, destinationKey, 32, 256, SortedSetOrder.ByScore, exclude: Exclude.Both);
             var range = await db.SortedSetRangeByRankWithScoresAsync(destinationKey);
@@ -460,7 +469,7 @@ namespace StackExchange.Redis.Tests
             var sourceKey = $"{me}:ZSetSource";
             var destinationKey = $"{me}:ZSetDestination";
 
-            db.KeyDelete(new RedisKey[] { sourceKey, destinationKey }, CommandFlags.FireAndForget);
+            db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
             await db.SortedSetAddAsync(sourceKey, entriesPow2, CommandFlags.FireAndForget);
             var res = await db.SortedSetRangeAndStoreAsync(sourceKey, destinationKey, start: double.PositiveInfinity, double.NegativeInfinity, SortedSetOrder.ByScore, order: Order.Descending);
             var range = await db.SortedSetRangeByRankWithScoresAsync(destinationKey);
@@ -482,12 +491,12 @@ namespace StackExchange.Redis.Tests
             var sourceKey = $"{me}:ZSetSource";
             var destinationKey = $"{me}:ZSetDestination";
 
-            db.KeyDelete(new RedisKey[] { sourceKey, destinationKey }, CommandFlags.FireAndForget);
+            db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
             await db.SortedSetAddAsync(sourceKey, lexEntries, CommandFlags.FireAndForget);
             var res = await db.SortedSetRangeAndStoreAsync(sourceKey, destinationKey, "a", "j", SortedSetOrder.ByLex);
             var range = await db.SortedSetRangeByRankWithScoresAsync(destinationKey);
             Assert.Equal(10, res);
-            for (var i = 0; i < lexEntries.Length; i++)
+            for (var i = 0; i <lexEntries.Length; i++)
             {
                 Assert.Equal(lexEntries[i], range[i]);
             }
@@ -504,12 +513,12 @@ namespace StackExchange.Redis.Tests
             var sourceKey = $"{me}:ZSetSource";
             var destinationKey = $"{me}:ZSetDestination";
 
-            db.KeyDelete(new RedisKey[] { sourceKey, destinationKey }, CommandFlags.FireAndForget);
+            db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
             await db.SortedSetAddAsync(sourceKey, lexEntries, CommandFlags.FireAndForget);
             var res = await db.SortedSetRangeAndStoreAsync(sourceKey, destinationKey, "a", "j", SortedSetOrder.ByLex, Exclude.Both);
             var range = await db.SortedSetRangeByRankWithScoresAsync(destinationKey);
             Assert.Equal(8, res);
-            for (var i = 1; i < lexEntries.Length-1; i++)
+            for (var i = 1; i <lexEntries.Length-1; i++)
             {
                 Assert.Equal(lexEntries[i], range[i-1]);
             }
@@ -526,7 +535,7 @@ namespace StackExchange.Redis.Tests
             var sourceKey = $"{me}:ZSetSource";
             var destinationKey = $"{me}:ZSetDestination";
 
-            db.KeyDelete(new RedisKey[] { sourceKey, destinationKey }, CommandFlags.FireAndForget);
+            db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
             await db.SortedSetAddAsync(sourceKey, lexEntries, CommandFlags.FireAndForget);
             var res = await db.SortedSetRangeAndStoreAsync(sourceKey, destinationKey, "j", "a", SortedSetOrder.ByLex, exclude:Exclude.None, order: Order.Descending);
             var range = await db.SortedSetRangeByRankWithScoresAsync(destinationKey);
@@ -548,7 +557,7 @@ namespace StackExchange.Redis.Tests
             var sourceKey = $"{me}:ZSetSource";
             var destinationKey = $"{me}:ZSetDestination";
 
-            db.KeyDelete(new RedisKey[] { sourceKey, destinationKey }, CommandFlags.FireAndForget);
+            db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
             db.SortedSetAdd(sourceKey, entries, CommandFlags.FireAndForget);
             var res = db.SortedSetRangeAndStore(sourceKey, destinationKey, 0, -1);
             Assert.Equal(entries.Length, res);
@@ -565,7 +574,7 @@ namespace StackExchange.Redis.Tests
             var sourceKey = $"{me}:ZSetSource";
             var destinationKey = $"{me}:ZSetDestination";
 
-            db.KeyDelete(new RedisKey[] { sourceKey, destinationKey }, CommandFlags.FireAndForget);
+            db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
             db.SortedSetAdd(sourceKey, entries, CommandFlags.FireAndForget);
             var res = db.SortedSetRangeAndStore(sourceKey, destinationKey, 1, 4);
             var range = db.SortedSetRangeByRankWithScores(destinationKey);
@@ -587,7 +596,7 @@ namespace StackExchange.Redis.Tests
             var sourceKey = $"{me}:ZSetSource";
             var destinationKey = $"{me}:ZSetDestination";
 
-            db.KeyDelete(new RedisKey[] { sourceKey, destinationKey }, CommandFlags.FireAndForget);
+            db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
             db.SortedSetAdd(sourceKey, entriesPow2, CommandFlags.FireAndForget);
             var res = db.SortedSetRangeAndStore(sourceKey, destinationKey, 64, 128, SortedSetOrder.ByScore);
             var range = db.SortedSetRangeByRankWithScores(destinationKey);
@@ -609,7 +618,7 @@ namespace StackExchange.Redis.Tests
             var sourceKey = $"{me}:ZSetSource";
             var destinationKey = $"{me}:ZSetDestination";
 
-            db.KeyDelete(new RedisKey[] { sourceKey, destinationKey }, CommandFlags.FireAndForget);
+            db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
             db.SortedSetAdd(sourceKey, entriesPow2, CommandFlags.FireAndForget);
             var res = db.SortedSetRangeAndStore(sourceKey, destinationKey, double.NegativeInfinity, double.PositiveInfinity, SortedSetOrder.ByScore);
             var range = db.SortedSetRangeByRankWithScores(destinationKey);
@@ -631,7 +640,7 @@ namespace StackExchange.Redis.Tests
             var sourceKey = $"{me}:ZSetSource";
             var destinationKey = $"{me}:ZSetDestination";
 
-            db.KeyDelete(new RedisKey[] { sourceKey, destinationKey }, CommandFlags.FireAndForget);
+            db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
             db.SortedSetAdd(sourceKey, entriesPow2, CommandFlags.FireAndForget);
             var res = db.SortedSetRangeAndStore(sourceKey, destinationKey,double.NegativeInfinity, double.PositiveInfinity, SortedSetOrder.ByScore, skip: 1, take: 6);
             var range = db.SortedSetRangeByRankWithScores(destinationKey);
@@ -653,7 +662,7 @@ namespace StackExchange.Redis.Tests
             var sourceKey = $"{me}:ZSetSource";
             var destinationKey = $"{me}:ZSetDestination";
 
-            db.KeyDelete(new RedisKey[] { sourceKey, destinationKey }, CommandFlags.FireAndForget);
+            db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
             db.SortedSetAdd(sourceKey, entriesPow2, CommandFlags.FireAndForget);
             var res = db.SortedSetRangeAndStore(sourceKey, destinationKey, 32, 256, SortedSetOrder.ByScore, exclude: Exclude.Both);
             var range = db.SortedSetRangeByRankWithScores(destinationKey);
@@ -675,7 +684,7 @@ namespace StackExchange.Redis.Tests
             var sourceKey = $"{me}:ZSetSource";
             var destinationKey = $"{me}:ZSetDestination";
 
-            db.KeyDelete(new RedisKey[] { sourceKey, destinationKey }, CommandFlags.FireAndForget);
+            db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
             db.SortedSetAdd(sourceKey, entriesPow2, CommandFlags.FireAndForget);
             var res = db.SortedSetRangeAndStore(sourceKey, destinationKey, start: double.PositiveInfinity, double.NegativeInfinity, SortedSetOrder.ByScore, order: Order.Descending);
             var range = db.SortedSetRangeByRankWithScores(destinationKey);
@@ -697,12 +706,12 @@ namespace StackExchange.Redis.Tests
             var sourceKey = $"{me}:ZSetSource";
             var destinationKey = $"{me}:ZSetDestination";
 
-            db.KeyDelete(new RedisKey[] { sourceKey, destinationKey }, CommandFlags.FireAndForget);
+            db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
             db.SortedSetAdd(sourceKey, lexEntries, CommandFlags.FireAndForget);
             var res = db.SortedSetRangeAndStore(sourceKey, destinationKey, "a", "j", SortedSetOrder.ByLex);
             var range = db.SortedSetRangeByRankWithScores(destinationKey);
             Assert.Equal(10, res);
-            for (var i = 0; i < lexEntries.Length; i++)
+            for (var i = 0; i <lexEntries.Length; i++)
             {
                 Assert.Equal(lexEntries[i], range[i]);
             }
@@ -719,12 +728,12 @@ namespace StackExchange.Redis.Tests
             var sourceKey = $"{me}:ZSetSource";
             var destinationKey = $"{me}:ZSetDestination";
 
-            db.KeyDelete(new RedisKey[] { sourceKey, destinationKey }, CommandFlags.FireAndForget);
+            db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
             db.SortedSetAdd(sourceKey, lexEntries, CommandFlags.FireAndForget);
             var res = db.SortedSetRangeAndStore(sourceKey, destinationKey, "a", "j", SortedSetOrder.ByLex, Exclude.Both);
             var range = db.SortedSetRangeByRankWithScores(destinationKey);
             Assert.Equal(8, res);
-            for (var i = 1; i < lexEntries.Length-1; i++)
+            for (var i = 1; i <lexEntries.Length-1; i++)
             {
                 Assert.Equal(lexEntries[i], range[i-1]);
             }
@@ -741,7 +750,7 @@ namespace StackExchange.Redis.Tests
             var sourceKey = $"{me}:ZSetSource";
             var destinationKey = $"{me}:ZSetDestination";
 
-            db.KeyDelete(new RedisKey[] { sourceKey, destinationKey }, CommandFlags.FireAndForget);
+            db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
             db.SortedSetAdd(sourceKey, lexEntries, CommandFlags.FireAndForget);
             var res = db.SortedSetRangeAndStore(sourceKey, destinationKey, "j", "a", SortedSetOrder.ByLex, Exclude.None, Order.Descending);
             var range = db.SortedSetRangeByRankWithScores(destinationKey);
@@ -763,9 +772,9 @@ namespace StackExchange.Redis.Tests
             var sourceKey = $"{me}:ZSetSource";
             var destinationKey = $"{me}:ZSetDestination";
 
-            db.KeyDelete(new RedisKey[] { sourceKey, destinationKey }, CommandFlags.FireAndForget);
+            db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
             db.SortedSetAdd(sourceKey, lexEntries, CommandFlags.FireAndForget);
-            var exception = Assert.Throws<ArgumentException>(()=>db.SortedSetRangeAndStore(sourceKey, destinationKey, 0, -1, take:5));
+            var exception = Assert.Throws<ArgumentException>(()=>db.SortedSetRangeAndStore(sourceKey, destinationKey,0,-1, take:5));
             Assert.Equal("take", exception.ParamName);
         }
 
@@ -780,9 +789,9 @@ namespace StackExchange.Redis.Tests
             var sourceKey = $"{me}:ZSetSource";
             var destinationKey = $"{me}:ZSetDestination";
 
-            db.KeyDelete(new RedisKey[] { sourceKey, destinationKey }, CommandFlags.FireAndForget);
+            db.KeyDelete(new RedisKey[] {sourceKey, destinationKey}, CommandFlags.FireAndForget);
             db.SortedSetAdd(sourceKey, lexEntries, CommandFlags.FireAndForget);
-            var exception = Assert.Throws<ArgumentException>(()=>db.SortedSetRangeAndStore(sourceKey, destinationKey, 0, -1, exclude: Exclude.Both));
+            var exception = Assert.Throws<ArgumentException>(()=>db.SortedSetRangeAndStore(sourceKey, destinationKey,0,-1, exclude: Exclude.Both));
             Assert.Equal("exclude", exception.ParamName);
         }
     }
