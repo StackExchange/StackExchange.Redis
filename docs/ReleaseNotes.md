@@ -10,6 +10,7 @@
 - Adds: Support for `COPY` with `.KeyCopy()`/`.KeyCopyAsync()` ([#2064 by Avital-Fine](https://github.com/StackExchange/StackExchange.Redis/pull/2064))
 - Adds: Support for `LMOVE` with `.ListMove()`/`.ListMoveAsync()` ([#2065 by Avital-Fine](https://github.com/StackExchange/StackExchange.Redis/pull/2065))
 - Adds: Support for `SINTERCARD` with `.SetIntersectionLength()`/`.SetIntersectionLengthAsync()` ([#2078 by Avital-Fine](https://github.com/StackExchange/StackExchange.Redis/pull/2078))
+- Adds: Support for `ZMSCORE` with `.SortedSetScores()`/.`SortedSetScoresAsync()` ([#2082 by ttingen](https://github.com/StackExchange/StackExchange.Redis/pull/2082))
 
 ## 2.5.61
 
