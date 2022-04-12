@@ -1640,6 +1640,30 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
+        public RedisValue[] SortedSetCombine(SetOperation operation, RedisKey[] keys, double[]? weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetSortedSetCombineCommandMessage(operation, keys, weights, aggregate, withScores: false, flags);
+            return ExecuteSync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
+        }
+
+        public Task<RedisValue[]> SortedSetCombineAsync(SetOperation operation, RedisKey[] keys, double[]? weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetSortedSetCombineCommandMessage(operation, keys, weights, aggregate, withScores: false, flags);
+            return ExecuteAsync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
+        }
+
+        public SortedSetEntry[] SortedSetCombineWithScores(SetOperation operation, RedisKey[] keys, double[]? weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetSortedSetCombineCommandMessage(operation, keys, weights, aggregate, withScores: true, flags);
+            return ExecuteSync(msg, ResultProcessor.SortedSetWithScores, defaultValue: Array.Empty<SortedSetEntry>());
+        }
+
+        public Task<SortedSetEntry[]> SortedSetCombineWithScoresAsync(SetOperation operation, RedisKey[] keys, double[]? weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetSortedSetCombineCommandMessage(operation, keys, weights, aggregate, withScores: true, flags);
+            return ExecuteAsync(msg, ResultProcessor.SortedSetWithScores, defaultValue: Array.Empty<SortedSetEntry>());
+        }
+
         public long SortedSetCombineAndStore(SetOperation operation, RedisKey destination, RedisKey first, RedisKey second, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetSortedSetCombineAndStoreCommandMessage(operation, destination, new[] { first, second }, null, aggregate, flags);
@@ -1684,6 +1708,18 @@ namespace StackExchange.Redis
         {
             var msg = Message.Create(Database, flags, RedisCommand.ZINCRBY, key, value, member);
             return ExecuteAsync(msg, ResultProcessor.Double);
+        }
+
+        public long SortedSetIntersectionLength(RedisKey[] keys, long limit = 0, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetSortedSetIntersectionLengthMessage(keys, limit, flags);
+            return ExecuteSync(msg, ResultProcessor.Int64);
+        }
+
+        public Task<long> SortedSetIntersectionLengthAsync(RedisKey[] keys, long limit = 0, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetSortedSetIntersectionLengthMessage(keys, limit, flags);
+            return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
         public long SortedSetLength(RedisKey key, double min = double.NegativeInfinity, double max = double.PositiveInfinity, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
@@ -3228,36 +3264,91 @@ namespace StackExchange.Redis
 
         private Message GetSortedSetCombineAndStoreCommandMessage(SetOperation operation, RedisKey destination, RedisKey[] keys, double[]? weights, Aggregate aggregate, CommandFlags flags)
         {
-            var command = operation switch
+            var command = operation.ToCommand(store: true);
+            if (keys == null)
             {
-                SetOperation.Intersect => RedisCommand.ZINTERSTORE,
-                SetOperation.Union => RedisCommand.ZUNIONSTORE,
-                _ => throw new ArgumentOutOfRangeException(nameof(operation)),
-            };
-            if (keys == null) throw new ArgumentNullException(nameof(keys));
+                throw new ArgumentNullException(nameof(keys));
+            }
+            if (command == RedisCommand.ZDIFFSTORE && (weights != null || aggregate != Aggregate.Sum))
+            {
+                throw new ArgumentException("ZDIFFSTORE cannot be used with weights or aggregation.");
+            }
+            if (weights != null && keys.Length != weights.Length)
+            {
+                throw new ArgumentException("Keys and weights should have the same number of elements.", nameof(weights));
+            }
 
-            List<RedisValue>? values = null;
-            if (weights != null && weights.Length != 0)
+            RedisValue[] values = RedisValue.EmptyArray;
+
+            var argsLength = (weights?.Length > 0 ? 1 + weights.Length : 0) + (aggregate != Aggregate.Sum ? 2 : 0);
+            if (argsLength > 0)
             {
-                (values ??= new List<RedisValue>()).Add(RedisLiterals.WEIGHTS);
+                values = new RedisValue[argsLength];
+                AddWeightsAggregationAndScore(values, weights, aggregate);
+            }
+            return new SortedSetCombineAndStoreCommandMessage(Database, flags, command, destination, keys, values);
+        }
+
+        private Message GetSortedSetCombineCommandMessage(SetOperation operation, RedisKey[] keys, double[]? weights, Aggregate aggregate, bool withScores, CommandFlags flags)
+        {
+            var command = operation.ToCommand(store: false);
+            if (keys == null)
+            {
+                throw new ArgumentNullException(nameof(keys));
+            }
+            if (command == RedisCommand.ZDIFF && (weights != null || aggregate != Aggregate.Sum))
+            {
+                throw new ArgumentException("ZDIFF cannot be used with weights or aggregation.");
+            }
+            if (weights != null && keys.Length != weights.Length)
+            {
+                throw new ArgumentException("Keys and weights should have the same number of elements.", nameof(weights));
+            }
+
+            var i = 0;
+            var values = new RedisValue[1 + keys.Length +
+                                        (weights?.Length > 0 ? 1 + weights.Length : 0) +
+                                        (aggregate != Aggregate.Sum ? 2 : 0) +
+                                        (withScores ? 1 : 0)];
+            values[i++] = keys.Length;
+            foreach (var key in keys)
+            {
+                values[i++] = key.AsRedisValue();
+            }
+            AddWeightsAggregationAndScore(values.AsSpan(i), weights, aggregate, withScores: withScores);
+            return Message.Create(Database, flags, command, values ?? RedisValue.EmptyArray);
+        }
+
+        private void AddWeightsAggregationAndScore(Span<RedisValue> values, double[]? weights, Aggregate aggregate, bool withScores = false)
+        {
+            int i = 0;
+            if (weights?.Length > 0)
+            {
+                values[i++] = RedisLiterals.WEIGHTS;
                 foreach (var weight in weights)
-                    values.Add(weight);
+                {
+                    values[i++] = weight;
+                }
             }
             switch (aggregate)
             {
-                case Aggregate.Sum: break; // default
+                case Aggregate.Sum:
+                    break; // add nothing - Redis default
                 case Aggregate.Min:
-                    (values ??= new List<RedisValue>()).Add(RedisLiterals.AGGREGATE);
-                    values.Add(RedisLiterals.MIN);
+                    values[i++] = RedisLiterals.AGGREGATE;
+                    values[i++] = RedisLiterals.MIN;
                     break;
                 case Aggregate.Max:
-                    (values ??= new List<RedisValue>()).Add(RedisLiterals.AGGREGATE);
-                    values.Add(RedisLiterals.MAX);
+                    values[i++] = RedisLiterals.AGGREGATE;
+                    values[i++] = RedisLiterals.MAX;
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(aggregate));
             }
-            return new SortedSetCombineAndStoreCommandMessage(Database, flags, command, destination, keys, values?.ToArray() ?? RedisValue.EmptyArray);
+            if (withScores)
+            {
+                values[i++] = RedisLiterals.WITHSCORES;
+            }
         }
 
         private Message GetSortedSetLengthMessage(RedisKey key, double min, double max, Exclude exclude, CommandFlags flags)
@@ -3268,6 +3359,25 @@ namespace StackExchange.Redis
             var from = GetRange(min, exclude, true);
             var to = GetRange(max, exclude, false);
             return Message.Create(Database, flags, RedisCommand.ZCOUNT, key, from, to);
+        }
+
+        private Message GetSortedSetIntersectionLengthMessage(RedisKey[] keys, long limit, CommandFlags flags)
+        {
+            if (keys == null) throw new ArgumentNullException(nameof(keys));
+
+            var i = 0;
+            var values = new RedisValue[1 + keys.Length + (limit > 0 ? 2 : 0)];
+            values[i++] = keys.Length;
+            foreach (var key in keys)
+            {
+                values[i++] = key.AsRedisValue();
+            }
+            if (limit > 0)
+            {
+                values[i++] = RedisLiterals.LIMIT;
+                values[i++] = limit;
+            }
+            return Message.Create(Database, flags, RedisCommand.ZINTERCARD, values);
         }
 
         private Message GetSortedSetRangeByScoreMessage(RedisKey key, double start, double stop, Exclude exclude, Order order, long skip, long take, CommandFlags flags, bool withScores)

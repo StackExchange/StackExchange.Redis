@@ -1345,8 +1345,41 @@ namespace StackExchange.Redis
         Task<long> SortedSetAddAsync(RedisKey key, SortedSetEntry[] values, When when = When.Always, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Computes a set operation for multiple sorted sets (optionally using per-set <paramref name="weights"/>),
+        /// optionally performing a specific aggregation (defaults to <see cref="Aggregate.Sum"/>).
+        /// <see cref="SetOperation.Difference"/> cannot be used with weights or aggregation.
+        /// </summary>
+        /// <param name="operation">The operation to perform.</param>
+        /// <param name="keys">The keys of the sorted sets.</param>
+        /// <param name="weights">The optional weights per set that correspond to <paramref name="keys"/>.</param>
+        /// <param name="aggregate">The aggregation method (defaults to <see cref="Aggregate.Sum"/>).</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <remarks>https://redis.io/commands/zunion</remarks>
+        /// <remarks>https://redis.io/commands/zinter</remarks>
+        /// <remarks>https://redis.io/commands/zdiff</remarks>
+        /// <returns>The resulting sorted set.</returns>
+        Task<RedisValue[]> SortedSetCombineAsync(SetOperation operation, RedisKey[] keys, double[]? weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Computes a set operation for multiple sorted sets (optionally using per-set <paramref name="weights"/>),
+        /// optionally performing a specific aggregation (defaults to <see cref="Aggregate.Sum"/>).
+        /// <see cref="SetOperation.Difference"/> cannot be used with weights or aggregation.
+        /// </summary>
+        /// <param name="operation">The operation to perform.</param>
+        /// <param name="keys">The keys of the sorted sets.</param>
+        /// <param name="weights">The optional weights per set that correspond to <paramref name="keys"/>.</param>
+        /// <param name="aggregate">The aggregation method (defaults to <see cref="Aggregate.Sum"/>).</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <remarks>https://redis.io/commands/zunion</remarks>
+        /// <remarks>https://redis.io/commands/zinter</remarks>
+        /// <remarks>https://redis.io/commands/zdiff</remarks>
+        /// <returns>The resulting sorted set with scores.</returns>
+        Task<SortedSetEntry[]> SortedSetCombineWithScoresAsync(SetOperation operation, RedisKey[] keys, double[]? weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Computes a set operation over two sorted sets, and stores the result in destination, optionally performing
         /// a specific aggregation (defaults to sum).
+        /// <see cref="SetOperation.Difference"/> cannot be used with aggregation.
         /// </summary>
         /// <param name="operation">The operation to perform.</param>
         /// <param name="destination">The key to store the results in.</param>
@@ -1356,12 +1389,14 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <remarks>https://redis.io/commands/zunionstore</remarks>
         /// <remarks>https://redis.io/commands/zinterstore</remarks>
+        /// <remarks>https://redis.io/commands/zdiffstore</remarks>
         /// <returns>The number of elements in the resulting sorted set at destination.</returns>
         Task<long> SortedSetCombineAndStoreAsync(SetOperation operation, RedisKey destination, RedisKey first, RedisKey second, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Computes a set operation over multiple sorted sets (optionally using per-set weights), and stores the result in destination, optionally performing
         /// a specific aggregation (defaults to sum).
+        /// <see cref="SetOperation.Difference"/> cannot be used with aggregation.
         /// </summary>
         /// <param name="operation">The operation to perform.</param>
         /// <param name="destination">The key to store the results in.</param>
@@ -1371,6 +1406,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <remarks>https://redis.io/commands/zunionstore</remarks>
         /// <remarks>https://redis.io/commands/zinterstore</remarks>
+        /// <remarks>https://redis.io/commands/zdiffstore</remarks>
         /// <returns>The number of elements in the resulting sorted set at destination.</returns>
         Task<long> SortedSetCombineAndStoreAsync(SetOperation operation, RedisKey destination, RedisKey[] keys, double[]? weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None);
 
@@ -1396,6 +1432,16 @@ namespace StackExchange.Redis
         /// <returns>The new score of member.</returns>
         /// <remarks>https://redis.io/commands/zincrby</remarks>
         Task<double> SortedSetIncrementAsync(RedisKey key, RedisValue member, double value, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Returns the cardinality of the intersection of the sorted sets at <paramref name="keys"/>.
+        /// </summary>
+        /// <param name="keys">The keys of the sorted sets.</param>
+        /// <param name="limit">If the intersection cardinality reaches <paramref name="limit"/> partway through the computation, the algorithm will exit and yield <paramref name="limit"/> as the cardinality (defaults to 0 meaning unlimited).</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The number of elements in the resulting intersection.</returns>
+        /// <remarks>https://redis.io/commands/zintercard</remarks>
+        Task<long> SortedSetIntersectionLengthAsync(RedisKey[] keys, long limit = 0, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Returns the sorted set cardinality (number of elements) of the sorted set stored at key.

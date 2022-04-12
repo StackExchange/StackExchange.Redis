@@ -688,6 +688,22 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void SortedSetCombineAsync()
+        {
+            RedisKey[] keys = new RedisKey[] { "a", "b" };
+            wrapper.SortedSetCombineAsync(SetOperation.Intersect, keys);
+            mock.Verify(_ => _.SortedSetCombineAsync(SetOperation.Intersect, keys, null, Aggregate.Sum, CommandFlags.None));
+        }
+
+        [Fact]
+        public void SortedSetCombineWithScoresAsync()
+        {
+            RedisKey[] keys = new RedisKey[] { "a", "b" };
+            wrapper.SortedSetCombineWithScoresAsync(SetOperation.Intersect, keys);
+            mock.Verify(_ => _.SortedSetCombineWithScoresAsync(SetOperation.Intersect, keys, null, Aggregate.Sum, CommandFlags.None));
+        }
+
+        [Fact]
         public void SortedSetCombineAndStoreAsync_1()
         {
             wrapper.SortedSetCombineAndStoreAsync(SetOperation.Intersect, "destination", "first", "second", Aggregate.Max, CommandFlags.None);
@@ -715,6 +731,14 @@ namespace StackExchange.Redis.Tests
         {
             wrapper.SortedSetIncrementAsync("key", "member", 1.23, CommandFlags.None);
             mock.Verify(_ => _.SortedSetIncrementAsync("prefix:key", "member", 1.23, CommandFlags.None));
+        }
+
+        [Fact]
+        public void SortedSetIntersectionLengthAsync()
+        {
+            RedisKey[] keys = new RedisKey[] { "a", "b" };
+            wrapper.SortedSetIntersectionLengthAsync(keys, 1, CommandFlags.None);
+            mock.Verify(_ => _.SortedSetIntersectionLengthAsync(keys, 1, CommandFlags.None));
         }
 
         [Fact]
