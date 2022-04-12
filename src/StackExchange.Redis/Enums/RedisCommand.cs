@@ -149,6 +149,7 @@
         SETRANGE,
         SHUTDOWN,
         SINTER,
+        SINTERCARD,
         SINTERSTORE,
         SISMEMBER,
         SLAVEOF,

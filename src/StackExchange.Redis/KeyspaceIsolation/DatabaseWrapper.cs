@@ -300,6 +300,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public bool SetContains(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None) =>
             Inner.SetContains(ToInner(key), value, flags);
 
+        public long SetIntersectionLength(RedisKey[] keys, long limit = 0, CommandFlags flags = CommandFlags.None) =>
+            Inner.SetIntersectionLength(keys, limit, flags);
+
         public long SetLength(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.SetLength(ToInner(key), flags);
 
