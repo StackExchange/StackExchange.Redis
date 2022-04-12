@@ -948,7 +948,7 @@ namespace StackExchange.Redis
         public long[] ListPositions(RedisKey key, RedisValue element, long count, long rank = 1, long maxLength = 0, CommandFlags flags = CommandFlags.None)
         {
             var msg = CreateListPositionMessage(Database, flags, key, element, rank, maxLength, count);
-            return ExecuteSync(msg, ResultProcessor.LongArray, defaultValue: Array.Empty<long>());
+            return ExecuteSync(msg, ResultProcessor.Int64Array, defaultValue: Array.Empty<long>());
         }
 
         public Task<RedisValue> ListLeftPopAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -972,7 +972,7 @@ namespace StackExchange.Redis
         public Task<long[]> ListPositionsAsync(RedisKey key, RedisValue element, long count, long rank = 1, long maxLength = 0, CommandFlags flags = CommandFlags.None)
         {
             var msg = CreateListPositionMessage(Database, flags, key, element, rank, maxLength, count);
-            return ExecuteAsync(msg, ResultProcessor.LongArray, defaultValue: Array.Empty<long>());
+            return ExecuteAsync(msg, ResultProcessor.Int64Array, defaultValue: Array.Empty<long>());
         }
 
         public long ListLeftPush(RedisKey key, RedisValue value, When when = When.Always, CommandFlags flags = CommandFlags.None)

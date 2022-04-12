@@ -81,7 +81,7 @@ namespace StackExchange.Redis
             RedisValueArray = new RedisValueArrayProcessor();
 
         public static readonly ResultProcessor<long[]>
-            LongArray = new LongArrayProcessor();
+            Int64Array = new Int64ArrayProcessor();
 
         public static readonly ResultProcessor<string?[]>
             StringArray = new StringArrayProcessor();
@@ -1268,7 +1268,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private sealed class LongArrayProcessor : ResultProcessor<long[]>
+        private sealed class Int64ArrayProcessor : ResultProcessor<long[]>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
