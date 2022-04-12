@@ -730,8 +730,8 @@ namespace StackExchange.Redis
         /// <param name="rank">The rank of the first element to return, within the sub-list of matching indexes in the case of multiple matches.</param>
         /// <param name="maxLength">The maximum number of elements to scan through before stopping, defaults to 0 (a full scan of the list.)</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The 0-based index of the first matching element, null if not found.</returns>
-        long? ListPosition(RedisKey key, RedisValue element, long rank = 1, long maxLength = 0, CommandFlags flags = CommandFlags.None);
+        /// <returns>The 0-based index of the first matching element, or -1 if not found.</returns>
+        long ListPosition(RedisKey key, RedisValue element, long rank = 1, long maxLength = 0, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Scans through the list stored at <paramref name="key"/> looking for <paramref name="count"/> instances of <paramref name="element"/>, returning the 0-based
@@ -744,7 +744,7 @@ namespace StackExchange.Redis
         /// <param name="maxLength">The maximum number of elements to scan through before stopping, defaults to 0 (a full scan of the list.)</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>An array of at most <paramref name="count"/> of indexes of matching elements. If none are found, and empty array is returned</returns>
-        RedisValue[] ListPositions(RedisKey key, RedisValue element, long count, long rank = 1, long maxLength = 0, CommandFlags flags = CommandFlags.None);
+        long[] ListPositions(RedisKey key, RedisValue element, long count, long rank = 1, long maxLength = 0, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Insert the specified value at the head of the list stored at key.

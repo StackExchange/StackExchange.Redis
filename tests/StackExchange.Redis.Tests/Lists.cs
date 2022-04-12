@@ -384,7 +384,7 @@ namespace StackExchange.Redis.Tests
 
             var res = db.ListPosition(key, val);
 
-            Assert.Null(res);
+            Assert.Equal(-1, res);
         }
 
         [Fact]
@@ -408,7 +408,7 @@ namespace StackExchange.Redis.Tests
                 db.ListLeftPush(key, baz);
             }
 
-            var res = db.ListPositions(key, foo, 5).Select(x=>(long)x).ToArray();
+            var res = db.ListPositions(key, foo, 5);
 
             foreach (var item in res)
             {
@@ -440,7 +440,7 @@ namespace StackExchange.Redis.Tests
 
             db.ListLeftPush(key, foo);
 
-            var res = db.ListPositions(key, foo, 5).Select(x=>(long)x).ToArray();
+            var res = db.ListPositions(key, foo, 5);
             Assert.Single(res);
             Assert.Equal(0, res.Single());
         }
@@ -466,7 +466,7 @@ namespace StackExchange.Redis.Tests
                 db.ListLeftPush(key, baz);
             }
 
-            var res = db.ListPositions(key, foo, 0).Select(x=>(long)x).ToArray();
+            var res = db.ListPositions(key, foo, 0);
 
             foreach (var item in res)
             {
@@ -497,7 +497,7 @@ namespace StackExchange.Redis.Tests
                 db.ListLeftPush(key, baz);
             }
 
-            var res = db.ListPositions(key, foo, 0, maxLength: 15).Select(x=>(long)x).ToArray();
+            var res = db.ListPositions(key, foo, 0, maxLength: 15);
 
             foreach (var item in res)
             {
@@ -584,7 +584,7 @@ namespace StackExchange.Redis.Tests
 
             var res = db.ListPosition(key, foo, maxLength: 20);
 
-            Assert.Null(res);
+            Assert.Equal(-1, res);
         }
         #endregion
 
@@ -620,7 +620,7 @@ namespace StackExchange.Redis.Tests
 
             var res = await db.ListPositionAsync(key, val);
 
-            Assert.Null(res);
+            Assert.Equal(-1, res);
         }
 
         [Fact]
@@ -644,7 +644,7 @@ namespace StackExchange.Redis.Tests
                 await db.ListLeftPushAsync(key, baz);
             }
 
-            var res = (await db.ListPositionsAsync(key, foo, 5)).Select(x=>(long)x).ToArray();
+            var res = await db.ListPositionsAsync(key, foo, 5);
 
             foreach (var item in res)
             {
@@ -676,7 +676,7 @@ namespace StackExchange.Redis.Tests
 
             db.ListLeftPush(key, foo);
 
-            var res = (await db.ListPositionsAsync(key, foo, 5)).Select(x=>(long)x).ToArray();
+            var res = await db.ListPositionsAsync(key, foo, 5);
             Assert.Single(res);
             Assert.Equal(0, res.Single());
         }
@@ -702,7 +702,7 @@ namespace StackExchange.Redis.Tests
                 await db.ListLeftPushAsync(key, baz);
             }
 
-            var res = (await db.ListPositionsAsync(key, foo, 0)).Select(x=>(long)x).ToArray();
+            var res = await db.ListPositionsAsync(key, foo, 0);
 
             foreach (var item in res)
             {
@@ -733,7 +733,7 @@ namespace StackExchange.Redis.Tests
                 await db.ListLeftPushAsync(key, baz);
             }
 
-            var res = (await db.ListPositionsAsync(key, foo, 0, maxLength: 15)).Select(x=>(long)x).ToArray();
+            var res = await db.ListPositionsAsync(key, foo, 0, maxLength: 15);
 
             foreach (var item in res)
             {
@@ -820,7 +820,7 @@ namespace StackExchange.Redis.Tests
 
             var res = await db.ListPositionAsync(key, foo, maxLength: 20);
 
-            Assert.Null(res);
+            Assert.Equal(-1, res);
         }
         #endregion
     }
