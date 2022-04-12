@@ -839,8 +839,6 @@ namespace StackExchange.Redis
         /// <remarks>https://redis.io/commands/memory-malloc-stats</remarks>
         string? MemoryAllocatorStats(CommandFlags flags = CommandFlags.None);
 
-        #region Sentinel
-
         /// <summary>
         /// Returns the IP and port number of the primary with that name.
         /// If a failover is in progress or terminated successfully for this primary it returns the address and port of the promoted replica.
@@ -1000,8 +998,6 @@ namespace StackExchange.Redis
         /// <param name="flags">The command flags to use.</param>
         /// <remarks>https://redis.io/topics/sentinel</remarks>
         Task<KeyValuePair<string, string>[][]> SentinelSentinelsAsync(string serviceName, CommandFlags flags = CommandFlags.None);
-
-        #endregion
     }
 
     /// <summary>
