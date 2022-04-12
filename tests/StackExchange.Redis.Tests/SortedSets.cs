@@ -89,6 +89,35 @@ namespace StackExchange.Redis.Tests
             Assert.Equal("a", union[0]);
         }
 
+
+        [Fact]
+        public async Task SortedSetCombineAsync()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
+
+            var db = conn.GetDatabase();
+            var key1 = Me();
+            db.KeyDelete(key1, CommandFlags.FireAndForget);
+            var key2 = Me() + "2";
+            db.KeyDelete(key2, CommandFlags.FireAndForget);
+
+            db.SortedSetAdd(key1, entries);
+            db.SortedSetAdd(key2, entriesPow3);
+
+            var diff = await db.SortedSetCombineAsync(SetOperation.Difference, new RedisKey[] { key1, key2 });
+            Assert.Equal(5, diff.Length);
+            Assert.Equal("b", diff[0]);
+
+            var inter = await db.SortedSetCombineAsync(SetOperation.Intersect, new RedisKey[] { key1, key2 });
+            Assert.Equal(5, inter.Length);
+            Assert.Equal("a", inter[0]);
+
+            var union = await db.SortedSetCombineAsync(SetOperation.Union, new RedisKey[] { key1, key2 });
+            Assert.Equal(10, union.Length);
+            Assert.Equal("a", union[0]);
+        }
+
         [Fact]
         public void SortedSetCombineWithScores()
         {
@@ -113,6 +142,35 @@ namespace StackExchange.Redis.Tests
             Assert.Equal(new SortedSetEntry("a", 2), inter[0]);
 
             var union = db.SortedSetCombineWithScores(SetOperation.Union, new RedisKey[]{ key1, key2});
+            Assert.Equal(10, union.Length);
+            Assert.Equal(new SortedSetEntry("a", 2), union[0]);
+        }
+
+
+        [Fact]
+        public async Task SortedSetCombineWithScoresAsync()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
+
+            var db = conn.GetDatabase();
+            var key1 = Me();
+            db.KeyDelete(key1, CommandFlags.FireAndForget);
+            var key2 = Me() + "2";
+            db.KeyDelete(key2, CommandFlags.FireAndForget);
+
+            db.SortedSetAdd(key1, entries);
+            db.SortedSetAdd(key2, entriesPow3);
+
+            var diff = await db.SortedSetCombineWithScoresAsync(SetOperation.Difference, new RedisKey[] { key1, key2 });
+            Assert.Equal(5, diff.Length);
+            Assert.Equal(new SortedSetEntry("b", 2), diff[0]);
+
+            var inter = await db.SortedSetCombineWithScoresAsync(SetOperation.Intersect, new RedisKey[] { key1, key2 });
+            Assert.Equal(5, inter.Length);
+            Assert.Equal(new SortedSetEntry("a", 2), inter[0]);
+
+            var union = await db.SortedSetCombineWithScoresAsync(SetOperation.Union, new RedisKey[] { key1, key2 });
             Assert.Equal(10, union.Length);
             Assert.Equal(new SortedSetEntry("a", 2), union[0]);
         }
@@ -144,8 +202,36 @@ namespace StackExchange.Redis.Tests
             Assert.Equal(10, union);
         }
 
+
         [Fact]
-        public void SortedSetCombineErrors()
+        public async Task SortedSetCombineAndStoreAsync()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
+
+            var db = conn.GetDatabase();
+            var key1 = Me();
+            db.KeyDelete(key1, CommandFlags.FireAndForget);
+            var key2 = Me() + "2";
+            db.KeyDelete(key2, CommandFlags.FireAndForget);
+            var destination = Me() + "dest";
+            db.KeyDelete(destination, CommandFlags.FireAndForget);
+
+            db.SortedSetAdd(key1, entries);
+            db.SortedSetAdd(key2, entriesPow3);
+
+            var diff = await db.SortedSetCombineAndStoreAsync(SetOperation.Difference, destination, new RedisKey[] { key1, key2 });
+            Assert.Equal(5, diff);
+
+            var inter = await db.SortedSetCombineAndStoreAsync(SetOperation.Intersect, destination, new RedisKey[] { key1, key2 });
+            Assert.Equal(5, inter);
+
+            var union = await db.SortedSetCombineAndStoreAsync(SetOperation.Union, destination, new RedisKey[] { key1, key2 });
+            Assert.Equal(10, union);
+        }
+
+        [Fact]
+        public async Task SortedSetCombineErrors()
         {
             using var conn = Create();
             Skip.IfBelow(conn, RedisFeatures.v6_2_0);
@@ -168,6 +254,14 @@ namespace StackExchange.Redis.Tests
             Assert.Equal("ZDIFF cannot be used with weights or aggregation.", ex.Message);
             ex = Assert.Throws<ArgumentException>(() => db.SortedSetCombineAndStore(SetOperation.Difference, destination, new RedisKey[] { key1, key2 }, new double[] { 1, 2 }));
             Assert.Equal("ZDIFFSTORE cannot be used with weights or aggregation.", ex.Message);
+            // and Async...
+            ex = await Assert.ThrowsAsync<ArgumentException>(() => db.SortedSetCombineAsync(SetOperation.Difference, new RedisKey[] { key1, key2 }, new double[] { 1, 2 }));
+            Assert.Equal("ZDIFF cannot be used with weights or aggregation.", ex.Message);
+            ex = await Assert.ThrowsAsync<ArgumentException>(() => db.SortedSetCombineWithScoresAsync(SetOperation.Difference, new RedisKey[] { key1, key2 }, new double[] { 1, 2 }));
+            Assert.Equal("ZDIFF cannot be used with weights or aggregation.", ex.Message);
+            ex = await Assert.ThrowsAsync<ArgumentException>(() => db.SortedSetCombineAndStoreAsync(SetOperation.Difference, destination, new RedisKey[] { key1, key2 }, new double[] { 1, 2 }));
+            Assert.Equal("ZDIFFSTORE cannot be used with weights or aggregation.", ex.Message);
+
             // ZDIFF can't be used with aggregation
             ex = Assert.Throws<ArgumentException>(() => db.SortedSetCombine(SetOperation.Difference, new RedisKey[] { key1, key2 }, aggregate: Aggregate.Max));
             Assert.Equal("ZDIFF cannot be used with weights or aggregation.", ex.Message);
@@ -175,12 +269,27 @@ namespace StackExchange.Redis.Tests
             Assert.Equal("ZDIFF cannot be used with weights or aggregation.", ex.Message);
             ex = Assert.Throws<ArgumentException>(() => db.SortedSetCombineAndStore(SetOperation.Difference, destination, new RedisKey[] { key1, key2 }, aggregate: Aggregate.Max));
             Assert.Equal("ZDIFFSTORE cannot be used with weights or aggregation.", ex.Message);
+            // and Async...
+            ex = await Assert.ThrowsAsync<ArgumentException>(() => db.SortedSetCombineAsync(SetOperation.Difference, new RedisKey[] { key1, key2 }, aggregate: Aggregate.Max));
+            Assert.Equal("ZDIFF cannot be used with weights or aggregation.", ex.Message);
+            ex = await Assert.ThrowsAsync<ArgumentException>(() => db.SortedSetCombineWithScoresAsync(SetOperation.Difference, new RedisKey[] { key1, key2 }, aggregate: Aggregate.Max));
+            Assert.Equal("ZDIFF cannot be used with weights or aggregation.", ex.Message);
+            ex = await Assert.ThrowsAsync<ArgumentException>(() => db.SortedSetCombineAndStoreAsync(SetOperation.Difference, destination, new RedisKey[] { key1, key2 }, aggregate: Aggregate.Max));
+            Assert.Equal("ZDIFFSTORE cannot be used with weights or aggregation.", ex.Message);
+
             // Too many weights
             ex = Assert.Throws<ArgumentException>(() => db.SortedSetCombine(SetOperation.Union, new RedisKey[] { key1, key2 }, new double[] { 1, 2, 3 }));
             Assert.StartsWith("Keys and weights should have the same number of elements.", ex.Message);
             ex = Assert.Throws<ArgumentException>(() => db.SortedSetCombineWithScores(SetOperation.Union, new RedisKey[] { key1, key2 }, new double[] { 1, 2, 3 }));
             Assert.StartsWith("Keys and weights should have the same number of elements.", ex.Message);
             ex = Assert.Throws<ArgumentException>(() => db.SortedSetCombineAndStore(SetOperation.Union, destination, new RedisKey[] { key1, key2 }, new double[] { 1, 2, 3 }));
+            Assert.StartsWith("Keys and weights should have the same number of elements.", ex.Message);
+            // and Async...
+            ex = await Assert.ThrowsAsync<ArgumentException>(() => db.SortedSetCombineAsync(SetOperation.Union, new RedisKey[] { key1, key2 }, new double[] { 1, 2, 3 }));
+            Assert.StartsWith("Keys and weights should have the same number of elements.", ex.Message);
+            ex = await Assert.ThrowsAsync<ArgumentException>(() => db.SortedSetCombineWithScoresAsync(SetOperation.Union, new RedisKey[] { key1, key2 }, new double[] { 1, 2, 3 }));
+            Assert.StartsWith("Keys and weights should have the same number of elements.", ex.Message);
+            ex = await Assert.ThrowsAsync<ArgumentException>(() => db.SortedSetCombineAndStoreAsync(SetOperation.Union, destination, new RedisKey[] { key1, key2 }, new double[] { 1, 2, 3 }));
             Assert.StartsWith("Keys and weights should have the same number of elements.", ex.Message);
         }
 
@@ -204,6 +313,29 @@ namespace StackExchange.Redis.Tests
 
             // with limit
             inter = db.SortedSetIntersectionLength(new RedisKey[]{ key1, key2}, 3);
+            Assert.Equal(3, inter);
+        }
+
+        [Fact]
+        public async Task SortedSetIntersectionLengthAsync()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v7_0_0_rc1);
+
+            var db = conn.GetDatabase();
+            var key1 = Me();
+            db.KeyDelete(key1, CommandFlags.FireAndForget);
+            var key2 = Me() + "2";
+            db.KeyDelete(key2, CommandFlags.FireAndForget);
+
+            db.SortedSetAdd(key1, entries);
+            db.SortedSetAdd(key2, entriesPow3);
+
+            var inter = await db.SortedSetIntersectionLengthAsync(new RedisKey[] { key1, key2 });
+            Assert.Equal(5, inter);
+
+            // with limit
+            inter = await db.SortedSetIntersectionLengthAsync(new RedisKey[] { key1, key2 }, 3);
             Assert.Equal(3, inter);
         }
 
