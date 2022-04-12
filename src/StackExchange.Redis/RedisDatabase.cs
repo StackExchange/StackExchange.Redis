@@ -4134,19 +4134,10 @@ namespace StackExchange.Redis
             }
         }
 
-        private static Message CreateListPositionMessage(
-            int db,
-            CommandFlags flags,
-            RedisKey key,
-            RedisValue element,
-            long rank,
-            long maxLen,
-            long? count = null)
-        {
-            return count != null
+        private static Message CreateListPositionMessage(int db, CommandFlags flags, RedisKey key, RedisValue element, long rank, long maxLen, long? count = null) =>
+            count != null
                 ? Message.Create(db, flags, RedisCommand.LPOS, key, element, RedisLiterals.RANK, rank, RedisLiterals.MAXLEN, maxLen, RedisLiterals.COUNT, count)
                 : Message.Create(db, flags, RedisCommand.LPOS, key, element, RedisLiterals.RANK, rank, RedisLiterals.MAXLEN, maxLen);
-        }
 
         private static Message CreateSortedSetRangeStoreMessage(
             int db,

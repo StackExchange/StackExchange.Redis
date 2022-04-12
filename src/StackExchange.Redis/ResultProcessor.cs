@@ -1053,31 +1053,20 @@ namespace StackExchange.Redis
         {
             private readonly long _defaultValue;
 
-            public Int64DefaultValueProcessor(long defaultValue)
-            {
-                _defaultValue = defaultValue;
-            }
+            public Int64DefaultValueProcessor(long defaultValue) => _defaultValue = defaultValue;
 
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
-                switch (result.Type)
+                if (result.IsNull)
                 {
-                    case ResultType.Integer:
-                    case ResultType.SimpleString:
-                    case ResultType.BulkString:
-                        if (result.IsNull)
-                        {
-                            SetResult(message, _defaultValue);
-                            return true;
-                        }
-                        if (result.TryGetInt64(out var i64))
-                        {
-                            SetResult(message, i64);
-                            return true;
-                        }
-                        break;
+                    SetResult(message, _defaultValue);
+                    return true;
                 }
-
+                if (result.Type == ResultType.Integer && result.TryGetInt64(out var i64))
+                {
+                    SetResult(message, i64);
+                    return true;
+                }
                 return false;
             }
         }
