@@ -27,13 +27,13 @@ namespace StackExchange.Redis
 
     internal static class ExpiryOptionExtensions
     {
-        public static RedisValue ToLiteral(this ExpiryOption side) => side switch
+        public static RedisValue ToLiteral(this ExpiryOption? op) => op switch
         {
             ExpiryOption.NX => RedisLiterals.NX,
             ExpiryOption.XX => RedisLiterals.XX,
             ExpiryOption.GT => RedisLiterals.GT,
             ExpiryOption.LT => RedisLiterals.LT,
-            _ => throw new ArgumentOutOfRangeException(nameof(side))
+            _ => throw new ArgumentOutOfRangeException(nameof(op))
         };
     }
 }

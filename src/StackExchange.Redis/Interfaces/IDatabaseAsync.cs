@@ -517,6 +517,7 @@ namespace StackExchange.Redis
         /// <param name="key">The key to set the expiration for.</param>
         /// <param name="expiry">The timeout to set.</param>
         /// <param name="flags">The flags to use for this operation.</param>
+        /// <param name="expiryOption"><see cref="ExpiryOption"/>.</param>
         /// <returns><see langword="true"/> if the timeout was set. <see langword="false"/> if key does not exist or the timeout could not be set.</returns>
         /// <remarks>
         /// If key is updated before the timeout has expired, then the timeout is removed as if the PERSIST command was invoked on key.
@@ -528,11 +529,14 @@ namespace StackExchange.Redis
         /// Since Redis 2.1.3, you can update the timeout of a key.
         /// It is also possible to remove the timeout using the PERSIST command. See the page on key expiry for more information.
         /// </para>
+        /// <para>
+        /// Since Redis 7.0.0, you can choose on which condition the timeout will be set using <see cref="ExpiryOption"/>. Notice that this option cannot be used with PERSIST command.
+        /// </para>
         /// </remarks>
         /// <remarks>https://redis.io/commands/expire</remarks>
         /// <remarks>https://redis.io/commands/pexpire</remarks>
         /// <remarks>https://redis.io/commands/persist</remarks>
-        Task<bool> KeyExpireAsync(RedisKey key, TimeSpan? expiry, CommandFlags flags = CommandFlags.None);
+        Task<bool> KeyExpireAsync(RedisKey key, TimeSpan? expiry, CommandFlags flags = CommandFlags.None, ExpiryOption? expiryOption = null);
 
         /// <summary>
         /// Set a timeout on key. After the timeout has expired, the key will automatically be deleted.
@@ -541,6 +545,7 @@ namespace StackExchange.Redis
         /// <param name="key">The key to set the expiration for.</param>
         /// <param name="expiry">The exact date to expiry to set.</param>
         /// <param name="flags">The flags to use for this operation.</param>
+        /// <param name="expiryOption"><see cref="ExpiryOption"/>.</param>
         /// <returns><see langword="true"/> if the timeout was set. <see langword="false"/> if key does not exist or the timeout could not be set.</returns>
         /// <remarks>
         /// If key is updated before the timeout has expired, then the timeout is removed as if the PERSIST command was invoked on key.
@@ -552,11 +557,23 @@ namespace StackExchange.Redis
         /// Since Redis 2.1.3, you can update the timeout of a key.
         /// It is also possible to remove the timeout using the PERSIST command. See the page on key expiry for more information.
         /// </para>
+        /// <para>
+        /// Since Redis 7.0.0, you can choose on which condition the timeout will be set using <see cref="ExpiryOption"/>. Notice that this option cannot be used with PERSIST command.
+        /// </para>
         /// </remarks>
         /// <remarks>https://redis.io/commands/expireat</remarks>
         /// <remarks>https://redis.io/commands/pexpireat</remarks>
         /// <remarks>https://redis.io/commands/persist</remarks>
-        Task<bool> KeyExpireAsync(RedisKey key, DateTime? expiry, CommandFlags flags = CommandFlags.None);
+        Task<bool> KeyExpireAsync(RedisKey key, DateTime? expiry, CommandFlags flags = CommandFlags.None, ExpiryOption? expiryOption = null);
+
+        /// <summary>
+        /// Returns the absolute Unix timestamp (since January 1, 1970) in seconds at which the given key will expire.
+        /// </summary>
+        /// <param name="key">The key to get the expiration from.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The time at which the given key will expire, or <see langword="Null"/> if the key does not exist or the key exists but has no associated expiration time.</returns>
+        /// <remarks>https://redis.io/commands/expiretime</remarks>
+        Task<TimeSpan?> KeyExpireTimeAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Returns the time since the object stored at the specified key is idle (not requested by read or write operations).

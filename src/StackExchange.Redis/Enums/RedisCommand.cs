@@ -37,6 +37,7 @@
         EXISTS,
         EXPIRE,
         EXPIREAT,
+        EXPIRETIME,
 
         FLUSHALL,
         FLUSHDB,
@@ -106,6 +107,7 @@
         PERSIST,
         PEXPIRE,
         PEXPIREAT,
+        PEXPIRETIME,
         PFADD,
         PFCOUNT,
         PFMERGE,
