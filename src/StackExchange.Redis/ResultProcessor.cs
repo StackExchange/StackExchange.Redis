@@ -51,7 +51,8 @@ namespace StackExchange.Redis
 
         public static readonly ResultProcessor<long>
             Int64 = new Int64Processor(),
-            PubSubNumSub = new PubSubNumSubProcessor();
+            PubSubNumSub = new PubSubNumSubProcessor(),
+            Int64DefaultNegativeOne = new Int64DefaultValueProcessor(-1);
 
         public static readonly ResultProcessor<double?>
                             NullableDouble = new NullableDoubleProcessor();
@@ -78,6 +79,9 @@ namespace StackExchange.Redis
 
         public static readonly ResultProcessor<RedisValue[]>
             RedisValueArray = new RedisValueArrayProcessor();
+
+        public static readonly ResultProcessor<long[]>
+            Int64Array = new Int64ArrayProcessor();
 
         public static readonly ResultProcessor<string?[]>
             StringArray = new StringArrayProcessor();
@@ -1048,6 +1052,28 @@ namespace StackExchange.Redis
                 category.IsNullOrWhiteSpace() ? "miscellaneous" : category.Trim();
         }
 
+        private class Int64DefaultValueProcessor : ResultProcessor<long>
+        {
+            private readonly long _defaultValue;
+
+            public Int64DefaultValueProcessor(long defaultValue) => _defaultValue = defaultValue;
+
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                if (result.IsNull)
+                {
+                    SetResult(message, _defaultValue);
+                    return true;
+                }
+                if (result.Type == ResultType.Integer && result.TryGetInt64(out var i64))
+                {
+                    SetResult(message, i64);
+                    return true;
+                }
+                return false;
+            }
+        }
+
         private class Int64Processor : ResultProcessor<long>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
@@ -1241,6 +1267,21 @@ namespace StackExchange.Redis
                         SetResult(message, arr);
                         return true;
                 }
+                return false;
+            }
+        }
+
+        private sealed class Int64ArrayProcessor : ResultProcessor<long[]>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                if (result.Type == ResultType.MultiBulk && !result.IsNull)
+                {
+                    var arr = result.ToArray((in RawResult x) => (long)x.AsRedisValue())!;
+                    SetResult(message, arr);
+                    return true;
+                }
+
                 return false;
             }
         }

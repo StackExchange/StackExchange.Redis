@@ -85,6 +85,7 @@
         LLEN,
         LMOVE,
         LPOP,
+        LPOS,
         LPUSH,
         LPUSHX,
         LRANGE,

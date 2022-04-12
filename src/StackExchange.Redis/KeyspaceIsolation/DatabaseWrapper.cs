@@ -191,6 +191,12 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public RedisValue[] ListLeftPop(RedisKey key, long count, CommandFlags flags = CommandFlags.None) =>
             Inner.ListLeftPop(ToInner(key), count, flags);
 
+        public long ListPosition(RedisKey key, RedisValue element, long rank = 1, long maxLength = 0, CommandFlags flags = CommandFlags.None) =>
+            Inner.ListPosition(ToInner(key), element, rank, maxLength, flags);
+
+        public long[] ListPositions(RedisKey key, RedisValue element, long count, long rank = 1, long maxLength = 0, CommandFlags flags = CommandFlags.None) =>
+            Inner.ListPositions(ToInner(key), element, count, rank, maxLength, flags);
+
         public long ListLeftPush(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None) =>
             Inner.ListLeftPush(ToInner(key), values, flags);
 

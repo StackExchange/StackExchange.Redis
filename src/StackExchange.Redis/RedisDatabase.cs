@@ -939,6 +939,18 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
         }
 
+        public long ListPosition(RedisKey key, RedisValue element, long rank = 1, long maxLength = 0, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = CreateListPositionMessage(Database, flags, key, element, rank, maxLength);
+            return ExecuteSync(msg, ResultProcessor.Int64DefaultNegativeOne, defaultValue: -1);
+        }
+
+        public long[] ListPositions(RedisKey key, RedisValue element, long count, long rank = 1, long maxLength = 0, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = CreateListPositionMessage(Database, flags, key, element, rank, maxLength, count);
+            return ExecuteSync(msg, ResultProcessor.Int64Array, defaultValue: Array.Empty<long>());
+        }
+
         public Task<RedisValue> ListLeftPopAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.LPOP, key);
@@ -949,6 +961,18 @@ namespace StackExchange.Redis
         {
             var msg = Message.Create(Database, flags, RedisCommand.LPOP, key, count);
             return ExecuteAsync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
+        }
+
+        public Task<long> ListPositionAsync(RedisKey key, RedisValue element, long rank = 1, long maxLength = 0, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = CreateListPositionMessage(Database, flags, key, element, rank, maxLength);
+            return ExecuteAsync(msg, ResultProcessor.Int64DefaultNegativeOne, defaultValue: -1);
+        }
+
+        public Task<long[]> ListPositionsAsync(RedisKey key, RedisValue element, long count, long rank = 1, long maxLength = 0, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = CreateListPositionMessage(Database, flags, key, element, rank, maxLength, count);
+            return ExecuteAsync(msg, ResultProcessor.Int64Array, defaultValue: Array.Empty<long>());
         }
 
         public long ListLeftPush(RedisKey key, RedisValue value, When when = When.Always, CommandFlags flags = CommandFlags.None)
@@ -4157,6 +4181,11 @@ namespace StackExchange.Redis
                 return arr;
             }
         }
+
+        private static Message CreateListPositionMessage(int db, CommandFlags flags, RedisKey key, RedisValue element, long rank, long maxLen, long? count = null) =>
+            count != null
+                ? Message.Create(db, flags, RedisCommand.LPOS, key, element, RedisLiterals.RANK, rank, RedisLiterals.MAXLEN, maxLen, RedisLiterals.COUNT, count)
+                : Message.Create(db, flags, RedisCommand.LPOS, key, element, RedisLiterals.RANK, rank, RedisLiterals.MAXLEN, maxLen);
 
         private static Message CreateSortedSetRangeStoreMessage(
             int db,
