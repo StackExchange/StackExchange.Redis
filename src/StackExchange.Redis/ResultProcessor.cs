@@ -1069,8 +1069,7 @@ namespace StackExchange.Redis
                     case ResultType.Integer:
                     case ResultType.SimpleString:
                     case ResultType.BulkString:
-                        long i64;
-                        if (!result.TryGetInt64(out i64))
+                        if (!result.TryGetInt64(out var i64))
                         {
                             i64 = -1;
                         }

@@ -735,7 +735,7 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// Scans through the list stored at <paramref name="key"/> looking for <paramref name="count"/> instances of <paramref name="element"/>, returning the 0-based
-        /// indexes of the the matching elements.
+        /// indexes of any matching elements.
         /// </summary>
         /// <param name="key">The key of the list.</param>
         /// <param name="element">The element to search for.</param>
@@ -743,7 +743,7 @@ namespace StackExchange.Redis
         /// <param name="rank">The rank of the first element to return, within the sub-list of matching indexes in the case of multiple matches.</param>
         /// <param name="maxLength">The maximum number of elements to scan through before stopping, defaults to 0 (a full scan of the list.)</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>An array of at most <paramref name="count"/> of indexes of matching elements. If none are found, and empty array is returned</returns>
+        /// <returns>An array of at most <paramref name="count"/> of indexes of matching elements. If none are found, and empty array is returned.</returns>
         long[] ListPositions(RedisKey key, RedisValue element, long count, long rank = 1, long maxLength = 0, CommandFlags flags = CommandFlags.None);
 
         /// <summary>

@@ -945,8 +945,7 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.Int64DefaultNegativeOne);
         }
 
-        public long[] ListPositions(RedisKey key, RedisValue element, long count, long rank = 1, long maxLength = 0,
-            CommandFlags flags = CommandFlags.None)
+        public long[] ListPositions(RedisKey key, RedisValue element, long count, long rank = 1, long maxLength = 0, CommandFlags flags = CommandFlags.None)
         {
             var msg = CreateListPositionMessage(Database, flags, key, element, rank, maxLength, count);
             return ExecuteSync(msg, ResultProcessor.LongArray, defaultValue: Array.Empty<long>());
@@ -970,8 +969,7 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Int64DefaultNegativeOne);
         }
 
-        public Task<long[]> ListPositionsAsync(RedisKey key, RedisValue element, long count, long rank = 1,
-            long maxLength = 0, CommandFlags flags = CommandFlags.None)
+        public Task<long[]> ListPositionsAsync(RedisKey key, RedisValue element, long count, long rank = 1, long maxLength = 0, CommandFlags flags = CommandFlags.None)
         {
             var msg = CreateListPositionMessage(Database, flags, key, element, rank, maxLength, count);
             return ExecuteAsync(msg, ResultProcessor.LongArray, defaultValue: Array.Empty<long>());
@@ -4113,14 +4111,9 @@ namespace StackExchange.Redis
             long maxLen,
             long? count = null)
         {
-            if (count != null)
-            {
-                return Message.Create(db, flags, RedisCommand.LPOS, key, element, RedisLiterals.RANK, rank,
-                    RedisLiterals.MAXLEN, maxLen, RedisLiterals.COUNT, count);
-            }
-
-            return Message.Create(db, flags, RedisCommand.LPOS, key, element, RedisLiterals.RANK, rank,
-                RedisLiterals.MAXLEN, maxLen);
+            return count != null
+            ? Message.Create(db, flags, RedisCommand.LPOS, key, element, RedisLiterals.RANK, rank, RedisLiterals.MAXLEN, maxLen, RedisLiterals.COUNT, count);
+            : Message.Create(db, flags, RedisCommand.LPOS, key, element, RedisLiterals.RANK, rank, RedisLiterals.MAXLEN, maxLen);
         }
 
         private static Message CreateSortedSetRangeStoreMessage(
