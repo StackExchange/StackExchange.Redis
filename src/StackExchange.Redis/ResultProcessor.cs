@@ -82,6 +82,9 @@ namespace StackExchange.Redis
         public static readonly ResultProcessor<string?[]>
             StringArray = new StringArrayProcessor();
 
+        public static readonly ResultProcessor<bool[]>
+            BooleanArray = new BooleanArrayProcessor();
+
         public static readonly ResultProcessor<GeoPosition?[]>
             RedisGeoPositionArray = new RedisValueGeoPositionArrayProcessor();
         public static readonly ResultProcessor<GeoPosition?>
@@ -129,8 +132,6 @@ namespace StackExchange.Redis
             TieBreaker = new TieBreakerProcessor(),
             ClusterNodesRaw = new ClusterNodesRawProcessor();
 
-        #region Sentinel
-
         public static readonly ResultProcessor<EndPoint?>
             SentinelPrimaryEndpoint = new SentinelGetPrimaryAddressByNameProcessor();
 
@@ -142,8 +143,6 @@ namespace StackExchange.Redis
 
         public static readonly ResultProcessor<KeyValuePair<string, string>[][]>
             SentinelArrayOfArrays = new SentinelArrayOfArraysProcessor();
-
-        #endregion
 
         public static readonly ResultProcessor<KeyValuePair<string, string>[]>
             StringPairInterleaved = new StringPairInterleavedProcessor();
@@ -1262,6 +1261,20 @@ namespace StackExchange.Redis
             }
         }
 
+        private sealed class BooleanArrayProcessor : ResultProcessor<bool[]>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                if (result.Type == ResultType.MultiBulk && !result.IsNull)
+                {
+                    var arr = result.GetItemsAsBooleans()!;
+                    SetResult(message, arr);
+                    return true;
+                }
+                return false;
+            }
+        }
+
         private sealed class RedisValueGeoPositionProcessor : ResultProcessor<GeoPosition?>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
@@ -2188,8 +2201,6 @@ The coordinates as a two items x,y array (longitude,latitude).
             }
         }
 
-        #region Sentinel
-
         private sealed class SentinelGetPrimaryAddressByNameProcessor : ResultProcessor<EndPoint?>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
@@ -2324,8 +2335,6 @@ The coordinates as a two items x,y array (longitude,latitude).
                 return false;
             }
         }
-
-        #endregion
     }
 
     internal abstract class ResultProcessor<T> : ResultProcessor

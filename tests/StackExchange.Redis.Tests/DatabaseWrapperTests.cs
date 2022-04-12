@@ -604,6 +604,14 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void SetContains_2()
+        {
+            RedisValue[] values = new RedisValue[] { "value1", "value2" };
+            wrapper.SetContains("key", values, CommandFlags.None);
+            mock.Verify(_ => _.SetContains("prefix:key", values, CommandFlags.None));
+        }
+
+        [Fact]
         public void SetIntersectionLength()
         {
             var keys = new RedisKey[] { "key1", "key2" };

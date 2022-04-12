@@ -882,8 +882,6 @@ namespace StackExchange.Redis
             }
         }
 
-        #region Sentinel
-
         public EndPoint? SentinelGetMasterAddressByName(string serviceName, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.GETMASTERADDRBYNAME, (RedisValue)serviceName);
@@ -987,8 +985,6 @@ namespace StackExchange.Redis
             var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.SENTINELS, (RedisValue)serviceName);
             return ExecuteAsync(msg, ResultProcessor.SentinelArrayOfArrays, defaultValue: Array.Empty<KeyValuePair<string, string>[]>());
         }
-
-        #endregion
 
         public RedisResult Execute(string command, params object[] args) => Execute(command, args, CommandFlags.None);
 
