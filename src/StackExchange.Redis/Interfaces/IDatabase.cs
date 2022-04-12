@@ -1103,7 +1103,7 @@ namespace StackExchange.Redis
         long SetCombineAndStore(SetOperation operation, RedisKey destination, RedisKey[] keys, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Returns if member is a member of the set stored at key.
+        /// Returns whether <paramref name="value"/> is a member of the set stored at <paramref name="key"/>.
         /// </summary>
         /// <param name="key">The key of the set.</param>
         /// <param name="value">The value to check for.</param>
@@ -1116,7 +1116,7 @@ namespace StackExchange.Redis
         bool SetContains(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Returns whether each member is a member of the set stored at key.
+        /// Returns whether each of <paramref name="values"/> is a member of the set stored at <paramref name="key"/>.
         /// </summary>
         /// <param name="key">The key of the set.</param>
         /// <param name="values">The members to check for.</param>

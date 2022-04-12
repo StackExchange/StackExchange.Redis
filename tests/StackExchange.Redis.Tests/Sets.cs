@@ -44,6 +44,38 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public async Task SetContainsAsync()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
+
+            var key = Me();
+            var db = conn.GetDatabase();
+            for (int i = 1; i < 1001; i++)
+            {
+                db.SetAdd(key, i, CommandFlags.FireAndForget);
+            }
+
+            // Single member
+            var isMemeber = await db.SetContainsAsync(key, 1);
+            Assert.True(isMemeber);
+
+            // Multi members
+            var areMemebers = await db.SetContainsAsync(key, new RedisValue[] { 0, 1, 2 });
+            Assert.Equal(3, areMemebers.Length);
+            Assert.False(areMemebers[0]);
+            Assert.True(areMemebers[1]);
+
+            // key not exists
+            var key1 = Me() + "non-exists";
+            isMemeber = await db.SetContainsAsync(key1, 1);
+            Assert.False(isMemeber);
+            areMemebers = await db.SetContainsAsync(key1, new RedisValue[] { 0, 1, 2 });
+            Assert.Equal(3, areMemebers.Length);
+            Assert.True(areMemebers.All(i => !i)); // Check that all the elements are False
+        }
+
+        [Fact]
         public void SetIntersectionLength()
         {
             using var conn = Create();
@@ -102,7 +134,7 @@ namespace StackExchange.Redis.Tests
             {
                 var server = GetAnyPrimary(conn);
 
-                RedisKey key = Me();
+                var key = Me();
                 var db = conn.GetDatabase();
                 int totalUnfiltered = 0, totalFiltered = 0;
                 for (int i = 1; i < 1001; i++)

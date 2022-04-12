@@ -1265,13 +1265,11 @@ namespace StackExchange.Redis
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
-                switch (result.Type)
+                if (result.Type == ResultType.MultiBulk && !result.IsNull)
                 {
-                    case ResultType.MultiBulk when !result.IsNull:
-                        var arr = result.GetItemsAsBooleans()!;
-
-                        SetResult(message, arr);
-                        return true;
+                    var arr = result.GetItemsAsBooleans()!;
+                    SetResult(message, arr);
+                    return true;
                 }
                 return false;
             }
