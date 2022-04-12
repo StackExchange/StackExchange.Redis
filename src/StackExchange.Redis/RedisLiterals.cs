@@ -108,6 +108,8 @@ namespace StackExchange.Redis
             WITHSCORES = "WITHSCORES",
             XOR = "XOR",
             XX = "XX",
+            GT = "GT",
+            LT = "LT",
 
             // Sentinel Literals
             MASTERS = "MASTERS",
