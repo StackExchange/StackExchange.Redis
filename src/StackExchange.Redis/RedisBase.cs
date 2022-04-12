@@ -47,7 +47,6 @@ namespace StackExchange.Redis
             return multiplexer.ExecuteAsyncImpl<T>(message, processor, asyncState, server, defaultValue);
         }
 
-        [return: NotNullIfNotNull("defualtValue")]
         internal virtual Task<T?> ExecuteAsync<T>(Message? message, ResultProcessor<T>? processor, ServerEndPoint? server = null)
         {
             if (message is null) return CompletedTask<T>.Default(asyncState);

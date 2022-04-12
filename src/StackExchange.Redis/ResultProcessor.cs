@@ -1069,13 +1069,18 @@ namespace StackExchange.Redis
                     case ResultType.Integer:
                     case ResultType.SimpleString:
                     case ResultType.BulkString:
-                        if (!result.TryGetInt64(out var i64))
+                        if (result.IsNull)
                         {
-                            i64 = -1;
+                            SetResult(message, -1);
                         }
 
-                        SetResult(message, i64);
-                        return true;
+                        if (result.TryGetInt64(out var i64))
+                        {
+                            SetResult(message, i64);
+                            return true;
+                        }
+
+                        return false;
                 }
 
                 return false;
