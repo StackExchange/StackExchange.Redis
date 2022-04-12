@@ -19,6 +19,7 @@ namespace StackExchange.Redis.Tests
 
             var key = Me();
             var db = conn.GetDatabase();
+            db.KeyDelete(key);
             for (int i = 1; i < 1001; i++)
             {
                 db.SetAdd(key, i, CommandFlags.FireAndForget);
@@ -36,6 +37,7 @@ namespace StackExchange.Redis.Tests
 
             // key not exists
             var key1 = Me() + "non-exists";
+            db.KeyDelete(key1);
             isMemeber = db.SetContains(key1, 1);
             Assert.False(isMemeber);
             areMemebers = db.SetContains(key1, new RedisValue[] { 0, 1, 2 });
@@ -51,6 +53,7 @@ namespace StackExchange.Redis.Tests
 
             var key = Me();
             var db = conn.GetDatabase();
+            await db.KeyDeleteAsync(key);
             for (int i = 1; i < 1001; i++)
             {
                 db.SetAdd(key, i, CommandFlags.FireAndForget);
@@ -68,6 +71,7 @@ namespace StackExchange.Redis.Tests
 
             // key not exists
             var key1 = Me() + "non-exists";
+            await db.KeyDeleteAsync(key1);
             isMemeber = await db.SetContainsAsync(key1, 1);
             Assert.False(isMemeber);
             areMemebers = await db.SetContainsAsync(key1, new RedisValue[] { 0, 1, 2 });
