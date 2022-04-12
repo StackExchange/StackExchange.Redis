@@ -818,5 +818,61 @@ namespace StackExchange.Redis.Tests
 
             Assert.Equal(-1, res);
         }
+
+        [Fact]
+        public async Task ListPositionFireAndForgetAsync()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v6_0_6);
+
+            var db = conn.GetDatabase();
+            var key = Me();
+            var foo = "foo";
+            var bar = "bar";
+            var baz = "baz";
+
+            await db.KeyDeleteAsync(key);
+
+            for (var i = 0; i < 10; i++)
+            {
+                await db.ListLeftPushAsync(key, foo);
+                await db.ListLeftPushAsync(key, bar);
+                await db.ListLeftPushAsync(key, baz);
+            }
+
+            await db.ListRightPushAsync(key, foo);
+
+            var res = await db.ListPositionAsync(key, foo, maxLength: 20, flags: CommandFlags.FireAndForget);
+
+            Assert.Equal(-1, res);
+        }
+
+        [Fact]
+        public void ListPositionFireAndForget()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v6_0_6);
+
+            var db = conn.GetDatabase();
+            var key = Me();
+            var foo = "foo";
+            var bar = "bar";
+            var baz = "baz";
+
+            db.KeyDelete(key);
+
+            for (var i = 0; i < 10; i++)
+            {
+                db.ListLeftPush(key, foo);
+                db.ListLeftPush(key, bar);
+                db.ListLeftPush(key, baz);
+            }
+
+            db.ListRightPush(key, foo);
+
+            var res = db.ListPosition(key, foo, maxLength: 20, flags: CommandFlags.FireAndForget);
+
+            Assert.Equal(-1, res);
+        }
     }
 }

@@ -942,7 +942,7 @@ namespace StackExchange.Redis
         public long ListPosition(RedisKey key, RedisValue element, long rank = 1, long maxLength = 0, CommandFlags flags = CommandFlags.None)
         {
             var msg = CreateListPositionMessage(Database, flags, key, element, rank, maxLength);
-            return ExecuteSync(msg, ResultProcessor.Int64DefaultNegativeOne);
+            return ExecuteSync(msg, ResultProcessor.Int64DefaultNegativeOne, defaultValue: -1);
         }
 
         public long[] ListPositions(RedisKey key, RedisValue element, long count, long rank = 1, long maxLength = 0, CommandFlags flags = CommandFlags.None)
@@ -966,7 +966,7 @@ namespace StackExchange.Redis
         public Task<long> ListPositionAsync(RedisKey key, RedisValue element, long rank = 1, long maxLength = 0, CommandFlags flags = CommandFlags.None)
         {
             var msg = CreateListPositionMessage(Database, flags, key, element, rank, maxLength);
-            return ExecuteAsync(msg, ResultProcessor.Int64DefaultNegativeOne);
+            return ExecuteAsync(msg, ResultProcessor.Int64DefaultNegativeOne, defaultValue: -1);
         }
 
         public Task<long[]> ListPositionsAsync(RedisKey key, RedisValue element, long count, long rank = 1, long maxLength = 0, CommandFlags flags = CommandFlags.None)
