@@ -276,6 +276,10 @@ namespace StackExchange.Redis.Tests
 
             Assert.Equal(1, db.KeyRefCount(key));
             Assert.Equal(1, await db.KeyRefCountAsync(key));
+
+            var keyNotExists = key + "no-exist";
+            Assert.Null(db.KeyRefCount(keyNotExists));
+            Assert.Null(await db.KeyRefCountAsync(keyNotExists));
         }
     }
 }

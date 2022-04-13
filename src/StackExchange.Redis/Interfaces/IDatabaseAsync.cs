@@ -603,7 +603,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of references (0 if the key does not exist).</returns>
         /// <remarks>https://redis.io/commands/object-refcount</remarks>
-        Task<long> KeyRefCountAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
+        Task<long?> KeyRefCountAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Renames <paramref name="key"/> to <paramref name="newKey"/>.
