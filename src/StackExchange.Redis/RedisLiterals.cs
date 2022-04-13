@@ -112,6 +112,9 @@ namespace StackExchange.Redis
             STOREDIST = "STOREDIST",
             TYPE = "TYPE",
             WEIGHTS = "WEIGHTS",
+            WITHCOORD = "WITHCOORD",
+            WITHDIST = "WITHDIST",
+            WITHHASH = "WITHHASH",
             WITHSCORES = "WITHSCORES",
             XOR = "XOR",
             XX = "XX",
@@ -162,9 +165,6 @@ namespace StackExchange.Redis
             slave = "slave",
             slave_read_only = "slave-read-only",
             timeout = "timeout",
-            WITHCOORD = "WITHCOORD",
-            WITHDIST = "WITHDIST",
-            WITHHASH = "WITHHASH",
             yes = "yes";
 
         internal static RedisValue Get(Bitwise operation) => operation switch
