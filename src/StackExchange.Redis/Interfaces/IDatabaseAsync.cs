@@ -594,7 +594,6 @@ namespace StackExchange.Redis
         /// <param name="expiryOption"><see cref="ExpiryOption"/>.</param>
         /// <returns><see langword="true"/> if the timeout was set. <see langword="false"/> if key does not exist or the timeout could not be set.</returns>
         /// <remarks>
-        /// If key is updated before the timeout has expired, then the timeout is removed as if the PERSIST command was invoked on key.
         /// <para>
         /// For Redis versions &lt; 2.1.3, existing timeouts cannot be overwritten.
         /// So, if key already has an associated timeout, it will do nothing and return 0.

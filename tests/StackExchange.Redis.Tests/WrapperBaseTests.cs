@@ -238,7 +238,7 @@ namespace StackExchange.Redis.Tests
         {
             TimeSpan expiry = TimeSpan.FromSeconds(123);
             wrapper.KeyExpireAsync("key", expiry, CommandFlags.None);
-            mock.Verify(_ => _.KeyExpireAsync("prefix:key", expiry, CommandFlags.None, ExpiryOption.XX));
+            mock.Verify(_ => _.KeyExpireAsync("prefix:key", expiry, CommandFlags.None));
         }
 
         [Fact]
@@ -246,7 +246,23 @@ namespace StackExchange.Redis.Tests
         {
             DateTime expiry = DateTime.Now;
             wrapper.KeyExpireAsync("key", expiry, CommandFlags.None);
-            mock.Verify(_ => _.KeyExpireAsync("prefix:key", expiry, CommandFlags.None, ExpiryOption.XX));
+            mock.Verify(_ => _.KeyExpireAsync("prefix:key", expiry, CommandFlags.None));
+        }
+
+        [Fact]
+        public void KeyExpire_3()
+        {
+            TimeSpan expiry = TimeSpan.FromSeconds(123);
+            wrapper.KeyExpireAsync("key", expiry, ExpiryOption.NX, CommandFlags.None);
+            mock.Verify(_ => _.KeyExpireAsync("prefix:key", expiry, ExpiryOption.NX, CommandFlags.None));
+        }
+
+        [Fact]
+        public void KeyExpire_4()
+        {
+            DateTime expiry = DateTime.Now;
+            wrapper.KeyExpireAsync("key", expiry, ExpiryOption.NX, CommandFlags.None);
+            mock.Verify(_ => _.KeyExpireAsync("prefix:key", expiry, ExpiryOption.NX, CommandFlags.None));
         }
 
         [Fact]
