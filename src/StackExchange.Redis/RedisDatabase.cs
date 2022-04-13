@@ -3422,7 +3422,7 @@ namespace StackExchange.Redis
         private Message GetStreamAcknowledgeMessage(RedisKey key, RedisValue groupName, RedisValue messageId, CommandFlags flags)
         {
             var values = new RedisValue[]
-            {                
+            {
                 groupName,
                 messageId
             };
