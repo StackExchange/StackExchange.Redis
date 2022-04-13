@@ -65,6 +65,7 @@
         HLEN,
         HMGET,
         HMSET,
+        HRANDFIELD,
         HSCAN,
         HSET,
         HSETNX,

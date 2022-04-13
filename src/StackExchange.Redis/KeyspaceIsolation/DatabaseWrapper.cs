@@ -93,6 +93,15 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public long HashLength(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.HashLength(ToInner(key), flags);
 
+        public RedisValue HashRandomField(RedisKey key, CommandFlags flags = CommandFlags.None) =>
+            Inner.HashRandomField(ToInner(key), flags);
+
+        public RedisValue[] HashRandomFields(RedisKey key, long count, CommandFlags flags = CommandFlags.None) =>
+            Inner.HashRandomFields(ToInner(key), count, flags);
+
+        public HashEntry[] HashRandomFieldsWithValues(RedisKey key, long count, CommandFlags flags = CommandFlags.None) =>
+            Inner.HashRandomFieldsWithValues(ToInner(key), count, flags);
+
         public bool HashSet(RedisKey key, RedisValue hashField, RedisValue value, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
             Inner.HashSet(ToInner(key), hashField, value, when, flags);
 

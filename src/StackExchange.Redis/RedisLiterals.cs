@@ -109,6 +109,7 @@ namespace StackExchange.Redis
             TYPE = "TYPE",
             WEIGHTS = "WEIGHTS",
             WITHSCORES = "WITHSCORES",
+            WITHVALUES = "WITHVALUES",
             XOR = "XOR",
             XX = "XX",
 
