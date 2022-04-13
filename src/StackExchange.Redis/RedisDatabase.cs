@@ -3422,13 +3422,12 @@ namespace StackExchange.Redis
         private Message GetStreamAcknowledgeMessage(RedisKey key, RedisValue groupName, RedisValue messageId, CommandFlags flags)
         {
             var values = new RedisValue[]
-            {
-                key.AsRedisValue(),
+            {                
                 groupName,
                 messageId
             };
 
-            return Message.Create(Database, flags, RedisCommand.XACK, values);
+            return Message.Create(Database, flags, RedisCommand.XACK, key, values);
         }
 
         private Message GetStreamAcknowledgeMessage(RedisKey key, RedisValue groupName, RedisValue[] messageIds, CommandFlags flags)
@@ -3436,11 +3435,10 @@ namespace StackExchange.Redis
             if (messageIds == null) throw new ArgumentNullException(nameof(messageIds));
             if (messageIds.Length == 0) throw new ArgumentOutOfRangeException(nameof(messageIds), "messageIds must contain at least one item.");
 
-            var values = new RedisValue[messageIds.Length + 2];
+            var values = new RedisValue[messageIds.Length + 1];
 
             var offset = 0;
 
-            values[offset++] = key.AsRedisValue();
             values[offset++] = groupName;
 
             for (var i = 0; i < messageIds.Length; i++)
@@ -3448,7 +3446,7 @@ namespace StackExchange.Redis
                 values[offset++] = messageIds[i];
             }
 
-            return Message.Create(Database, flags, RedisCommand.XACK, values);
+            return Message.Create(Database, flags, RedisCommand.XACK, key, values);
         }
 
         private Message GetStreamAddMessage(RedisKey key, RedisValue messageId, int? maxLength, bool useApproximateMaxLength, NameValueEntry streamPair, CommandFlags flags)
@@ -3539,11 +3537,10 @@ namespace StackExchange.Redis
             if (messageIds.Length == 0) throw new ArgumentOutOfRangeException(nameof(messageIds), "messageIds must contain at least one item.");
 
             // XCLAIM <key> <group> <consumer> <min-idle-time> <ID-1> <ID-2> ... <ID-N>
-            var values = new RedisValue[4 + messageIds.Length + (returnJustIds ? 1 : 0)];
+            var values = new RedisValue[3 + messageIds.Length + (returnJustIds ? 1 : 0)];
 
             var offset = 0;
 
-            values[offset++] = key.AsRedisValue();
             values[offset++] = consumerGroup;
             values[offset++] = assignToConsumer;
             values[offset++] = minIdleTimeInMs;
@@ -3558,7 +3555,7 @@ namespace StackExchange.Redis
                 values[offset] = StreamConstants.JustId;
             }
 
-            return Message.Create(Database, flags, RedisCommand.XCLAIM, values);
+            return Message.Create(Database, flags, RedisCommand.XCLAIM, key, values);
         }
 
         private Message GetStreamCreateConsumerGroupMessage(RedisKey key, RedisValue groupName, RedisValue? position = null, bool createStream = true, CommandFlags flags = CommandFlags.None)
@@ -3602,22 +3599,22 @@ namespace StackExchange.Redis
                 throw new ArgumentOutOfRangeException(nameof(count), "count must be greater than 0.");
             }
 
-            var values = new RedisValue[consumerName == RedisValue.Null ? 5 : 6];
+            var values = new RedisValue[consumerName == RedisValue.Null ? 4 : 5];
 
-            values[0] = key.AsRedisValue();
-            values[1] = groupName;
-            values[2] = minId ?? StreamConstants.ReadMinValue;
-            values[3] = maxId ?? StreamConstants.ReadMaxValue;
-            values[4] = count;
+            values[0] = groupName;
+            values[1] = minId ?? StreamConstants.ReadMinValue;
+            values[2] = maxId ?? StreamConstants.ReadMaxValue;
+            values[3] = count;
 
             if (consumerName != RedisValue.Null)
             {
-                values[5] = consumerName;
+                values[4] = consumerName; 
             }
 
             return Message.Create(Database,
                 flags,
                 RedisCommand.XPENDING,
+                key,
                 values);
         }
 
