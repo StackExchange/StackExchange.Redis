@@ -601,7 +601,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="key">The key to get a reference count for.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The number of references (0 if the key does not exist).</returns>
+        /// <returns>The number of references (<see langword="Null"/> if the key does not exist).</returns>
         /// <remarks>https://redis.io/commands/object-refcount</remarks>
         Task<long?> KeyRefCountAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
