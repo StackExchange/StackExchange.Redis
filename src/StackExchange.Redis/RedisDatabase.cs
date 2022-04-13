@@ -3659,41 +3659,60 @@ namespace StackExchange.Redis
         }
 
         private Message GetStreamReadGroupMessage(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue afterId, int? count, bool noAck, CommandFlags flags)
+        {            
+            return new StreamReadGroupCommandMessage(Database, flags, key, groupName, consumerName, afterId, count, noAck);            
+        }
+        private sealed class StreamReadGroupCommandMessage : Message.CommandKeyBase // XREADGROUP with single stream. eg XREADGROUP GROUP mygroup Alice COUNT 1 STREAMS mystream >
         {
-            // Example: > XREADGROUP GROUP mygroup Alice COUNT 1 STREAMS mystream >
-            if (count.HasValue && count <= 0)
-            {
-                throw new ArgumentOutOfRangeException(nameof(count), "count must be greater than 0.");
+            private readonly RedisValue groupName;
+            private readonly RedisValue consumerName;            
+            private readonly RedisValue afterId;
+            private readonly int? count;
+            private readonly bool noAck;
+            private readonly int argCount;
+
+            public StreamReadGroupCommandMessage(int db, CommandFlags flags, RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue afterId, int? count, bool noAck)
+                : base(db, flags, RedisCommand.XREADGROUP, key) {
+                if (count.HasValue && count <= 0)
+                {
+                    throw new ArgumentOutOfRangeException(nameof(count), "count must be greater than 0.");
+                }
+
+                groupName.AssertNotNull();
+                consumerName.AssertNotNull();
+                afterId.AssertNotNull();
+
+                this.groupName = groupName;
+                this.consumerName = consumerName;                
+                this.afterId = afterId;
+                this.count = count;
+                this.noAck = noAck;
+                argCount = 6 + (count.HasValue ? 2 : 0) + (noAck ? 1 : 0);
             }
 
-            var totalValueCount = 6 + (count.HasValue ? 2 : 0) + (noAck ? 1 : 0);
-            var values = new RedisValue[totalValueCount];
+            protected override void WriteImpl(PhysicalConnection physical) {
+                physical.WriteHeader(Command, argCount);
+                physical.WriteBulkString(StreamConstants.Group);
+                physical.WriteBulkString(groupName);
+                physical.WriteBulkString(consumerName);
 
-            var offset = 0;
+                if (count.HasValue)
+                {
+                    physical.WriteBulkString(StreamConstants.Count);
+                    physical.WriteBulkString(count.Value);                    
+                }
 
-            values[offset++] = StreamConstants.Group;
-            values[offset++] = groupName;
-            values[offset++] = consumerName;
+                if (noAck)
+                {
+                    physical.WriteBulkString(StreamConstants.NoAck);
+                }
 
-            if (count.HasValue)
-            {
-                values[offset++] = StreamConstants.Count;
-                values[offset++] = count.Value;
+                physical.WriteBulkString(StreamConstants.Streams);
+                physical.Write(Key);
+                physical.WriteBulkString(afterId);
             }
 
-            if (noAck)
-            {
-                values[offset++] = StreamConstants.NoAck;
-            }
-
-            values[offset++] = StreamConstants.Streams;
-            values[offset++] = key.AsRedisValue();
-            values[offset] = afterId;
-
-            return Message.Create(Database,
-                flags,
-                RedisCommand.XREADGROUP,
-                values);
+            public override int ArgCount => argCount;
         }
 
         private Message GetSingleStreamReadMessage(RedisKey key, RedisValue afterId, int? count, CommandFlags flags)
