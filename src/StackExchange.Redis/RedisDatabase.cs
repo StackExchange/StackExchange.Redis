@@ -827,6 +827,18 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.RedisKey);
         }
 
+        public long KeyRefCount(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.OBJECT, RedisLiterals.REFCOUNT, key);
+            return ExecuteSync(msg, ResultProcessor.Int64);
+        }
+
+        public Task<long> KeyRefCountAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.OBJECT, RedisLiterals.REFCOUNT, key);
+            return ExecuteAsync(msg, ResultProcessor.Int64);
+        }
+
         public bool KeyRename(RedisKey key, RedisKey newKey, When when = When.Always, CommandFlags flags = CommandFlags.None)
         {
             WhenAlwaysOrNotExists(when);

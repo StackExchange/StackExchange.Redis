@@ -621,6 +621,15 @@ namespace StackExchange.Redis
         RedisKey KeyRandom(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Returns the reference count of the stored at <paramref name="key"/>.
+        /// </summary>
+        /// <param name="key">The key to rename.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The number of references.</returns>
+        /// <remarks>https://redis.io/commands/object-refcount/</remarks>
+        long KeyRefCount(RedisKey key, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Renames <paramref name="key"/> to <paramref name="newKey"/>.
         /// It returns an error when the source and destination names are the same, or when key does not exist.
         /// </summary>

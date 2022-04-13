@@ -264,5 +264,18 @@ namespace StackExchange.Redis.Tests
                 Assert.True(idleTime1 < idleTime);
             }
         }
+
+        [Fact]
+        public async Task KeyRefCount()
+        {
+            using var muxer = Create();
+            var key = Me();
+            var db = muxer.GetDatabase();
+            db.KeyDelete(key, CommandFlags.FireAndForget);
+            db.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
+
+            Assert.Equal(1, db.KeyRefCount(key));
+            Assert.Equal(1, await db.KeyRefCountAsync(key));
+        }
     }
 }

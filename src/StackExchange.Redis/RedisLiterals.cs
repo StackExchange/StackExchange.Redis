@@ -93,6 +93,7 @@ namespace StackExchange.Redis
             PXAT = "PXAT",
             RANK = "RANK",
             RIGHT = "RIGHT",
+            REFCOUNT = "REFCOUNT",
             REPLACE = "REPLACE",
             RESET = "RESET",
             RESETSTAT = "RESETSTAT",
