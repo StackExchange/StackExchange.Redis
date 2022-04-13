@@ -50,6 +50,36 @@ namespace StackExchange.Redis.Tests
         }
 
         [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public void TestExpiryOptions(bool disablePTimes)
+        {
+            using var muxer = Create(disabledCommands: GetMap(disablePTimes));
+            Skip.IfBelow(muxer, RedisFeatures.v7_0_0_rc1);
+
+            var key = Me();
+            var conn = muxer.GetDatabase();
+            conn.KeyDelete(key, CommandFlags.FireAndForget);
+            conn.StringSet(key, "value", flags: CommandFlags.FireAndForget);
+
+            // The key has no expiry
+            Assert.False(conn.KeyExpire(key, TimeSpan.FromHours(1), ExpiryOption.XX));
+            Assert.True(conn.KeyExpire(key, TimeSpan.FromHours(1), ExpiryOption.NX));
+
+            // The key has an existing expiry
+            Assert.True(conn.KeyExpire(key, TimeSpan.FromHours(1), ExpiryOption.XX));
+            Assert.False(conn.KeyExpire(key, TimeSpan.FromHours(1), ExpiryOption.NX));
+
+            // Set only when the new expiry is greater than current one
+            Assert.True(conn.KeyExpire(key, TimeSpan.FromHours(1.5), ExpiryOption.GT));
+            Assert.False(conn.KeyExpire(key, TimeSpan.FromHours(0.5), ExpiryOption.GT));
+
+            // Set only when the new expiry is less than current one
+            Assert.True(conn.KeyExpire(key, TimeSpan.FromHours(0.5), ExpiryOption.LT));
+            Assert.False(conn.KeyExpire(key, TimeSpan.FromHours(1.5), ExpiryOption.LT));
+        }
+
+        [Theory]
         [InlineData(true, true)]
         [InlineData(false, true)]
         [InlineData(true, false)]
