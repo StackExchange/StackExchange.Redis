@@ -14,6 +14,8 @@
 - Adds: Support for `ZDIFF`, `ZDIFFSTORE`, `ZINTER`, `ZINTERCARD`, and `ZUNION` with `.SortedSetCombine()`/`.SortedSetCombineAsync()`, `.SortedSetCombineWithScores()`/`.SortedSetCombineWithScoresAsync()`, and `.SortedSetIntersectionLength()`/`.SortedSetIntersectionLengthAsync()` ([#2075 by Avital-Fine](https://github.com/StackExchange/StackExchange.Redis/pull/2075))
 - Adds: Support for `SINTERCARD` with `.SetIntersectionLength()`/`.SetIntersectionLengthAsync()` ([#2078 by Avital-Fine](https://github.com/StackExchange/StackExchange.Redis/pull/2078))
 - Adds: Support for `LPOS` with `.ListPosition()`/`.ListPositionAsync()` and `.ListPositions()`/`.ListPositionsAsync()` ([#2080 by slorello89](https://github.com/StackExchange/StackExchange.Redis/pull/2080))
+- Adds: Support for `OBJECT ENCODIND` with `.KeyEncoding()`/`.KeyEncodingAsync()` ([#2088 by Avital-Fine](https://github.com/StackExchange/StackExchange.Redis/pull/2088))
+
 
 ## 2.5.61
 
