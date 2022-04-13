@@ -602,6 +602,7 @@ namespace StackExchange.Redis.Tests
         {
             using var muxer = Create();
             var db = muxer.GetDatabase();
+            Skip.IfBelow(muxer, RedisFeatures.v6_2_0);
             var hashKey = Me();
             var items = new HashEntry[] {new("new york", "yankees"), new("baltimore","orioles"), new("boston","red sox"), new("Tampa Bay","rays"), new("Toronto", "blue jays") };
             await db.HashSetAsync(hashKey, items);
@@ -629,6 +630,7 @@ namespace StackExchange.Redis.Tests
         {
             using var muxer = Create();
             var db = muxer.GetDatabase();
+            Skip.IfBelow(muxer, RedisFeatures.v6_2_0);
             var hashKey = Me();
             var items = new HashEntry[] {new("new york", "yankees"), new("baltimore","orioles"), new("boston","red sox"), new("Tampa Bay","rays"), new("Toronto", "blue jays") };
             db.HashSet(hashKey, items);
@@ -656,6 +658,7 @@ namespace StackExchange.Redis.Tests
         {
             using var muxer = Create();
             var db = muxer.GetDatabase();
+            Skip.IfBelow(muxer, RedisFeatures.v6_2_0);
             var hashKey = Me();
 
             var singleField = db.HashRandomField(hashKey);
