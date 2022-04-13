@@ -14,6 +14,7 @@
 - Adds: Support for `ZDIFF`, `ZDIFFSTORE`, `ZINTER`, `ZINTERCARD`, and `ZUNION` with `.SortedSetCombine()`/`.SortedSetCombineAsync()`, `.SortedSetCombineWithScores()`/`.SortedSetCombineWithScoresAsync()`, and `.SortedSetIntersectionLength()`/`.SortedSetIntersectionLengthAsync()` ([#2075 by Avital-Fine](https://github.com/StackExchange/StackExchange.Redis/pull/2075))
 - Adds: Support for `SINTERCARD` with `.SetIntersectionLength()`/`.SetIntersectionLengthAsync()` ([#2078 by Avital-Fine](https://github.com/StackExchange/StackExchange.Redis/pull/2078))
 - Adds: Support for `LPOS` with `.ListPosition()`/`.ListPositionAsync()` and `.ListPositions()`/`.ListPositionsAsync()` ([#2080 by slorello89](https://github.com/StackExchange/StackExchange.Redis/pull/2080))
+- Fix: For streams, properly hash `XACK`, `XCLAIM`, and `XPENDING` in cluster scenarios to eliminate `MOVED` retries ([#2085 by nielsderdaele](https://github.com/StackExchange/StackExchange.Redis/pull/2085))
 
 ## 2.5.61
 
