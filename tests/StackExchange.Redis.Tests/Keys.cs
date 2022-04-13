@@ -264,5 +264,25 @@ namespace StackExchange.Redis.Tests
                 Assert.True(idleTime1 < idleTime);
             }
         }
+
+        [Fact]
+        public async Task KeyEncoding()
+        {
+            using var muxer = Create();
+            var key = Me();
+            var db = muxer.GetDatabase();
+
+            db.KeyDelete(key, CommandFlags.FireAndForget);
+            db.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
+
+            Assert.Equal("embstr", db.KeyEncoding(key));
+            Assert.Equal("embstr", await db.KeyEncodingAsync(key));
+
+            db.KeyDelete(key, CommandFlags.FireAndForget);
+            db.ListLeftPush(key, "new value", flags: CommandFlags.FireAndForget);
+
+            Assert.Equal("quicklist", db.KeyEncoding(key));
+            Assert.Equal("quicklist", await db.KeyEncodingAsync(key));
+        }
     }
 }
