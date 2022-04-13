@@ -721,27 +721,27 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Boolean, server: server);
         }
 
-        public bool KeyExpire(RedisKey key, TimeSpan expiry, ExpiryOption expiryOption, CommandFlags flags = CommandFlags.None)
+        public bool KeyExpire(RedisKey key, TimeSpan expiryTime, ExpiryOption expiryOption, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetExpiryMessage(key, flags, expiry, out ServerEndPoint? server, expiryOption);
+            var msg = GetExpiryMessage(key, flags, expiryTime, out ServerEndPoint? server, expiryOption);
             return ExecuteSync(msg, ResultProcessor.Boolean, server: server);
         }
 
-        public bool KeyExpire(RedisKey key, DateTime expiry, ExpiryOption expiryOption, CommandFlags flags = CommandFlags.None)
+        public bool KeyExpire(RedisKey key, DateTime expiryTime, ExpiryOption expiryOption, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetExpiryMessage(key, flags, expiry, out ServerEndPoint? server, expiryOption);
+            var msg = GetExpiryMessage(key, flags, expiryTime, out ServerEndPoint? server, expiryOption);
             return ExecuteSync(msg, ResultProcessor.Boolean, server: server);
         }
 
-        public Task<bool> KeyExpireAsync(RedisKey key, TimeSpan expiry, ExpiryOption expiryOption, CommandFlags flags = CommandFlags.None)
+        public Task<bool> KeyExpireAsync(RedisKey key, TimeSpan expiryTime, ExpiryOption expiryOption, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetExpiryMessage(key, flags, expiry, out ServerEndPoint? server, expiryOption);
+            var msg = GetExpiryMessage(key, flags, expiryTime, out ServerEndPoint? server, expiryOption);
             return ExecuteAsync(msg, ResultProcessor.Boolean, server: server);
         }
 
-        public Task<bool> KeyExpireAsync(RedisKey key, DateTime expiry, ExpiryOption expiryOption, CommandFlags flags = CommandFlags.None)
+        public Task<bool> KeyExpireAsync(RedisKey key, DateTime expiryTime, ExpiryOption expiryOption, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetExpiryMessage(key, flags, expiry, out ServerEndPoint? server, expiryOption);
+            var msg = GetExpiryMessage(key, flags, expiryTime, out ServerEndPoint? server, expiryOption);
             return ExecuteAsync(msg, ResultProcessor.Boolean, server: server);
         }
 
