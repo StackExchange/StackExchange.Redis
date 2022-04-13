@@ -597,6 +597,15 @@ namespace StackExchange.Redis
         Task<RedisKey> KeyRandomAsync(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Returns the reference count of the object stored at <paramref name="key"/>.
+        /// </summary>
+        /// <param name="key">The key to get a reference count for.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The number of references (<see langword="Null"/> if the key does not exist).</returns>
+        /// <remarks>https://redis.io/commands/object-refcount</remarks>
+        Task<long?> KeyRefCountAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Renames <paramref name="key"/> to <paramref name="newKey"/>.
         /// It returns an error when the source and destination names are the same, or when key does not exist.
         /// </summary>

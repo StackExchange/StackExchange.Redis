@@ -174,6 +174,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<RedisKey> KeyRandomAsync(CommandFlags flags = CommandFlags.None) =>
             throw new NotSupportedException("RANDOMKEY is not supported when a key-prefix is specified");
 
+        public Task<long?> KeyRefCountAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
+            Inner.KeyRefCountAsync(ToInner(key), flags);
+
         public Task<bool> KeyRenameAsync(RedisKey key, RedisKey newKey, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
             Inner.KeyRenameAsync(ToInner(key), ToInner(newKey), when, flags);
 

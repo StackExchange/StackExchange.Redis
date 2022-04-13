@@ -164,6 +164,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public RedisKey KeyRandom(CommandFlags flags = CommandFlags.None) =>
             throw new NotSupportedException("RANDOMKEY is not supported when a key-prefix is specified");
 
+        public long? KeyRefCount(RedisKey key, CommandFlags flags = CommandFlags.None) =>
+            Inner.KeyRefCount(ToInner(key), flags);
+
         public bool KeyRename(RedisKey key, RedisKey newKey, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
             Inner.KeyRename(ToInner(key), ToInner(newKey), when, flags);
 
