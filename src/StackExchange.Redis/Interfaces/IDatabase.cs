@@ -637,7 +637,7 @@ namespace StackExchange.Redis
         /// <param name="newKey">The key to rename to.</param>
         /// <param name="when">What conditions to rename under (defaults to always).</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns><see langword="true"/> if the key was renamed, KeyRefCount otherwise.</returns>
+        /// <returns><see langword="true"/> if the key was renamed, <see langword="false"/> otherwise.</returns>
         /// <remarks>https://redis.io/commands/rename</remarks>
         /// <remarks>https://redis.io/commands/renamenx</remarks>
         bool KeyRename(RedisKey key, RedisKey newKey, When when = When.Always, CommandFlags flags = CommandFlags.None);
