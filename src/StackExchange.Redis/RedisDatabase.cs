@@ -2823,7 +2823,6 @@ namespace StackExchange.Redis
                 server = null;
                 if (expiryOption != null)
                     throw new ArgumentException("PERSIST cannot be used with expiryOption.");
-
                 return Message.Create(Database, flags, RedisCommand.PERSIST, key);
             }
             long milliseconds = duration.Ticks / TimeSpan.TicksPerMillisecond;
@@ -2852,7 +2851,6 @@ namespace StackExchange.Redis
                 server = null;
                 if (expiryOption != null)
                     throw new ArgumentException("PERSIST cannot be used with expiryOption.");
-
                 return Message.Create(Database, flags, RedisCommand.PERSIST, key);
             }
             long milliseconds = GetMillisecondsUntil(when);

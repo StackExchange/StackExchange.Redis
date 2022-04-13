@@ -617,6 +617,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The time at which the given key will expire, or <see langword="Null"/> if the key does not exist or the key exists but has no associated expiration time.</returns>
         /// <remarks>https://redis.io/commands/expiretime</remarks>
+        /// <remarks>https://redis.io/commands/pexpiretime</remarks>
         Task<TimeSpan?> KeyExpireTimeAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
