@@ -3007,51 +3007,94 @@ namespace StackExchange.Redis
 
         private Message GetMultiStreamReadGroupMessage(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, bool noAck, CommandFlags flags)
         {
-            // Example: XREADGROUP GROUP groupName consumerName COUNT countPerStream STREAMS stream1 stream2 id1 id2
-            if (streamPositions == null) throw new ArgumentNullException(nameof(streamPositions));
-            if (streamPositions.Length == 0) throw new ArgumentOutOfRangeException(nameof(streamPositions), "streamOffsetPairs must contain at least one item.");
+            return new MultiStreamReadGroupCommandMessage(Database,
+                flags,
+                streamPositions,
+                groupName,
+                consumerName,
+                countPerStream,
+                noAck);
+        }
+        private sealed class MultiStreamReadGroupCommandMessage : Message // XREADGROUP with multiple stream. Example: XREADGROUP GROUP groupName consumerName COUNT countPerStream STREAMS stream1 stream2 id1 id2
+        {
+            private readonly StreamPosition[] streamPositions;
+            private readonly RedisValue groupName;
+            private readonly RedisValue consumerName;            
+            private readonly int? countPerStream;
+            private readonly bool noAck;
+            private readonly int argCount;
 
-            if (countPerStream.HasValue && countPerStream <= 0)
+            public MultiStreamReadGroupCommandMessage(int db, CommandFlags flags, StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, bool noAck)
+                : base(db, flags, RedisCommand.XREADGROUP)
             {
-                throw new ArgumentOutOfRangeException(nameof(countPerStream), "countPerStream must be greater than 0.");
+                if (streamPositions == null) throw new ArgumentNullException(nameof(streamPositions));
+                if (streamPositions.Length == 0) throw new ArgumentOutOfRangeException(nameof(streamPositions), "streamOffsetPairs must contain at least one item.");
+                for (int i = 0; i < streamPositions.Length; i++)
+                {
+                    streamPositions[i].Key.AssertNotNull();
+                }
+
+                if (countPerStream.HasValue && countPerStream <= 0)
+                {
+                    throw new ArgumentOutOfRangeException(nameof(countPerStream), "countPerStream must be greater than 0.");
+                }                
+
+                groupName.AssertNotNull();
+                consumerName.AssertNotNull();
+                
+                this.streamPositions = streamPositions;
+                this.groupName = groupName;
+                this.consumerName = consumerName;
+                this.countPerStream = countPerStream;
+                this.noAck = noAck;
+
+                argCount =  4                               // Room for GROUP groupName consumerName & STREAMS
+                    + (streamPositions.Length * 2)          // Enough room for the stream keys and associated IDs.
+                    + (countPerStream.HasValue ? 2 : 0)     // Room for "COUNT num" or 0 if countPerStream is null.
+                    + (noAck ? 1 : 0);                      // Allow for the NOACK subcommand.
+                 
             }
 
-            var values = new RedisValue[
-                4                                       // Room for GROUP groupName consumerName & STREAMS
-                + (streamPositions.Length * 2)          // Enough room for the stream keys and associated IDs.
-                + (countPerStream.HasValue ? 2 : 0)     // Room for "COUNT num" or 0 if countPerStream is null.
-                + (noAck ? 1 : 0)];                     // Allow for the NOACK subcommand.
-
-            var offset = 0;
-
-            values[offset++] = StreamConstants.Group;
-            values[offset++] = groupName;
-            values[offset++] = consumerName;
-
-            if (countPerStream.HasValue)
+            public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
             {
-                values[offset++] = StreamConstants.Count;
-                values[offset++] = countPerStream;
+                int slot = ServerSelectionStrategy.NoSlot;
+                for (int i = 0; i < streamPositions.Length; i++)
+                {
+                    slot = serverSelectionStrategy.CombineSlot(slot, streamPositions[i].Key);
+                }
+                return slot;
             }
 
-            if (noAck)
+            protected override void WriteImpl(PhysicalConnection physical)
             {
-                values[offset++] = StreamConstants.NoAck;
-            }
+                physical.WriteHeader(Command, argCount);
+                physical.WriteBulkString(StreamConstants.Group);
+                physical.WriteBulkString(groupName);
+                physical.WriteBulkString(consumerName);
 
-            values[offset++] = StreamConstants.Streams;
+                if (countPerStream.HasValue)
+                {
+                    physical.WriteBulkString(StreamConstants.Count);
+                    physical.WriteBulkString(countPerStream.Value);
+                }
 
-            var pairCount = streamPositions.Length;
+                if (noAck)
+                {
+                    physical.WriteBulkString(StreamConstants.NoAck);
+                }
 
-            for (var i = 0; i < pairCount; i++)
-            {
-                values[offset] = streamPositions[i].Key.AsRedisValue();
-                values[offset + pairCount] = StreamPosition.Resolve(streamPositions[i].Position, RedisCommand.XREADGROUP);
+                physical.WriteBulkString(StreamConstants.Streams);
+                for (int i = 0; i < streamPositions.Length; i++)
+                {
+                    physical.Write(streamPositions[i].Key);                    
+                }
+                for (int i = 0; i < streamPositions.Length; i++)
+                {
+                    physical.WriteBulkString(StreamPosition.Resolve(streamPositions[i].Position, RedisCommand.XREADGROUP));
+                }                
+            }            
 
-                offset++;
-            }
-
-            return Message.Create(Database, flags, RedisCommand.XREADGROUP, values);
+            public override int ArgCount => argCount;
         }
 
         private Message GetMultiStreamReadMessage(StreamPosition[] streamPositions, int? countPerStream, CommandFlags flags)
