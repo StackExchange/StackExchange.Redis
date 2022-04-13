@@ -171,12 +171,114 @@ namespace StackExchange.Redis
         }
 
         private static readonly RedisValue
-            WITHCOORD = Encoding.ASCII.GetBytes("WITHCOORD"),
-            WITHDIST = Encoding.ASCII.GetBytes("WITHDIST"),
-            WITHHASH = Encoding.ASCII.GetBytes("WITHHASH"),
-            COUNT = Encoding.ASCII.GetBytes("COUNT"),
             ASC = Encoding.ASCII.GetBytes("ASC"),
             DESC = Encoding.ASCII.GetBytes("DESC");
+
+        private static int NumRadiusOptions(GeoRadiusOptions options)
+        {
+            var i = 0;
+            if ((options & GeoRadiusOptions.WithCoordinates) != 0)
+            {
+                i++;
+            }
+
+            if ((options & GeoRadiusOptions.WithDistance) != 0)
+            {
+                i++;
+            }
+
+            if ((options & GeoRadiusOptions.WithGeoHash) != 0)
+            {
+                i++;
+            }
+
+            return i;
+        }
+
+        private static int GeoSearchArgumentCount(RedisValue? member, int count, Order? order, GeoRadiusOptions options, bool demandClosest, bool storeDistances, GeoSearchShape shape)
+        {
+            var i = 0;
+            i += member != null ? 2 : 3; // number of args for subcommand
+            i += (count >= 0 ? 2 : 0) + (!demandClosest ? 1 : 0); // number of args for count
+            i += NumRadiusOptions(options); // number of result sub-command arguments
+            i += shape.ArgCount; // number of arguments required of the sub-command
+            i += storeDistances ? 1 : 0; // num of args required for storeDistance sub-command
+            i += order != null ? 1 : 0; // num of args required for order option
+
+            return i;
+        }
+
+        private Message GetGeoSearchMessage(in RedisKey sourceKey, in RedisKey destinationKey, RedisValue? member, double longitude, double latitude, GeoSearchShape shape, int count, bool demandClosest, bool storeDistances, Order? order, GeoRadiusOptions options, CommandFlags flags)
+        {
+            var command = destinationKey.IsNull ? RedisCommand.GEOSEARCH : RedisCommand.GEOSEARCHSTORE;
+            var arr = new RedisValue[GeoSearchArgumentCount(member, count, order, options, demandClosest, storeDistances, shape)];
+            int i = 0;
+
+            if (member != null)
+            {
+                arr[i++] = RedisLiterals.FROMMEMBER;
+                arr[i++] = member.Value;
+            }
+            else
+            {
+                arr[i++] = RedisLiterals.FROMLONLAT;
+                arr[i++] = longitude;
+                arr[i++] = latitude;
+            }
+
+            foreach (var item in shape.GetArgs())
+            {
+                arr[i++] = item;
+            }
+
+            if (order != null)
+            {
+                arr[i++] = order.Value.ToLiteral();
+            }
+
+            if (count >= 0)
+            {
+                arr[i++] = RedisLiterals.COUNT;
+                arr[i++] = count;
+            }
+
+            if (!demandClosest)
+            {
+                if (count < 0)
+                {
+                    throw new ArgumentException($"{nameof(demandClosest)} must be true if you are not limiting the count for a GEOSEARCH");
+                }
+                arr[i++] = RedisLiterals.ANY;
+            }
+
+            if ((options & GeoRadiusOptions.WithCoordinates) != 0)
+            {
+                arr[i++] = RedisLiterals.WITHCOORD;
+            }
+
+            if ((options & GeoRadiusOptions.WithDistance) != 0)
+            {
+                arr[i++] = RedisLiterals.WITHDIST;
+            }
+
+            if ((options & GeoRadiusOptions.WithGeoHash) != 0)
+            {
+                arr[i++] = RedisLiterals.WITHHASH;
+            }
+
+            if (storeDistances)
+            {
+                arr[i++] = RedisLiterals.STOREDIST;
+            }
+
+            if (destinationKey.IsNull)
+            {
+                return Message.Create(Database, flags, command, sourceKey, arr);
+            }
+
+            return Message.Create(Database, flags, command, destinationKey, sourceKey, arr);
+        }
+
         private Message GetGeoRadiusMessage(in RedisKey key, RedisValue? member, double longitude, double latitude, double radius, GeoUnit unit, int count, Order? order, GeoRadiusOptions options, CommandFlags flags)
         {
             var redisValues = new List<RedisValue>();
@@ -194,22 +296,17 @@ namespace StackExchange.Redis
             }
             redisValues.Add(radius);
             redisValues.Add(StackExchange.Redis.GeoPosition.GetRedisUnit(unit));
-            if ((options & GeoRadiusOptions.WithCoordinates) != 0) redisValues.Add(WITHCOORD);
-            if ((options & GeoRadiusOptions.WithDistance) != 0) redisValues.Add(WITHDIST);
-            if ((options & GeoRadiusOptions.WithGeoHash) != 0) redisValues.Add(WITHHASH);
+            if ((options & GeoRadiusOptions.WithCoordinates) != 0) redisValues.Add(RedisLiterals.WITHCOORD);
+            if ((options & GeoRadiusOptions.WithDistance) != 0) redisValues.Add(RedisLiterals.WITHDIST);
+            if ((options & GeoRadiusOptions.WithGeoHash) != 0) redisValues.Add(RedisLiterals.WITHHASH);
             if (count > 0)
             {
-                redisValues.Add(COUNT);
+                redisValues.Add(RedisLiterals.COUNT);
                 redisValues.Add(count);
             }
             if (order != null)
             {
-                switch (order.Value)
-                {
-                    case Order.Ascending: redisValues.Add(ASC); break;
-                    case Order.Descending: redisValues.Add(DESC); break;
-                    default: throw new ArgumentOutOfRangeException(nameof(order));
-                }
+                redisValues.Add(order.Value.ToLiteral());
             }
 
             return Message.Create(Database, flags, command, key, redisValues.ToArray());
@@ -240,9 +337,58 @@ namespace StackExchange.Redis
             return ExecuteSync(GetGeoRadiusMessage(key, null, longitude, latitude, radius, unit, count, order, options, flags), ResultProcessor.GeoRadiusArray(options), defaultValue: Array.Empty<GeoRadiusResult>());
         }
 
+        public GeoRadiusResult[] GeoSearchByMember(RedisKey key, RedisValue member, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, GeoRadiusOptions options = GeoRadiusOptions.Default, CommandFlags flags = CommandFlags.None)
+
+        {
+            var msg = GetGeoSearchMessage(key, RedisKey.Null, member, double.NaN, double.NaN, shape, count, demandClosest, false, order, options, flags);
+            return ExecuteSync(msg, ResultProcessor.GeoRadiusArray(options), defaultValue: Array.Empty<GeoRadiusResult>());
+        }
+
+        public long GeoSearchByMemberAndStore(RedisKey sourceKey, RedisKey destinationKey, RedisValue member, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, bool storeDistances = false, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetGeoSearchMessage(sourceKey, destinationKey, member, double.NaN, double.NaN, shape, count, demandClosest, storeDistances, order, GeoRadiusOptions.None, flags);
+            return ExecuteSync(msg, ResultProcessor.Int64);
+        }
+
+        public GeoRadiusResult[] GeoSearchByCoordinates(RedisKey key, double longitude, double latitude, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, GeoRadiusOptions options = GeoRadiusOptions.Default, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetGeoSearchMessage(key, RedisKey.Null, null, longitude, latitude, shape, count, demandClosest, false, order, options, flags);
+            return ExecuteSync(msg, ResultProcessor.GeoRadiusArray(options), defaultValue: Array.Empty<GeoRadiusResult>());
+        }
+
+        public long GeoSearchByCoordinatesAndStore(RedisKey sourceKey, RedisKey destinationKey, double longitude, double latitude, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, bool storeDistances = false, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetGeoSearchMessage(sourceKey, destinationKey, null, longitude, latitude, shape, count, demandClosest, storeDistances, order, GeoRadiusOptions.None, flags);
+            return ExecuteSync(msg, ResultProcessor.Int64);
+        }
+
         public Task<GeoRadiusResult[]> GeoRadiusAsync(RedisKey key, double longitude, double latitude, double radius, GeoUnit unit, int count, Order? order, GeoRadiusOptions options, CommandFlags flags)
         {
             return ExecuteAsync(GetGeoRadiusMessage(key, null, longitude, latitude, radius, unit, count, order, options, flags), ResultProcessor.GeoRadiusArray(options), defaultValue: Array.Empty<GeoRadiusResult>());
+        }
+
+        public Task<GeoRadiusResult[]> GeoSearchByMemberAsync(RedisKey key, RedisValue member, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, GeoRadiusOptions options = GeoRadiusOptions.Default, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetGeoSearchMessage(key, RedisKey.Null, member, double.NaN, double.NaN, shape, count, demandClosest, false, order, options, flags);
+            return ExecuteAsync(msg, ResultProcessor.GeoRadiusArray(options), defaultValue: Array.Empty<GeoRadiusResult>());
+        }
+
+        public Task<long> GeoSearchByMemberAndStoreAsync(RedisKey sourceKey, RedisKey destinationKey, RedisValue member, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, bool storeDistances = false, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetGeoSearchMessage(sourceKey, destinationKey, member, double.NaN, double.NaN, shape, count, demandClosest, storeDistances, order, GeoRadiusOptions.None, flags);
+            return ExecuteAsync(msg, ResultProcessor.Int64);
+        }
+
+        public Task<GeoRadiusResult[]> GeoSearchByCoordinatesAsync(RedisKey key, double longitude, double latitude, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, GeoRadiusOptions options = GeoRadiusOptions.Default, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetGeoSearchMessage(key, RedisKey.Null, null, longitude, latitude, shape, count, demandClosest, false, order, options, flags);
+            return ExecuteAsync(msg, ResultProcessor.GeoRadiusArray(options), defaultValue: Array.Empty<GeoRadiusResult>());
+        }
+
+        public Task<long> GeoSearchByCoordinatesAndStoreAsync(RedisKey sourceKey, RedisKey destinationKey, double longitude, double latitude, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, bool storeDistances = false, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetGeoSearchMessage(sourceKey, destinationKey, null, longitude, latitude, shape, count, demandClosest, storeDistances, order, GeoRadiusOptions.None, flags);
+            return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
         public long HashDecrement(RedisKey key, RedisValue hashField, long value = 1, CommandFlags flags = CommandFlags.None)

@@ -46,9 +46,13 @@ namespace StackExchange.Redis
             AGGREGATE = "AGGREGATE",
             ALPHA = "ALPHA",
             AND = "AND",
+            ANY = "ANY",
+            ASC = "ASC",
             BEFORE = "BEFORE",
             BY = "BY",
+            BYBOX = "BYBOX",
             BYLEX = "BYLEX",
+            BYRADIUS = "BYRADIUS",
             BYSCORE = "BYSCORE",
             CHANNELS = "CHANNELS",
             COPY = "COPY",
@@ -60,6 +64,8 @@ namespace StackExchange.Redis
             EXAT = "EXAT",
             EXISTS = "EXISTS",
             FLUSH = "FLUSH",
+            FROMMEMBER = "FROMMEMBER",
+            FROMLONLAT = "FROMLONLAT",
             GET = "GET",
             GETNAME = "GETNAME",
             HISTORY = "HISTORY",
@@ -103,6 +109,7 @@ namespace StackExchange.Redis
             SKIPME = "SKIPME",
             STATS = "STATS",
             STORE = "STORE",
+            STOREDIST = "STOREDIST",
             TYPE = "TYPE",
             WEIGHTS = "WEIGHTS",
             WITHSCORES = "WITHSCORES",
@@ -135,6 +142,12 @@ namespace StackExchange.Redis
             PlusSumbol = "+",
             Wildcard = "*",
 
+            // geo units
+            ft = "ft",
+            km = "km",
+            m = "m",
+            mi = "mi",
+
             // misc (config, etc)
             databases = "databases",
             master = "master",
@@ -149,6 +162,9 @@ namespace StackExchange.Redis
             slave = "slave",
             slave_read_only = "slave-read-only",
             timeout = "timeout",
+            WITHCOORD = "WITHCOORD",
+            WITHDIST = "WITHDIST",
+            WITHHASH = "WITHHASH",
             yes = "yes";
 
         internal static RedisValue Get(Bitwise operation) => operation switch

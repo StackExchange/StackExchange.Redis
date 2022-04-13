@@ -181,6 +181,70 @@ namespace StackExchange.Redis
         Task<GeoRadiusResult[]> GeoRadiusAsync(RedisKey key, double longitude, double latitude, double radius, GeoUnit unit = GeoUnit.Meters, int count = -1, Order? order = null, GeoRadiusOptions options = GeoRadiusOptions.Default, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Return the members of the geo-encoded sorted set stored at <paramref name="key"/> bounded by the provided
+        /// <paramref name="shape"/>, centered at the provided set <paramref name="member"/>.
+        /// </summary>
+        /// <param name="key">The key of the set.</param>
+        /// <param name="member">The set member to use as the center of the shape.</param>
+        /// <param name="shape">The shape to use to bound the GeoSearch</param>
+        /// <param name="count">The maximum number of results to pull back.</param>
+        /// <param name="demandClosest">Whether or not to terminate the search after finding <paramref name="count"/> results, must be true of count is -1.</param>
+        /// <param name="order">The order of the results</param>
+        /// <param name="options">The search options to use</param>
+        /// <param name="flags">The flags for this operation.</param>
+        /// <returns>The results found within the shape, if any.</returns>
+        Task<GeoRadiusResult[]> GeoSearchByMemberAsync(RedisKey key, RedisValue member, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, GeoRadiusOptions options = GeoRadiusOptions.Default, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Stores the members of the geo-encoded sorted set stored at <paramref name="sourceKey"/> bounded by the provided
+        /// <paramref name="shape"/>, centered at the provided set <paramref name="member"/>.
+        /// </summary>
+        /// <param name="sourceKey">The key of the set.</param>
+        /// <param name="destinationKey">The key to store the result at.</param>
+        /// <param name="member">The set member to use as the center of the shape.</param>
+        /// <param name="shape">The shape to use to bound the GeoSearch</param>
+        /// <param name="count">The maximum number of results to pull back.</param>
+        /// <param name="demandClosest">Whether or not to terminate the search after finding <paramref name="count"/> results, must be true of count is -1.</param>
+        /// <param name="order">The order of the results</param>
+        /// <param name="storeDistances">If set to true, the resulting set will be a regular sorted-set containing only distances, rather than a geo-encoded sorted-set</param>
+        /// <param name="flags">The flags for this operation.</param>
+        /// <returns>The size of the resultant set.</returns>
+        Task<long> GeoSearchByMemberAndStoreAsync(RedisKey sourceKey, RedisKey destinationKey, RedisValue member, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, bool storeDistances = false, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Return the members of the geo-encoded sorted set stored at <paramref name="key"/> bounded by the provided
+        /// <paramref name="shape"/>, centered at the point provided by the <paramref name="longitude"/> and <paramref name="latitude"/>.
+        /// </summary>
+        /// <param name="key">The key of the set.</param>
+        /// <param name="longitude">The longitude of the center point.</param>
+        /// <param name="latitude">The latitude of the center point.</param>
+        /// <param name="shape">The shape to use to bound the GeoSearch</param>
+        /// <param name="count">The maximum number of results to pull back.</param>
+        /// <param name="demandClosest">Whether or not to terminate the search after finding <paramref name="count"/> results, must be true of count is -1.</param>
+        /// <param name="order">The order of the results</param>
+        /// <param name="options">The search options to use</param>
+        /// <param name="flags">The flags for this operation.</param>
+        /// <returns>The results found within the shape, if any.</returns>
+        Task<GeoRadiusResult[]> GeoSearchByCoordinatesAsync(RedisKey key, double longitude, double latitude, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, GeoRadiusOptions options = GeoRadiusOptions.Default, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Stores the members of the geo-encoded sorted set stored at <paramref name="sourceKey"/> bounded by the provided
+        /// <paramref name="shape"/>, centered at the point provided by the <paramref name="longitude"/> and <paramref name="latitude"/>.
+        /// </summary>
+        /// <param name="sourceKey">The key of the set.</param>
+        /// <param name="destinationKey">The key to store the result at.</param>
+        /// <param name="longitude">The longitude of the center point.</param>
+        /// <param name="latitude">The latitude of the center point.</param>
+        /// <param name="shape">The shape to use to bound the GeoSearch</param>
+        /// <param name="count">The maximum number of results to pull back.</param>
+        /// <param name="demandClosest">Whether or not to terminate the search after finding <paramref name="count"/> results, must be true of count is -1.</param>
+        /// <param name="order">The order of the results</param>
+        /// <param name="storeDistances">If set to true, the resulting set will be a regular sorted-set containing only distances, rather than a geo-encoded sorted-set</param>
+        /// <param name="flags">The flags for this operation.</param>
+        /// <returns>The size of the resultant set.</returns>
+        Task<long> GeoSearchByCoordinatesAndStoreAsync(RedisKey sourceKey, RedisKey destinationKey, double longitude, double latitude, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, bool storeDistances = false, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Decrements the number stored at field in the hash stored at key by decrement.
         /// If key does not exist, a new key holding a hash is created.
         /// If field does not exist the value is set to 0 before the operation is performed.

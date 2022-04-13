@@ -54,6 +54,18 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public GeoRadiusResult[] GeoRadius(RedisKey key, double longitude, double latitude, double radius, GeoUnit unit = GeoUnit.Meters, int count = -1, Order? order = null, GeoRadiusOptions options = GeoRadiusOptions.Default, CommandFlags flags = CommandFlags.None) =>
             Inner.GeoRadius(ToInner(key), longitude, latitude, radius, unit, count, order, options, flags);
 
+        public GeoRadiusResult[] GeoSearchByMember(RedisKey key, RedisValue member, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, GeoRadiusOptions options = GeoRadiusOptions.Default, CommandFlags flags = CommandFlags.None) =>
+            Inner.GeoSearchByMember(ToInner(key), member, shape, count, demandClosest, order, options, flags);
+
+        public long GeoSearchByMemberAndStore(RedisKey sourceKey, RedisKey destinationKey, RedisValue member, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, bool storeDistances = false, CommandFlags flags = CommandFlags.None) =>
+            Inner.GeoSearchByMemberAndStore(ToInner(sourceKey), ToInner(destinationKey), member, shape, count, demandClosest, order, storeDistances, flags);
+
+        public GeoRadiusResult[] GeoSearchByCoordinates(RedisKey key, double longitude, double latitude, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, GeoRadiusOptions options = GeoRadiusOptions.Default, CommandFlags flags = CommandFlags.None) =>
+            Inner.GeoSearchByCoordinates(ToInner(key), longitude, latitude, shape, count, demandClosest, order, options, flags);
+
+        public long GeoSearchByCoordinatesAndStore(RedisKey sourceKey, RedisKey destinationKey, double longitude, double latitude, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, bool storeDistances = false, CommandFlags flags = CommandFlags.None) =>
+            Inner.GeoSearchByCoordinatesAndStore(ToInner(sourceKey), ToInner(destinationKey), longitude, latitude, shape, count, demandClosest, order, storeDistances, flags);
+
         public double HashDecrement(RedisKey key, RedisValue hashField, double value, CommandFlags flags = CommandFlags.None) =>
             Inner.HashDecrement(ToInner(key), hashField, value, flags);
 
