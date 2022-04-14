@@ -601,10 +601,11 @@ namespace StackExchange.Redis.Tests
         public async Task HashRandomFieldAsync()
         {
             using var muxer = Create();
-            var db = muxer.GetDatabase();
             Skip.IfBelow(muxer, RedisFeatures.v6_2_0);
+
+            var db = muxer.GetDatabase();
             var hashKey = Me();
-            var items = new HashEntry[] {new("new york", "yankees"), new("baltimore","orioles"), new("boston","red sox"), new("Tampa Bay","rays"), new("Toronto", "blue jays") };
+            var items = new HashEntry[] { new("new york", "yankees"), new("baltimore", "orioles"), new("boston", "red sox"), new("Tampa Bay", "rays"), new("Toronto", "blue jays") };
             await db.HashSetAsync(hashKey, items);
 
             var singleField = await db.HashRandomFieldAsync(hashKey);
@@ -612,16 +613,16 @@ namespace StackExchange.Redis.Tests
             var withValues = await db.HashRandomFieldsWithValuesAsync(hashKey, 3);
             Assert.Equal(3, multiFields.Length);
             Assert.Equal(3, withValues.Length);
-            Assert.Contains(items, x =>x.Name == singleField);
+            Assert.Contains(items, x => x.Name == singleField);
 
             foreach (var field in multiFields)
             {
-                Assert.Contains(items, x =>x.Name == field);
+                Assert.Contains(items, x => x.Name == field);
             }
 
             foreach (var field in withValues)
             {
-                Assert.Contains(items, x =>x.Name == field.Name);
+                Assert.Contains(items, x => x.Name == field.Name);
             }
         }
 
@@ -629,10 +630,11 @@ namespace StackExchange.Redis.Tests
         public void HashRandomField()
         {
             using var muxer = Create();
-            var db = muxer.GetDatabase();
             Skip.IfBelow(muxer, RedisFeatures.v6_2_0);
+
+            var db = muxer.GetDatabase();
             var hashKey = Me();
-            var items = new HashEntry[] {new("new york", "yankees"), new("baltimore","orioles"), new("boston","red sox"), new("Tampa Bay","rays"), new("Toronto", "blue jays") };
+            var items = new HashEntry[] { new("new york", "yankees"), new("baltimore", "orioles"), new("boston", "red sox"), new("Tampa Bay", "rays"), new("Toronto", "blue jays") };
             db.HashSet(hashKey, items);
 
             var singleField = db.HashRandomField(hashKey);
@@ -640,16 +642,16 @@ namespace StackExchange.Redis.Tests
             var withValues = db.HashRandomFieldsWithValues(hashKey, 3);
             Assert.Equal(3, multiFields.Length);
             Assert.Equal(3, withValues.Length);
-            Assert.Contains(items, x =>x.Name == singleField);
+            Assert.Contains(items, x => x.Name == singleField);
 
             foreach (var field in multiFields)
             {
-                Assert.Contains(items, x =>x.Name == field);
+                Assert.Contains(items, x => x.Name == field);
             }
 
             foreach (var field in withValues)
             {
-                Assert.Contains(items, x =>x.Name == field.Name);
+                Assert.Contains(items, x => x.Name == field.Name);
             }
         }
 
@@ -657,8 +659,9 @@ namespace StackExchange.Redis.Tests
         public void HashRandomFieldEmptyHash()
         {
             using var muxer = Create();
-            var db = muxer.GetDatabase();
             Skip.IfBelow(muxer, RedisFeatures.v6_2_0);
+
+            var db = muxer.GetDatabase();
             var hashKey = Me();
 
             var singleField = db.HashRandomField(hashKey);
@@ -668,7 +671,6 @@ namespace StackExchange.Redis.Tests
             Assert.Equal(RedisValue.Null, singleField);
             Assert.Empty(multiFields);
             Assert.Empty(withValues);
-
         }
     }
 }
