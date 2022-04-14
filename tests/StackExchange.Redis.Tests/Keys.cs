@@ -284,5 +284,22 @@ namespace StackExchange.Redis.Tests
             Assert.Equal("quicklist", db.KeyEncoding(key));
             Assert.Equal("quicklist", await db.KeyEncodingAsync(key));
         }
+
+        [Fact]
+        public async Task KeyRefCount()
+        {
+            using var muxer = Create();
+            var key = Me();
+            var db = muxer.GetDatabase();
+            db.KeyDelete(key, CommandFlags.FireAndForget);
+            db.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
+
+            Assert.Equal(1, db.KeyRefCount(key));
+            Assert.Equal(1, await db.KeyRefCountAsync(key));
+
+            var keyNotExists = key + "no-exist";
+            Assert.Null(db.KeyRefCount(keyNotExists));
+            Assert.Null(await db.KeyRefCountAsync(keyNotExists));
+        }
     }
 }

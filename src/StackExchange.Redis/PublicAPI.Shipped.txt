@@ -532,6 +532,7 @@ StackExchange.Redis.IDatabase.KeyMigrate(StackExchange.Redis.RedisKey key, Syste
 StackExchange.Redis.IDatabase.KeyMove(StackExchange.Redis.RedisKey key, int database, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> bool
 StackExchange.Redis.IDatabase.KeyPersist(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> bool
 StackExchange.Redis.IDatabase.KeyRandom(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisKey
+StackExchange.Redis.IDatabase.KeyRefCount(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long?
 StackExchange.Redis.IDatabase.KeyRename(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisKey newKey, StackExchange.Redis.When when = StackExchange.Redis.When.Always, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> bool
 StackExchange.Redis.IDatabase.KeyRestore(StackExchange.Redis.RedisKey key, byte[]! value, System.TimeSpan? expiry = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> void
 StackExchange.Redis.IDatabase.KeyTimeToLive(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.TimeSpan?
@@ -733,6 +734,7 @@ StackExchange.Redis.IDatabaseAsync.KeyMigrateAsync(StackExchange.Redis.RedisKey 
 StackExchange.Redis.IDatabaseAsync.KeyMoveAsync(StackExchange.Redis.RedisKey key, int database, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<bool>!
 StackExchange.Redis.IDatabaseAsync.KeyPersistAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<bool>!
 StackExchange.Redis.IDatabaseAsync.KeyRandomAsync(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisKey>!
+StackExchange.Redis.IDatabaseAsync.KeyRefCountAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long?>!
 StackExchange.Redis.IDatabaseAsync.KeyRenameAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisKey newKey, StackExchange.Redis.When when = StackExchange.Redis.When.Always, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<bool>!
 StackExchange.Redis.IDatabaseAsync.KeyRestoreAsync(StackExchange.Redis.RedisKey key, byte[]! value, System.TimeSpan? expiry = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task!
 StackExchange.Redis.IDatabaseAsync.KeyTimeToLiveAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<System.TimeSpan?>!

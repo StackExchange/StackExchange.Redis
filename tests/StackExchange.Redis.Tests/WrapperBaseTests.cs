@@ -286,6 +286,13 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void KeyRefCountAsync()
+        {
+            wrapper.KeyRefCountAsync("key", CommandFlags.None);
+            mock.Verify(_ => _.KeyRefCountAsync("prefix:key", CommandFlags.None));
+        }
+
+        [Fact]
         public void KeyRenameAsync()
         {
             wrapper.KeyRenameAsync("key", "newKey", When.Exists, CommandFlags.None);
