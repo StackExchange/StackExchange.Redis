@@ -2825,18 +2825,18 @@ namespace StackExchange.Redis
             if ((milliseconds % 1000) != 0)
             {
                 var features = GetFeatures(key, flags, out server);
-                if (server != null && features.MillisecondExpiry && multiplexer.CommandMap.IsAvailable(RedisCommand.PEXPIRE))
+                if (server is not null && features.MillisecondExpiry && multiplexer.CommandMap.IsAvailable(RedisCommand.PEXPIRE))
                 {
-                    return when != ExpiryWhen.Always ?
-                    Message.Create(Database, flags, RedisCommand.PEXPIRE, key, milliseconds, when.ToLiteral()) :
-                    Message.Create(Database, flags, RedisCommand.PEXPIRE, key, milliseconds);
+                    return when != ExpiryWhen.Always
+                    ? Message.Create(Database, flags, RedisCommand.PEXPIRE, key, milliseconds, when.ToLiteral())
+                    : Message.Create(Database, flags, RedisCommand.PEXPIRE, key, milliseconds);
                 }
             }
             server = null;
             long seconds = milliseconds / 1000;
-            return when != ExpiryWhen.Always ?
-            Message.Create(Database, flags, RedisCommand.EXPIRE, key, seconds, when.ToLiteral()) :
-            Message.Create(Database, flags, RedisCommand.EXPIRE, key, seconds);
+            return when != ExpiryWhen.Always
+            ? Message.Create(Database, flags, RedisCommand.EXPIRE, key, seconds, when.ToLiteral())
+            : Message.Create(Database, flags, RedisCommand.EXPIRE, key, seconds);
         }
 
         private Message GetExpiryMessage(in RedisKey key, CommandFlags flags, DateTime? expiry, out ServerEndPoint? server, ExpiryWhen expireWhen = ExpiryWhen.Always)
@@ -2853,18 +2853,18 @@ namespace StackExchange.Redis
             if ((milliseconds % 1000) != 0)
             {
                 var features = GetFeatures(key, flags, out server);
-                if (server != null && features.MillisecondExpiry && multiplexer.CommandMap.IsAvailable(RedisCommand.PEXPIREAT))
+                if (server is not null && features.MillisecondExpiry && multiplexer.CommandMap.IsAvailable(RedisCommand.PEXPIREAT))
                 {
-                    return expireWhen != ExpiryWhen.Always ?
-                    Message.Create(Database, flags, RedisCommand.PEXPIREAT, key, milliseconds, expireWhen.ToLiteral()) :
-                    Message.Create(Database, flags, RedisCommand.PEXPIREAT, key, milliseconds);
+                    return expireWhen != ExpiryWhen.Always
+                    ? Message.Create(Database, flags, RedisCommand.PEXPIREAT, key, milliseconds, expireWhen.ToLiteral())
+                    : Message.Create(Database, flags, RedisCommand.PEXPIREAT, key, milliseconds);
                 }
             }
             server = null;
             long seconds = milliseconds / 1000;
-            return expireWhen != ExpiryWhen.Always ?
-            Message.Create(Database, flags, RedisCommand.EXPIREAT, key, seconds, expireWhen.ToLiteral()) :
-            Message.Create(Database, flags, RedisCommand.EXPIREAT, key, seconds);
+            return expireWhen != ExpiryWhen.Always
+            ? Message.Create(Database, flags, RedisCommand.EXPIREAT, key, seconds, expireWhen.ToLiteral())
+            : Message.Create(Database, flags, RedisCommand.EXPIREAT, key, seconds);
         }
 
         private Message? GetHashSetMessage(RedisKey key, HashEntry[] hashFields, CommandFlags flags)
