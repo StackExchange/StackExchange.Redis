@@ -1744,18 +1744,21 @@ The coordinates as a two items x,y array (longitude,latitude).
             {
                 // See https://redis.io/commands/xautoclaim for command documentation.
 
-                // NOTE: Starting in 7.0, a third array will be returned in the result.
-                //       It will contain IDs of deleted messages from the pending entry list.
-
                 if (!result.IsNull)
                 {
                     var items = result.GetItems();
 
-                    // [0] will be the next start ID.
+                    // [0] The next start ID.
                     var nextStartId = items[0].AsRedisValue();
 
-                    // [1] will be the array of either StreamEntry's or message IDs.
+                    // [1] The array of either StreamEntry's or message IDs.
                     var entriesOrIds = items[1].GetItems();
+
+                    // [2] Contains the list of message IDs deleted from the stream.
+                    //     This is available starting in 7.0.
+                    var deletedIds = items.Length == 3
+                        ? items[2].GetItemsAsValues() ?? Array.Empty<RedisValue>()
+                        : Array.Empty<RedisValue>();
 
                     var arr = new StreamEntry[entriesOrIds.Length];
 
@@ -1768,7 +1771,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                             : ParseRedisStreamEntry(entriesOrIds[i]);
                     }
 
-                    SetResult(message, new StreamAutoClaimResult(nextStartId, arr));
+                    SetResult(message, new StreamAutoClaimResult(nextStartId, arr, deletedIds));
                     return true;
                 }
 

@@ -7,10 +7,11 @@ namespace StackExchange.Redis
     /// </summary>
     public readonly struct StreamAutoClaimResult
     {
-        internal StreamAutoClaimResult(RedisValue nextStartId, StreamEntry[] claimedEntries)
+        internal StreamAutoClaimResult(RedisValue nextStartId, StreamEntry[] claimedEntries, RedisValue[] deletedIds)
         {
             NextStartId = nextStartId;
             ClaimedEntries = claimedEntries ?? Array.Empty<StreamEntry>();
+            DeletedIds = deletedIds ?? Array.Empty<RedisValue>();
         }
 
         /// <summary>
@@ -22,5 +23,10 @@ namespace StackExchange.Redis
         /// An array of <see cref="StreamEntry"/> for the successfully claimed entries.
         /// </summary>
         public StreamEntry[] ClaimedEntries { get; }
+
+        /// <summary>
+        /// An array of message IDs deleted from the stream.
+        /// </summary>
+        public RedisValue[] DeletedIds { get; }
     }
 }

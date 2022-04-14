@@ -1356,6 +1356,7 @@ StackExchange.Redis.SortType.Alphabetic = 1 -> StackExchange.Redis.SortType
 StackExchange.Redis.SortType.Numeric = 0 -> StackExchange.Redis.SortType
 StackExchange.Redis.StreamAutoClaimResult
 StackExchange.Redis.StreamAutoClaimResult.ClaimedEntries.get -> StackExchange.Redis.StreamEntry[]!
+StackExchange.Redis.StreamAutoClaimResult.DeletedIds.get -> StackExchange.Redis.RedisValue[]!
 StackExchange.Redis.StreamAutoClaimResult.NextStartId.get -> StackExchange.Redis.RedisValue
 StackExchange.Redis.StreamAutoClaimResult.StreamAutoClaimResult() -> void
 StackExchange.Redis.StreamConsumer
