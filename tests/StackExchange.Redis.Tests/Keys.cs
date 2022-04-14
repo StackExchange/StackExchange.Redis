@@ -285,6 +285,10 @@ namespace StackExchange.Redis.Tests
             var listTypes = new [] { "ziplist", "quicklist" };
             Assert.Contains(db.KeyEncoding(key), listTypes);
             Assert.Contains(await db.KeyEncodingAsync(key), listTypes);
+
+            var keyNotExists = key + "no-exist";
+            Assert.Null(db.KeyEncoding(keyNotExists));
+            Assert.Null(await db.KeyEncodingAsync(keyNotExists));
         }
 
         [Fact]
