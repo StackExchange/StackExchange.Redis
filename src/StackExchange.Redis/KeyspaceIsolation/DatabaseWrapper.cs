@@ -167,7 +167,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public bool KeyExpire(RedisKey key, TimeSpan? expiry, ExpiryWhen when, CommandFlags flags = CommandFlags.None) =>
             Inner.KeyExpire(ToInner(key), expiry, when, flags);
 
-        public TimeSpan? KeyExpireTime(RedisKey key, CommandFlags flags = CommandFlags.None) =>
+        public DateTime? KeyExpireTime(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.KeyExpireTime(ToInner(key), flags);
 
         public TimeSpan? KeyIdleTime(RedisKey key, CommandFlags flags = CommandFlags.None) =>

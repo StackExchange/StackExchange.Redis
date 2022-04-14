@@ -623,14 +623,14 @@ namespace StackExchange.Redis
         Task<bool> KeyExpireAsync(RedisKey key, DateTime? expiry, ExpiryWhen when, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Returns the absolute Unix timestamp (since January 1, 1970) in seconds at which the given key will expire.
+        /// Returns the absolute time at which the given <paramref name="key"/> will expire, if it exists and has a expiration.
         /// </summary>
-        /// <param name="key">The key to get the expiration from.</param>
+        /// <param name="key">The key to get the expiration for.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The time at which the given key will expire, or <see langword="Null"/> if the key does not exist or the key exists but has no associated expiration time.</returns>
+        /// <returns>The time at which the given key will expire, or <see langword="null"/> if the key does not exist or the key exists but has no associated expiration time.</returns>
         /// <remarks>https://redis.io/commands/expiretime</remarks>
         /// <remarks>https://redis.io/commands/pexpiretime</remarks>
-        Task<TimeSpan?> KeyExpireTimeAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
+        Task<DateTime?> KeyExpireTimeAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Returns the time since the object stored at the specified key is idle (not requested by read or write operations).

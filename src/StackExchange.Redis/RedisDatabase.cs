@@ -781,16 +781,16 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Boolean, server: server);
         }
 
-        public TimeSpan? KeyExpireTime(RedisKey key, CommandFlags flags = CommandFlags.None)
+        public DateTime? KeyExpireTime(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(Database, flags, RedisCommand.EXPIRETIME, key);
-            return ExecuteSync(msg, ResultProcessor.TimeSpanFromSeconds);
+            var msg = Message.Create(Database, flags, RedisCommand.PEXPIRETIME, key);
+            return ExecuteSync(msg, ResultProcessor.NullableDateTimeFromMilliseconds);
         }
 
-        public Task<TimeSpan?> KeyExpireTimeAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
+        public Task<DateTime?> KeyExpireTimeAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(Database, flags, RedisCommand.EXPIRETIME, key);
-            return ExecuteAsync(msg, ResultProcessor.TimeSpanFromSeconds);
+            var msg = Message.Create(Database, flags, RedisCommand.PEXPIRETIME, key);
+            return ExecuteAsync(msg, ResultProcessor.NullableDateTimeFromMilliseconds);
         }
 
         public TimeSpan? KeyIdleTime(RedisKey key, CommandFlags flags = CommandFlags.None)
