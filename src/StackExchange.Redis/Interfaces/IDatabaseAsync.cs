@@ -1867,6 +1867,22 @@ namespace StackExchange.Redis
         Task<RedisValue> StreamAddAsync(RedisKey key, NameValueEntry[] streamPairs, RedisValue? messageId = null, int? maxLength = null, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Change ownership of messages consumed, but not yet acknowledged, by a different consumer. Messages that
+        /// have been idle for more than <paramref name="minIdleTimeInMs"/> will be claimed.
+        /// </summary>
+        /// <param name="key">The key of the stream.</param>
+        /// <param name="consumerGroup">The consumer group.</param>
+        /// <param name="claimingConsumer">The consumer claiming the messages that are currently pending and have an idle time greater than <paramref name="minIdleTimeInMs"/>.</param>
+        /// <param name="minIdleTimeInMs">The minimum idle time for pending messages.</param>
+        /// <param name="startAtId">The starting ID to scan for pending messsages that have an idle time greater than <paramref name="minIdleTimeInMs"/>.</param>
+        /// <param name="count">The upper limit of the number of entries that the command attempts to claim. If <see langword="null"/>, Redis will default the value to 100.</param>
+        /// <param name="idsOnly">Only return the <see cref="StreamEntry.Id"/> for the claimed messages. If <see langword="true"/>, the <see cref="StreamEntry.Values"/> array will be empty.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>An instance of <see cref="StreamAutoClaimResult"/>.</returns>
+        /// <remarks>https://redis.io/commands/xautoclaim</remarks>
+        Task<StreamAutoClaimResult> StreamAutoClaimAsync(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue startAtId, int? count = null, bool idsOnly = false, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Change ownership of messages consumed, but not yet acknowledged, by a different consumer.
         /// This method returns the complete message for the claimed message(s).
         /// </summary>

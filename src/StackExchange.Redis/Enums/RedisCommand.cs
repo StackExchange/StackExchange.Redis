@@ -182,6 +182,7 @@
 
         XACK,
         XADD,
+        XAUTOCLAIM,
         XCLAIM,
         XDEL,
         XGROUP,

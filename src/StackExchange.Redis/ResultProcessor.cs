@@ -114,6 +114,12 @@ namespace StackExchange.Redis
         public static readonly SingleStreamProcessor
             SingleStreamWithNameSkip = new SingleStreamProcessor(skipStreamName: true);
 
+        public static readonly StreamAutoClaimProcessor
+            StreamAutoClaim = new StreamAutoClaimProcessor();
+
+        public static readonly StreamAutoClaimProcessor
+            StreamAutoClaimIdsOnly = new StreamAutoClaimProcessor(processIdsOnly: true);
+
         public static readonly StreamConsumerInfoProcessor
             StreamConsumerInfo = new StreamConsumerInfoProcessor();
 
@@ -1722,6 +1728,51 @@ The coordinates as a two items x,y array (longitude,latitude).
 
                 SetResult(message, streams);
                 return true;
+            }
+        }
+
+        internal sealed class StreamAutoClaimProcessor : StreamProcessorBase<StreamAutoClaimResult>
+        {
+            private readonly bool processIdsOnly;
+
+            public StreamAutoClaimProcessor(bool processIdsOnly = false)
+            {
+                this.processIdsOnly = processIdsOnly;
+            }
+
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                // See https://redis.io/commands/xautoclaim for command documentation.
+
+                // NOTE: Starting in 7.0, a third array will be returned in the result.
+                //       It will contain IDs of deleted messages from the pending entry list.
+
+                if (!result.IsNull)
+                {
+                    var items = result.GetItems();
+
+                    // [0] will be the next start ID.
+                    var nextStartId = items[0].AsRedisValue();
+
+                    // [1] will be the array of either StreamEntry's or message IDs.
+                    var entriesOrIds = items[1].GetItems();
+
+                    var arr = new StreamEntry[entriesOrIds.Length];
+
+                    for (var i = 0; i < arr.Length; i++)
+                    {
+                        var item = entriesOrIds[i];
+
+                        arr[i] = processIdsOnly
+                            ? new StreamEntry(item.AsRedisValue(), Array.Empty<NameValueEntry>())
+                            : ParseRedisStreamEntry(entriesOrIds[i]);
+                    }
+
+                    SetResult(message, new StreamAutoClaimResult(nextStartId, arr));
+                    return true;
+                }
+
+                return false;
             }
         }
 
