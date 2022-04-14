@@ -96,6 +96,16 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<long> HashLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.HashLengthAsync(ToInner(key), flags);
 
+        public Task<RedisValue> HashRandomFieldAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
+            Inner.HashRandomFieldAsync(ToInner(key), flags);
+
+        public Task<RedisValue[]> HashRandomFieldsAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None) =>
+            Inner.HashRandomFieldsAsync(ToInner(key), count, flags);
+
+        public Task<HashEntry[]> HashRandomFieldsWithValuesAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None) =>
+            Inner.HashRandomFieldsWithValuesAsync(ToInner(key), count, flags);
+
+
         public IAsyncEnumerable<HashEntry> HashScanAsync(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags) =>
             Inner.HashScanAsync(ToInner(key), pattern, pageSize, cursor, pageOffset, flags);
 
@@ -146,6 +156,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public Task<byte[]?> KeyDumpAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.KeyDumpAsync(ToInner(key), flags);
+
+        public Task<string?> KeyEncodingAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
+            Inner.KeyEncodingAsync(ToInner(key), flags);
 
         public Task<bool> KeyExistsAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.KeyExistsAsync(ToInner(key), flags);
@@ -463,6 +476,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public Task<double?> SortedSetScoreAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetScoreAsync(ToInner(key), member, flags);
+
+        public Task<double?[]> SortedSetScoresAsync(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None) =>
+            Inner.SortedSetScoresAsync(ToInner(key), members, flags);
 
         public IAsyncEnumerable<SortedSetEntry> SortedSetScanAsync(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags) =>
             Inner.SortedSetScanAsync(ToInner(key), pattern, pageSize, cursor, pageOffset, flags);
