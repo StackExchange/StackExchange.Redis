@@ -721,27 +721,27 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Boolean, server: server);
         }
 
-        public bool KeyExpire(RedisKey key, TimeSpan expiryTime, ExpiryOption expiryOption, CommandFlags flags = CommandFlags.None)
+        public bool KeyExpire(RedisKey key, TimeSpan expiry, ExpiryWhen expireWhen, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetExpiryMessage(key, flags, expiryTime, out ServerEndPoint? server, expiryOption);
+            var msg = GetExpiryMessage(key, flags, expiry, out ServerEndPoint? server, expireWhen);
             return ExecuteSync(msg, ResultProcessor.Boolean, server: server);
         }
 
-        public bool KeyExpire(RedisKey key, DateTime expiryTime, ExpiryOption expiryOption, CommandFlags flags = CommandFlags.None)
+        public bool KeyExpire(RedisKey key, DateTime expire, ExpiryWhen expireWhen, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetExpiryMessage(key, flags, expiryTime, out ServerEndPoint? server, expiryOption);
+            var msg = GetExpiryMessage(key, flags, expire, out ServerEndPoint? server, expireWhen);
             return ExecuteSync(msg, ResultProcessor.Boolean, server: server);
         }
 
-        public Task<bool> KeyExpireAsync(RedisKey key, TimeSpan expiryTime, ExpiryOption expiryOption, CommandFlags flags = CommandFlags.None)
+        public Task<bool> KeyExpireAsync(RedisKey key, TimeSpan expiry, ExpiryWhen expireWhen, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetExpiryMessage(key, flags, expiryTime, out ServerEndPoint? server, expiryOption);
+            var msg = GetExpiryMessage(key, flags, expiry, out ServerEndPoint? server, expireWhen);
             return ExecuteAsync(msg, ResultProcessor.Boolean, server: server);
         }
 
-        public Task<bool> KeyExpireAsync(RedisKey key, DateTime expiryTime, ExpiryOption expiryOption, CommandFlags flags = CommandFlags.None)
+        public Task<bool> KeyExpireAsync(RedisKey key, DateTime expire, ExpiryWhen expireWhen, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetExpiryMessage(key, flags, expiryTime, out ServerEndPoint? server, expiryOption);
+            var msg = GetExpiryMessage(key, flags, expire, out ServerEndPoint? server, expireWhen);
             return ExecuteAsync(msg, ResultProcessor.Boolean, server: server);
         }
 
@@ -2815,14 +2815,14 @@ namespace StackExchange.Redis
                 _               => Message.Create(Database, flags, RedisCommand.COPY, sourceKey, destinationKey, RedisLiterals.DB, destinationDatabase),
             };
 
-        private Message GetExpiryMessage(in RedisKey key, CommandFlags flags, TimeSpan? expiry, out ServerEndPoint? server, ExpiryOption? expiryOption = null)
+        private Message GetExpiryMessage(in RedisKey key, CommandFlags flags, TimeSpan? expiry, out ServerEndPoint? server, ExpiryWhen expireWhen = ExpiryWhen.Always)
         {
             TimeSpan duration;
             if (expiry == null || (duration = expiry.Value) == TimeSpan.MaxValue)
             {
                 server = null;
-                if (expiryOption != null)
-                    throw new ArgumentException("PERSIST cannot be used with expiryOption.");
+                if (expireWhen != ExpiryWhen.Always)
+                    throw new ArgumentException("PERSIST cannot be used with expireWhen.");
                 return Message.Create(Database, flags, RedisCommand.PERSIST, key);
             }
             long milliseconds = duration.Ticks / TimeSpan.TicksPerMillisecond;
@@ -2831,26 +2831,26 @@ namespace StackExchange.Redis
                 var features = GetFeatures(key, flags, out server);
                 if (server != null && features.MillisecondExpiry && multiplexer.CommandMap.IsAvailable(RedisCommand.PEXPIRE))
                 {
-                    return expiryOption != null ?
-                    Message.Create(Database, flags, RedisCommand.PEXPIRE, key, milliseconds, expiryOption.ToLiteral()) :
+                    return expireWhen != ExpiryWhen.Always ?
+                    Message.Create(Database, flags, RedisCommand.PEXPIRE, key, milliseconds, expireWhen.ToLiteral()) :
                     Message.Create(Database, flags, RedisCommand.PEXPIRE, key, milliseconds);
                 }
             }
             server = null;
             long seconds = milliseconds / 1000;
-            return expiryOption != null ?
-            Message.Create(Database, flags, RedisCommand.EXPIRE, key, seconds, expiryOption.ToLiteral()) :
+            return expireWhen != ExpiryWhen.Always ?
+            Message.Create(Database, flags, RedisCommand.EXPIRE, key, seconds, expireWhen.ToLiteral()) :
             Message.Create(Database, flags, RedisCommand.EXPIRE, key, seconds);
         }
 
-        private Message GetExpiryMessage(in RedisKey key, CommandFlags flags, DateTime? expiry, out ServerEndPoint? server, ExpiryOption? expiryOption = null)
+        private Message GetExpiryMessage(in RedisKey key, CommandFlags flags, DateTime? expiry, out ServerEndPoint? server, ExpiryWhen expireWhen = ExpiryWhen.Always)
         {
             DateTime when;
             if (expiry == null || (when = expiry.Value) == DateTime.MaxValue)
             {
                 server = null;
-                if (expiryOption != null)
-                    throw new ArgumentException("PERSIST cannot be used with expiryOption.");
+                if (expireWhen != ExpiryWhen.Always)
+                    throw new ArgumentException("PERSIST cannot be used with expireWhen.");
                 return Message.Create(Database, flags, RedisCommand.PERSIST, key);
             }
             long milliseconds = GetMillisecondsUntil(when);
@@ -2859,15 +2859,15 @@ namespace StackExchange.Redis
                 var features = GetFeatures(key, flags, out server);
                 if (server != null && features.MillisecondExpiry && multiplexer.CommandMap.IsAvailable(RedisCommand.PEXPIREAT))
                 {
-                    return expiryOption != null ?
-                    Message.Create(Database, flags, RedisCommand.PEXPIREAT, key, milliseconds, expiryOption.ToLiteral()) :
+                    return expireWhen != ExpiryWhen.Always ?
+                    Message.Create(Database, flags, RedisCommand.PEXPIREAT, key, milliseconds, expireWhen.ToLiteral()) :
                     Message.Create(Database, flags, RedisCommand.PEXPIREAT, key, milliseconds);
                 }
             }
             server = null;
             long seconds = milliseconds / 1000;
-            return expiryOption != null ?
-            Message.Create(Database, flags, RedisCommand.EXPIREAT, key, seconds, expiryOption.ToLiteral()) :
+            return expireWhen != ExpiryWhen.Always ?
+            Message.Create(Database, flags, RedisCommand.EXPIREAT, key, seconds, expireWhen.ToLiteral()) :
             Message.Create(Database, flags, RedisCommand.EXPIREAT, key, seconds);
         }
 

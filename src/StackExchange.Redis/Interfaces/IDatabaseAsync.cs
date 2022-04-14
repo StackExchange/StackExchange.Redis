@@ -539,8 +539,8 @@ namespace StackExchange.Redis
         /// A key with an associated timeout is said to be volatile in Redis terminology.
         /// </summary>
         /// <param name="key">The key to set the expiration for.</param>
-        /// <param name="expiryTime">The exact date to expiry to set.</param>
-        /// <param name="expiryOption"><see cref="ExpiryOption"/>.</param>
+        /// <param name="expiry">The exact date to expiry to set.</param>
+        /// <param name="expireWhen"><see cref="ExpiryWhen"/>.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns><see langword="true"/> if the timeout was set. <see langword="false"/> if key does not exist or the timeout could not be set.</returns>
         /// <remarks>
@@ -553,12 +553,12 @@ namespace StackExchange.Redis
         /// It is also possible to remove the timeout using the PERSIST command. See the page on key expiry for more information.
         /// </para>
         /// <para>
-        /// Since Redis 7.0.0, you can choose on which condition the timeout will be set using <see cref="ExpiryOption"/>.
+        /// Since Redis 7.0.0, you can choose on which condition the timeout will be set using <see cref="ExpiryWhen"/>.
         /// </para>
         /// </remarks>
         /// <remarks>https://redis.io/commands/expireat</remarks>
         /// <remarks>https://redis.io/commands/pexpireat</remarks>
-        Task<bool> KeyExpireAsync(RedisKey key, TimeSpan expiryTime, ExpiryOption expiryOption, CommandFlags flags = CommandFlags.None);
+        Task<bool> KeyExpireAsync(RedisKey key, TimeSpan expiry, ExpiryWhen expireWhen, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Set a timeout on key. After the timeout has expired, the key will automatically be deleted.
@@ -589,9 +589,9 @@ namespace StackExchange.Redis
         /// A key with an associated timeout is said to be volatile in Redis terminology.
         /// </summary>
         /// <param name="key">The key to set the expiration for.</param>
-        /// <param name="expiryTime">The exact date to expiry to set.</param>
+        /// <param name="expire">The exact date to expiry to set.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <param name="expiryOption"><see cref="ExpiryOption"/>.</param>
+        /// <param name="expireWhen"><see cref="ExpiryWhen"/>.</param>
         /// <returns><see langword="true"/> if the timeout was set. <see langword="false"/> if key does not exist or the timeout could not be set.</returns>
         /// <remarks>
         /// <para>
@@ -603,12 +603,12 @@ namespace StackExchange.Redis
         /// It is also possible to remove the timeout using the PERSIST command. See the page on key expiry for more information.
         /// </para>
         /// <para>
-        /// Since Redis 7.0.0, you can choose on which condition the timeout will be set using <see cref="ExpiryOption"/>.
+        /// Since Redis 7.0.0, you can choose on which condition the timeout will be set using <see cref="ExpiryWhen"/>.
         /// </para>
         /// </remarks>
         /// <remarks>https://redis.io/commands/expireat</remarks>
         /// <remarks>https://redis.io/commands/pexpireat</remarks>
-        Task<bool> KeyExpireAsync(RedisKey key, DateTime expiryTime, ExpiryOption expiryOption, CommandFlags flags = CommandFlags.None);
+        Task<bool> KeyExpireAsync(RedisKey key, DateTime expire, ExpiryWhen expireWhen, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Returns the absolute Unix timestamp (since January 1, 1970) in seconds at which the given key will expire.

@@ -62,6 +62,7 @@ namespace StackExchange.Redis
             FLUSH = "FLUSH",
             GET = "GET",
             GETNAME = "GETNAME",
+            GT = "GT",
             HISTORY = "HISTORY",
             ID = "ID",
             IDLETIME = "IDLETIME",
@@ -72,6 +73,7 @@ namespace StackExchange.Redis
             LIMIT = "LIMIT",
             LIST = "LIST",
             LOAD = "LOAD",
+            LT = "LT",
             MATCH = "MATCH",
             MALLOC_STATS = "MALLOC-STATS",
             MAX = "MAX",
@@ -108,8 +110,6 @@ namespace StackExchange.Redis
             WITHSCORES = "WITHSCORES",
             XOR = "XOR",
             XX = "XX",
-            GT = "GT",
-            LT = "LT",
 
             // Sentinel Literals
             MASTERS = "MASTERS",

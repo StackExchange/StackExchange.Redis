@@ -63,20 +63,20 @@ namespace StackExchange.Redis.Tests
             conn.StringSet(key, "value", flags: CommandFlags.FireAndForget);
 
             // The key has no expiry
-            Assert.False(conn.KeyExpire(key, TimeSpan.FromHours(1), ExpiryOption.XX));
-            Assert.True(conn.KeyExpire(key, TimeSpan.FromHours(1), ExpiryOption.NX));
+            Assert.False(conn.KeyExpire(key, TimeSpan.FromHours(1), ExpiryWhen.HasExpiry));
+            Assert.True(conn.KeyExpire(key, TimeSpan.FromHours(1), ExpiryWhen.HasNoExpiry));
 
             // The key has an existing expiry
-            Assert.True(conn.KeyExpire(key, TimeSpan.FromHours(1), ExpiryOption.XX));
-            Assert.False(conn.KeyExpire(key, TimeSpan.FromHours(1), ExpiryOption.NX));
+            Assert.True(conn.KeyExpire(key, TimeSpan.FromHours(1), ExpiryWhen.HasExpiry));
+            Assert.False(conn.KeyExpire(key, TimeSpan.FromHours(1), ExpiryWhen.HasNoExpiry));
 
             // Set only when the new expiry is greater than current one
-            Assert.True(conn.KeyExpire(key, TimeSpan.FromHours(1.5), ExpiryOption.GT));
-            Assert.False(conn.KeyExpire(key, TimeSpan.FromHours(0.5), ExpiryOption.GT));
+            Assert.True(conn.KeyExpire(key, TimeSpan.FromHours(1.5), ExpiryWhen.GreaterThanCurrentExpiry));
+            Assert.False(conn.KeyExpire(key, TimeSpan.FromHours(0.5), ExpiryWhen.GreaterThanCurrentExpiry));
 
             // Set only when the new expiry is less than current one
-            Assert.True(conn.KeyExpire(key, TimeSpan.FromHours(0.5), ExpiryOption.LT));
-            Assert.False(conn.KeyExpire(key, TimeSpan.FromHours(1.5), ExpiryOption.LT));
+            Assert.True(conn.KeyExpire(key, TimeSpan.FromHours(0.5), ExpiryWhen.LessThanCurrentExpiry));
+            Assert.False(conn.KeyExpire(key, TimeSpan.FromHours(1.5), ExpiryWhen.LessThanCurrentExpiry));
         }
 
         [Theory]

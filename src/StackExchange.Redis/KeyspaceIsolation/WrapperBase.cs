@@ -156,14 +156,14 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<bool> KeyExpireAsync(RedisKey key, DateTime? expiry, CommandFlags flags = CommandFlags.None) =>
             Inner.KeyExpireAsync(ToInner(key), expiry, flags);
 
-        public Task<bool> KeyExpireAsync(RedisKey key, DateTime expiryTime, ExpiryOption expiryOption, CommandFlags flags = CommandFlags.None) =>
-            Inner.KeyExpireAsync(ToInner(key), expiryTime, expiryOption, flags);
+        public Task<bool> KeyExpireAsync(RedisKey key, DateTime expire, ExpiryWhen expireWhen, CommandFlags flags = CommandFlags.None) =>
+            Inner.KeyExpireAsync(ToInner(key), expire, expireWhen, flags);
 
         public Task<bool> KeyExpireAsync(RedisKey key, TimeSpan? expiry, CommandFlags flags = CommandFlags.None) =>
             Inner.KeyExpireAsync(ToInner(key), expiry, flags);
 
-        public Task<bool> KeyExpireAsync(RedisKey key, TimeSpan expiryTime, ExpiryOption expiryOption, CommandFlags flags = CommandFlags.None) =>
-            Inner.KeyExpireAsync(ToInner(key), expiryTime, expiryOption, flags);
+        public Task<bool> KeyExpireAsync(RedisKey key, TimeSpan expiry, ExpiryWhen expireWhen, CommandFlags flags = CommandFlags.None) =>
+            Inner.KeyExpireAsync(ToInner(key), expiry, expireWhen, flags);
 
         public Task<TimeSpan?> KeyExpireTimeAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.KeyExpireTimeAsync(ToInner(key), flags);
