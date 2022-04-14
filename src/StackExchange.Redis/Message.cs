@@ -281,6 +281,9 @@ namespace StackExchange.Redis
         public static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisKey key, in RedisValue value0, in RedisValue value1, in RedisValue value2, in RedisValue value3, in RedisValue value4) =>
             new CommandKeyValueValueValueValueValueMessage(db, flags, command, key, value0, value1, value2, value3, value4);
 
+        public static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisKey key, in RedisValue value0, in RedisValue value1, in RedisValue value2, in RedisValue value3, in RedisValue value4, in RedisValue value5, in RedisValue value6) =>
+            new CommandKeyValueValueValueValueValueValueValueMessage(db, flags, command, key, value0, value1, value2, value3, value4, value5, value6);
+
         public static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisValue value0, in RedisValue value1) =>
             new CommandValueValueMessage(db, flags, command, value0, value1);
 
@@ -1209,6 +1212,43 @@ namespace StackExchange.Redis
                 physical.WriteBulkString(value4);
             }
             public override int ArgCount => 6;
+        }
+
+        private sealed class CommandKeyValueValueValueValueValueValueValueMessage : CommandKeyBase
+        {
+            private readonly RedisValue value0, value1, value2, value3, value4, value5, value6;
+
+            public CommandKeyValueValueValueValueValueValueValueMessage(int db, CommandFlags flags, RedisCommand command, in RedisKey key, in RedisValue value0, in RedisValue value1, in RedisValue value2, in RedisValue value3, in RedisValue value4, in RedisValue value5, in RedisValue value6) : base(db, flags, command, key)
+            {
+                value0.AssertNotNull();
+                value1.AssertNotNull();
+                value2.AssertNotNull();
+                value3.AssertNotNull();
+                value4.AssertNotNull();
+                value5.AssertNotNull();
+                value6.AssertNotNull();
+                this.value0 = value0;
+                this.value1 = value1;
+                this.value2 = value2;
+                this.value3 = value3;
+                this.value4 = value4;
+                this.value5 = value5;
+                this.value6 = value6;
+            }
+
+            protected override void WriteImpl(PhysicalConnection physical)
+            {
+                physical.WriteHeader(Command, ArgCount);
+                physical.Write(Key);
+                physical.WriteBulkString(value0);
+                physical.WriteBulkString(value1);
+                physical.WriteBulkString(value2);
+                physical.WriteBulkString(value3);
+                physical.WriteBulkString(value4);
+                physical.WriteBulkString(value5);
+                physical.WriteBulkString(value6);
+            }
+            public override int ArgCount => 8;
         }
 
         private sealed class CommandKeyKeyValueValueMessage : CommandKeyBase

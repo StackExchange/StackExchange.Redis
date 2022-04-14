@@ -254,6 +254,9 @@ namespace StackExchange.Redis
         internal Sequence<RawResult> GetItems() => _items.Cast<RawResult>();
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal double?[]? GetItemsAsDoubles() => this.ToArray<double?>((in RawResult x) => x.TryGetDouble(out double val) ? val : null);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal RedisKey[]? GetItemsAsKeys() => this.ToArray<RedisKey>((in RawResult x) => x.AsRedisKey());
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -261,6 +264,9 @@ namespace StackExchange.Redis
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal string?[]? GetItemsAsStrings() => this.ToArray<string?>((in RawResult x) => (string?)x.AsRedisValue());
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal bool[]? GetItemsAsBooleans() => this.ToArray<bool>((in RawResult x) => (bool)x.AsRedisValue());
 
         internal GeoPosition? GetItemsAsGeoPosition()
         {
