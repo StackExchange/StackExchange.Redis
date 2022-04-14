@@ -281,8 +281,10 @@ namespace StackExchange.Redis.Tests
             db.KeyDelete(key, CommandFlags.FireAndForget);
             db.ListLeftPush(key, "new value", flags: CommandFlags.FireAndForget);
 
-            Assert.Equal("quicklist", db.KeyEncoding(key));
-            Assert.Equal("quicklist", await db.KeyEncodingAsync(key));
+            // Depending on server version, this is going to vary - we're sanity checking here.
+            var listTypes = new [] { "ziplist", "quicklist" };
+            Assert.Contains(db.KeyEncoding(key), listTypes);
+            Assert.Contains(await db.KeyEncodingAsync(key), listTypes);
         }
 
         [Fact]
