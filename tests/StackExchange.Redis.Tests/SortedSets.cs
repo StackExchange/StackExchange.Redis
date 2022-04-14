@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
@@ -1014,6 +1015,128 @@ namespace StackExchange.Redis.Tests
             db.SortedSetAdd(sourceKey, lexEntries, CommandFlags.FireAndForget);
             var exception = Assert.Throws<ArgumentException>(()=>db.SortedSetRangeAndStore(sourceKey, destinationKey,0,-1, exclude: Exclude.Both));
             Assert.Equal("exclude", exception.ParamName);
+        }
+
+        [Fact]
+        public void SortedSetMultiPopSingleKey()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v7_0_0_rc1);
+
+            var db = conn.GetDatabase();
+            var key = Me();
+            db.KeyDelete(key);
+
+            db.SortedSetAdd(key, new SortedSetEntry[] {new("rays", 100)});
+            db.SortedSetAdd(key, new SortedSetEntry[] {new("yankees", 92)});
+            db.SortedSetAdd(key, new SortedSetEntry[] {new("red sox", 92)});
+            db.SortedSetAdd(key, new SortedSetEntry[] {new("blue jays", 91)});
+            db.SortedSetAdd(key, new SortedSetEntry[] {new("orioles", 52)});
+
+            var highest = db.SortedSetPop(new RedisKey[] {key}, 1, order: Order.Descending);
+            Assert.NotNull(highest);
+            Assert.Equal(key, highest.Value.Key);
+            Assert.Equal("rays", highest.Value.Entries.Single().Element);
+            Assert.Equal(100, highest.Value.Entries.Single().Score);
+
+            var bottom2 = db.SortedSetPop(new RedisKey[] {key}, 2);
+            Assert.NotNull(bottom2);
+            Assert.Equal(key,bottom2.Value.Key);
+            Assert.Equal(2, bottom2.Value.Entries.Length);
+            Assert.Equal("orioles", bottom2.Value.Entries.First().Element);
+            Assert.Equal(52, bottom2.Value.Entries.First().Score);
+            Assert.Equal("blue jays", bottom2.Value.Entries.Last().Element);
+            Assert.Equal(91, bottom2.Value.Entries.Last().Score);
+        }
+
+        [Fact]
+        public void SortedSetMultiPopMultiKey()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v7_0_0_rc1);
+
+            var db = conn.GetDatabase();
+            var key = Me();
+            db.KeyDelete(key);
+
+            db.SortedSetAdd(key, new SortedSetEntry[] {new("rays", 100)});
+            db.SortedSetAdd(key, new SortedSetEntry[] {new("yankees", 92)});
+            db.SortedSetAdd(key, new SortedSetEntry[] {new("red sox", 92)});
+            db.SortedSetAdd(key, new SortedSetEntry[] {new("blue jays", 91)});
+            db.SortedSetAdd(key, new SortedSetEntry[] {new("orioles", 52)});
+
+            var highest = db.SortedSetPop(new RedisKey[] {"not a real key", key, "yet another not a real key"}, 1, order: Order.Descending);
+            Assert.NotNull(highest);
+            Assert.Equal(key, highest.Value.Key);
+            Assert.Equal("rays", highest.Value.Entries.Single().Element);
+            Assert.Equal(100, highest.Value.Entries.Single().Score);
+
+            var bottom2 = db.SortedSetPop(new RedisKey[] {"not a real key", key, "yet another not a real key"}, 2);
+            Assert.NotNull(bottom2);
+            Assert.Equal(key,bottom2.Value.Key);
+            Assert.Equal(2, bottom2.Value.Entries.Length);
+            Assert.Equal("orioles", bottom2.Value.Entries.First().Element);
+            Assert.Equal(52, bottom2.Value.Entries.First().Score);
+            Assert.Equal("blue jays", bottom2.Value.Entries.Last().Element);
+            Assert.Equal(91, bottom2.Value.Entries.Last().Score);
+        }
+
+        [Fact]
+        public void SortedSetMultiPopNoSet()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v7_0_0_rc1);
+
+            var db = conn.GetDatabase();
+            var key = Me();
+            db.KeyDelete(key);
+            var res = db.SortedSetPop(new RedisKey[] {key}, 1);
+            Assert.Null(res);
+        }
+
+        [Fact]
+        public void SortedSetMultiPopCount0()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v7_0_0_rc1);
+
+            var db = conn.GetDatabase();
+            var key = Me();
+            db.KeyDelete(key);
+            var exception = Assert.Throws<RedisServerException>(() => db.SortedSetPop(new RedisKey[] {key}, 0));
+            Assert.Contains("ERR count should be greater than 0", exception.Message);
+        }
+
+        [Fact]
+        public async Task SortedSetMultiPopAsync()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v7_0_0_rc1);
+
+            var db = conn.GetDatabase();
+            var key = Me();
+            db.KeyDelete(key);
+
+            db.SortedSetAdd(key, new SortedSetEntry[] {new("rays", 100)});
+            db.SortedSetAdd(key, new SortedSetEntry[] {new("yankees", 92)});
+            db.SortedSetAdd(key, new SortedSetEntry[] {new("red sox", 92)});
+            db.SortedSetAdd(key, new SortedSetEntry[] {new("blue jays", 91)});
+            db.SortedSetAdd(key, new SortedSetEntry[] {new("orioles", 52)});
+
+            var highest = await db.SortedSetPopAsync(new RedisKey[] {"not a real key", key, "yet another not a real key"}, 1, order: Order.Descending);
+            Assert.NotNull(highest);
+            Assert.Equal(key, highest.Value.Key);
+            Assert.Equal("rays", highest.Value.Entries.Single().Element);
+            Assert.Equal(100, highest.Value.Entries.Single().Score);
+
+            var bottom2 = await db.SortedSetPopAsync(new RedisKey[] {"not a real key", key, "yet another not a real key"}, 2);
+            Assert.NotNull(bottom2);
+            Assert.Equal(key,bottom2.Value.Key);
+            Assert.Equal(2, bottom2.Value.Entries.Length);
+            Assert.Equal("orioles", bottom2.Value.Entries.First().Element);
+            Assert.Equal(52, bottom2.Value.Entries.First().Score);
+            Assert.Equal("blue jays", bottom2.Value.Entries.Last().Element);
+            Assert.Equal(91, bottom2.Value.Entries.Last().Score);
         }
     }
 }

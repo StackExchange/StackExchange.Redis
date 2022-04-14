@@ -874,5 +874,124 @@ namespace StackExchange.Redis.Tests
 
             Assert.Equal(-1, res);
         }
+
+        [Fact]
+        public async Task ListMultiPopSingleKeyAsync()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v7_0_0_rc1);
+
+            var db = conn.GetDatabase();
+            var key = Me();
+            await db.KeyDeleteAsync(key);
+
+            db.ListLeftPush(key, "yankees");
+            db.ListLeftPush(key, "blue jays");
+            db.ListLeftPush(key, "orioles");
+            db.ListLeftPush(key, "red sox");
+            db.ListLeftPush(key, "rays");
+
+            var res = await db.ListLeftPopAsync(new RedisKey[] {key}, 1);
+
+            Assert.NotNull(res);
+            Assert.Single(res.Value.Values);
+            Assert.Equal("rays", res.Value.Values.First());
+
+            res = await db.ListRightPopAsync(new RedisKey[] {key}, 2);
+
+            Assert.NotNull(res);
+            Assert.Equal(2, res.Value.Values.Length);
+            Assert.Equal("yankees", res.Value.Values.First());
+            Assert.Equal("blue jays", res.Value.Values.Last());
+        }
+
+        [Fact]
+        public async Task ListMultiPopMultipleKeysAsync()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v7_0_0_rc1);
+
+            var db = conn.GetDatabase();
+            var key = Me();
+            await db.KeyDeleteAsync(key);
+
+            db.ListLeftPush(key, "yankees");
+            db.ListLeftPush(key, "blue jays");
+            db.ListLeftPush(key, "orioles");
+            db.ListLeftPush(key, "red sox");
+            db.ListLeftPush(key, "rays");
+
+            var res = await db.ListLeftPopAsync(new RedisKey[] {"empty-key", key, "also-empty"}, 2);
+
+            Assert.NotNull(res);
+            Assert.Equal(2, res.Value.Values.Length);
+            Assert.Equal("rays", res.Value.Values.First());
+            Assert.Equal("red sox", res.Value.Values.Last());
+
+            res = await db.ListRightPopAsync(new RedisKey[] {"empty-key", key, "also-empty"}, 1);
+
+            Assert.NotNull(res);
+            Assert.Single(res.Value.Values);
+            Assert.Equal("yankees", res.Value.Values.First());
+        }
+
+        [Fact]
+        public void ListMultiPopSingleKey()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v7_0_0_rc1);
+
+            var db = conn.GetDatabase();
+            var key = Me();
+            db.KeyDelete(key);
+
+            db.ListLeftPush(key, "yankees");
+            db.ListLeftPush(key, "blue jays");
+            db.ListLeftPush(key, "orioles");
+            db.ListLeftPush(key, "red sox");
+            db.ListLeftPush(key, "rays");
+
+            var res = db.ListLeftPop(new RedisKey[] {key}, 1);
+
+            Assert.NotNull(res);
+            Assert.Single(res.Value.Values);
+            Assert.Equal("rays", res.Value.Values.First());
+
+            res = db.ListRightPop(new RedisKey[] {key}, 2);
+
+            Assert.NotNull(res);
+            Assert.Equal(2, res.Value.Values.Length);
+            Assert.Equal("yankees", res.Value.Values.First());
+            Assert.Equal("blue jays", res.Value.Values.Last());
+        }
+
+        [Fact]
+        public async Task ListMultiPopZeroCount()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v7_0_0_rc1);
+
+            var db = conn.GetDatabase();
+            var key = Me();
+            db.KeyDelete(key);
+
+            var exception = await Assert.ThrowsAsync<RedisServerException>( () => db.ListLeftPopAsync(new RedisKey[] {key}, 0));
+            Assert.Contains("ERR count should be greater than 0", exception.Message);
+        }
+
+        [Fact]
+        public async Task ListMultiPopEmpty()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v7_0_0_rc1);
+
+            var db = conn.GetDatabase();
+            var key = Me();
+            db.KeyDelete(key);
+
+            var res = await db.ListLeftPopAsync(new RedisKey[] {key}, 1);
+
+            Assert.Null(res);
+        }
     }
 }

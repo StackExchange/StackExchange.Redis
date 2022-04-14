@@ -707,6 +707,19 @@ namespace StackExchange.Redis
         Task<RedisValue[]> ListLeftPopAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Removes and returns at most specified <paramref name="count"/> of elements from the first non-empty list
+        /// within the set of <paramref name="keys"/> passed into it. Starts on the left side of the list.
+        /// If the Length of the first non-empty list is less than the the <paramref name="count"/> only the elements within that
+        /// list are returned.
+        /// </summary>
+        /// <param name="keys">The keys to look through for popable elements.</param>
+        /// <param name="count">The maximum number of eelemnts to pop out of the list</param>
+        /// <param name="flags"></param>
+        /// <remarks>https://redis.io/commands/lmpop</remarks>
+        /// <returns>A span of contiguous elements from the list.</returns>
+        Task<ListSpan?> ListLeftPopAsync(RedisKey[] keys, long count, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Scans through the list stored at <paramref name="key"/> looking for <paramref name="element"/>, returning the 0-based
         /// index of the first matching element.
         /// </summary>
@@ -842,6 +855,19 @@ namespace StackExchange.Redis
         /// <returns>Array of values that were popped, or nil if the key doesn't exist.</returns>
         /// <remarks>https://redis.io/commands/rpop</remarks>
         Task<RedisValue[]> ListRightPopAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Removes and returns at most specified <paramref name="count"/> of elements from the first non-empty list
+        /// within the set of <paramref name="keys"/> passed into it. Starts on the right side of the list.
+        /// If the Length of the first non-empty list is less than the the <paramref name="count"/> only the elements within that
+        /// list are returned.
+        /// </summary>
+        /// <param name="keys">The keys to look through for popable elements.</param>
+        /// <param name="count">The maximum number of eelemnts to pop out of the list</param>
+        /// <param name="flags"></param>
+        /// <remarks>https://redis.io/commands/lmpop</remarks>
+        /// <returns>A span of contiguous elements from the list. Null if no non-empty lists are encountered.</returns>
+        Task<ListSpan?> ListRightPopAsync(RedisKey[] keys, long count, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Atomically returns and removes the last element (tail) of the list stored at source, and pushes the element at the first element (head) of the list stored at destination.
@@ -1812,6 +1838,18 @@ namespace StackExchange.Redis
         /// <remarks>https://redis.io/commands/zpopmin</remarks>
         /// <remarks>https://redis.io/commands/zpopmax</remarks>
         Task<SortedSetEntry[]> SortedSetPopAsync(RedisKey key, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Removes and returns up to the the specified <paramref name="count"/> of entries from the first non-empty sorted set specified by <paramref name="keys"/>
+        /// returns <see langword="null"/> if none of the specified <paramref name="keys"/> contain any elements.
+        /// </summary>
+        /// <param name="keys">The keys to check.</param>
+        /// /// <param name="count">The maximum number of records to pop out of the sorted set.</param>
+        /// <param name="order">The order to sort by when popping items out of the set.</param>
+        /// <param name="flags">The flags to use for the operation.</param>
+        /// <returns>A contiguous portion of sorted set entry with the key they were popped from.</returns>
+        /// <remarks>https://redis.io/commands/zmpop</remarks>
+        Task<SortedSetSpan?> SortedSetPopAsync(RedisKey[] keys, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Allow the consumer to mark a pending message as correctly processed. Returns the number of messages acknowledged.

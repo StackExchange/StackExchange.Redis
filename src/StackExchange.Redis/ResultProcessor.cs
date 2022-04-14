@@ -108,6 +108,12 @@ namespace StackExchange.Redis
         public static readonly SortedSetEntryArrayProcessor
             SortedSetWithScores = new SortedSetEntryArrayProcessor();
 
+        public static readonly SortedSetSpanProcessor
+            SortedSetSpan = new SortedSetSpanProcessor();
+
+        public static readonly ListSpanProcessor
+            ListSpan = new ListSpanProcessor();
+
         public static readonly SingleStreamProcessor
             SingleStream = new SingleStreamProcessor();
 
@@ -555,6 +561,67 @@ namespace StackExchange.Redis
             protected override SortedSetEntry Parse(in RawResult first, in RawResult second) =>
                 new SortedSetEntry(first.AsRedisValue(), second.TryGetDouble(out double val) ? val : double.NaN);
         }
+
+        internal sealed class SortedSetSpanProcessor : ResultProcessor<SortedSetSpan?>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                if(result.Type == ResultType.MultiBulk)
+                {
+                    if (result.IsNull)
+                    {
+                        return true;
+                    }
+
+                    var outterArry = result.GetItems();
+                    var key = outterArry[0].AsRedisKey();
+                    var innerArray = outterArry[1].GetItems();
+                    var entries = new SortedSetEntry[innerArray.Length];
+                    var i = 0;
+
+                    foreach (var item in innerArray)
+                    {
+                        entries[i++] = item.GetItemsAsSortedSetEntry();
+                    }
+
+                    SetResult(message, new(key, entries));
+                    return true;
+                }
+
+                return false;
+            }
+        }
+
+        internal sealed class ListSpanProcessor : ResultProcessor<ListSpan?>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                if(result.Type == ResultType.MultiBulk)
+                {
+                    if (result.IsNull)
+                    {
+                        return true;
+                    }
+
+                    var outterArry = result.GetItems();
+                    var key = outterArry[0].AsRedisKey();
+                    var innerArray = outterArry[1].GetItems();
+                    var entries = new RedisValue[innerArray.Length];
+                    var i = 0;
+
+                    foreach (var item in innerArray)
+                    {
+                        entries[i++] = item.AsRedisValue();
+                    }
+
+                    SetResult(message, new(key, entries));
+                    return true;
+                }
+
+                return false;
+            }
+        }
+
 
         internal sealed class HashEntryArrayProcessor : ValuePairInterleavedProcessorBase<HashEntry>
         {

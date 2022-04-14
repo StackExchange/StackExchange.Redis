@@ -281,6 +281,12 @@ namespace StackExchange.Redis
             return AsGeoPosition(root.GetItems());
         }
 
+        internal SortedSetEntry GetItemsAsSortedSetEntry()
+        {
+            var items = GetItems();
+            return new(items[0].AsRedisValue(), items[1].TryGetDouble(out double val) ? val : double.NaN);
+        }
+
         private static GeoPosition AsGeoPosition(in Sequence<RawResult> coords)
         {
             double longitude, latitude;
