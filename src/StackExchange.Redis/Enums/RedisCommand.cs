@@ -205,6 +205,7 @@
         ZINTERCARD,
         ZINTERSTORE,
         ZLEXCOUNT,
+        ZMSCORE,
         ZPOPMAX,
         ZPOPMIN,
         ZRANDMEMBER,

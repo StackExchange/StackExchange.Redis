@@ -454,6 +454,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public double? SortedSetScore(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetScore(ToInner(key), member, flags);
 
+        public double?[] SortedSetScores(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None) =>
+            Inner.SortedSetScores(ToInner(key), members, flags);
+
         public SortedSetEntry? SortedSetPop(RedisKey key, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetPop(ToInner(key), order, flags);
 

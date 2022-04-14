@@ -951,6 +951,13 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void SortedSetScore_Multiple()
+        {
+            wrapper.SortedSetScores("key", new RedisValue[] { "member1", "member2" }, CommandFlags.None);
+            mock.Verify(_ => _.SortedSetScores("prefix:key", new RedisValue[] { "member1", "member2" }, CommandFlags.None));
+        }
+
+        [Fact]
         public void StreamAcknowledge_1()
         {
             wrapper.StreamAcknowledge("key", "group", "0-0", CommandFlags.None);

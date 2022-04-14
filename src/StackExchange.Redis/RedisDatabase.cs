@@ -1995,10 +1995,22 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.NullableDouble);
         }
 
+        public double?[] SortedSetScores(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.ZMSCORE, key, members);
+            return ExecuteSync(msg, ResultProcessor.NullableDoubleArray, defaultValue: Array.Empty<double?>());
+        }
+
         public Task<double?> SortedSetScoreAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.ZSCORE, key, member);
             return ExecuteAsync(msg, ResultProcessor.NullableDouble);
+        }
+
+        public Task<double?[]> SortedSetScoresAsync(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.ZMSCORE, key, members);
+            return ExecuteAsync(msg, ResultProcessor.NullableDoubleArray, defaultValue: Array.Empty<double?>());
         }
 
         public SortedSetEntry? SortedSetPop(RedisKey key, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
