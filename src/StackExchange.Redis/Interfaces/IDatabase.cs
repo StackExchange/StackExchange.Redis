@@ -199,30 +199,15 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="key">The key of the set.</param>
         /// <param name="member">The set member to use as the center of the shape.</param>
-        /// <param name="shape">The shape to use to bound the GeoSearch</param>
+        /// <param name="shape">The shape to use to bound the geo search.</param>
         /// <param name="count">The maximum number of results to pull back.</param>
-        /// <param name="demandClosest">Whether or not to terminate the search after finding <paramref name="count"/> results, must be true of count is -1.</param>
-        /// <param name="order">The order of the results</param>
+        /// <param name="demandClosest">Whether or not to terminate the search after finding <paramref name="count"/> results. Must be true of count is -1.</param>
+        /// <param name="order">The order to sort by (defaults to unordered).</param>
         /// <param name="options">The search options to use</param>
         /// <param name="flags">The flags for this operation.</param>
         /// <returns>The results found within the shape, if any.</returns>
-        GeoRadiusResult[] GeoSearchByMember(RedisKey key, RedisValue member, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, GeoRadiusOptions options = GeoRadiusOptions.Default, CommandFlags flags = CommandFlags.None);
-
-        /// <summary>
-        /// Stores the members of the geo-encoded sorted set stored at <paramref name="sourceKey"/> bounded by the provided
-        /// <paramref name="shape"/>, centered at the provided set <paramref name="member"/>.
-        /// </summary>
-        /// <param name="sourceKey">The key of the set.</param>
-        /// <param name="destinationKey">The key to store the result at.</param>
-        /// <param name="member">The set member to use as the center of the shape.</param>
-        /// <param name="shape">The shape to use to bound the GeoSearch</param>
-        /// <param name="count">The maximum number of results to pull back.</param>
-        /// <param name="demandClosest">Whether or not to terminate the search after finding <paramref name="count"/> results, must be true of count is -1.</param>
-        /// <param name="order">The order of the results</param>
-        /// <param name="storeDistances">If set to true, the resulting set will be a regular sorted-set containing only distances, rather than a geo-encoded sorted-set</param>
-        /// <param name="flags">The flags for this operation.</param>
-        /// <returns>The size of the resultant set.</returns>
-        long GeoSearchByMemberAndStore(RedisKey sourceKey, RedisKey destinationKey, RedisValue member, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, bool storeDistances = false, CommandFlags flags = CommandFlags.None);
+        /// <remarks>https://redis.io/commands/geosearch</remarks>
+        GeoRadiusResult[] GeoSearch(RedisKey key, RedisValue member, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, GeoRadiusOptions options = GeoRadiusOptions.Default, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Return the members of the geo-encoded sorted set stored at <paramref name="key"/> bounded by the provided
@@ -231,14 +216,32 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the set.</param>
         /// <param name="longitude">The longitude of the center point.</param>
         /// <param name="latitude">The latitude of the center point.</param>
-        /// <param name="shape">The shape to use to bound the GeoSearch</param>
+        /// <param name="shape">The shape to use to bound the geo search.</param>
         /// <param name="count">The maximum number of results to pull back.</param>
-        /// <param name="demandClosest">Whether or not to terminate the search after finding <paramref name="count"/> results, must be true of count is -1.</param>
-        /// <param name="order">The order of the results</param>
+        /// <param name="demandClosest">Whether or not to terminate the search after finding <paramref name="count"/> results. Must be true of count is -1.</param>
+        /// <param name="order">The order to sort by (defaults to unordered).</param>
         /// <param name="options">The search options to use</param>
         /// <param name="flags">The flags for this operation.</param>
         /// <returns>The results found within the shape, if any.</returns>
-        GeoRadiusResult[] GeoSearchByCoordinates(RedisKey key, double longitude, double latitude, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, GeoRadiusOptions options = GeoRadiusOptions.Default, CommandFlags flags = CommandFlags.None);
+        /// /// <remarks>https://redis.io/commands/geosearch</remarks>
+        GeoRadiusResult[] GeoSearch(RedisKey key, double longitude, double latitude, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, GeoRadiusOptions options = GeoRadiusOptions.Default, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Stores the members of the geo-encoded sorted set stored at <paramref name="sourceKey"/> bounded by the provided
+        /// <paramref name="shape"/>, centered at the provided set <paramref name="member"/>.
+        /// </summary>
+        /// <param name="sourceKey">The key of the set.</param>
+        /// <param name="destinationKey">The key to store the result at.</param>
+        /// <param name="member">The set member to use as the center of the shape.</param>
+        /// <param name="shape">The shape to use to bound the geo search.</param>
+        /// <param name="count">The maximum number of results to pull back.</param>
+        /// <param name="demandClosest">Whether or not to terminate the search after finding <paramref name="count"/> results. Must be true of count is -1.</param>
+        /// <param name="order">The order to sort by (defaults to unordered).</param>
+        /// <param name="storeDistances">If set to true, the resulting set will be a regular sorted-set containing only distances, rather than a geo-encoded sorted-set.</param>
+        /// <param name="flags">The flags for this operation.</param>
+        /// <returns>The size of the set stored at <paramref name="destinationKey"/>.</returns>
+        /// <remarks>https://redis.io/commands/geosearchstore</remarks>
+        long GeoSearchAndStore(RedisKey sourceKey, RedisKey destinationKey, RedisValue member, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, bool storeDistances = false, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Stores the members of the geo-encoded sorted set stored at <paramref name="sourceKey"/> bounded by the provided
@@ -248,14 +251,15 @@ namespace StackExchange.Redis
         /// <param name="destinationKey">The key to store the result at.</param>
         /// <param name="longitude">The longitude of the center point.</param>
         /// <param name="latitude">The latitude of the center point.</param>
-        /// <param name="shape">The shape to use to bound the GeoSearch</param>
+        /// <param name="shape">The shape to use to bound the geo search.</param>
         /// <param name="count">The maximum number of results to pull back.</param>
-        /// <param name="demandClosest">Whether or not to terminate the search after finding <paramref name="count"/> results, must be true of count is -1.</param>
-        /// <param name="order">The order of the results</param>
-        /// <param name="storeDistances">If set to true, the resulting set will be a regular sorted-set containing only distances, rather than a geo-encoded sorted-set</param>
+        /// <param name="demandClosest">Whether or not to terminate the search after finding <paramref name="count"/> results. Must be true of count is -1.</param>
+        /// <param name="order">The order to sort by (defaults to unordered).</param>
+        /// <param name="storeDistances">If set to true, the resulting set will be a regular sorted-set containing only distances, rather than a geo-encoded sorted-set.</param>
         /// <param name="flags">The flags for this operation.</param>
-        /// <returns>The size of the resultant set.</returns>
-        long GeoSearchByCoordinatesAndStore(RedisKey sourceKey, RedisKey destinationKey, double longitude, double latitude, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, bool storeDistances = false, CommandFlags flags = CommandFlags.None);
+        /// <returns>The size of the set stored at <paramref name="destinationKey"/>.</returns>
+        /// <remarks>https://redis.io/commands/geosearchstore</remarks>
+        long GeoSearchAndStore(RedisKey sourceKey, RedisKey destinationKey, double longitude, double latitude, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, bool storeDistances = false, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Decrements the number stored at field in the hash stored at key by decrement.

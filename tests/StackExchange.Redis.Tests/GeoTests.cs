@@ -242,7 +242,7 @@ namespace StackExchange.Redis.Tests
             await GeoSearchSetupAsync(key, db);
 
             var circle = new GeoSearchCircle(500, GeoUnit.Miles);
-            var res = await db.GeoSearchByMemberAsync(key, "yankees", circle);
+            var res = await db.GeoSearchAsync(key, "yankees", circle);
             Assert.Contains(res, x => x.Member == "yankees");
             Assert.Contains(res, x => x.Member == "red sox");
             Assert.Contains(res, x => x.Member == "orioles");
@@ -263,7 +263,7 @@ namespace StackExchange.Redis.Tests
             await GeoSearchSetupAsync(key, db);
 
             var circle = new GeoSearchCircle(500, GeoUnit.Miles);
-            var res = await db.GeoSearchByMemberAsync(key, "yankees", circle, options: GeoRadiusOptions.WithGeoHash);
+            var res = await db.GeoSearchAsync(key, "yankees", circle, options: GeoRadiusOptions.WithGeoHash);
             Assert.Contains(res, x => x.Member == "yankees");
             Assert.Contains(res, x => x.Member == "red sox");
             Assert.Contains(res, x => x.Member == "orioles");
@@ -284,7 +284,7 @@ namespace StackExchange.Redis.Tests
             await GeoSearchSetupAsync(key, db);
 
             var circle = new GeoSearchCircle(500, GeoUnit.Miles);
-            var res = await db.GeoSearchByMemberAsync(key, "yankees", circle, options: GeoRadiusOptions.WithGeoHash | GeoRadiusOptions.WithDistance);
+            var res = await db.GeoSearchAsync(key, "yankees", circle, options: GeoRadiusOptions.WithGeoHash | GeoRadiusOptions.WithDistance);
             Assert.Contains(res, x => x.Member == "yankees");
             Assert.Contains(res, x => x.Member == "red sox");
             Assert.Contains(res, x => x.Member == "orioles");
@@ -305,7 +305,7 @@ namespace StackExchange.Redis.Tests
             await GeoSearchSetupAsync(key, db);
 
             var circle = new GeoSearchCircle(500, GeoUnit.Miles);
-            var res = await db.GeoSearchByCoordinatesAsync(key, 73.9262, 40.8296, circle);
+            var res = await db.GeoSearchAsync(key, 73.9262, 40.8296, circle);
             Assert.Contains(res, x => x.Member == "yankees");
             Assert.Contains(res, x => x.Member == "red sox");
             Assert.Contains(res, x => x.Member == "orioles");
@@ -323,7 +323,7 @@ namespace StackExchange.Redis.Tests
             GeoSearchSetup(key, db);
 
             var circle = new GeoSearchCircle(500 * 1609);
-            var res = db.GeoSearchByMember(key, "yankees", circle);
+            var res = db.GeoSearch(key, "yankees", circle);
             Assert.Contains(res, x => x.Member == "yankees");
             Assert.Contains(res, x => x.Member == "red sox");
             Assert.Contains(res, x => x.Member == "orioles");
@@ -341,7 +341,7 @@ namespace StackExchange.Redis.Tests
             GeoSearchSetup(key, db);
 
             var circle = new GeoSearchCircle(500 * 5280, GeoUnit.Feet);
-            var res = db.GeoSearchByCoordinates(key, 73.9262, 40.8296, circle);
+            var res = db.GeoSearch(key, 73.9262, 40.8296, circle);
             Assert.Contains(res, x => x.Member == "yankees");
             Assert.Contains(res, x => x.Member == "red sox");
             Assert.Contains(res, x => x.Member == "orioles");
@@ -359,7 +359,7 @@ namespace StackExchange.Redis.Tests
             await GeoSearchSetupAsync(key, db);
 
             var box = new GeoSearchBox(500, 500, GeoUnit.Kilometers);
-            var res = await db.GeoSearchByMemberAsync(key, "yankees", box);
+            var res = await db.GeoSearchAsync(key, "yankees", box);
             Assert.Contains(res, x => x.Member == "yankees");
             Assert.Contains(res, x => x.Member == "red sox");
             Assert.Contains(res, x => x.Member == "orioles");
@@ -376,7 +376,7 @@ namespace StackExchange.Redis.Tests
             await GeoSearchSetupAsync(key, db);
 
             var box = new GeoSearchBox(500, 500, GeoUnit.Kilometers);
-            var res = await db.GeoSearchByCoordinatesAsync(key, 73.9262, 40.8296, box);
+            var res = await db.GeoSearchAsync(key, 73.9262, 40.8296, box);
             Assert.Contains(res, x => x.Member == "yankees");
             Assert.Contains(res, x => x.Member == "red sox");
             Assert.Contains(res, x => x.Member == "orioles");
@@ -393,7 +393,7 @@ namespace StackExchange.Redis.Tests
             GeoSearchSetup(key, db);
 
             var box = new GeoSearchBox(500, 500, GeoUnit.Kilometers);
-            var res = db.GeoSearchByMember(key, "yankees", box);
+            var res = db.GeoSearch(key, "yankees", box);
             Assert.Contains(res, x => x.Member == "yankees");
             Assert.Contains(res, x => x.Member == "red sox");
             Assert.Contains(res, x => x.Member == "orioles");
@@ -410,7 +410,7 @@ namespace StackExchange.Redis.Tests
             GeoSearchSetup(key, db);
 
             var box = new GeoSearchBox(500, 500, GeoUnit.Kilometers);
-            var res = db.GeoSearchByCoordinates(key, 73.9262, 40.8296, box);
+            var res = db.GeoSearch(key, 73.9262, 40.8296, box);
             Assert.Contains(res, x => x.Member == "yankees");
             Assert.Contains(res, x => x.Member == "red sox");
             Assert.Contains(res, x => x.Member == "orioles");
@@ -427,7 +427,7 @@ namespace StackExchange.Redis.Tests
             GeoSearchSetup(key, db);
 
             var box = new GeoSearchBox(500, 500, GeoUnit.Kilometers);
-            var res = db.GeoSearchByCoordinates(key, 73.9262, 40.8296, box, count: 2);
+            var res = db.GeoSearch(key, 73.9262, 40.8296, box, count: 2);
             Assert.Contains(res, x => x.Member == "yankees");
             Assert.Contains(res, x => x.Member == "orioles");
             Assert.Equal(2, res.Length);
@@ -443,7 +443,7 @@ namespace StackExchange.Redis.Tests
             GeoSearchSetup(key, db);
 
             var box = new GeoSearchBox(500, 500, GeoUnit.Kilometers);
-            var res = db.GeoSearchByCoordinates(key, 73.9262, 40.8296, box, count: 2, demandClosest: false);
+            var res = db.GeoSearch(key, 73.9262, 40.8296, box, count: 2, demandClosest: false);
             Assert.Contains(res, x => x.Member == "red sox"); // this order MIGHT not be fully deterministic, seems to work for our purposes.
             Assert.Contains(res, x => x.Member == "orioles");
             Assert.Equal(2, res.Length);
@@ -459,7 +459,7 @@ namespace StackExchange.Redis.Tests
             await GeoSearchSetupAsync(key, db);
 
             var box = new GeoSearchBox(500, 500, GeoUnit.Kilometers);
-            var res = await db.GeoSearchByCoordinatesAsync(key, 73.9262, 40.8296, box, order: Order.Descending);
+            var res = await db.GeoSearchAsync(key, 73.9262, 40.8296, box, order: Order.Descending);
             Assert.Contains(res, x => x.Member == "yankees");
             Assert.Contains(res, x => x.Member == "red sox");
             Assert.Contains(res, x => x.Member == "orioles");
@@ -480,8 +480,8 @@ namespace StackExchange.Redis.Tests
             await GeoSearchSetupAsync(sourceKey, db);
 
             var box = new GeoSearchBox(500, 500, GeoUnit.Kilometers);
-            var res = await db.GeoSearchByMemberAndStoreAsync(sourceKey, destinationKey, "yankees", box);
-            var set = await db.GeoSearchByMemberAsync(destinationKey, "yankees", new GeoSearchCircle(10000, GeoUnit.Miles));
+            var res = await db.GeoSearchAndStoreAsync(sourceKey, destinationKey, "yankees", box);
+            var set = await db.GeoSearchAsync(destinationKey, "yankees", new GeoSearchCircle(10000, GeoUnit.Miles));
             Assert.Contains(set, x => x.Member == "yankees");
             Assert.Contains(set, x => x.Member == "red sox");
             Assert.Contains(set, x => x.Member == "orioles");
@@ -502,8 +502,8 @@ namespace StackExchange.Redis.Tests
             await GeoSearchSetupAsync(sourceKey, db);
 
             var box = new GeoSearchBox(500, 500, GeoUnit.Kilometers);
-            var res = await db.GeoSearchByCoordinatesAndStoreAsync(sourceKey, destinationKey, 73.9262, 40.8296, box);
-            var set = await db.GeoSearchByMemberAsync(destinationKey, "yankees", new GeoSearchCircle(10000, GeoUnit.Miles));
+            var res = await db.GeoSearchAndStoreAsync(sourceKey, destinationKey, 73.9262, 40.8296, box);
+            var set = await db.GeoSearchAsync(destinationKey, "yankees", new GeoSearchCircle(10000, GeoUnit.Miles));
             Assert.Contains(set, x => x.Member == "yankees");
             Assert.Contains(set, x => x.Member == "red sox");
             Assert.Contains(set, x => x.Member == "orioles");
@@ -524,8 +524,8 @@ namespace StackExchange.Redis.Tests
             await GeoSearchSetupAsync(sourceKey, db);
 
             var circle = new GeoSearchCircle(500, GeoUnit.Kilometers);
-            var res = await db.GeoSearchByMemberAndStoreAsync(sourceKey, destinationKey, "yankees", circle);
-            var set = await db.GeoSearchByMemberAsync(destinationKey, "yankees", new GeoSearchCircle(10000, GeoUnit.Miles));
+            var res = await db.GeoSearchAndStoreAsync(sourceKey, destinationKey, "yankees", circle);
+            var set = await db.GeoSearchAsync(destinationKey, "yankees", new GeoSearchCircle(10000, GeoUnit.Miles));
             Assert.Contains(set, x => x.Member == "yankees");
             Assert.Contains(set, x => x.Member == "red sox");
             Assert.Contains(set, x => x.Member == "orioles");
@@ -546,8 +546,8 @@ namespace StackExchange.Redis.Tests
             await GeoSearchSetupAsync(sourceKey, db);
 
             var circle = new GeoSearchCircle(500, GeoUnit.Kilometers);
-            var res = await db.GeoSearchByCoordinatesAndStoreAsync(sourceKey, destinationKey, 73.9262, 40.8296, circle);
-            var set = await db.GeoSearchByMemberAsync(destinationKey, "yankees", new GeoSearchCircle(10000, GeoUnit.Miles));
+            var res = await db.GeoSearchAndStoreAsync(sourceKey, destinationKey, 73.9262, 40.8296, circle);
+            var set = await db.GeoSearchAsync(destinationKey, "yankees", new GeoSearchCircle(10000, GeoUnit.Miles));
             Assert.Contains(set, x => x.Member == "yankees");
             Assert.Contains(set, x => x.Member == "red sox");
             Assert.Contains(set, x => x.Member == "orioles");
@@ -568,8 +568,8 @@ namespace StackExchange.Redis.Tests
             GeoSearchSetup(sourceKey, db);
 
             var circle = new GeoSearchCircle(500, GeoUnit.Kilometers);
-            var res = db.GeoSearchByMemberAndStore(sourceKey, destinationKey, "yankees", circle);
-            var set = db.GeoSearchByMember(destinationKey, "yankees", new GeoSearchCircle(10000, GeoUnit.Miles));
+            var res = db.GeoSearchAndStore(sourceKey, destinationKey, "yankees", circle);
+            var set = db.GeoSearch(destinationKey, "yankees", new GeoSearchCircle(10000, GeoUnit.Miles));
             Assert.Contains(set, x => x.Member == "yankees");
             Assert.Contains(set, x => x.Member == "red sox");
             Assert.Contains(set, x => x.Member == "orioles");
@@ -590,8 +590,8 @@ namespace StackExchange.Redis.Tests
             GeoSearchSetup(sourceKey, db);
 
             var circle = new GeoSearchCircle(500, GeoUnit.Kilometers);
-            var res = db.GeoSearchByCoordinatesAndStore(sourceKey, destinationKey, 73.9262, 40.8296, circle);
-            var set = db.GeoSearchByMember(destinationKey, "yankees", new GeoSearchCircle(10000, GeoUnit.Miles));
+            var res = db.GeoSearchAndStore(sourceKey, destinationKey, 73.9262, 40.8296, circle);
+            var set = db.GeoSearch(destinationKey, "yankees", new GeoSearchCircle(10000, GeoUnit.Miles));
             Assert.Contains(set, x => x.Member == "yankees");
             Assert.Contains(set, x => x.Member == "red sox");
             Assert.Contains(set, x => x.Member == "orioles");
@@ -612,7 +612,7 @@ namespace StackExchange.Redis.Tests
             GeoSearchSetup(sourceKey, db);
 
             var circle = new GeoSearchCircle(500, GeoUnit.Kilometers);
-            var res = db.GeoSearchByCoordinatesAndStore(sourceKey, destinationKey, 73.9262, 40.8296, circle, storeDistances: true);
+            var res = db.GeoSearchAndStore(sourceKey, destinationKey, 73.9262, 40.8296, circle, storeDistances: true);
             var set = db.SortedSetRangeByRankWithScores(destinationKey);
             Assert.Contains(set, x => x.Element == "yankees");
             Assert.Contains(set, x => x.Element == "red sox");
@@ -634,7 +634,7 @@ namespace StackExchange.Redis.Tests
             db.KeyDelete(key);
             var circle = new GeoSearchCircle(500, GeoUnit.Kilometers);
             var exception = Assert.Throws<ArgumentException>(() =>
-                db.GeoSearchByMember(key, "irrelevant", circle, demandClosest: false));
+                db.GeoSearch(key, "irrelevant", circle, demandClosest: false));
 
             Assert.Contains("demandClosest must be true if you are not limiting the count for a GEOSEARCH",
                 exception.Message);
