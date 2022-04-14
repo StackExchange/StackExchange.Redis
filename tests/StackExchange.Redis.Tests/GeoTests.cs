@@ -623,5 +623,21 @@ namespace StackExchange.Redis.Tests
             Assert.Equal(3, set.Length);
             Assert.Equal(3, res);
         }
+
+        [Fact]
+        public void GeoSearchBadArgs()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
+            var db = conn.GetDatabase();
+            var key = Me();
+            db.KeyDelete(key);
+            var circle = new GeoSearchCircle(500, GeoUnit.Kilometers);
+            var exception = Assert.Throws<ArgumentException>(() =>
+                db.GeoSearchByMember(key, "irrelevant", circle, demandClosest: false));
+
+            Assert.Contains("demandClosest must be true if you are not limiting the count for a GEOSEARCH",
+                exception.Message);
+        }
     }
 }
