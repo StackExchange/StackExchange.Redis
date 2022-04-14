@@ -147,6 +147,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<byte[]?> KeyDumpAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.KeyDumpAsync(ToInner(key), flags);
 
+        public Task<string?> KeyEncodingAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
+            Inner.KeyEncodingAsync(ToInner(key), flags);
+
         public Task<bool> KeyExistsAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.KeyExistsAsync(ToInner(key), flags);
 
@@ -173,6 +176,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public Task<RedisKey> KeyRandomAsync(CommandFlags flags = CommandFlags.None) =>
             throw new NotSupportedException("RANDOMKEY is not supported when a key-prefix is specified");
+
+        public Task<long?> KeyRefCountAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
+            Inner.KeyRefCountAsync(ToInner(key), flags);
 
         public Task<bool> KeyRenameAsync(RedisKey key, RedisKey newKey, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
             Inner.KeyRenameAsync(ToInner(key), ToInner(newKey), when, flags);
@@ -364,6 +370,12 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<bool> SortedSetAddAsync(RedisKey key, RedisValue member, double score, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetAddAsync(ToInner(key), member, score, when, flags);
 
+        public Task<RedisValue[]> SortedSetCombineAsync(SetOperation operation, RedisKey[] keys, double[]? weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None) =>
+            Inner.SortedSetCombineAsync(operation, keys, weights, aggregate, flags);
+
+        public Task<SortedSetEntry[]> SortedSetCombineWithScoresAsync(SetOperation operation, RedisKey[] keys, double[]? weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None) =>
+            Inner.SortedSetCombineWithScoresAsync(operation, keys, weights, aggregate, flags);
+
         public Task<long> SortedSetCombineAndStoreAsync(SetOperation operation, RedisKey destination, RedisKey[] keys, double[]? weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetCombineAndStoreAsync(operation, ToInner(destination), ToInner(keys), weights, aggregate, flags);
 
@@ -375,6 +387,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public Task<double> SortedSetIncrementAsync(RedisKey key, RedisValue member, double value, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetIncrementAsync(ToInner(key), member, value, flags);
+
+        public Task<long> SortedSetIntersectionLengthAsync(RedisKey[] keys, long limit = 0, CommandFlags flags = CommandFlags.None) =>
+            Inner.SortedSetIntersectionLengthAsync(keys, limit, flags);
 
         public Task<long> SortedSetLengthAsync(RedisKey key, double min = -1.0 / 0.0, double max = 1.0 / 0.0, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetLengthAsync(ToInner(key), min, max, exclude, flags);

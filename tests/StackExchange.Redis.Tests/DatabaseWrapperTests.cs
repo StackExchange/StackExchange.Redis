@@ -267,6 +267,13 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void KeyEncoding()
+        {
+            wrapper.KeyEncoding("key", CommandFlags.None);
+            mock.Verify(_ => _.KeyEncoding("prefix:key", CommandFlags.None));
+        }
+
+        [Fact]
         public void KeyExists()
         {
             wrapper.KeyExists("key", CommandFlags.None);
@@ -315,6 +322,13 @@ namespace StackExchange.Redis.Tests
         public void KeyRandom()
         {
             Assert.Throws<NotSupportedException>(() => wrapper.KeyRandom());
+        }
+
+        [Fact]
+        public void KeyRefCount()
+        {
+            wrapper.KeyRefCount("key", CommandFlags.None);
+            mock.Verify(_ => _.KeyRefCount("prefix:key", CommandFlags.None));
         }
 
         [Fact]
@@ -742,6 +756,22 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void SortedSetCombine()
+        {
+            RedisKey[] keys = new RedisKey[] { "a", "b" };
+            wrapper.SortedSetCombine(SetOperation.Intersect, keys);
+            mock.Verify(_ => _.SortedSetCombine(SetOperation.Intersect, keys, null, Aggregate.Sum, CommandFlags.None));
+        }
+
+        [Fact]
+        public void SortedSetCombineWithScores()
+        {
+            RedisKey[] keys = new RedisKey[] { "a", "b" };
+            wrapper.SortedSetCombineWithScores(SetOperation.Intersect, keys);
+            mock.Verify(_ => _.SortedSetCombineWithScores(SetOperation.Intersect, keys, null, Aggregate.Sum, CommandFlags.None));
+        }
+
+        [Fact]
         public void SortedSetCombineAndStore_1()
         {
             wrapper.SortedSetCombineAndStore(SetOperation.Intersect, "destination", "first", "second", Aggregate.Max, CommandFlags.None);
@@ -769,6 +799,14 @@ namespace StackExchange.Redis.Tests
         {
             wrapper.SortedSetIncrement("key", "member", 1.23, CommandFlags.None);
             mock.Verify(_ => _.SortedSetIncrement("prefix:key", "member", 1.23, CommandFlags.None));
+        }
+
+        [Fact]
+        public void SortedSetIntersectionLength()
+        {
+            RedisKey[] keys = new RedisKey[] { "a", "b" };
+            wrapper.SortedSetIntersectionLength(keys, 1, CommandFlags.None);
+            mock.Verify(_ => _.SortedSetIntersectionLength(keys, 1, CommandFlags.None));
         }
 
         [Fact]

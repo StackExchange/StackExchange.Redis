@@ -138,6 +138,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public byte[]? KeyDump(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.KeyDump(ToInner(key), flags);
 
+        public string? KeyEncoding(RedisKey key, CommandFlags flags = CommandFlags.None) =>
+            Inner.KeyEncoding(ToInner(key), flags);
+
         public bool KeyExists(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.KeyExists(ToInner(key), flags);
         public long KeyExists(RedisKey[] keys, CommandFlags flags = CommandFlags.None) =>
@@ -163,6 +166,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public RedisKey KeyRandom(CommandFlags flags = CommandFlags.None) =>
             throw new NotSupportedException("RANDOMKEY is not supported when a key-prefix is specified");
+
+        public long? KeyRefCount(RedisKey key, CommandFlags flags = CommandFlags.None) =>
+            Inner.KeyRefCount(ToInner(key), flags);
 
         public bool KeyRename(RedisKey key, RedisKey newKey, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
             Inner.KeyRename(ToInner(key), ToInner(newKey), when, flags);
@@ -351,6 +357,12 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public bool SortedSetAdd(RedisKey key, RedisValue member, double score, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetAdd(ToInner(key), member, score, when, flags);
 
+        public RedisValue[] SortedSetCombine(SetOperation operation, RedisKey[] keys, double[]? weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None) =>
+            Inner.SortedSetCombine(operation, keys, weights, aggregate, flags);
+
+        public SortedSetEntry[] SortedSetCombineWithScores(SetOperation operation, RedisKey[] keys, double[]? weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None) =>
+            Inner.SortedSetCombineWithScores(operation, keys, weights, aggregate, flags);
+
         public long SortedSetCombineAndStore(SetOperation operation, RedisKey destination, RedisKey[] keys, double[]? weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetCombineAndStore(operation, ToInner(destination), ToInner(keys), weights, aggregate, flags);
 
@@ -362,6 +374,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public double SortedSetIncrement(RedisKey key, RedisValue member, double value, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetIncrement(ToInner(key), member, value, flags);
+
+        public long SortedSetIntersectionLength(RedisKey[] keys, long limit = 0, CommandFlags flags = CommandFlags.None) =>
+            Inner.SortedSetIntersectionLength(keys, limit, flags);
 
         public long SortedSetLength(RedisKey key, double min = -1.0 / 0.0, double max = 1.0 / 0.0, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetLength(ToInner(key), min, max, exclude, flags);
