@@ -173,6 +173,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public RedisKey KeyRandom(CommandFlags flags = CommandFlags.None) =>
             throw new NotSupportedException("RANDOMKEY is not supported when a key-prefix is specified");
 
+        public long? KeyRefCount(RedisKey key, CommandFlags flags = CommandFlags.None) =>
+            Inner.KeyRefCount(ToInner(key), flags);
+
         public bool KeyRename(RedisKey key, RedisKey newKey, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
             Inner.KeyRename(ToInner(key), ToInner(newKey), when, flags);
 
@@ -199,6 +202,12 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public RedisValue[] ListLeftPop(RedisKey key, long count, CommandFlags flags = CommandFlags.None) =>
             Inner.ListLeftPop(ToInner(key), count, flags);
+
+        public long ListPosition(RedisKey key, RedisValue element, long rank = 1, long maxLength = 0, CommandFlags flags = CommandFlags.None) =>
+            Inner.ListPosition(ToInner(key), element, rank, maxLength, flags);
+
+        public long[] ListPositions(RedisKey key, RedisValue element, long count, long rank = 1, long maxLength = 0, CommandFlags flags = CommandFlags.None) =>
+            Inner.ListPositions(ToInner(key), element, count, rank, maxLength, flags);
 
         public long ListLeftPush(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None) =>
             Inner.ListLeftPush(ToInner(key), values, flags);
@@ -303,6 +312,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public bool SetContains(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None) =>
             Inner.SetContains(ToInner(key), value, flags);
 
+        public bool[] SetContains(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None) =>
+            Inner.SetContains(ToInner(key), values, flags);
+
         public long SetIntersectionLength(RedisKey[] keys, long limit = 0, CommandFlags flags = CommandFlags.None) =>
             Inner.SetIntersectionLength(keys, limit, flags);
 
@@ -351,6 +363,12 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public bool SortedSetAdd(RedisKey key, RedisValue member, double score, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetAdd(ToInner(key), member, score, when, flags);
 
+        public RedisValue[] SortedSetCombine(SetOperation operation, RedisKey[] keys, double[]? weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None) =>
+            Inner.SortedSetCombine(operation, keys, weights, aggregate, flags);
+
+        public SortedSetEntry[] SortedSetCombineWithScores(SetOperation operation, RedisKey[] keys, double[]? weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None) =>
+            Inner.SortedSetCombineWithScores(operation, keys, weights, aggregate, flags);
+
         public long SortedSetCombineAndStore(SetOperation operation, RedisKey destination, RedisKey[] keys, double[]? weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetCombineAndStore(operation, ToInner(destination), ToInner(keys), weights, aggregate, flags);
 
@@ -363,11 +381,23 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public double SortedSetIncrement(RedisKey key, RedisValue member, double value, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetIncrement(ToInner(key), member, value, flags);
 
+        public long SortedSetIntersectionLength(RedisKey[] keys, long limit = 0, CommandFlags flags = CommandFlags.None) =>
+            Inner.SortedSetIntersectionLength(keys, limit, flags);
+
         public long SortedSetLength(RedisKey key, double min = -1.0 / 0.0, double max = 1.0 / 0.0, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetLength(ToInner(key), min, max, exclude, flags);
 
         public long SortedSetLengthByValue(RedisKey key, RedisValue min, RedisValue max, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetLengthByValue(ToInner(key), min, max, exclude, flags);
+
+        public RedisValue SortedSetRandomMember(RedisKey key, CommandFlags flags = CommandFlags.None) =>
+            Inner.SortedSetRandomMember(ToInner(key), flags);
+
+        public RedisValue[] SortedSetRandomMembers(RedisKey key, long count, CommandFlags flags = CommandFlags.None) =>
+            Inner.SortedSetRandomMembers(ToInner(key), count, flags);
+
+        public SortedSetEntry[] SortedSetRandomMembersWithScores(RedisKey key, long count, CommandFlags flags = CommandFlags.None) =>
+            Inner.SortedSetRandomMembersWithScores(ToInner(key), count, flags);
 
         public RedisValue[] SortedSetRangeByRank(RedisKey key, long start = 0, long stop = -1, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetRangeByRank(ToInner(key), start, stop, order, flags);

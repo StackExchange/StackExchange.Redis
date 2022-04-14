@@ -633,6 +633,15 @@ namespace StackExchange.Redis
         Task<RedisKey> KeyRandomAsync(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Returns the reference count of the object stored at <paramref name="key"/>.
+        /// </summary>
+        /// <param name="key">The key to get a reference count for.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The number of references (<see langword="Null"/> if the key does not exist).</returns>
+        /// <remarks>https://redis.io/commands/object-refcount</remarks>
+        Task<long?> KeyRefCountAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Renames <paramref name="key"/> to <paramref name="newKey"/>.
         /// It returns an error when the source and destination names are the same, or when key does not exist.
         /// </summary>
@@ -732,6 +741,31 @@ namespace StackExchange.Redis
         /// <returns>Array of values that were popped, or nil if the key doesn't exist.</returns>
         /// <remarks>https://redis.io/commands/lpop</remarks>
         Task<RedisValue[]> ListLeftPopAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Scans through the list stored at <paramref name="key"/> looking for <paramref name="element"/>, returning the 0-based
+        /// index of the first matching element.
+        /// </summary>
+        /// <param name="key">The key of the list.</param>
+        /// <param name="element">The element to search for.</param>
+        /// <param name="rank">The rank of the first element to return, within the sub-list of matching indexes in the case of multiple matches.</param>
+        /// <param name="maxLength">The maximum number of elements to scan through before stopping, defaults to 0 (a full scan of the list.)</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The 0-based index of the first matching element, or -1 if not found.</returns>
+        Task<long> ListPositionAsync(RedisKey key, RedisValue element, long rank = 1, long maxLength = 0, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Scans through the list stored at <paramref name="key"/> looking for <paramref name="count"/> instances of <paramref name="element"/>, returning the 0-based
+        /// indexes of any matching elements.
+        /// </summary>
+        /// <param name="key">The key of the list.</param>
+        /// <param name="element">The element to search for.</param>
+        /// <param name="count">The number of matches to find. A count of 0 will return the indexes of all occurrences of the element.</param>
+        /// <param name="rank">The rank of the first element to return, within the sub-list of matching indexes in the case of multiple matches.</param>
+        /// <param name="maxLength">The maximum number of elements to scan through before stopping, defaults to 0 (a full scan of the list.)</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>An array of at most <paramref name="count"/> of indexes of matching elements. If none are found, and empty array is returned.</returns>
+        Task<long[]> ListPositionsAsync(RedisKey key, RedisValue element, long count, long rank = 1, long maxLength = 0, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Insert the specified value at the head of the list stored at key.
@@ -1115,10 +1149,10 @@ namespace StackExchange.Redis
         Task<long> SetCombineAndStoreAsync(SetOperation operation, RedisKey destination, RedisKey[] keys, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Returns if member is a member of the set stored at key.
+        /// Returns whether <paramref name="value"/> is a member of the set stored at <paramref name="key"/>.
         /// </summary>
         /// <param name="key">The key of the set.</param>
-        /// <param name="value">The value to check for .</param>
+        /// <param name="value">The value to check for.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>
         /// <see langword="true"/> if the element is a member of the set.
@@ -1126,6 +1160,19 @@ namespace StackExchange.Redis
         /// </returns>
         /// <remarks>https://redis.io/commands/sismember</remarks>
         Task<bool> SetContainsAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Returns whether each of <paramref name="values"/> is a member of the set stored at <paramref name="key"/>.
+        /// </summary>
+        /// <param name="key">The key of the set.</param>
+        /// <param name="values">The members to check for.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>
+        /// <see langword="true"/> if the element is a member of the set.
+        /// <see langword="false"/> if the element is not a member of the set, or if key does not exist.
+        /// </returns>
+        /// <remarks>https://redis.io/commands/smismember</remarks>
+        Task<bool[]> SetContainsAsync(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         ///   <para>
@@ -1343,8 +1390,41 @@ namespace StackExchange.Redis
         Task<long> SortedSetAddAsync(RedisKey key, SortedSetEntry[] values, When when = When.Always, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Computes a set operation for multiple sorted sets (optionally using per-set <paramref name="weights"/>),
+        /// optionally performing a specific aggregation (defaults to <see cref="Aggregate.Sum"/>).
+        /// <see cref="SetOperation.Difference"/> cannot be used with weights or aggregation.
+        /// </summary>
+        /// <param name="operation">The operation to perform.</param>
+        /// <param name="keys">The keys of the sorted sets.</param>
+        /// <param name="weights">The optional weights per set that correspond to <paramref name="keys"/>.</param>
+        /// <param name="aggregate">The aggregation method (defaults to <see cref="Aggregate.Sum"/>).</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <remarks>https://redis.io/commands/zunion</remarks>
+        /// <remarks>https://redis.io/commands/zinter</remarks>
+        /// <remarks>https://redis.io/commands/zdiff</remarks>
+        /// <returns>The resulting sorted set.</returns>
+        Task<RedisValue[]> SortedSetCombineAsync(SetOperation operation, RedisKey[] keys, double[]? weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Computes a set operation for multiple sorted sets (optionally using per-set <paramref name="weights"/>),
+        /// optionally performing a specific aggregation (defaults to <see cref="Aggregate.Sum"/>).
+        /// <see cref="SetOperation.Difference"/> cannot be used with weights or aggregation.
+        /// </summary>
+        /// <param name="operation">The operation to perform.</param>
+        /// <param name="keys">The keys of the sorted sets.</param>
+        /// <param name="weights">The optional weights per set that correspond to <paramref name="keys"/>.</param>
+        /// <param name="aggregate">The aggregation method (defaults to <see cref="Aggregate.Sum"/>).</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <remarks>https://redis.io/commands/zunion</remarks>
+        /// <remarks>https://redis.io/commands/zinter</remarks>
+        /// <remarks>https://redis.io/commands/zdiff</remarks>
+        /// <returns>The resulting sorted set with scores.</returns>
+        Task<SortedSetEntry[]> SortedSetCombineWithScoresAsync(SetOperation operation, RedisKey[] keys, double[]? weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Computes a set operation over two sorted sets, and stores the result in destination, optionally performing
         /// a specific aggregation (defaults to sum).
+        /// <see cref="SetOperation.Difference"/> cannot be used with aggregation.
         /// </summary>
         /// <param name="operation">The operation to perform.</param>
         /// <param name="destination">The key to store the results in.</param>
@@ -1354,12 +1434,14 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <remarks>https://redis.io/commands/zunionstore</remarks>
         /// <remarks>https://redis.io/commands/zinterstore</remarks>
+        /// <remarks>https://redis.io/commands/zdiffstore</remarks>
         /// <returns>The number of elements in the resulting sorted set at destination.</returns>
         Task<long> SortedSetCombineAndStoreAsync(SetOperation operation, RedisKey destination, RedisKey first, RedisKey second, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Computes a set operation over multiple sorted sets (optionally using per-set weights), and stores the result in destination, optionally performing
         /// a specific aggregation (defaults to sum).
+        /// <see cref="SetOperation.Difference"/> cannot be used with aggregation.
         /// </summary>
         /// <param name="operation">The operation to perform.</param>
         /// <param name="destination">The key to store the results in.</param>
@@ -1369,6 +1451,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <remarks>https://redis.io/commands/zunionstore</remarks>
         /// <remarks>https://redis.io/commands/zinterstore</remarks>
+        /// <remarks>https://redis.io/commands/zdiffstore</remarks>
         /// <returns>The number of elements in the resulting sorted set at destination.</returns>
         Task<long> SortedSetCombineAndStoreAsync(SetOperation operation, RedisKey destination, RedisKey[] keys, double[]? weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None);
 
@@ -1396,6 +1479,16 @@ namespace StackExchange.Redis
         Task<double> SortedSetIncrementAsync(RedisKey key, RedisValue member, double value, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Returns the cardinality of the intersection of the sorted sets at <paramref name="keys"/>.
+        /// </summary>
+        /// <param name="keys">The keys of the sorted sets.</param>
+        /// <param name="limit">If the intersection cardinality reaches <paramref name="limit"/> partway through the computation, the algorithm will exit and yield <paramref name="limit"/> as the cardinality (defaults to 0 meaning unlimited).</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The number of elements in the resulting intersection.</returns>
+        /// <remarks>https://redis.io/commands/zintercard</remarks>
+        Task<long> SortedSetIntersectionLengthAsync(RedisKey[] keys, long limit = 0, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Returns the sorted set cardinality (number of elements) of the sorted set stored at key.
         /// </summary>
         /// <param name="key">The key of the sorted set.</param>
@@ -1419,6 +1512,53 @@ namespace StackExchange.Redis
         /// <returns>The number of elements in the specified score range.</returns>
         /// <remarks>https://redis.io/commands/zlexcount</remarks>
         Task<long> SortedSetLengthByValueAsync(RedisKey key, RedisValue min, RedisValue max, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Returns a random element from the sorted set value stored at <paramref name="key"/>.
+        /// </summary>
+        /// <param name="key">The key of the sorted set.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The randomly selected element, or <see cref="RedisValue.Null"/> when <paramref name="key"/> does not exist.</returns>
+        /// <remarks>https://redis.io/commands/zrandmember</remarks>
+        Task<RedisValue> SortedSetRandomMemberAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Returns an array of random elements from the sorted set value stored at <paramref name="key"/>.
+        /// </summary>
+        /// <param name="key">The key of the sorted set.</param>
+        /// <param name="count">
+        ///   <para>
+        ///     If the provided count argument is positive, returns an array of distinct elements.
+        ///     The array's length is either <paramref name="count"/> or the sorted set's cardinality (ZCARD), whichever is lower.
+        ///   </para>
+        ///   <para>
+        ///     If called with a negative count, the behavior changes and the command is allowed to return the same element multiple times.
+        ///     In this case, the number of returned elements is the absolute value of the specified count.
+        ///   </para>
+        /// </param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The randomly selected elements, or an empty array when <paramref name="key"/> does not exist.</returns>
+        /// <remarks>https://redis.io/commands/zrandmember</remarks>
+        Task<RedisValue[]> SortedSetRandomMembersAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Returns an array of random elements from the sorted set value stored at <paramref name="key"/>.
+        /// </summary>
+        /// <param name="key">The key of the sorted set.</param>
+        /// <param name="count">
+        ///   <para>
+        ///     If the provided count argument is positive, returns an array of distinct elements.
+        ///     The array's length is either <paramref name="count"/> or the sorted set's cardinality (ZCARD), whichever is lower.
+        ///   </para>
+        ///   <para>
+        ///     If called with a negative count, the behavior changes and the command is allowed to return the same element multiple times.
+        ///     In this case, the number of returned elements is the absolute value of the specified count.
+        ///   </para>
+        /// </param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The randomly selected elements with scores, or an empty array when <paramref name="key"/> does not exist.</returns>
+        /// <remarks>https://redis.io/commands/zrandmember</remarks>
+        Task<SortedSetEntry[]> SortedSetRandomMembersWithScoresAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Returns the specified range of elements in the sorted set stored at key.
