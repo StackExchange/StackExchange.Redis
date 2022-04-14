@@ -9,9 +9,9 @@ namespace StackExchange.Redis
     /// </summary>
     public class EndPointEventArgs : EventArgs, ICompletable
     {
-        private readonly EventHandler<EndPointEventArgs> handler;
+        private readonly EventHandler<EndPointEventArgs>? handler;
         private readonly object sender;
-        internal EndPointEventArgs(EventHandler<EndPointEventArgs> handler, object sender, EndPoint endpoint)
+        internal EndPointEventArgs(EventHandler<EndPointEventArgs>? handler, object sender, EndPoint endpoint)
         {
             this.handler = handler;
             this.sender = sender;

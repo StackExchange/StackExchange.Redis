@@ -15,7 +15,7 @@ namespace StackExchange.Redis.Tests
             {
                 muxer.GetDatabase();
                 Assert.Null(muxer.GetServerSnapshot()[0].LastException);
-                var ex = ExceptionFactory.NoConnectionAvailable(muxer as ConnectionMultiplexer, null, null);
+                var ex = ExceptionFactory.NoConnectionAvailable((muxer as ConnectionMultiplexer)!, null, null);
                 Assert.Null(ex.InnerException);
             }
         }
@@ -43,7 +43,7 @@ namespace StackExchange.Redis.Tests
                         muxer.GetServer(endpoint).SimulateConnectionFailure(SimulatedFailureType.All);
                     }
 
-                    var ex = ExceptionFactory.NoConnectionAvailable(muxer as ConnectionMultiplexer, null, null);
+                    var ex = ExceptionFactory.NoConnectionAvailable((muxer as ConnectionMultiplexer)!, null, null);
                     var outer = Assert.IsType<RedisConnectionException>(ex);
                     Assert.Equal(ConnectionFailureType.UnableToResolvePhysicalConnection, outer.FailureType);
                     var inner = Assert.IsType<RedisConnectionException>(outer.InnerException);
@@ -70,7 +70,7 @@ namespace StackExchange.Redis.Tests
 
                     muxer.GetServer(muxer.GetEndPoints()[0]).SimulateConnectionFailure(SimulatedFailureType.All);
 
-                    var ex = ExceptionFactory.NoConnectionAvailable(muxer as ConnectionMultiplexer, null, muxer.GetServerSnapshot()[0]);
+                    var ex = ExceptionFactory.NoConnectionAvailable((muxer as ConnectionMultiplexer)!, null, muxer.GetServerSnapshot()[0]);
                     Assert.IsType<RedisConnectionException>(ex);
                     Assert.IsType<RedisConnectionException>(ex.InnerException);
                     Assert.Equal(ex.InnerException, muxer.GetServerSnapshot()[0].LastException);
@@ -91,7 +91,7 @@ namespace StackExchange.Redis.Tests
                 {
                     muxer.GetDatabase();
                     muxer.AllowConnect = false;
-                    var ex = ExceptionFactory.NoConnectionAvailable(muxer as ConnectionMultiplexer, null, null);
+                    var ex = ExceptionFactory.NoConnectionAvailable((muxer as ConnectionMultiplexer)!, null, null);
                     Assert.IsType<RedisConnectionException>(ex);
                     Assert.Null(ex.InnerException);
                 }

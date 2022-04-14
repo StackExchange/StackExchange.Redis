@@ -38,6 +38,15 @@ namespace StackExchange.Redis.Tests
             new SortedSetEntry("j", 512)
         };
 
+        private static readonly SortedSetEntry[] entriesPow3 = new SortedSetEntry[]
+        {
+            new SortedSetEntry("a", 1),
+            new SortedSetEntry("c", 4),
+            new SortedSetEntry("e", 16),
+            new SortedSetEntry("g", 64),
+            new SortedSetEntry("i", 256),
+        };
+
         private static readonly SortedSetEntry[] lexEntries = new SortedSetEntry[]
         {
             new SortedSetEntry("a", 0),
@@ -53,11 +62,289 @@ namespace StackExchange.Redis.Tests
         };
 
         [Fact]
+        public void SortedSetCombine()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
+
+            var db = conn.GetDatabase();
+            var key1 = Me();
+            db.KeyDelete(key1, CommandFlags.FireAndForget);
+            var key2 = Me() + "2";
+            db.KeyDelete(key2, CommandFlags.FireAndForget);
+
+            db.SortedSetAdd(key1, entries);
+            db.SortedSetAdd(key2, entriesPow3);
+
+            var diff = db.SortedSetCombine(SetOperation.Difference, new RedisKey[]{ key1, key2});
+            Assert.Equal(5, diff.Length);
+            Assert.Equal("b", diff[0]);
+
+            var inter = db.SortedSetCombine(SetOperation.Intersect, new RedisKey[]{ key1, key2});
+            Assert.Equal(5, inter.Length);
+            Assert.Equal("a", inter[0]);
+
+            var union = db.SortedSetCombine(SetOperation.Union, new RedisKey[]{ key1, key2});
+            Assert.Equal(10, union.Length);
+            Assert.Equal("a", union[0]);
+        }
+
+
+        [Fact]
+        public async Task SortedSetCombineAsync()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
+
+            var db = conn.GetDatabase();
+            var key1 = Me();
+            db.KeyDelete(key1, CommandFlags.FireAndForget);
+            var key2 = Me() + "2";
+            db.KeyDelete(key2, CommandFlags.FireAndForget);
+
+            db.SortedSetAdd(key1, entries);
+            db.SortedSetAdd(key2, entriesPow3);
+
+            var diff = await db.SortedSetCombineAsync(SetOperation.Difference, new RedisKey[] { key1, key2 });
+            Assert.Equal(5, diff.Length);
+            Assert.Equal("b", diff[0]);
+
+            var inter = await db.SortedSetCombineAsync(SetOperation.Intersect, new RedisKey[] { key1, key2 });
+            Assert.Equal(5, inter.Length);
+            Assert.Equal("a", inter[0]);
+
+            var union = await db.SortedSetCombineAsync(SetOperation.Union, new RedisKey[] { key1, key2 });
+            Assert.Equal(10, union.Length);
+            Assert.Equal("a", union[0]);
+        }
+
+        [Fact]
+        public void SortedSetCombineWithScores()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
+
+            var db = conn.GetDatabase();
+            var key1 = Me();
+            db.KeyDelete(key1, CommandFlags.FireAndForget);
+            var key2 = Me() + "2";
+            db.KeyDelete(key2, CommandFlags.FireAndForget);
+
+            db.SortedSetAdd(key1, entries);
+            db.SortedSetAdd(key2, entriesPow3);
+
+            var diff = db.SortedSetCombineWithScores(SetOperation.Difference, new RedisKey[]{ key1, key2});
+            Assert.Equal(5, diff.Length);
+            Assert.Equal(new SortedSetEntry("b", 2), diff[0]);
+
+            var inter = db.SortedSetCombineWithScores(SetOperation.Intersect, new RedisKey[]{ key1, key2});
+            Assert.Equal(5, inter.Length);
+            Assert.Equal(new SortedSetEntry("a", 2), inter[0]);
+
+            var union = db.SortedSetCombineWithScores(SetOperation.Union, new RedisKey[]{ key1, key2});
+            Assert.Equal(10, union.Length);
+            Assert.Equal(new SortedSetEntry("a", 2), union[0]);
+        }
+
+
+        [Fact]
+        public async Task SortedSetCombineWithScoresAsync()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
+
+            var db = conn.GetDatabase();
+            var key1 = Me();
+            db.KeyDelete(key1, CommandFlags.FireAndForget);
+            var key2 = Me() + "2";
+            db.KeyDelete(key2, CommandFlags.FireAndForget);
+
+            db.SortedSetAdd(key1, entries);
+            db.SortedSetAdd(key2, entriesPow3);
+
+            var diff = await db.SortedSetCombineWithScoresAsync(SetOperation.Difference, new RedisKey[] { key1, key2 });
+            Assert.Equal(5, diff.Length);
+            Assert.Equal(new SortedSetEntry("b", 2), diff[0]);
+
+            var inter = await db.SortedSetCombineWithScoresAsync(SetOperation.Intersect, new RedisKey[] { key1, key2 });
+            Assert.Equal(5, inter.Length);
+            Assert.Equal(new SortedSetEntry("a", 2), inter[0]);
+
+            var union = await db.SortedSetCombineWithScoresAsync(SetOperation.Union, new RedisKey[] { key1, key2 });
+            Assert.Equal(10, union.Length);
+            Assert.Equal(new SortedSetEntry("a", 2), union[0]);
+        }
+
+        [Fact]
+        public void SortedSetCombineAndStore()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
+
+            var db = conn.GetDatabase();
+            var key1 = Me();
+            db.KeyDelete(key1, CommandFlags.FireAndForget);
+            var key2 = Me() + "2";
+            db.KeyDelete(key2, CommandFlags.FireAndForget);
+            var destination = Me() + "dest";
+            db.KeyDelete(destination, CommandFlags.FireAndForget);
+
+            db.SortedSetAdd(key1, entries);
+            db.SortedSetAdd(key2, entriesPow3);
+
+            var diff = db.SortedSetCombineAndStore(SetOperation.Difference, destination, new RedisKey[]{ key1, key2});
+            Assert.Equal(5, diff);
+
+            var inter = db.SortedSetCombineAndStore(SetOperation.Intersect, destination, new RedisKey[]{ key1, key2});
+            Assert.Equal(5, inter);
+
+            var union = db.SortedSetCombineAndStore(SetOperation.Union, destination, new RedisKey[]{ key1, key2});
+            Assert.Equal(10, union);
+        }
+
+
+        [Fact]
+        public async Task SortedSetCombineAndStoreAsync()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
+
+            var db = conn.GetDatabase();
+            var key1 = Me();
+            db.KeyDelete(key1, CommandFlags.FireAndForget);
+            var key2 = Me() + "2";
+            db.KeyDelete(key2, CommandFlags.FireAndForget);
+            var destination = Me() + "dest";
+            db.KeyDelete(destination, CommandFlags.FireAndForget);
+
+            db.SortedSetAdd(key1, entries);
+            db.SortedSetAdd(key2, entriesPow3);
+
+            var diff = await db.SortedSetCombineAndStoreAsync(SetOperation.Difference, destination, new RedisKey[] { key1, key2 });
+            Assert.Equal(5, diff);
+
+            var inter = await db.SortedSetCombineAndStoreAsync(SetOperation.Intersect, destination, new RedisKey[] { key1, key2 });
+            Assert.Equal(5, inter);
+
+            var union = await db.SortedSetCombineAndStoreAsync(SetOperation.Union, destination, new RedisKey[] { key1, key2 });
+            Assert.Equal(10, union);
+        }
+
+        [Fact]
+        public async Task SortedSetCombineErrors()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
+
+            var db = conn.GetDatabase();
+            var key1 = Me();
+            db.KeyDelete(key1, CommandFlags.FireAndForget);
+            var key2 = Me() + "2";
+            db.KeyDelete(key2, CommandFlags.FireAndForget);
+            var destination = Me() + "dest";
+            db.KeyDelete(destination, CommandFlags.FireAndForget);
+
+            db.SortedSetAdd(key1, entries);
+            db.SortedSetAdd(key2, entriesPow3);
+
+            // ZDIFF can't be used with weights
+            var ex = Assert.Throws<ArgumentException>(() => db.SortedSetCombine(SetOperation.Difference, new RedisKey[] { key1, key2 }, new double[] { 1, 2 }));
+            Assert.Equal("ZDIFF cannot be used with weights or aggregation.", ex.Message);
+            ex = Assert.Throws<ArgumentException>(() => db.SortedSetCombineWithScores(SetOperation.Difference, new RedisKey[] { key1, key2 }, new double[] { 1, 2 }));
+            Assert.Equal("ZDIFF cannot be used with weights or aggregation.", ex.Message);
+            ex = Assert.Throws<ArgumentException>(() => db.SortedSetCombineAndStore(SetOperation.Difference, destination, new RedisKey[] { key1, key2 }, new double[] { 1, 2 }));
+            Assert.Equal("ZDIFFSTORE cannot be used with weights or aggregation.", ex.Message);
+            // and Async...
+            ex = await Assert.ThrowsAsync<ArgumentException>(() => db.SortedSetCombineAsync(SetOperation.Difference, new RedisKey[] { key1, key2 }, new double[] { 1, 2 }));
+            Assert.Equal("ZDIFF cannot be used with weights or aggregation.", ex.Message);
+            ex = await Assert.ThrowsAsync<ArgumentException>(() => db.SortedSetCombineWithScoresAsync(SetOperation.Difference, new RedisKey[] { key1, key2 }, new double[] { 1, 2 }));
+            Assert.Equal("ZDIFF cannot be used with weights or aggregation.", ex.Message);
+            ex = await Assert.ThrowsAsync<ArgumentException>(() => db.SortedSetCombineAndStoreAsync(SetOperation.Difference, destination, new RedisKey[] { key1, key2 }, new double[] { 1, 2 }));
+            Assert.Equal("ZDIFFSTORE cannot be used with weights or aggregation.", ex.Message);
+
+            // ZDIFF can't be used with aggregation
+            ex = Assert.Throws<ArgumentException>(() => db.SortedSetCombine(SetOperation.Difference, new RedisKey[] { key1, key2 }, aggregate: Aggregate.Max));
+            Assert.Equal("ZDIFF cannot be used with weights or aggregation.", ex.Message);
+            ex = Assert.Throws<ArgumentException>(() => db.SortedSetCombineWithScores(SetOperation.Difference, new RedisKey[] { key1, key2 }, aggregate: Aggregate.Max));
+            Assert.Equal("ZDIFF cannot be used with weights or aggregation.", ex.Message);
+            ex = Assert.Throws<ArgumentException>(() => db.SortedSetCombineAndStore(SetOperation.Difference, destination, new RedisKey[] { key1, key2 }, aggregate: Aggregate.Max));
+            Assert.Equal("ZDIFFSTORE cannot be used with weights or aggregation.", ex.Message);
+            // and Async...
+            ex = await Assert.ThrowsAsync<ArgumentException>(() => db.SortedSetCombineAsync(SetOperation.Difference, new RedisKey[] { key1, key2 }, aggregate: Aggregate.Max));
+            Assert.Equal("ZDIFF cannot be used with weights or aggregation.", ex.Message);
+            ex = await Assert.ThrowsAsync<ArgumentException>(() => db.SortedSetCombineWithScoresAsync(SetOperation.Difference, new RedisKey[] { key1, key2 }, aggregate: Aggregate.Max));
+            Assert.Equal("ZDIFF cannot be used with weights or aggregation.", ex.Message);
+            ex = await Assert.ThrowsAsync<ArgumentException>(() => db.SortedSetCombineAndStoreAsync(SetOperation.Difference, destination, new RedisKey[] { key1, key2 }, aggregate: Aggregate.Max));
+            Assert.Equal("ZDIFFSTORE cannot be used with weights or aggregation.", ex.Message);
+
+            // Too many weights
+            ex = Assert.Throws<ArgumentException>(() => db.SortedSetCombine(SetOperation.Union, new RedisKey[] { key1, key2 }, new double[] { 1, 2, 3 }));
+            Assert.StartsWith("Keys and weights should have the same number of elements.", ex.Message);
+            ex = Assert.Throws<ArgumentException>(() => db.SortedSetCombineWithScores(SetOperation.Union, new RedisKey[] { key1, key2 }, new double[] { 1, 2, 3 }));
+            Assert.StartsWith("Keys and weights should have the same number of elements.", ex.Message);
+            ex = Assert.Throws<ArgumentException>(() => db.SortedSetCombineAndStore(SetOperation.Union, destination, new RedisKey[] { key1, key2 }, new double[] { 1, 2, 3 }));
+            Assert.StartsWith("Keys and weights should have the same number of elements.", ex.Message);
+            // and Async...
+            ex = await Assert.ThrowsAsync<ArgumentException>(() => db.SortedSetCombineAsync(SetOperation.Union, new RedisKey[] { key1, key2 }, new double[] { 1, 2, 3 }));
+            Assert.StartsWith("Keys and weights should have the same number of elements.", ex.Message);
+            ex = await Assert.ThrowsAsync<ArgumentException>(() => db.SortedSetCombineWithScoresAsync(SetOperation.Union, new RedisKey[] { key1, key2 }, new double[] { 1, 2, 3 }));
+            Assert.StartsWith("Keys and weights should have the same number of elements.", ex.Message);
+            ex = await Assert.ThrowsAsync<ArgumentException>(() => db.SortedSetCombineAndStoreAsync(SetOperation.Union, destination, new RedisKey[] { key1, key2 }, new double[] { 1, 2, 3 }));
+            Assert.StartsWith("Keys and weights should have the same number of elements.", ex.Message);
+        }
+
+        [Fact]
+        public void SortedSetIntersectionLength()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v7_0_0_rc1);
+
+            var db = conn.GetDatabase();
+            var key1 = Me();
+            db.KeyDelete(key1, CommandFlags.FireAndForget);
+            var key2 = Me() + "2";
+            db.KeyDelete(key2, CommandFlags.FireAndForget);
+
+            db.SortedSetAdd(key1, entries);
+            db.SortedSetAdd(key2, entriesPow3);
+
+            var inter = db.SortedSetIntersectionLength(new RedisKey[]{ key1, key2});
+            Assert.Equal(5, inter);
+
+            // with limit
+            inter = db.SortedSetIntersectionLength(new RedisKey[]{ key1, key2}, 3);
+            Assert.Equal(3, inter);
+        }
+
+        [Fact]
+        public async Task SortedSetIntersectionLengthAsync()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v7_0_0_rc1);
+
+            var db = conn.GetDatabase();
+            var key1 = Me();
+            db.KeyDelete(key1, CommandFlags.FireAndForget);
+            var key2 = Me() + "2";
+            db.KeyDelete(key2, CommandFlags.FireAndForget);
+
+            db.SortedSetAdd(key1, entries);
+            db.SortedSetAdd(key2, entriesPow3);
+
+            var inter = await db.SortedSetIntersectionLengthAsync(new RedisKey[] { key1, key2 });
+            Assert.Equal(5, inter);
+
+            // with limit
+            inter = await db.SortedSetIntersectionLengthAsync(new RedisKey[] { key1, key2 }, 3);
+            Assert.Equal(3, inter);
+        }
+
+        [Fact]
         public void SortedSetPopMulti_Multi()
         {
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetPop), r => r.SortedSetPop);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
                 var key = Me();
@@ -83,7 +370,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetPop), r => r.SortedSetPop);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
                 var key = Me();
@@ -108,7 +395,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetPop), r => r.SortedSetPop);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
                 var key = Me();
@@ -134,7 +421,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetPop), r => r.SortedSetPop);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
                 var key = Me();
@@ -159,7 +446,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetPop), r => r.SortedSetPop);
+                Skip.IfBelow(conn, RedisFeatures.v5_0_0);
 
                 var db = conn.GetDatabase();
                 var key = Me();
@@ -170,6 +457,7 @@ namespace StackExchange.Redis.Tests
                 var t = db.SortedSetPopAsync(key, count: 0);
                 Assert.True(t.IsCompleted); // sync
                 var arr = await t;
+                Assert.NotNull(arr);
                 Assert.Empty(arr);
 
                 Assert.Equal(10, db.SortedSetLength(key));
@@ -177,10 +465,99 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void SortedSetRandomMembers()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
+
+            var db = conn.GetDatabase();
+            var key = Me();
+            var key0 = Me() + "non-existing";
+
+            db.KeyDelete(key, CommandFlags.FireAndForget);
+            db.KeyDelete(key0, CommandFlags.FireAndForget);
+            db.SortedSetAdd(key, entries, CommandFlags.FireAndForget);
+
+            // single member
+            var randMember = db.SortedSetRandomMember(key);
+            Assert.True(Array.Exists(entries, element => element.Element.Equals(randMember)));
+
+            // with count
+            var randMemberArray = db.SortedSetRandomMembers(key, 5);
+            Assert.Equal(5, randMemberArray.Length);
+            randMemberArray = db.SortedSetRandomMembers(key, 15);
+            Assert.Equal(10, randMemberArray.Length);
+            randMemberArray = db.SortedSetRandomMembers(key, -5);
+            Assert.Equal(5, randMemberArray.Length);
+            randMemberArray = db.SortedSetRandomMembers(key, -15);
+            Assert.Equal(15, randMemberArray.Length);
+
+            // with scores
+            var randMemberArray2 = db.SortedSetRandomMembersWithScores(key, 2);
+            Assert.Equal(2, randMemberArray2.Length);
+            foreach (var member in randMemberArray2)
+            {
+                Assert.Contains(member, entries);
+            }
+
+            // check missing key case
+            randMember = db.SortedSetRandomMember(key0);
+            Assert.True(randMember.IsNull);
+            randMemberArray = db.SortedSetRandomMembers(key0, 2);
+            Assert.True(randMemberArray.Length == 0);
+            randMemberArray2 = db.SortedSetRandomMembersWithScores(key0, 2);
+            Assert.True(randMemberArray2.Length == 0);
+        }
+
+        [Fact]
+        public async Task SortedSetRandomMembersAsync()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
+
+            var db = conn.GetDatabase();
+            var key = Me();
+            var key0 = Me() + "non-existing";
+
+            db.KeyDelete(key, CommandFlags.FireAndForget);
+            db.KeyDelete(key0, CommandFlags.FireAndForget);
+            db.SortedSetAdd(key, entries, CommandFlags.FireAndForget);
+
+            var randMember = await db.SortedSetRandomMemberAsync(key);
+            Assert.True(Array.Exists(entries, element => element.Element.Equals(randMember)));
+
+            // with count
+            var randMemberArray = await db.SortedSetRandomMembersAsync(key, 5);
+            Assert.Equal(5, randMemberArray.Length);
+            randMemberArray = await db.SortedSetRandomMembersAsync(key, 15);
+            Assert.Equal(10, randMemberArray.Length);
+            randMemberArray = await db.SortedSetRandomMembersAsync(key, -5);
+            Assert.Equal(5, randMemberArray.Length);
+            randMemberArray = await db.SortedSetRandomMembersAsync(key, -15);
+            Assert.Equal(15, randMemberArray.Length);
+
+            // with scores
+            var randMemberArray2 = await db.SortedSetRandomMembersWithScoresAsync(key, 2);
+            Assert.Equal(2, randMemberArray2.Length);
+            foreach (var member in randMemberArray2)
+            {
+                Assert.Contains(member, entries);
+            }
+
+            // check missing key case
+            randMember = await db.SortedSetRandomMemberAsync(key0);
+            Assert.True(randMember.IsNull);
+            randMemberArray = await db.SortedSetRandomMembersAsync(key0, 2);
+            Assert.True(randMemberArray.Length == 0);
+            randMemberArray2 = await db.SortedSetRandomMembersWithScoresAsync(key0, 2);
+            Assert.True(randMemberArray2.Length == 0);
+        }
+
+        [Fact]
         public async Task SortedSetRangeStoreByRankAsync()
         {
             using var conn = Create();
-            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
             var db = conn.GetDatabase();
             var me = Me();
             var sourceKey = $"{me}:ZSetSource";
@@ -196,7 +573,7 @@ namespace StackExchange.Redis.Tests
         public async Task SortedSetRangeStoreByRankLimitedAsync()
         {
             using var conn = Create();
-            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
 
             var db = conn.GetDatabase();
             var me = Me();
@@ -218,7 +595,7 @@ namespace StackExchange.Redis.Tests
         public async Task SortedSetRangeStoreByScoreAsync()
         {
             using var conn = Create();
-            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
 
             var db = conn.GetDatabase();
             var me = Me();
@@ -240,7 +617,7 @@ namespace StackExchange.Redis.Tests
         public async Task SortedSetRangeStoreByScoreAsyncDefault()
         {
             using var conn = Create();
-            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
 
             var db = conn.GetDatabase();
             var me = Me();
@@ -262,7 +639,7 @@ namespace StackExchange.Redis.Tests
         public async Task SortedSetRangeStoreByScoreAsyncLimited()
         {
             using var conn = Create();
-            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
 
             var db = conn.GetDatabase();
             var me = Me();
@@ -284,7 +661,7 @@ namespace StackExchange.Redis.Tests
         public async Task SortedSetRangeStoreByScoreAsyncExclusiveRange()
         {
             using var conn = Create();
-            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
 
             var db = conn.GetDatabase();
             var me = Me();
@@ -306,7 +683,7 @@ namespace StackExchange.Redis.Tests
         public async Task SortedSetRangeStoreByScoreAsyncReverse()
         {
             using var conn = Create();
-            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
 
             var db = conn.GetDatabase();
             var me = Me();
@@ -328,7 +705,7 @@ namespace StackExchange.Redis.Tests
         public async Task SortedSetRangeStoreByLexAsync()
         {
             using var conn = Create();
-            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
 
             var db = conn.GetDatabase();
             var me = Me();
@@ -350,7 +727,7 @@ namespace StackExchange.Redis.Tests
         public async Task SortedSetRangeStoreByLexExclusiveRangeAsync()
         {
             using var conn = Create();
-            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
 
             var db = conn.GetDatabase();
             var me = Me();
@@ -372,7 +749,7 @@ namespace StackExchange.Redis.Tests
         public async Task SortedSetRangeStoreByLexRevRangeAsync()
         {
             using var conn = Create();
-            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
 
             var db = conn.GetDatabase();
             var me = Me();
@@ -394,7 +771,7 @@ namespace StackExchange.Redis.Tests
         public void SortedSetRangeStoreByRank()
         {
             using var conn = Create();
-            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
 
             var db = conn.GetDatabase();
             var me = Me();
@@ -411,7 +788,7 @@ namespace StackExchange.Redis.Tests
         public void SortedSetRangeStoreByRankLimited()
         {
             using var conn = Create();
-            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
 
             var db = conn.GetDatabase();
             var me = Me();
@@ -433,7 +810,7 @@ namespace StackExchange.Redis.Tests
         public void SortedSetRangeStoreByScore()
         {
             using var conn = Create();
-            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
 
             var db = conn.GetDatabase();
             var me = Me();
@@ -455,7 +832,7 @@ namespace StackExchange.Redis.Tests
         public void SortedSetRangeStoreByScoreDefault()
         {
             using var conn = Create();
-            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
 
             var db = conn.GetDatabase();
             var me = Me();
@@ -477,7 +854,7 @@ namespace StackExchange.Redis.Tests
         public void SortedSetRangeStoreByScoreLimited()
         {
             using var conn = Create();
-            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
 
             var db = conn.GetDatabase();
             var me = Me();
@@ -499,7 +876,7 @@ namespace StackExchange.Redis.Tests
         public void SortedSetRangeStoreByScoreExclusiveRange()
         {
             using var conn = Create();
-            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
 
             var db = conn.GetDatabase();
             var me = Me();
@@ -521,7 +898,7 @@ namespace StackExchange.Redis.Tests
         public void SortedSetRangeStoreByScoreReverse()
         {
             using var conn = Create();
-            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
 
             var db = conn.GetDatabase();
             var me = Me();
@@ -543,7 +920,7 @@ namespace StackExchange.Redis.Tests
         public void SortedSetRangeStoreByLex()
         {
             using var conn = Create();
-            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
 
             var db = conn.GetDatabase();
             var me = Me();
@@ -565,7 +942,7 @@ namespace StackExchange.Redis.Tests
         public void SortedSetRangeStoreByLexExclusiveRange()
         {
             using var conn = Create();
-            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
 
             var db = conn.GetDatabase();
             var me = Me();
@@ -587,7 +964,7 @@ namespace StackExchange.Redis.Tests
         public void SortedSetRangeStoreByLexRevRange()
         {
             using var conn = Create();
-            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
 
             var db = conn.GetDatabase();
             var me = Me();
@@ -609,7 +986,7 @@ namespace StackExchange.Redis.Tests
         public void SortedSetRangeStoreFailErroneousTake()
         {
             using var conn = Create();
-            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
 
             var db = conn.GetDatabase();
             var me = Me();
@@ -626,7 +1003,7 @@ namespace StackExchange.Redis.Tests
         public void SortedSetRangeStoreFailExclude()
         {
             using var conn = Create();
-            Skip.IfMissingFeature(conn, nameof(RedisFeatures.SortedSetRangeStore), r=> r.SortedSetRangeStore);
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
 
             var db = conn.GetDatabase();
             var me = Me();
@@ -637,6 +1014,266 @@ namespace StackExchange.Redis.Tests
             db.SortedSetAdd(sourceKey, lexEntries, CommandFlags.FireAndForget);
             var exception = Assert.Throws<ArgumentException>(()=>db.SortedSetRangeAndStore(sourceKey, destinationKey,0,-1, exclude: Exclude.Both));
             Assert.Equal("exclude", exception.ParamName);
+        }
+
+        [Fact]
+        public void SortedSetScoresSingle()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v2_1_0);
+
+            var db = conn.GetDatabase();
+            var key = Me();
+            var memberName = "member";
+
+            db.KeyDelete(key);
+            db.SortedSetAdd(key, memberName, 1.5);
+
+            var score = db.SortedSetScore(key, memberName);
+
+            Assert.NotNull(score);
+            Assert.Equal((double)1.5, score.Value);
+        }
+
+        [Fact]
+        public async Task SortedSetScoresSingleAsync()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v2_1_0);
+
+            var db = conn.GetDatabase();
+            var key = Me();
+            var memberName = "member";
+
+            await db.KeyDeleteAsync(key);
+            await db.SortedSetAddAsync(key, memberName, 1.5);
+
+            var score = await db.SortedSetScoreAsync(key, memberName);
+
+            Assert.NotNull(score);
+            Assert.Equal((double)1.5, score.Value);
+        }
+
+        [Fact]
+        public void SortedSetScoresSingle_MissingSetStillReturnsNull()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v2_1_0);
+
+            var db = conn.GetDatabase();
+            var key = Me();
+
+            db.KeyDelete(key);
+
+            // Attempt to retrieve score for a missing set, should still return null.
+            var score = db.SortedSetScore(key, "bogusMemberName");
+
+            Assert.Null(score);
+        }
+
+        [Fact]
+        public async Task SortedSetScoresSingle_MissingSetStillReturnsNullAsync()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v2_1_0);
+
+            var db = conn.GetDatabase();
+            var key = Me();
+
+            await db.KeyDeleteAsync(key);
+
+            // Attempt to retrieve score for a missing set, should still return null.
+            var score = await db.SortedSetScoreAsync(key, "bogusMemberName");
+
+            Assert.Null(score);
+        }
+
+        [Fact]
+        public void SortedSetScoresSingle_ReturnsNullForMissingMember()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v2_1_0);
+
+            var db = conn.GetDatabase();
+            var key = Me();
+
+            db.KeyDelete(key);
+            db.SortedSetAdd(key, "member1", 1.5);
+
+            // Attempt to retrieve score for a missing member, should return null.
+            var score = db.SortedSetScore(key, "bogusMemberName");
+
+            Assert.Null(score);
+        }
+
+        [Fact]
+        public async Task SortedSetScoresSingle_ReturnsNullForMissingMemberAsync()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v2_1_0);
+
+            var db = conn.GetDatabase();
+            var key = Me();
+
+            await db.KeyDeleteAsync(key);
+            await db.SortedSetAddAsync(key, "member1", 1.5);
+
+            // Attempt to retrieve score for a missing member, should return null.
+            var score = await db.SortedSetScoreAsync(key, "bogusMemberName");
+
+            Assert.Null(score);
+        }
+
+        [Fact]
+        public void SortedSetScoresMultiple()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
+
+            var db = conn.GetDatabase();
+            var key = Me();
+            var member1 = "member1";
+            var member2 = "member2";
+            var member3 = "member3";
+
+            db.KeyDelete(key);
+            db.SortedSetAdd(key, member1, 1.5);
+            db.SortedSetAdd(key, member2, 1.75);
+            db.SortedSetAdd(key, member3, 2);
+
+            var scores = db.SortedSetScores(key, new RedisValue[] { member1, member2, member3 });
+
+            Assert.NotNull(scores);
+            Assert.Equal(3, scores.Length);
+            Assert.Equal((double)1.5, scores[0]);
+            Assert.Equal((double)1.75, scores[1]);
+            Assert.Equal(2, scores[2]);
+        }
+
+        [Fact]
+        public async Task SortedSetScoresMultipleAsync()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
+
+            var db = conn.GetDatabase();
+            var key = Me();
+            var member1 = "member1";
+            var member2 = "member2";
+            var member3 = "member3";
+
+            await db.KeyDeleteAsync(key);
+            await db.SortedSetAddAsync(key, member1, 1.5);
+            await db.SortedSetAddAsync(key, member2, 1.75);
+            await db.SortedSetAddAsync(key, member3, 2);
+
+            var scores = await db.SortedSetScoresAsync(key, new RedisValue[] { member1, member2, member3 });
+
+            Assert.NotNull(scores);
+            Assert.Equal(3, scores.Length);
+            Assert.Equal((double)1.5, scores[0]);
+            Assert.Equal((double)1.75, scores[1]);
+            Assert.Equal(2, scores[2]);
+        }
+
+        [Fact]
+        public void SortedSetScoresMultiple_ReturnsNullItemsForMissingSet()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
+
+            var db = conn.GetDatabase();
+            var key = Me();
+
+            db.KeyDelete(key);
+
+            // Missing set but should still return an array of nulls.
+            var scores = db.SortedSetScores(key, new RedisValue[] { "bogus1", "bogus2", "bogus3" });
+
+            Assert.NotNull(scores);
+            Assert.Equal(3, scores.Length);
+            Assert.Null(scores[0]);
+            Assert.Null(scores[1]);
+            Assert.Null(scores[2]);
+        }
+
+        [Fact]
+        public async Task SortedSetScoresMultiple_ReturnsNullItemsForMissingSetAsync()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
+
+            var db = conn.GetDatabase();
+            var key = Me();
+
+            await db.KeyDeleteAsync(key);
+
+            // Missing set but should still return an array of nulls.
+            var scores = await db.SortedSetScoresAsync(key, new RedisValue[] { "bogus1", "bogus2", "bogus3" });
+
+            Assert.NotNull(scores);
+            Assert.Equal(3, scores.Length);
+            Assert.Null(scores[0]);
+            Assert.Null(scores[1]);
+            Assert.Null(scores[2]);
+        }
+
+        [Fact]
+        public void SortedSetScoresMultiple_ReturnsScoresAndNullItems()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
+
+            var db = conn.GetDatabase();
+            var key = Me();
+            var member1 = "member1";
+            var member2 = "member2";
+            var member3 = "member3";
+            var bogusMember = "bogusMember";
+
+            db.KeyDelete(key);
+
+            db.SortedSetAdd(key, member1, 1.5);
+            db.SortedSetAdd(key, member2, 1.75);
+            db.SortedSetAdd(key, member3, 2);
+
+            var scores = db.SortedSetScores(key, new RedisValue[] { member1, bogusMember, member2, member3 });
+
+            Assert.NotNull(scores);
+            Assert.Equal(4, scores.Length);
+            Assert.Null(scores[1]);
+            Assert.Equal((double)1.5, scores[0]);
+            Assert.Equal((double)1.75, scores[2]);
+            Assert.Equal(2, scores[3]);
+        }
+
+        [Fact]
+        public async Task SortedSetScoresMultiple_ReturnsScoresAndNullItemsAsync()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
+
+            var db = conn.GetDatabase();
+            var key = Me();
+            var member1 = "member1";
+            var member2 = "member2";
+            var member3 = "member3";
+            var bogusMember = "bogusMember";
+
+            await db.KeyDeleteAsync(key);
+
+            await db.SortedSetAddAsync(key, member1, 1.5);
+            await db.SortedSetAddAsync(key, member2, 1.75);
+            await db.SortedSetAddAsync(key, member3, 2);
+
+            var scores = await db.SortedSetScoresAsync(key, new RedisValue[] { member1, bogusMember, member2, member3 });
+
+            Assert.NotNull(scores);
+            Assert.Equal(4, scores.Length);
+            Assert.Null(scores[1]);
+            Assert.Equal((double)1.5, scores[0]);
+            Assert.Equal((double)1.75, scores[2]);
+            Assert.Equal(2, scores[3]);
         }
     }
 }

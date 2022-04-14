@@ -95,12 +95,12 @@ namespace StackExchange.Redis.Tests
         private static void CheckNotNull(RedisValue value)
         {
             Assert.False(value.IsNull);
-            Assert.NotNull((byte[])value);
-            Assert.NotNull((string)value);
+            Assert.NotNull((byte[]?)value);
+            Assert.NotNull((string?)value);
             Assert.NotEqual(-1, value.GetHashCode());
 
-            Assert.NotNull((string)value);
-            Assert.NotNull((byte[])value);
+            Assert.NotNull((string?)value);
+            Assert.NotNull((byte[]?)value);
 
             CheckSame(value, value);
             CheckNotSame(value, default(RedisValue));
@@ -115,8 +115,8 @@ namespace StackExchange.Redis.Tests
             Assert.False(value.IsInteger);
             Assert.Equal(-1, value.GetHashCode());
 
-            Assert.Null((string)value);
-            Assert.Null((byte[])value);
+            Assert.Null((string?)value);
+            Assert.Null((byte[]?)value);
 
             Assert.Equal(0, (int)value);
             Assert.Equal(0L, (long)value);

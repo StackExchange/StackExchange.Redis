@@ -16,7 +16,7 @@ namespace StackExchange.Redis
         public readonly LogProxy log;
         private readonly Message tail;
 
-        public static Message Create(LogProxy log, Message tail)
+        public static Message Create(LogProxy? log, Message tail)
         {
             return log == null ? tail : new LoggingMessage(log, tail);
         }
@@ -82,12 +82,12 @@ namespace StackExchange.Redis
                                                        | CommandFlags.FireAndForget
                                                        | CommandFlags.NoRedirect
                                                        | CommandFlags.NoScriptCache;
-        private IResultBox resultBox;
+        private IResultBox? resultBox;
 
-        private ResultProcessor resultProcessor;
+        private ResultProcessor? resultProcessor;
 
         // All for profiling purposes
-        private ProfiledCommand performance;
+        private ProfiledCommand? performance;
         internal DateTime CreatedDateTime;
         internal long CreatedTimestamp;
 
@@ -104,6 +104,25 @@ namespace StackExchange.Redis
 #endif
         }
 
+        internal void SetBufferAndExecuteSync(ITransportState transport, in ReadOnlySequence<byte> buffer, in RawResult result)
+        {
+            _resultBuffer = new RawResultBuffer(transport, buffer, result);
+            try
+            {
+                if (ComputeResult())
+                {
+                    Complete();
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex);
+            }
+            finally
+            {
+                _resultBuffer = default;
+            }
+        }
         private void Execute()
         {
             try
@@ -128,7 +147,7 @@ namespace StackExchange.Redis
 #if NETCOREAPP3_1_OR_GREATER
         void IThreadPoolWorkItem.Execute() => Execute();
 #else
-        static readonly WaitCallback s_executionCallback = state => Unsafe.As<Message>(state).Execute();
+        private static readonly WaitCallback s_executionCallback = state => Unsafe.As<Message>(state).Execute();
 #endif
 
         protected Message(int db, CommandFlags flags, RedisCommand command)
@@ -251,7 +270,7 @@ namespace StackExchange.Redis
         public bool IsFireAndForget => (Flags & CommandFlags.FireAndForget) != 0;
         public bool IsInternalCall => (Flags & InternalCallFlag) != 0;
 
-        public IResultBox ResultBox => resultBox;
+        public IResultBox? ResultBox => resultBox;
 
         public abstract int ArgCount { get; } // note: over-estimate if necessary
 
@@ -327,6 +346,9 @@ namespace StackExchange.Redis
 
         public static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisKey key, in RedisValue value0, in RedisValue value1, in RedisValue value2, in RedisValue value3, in RedisValue value4) =>
             new CommandKeyValueValueValueValueValueMessage(db, flags, command, key, value0, value1, value2, value3, value4);
+
+        public static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisKey key, in RedisValue value0, in RedisValue value1, in RedisValue value2, in RedisValue value3, in RedisValue value4, in RedisValue value5, in RedisValue value6) =>
+            new CommandKeyValueValueValueValueValueValueValueMessage(db, flags, command, key, value0, value1, value2, value3, value4, value5, value6);
 
         public static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisValue value0, in RedisValue value1) =>
             new CommandValueValueMessage(db, flags, command, value0, value1);
@@ -646,13 +668,13 @@ namespace StackExchange.Redis
             }
         }
 
-        internal void Fail(ConnectionFailureType failure, Exception innerException, string annotation, ConnectionMultiplexer muxer)
+        internal void Fail(ConnectionFailureType failure, Exception? innerException, string? annotation, ConnectionMultiplexer? muxer)
         {
             PhysicalConnection.IdentifyFailureType(innerException, ref failure);
             resultProcessor?.ConnectionFail(this, failure, innerException, annotation, muxer);
         }
 
-        internal virtual void SetExceptionAndComplete(Exception exception, PhysicalBridge bridge)
+        internal virtual void SetExceptionAndComplete(Exception exception)
         {
             resultBox?.SetException(exception);
             Complete();
@@ -668,7 +690,7 @@ namespace StackExchange.Redis
             return false;
         }
 
-        internal void SetEnqueued(PhysicalConnection connection)
+        internal void SetEnqueued(PhysicalConnection? connection)
         {
             SetWriteTime();
             performance?.SetEnqueued(connection?.BridgeCouldBeNull?.ConnectionType);
@@ -683,7 +705,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal void TryGetHeadMessages(out Message now, out Message next)
+        internal void TryGetHeadMessages(out Message? now, out Message? next)
         {
             now = next = null;
             _enqueuedTo?.GetHeadMessages(out now, out next);
@@ -714,7 +736,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private PhysicalConnection _enqueuedTo;
+        private PhysicalConnection? _enqueuedTo;
         private long _queuedStampReceived, _queuedStampSent;
 
         internal void SetRequestSent()
@@ -772,7 +794,7 @@ namespace StackExchange.Redis
         /// <remarks>
         /// Note order here is reversed to prevent overload resolution errors.
         /// </remarks>
-        internal void SetSource(ResultProcessor resultProcessor, IResultBox resultBox)
+        internal void SetSource(ResultProcessor? resultProcessor, IResultBox? resultBox)
         {
             this.resultBox = resultBox;
             this.resultProcessor = resultProcessor;
@@ -784,7 +806,7 @@ namespace StackExchange.Redis
         /// <remarks>
         /// Note order here is reversed to prevent overload resolution errors.
         /// </remarks>
-        internal void SetSource<T>(IResultBox<T> resultBox, ResultProcessor<T> resultProcessor)
+        internal void SetSource<T>(IResultBox<T> resultBox, ResultProcessor<T>? resultProcessor)
         {
             this.resultBox = resultBox;
             this.resultProcessor = resultProcessor;
@@ -830,7 +852,7 @@ namespace StackExchange.Redis
                 Key = key;
             }
 
-            public override string CommandAndKey => Command + " " + (string)Key;
+            public override string CommandAndKey => Command + " " + (string?)Key;
 
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) => serverSelectionStrategy.HashSlot(Key);
         }
@@ -1211,6 +1233,43 @@ namespace StackExchange.Redis
             public override int ArgCount => 6;
         }
 
+        private sealed class CommandKeyValueValueValueValueValueValueValueMessage : CommandKeyBase
+        {
+            private readonly RedisValue value0, value1, value2, value3, value4, value5, value6;
+
+            public CommandKeyValueValueValueValueValueValueValueMessage(int db, CommandFlags flags, RedisCommand command, in RedisKey key, in RedisValue value0, in RedisValue value1, in RedisValue value2, in RedisValue value3, in RedisValue value4, in RedisValue value5, in RedisValue value6) : base(db, flags, command, key)
+            {
+                value0.AssertNotNull();
+                value1.AssertNotNull();
+                value2.AssertNotNull();
+                value3.AssertNotNull();
+                value4.AssertNotNull();
+                value5.AssertNotNull();
+                value6.AssertNotNull();
+                this.value0 = value0;
+                this.value1 = value1;
+                this.value2 = value2;
+                this.value3 = value3;
+                this.value4 = value4;
+                this.value5 = value5;
+                this.value6 = value6;
+            }
+
+            protected override void WriteImpl(ITransportState writeState, IBufferWriter<byte> output)
+            {
+                MessageFormatter.WriteHeader(writeState, output, Command, ArgCount);
+                MessageFormatter.Write(output, Key);
+                MessageFormatter.WriteBulkString(output, value0);
+                MessageFormatter.WriteBulkString(output, value1);
+                MessageFormatter.WriteBulkString(output, value2);
+                MessageFormatter.WriteBulkString(output, value3);
+                MessageFormatter.WriteBulkString(output, value4);
+                MessageFormatter.WriteBulkString(output, value5);
+                MessageFormatter.WriteBulkString(output, value6);
+            }
+            public override int ArgCount => 8;
+        }
+
         private sealed class CommandKeyKeyValueValueMessage : CommandKeyBase
         {
             private readonly RedisValue value0, value1;
@@ -1494,7 +1553,7 @@ namespace StackExchange.Redis
             public override void AppendStormLog(StringBuilder sb)
             {
                 base.AppendStormLog(sb);
-                sb.Append(" (").Append((string)value).Append(')');
+                sb.Append(" (").Append((string?)value).Append(')');
             }
 
             protected override void WriteImpl(ITransportState writeState, IBufferWriter<byte> output)

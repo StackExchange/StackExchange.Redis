@@ -268,7 +268,7 @@ namespace StackExchange.Redis
             }
             public ReadOnlySequence<byte> Current { get; private set; }
         }
-        internal RedisChannel AsRedisChannel(byte[] channelPrefix, RedisChannel.PatternMode mode)
+        internal RedisChannel AsRedisChannel(byte[]? channelPrefix, RedisChannel.PatternMode mode)
         {
             switch (Type)
             {
@@ -283,7 +283,7 @@ namespace StackExchange.Redis
                         byte[] copy = Payload.Slice(channelPrefix.Length).ToArray();
                         return new RedisChannel(copy, mode);
                     }
-                    return default(RedisChannel);
+                    return default;
                 default:
                     throw new InvalidCastException("Cannot convert to RedisChannel: " + Type);
             }
@@ -311,7 +311,7 @@ namespace StackExchange.Redis
             throw new InvalidCastException("Cannot convert to RedisValue: " + Type);
         }
 
-        internal Lease<byte> AsLease()
+        internal Lease<byte>? AsLease()
         {
             if (IsNull) return null;
             switch (Type)
@@ -332,7 +332,7 @@ namespace StackExchange.Redis
             return new CommandBytes(Payload).Equals(expected);
         }
 
-        internal unsafe bool IsEqual(byte[] expected)
+        internal unsafe bool IsEqual(byte[]? expected)
         {
             if (expected == null) throw new ArgumentNullException(nameof(expected));
 
@@ -381,7 +381,7 @@ namespace StackExchange.Redis
             return true;
         }
 
-        internal byte[] GetBlob()
+        internal byte[]? GetBlob()
         {
             if (IsNull) return null;
 
@@ -405,13 +405,19 @@ namespace StackExchange.Redis
         internal ReadOnlySequence<RawResult> GetItems() => _type == (ResultType.MultiBulk | NonNullFlag) ? GetSequence<RawResult>() : default;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal RedisKey[] GetItemsAsKeys() => this.ToArray<RedisKey>((in RawResult x) => x.AsRedisKey());
+        internal double?[]? GetItemsAsDoubles() => this.ToArray<double?>((in RawResult x) => x.TryGetDouble(out double val) ? val : null);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal RedisValue[] GetItemsAsValues() => this.ToArray<RedisValue>((in RawResult x) => x.AsRedisValue());
+        internal RedisKey[]? GetItemsAsKeys() => this.ToArray<RedisKey>((in RawResult x) => x.AsRedisKey());
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal string[] GetItemsAsStrings() => this.ToArray<string>((in RawResult x) => (string)x.AsRedisValue());
+        internal RedisValue[]? GetItemsAsValues() => this.ToArray<RedisValue>((in RawResult x) => x.AsRedisValue());
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal string?[]? GetItemsAsStrings() => this.ToArray<string?>((in RawResult x) => (string?)x.AsRedisValue());
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal bool[]? GetItemsAsBooleans() => this.ToArray<bool>((in RawResult x) => (bool)x.AsRedisValue());
 
         internal GeoPosition? GetItemsAsGeoPosition()
         {
@@ -447,10 +453,10 @@ namespace StackExchange.Redis
             return new GeoPosition(longitude, latitude);
         }
 
-        internal GeoPosition?[] GetItemsAsGeoPositionArray()
-            => this.ToArray<GeoPosition?>((in RawResult item) => item.IsNull ? (GeoPosition?)null : AsGeoPosition(item.GetItems()));
+        internal GeoPosition?[]? GetItemsAsGeoPositionArray()
+            => this.ToArray<GeoPosition?>((in RawResult item) => item.IsNull ? default : AsGeoPosition(item.GetItems()));
 
-        internal unsafe string GetString()
+        internal unsafe string? GetString()
         {
             if (IsNull) return null;
             if (Payload.IsEmpty) return "";

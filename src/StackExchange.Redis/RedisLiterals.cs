@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Text;
 
 namespace StackExchange.Redis
 {
@@ -54,8 +53,10 @@ namespace StackExchange.Redis
             CHANNELS = "CHANNELS",
             COPY = "COPY",
             COUNT = "COUNT",
+            DB = "DB",
             DESC = "DESC",
             DOCTOR = "DOCTOR",
+            ENCODING = "ENCODING",
             EX = "EX",
             EXAT = "EXAT",
             EXISTS = "EXISTS",
@@ -68,12 +69,14 @@ namespace StackExchange.Redis
             KEEPTTL = "KEEPTTL",
             KILL = "KILL",
             LATEST = "LATEST",
+            LEFT = "LEFT",
             LIMIT = "LIMIT",
             LIST = "LIST",
             LOAD = "LOAD",
             MATCH = "MATCH",
             MALLOC_STATS = "MALLOC-STATS",
             MAX = "MAX",
+            MAXLEN = "MAXLEN",
             MIN = "MIN",
             NODES = "NODES",
             NOSAVE = "NOSAVE",
@@ -89,11 +92,14 @@ namespace StackExchange.Redis
             PURGE = "PURGE",
             PX = "PX",
             PXAT = "PXAT",
+            RANK = "RANK",
+            REFCOUNT = "REFCOUNT",
             REPLACE = "REPLACE",
             RESET = "RESET",
             RESETSTAT = "RESETSTAT",
             REV = "REV",
             REWRITE = "REWRITE",
+            RIGHT = "RIGHT",
             SAVE = "SAVE",
             SEGFAULT = "SEGFAULT",
             SET = "SET",
@@ -104,12 +110,14 @@ namespace StackExchange.Redis
             TYPE = "TYPE",
             WEIGHTS = "WEIGHTS",
             WITHSCORES = "WITHSCORES",
+            WITHVALUES = "WITHVALUES",
             XOR = "XOR",
             XX = "XX",
 
             // Sentinel Literals
             MASTERS = "MASTERS",
             MASTER = "MASTER",
+            REPLICAS = "REPLICAS",
             SLAVES = "SLAVES",
             GETMASTERADDRBYNAME = "GET-MASTER-ADDR-BY-NAME",
             //            RESET = "RESET",

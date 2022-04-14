@@ -4,6 +4,7 @@ using System.Buffers.Text;
 using System.Globalization;
 using System.Net;
 using System.Text;
+using System.Diagnostics.CodeAnalysis;
 #if UNIX_SOCKET
 using System.Net.Sockets;
 #endif
@@ -46,14 +47,19 @@ namespace StackExchange.Redis
 
         internal static EndPoint ParseEndPoint(string host, int port)
         {
-            if (IPAddress.TryParse(host, out IPAddress ip)) return new IPEndPoint(ip, port);
+            if (IPAddress.TryParse(host, out IPAddress? ip)) return new IPEndPoint(ip, port);
             return new DnsEndPoint(host, port);
         }
 
-        internal static EndPoint TryParseEndPoint(string host, string port)
+        internal static bool TryParseEndPoint(string host, string? port, [NotNullWhen(true)] out EndPoint? endpoint)
         {
-            if (string.IsNullOrEmpty(host) || string.IsNullOrEmpty(port)) return null;
-            return TryParseInt32(port, out int i) ? ParseEndPoint(host, i) : null;
+            if (!host.IsNullOrEmpty() && !port.IsNullOrEmpty() && TryParseInt32(port, out int i))
+            {
+                endpoint = ParseEndPoint(host, i);
+                return true;
+            }
+            endpoint = null;
+            return false;
         }
 
         internal static string ToString(long value) => value.ToString(NumberFormatInfo.InvariantInfo);
@@ -70,18 +76,19 @@ namespace StackExchange.Redis
             return value.ToString("G17", NumberFormatInfo.InvariantInfo);
         }
 
-        internal static string ToString(object value)
+        [return: NotNullIfNotNull("value")]
+        internal static string? ToString(object? value) => value switch
         {
-            if (value == null) return "";
-            if (value is long l) return ToString(l);
-            if (value is int i) return ToString(i);
-            if (value is float f) return ToString(f);
-            if (value is double d) return ToString(d);
-            if (value is EndPoint e) return ToString(e);
-            return Convert.ToString(value, CultureInfo.InvariantCulture);
-        }
+            null => "",
+            long l => ToString(l),
+            int i => ToString(i),
+            float f => ToString(f),
+            double d => ToString(d),
+            EndPoint e => ToString(e),
+            _ => Convert.ToString(value, CultureInfo.InvariantCulture)
+        };
 
-        internal static string ToString(EndPoint endpoint)
+        internal static string ToString(EndPoint? endpoint)
         {
             switch (endpoint)
             {
@@ -108,9 +115,9 @@ namespace StackExchange.Redis
                 _ => ""
             };
 
-        internal static bool TryGetHostPort(EndPoint endpoint, out string host, out int port)
+        internal static bool TryGetHostPort(EndPoint? endpoint, [NotNullWhen(true)] out string? host, [NotNullWhen(true)] out int? port)
         {
-            if (endpoint != null)
+            if (endpoint is not null)
             {
                 if (endpoint is IPEndPoint ip)
                 {
@@ -126,13 +133,13 @@ namespace StackExchange.Redis
                 }
             }
             host = null;
-            port = 0;
+            port = null;
             return false;
         }
 
-        internal static bool TryParseDouble(string s, out double value)
+        internal static bool TryParseDouble(string? s, out double value)
         {
-            if (string.IsNullOrEmpty(s))
+            if (s.IsNullOrEmpty())
             {
                 value = 0;
                 return false;
@@ -167,7 +174,7 @@ namespace StackExchange.Redis
 
         internal static bool CouldBeInteger(string s)
         {
-            if (string.IsNullOrEmpty(s) || s.Length > PhysicalConnection.MaxInt64TextLen) return false;
+            if (string.IsNullOrEmpty(s) || s.Length > MessageFormatter.MaxInt64TextLen) return false;
             bool isSigned = s[0] == '-';
             for (int i = isSigned ? 1 : 0; i < s.Length; i++)
             {
@@ -178,7 +185,7 @@ namespace StackExchange.Redis
         }
         internal static bool CouldBeInteger(ReadOnlySpan<byte> s)
         {
-            if (s.IsEmpty | s.Length > PhysicalConnection.MaxInt64TextLen) return false;
+            if (s.IsEmpty | s.Length > MessageFormatter.MaxInt64TextLen) return false;
             bool isSigned = s[0] == '-';
             for (int i = isSigned ? 1 : 0; i < s.Length; i++)
             {
@@ -227,22 +234,31 @@ namespace StackExchange.Redis
             return true;
         }
 
-        internal static EndPoint TryParseEndPoint(string addressWithPort)
+        internal static bool TryParseEndPoint(string? addressWithPort, [NotNullWhen(true)] out EndPoint? endpoint)
         {
             // Adapted from IPEndPointParser in Microsoft.AspNetCore
             // Link: https://github.com/aspnet/BasicMiddleware/blob/f320511b63da35571e890d53f3906c7761cd00a1/src/Microsoft.AspNetCore.HttpOverrides/Internal/IPEndPointParser.cs#L8
             // Copyright (c) .NET Foundation. All rights reserved.
             // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
             string addressPart;
-            string portPart = null;
-            if (string.IsNullOrEmpty(addressWithPort)) return null;
+            string? portPart = null;
+            if (addressWithPort.IsNullOrEmpty())
+            {
+                endpoint = null;
+                return false;
+            }
 
             if (addressWithPort[0]=='!')
             {
-                if (addressWithPort.Length == 1) return null;
+                if (addressWithPort.Length == 1)
+                {
+                    endpoint = null;
+                    return false;
+                }
 
 #if UNIX_SOCKET
-                return new UnixDomainSocketEndPoint(addressWithPort.Substring(1));
+                endpoint = new UnixDomainSocketEndPoint(addressWithPort.Substring(1));
+                return true;
 #else
                 throw new PlatformNotSupportedException("Unix domain sockets require .NET Core 3 or above");
 #endif
@@ -288,22 +304,28 @@ namespace StackExchange.Redis
             int? port = 0;
             if (portPart != null)
             {
-                if (Format.TryParseInt32(portPart, out var portVal))
+                if (TryParseInt32(portPart, out var portVal))
                 {
                     port = portVal;
                 }
                 else
                 {
                     // Invalid port, return
-                    return null;
+                    endpoint = null;
+                    return false;
                 }
             }
 
-            if (IPAddress.TryParse(addressPart, out IPAddress address))
+            if (IPAddress.TryParse(addressPart, out IPAddress? address))
             {
-                return new IPEndPoint(address, port ?? 0);
+                endpoint = new IPEndPoint(address, port ?? 0);
+                return true;
             }
-            return new DnsEndPoint(addressPart, port ?? 0);
+            else
+            {
+                endpoint = new DnsEndPoint(addressPart, port ?? 0);
+                return true;
+            }
         }
 
         internal static string GetString(ReadOnlySequence<byte> buffer)

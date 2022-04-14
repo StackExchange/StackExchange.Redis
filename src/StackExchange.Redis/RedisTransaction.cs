@@ -10,11 +10,11 @@ namespace StackExchange.Redis
 {
     internal class RedisTransaction : RedisDatabase, ITransaction
     {
-        private List<ConditionResult> _conditions;
-        private List<QueuedMessage> _pending;
+        private List<ConditionResult>? _conditions;
+        private List<QueuedMessage>? _pending;
         private object SyncLock => this;
 
-        public RedisTransaction(RedisDatabase wrapped, object asyncState) : base(wrapped.multiplexer, wrapped.Database, asyncState ?? wrapped.AsyncState)
+        public RedisTransaction(RedisDatabase wrapped, object? asyncState) : base(wrapped.multiplexer, wrapped.Database, asyncState ?? wrapped.AsyncState)
         {
             // need to check we can reliably do this...
             var commandMap = multiplexer.CommandMap;
@@ -48,32 +48,32 @@ namespace StackExchange.Redis
 
         public bool Execute(CommandFlags flags)
         {
-            var msg = CreateMessage(flags, out ResultProcessor<bool> proc);
+            var msg = CreateMessage(flags, out ResultProcessor<bool>? proc);
             return base.ExecuteSync(msg, proc); // need base to avoid our local "not supported" override
         }
 
         public Task<bool> ExecuteAsync(CommandFlags flags)
         {
-            var msg = CreateMessage(flags, out ResultProcessor<bool> proc);
+            var msg = CreateMessage(flags, out ResultProcessor<bool>? proc);
             return base.ExecuteAsync(msg, proc); // need base to avoid our local wrapping override
         }
 
-        internal override Task<T> ExecuteAsync<T>(Message message, ResultProcessor<T> processor, ServerEndPoint server = null)
+        internal override Task<T?> ExecuteAsync<T>(Message? message, ResultProcessor<T>? processor, ServerEndPoint? server = null) where T : default
         {
             if (message == null) return CompletedTask<T>.Default(asyncState);
             multiplexer.CheckMessage(message);
 
             multiplexer.Trace("Wrapping " + message.Command, "Transaction");
             // prepare the inner command as a task
-            Task<T> task;
+            Task<T?> task;
             if (message.IsFireAndForget)
             {
                 task = CompletedTask<T>.Default(null); // F+F explicitly does not get async-state
             }
             else
             {
-                var source = TaskResultBox<T>.Create(out var tcs, asyncState);
-                message.SetSource(source, processor);
+                var source = TaskResultBox<T?>.Create(out var tcs, asyncState);
+                message.SetSource(source!, processor);
                 task = tcs.Task;
             }
 
@@ -107,15 +107,15 @@ namespace StackExchange.Redis
             return task;
         }
 
-        internal override T ExecuteSync<T>(Message message, ResultProcessor<T> processor, ServerEndPoint server = null)
+        internal override T? ExecuteSync<T>(Message? message, ResultProcessor<T>? processor, ServerEndPoint? server = null, T? defaultValue = default) where T : default
         {
             throw new NotSupportedException("ExecuteSync cannot be used inside a transaction");
         }
 
-        private Message CreateMessage(CommandFlags flags, out ResultProcessor<bool> processor)
+        private Message? CreateMessage(CommandFlags flags, out ResultProcessor<bool>? processor)
         {
-            List<ConditionResult> cond;
-            List<QueuedMessage> work;
+            List<ConditionResult>? cond;
+            List<QueuedMessage>? work;
             lock (SyncLock)
             {
                 work = _pending;
@@ -154,9 +154,9 @@ namespace StackExchange.Redis
                 set => wasQueued = value;
             }
 
-            internal override void WriteTo(PhysicalConnection physical, IBufferWriter<byte> output)
+            internal override void WriteTo(ITransportState writeState, IBufferWriter<byte> output)
             {
-                Wrapped.WriteTo(physical, output);
+                Wrapped.WriteTo(writeState, output);
                 Wrapped.SetRequestSent();
             }
 
@@ -193,24 +193,24 @@ namespace StackExchange.Redis
             private readonly ConditionResult[] conditions;
             public QueuedMessage[] InnerOperations { get; }
 
-            public TransactionMessage(int db, CommandFlags flags, List<ConditionResult> conditions, List<QueuedMessage> operations)
+            public TransactionMessage(int db, CommandFlags flags, List<ConditionResult>? conditions, List<QueuedMessage>? operations)
                 : base(db, flags, RedisCommand.EXEC)
             {
                 InnerOperations = (operations?.Count > 0) ? operations.ToArray() : Array.Empty<QueuedMessage>();
                 this.conditions = (conditions?.Count > 0) ? conditions.ToArray() : Array.Empty<ConditionResult>();
             }
 
-            internal override void SetExceptionAndComplete(Exception exception, PhysicalBridge bridge)
+            internal override void SetExceptionAndComplete(Exception exception)
             {
                 var inner = InnerOperations;
                 if (inner != null)
                 {
                     for(int i = 0; i < inner.Length;i++)
                     {
-                        inner[i]?.Wrapped?.SetExceptionAndComplete(exception, bridge);
+                        inner[i]?.Wrapped?.SetExceptionAndComplete(exception);
                     }
                 }
-                base.SetExceptionAndComplete(exception, bridge);
+                base.SetExceptionAndComplete(exception);
             }
 
             public bool IsAborted => command != RedisCommand.EXEC;
@@ -245,7 +245,7 @@ namespace StackExchange.Redis
 
             public IEnumerable<Message> GetMessages(PhysicalConnection connection)
             {
-                IResultBox lastBox = null;
+                IResultBox? lastBox = null;
                 var bridge = connection.BridgeCouldBeNull;
                 if (bridge == null) throw new ObjectDisposedException(connection.ToString());
 
@@ -273,7 +273,7 @@ namespace StackExchange.Redis
                             {
                                 // need to have locked them before sending them
                                 // to guarantee that we see the pulse
-                                IResultBox latestBox = conditions[i].GetBox();
+                                IResultBox latestBox = conditions[i].GetBox()!;
                                 Monitor.Enter(latestBox);
                                 if (lastBox != null) Monitor.Exit(lastBox);
                                 lastBox = latestBox;
@@ -333,7 +333,7 @@ namespace StackExchange.Redis
                                 if (explicitCheckForQueued)
                                 {   // need to have locked them before sending them
                                     // to guarantee that we see the pulse
-                                    IResultBox thisBox = op.ResultBox;
+                                    IResultBox? thisBox = op.ResultBox;
                                     if (thisBox != null)
                                     {
                                         Monitor.Enter(thisBox);
@@ -446,7 +446,7 @@ namespace StackExchange.Redis
                 ref readonly var result = ref resultBuffer.Result;
                 if (result.IsError && message is TransactionMessage tran)
                 {
-                    string error = result.GetString();
+                    string error = result.GetString()!;
                     foreach (var op in tran.InnerOperations)
                     {
                         var inner = op.Wrapped;
@@ -461,6 +461,7 @@ namespace StackExchange.Redis
             {
                 ref readonly var result = ref resultBuffer.Result;
                 transport.OnTransactionLog($"got {result} for {message.CommandAndKey}");
+
                 if (message is TransactionMessage tran)
                 {
                     var wrapped = tran.InnerOperations;
@@ -515,11 +516,8 @@ namespace StackExchange.Redis
                                     {
                                         var inner = wrapped[i++].Wrapped;
                                         transport.OnTransactionLog($"> got {iter.Current.ToString()} for {inner.CommandAndKey}");
-                                        // SetBufferAndQueueExecute will Preserve the buffer before, and Release both the buffer and the Result after;
-                                        // as such, we need to additionally Preserve the Result before, to achieve stability
-                                        // (note that this does mean we're preserving the entire buffer for all items; we'll survive)
-                                        iter.Current.PreserveItemsRecursive();
-                                        inner.SetBufferAndQueueExecute(transport, resultBuffer.Buffer, iter.Current);
+                                        // execute the inner results directly, without any buffer preserve/release steps
+                                        inner.SetBufferAndExecuteSync(transport, resultBuffer.Buffer, iter.Current);
                                     }
                                     SetResult(message, true);
                                     return true;

@@ -8,11 +8,10 @@ namespace StackExchange.Redis.Server
 {
     public abstract class RedisServer : RespServer
     {
-        public static bool IsMatch(string pattern, string key)
-        {
-            // non-trivial wildcards not implemented yet!
-            return pattern == "*" || string.Equals(pattern, key, StringComparison.OrdinalIgnoreCase);
-        }
+        // non-trivial wildcards not implemented yet!
+        public static bool IsMatch(string pattern, string key) =>
+            pattern == "*" || string.Equals(pattern, key, StringComparison.OrdinalIgnoreCase);
+
         protected RedisServer(int databases = 16, TextWriter output = null) : base(output)
         {
             if (databases < 1) throw new ArgumentOutOfRangeException(nameof(databases));

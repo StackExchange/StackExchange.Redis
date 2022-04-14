@@ -53,7 +53,7 @@ namespace StackExchange.Redis.Tests.Issues
 
                 conn.Wait(taskResult);
 
-                var priority = int.Parse(taskResult.Result);
+                var priority = int.Parse(taskResult.Result!);
 
                 Assert.Equal(3, priority);
             }

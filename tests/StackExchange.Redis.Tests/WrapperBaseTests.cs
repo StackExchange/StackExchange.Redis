@@ -197,6 +197,13 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void KeyCopyAsync()
+        {
+            wrapper.KeyCopyAsync("key", "destination", flags: CommandFlags.None);
+            mock.Verify(_ => _.KeyCopyAsync("prefix:key", "prefix:destination", -1, false, CommandFlags.None));
+        }
+
+        [Fact]
         public void KeyDeleteAsync_1()
         {
             wrapper.KeyDeleteAsync("key", CommandFlags.None);
@@ -218,6 +225,14 @@ namespace StackExchange.Redis.Tests
             wrapper.KeyDumpAsync("key", CommandFlags.None);
             mock.Verify(_ => _.KeyDumpAsync("prefix:key", CommandFlags.None));
         }
+
+        [Fact]
+        public void KeyEncodingAsync()
+        {
+            wrapper.KeyEncodingAsync("key", CommandFlags.None);
+            mock.Verify(_ => _.KeyEncodingAsync("prefix:key", CommandFlags.None));
+        }
+
 
         [Fact]
         public void KeyExistsAsync()
@@ -268,6 +283,13 @@ namespace StackExchange.Redis.Tests
         public Task KeyRandomAsync()
         {
             return Assert.ThrowsAsync<NotSupportedException>(() => wrapper.KeyRandomAsync());
+        }
+
+        [Fact]
+        public void KeyRefCountAsync()
+        {
+            wrapper.KeyRefCountAsync("key", CommandFlags.None);
+            mock.Verify(_ => _.KeyRefCountAsync("prefix:key", CommandFlags.None));
         }
 
         [Fact]
@@ -363,6 +385,13 @@ namespace StackExchange.Redis.Tests
         {
             wrapper.ListLengthAsync("key", CommandFlags.None);
             mock.Verify(_ => _.ListLengthAsync("prefix:key", CommandFlags.None));
+        }
+
+        [Fact]
+        public void ListMoveAsync()
+        {
+            wrapper.ListMoveAsync("key", "destination", ListSide.Left, ListSide.Right, CommandFlags.None);
+            mock.Verify(_ => _.ListMoveAsync("prefix:key", "prefix:destination", ListSide.Left, ListSide.Right, CommandFlags.None));
         }
 
         [Fact]
@@ -550,6 +579,22 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void SetContainsAsync_2()
+        {
+            RedisValue[] values = new RedisValue[] { "value1", "value2" };
+            wrapper.SetContainsAsync("key", values, CommandFlags.None);
+            mock.Verify(_ => _.SetContainsAsync("prefix:key", values, CommandFlags.None));
+        }
+
+        [Fact]
+        public void SetIntersectionLengthAsync()
+        {
+            var keys = new RedisKey[] { "key1", "key2" };
+            wrapper.SetIntersectionLengthAsync(keys);
+            mock.Verify(_ => _.SetIntersectionLengthAsync(keys, 0, CommandFlags.None));
+        }
+
+        [Fact]
         public void SetLengthAsync()
         {
             wrapper.SetLengthAsync("key", CommandFlags.None);
@@ -658,6 +703,22 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void SortedSetCombineAsync()
+        {
+            RedisKey[] keys = new RedisKey[] { "a", "b" };
+            wrapper.SortedSetCombineAsync(SetOperation.Intersect, keys);
+            mock.Verify(_ => _.SortedSetCombineAsync(SetOperation.Intersect, keys, null, Aggregate.Sum, CommandFlags.None));
+        }
+
+        [Fact]
+        public void SortedSetCombineWithScoresAsync()
+        {
+            RedisKey[] keys = new RedisKey[] { "a", "b" };
+            wrapper.SortedSetCombineWithScoresAsync(SetOperation.Intersect, keys);
+            mock.Verify(_ => _.SortedSetCombineWithScoresAsync(SetOperation.Intersect, keys, null, Aggregate.Sum, CommandFlags.None));
+        }
+
+        [Fact]
         public void SortedSetCombineAndStoreAsync_1()
         {
             wrapper.SortedSetCombineAndStoreAsync(SetOperation.Intersect, "destination", "first", "second", Aggregate.Max, CommandFlags.None);
@@ -688,6 +749,14 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void SortedSetIntersectionLengthAsync()
+        {
+            RedisKey[] keys = new RedisKey[] { "a", "b" };
+            wrapper.SortedSetIntersectionLengthAsync(keys, 1, CommandFlags.None);
+            mock.Verify(_ => _.SortedSetIntersectionLengthAsync(keys, 1, CommandFlags.None));
+        }
+
+        [Fact]
         public void SortedSetLengthAsync()
         {
             wrapper.SortedSetLengthAsync("key", 1.23, 1.23, Exclude.Start, CommandFlags.None);
@@ -699,6 +768,27 @@ namespace StackExchange.Redis.Tests
         {
             wrapper.SortedSetLengthByValueAsync("key", "min", "max", Exclude.Start, CommandFlags.None);
             mock.Verify(_ => _.SortedSetLengthByValueAsync("prefix:key", "min", "max", Exclude.Start, CommandFlags.None));
+        }
+
+        [Fact]
+        public void SortedSetRandomMemberAsync()
+        {
+            wrapper.SortedSetRandomMemberAsync("key", CommandFlags.None);
+            mock.Verify(_ => _.SortedSetRandomMemberAsync("prefix:key", CommandFlags.None));
+        }
+
+        [Fact]
+        public void SortedSetRandomMembersAsync()
+        {
+            wrapper.SortedSetRandomMembersAsync("key", 2, CommandFlags.None);
+            mock.Verify(_ => _.SortedSetRandomMembersAsync("prefix:key", 2, CommandFlags.None));
+        }
+
+        [Fact]
+        public void SortedSetRandomMemberWithScoresAsync()
+        {
+            wrapper.SortedSetRandomMembersWithScoresAsync("key", 2, CommandFlags.None);
+            mock.Verify(_ => _.SortedSetRandomMembersWithScoresAsync("prefix:key", 2, CommandFlags.None));
         }
 
         [Fact]
@@ -791,6 +881,13 @@ namespace StackExchange.Redis.Tests
         {
             wrapper.SortedSetScoreAsync("key", "member", CommandFlags.None);
             mock.Verify(_ => _.SortedSetScoreAsync("prefix:key", "member", CommandFlags.None));
+        }
+
+        [Fact]
+        public void SortedSetScoreAsync_Multiple()
+        {
+            wrapper.SortedSetScoresAsync("key", new RedisValue[] { "member1", "member2" }, CommandFlags.None);
+            mock.Verify(_ => _.SortedSetScoresAsync("prefix:key", new RedisValue[] { "member1", "member2" }, CommandFlags.None));
         }
 
         [Fact]

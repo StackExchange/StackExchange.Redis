@@ -297,12 +297,12 @@ namespace StackExchange.Redis.Tests
 
             var muxer = CreateDefault(
                 Writer,
+                configuration ?? GetConfiguration(),
                 clientName, syncTimeout, allowAdmin, keepAlive,
                 connectTimeout, password, tieBreaker, log,
                 fail, disabledCommands, enabledCommands,
                 checkConnect, failMessage,
                 channelPrefix, proxy,
-                configuration ?? GetConfiguration(),
                 logTransactionData, defaultDatabase,
                 backlogPolicy,
                 caller);
@@ -314,6 +314,7 @@ namespace StackExchange.Redis.Tests
 
         public static ConnectionMultiplexer CreateDefault(
             TextWriter? output,
+            string configuration,
             string? clientName = null,
             int? syncTimeout = null,
             bool? allowAdmin = null,
@@ -329,7 +330,6 @@ namespace StackExchange.Redis.Tests
             string? failMessage = null,
             string? channelPrefix = null,
             Proxy? proxy = null,
-            string? configuration = null,
             bool logTransactionData = true,
             int? defaultDatabase = null,
             BacklogPolicy? backlogPolicy = null,

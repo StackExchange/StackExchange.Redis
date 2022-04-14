@@ -8,27 +8,31 @@ namespace StackExchange.Redis.Tests
     {
         public static void Inconclusive(string message) => throw new SkipTestException(message);
 
-        public static void IfNoConfig(string prop,
-#if NETCOREAPP
-            [NotNull]
-#endif
-            string? value)
+        public static void IfNoConfig(string prop, [NotNull] string? value)
         {
-            if (string.IsNullOrEmpty(value))
+            if (value.IsNullOrEmpty())
             {
                 throw new SkipTestException($"Config.{prop} is not set, skipping test.");
             }
         }
 
-        public static void IfNoConfig(string prop,
-#if NETCOREAPP
-            [NotNull]
-#endif
-            List<string>? values)
+        public static void IfNoConfig(string prop, [NotNull] List<string>? values)
         {
             if (values == null || values.Count == 0)
             {
                 throw new SkipTestException($"Config.{prop} is not set, skipping test.");
+            }
+        }
+
+        public static void IfBelow(IConnectionMultiplexer conn, Version minVersion)
+        {
+            var serverVersion = conn.GetServer(conn.GetEndPoints()[0]).Version;
+            if (minVersion > serverVersion)
+            {
+                throw new SkipTestException($"Requires server version {minVersion}, but server is only {serverVersion}.")
+                {
+                    MissingFeatures = $"Server version >= {minVersion}."
+                };
             }
         }
 

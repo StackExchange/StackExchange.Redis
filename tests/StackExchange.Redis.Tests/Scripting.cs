@@ -20,7 +20,7 @@ namespace StackExchange.Redis.Tests
             if (Debugger.IsAttached) syncTimeout = 500000;
             var muxer = Create(allowAdmin: allowAdmin, syncTimeout: syncTimeout);
 
-            Skip.IfMissingFeature(muxer, nameof(RedisFeatures.Scripting), r => r.Scripting);
+            Skip.IfBelow(muxer, RedisFeatures.v2_6_0);
             return muxer;
         }
 
@@ -43,14 +43,16 @@ namespace StackExchange.Redis.Tests
                     new RedisKey[] { "key1", "key2" }, new RedisValue[] { "first", "second" });
                 var cache = conn.ScriptEvaluateAsync("return {KEYS[1],KEYS[2],ARGV[1],ARGV[2]}",
                     new RedisKey[] { "key1", "key2" }, new RedisValue[] { "first", "second" });
-                var results = (string[])await noCache;
+                var results = (string[]?)await noCache;
+                Assert.NotNull(results);
                 Assert.Equal(4, results.Length);
                 Assert.Equal("key1", results[0]);
                 Assert.Equal("key2", results[1]);
                 Assert.Equal("first", results[2]);
                 Assert.Equal("second", results[3]);
 
-                results = (string[])await cache;
+                results = (string[]?)await cache;
+                Assert.NotNull(results);
                 Assert.Equal(4, results.Length);
                 Assert.Equal("key1", results[0]);
                 Assert.Equal("key2", results[1]);
@@ -67,7 +69,7 @@ namespace StackExchange.Redis.Tests
                 var conn = muxer.GetDatabase();
                 var key = Me();
                 conn.StringSet(key, "bar", flags: CommandFlags.FireAndForget);
-                var result = (string)conn.ScriptEvaluate("return redis.call('get', KEYS[1])", new RedisKey[] { key }, null);
+                var result = (string?)conn.ScriptEvaluate("return redis.call('get', KEYS[1])", new RedisKey[] { key }, null);
                 Assert.Equal("bar", result);
             }
         }
@@ -149,7 +151,9 @@ return timeTaken
                 var b = conn.StringGetAsync(prefix + "b").ForAwait();
                 var c = conn.StringGetAsync(prefix + "c").ForAwait();
 
-                Assert.True((await result).IsNull, "result");
+                var r = await result;
+                Assert.NotNull(r);
+                Assert.True(r.IsNull, "result");
                 Assert.Equal(1, (long)await a);
                 Assert.Equal(2, (long)await b);
                 Assert.Equal(4, (long)await c);
@@ -196,7 +200,8 @@ return timeTaken
                 var conn = muxer.GetDatabase();
                 var key = Me();
                 conn.StringSet(key, "bar", flags: CommandFlags.FireAndForget);
-                var result = (byte[])conn.ScriptEvaluate("return redis.call('get', KEYS[1])", new RedisKey[] { key });
+                var result = (byte[]?)conn.ScriptEvaluate("return redis.call('get', KEYS[1])", new RedisKey[] { key });
+                Assert.NotNull(result);
                 Assert.Equal("bar", Encoding.UTF8.GetString(result));
             }
         }
@@ -209,7 +214,7 @@ return timeTaken
                 var conn = muxer.GetDatabase();
                 var key = Me();
                 conn.StringSet(key, "bar", flags: CommandFlags.FireAndForget);
-                var result = (string)conn.ScriptEvaluate("return redis.call('get', KEYS[1])", new RedisKey[] { key }, null);
+                var result = (string?)conn.ScriptEvaluate("return redis.call('get', KEYS[1])", new RedisKey[] { key }, null);
                 Assert.Equal("bar", result);
 
                 // now cause all kinds of problems
@@ -218,7 +223,7 @@ return timeTaken
                 //expect this one to <strike>fail</strike> just work fine (self-fix)
                 conn.ScriptEvaluate("return redis.call('get', KEYS[1])", new RedisKey[] { key }, null);
 
-                result = (string)conn.ScriptEvaluate("return redis.call('get', KEYS[1])", new RedisKey[] { key }, null);
+                result = (string?)conn.ScriptEvaluate("return redis.call('get', KEYS[1])", new RedisKey[] { key }, null);
                 Assert.Equal("bar", result);
             }
         }
@@ -267,7 +272,7 @@ return timeTaken
                 var conn = muxer.GetDatabase();
                 GetServer(muxer).ScriptLoad(evil);
 
-                var result = (string)conn.ScriptEvaluate(evil, null, null);
+                var result = (string?)conn.ScriptEvaluate(evil, null, null);
                 Assert.Equal("僕", result);
             }
         }
@@ -300,7 +305,7 @@ return timeTaken
                 var key = Me();
                 var conn = muxer.GetDatabase();
                 conn.KeyDelete(key, CommandFlags.FireAndForget);
-                var beforeTran = (string)conn.StringGet(key);
+                var beforeTran = (string?)conn.StringGet(key);
                 Assert.Null(beforeTran);
                 var tran = conn.CreateTransaction();
                 {
@@ -320,7 +325,8 @@ return timeTaken
                     Assert.Single(b.Exception.InnerExceptions);
                     var ex = b.Exception.InnerExceptions.Single();
                     Assert.IsType<RedisServerException>(ex);
-                    Assert.Equal("oops", ex.Message);
+                    // 7.0 slightly changes the error format, accept either.
+                    Assert.Contains(ex.Message, new[] { "ERR oops", "oops" });
                 }
                 var afterTran = conn.StringGetAsync(key);
                 Assert.Equal(2L, (long)conn.Wait(afterTran));
@@ -350,7 +356,7 @@ return timeTaken
         return redis.call('get','" + key + "')", null, null);
                 var getResult = conn.StringGetAsync(key);
 
-                Assert.Equal("db 1", (string)await evalResult);
+                Assert.Equal("db 1", (string?)await evalResult);
                 // now, our connection thought it was in db 2, but the script changed to db 1
                 Assert.Equal("db 2", await getResult);
             }
@@ -372,7 +378,7 @@ return timeTaken
                 var getResult = tran.StringGetAsync(key);
                 Assert.True(tran.Execute());
 
-                Assert.Equal("db 1", (string)await evalResult);
+                Assert.Equal("db 1", (string?)await evalResult);
                 // now, our connection thought it was in db 2, but the script changed to db 1
                 Assert.Equal("db 2", await getResult);
             }
@@ -383,7 +389,8 @@ return timeTaken
         {
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
+                Skip.IfBelow(conn, RedisFeatures.v2_6_0);
+
                 RedisValue newId = Guid.NewGuid().ToString();
                 RedisKey key = Me();
                 var db = conn.GetDatabase();
@@ -409,7 +416,8 @@ return timeTaken
             using (var conn0 = Create(allowAdmin: true))
             using (var conn1 = Create(allowAdmin: true))
             {
-                Skip.IfMissingFeature(conn0, nameof(RedisFeatures.Scripting), f => f.Scripting);
+                Skip.IfBelow(conn0, RedisFeatures.v2_6_0);
+
                 // note that these are on different connections (so we wouldn't expect
                 // the flush to drop the local cache - assume it is a surprise!)
                 var server = conn0.GetServer(TestConfig.Current.PrimaryServerAndPort);
@@ -460,7 +468,8 @@ return timeTaken
 
             using (var conn = Create(allowAdmin: true))
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
+                Skip.IfBelow(conn, RedisFeatures.v2_6_0);
+
                 var server = conn.GetServer(TestConfig.Current.PrimaryServerAndPort);
                 server.ScriptFlush();
 
@@ -511,11 +520,13 @@ return timeTaken
 
             using (var conn = Create(allowAdmin: true))
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
+                Skip.IfBelow(conn, RedisFeatures.v2_6_0);
+
                 var server = conn.GetServer(TestConfig.Current.PrimaryServerAndPort);
                 server.ScriptFlush();
 
-                byte[] hash = server.ScriptLoad(Script);
+                byte[]? hash = server.ScriptLoad(Script);
+                Assert.NotNull(hash);
 
                 var db = conn.GetDatabase();
                 var key = Me();
@@ -540,7 +551,8 @@ return timeTaken
 
             using (var conn = Create(allowAdmin: true))
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
+                Skip.IfBelow(conn, RedisFeatures.v2_6_0);
+
                 var server = conn.GetServer(TestConfig.Current.PrimaryServerAndPort);
                 server.ScriptFlush();
 
@@ -550,7 +562,7 @@ return timeTaken
 
                 {
                     var val = prepared.Evaluate(db, new { ident = "hello" });
-                    Assert.Equal("hello", (string)val);
+                    Assert.Equal("hello", (string?)val);
                 }
 
                 {
@@ -575,12 +587,16 @@ return timeTaken
 
                 {
                     var val = prepared.Evaluate(db, new { ident = new byte[] { 4, 5, 6 } });
-                    Assert.True(new byte[] { 4, 5, 6 }.SequenceEqual((byte[])val));
+                    var valArray = (byte[]?)val;
+                    Assert.NotNull(valArray);
+                    Assert.True(new byte[] { 4, 5, 6 }.SequenceEqual(valArray));
                 }
 
                 {
                     var val = prepared.Evaluate(db, new { ident = new ReadOnlyMemory<byte>(new byte[] { 4, 5, 6 }) });
-                    Assert.True(new byte[] { 4, 5, 6 }.SequenceEqual((byte[])val));
+                    var valArray = (byte[]?)val;
+                    Assert.NotNull(valArray);
+                    Assert.True(new byte[] { 4, 5, 6 }.SequenceEqual(valArray));
                 }
             }
         }
@@ -592,7 +608,8 @@ return timeTaken
 
             using (var conn = Create(allowAdmin: true))
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
+                Skip.IfBelow(conn, RedisFeatures.v2_6_0);
+
                 var server = conn.GetServer(TestConfig.Current.PrimaryServerAndPort);
                 server.ScriptFlush();
 
@@ -600,7 +617,7 @@ return timeTaken
 
                 {
                     var val = db.ScriptEvaluate(Script, values: new RedisValue[] { "hello" });
-                    Assert.Equal("hello", (string)val);
+                    Assert.Equal("hello", (string?)val);
                 }
 
                 {
@@ -625,12 +642,16 @@ return timeTaken
 
                 {
                     var val = db.ScriptEvaluate(Script, values: new RedisValue[] { new byte[] { 4, 5, 6 } });
-                    Assert.True(new byte[] { 4, 5, 6 }.SequenceEqual((byte[])val));
+                    var valArray = (byte[]?)val;
+                    Assert.NotNull(valArray);
+                    Assert.True(new byte[] { 4, 5, 6 }.SequenceEqual(valArray));
                 }
 
                 {
                     var val = db.ScriptEvaluate(Script, values: new RedisValue[] { new ReadOnlyMemory<byte>(new byte[] { 4, 5, 6 }) });
-                    Assert.True(new byte[] { 4, 5, 6 }.SequenceEqual((byte[])val));
+                    var valArray = (byte[]?)val;
+                    Assert.NotNull(valArray);
+                    Assert.True(new byte[] { 4, 5, 6 }.SequenceEqual(valArray));
                 }
             }
         }
@@ -642,7 +663,8 @@ return timeTaken
 
             using (var conn = Create(allowAdmin: true))
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
+                Skip.IfBelow(conn, RedisFeatures.v2_6_0);
+
                 var server = conn.GetServer(TestConfig.Current.PrimaryServerAndPort);
                 server.ScriptFlush();
 
@@ -659,7 +681,7 @@ return timeTaken
                 Assert.Equal(123, (int)val);
 
                 // no super clean way to extract this; so just abuse InternalsVisibleTo
-                script.ExtractParameters(p, null, out RedisKey[] keys, out _);
+                script.ExtractParameters(p, null, out RedisKey[]? keys, out _);
                 Assert.NotNull(keys);
                 Assert.Single(keys);
                 Assert.Equal(key, keys[0]);
@@ -672,7 +694,8 @@ return timeTaken
             const string Script = "redis.call('set', @key, 'hello@example')";
             using (var conn = Create(allowAdmin: true))
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
+                Skip.IfBelow(conn, RedisFeatures.v2_6_0);
+
                 var server = conn.GetServer(TestConfig.Current.PrimaryServerAndPort);
                 server.ScriptFlush();
 
@@ -708,7 +731,8 @@ return timeTaken
 
             using (var conn = Create(allowAdmin: true))
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
+                Skip.IfBelow(conn, RedisFeatures.v2_6_0);
+
                 var server = conn.GetServer(TestConfig.Current.PrimaryServerAndPort);
                 server.ScriptFlush();
 
@@ -719,7 +743,7 @@ return timeTaken
 
                 {
                     var val = loaded.Evaluate(db, new { ident = "hello" });
-                    Assert.Equal("hello", (string)val);
+                    Assert.Equal("hello", (string?)val);
                 }
 
                 {
@@ -744,12 +768,16 @@ return timeTaken
 
                 {
                     var val = loaded.Evaluate(db, new { ident = new byte[] { 4, 5, 6 } });
-                    Assert.True(new byte[] { 4, 5, 6 }.SequenceEqual((byte[])val));
+                    var valArray = (byte[]?)val;
+                    Assert.NotNull(valArray);
+                    Assert.True(new byte[] { 4, 5, 6 }.SequenceEqual(valArray));
                 }
 
                 {
                     var val = loaded.Evaluate(db, new { ident = new ReadOnlyMemory<byte>(new byte[] { 4, 5, 6 }) });
-                    Assert.True(new byte[] { 4, 5, 6 }.SequenceEqual((byte[])val));
+                    var valArray = (byte[]?)val;
+                    Assert.NotNull(valArray);
+                    Assert.True(new byte[] { 4, 5, 6 }.SequenceEqual(valArray));
                 }
             }
         }
@@ -761,7 +789,8 @@ return timeTaken
 
             using (var conn = Create(allowAdmin: true))
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
+                Skip.IfBelow(conn, RedisFeatures.v2_6_0);
+
                 var server = conn.GetServer(TestConfig.Current.PrimaryServerAndPort);
                 server.ScriptFlush();
 
@@ -779,7 +808,7 @@ return timeTaken
                 Assert.Equal(123, (int)val);
 
                 // no super clean way to extract this; so just abuse InternalsVisibleTo
-                prepared.Original.ExtractParameters(p, null, out RedisKey[] keys, out _);
+                prepared.Original.ExtractParameters(p, null, out RedisKey[]? keys, out _);
                 Assert.NotNull(keys);
                 Assert.Single(keys);
                 Assert.Equal(key, keys[0]);
@@ -834,7 +863,8 @@ return timeTaken
 
             using (var conn = Create(allowAdmin: true))
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
+                Skip.IfBelow(conn, RedisFeatures.v2_6_0);
+
                 var script = LuaScript.Prepare(Script);
                 var db = conn.GetDatabase();
                 var key = Me();
@@ -858,7 +888,8 @@ return timeTaken
 
             using (var conn = Create(allowAdmin: true))
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
+                Skip.IfBelow(conn, RedisFeatures.v2_6_0);
+
                 var script = LuaScript.Prepare(Script);
                 var server = conn.GetServer(conn.GetEndPoints()[0]);
                 var db = conn.GetDatabase();
@@ -882,10 +913,11 @@ return timeTaken
             var p = new { key = (RedisKey)key, value = "hello" };
 
             // no super clean way to extract this; so just abuse InternalsVisibleTo
-            prepared.ExtractParameters(p, "prefix-", out RedisKey[] keys, out RedisValue[] args);
+            prepared.ExtractParameters(p, "prefix-", out RedisKey[]? keys, out RedisValue[]? args);
             Assert.NotNull(keys);
             Assert.Single(keys);
             Assert.Equal("prefix-" + key, keys[0]);
+            Assert.NotNull(args);
             Assert.Equal(2, args.Length);
             Assert.Equal("prefix-" +  key, args[0]);
             Assert.Equal("hello", args[1]);
@@ -898,7 +930,8 @@ return timeTaken
 
             using (var conn = Create(allowAdmin: true))
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
+                Skip.IfBelow(conn, RedisFeatures.v2_6_0);
+
                 var db = conn.GetDatabase();
                 var wrappedDb = db.WithKeyPrefix("prefix-");
                 var key = Me();
@@ -924,7 +957,8 @@ return timeTaken
 
             using (var conn = Create(allowAdmin: true))
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
+                Skip.IfBelow(conn, RedisFeatures.v2_6_0);
+
                 var db = conn.GetDatabase();
                 var wrappedDb = db.WithKeyPrefix("prefix-");
                 var key = Me();
@@ -950,7 +984,8 @@ return timeTaken
 
             using (var conn = Create(allowAdmin: true))
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
+                Skip.IfBelow(conn, RedisFeatures.v2_6_0);
+
                 var db = conn.GetDatabase();
                 var wrappedDb = db.WithKeyPrefix("prefix2-");
                 var key = Me();
@@ -977,7 +1012,8 @@ return timeTaken
 
             using (var conn = Create(allowAdmin: true))
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
+                Skip.IfBelow(conn, RedisFeatures.v2_6_0);
+
                 var db = conn.GetDatabase();
                 var wrappedDb = db.WithKeyPrefix("prefix2-");
                 var key = Me();
@@ -1012,7 +1048,8 @@ arr[2] = @y;
 arr[3] = @z;
 return arr;
 ");
-                var result = (RedisValue[])p.ScriptEvaluate(script, args);
+                var result = (RedisValue[]?)p.ScriptEvaluate(script, args);
+                Assert.NotNull(result);
                 Assert.Equal("abc", result[0]);
                 Assert.Equal("prefix/def", result[1]);
                 Assert.Equal("123", result[2]);
@@ -1033,7 +1070,8 @@ arr[2] = KEYS[1];
 arr[3] = ARGV[2];
 return arr;
 ";
-                var result = (RedisValue[])p.ScriptEvaluate(script, new RedisKey[] { "def" }, new RedisValue[] { "abc", 123 });
+                var result = (RedisValue[]?)p.ScriptEvaluate(script, new RedisKey[] { "def" }, new RedisValue[] { "abc", 123 });
+                Assert.NotNull(result);
                 Assert.Equal("abc", result[0]);
                 Assert.Equal("prefix/def", result[1]);
                 Assert.Equal("123", result[2]);
@@ -1048,9 +1086,11 @@ return arr;
                 var p = conn.GetDatabase().WithKeyPrefix("prefix/");
                 var args = new { k = (RedisKey)"key", s = "str", v = 123 };
                 LuaScript lua = LuaScript.Prepare("return {@k, @s, @v}");
-                var viaArgs = (RedisValue[])p.ScriptEvaluate(lua, args);
+                var viaArgs = (RedisValue[]?)p.ScriptEvaluate(lua, args);
 
-                var viaArr = (RedisValue[])p.ScriptEvaluate("return {KEYS[1], ARGV[1], ARGV[2]}", new[] { args.k }, new RedisValue[] { args.s, args.v });
+                var viaArr = (RedisValue[]?)p.ScriptEvaluate("return {KEYS[1], ARGV[1], ARGV[2]}", new[] { args.k }, new RedisValue[] { args.s, args.v });
+                Assert.NotNull(viaArr);
+                Assert.NotNull(viaArgs);
                 Assert.Equal(string.Join(",", viaArr), string.Join(",", viaArgs));
             }
         }
@@ -1064,16 +1104,16 @@ return arr;
         {
             Assert.True(value == null || value.IsNull);
 
-            Assert.Null((RedisValue[])value);
-            Assert.Null((RedisKey[])value);
-            Assert.Null((bool[])value);
-            Assert.Null((long[])value);
-            Assert.Null((ulong[])value);
-            Assert.Null((string[])value);
-            Assert.Null((int[])value);
-            Assert.Null((double[])value);
-            Assert.Null((byte[][])value);
-            Assert.Null((RedisResult[])value);
+            Assert.Null((RedisValue[]?)value);
+            Assert.Null((RedisKey[]?)value);
+            Assert.Null((bool[]?)value);
+            Assert.Null((long[]?)value);
+            Assert.Null((ulong[]?)value);
+            Assert.Null((string[]?)value);
+            Assert.Null((int[]?)value);
+            Assert.Null((double[]?)value);
+            Assert.Null((byte[][]?)value);
+            Assert.Null((RedisResult[]?)value);
         }
 
         [Fact]
@@ -1090,9 +1130,9 @@ return arr;
             Assert.Null((bool?)value);
             Assert.Null((long?)value);
             Assert.Null((ulong?)value);
-            Assert.Null((string)value);
+            Assert.Null((string?)value);
             Assert.Null((double?)value);
-            Assert.Null((byte[])value);
+            Assert.Null((byte[]?)value);
         }
     }
 }

@@ -79,7 +79,7 @@ namespace StackExchange.Redis.Tests
 
             // wait until we have 1 primary and 1 replica and have verified their roles
             var primary = SentinelServerA.SentinelGetMasterAddressByName(ServiceName);
-            if (expectedPrimary != null && expectedPrimary.ToString() != primary.ToString())
+            if (expectedPrimary != null && expectedPrimary.ToString() != primary?.ToString())
             {
                 while (sw.Elapsed < duration.Value)
                 {
@@ -87,7 +87,7 @@ namespace StackExchange.Redis.Tests
                     try
                     {
                         primary = SentinelServerA.SentinelGetMasterAddressByName(ServiceName);
-                        if (expectedPrimary.ToString() == primary.ToString())
+                        if (expectedPrimary.ToString() == primary?.ToString())
                             break;
                     }
                     catch (Exception)
@@ -96,7 +96,7 @@ namespace StackExchange.Redis.Tests
                     }
                 }
             }
-            if (expectedPrimary != null && expectedPrimary.ToString() != primary.ToString())
+            if (expectedPrimary != null && expectedPrimary.ToString() != primary?.ToString())
                 throw new RedisException($"Primary was expected to be {expectedPrimary}");
             Log($"Primary is {primary}");
 
@@ -105,7 +105,7 @@ namespace StackExchange.Redis.Tests
             await WaitForRoleAsync(checkConn.GetServer(primary), "master", duration.Value.Subtract(sw.Elapsed)).ForAwait();
 
             var replicas = SentinelServerA.SentinelGetReplicaAddresses(ServiceName);
-            if (replicas.Length > 0)
+            if (replicas?.Length > 0)
             {
                 await Task.Delay(1000).ForAwait();
                 replicas = SentinelServerA.SentinelGetReplicaAddresses(ServiceName);
@@ -128,7 +128,7 @@ namespace StackExchange.Redis.Tests
             {
                 try
                 {
-                    if (server.Role().Value == role)
+                    if (server.Role()?.Value == role)
                     {
                         Log($"Done waiting for server ({server.EndPoint}) role to be \"{role}\"");
                         return;

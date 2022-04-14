@@ -42,12 +42,13 @@ namespace StackExchange.Redis.Tests
                 var db = conn.GetDatabase(dbId);
                 var prefix = Me();
                 conn.GetServer(TestConfig.Current.PrimaryServerAndPort).FlushDatabase(dbId, CommandFlags.FireAndForget);
-                string anyKey = db.KeyRandom();
+                string? anyKey = db.KeyRandom();
 
                 Assert.Null(anyKey);
                 db.StringSet(prefix + "abc", "def");
-                byte[] keyBytes = db.KeyRandom();
+                byte[]? keyBytes = db.KeyRandom();
 
+                Assert.NotNull(keyBytes);
                 Assert.Equal(prefix + "abc", Encoding.UTF8.GetString(keyBytes));
             }
         }
@@ -204,7 +205,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create())
             {
-                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.KeyTouch), r => r.KeyTouch);
+                Skip.IfBelow(muxer, RedisFeatures.v3_2_1);
 
                 RedisKey key = Me();
                 var db = muxer.GetDatabase();
@@ -248,7 +249,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create())
             {
-                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.KeyTouch), r => r.KeyTouch);
+                Skip.IfBelow(muxer, RedisFeatures.v3_2_1);
 
                 RedisKey key = Me();
                 var db = muxer.GetDatabase();
@@ -262,6 +263,49 @@ namespace StackExchange.Redis.Tests
                 var idleTime1 = await db.KeyIdleTimeAsync(key).ForAwait();
                 Assert.True(idleTime1 < idleTime);
             }
+        }
+
+        [Fact]
+        public async Task KeyEncoding()
+        {
+            using var muxer = Create();
+            var key = Me();
+            var db = muxer.GetDatabase();
+
+            db.KeyDelete(key, CommandFlags.FireAndForget);
+            db.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
+
+            Assert.Equal("embstr", db.KeyEncoding(key));
+            Assert.Equal("embstr", await db.KeyEncodingAsync(key));
+
+            db.KeyDelete(key, CommandFlags.FireAndForget);
+            db.ListLeftPush(key, "new value", flags: CommandFlags.FireAndForget);
+
+            // Depending on server version, this is going to vary - we're sanity checking here.
+            var listTypes = new [] { "ziplist", "quicklist" };
+            Assert.Contains(db.KeyEncoding(key), listTypes);
+            Assert.Contains(await db.KeyEncodingAsync(key), listTypes);
+
+            var keyNotExists = key + "no-exist";
+            Assert.Null(db.KeyEncoding(keyNotExists));
+            Assert.Null(await db.KeyEncodingAsync(keyNotExists));
+        }
+
+        [Fact]
+        public async Task KeyRefCount()
+        {
+            using var muxer = Create();
+            var key = Me();
+            var db = muxer.GetDatabase();
+            db.KeyDelete(key, CommandFlags.FireAndForget);
+            db.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
+
+            Assert.Equal(1, db.KeyRefCount(key));
+            Assert.Equal(1, await db.KeyRefCountAsync(key));
+
+            var keyNotExists = key + "no-exist";
+            Assert.Null(db.KeyRefCount(keyNotExists));
+            Assert.Null(await db.KeyRefCountAsync(keyNotExists));
         }
     }
 }

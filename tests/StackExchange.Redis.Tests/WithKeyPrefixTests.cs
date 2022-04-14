@@ -63,7 +63,7 @@ namespace StackExchange.Redis.Tests
             Assert.Throws<ArgumentNullException>(() =>
             {
                 IDatabase? raw = null;
-                raw.WithKeyPrefix(prefix);
+                raw!.WithKeyPrefix(prefix);
             });
         }
 
@@ -83,7 +83,7 @@ namespace StackExchange.Redis.Tests
                 string s = Guid.NewGuid().ToString(), t = Guid.NewGuid().ToString();
 
                 foo.StringSet(key, s, flags: CommandFlags.FireAndForget);
-                var val = (string)foo.StringGet(key);
+                var val = (string?)foo.StringGet(key);
                 Assert.Equal(s, val); // fooBasicSmokeTest
 
                 foobar.StringSet(key, t, flags: CommandFlags.FireAndForget);

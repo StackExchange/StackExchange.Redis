@@ -14,9 +14,9 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Memory), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v4_0_0);
                 var server = conn.GetServer(conn.GetEndPoints()[0]);
-                string doctor = server.MemoryDoctor();
+                string? doctor = server.MemoryDoctor();
                 Assert.NotNull(doctor);
                 Assert.NotEqual("", doctor);
 
@@ -31,7 +31,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Memory), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v4_0_0);
                 var server = conn.GetServer(conn.GetEndPoints()[0]);
                 server.MemoryPurge();
                 await server.MemoryPurgeAsync();
@@ -45,7 +45,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Memory), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v4_0_0);
                 var server = conn.GetServer(conn.GetEndPoints()[0]);
 
                 var stats = server.MemoryAllocatorStats();
@@ -61,9 +61,10 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Memory), r => r.Streams);
+                Skip.IfBelow(conn, RedisFeatures.v4_0_0);
                 var server = conn.GetServer(conn.GetEndPoints()[0]);
                 var stats = server.MemoryStats();
+                Assert.NotNull(stats);
                 Assert.Equal(ResultType.MultiBulk, stats.Type);
 
                 var parsed = stats.ToDictionary();
@@ -73,6 +74,7 @@ namespace StackExchange.Redis.Tests
                 Assert.True(alloc.AsInt64() > 0);
 
                 stats = await server.MemoryStatsAsync();
+                Assert.NotNull(stats);
                 Assert.Equal(ResultType.MultiBulk, stats.Type);
 
                 alloc = parsed["total.allocated"];

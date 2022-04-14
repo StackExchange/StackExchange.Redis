@@ -33,12 +33,14 @@ namespace StackExchange.Redis.Tests
                 var db = conn.GetDatabase(dbId);
                 db.StringSet(key, "world");
                 var result = db.ScriptEvaluate(script, new { key = (RedisKey)key });
+                Assert.NotNull(result);
                 Assert.Equal("world", result.AsString());
                 var loadedResult = db.ScriptEvaluate(loaded, new { key = (RedisKey)key });
+                Assert.NotNull(loadedResult);
                 Assert.Equal("world", loadedResult.AsString());
                 var val = db.StringGet(key);
                 Assert.Equal("world", val);
-                var s = (string)db.Execute("ECHO", "fii");
+                var s = (string?)db.Execute("ECHO", "fii");
                 Assert.Equal("fii", s);
 
                 var cmds = session.FinishProfiling();
@@ -242,14 +244,14 @@ namespace StackExchange.Redis.Tests
                 var prefix = Me();
                 var db = conn.GetDatabase(1);
 
-                var allTasks = new List<Task<string>>();
+                var allTasks = new List<Task<string?>>();
 
                 foreach (var i in Enumerable.Range(0, OuterLoop))
                 {
                     var t =
                         db.StringSetAsync(prefix + i, "bar" + i)
                           .ContinueWith(
-                            async _ => (string)(await db.StringGetAsync(prefix + i).ForAwait())
+                            async _ => (string?)(await db.StringGetAsync(prefix + i).ForAwait())
                           );
 
                     var finalResult = t.Unwrap();

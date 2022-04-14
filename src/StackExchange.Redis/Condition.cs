@@ -357,7 +357,7 @@ namespace StackExchange.Redis
 
         internal abstract void CheckCommands(CommandMap commandMap);
 
-        internal abstract IEnumerable<Message> CreateMessages(int db, IResultBox resultBox);
+        internal abstract IEnumerable<Message> CreateMessages(int db, IResultBox? resultBox);
 
         internal abstract int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy);
         internal abstract bool TryValidate(in RawResult result, out bool value);
@@ -366,7 +366,7 @@ namespace StackExchange.Redis
         {
             public static readonly ConditionProcessor Default = new();
 
-            public static Message CreateMessage(Condition condition, int db, CommandFlags flags, RedisCommand command, in RedisKey key, RedisValue value = default(RedisValue)) =>
+            public static Message CreateMessage(Condition condition, int db, CommandFlags flags, RedisCommand command, in RedisKey key, RedisValue value = default) =>
                 new ConditionMessage(condition, db, flags, command, key, value);
 
             public static Message CreateMessage(Condition condition, int db, CommandFlags flags, RedisCommand command, in RedisKey key, in RedisValue value, in RedisValue value1) =>
@@ -464,12 +464,12 @@ namespace StackExchange.Redis
             }
 
             public override string ToString() =>
-                (expectedValue.IsNull ? key.ToString() : ((string)key) + " " + type + " > " + expectedValue)
+                (expectedValue.IsNull ? key.ToString() : ((string?)key) + " " + type + " > " + expectedValue)
                     + (expectedResult ? " exists" : " does not exists");
 
             internal override void CheckCommands(CommandMap commandMap) => commandMap.AssertAvailable(cmd);
 
-            internal override IEnumerable<Message> CreateMessages(int db, IResultBox resultBox)
+            internal override IEnumerable<Message> CreateMessages(int db, IResultBox? resultBox)
             {
                 yield return Message.Create(db, CommandFlags.None, RedisCommand.WATCH, key);
 
@@ -532,13 +532,13 @@ namespace StackExchange.Redis
             }
 
             public override string ToString() =>
-                (memberName.IsNull ? key.ToString() : ((string)key) + " " + type + " > " + memberName)
+                (memberName.IsNull ? key.ToString() : ((string?)key) + " " + type + " > " + memberName)
                     + (expectedEqual ? " == " : " != ")
                     + expectedValue;
 
             internal override void CheckCommands(CommandMap commandMap) => commandMap.AssertAvailable(cmd);
 
-            internal sealed override IEnumerable<Message> CreateMessages(int db, IResultBox resultBox)
+            internal sealed override IEnumerable<Message> CreateMessages(int db, IResultBox? resultBox)
             {
                 yield return Message.Create(db, CommandFlags.None, RedisCommand.WATCH, key);
 
@@ -561,7 +561,7 @@ namespace StackExchange.Redis
                         }
 
                         value = (parsedValue == expectedValue) == expectedEqual;
-                        ConnectionMultiplexer.TraceWithoutContext("actual: " + (string)parsedValue + "; expected: " + (string)expectedValue +
+                        ConnectionMultiplexer.TraceWithoutContext("actual: " + (string?)parsedValue + "; expected: " + (string?)expectedValue +
                                                                   "; wanted: " + (expectedEqual ? "==" : "!=") + "; voting: " + value);
                         return true;
 
@@ -573,7 +573,7 @@ namespace StackExchange.Redis
                             case ResultType.Integer:
                                 var parsed = result.AsRedisValue();
                                 value = (parsed == expectedValue) == expectedEqual;
-                                ConnectionMultiplexer.TraceWithoutContext("actual: " + (string)parsed + "; expected: " + (string)expectedValue +
+                                ConnectionMultiplexer.TraceWithoutContext("actual: " + (string?)parsed + "; expected: " + (string?)expectedValue +
                                                                           "; wanted: " + (expectedEqual ? "==" : "!=") + "; voting: " + value);
                                 return true;
                         }
@@ -604,12 +604,12 @@ namespace StackExchange.Redis
             }
 
             public override string ToString() =>
-                ((string)key) + "[" + index.ToString() + "]"
+                ((string?)key) + "[" + index.ToString() + "]"
                     + (expectedValue.HasValue ? (expectedResult ? " == " : " != ") + expectedValue.Value : (expectedResult ? " exists" : " does not exist"));
 
             internal override void CheckCommands(CommandMap commandMap) => commandMap.AssertAvailable(RedisCommand.LINDEX);
 
-            internal sealed override IEnumerable<Message> CreateMessages(int db, IResultBox resultBox)
+            internal sealed override IEnumerable<Message> CreateMessages(int db, IResultBox? resultBox)
             {
                 yield return Message.Create(db, CommandFlags.None, RedisCommand.WATCH, key);
 
@@ -631,7 +631,7 @@ namespace StackExchange.Redis
                         if (expectedValue.HasValue)
                         {
                             value = (parsed == expectedValue.Value) == expectedResult;
-                            ConnectionMultiplexer.TraceWithoutContext("actual: " + (string)parsed + "; expected: " + (string)expectedValue.Value +
+                            ConnectionMultiplexer.TraceWithoutContext("actual: " + (string?)parsed + "; expected: " + (string?)expectedValue.Value +
                                 "; wanted: " + (expectedResult ? "==" : "!=") + "; voting: " + value);
                         }
                         else
@@ -676,13 +676,13 @@ namespace StackExchange.Redis
                 };
             }
 
-            public override string ToString() => ((string)key) + " " + type + " length" + GetComparisonString() + expectedLength;
+            public override string ToString() => ((string?)key) + " " + type + " length" + GetComparisonString() + expectedLength;
 
             private string GetComparisonString() => compareToResult == 0 ? " == " : (compareToResult < 0 ? " > " : " < ");
 
             internal override void CheckCommands(CommandMap commandMap) => commandMap.AssertAvailable(cmd);
 
-            internal sealed override IEnumerable<Message> CreateMessages(int db, IResultBox resultBox)
+            internal sealed override IEnumerable<Message> CreateMessages(int db, IResultBox? resultBox)
             {
                 yield return Message.Create(db, CommandFlags.None, RedisCommand.WATCH, key);
 
@@ -702,7 +702,7 @@ namespace StackExchange.Redis
                     case ResultType.Integer:
                         var parsed = result.AsRedisValue();
                         value = parsed.IsInteger && (expectedLength.CompareTo((long)parsed) == compareToResult);
-                        ConnectionMultiplexer.TraceWithoutContext("actual: " + (string)parsed + "; expected: " + expectedLength +
+                        ConnectionMultiplexer.TraceWithoutContext("actual: " + (string?)parsed + "; expected: " + expectedLength +
                             "; wanted: " + GetComparisonString() + "; voting: " + value);
                         return true;
                 }
@@ -733,13 +733,13 @@ namespace StackExchange.Redis
             }
 
             public override string ToString() =>
-                ((string)key) + " " + RedisType.SortedSet + " range[" + min + ", " + max + "] length" + GetComparisonString() + expectedLength;
+                ((string?)key) + " " + RedisType.SortedSet + " range[" + min + ", " + max + "] length" + GetComparisonString() + expectedLength;
 
             private string GetComparisonString() => compareToResult == 0 ? " == " : (compareToResult < 0 ? " > " : " < ");
 
             internal override void CheckCommands(CommandMap commandMap) => commandMap.AssertAvailable(RedisCommand.ZCOUNT);
 
-            internal sealed override IEnumerable<Message> CreateMessages(int db, IResultBox resultBox)
+            internal sealed override IEnumerable<Message> CreateMessages(int db, IResultBox? resultBox)
             {
                 yield return Message.Create(db, CommandFlags.None, RedisCommand.WATCH, key);
 
@@ -759,7 +759,7 @@ namespace StackExchange.Redis
                     case ResultType.Integer:
                         var parsed = result.AsRedisValue();
                         value = parsed.IsInteger && (expectedLength.CompareTo((long)parsed) == compareToResult);
-                        ConnectionMultiplexer.TraceWithoutContext("actual: " + (string)parsed + "; expected: " + expectedLength +
+                        ConnectionMultiplexer.TraceWithoutContext("actual: " + (string?)parsed + "; expected: " + expectedLength +
                             "; wanted: " + GetComparisonString() + "; voting: " + value);
                         return true;
                 }
@@ -795,7 +795,7 @@ namespace StackExchange.Redis
 
             internal override void CheckCommands(CommandMap commandMap) => commandMap.AssertAvailable(RedisCommand.ZCOUNT);
 
-            internal sealed override IEnumerable<Message> CreateMessages(int db, IResultBox resultBox)
+            internal sealed override IEnumerable<Message> CreateMessages(int db, IResultBox? resultBox)
             {
                 yield return Message.Create(db, CommandFlags.None, RedisCommand.WATCH, key);
 
@@ -814,7 +814,7 @@ namespace StackExchange.Redis
                     case ResultType.Integer:
                         var parsedValue = result.AsRedisValue();
                         value = (parsedValue == expectedValue) == expectedEqual;
-                        ConnectionMultiplexer.TraceWithoutContext("actual: " + (string)parsedValue + "; expected: " + (string)expectedValue + "; wanted: " + (expectedEqual ? "==" : "!=") + "; voting: " + value);
+                        ConnectionMultiplexer.TraceWithoutContext("actual: " + (string?)parsedValue + "; expected: " + (string?)expectedValue + "; wanted: " + (expectedEqual ? "==" : "!=") + "; voting: " + value);
                         return true;
                 }
 
@@ -831,7 +831,7 @@ namespace StackExchange.Redis
     {
         internal readonly Condition Condition;
 
-        private IResultBox<bool> resultBox;
+        private IResultBox<bool>? resultBox;
 
         private volatile bool wasSatisfied;
 
@@ -848,7 +848,7 @@ namespace StackExchange.Redis
 
         internal IEnumerable<Message> CreateMessages(int db) => Condition.CreateMessages(db, resultBox);
 
-        internal IResultBox<bool> GetBox() { return resultBox; }
+        internal IResultBox<bool>? GetBox() => resultBox;
         internal bool UnwrapBox()
         {
             if (resultBox != null)

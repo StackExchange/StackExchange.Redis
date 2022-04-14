@@ -45,13 +45,13 @@ namespace StackExchange.Redis
         /// <summary>
         /// Deduces a link to the redis documentation about the specified command
         /// </summary>
-        public string GetHelpUrl()
+        public string? GetHelpUrl()
         {
             if (Arguments == null || Arguments.Length == 0) return null;
 
             const string BaseUrl = "https://redis.io/commands/";
 
-            string encoded0 = Uri.EscapeDataString(((string)Arguments[0]).ToLowerInvariant());
+            string encoded0 = Uri.EscapeDataString(((string)Arguments[0]!).ToLowerInvariant());
 
             if (Arguments.Length > 1)
             {
@@ -63,7 +63,7 @@ namespace StackExchange.Redis
                     case "config":
                     case "debug":
                     case "pubsub":
-                        string encoded1 = Uri.EscapeDataString(((string)Arguments[1]).ToLowerInvariant());
+                        string encoded1 = Uri.EscapeDataString(((string)Arguments[1]!).ToLowerInvariant());
                         return BaseUrl + encoded0 + "-" + encoded1;
                 }
             }
@@ -87,7 +87,7 @@ namespace StackExchange.Redis
                             var subParts = iter.Current.GetItems();
                             if (!subParts.GetRef(0).TryGetInt64(out long uniqueid) || !subParts.GetRef(1).TryGetInt64(out long time) || !subParts.GetRef(2).TryGetInt64(out long duration))
                                 return false;
-                             arr[i++] = new CommandTrace(uniqueid, time, duration, subParts.GetRef(3).GetItemsAsValues());
+                             arr[i++] = new CommandTrace(uniqueid, time, duration, subParts.GetRef(3).GetItemsAsValues()!);
                         }
                         SetResult(message, arr);
                         return true;

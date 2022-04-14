@@ -44,7 +44,8 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create())
             {
-                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.Scan), r => r.Scan);
+                Skip.IfBelow(muxer, RedisFeatures.v2_8_0);
+
                 var conn = muxer.GetDatabase();
                 var key = Me();
                 await conn.KeyDeleteAsync(key);
@@ -92,7 +93,8 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create())
             {
-                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.Scan), r => r.Scan);
+                Skip.IfBelow(muxer, RedisFeatures.v2_8_0);
+
                 var conn = muxer.GetDatabase();
 
                 var key = Me();
@@ -146,7 +148,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create())
             {
-                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.IncrementFloat), r => r.IncrementFloat);
+                Skip.IfBelow(muxer, RedisFeatures.v2_6_0);
                 var conn = muxer.GetDatabase();
                 var key = Me();
                 _ = conn.KeyDeleteAsync(key).ForAwait();
@@ -188,7 +190,7 @@ namespace StackExchange.Redis.Tests
                 }
 
                 var inRedis = (await conn.HashGetAllAsync(key).ForAwait()).ToDictionary(
-                    x => Guid.Parse(x.Name), x => int.Parse(x.Value));
+                    x => Guid.Parse(x.Name!), x => int.Parse(x.Value!));
 
                 Assert.Equal(shouldMatch.Count, inRedis.Count);
 
@@ -222,7 +224,7 @@ namespace StackExchange.Redis.Tests
                 foreach (var k in shouldMatch.Keys)
                 {
                     var inRedis = await conn.HashGetAsync(key, k.ToString()).ForAwait();
-                    var num = int.Parse(inRedis);
+                    var num = int.Parse(inRedis!);
 
                     Assert.Equal(shouldMatch[k], num);
                 }
@@ -253,7 +255,7 @@ namespace StackExchange.Redis.Tests
                 var val5 = conn.HashGetAsync(hashkey, "empty_type2").ForAwait();
 
                 await del;
-                Assert.Null((string)(await val0));
+                Assert.Null((string?)(await val0));
                 Assert.True(await set0);
                 Assert.Equal("value1", await val1);
                 Assert.False(await set1);
@@ -289,7 +291,7 @@ namespace StackExchange.Redis.Tests
                 var set3 = conn.HashSetAsync(hashkey, "field-blob", Encoding.UTF8.GetBytes("value3"), When.NotExists).ForAwait();
 
                 await del;
-                Assert.Null((string)(await val0));
+                Assert.Null((string?)(await val0));
                 Assert.True(await set0);
                 Assert.Equal("value1", await val1);
                 Assert.False(await set1);
@@ -461,8 +463,8 @@ namespace StackExchange.Redis.Tests
 
                 var arr = await keys1;
                 Assert.Equal(2, arr.Length);
-                Assert.Equal("abc", Encoding.UTF8.GetString(arr[0]));
-                Assert.Equal("def", Encoding.UTF8.GetString(arr[1]));
+                Assert.Equal("abc", Encoding.UTF8.GetString(arr[0]!));
+                Assert.Equal("def", Encoding.UTF8.GetString(arr[1]!));
             }
         }
 
@@ -506,19 +508,19 @@ namespace StackExchange.Redis.Tests
                 var arr2 = await conn.HashGetAsync(hashkey, fields).ForAwait();
 
                 Assert.Equal(3, arr0.Length);
-                Assert.Null((string)arr0[0]);
-                Assert.Null((string)arr0[1]);
-                Assert.Null((string)arr0[2]);
+                Assert.Null((string?)arr0[0]);
+                Assert.Null((string?)arr0[1]);
+                Assert.Null((string?)arr0[2]);
 
                 Assert.Equal(3, arr1.Length);
                 Assert.Equal("abc", arr1[0]);
                 Assert.Equal("def", arr1[1]);
-                Assert.Null((string)arr1[2]);
+                Assert.Null((string?)arr1[2]);
 
                 Assert.Equal(3, arr2.Length);
                 Assert.Equal("abc", arr2[0]);
                 Assert.Equal("def", arr2[1]);
-                Assert.Null((string)arr2[2]);
+                Assert.Null((string?)arr2[2]);
             }
         }
 
@@ -593,6 +595,82 @@ namespace StackExchange.Redis.Tests
                 Assert.False(result3, "Duplicate set key 1");
                 Assert.False(result4, "Duplicate se key 1 variant");
             }
+        }
+
+        [Fact]
+        public async Task HashRandomFieldAsync()
+        {
+            using var muxer = Create();
+            Skip.IfBelow(muxer, RedisFeatures.v6_2_0);
+
+            var db = muxer.GetDatabase();
+            var hashKey = Me();
+            var items = new HashEntry[] { new("new york", "yankees"), new("baltimore", "orioles"), new("boston", "red sox"), new("Tampa Bay", "rays"), new("Toronto", "blue jays") };
+            await db.HashSetAsync(hashKey, items);
+
+            var singleField = await db.HashRandomFieldAsync(hashKey);
+            var multiFields = await db.HashRandomFieldsAsync(hashKey, 3);
+            var withValues = await db.HashRandomFieldsWithValuesAsync(hashKey, 3);
+            Assert.Equal(3, multiFields.Length);
+            Assert.Equal(3, withValues.Length);
+            Assert.Contains(items, x => x.Name == singleField);
+
+            foreach (var field in multiFields)
+            {
+                Assert.Contains(items, x => x.Name == field);
+            }
+
+            foreach (var field in withValues)
+            {
+                Assert.Contains(items, x => x.Name == field.Name);
+            }
+        }
+
+        [Fact]
+        public void HashRandomField()
+        {
+            using var muxer = Create();
+            Skip.IfBelow(muxer, RedisFeatures.v6_2_0);
+
+            var db = muxer.GetDatabase();
+            var hashKey = Me();
+            var items = new HashEntry[] { new("new york", "yankees"), new("baltimore", "orioles"), new("boston", "red sox"), new("Tampa Bay", "rays"), new("Toronto", "blue jays") };
+            db.HashSet(hashKey, items);
+
+            var singleField = db.HashRandomField(hashKey);
+            var multiFields = db.HashRandomFields(hashKey, 3);
+            var withValues = db.HashRandomFieldsWithValues(hashKey, 3);
+            Assert.Equal(3, multiFields.Length);
+            Assert.Equal(3, withValues.Length);
+            Assert.Contains(items, x => x.Name == singleField);
+
+            foreach (var field in multiFields)
+            {
+                Assert.Contains(items, x => x.Name == field);
+            }
+
+            foreach (var field in withValues)
+            {
+                Assert.Contains(items, x => x.Name == field.Name);
+            }
+        }
+
+        [Fact]
+        public void HashRandomFieldEmptyHash()
+        {
+            using var muxer = Create();
+            Skip.IfBelow(muxer, RedisFeatures.v6_2_0);
+
+            var db = muxer.GetDatabase();
+            var hashKey = Me();
+
+            var singleField = db.HashRandomField(hashKey);
+            var multiFields = db.HashRandomFields(hashKey, 3);
+            var withValues = db.HashRandomFieldsWithValues(hashKey, 3);
+
+            Assert.Equal(RedisValue.Null, singleField);
+            Assert.Empty(multiFields);
+            Assert.Empty(withValues);
         }
     }
 }

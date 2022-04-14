@@ -17,7 +17,7 @@ namespace StackExchange.Redis.Tests.Issues
                 var uid = Me();
                 redis.StringSetAsync(uid, "abc");
                 redis.StringSetAsync(uid, expectedTestValue);
-                string testValue = redis.StringGet(uid);
+                string? testValue = redis.StringGet(uid);
                 Assert.Null(testValue);
             }
         }
@@ -32,7 +32,7 @@ namespace StackExchange.Redis.Tests.Issues
                 var uid = Me();
 
                 redis.StringSetAsync(uid, expectedTestValue);
-                string testValue = redis.StringGet(uid);
+                string? testValue = redis.StringGet(uid);
 
                 Assert.Equal(expectedTestValue, testValue);
             }

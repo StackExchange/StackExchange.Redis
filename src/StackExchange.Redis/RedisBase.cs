@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Threading.Tasks;
 
 namespace StackExchange.Redis
@@ -7,9 +8,9 @@ namespace StackExchange.Redis
     {
         internal static readonly DateTime UnixEpoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
         internal readonly ConnectionMultiplexer multiplexer;
-        protected readonly object asyncState;
+        protected readonly object? asyncState;
 
-        internal RedisBase(ConnectionMultiplexer multiplexer, object asyncState)
+        internal RedisBase(ConnectionMultiplexer multiplexer, object? asyncState)
         {
             this.multiplexer = multiplexer;
             this.asyncState = asyncState;
@@ -39,21 +40,29 @@ namespace StackExchange.Redis
 
         public void WaitAll(params Task[] tasks) => multiplexer.WaitAll(tasks);
 
-        internal virtual Task<T> ExecuteAsync<T>(Message message, ResultProcessor<T> processor, ServerEndPoint server = null)
+        internal virtual Task<T> ExecuteAsync<T>(Message? message, ResultProcessor<T>? processor, T defaultValue, ServerEndPoint? server = null)
         {
-            if (message == null) return CompletedTask<T>.Default(asyncState);
+            if (message is null) return CompletedTask<T>.FromDefault(defaultValue, asyncState);
+            multiplexer.CheckMessage(message);
+            return multiplexer.ExecuteAsyncImpl<T>(message, processor, asyncState, server, defaultValue);
+        }
+
+        internal virtual Task<T?> ExecuteAsync<T>(Message? message, ResultProcessor<T>? processor, ServerEndPoint? server = null)
+        {
+            if (message is null) return CompletedTask<T>.Default(asyncState);
             multiplexer.CheckMessage(message);
             return multiplexer.ExecuteAsyncImpl<T>(message, processor, asyncState, server);
         }
 
-        internal virtual T ExecuteSync<T>(Message message, ResultProcessor<T> processor, ServerEndPoint server = null)
+        [return: NotNullIfNotNull("defaultValue")]
+        internal virtual T? ExecuteSync<T>(Message? message, ResultProcessor<T>? processor, ServerEndPoint? server = null, T? defaultValue = default)
         {
-            if (message == null) return default(T); // no-op
+            if (message is null) return defaultValue; // no-op
             multiplexer.CheckMessage(message);
-            return multiplexer.ExecuteSyncImpl<T>(message, processor, server);
+            return multiplexer.ExecuteSyncImpl<T>(message, processor, server, defaultValue);
         }
 
-        internal virtual RedisFeatures GetFeatures(in RedisKey key, CommandFlags flags, out ServerEndPoint server)
+        internal virtual RedisFeatures GetFeatures(in RedisKey key, CommandFlags flags, out ServerEndPoint? server)
         {
             server = multiplexer.SelectServer(RedisCommand.PING, flags, key);
             var version = server == null ? multiplexer.RawConfig.DefaultVersion : server.Version;
@@ -122,7 +131,7 @@ namespace StackExchange.Redis
             {
                 if (pattern.IsNullOrEmpty) return true;
                 if (pattern.IsInteger) return false;
-                byte[] rawValue = pattern;
+                byte[] rawValue = pattern!;
                 return rawValue.Length == 1 && rawValue[0] == '*';
             }
         }

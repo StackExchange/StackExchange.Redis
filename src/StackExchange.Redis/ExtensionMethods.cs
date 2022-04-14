@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Buffers;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Net.Security;
 using System.Runtime.CompilerServices;
@@ -21,14 +22,18 @@ namespace StackExchange.Redis
         /// Create a dictionary from an array of HashEntry values.
         /// </summary>
         /// <param name="hash">The entry to convert to a dictionary.</param>
-        public static Dictionary<string,string> ToStringDictionary(this HashEntry[] hash)
+        [return: NotNullIfNotNull("hash")]
+        public static Dictionary<string,string>? ToStringDictionary(this HashEntry[]? hash)
         {
-            if (hash == null) return null;
+            if (hash is null)
+            {
+                return null;
+            }
 
             var result = new Dictionary<string, string>(hash.Length, StringComparer.Ordinal);
             for(int i = 0; i < hash.Length; i++)
             {
-                result.Add(hash[i].name, hash[i].value);
+                result.Add(hash[i].name!, hash[i].value!);
             }
             return result;
         }
@@ -37,9 +42,13 @@ namespace StackExchange.Redis
         /// Create a dictionary from an array of HashEntry values.
         /// </summary>
         /// <param name="hash">The entry to convert to a dictionary.</param>
-        public static Dictionary<RedisValue, RedisValue> ToDictionary(this HashEntry[] hash)
+        [return: NotNullIfNotNull("hash")]
+        public static Dictionary<RedisValue, RedisValue>? ToDictionary(this HashEntry[]? hash)
         {
-            if (hash == null) return null;
+            if (hash is null)
+            {
+                return null;
+            }
 
             var result = new Dictionary<RedisValue, RedisValue>(hash.Length);
             for (int i = 0; i < hash.Length; i++)
@@ -53,14 +62,18 @@ namespace StackExchange.Redis
         /// Create a dictionary from an array of SortedSetEntry values.
         /// </summary>
         /// <param name="sortedSet">The set entries to convert to a dictionary.</param>
-        public static Dictionary<string, double> ToStringDictionary(this SortedSetEntry[] sortedSet)
+        [return: NotNullIfNotNull("sortedSet")]
+        public static Dictionary<string, double>? ToStringDictionary(this SortedSetEntry[]? sortedSet)
         {
-            if (sortedSet == null) return null;
+            if (sortedSet is null)
+            {
+                return null;
+            }
 
             var result = new Dictionary<string, double>(sortedSet.Length, StringComparer.Ordinal);
             for (int i = 0; i < sortedSet.Length; i++)
             {
-                result.Add(sortedSet[i].element, sortedSet[i].score);
+                result.Add(sortedSet[i].element!, sortedSet[i].score);
             }
             return result;
         }
@@ -69,9 +82,13 @@ namespace StackExchange.Redis
         /// Create a dictionary from an array of SortedSetEntry values.
         /// </summary>
         /// <param name="sortedSet">The set entries to convert to a dictionary.</param>
-        public static Dictionary<RedisValue, double> ToDictionary(this SortedSetEntry[] sortedSet)
+        [return: NotNullIfNotNull("sortedSet")]
+        public static Dictionary<RedisValue, double>? ToDictionary(this SortedSetEntry[]? sortedSet)
         {
-            if (sortedSet == null) return null;
+            if (sortedSet is null)
+            {
+                return null;
+            }
 
             var result = new Dictionary<RedisValue, double>(sortedSet.Length);
             for (int i = 0; i < sortedSet.Length; i++)
@@ -85,14 +102,18 @@ namespace StackExchange.Redis
         /// Create a dictionary from an array of key/value pairs.
         /// </summary>
         /// <param name="pairs">The pairs to convert to a dictionary.</param>
-        public static Dictionary<string, string> ToStringDictionary(this KeyValuePair<RedisKey, RedisValue>[] pairs)
+        [return: NotNullIfNotNull("pairs")]
+        public static Dictionary<string, string>? ToStringDictionary(this KeyValuePair<RedisKey, RedisValue>[]? pairs)
         {
-            if (pairs == null) return null;
+            if (pairs is null)
+            {
+                return null;
+            }
 
             var result = new Dictionary<string, string>(pairs.Length, StringComparer.Ordinal);
             for (int i = 0; i < pairs.Length; i++)
             {
-                result.Add(pairs[i].Key, pairs[i].Value);
+                result.Add(pairs[i].Key!, pairs[i].Value!);
             }
             return result;
         }
@@ -101,9 +122,13 @@ namespace StackExchange.Redis
         /// Create a dictionary from an array of key/value pairs.
         /// </summary>
         /// <param name="pairs">The pairs to convert to a dictionary.</param>
-        public static Dictionary<RedisKey, RedisValue> ToDictionary(this KeyValuePair<RedisKey, RedisValue>[] pairs)
+        [return: NotNullIfNotNull("pairs")]
+        public static Dictionary<RedisKey, RedisValue>? ToDictionary(this KeyValuePair<RedisKey, RedisValue>[]? pairs)
         {
-            if (pairs == null) return null;
+            if (pairs is null)
+            {
+                return null;
+            }
 
             var result = new Dictionary<RedisKey, RedisValue>(pairs.Length);
             for (int i = 0; i < pairs.Length; i++)
@@ -117,9 +142,13 @@ namespace StackExchange.Redis
         /// Create a dictionary from an array of string pairs.
         /// </summary>
         /// <param name="pairs">The pairs to convert to a dictionary.</param>
-        public static Dictionary<string, string> ToDictionary(this KeyValuePair<string, string>[] pairs)
+        [return: NotNullIfNotNull("pairs")]
+        public static Dictionary<string, string>? ToDictionary(this KeyValuePair<string, string>[]? pairs)
         {
-            if (pairs == null) return null;
+            if (pairs is null)
+            {
+                return null;
+            }
 
             var result = new Dictionary<string, string>(pairs.Length, StringComparer.Ordinal);
             for (int i = 0; i < pairs.Length; i++)
@@ -133,9 +162,14 @@ namespace StackExchange.Redis
         /// Create an array of RedisValues from an array of strings.
         /// </summary>
         /// <param name="values">The string array to convert to RedisValues.</param>
-        public static RedisValue[] ToRedisValueArray(this string[] values)
+        [return: NotNullIfNotNull("values")]
+        public static RedisValue[]? ToRedisValueArray(this string[]? values)
         {
-            if (values == null) return null;
+            if (values is null)
+            {
+                return null;
+            }
+
             if (values.Length == 0) return Array.Empty<RedisValue>();
             return Array.ConvertAll(values, x => (RedisValue)x);
         }
@@ -144,11 +178,16 @@ namespace StackExchange.Redis
         /// Create an array of strings from an array of values.
         /// </summary>
         /// <param name="values">The values to convert to an array.</param>
-        public static string[] ToStringArray(this RedisValue[] values)
+        [return: NotNullIfNotNull("values")]
+        public static string?[]? ToStringArray(this RedisValue[]? values)
         {
-            if (values == null) return null;
+            if (values == null)
+            {
+                return null;
+            }
+
             if (values.Length == 0) return Array.Empty<string>();
-            return Array.ConvertAll(values, x => (string)x);
+            return Array.ConvertAll(values, x => (string?)x);
         }
 
         internal static void AuthenticateAsClient(this SslStream ssl, string host, SslProtocols? allowedProtocols, bool checkCertificateRevocation)
@@ -174,12 +213,20 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="bytes">The lease upon which to base the stream.</param>
         /// <param name="ownsLease">If true, disposing the stream also disposes the lease.</param>
-        public static Stream AsStream(this Lease<byte> bytes, bool ownsLease = true)
+        [return: NotNullIfNotNull("bytes")]
+        public static Stream? AsStream(this Lease<byte>? bytes, bool ownsLease = true)
         {
-            if (bytes == null) return null; // GIGO
+            if (bytes is null)
+            {
+                return null; // GIGO
+            }
+
             var segment = bytes.ArraySegment;
-            if (ownsLease) return new LeaseMemoryStream(segment, bytes);
-            return new MemoryStream(segment.Array, segment.Offset, segment.Count, false, true);
+            if (ownsLease)
+            {
+                return new LeaseMemoryStream(segment, bytes);
+            }
+            return new MemoryStream(segment.Array!, segment.Offset, segment.Count, false, true);
         }
 
         /// <summary>
@@ -187,13 +234,21 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="bytes">The bytes to decode.</param>
         /// <param name="encoding">The encoding to use.</param>
-        public static string DecodeString(this Lease<byte> bytes, Encoding encoding = null)
+        [return: NotNullIfNotNull("bytes")]
+        public static string? DecodeString(this Lease<byte> bytes, Encoding? encoding = null)
         {
-            if (bytes == null) return null;
+            if (bytes is null)
+            {
+                return null;
+            }
+
             encoding ??= Encoding.UTF8;
-            if (bytes.Length == 0) return "";
+            if (bytes.Length == 0)
+            {
+                return "";
+            }
             var segment = bytes.ArraySegment;
-            return encoding.GetString(segment.Array, segment.Offset, segment.Count);
+            return encoding.GetString(segment.Array!, segment.Offset, segment.Count);
         }
 
         /// <summary>
@@ -201,17 +256,24 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="bytes">The bytes to decode.</param>
         /// <param name="encoding">The encoding to use.</param>
-        public static Lease<char> DecodeLease(this Lease<byte> bytes, Encoding encoding = null)
+        [return: NotNullIfNotNull("bytes")]
+        public static Lease<char>? DecodeLease(this Lease<byte>? bytes, Encoding? encoding = null)
         {
-            if (bytes == null) return null;
+            if (bytes is null)
+            {
+                return null;
+            }
+
             encoding ??= Encoding.UTF8;
-            if (bytes.Length == 0) return Lease<char>.Empty;
+            if (bytes.Length == 0)
+            {
+                return Lease<char>.Empty;
+            }
             var bytesSegment = bytes.ArraySegment;
-            var charCount = encoding.GetCharCount(bytesSegment.Array, bytesSegment.Offset, bytesSegment.Count);
+            var charCount = encoding.GetCharCount(bytesSegment.Array!, bytesSegment.Offset, bytesSegment.Count);
             var chars = Lease<char>.Create(charCount, false);
             var charsSegment = chars.ArraySegment;
-            encoding.GetChars(bytesSegment.Array, bytesSegment.Offset, bytesSegment.Count,
-                charsSegment.Array, charsSegment.Offset);
+            encoding.GetChars(bytesSegment.Array!, bytesSegment.Offset, bytesSegment.Count, charsSegment.Array!, charsSegment.Offset);
             return chars;
         }
 
@@ -219,7 +281,7 @@ namespace StackExchange.Redis
         {
             private readonly IDisposable _parent;
             public LeaseMemoryStream(ArraySegment<byte> segment, IDisposable parent)
-                : base(segment.Array, segment.Offset, segment.Count, false, true)
+                : base(segment.Array!, segment.Offset, segment.Count, false, true)
                 => _parent = parent;
 
             protected override void Dispose(bool disposing)
@@ -276,11 +338,11 @@ namespace StackExchange.Redis
 #endif
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static T[] ToArray<T>(in this RawResult result, Projection<RawResult, T> selector)
+        internal static T[]? ToArray<T>(in this RawResult result, Projection<RawResult, T> selector)
             => result.IsNull ? null : result.GetItems().ToArray(selector);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static TTo[] ToArray<TTo, TState>(in this RawResult result, Projection<RawResult, TState, TTo> selector, in TState state)
+        internal static TTo[]? ToArray<TTo, TState>(in this RawResult result, Projection<RawResult, TState, TTo> selector, in TState state)
             => result.IsNull ? null : result.GetItems().ToArray(selector, in state);
 
         /// <summary>

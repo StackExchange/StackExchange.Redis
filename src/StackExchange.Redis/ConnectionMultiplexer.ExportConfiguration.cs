@@ -113,7 +113,7 @@ public partial class ConnectionMultiplexer
                     callback(val, writer);
                     break;
                 case TaskStatus.Faulted:
-                    writer.WriteLine(string.Join(", ", task.Exception.InnerExceptions.Select(x => x.Message)));
+                    writer.WriteLine(string.Join(", ", task.Exception!.InnerExceptions.Select(x => x.Message)));
                     break;
                 default:
                     writer.WriteLine(status.ToString());
@@ -132,9 +132,10 @@ public partial class ConnectionMultiplexer
         {
             using (var reader = new StringReader(source))
             {
-                string line;
-                while ((line = reader.ReadLine()) != null)
+                while (reader.ReadLine() is string line)
+                {
                     writer.WriteLine(line); // normalize line endings
+                }
             }
         }
     }

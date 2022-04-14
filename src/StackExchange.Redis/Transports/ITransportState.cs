@@ -22,6 +22,7 @@ namespace StackExchange.Redis.Transports
         [Obsolete("Please use " + nameof(TransportStateExtensions.Trace) + " instead")]
         void TraceImpl(string message);
         void RecordConnectionFailed(ConnectionFailureType failureType, Exception? exception = null);
+        void OnInternalError(Exception ex);
     }
 
     internal static class TransportStateExtensions
@@ -31,7 +32,7 @@ namespace StackExchange.Redis.Transports
         {
 #if VERBOSE
 #pragma warning disable CS0618
-            state.OnTransactionLogImpl(message);
+            state?.OnTransactionLogImpl(message);
 #pragma warning restore CS0618
 #endif
         }
@@ -41,7 +42,7 @@ namespace StackExchange.Redis.Transports
         {
 #if VERBOSE
 #pragma warning disable CS0618
-            state.TraceImpl(message);
+            state?.TraceImpl(message);
 #pragma warning restore CS0618
 #endif
         }
