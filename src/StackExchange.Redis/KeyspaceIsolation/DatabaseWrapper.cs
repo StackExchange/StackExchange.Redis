@@ -147,6 +147,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public byte[]? KeyDump(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.KeyDump(ToInner(key), flags);
 
+        public string? KeyEncoding(RedisKey key, CommandFlags flags = CommandFlags.None) =>
+            Inner.KeyEncoding(ToInner(key), flags);
+
         public bool KeyExists(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.KeyExists(ToInner(key), flags);
         public long KeyExists(RedisKey[] keys, CommandFlags flags = CommandFlags.None) =>

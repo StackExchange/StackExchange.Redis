@@ -546,6 +546,15 @@ namespace StackExchange.Redis
         byte[]? KeyDump(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Returns the internal encoding for the Redis object stored at <paramref name="key"/>.
+        /// </summary>
+        /// <param name="key">The key to dump.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The Redis encoding for the value or <see langword="null"/> is the key does not exist.</returns>
+        /// <remarks>https://redis.io/commands/object-encoding</remarks>
+        string? KeyEncoding(RedisKey key, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Returns if key exists.
         /// </summary>
         /// <param name="key">The key to check.</param>

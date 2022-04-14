@@ -709,6 +709,18 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.ByteArray);
         }
 
+        public string? KeyEncoding(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.OBJECT, RedisLiterals.ENCODING, key);
+            return ExecuteSync(msg, ResultProcessor.String);
+        }
+
+        public Task<string?> KeyEncodingAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.OBJECT, RedisLiterals.ENCODING, key);
+            return ExecuteAsync(msg, ResultProcessor.String);
+        }
+
         public bool KeyExists(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.EXISTS, key);
