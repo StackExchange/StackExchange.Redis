@@ -26,32 +26,6 @@ public abstract class GeoSearchShape
         Unit = unit;
     }
 
-    private int NumRadiusOptions(GeoRadiusOptions options)
-    {
-        var i = 0;
-        if ((options & GeoRadiusOptions.WithCoordinates) != 0)
-        {
-            i++;
-        }
-
-        if ((options & GeoRadiusOptions.WithDistance) != 0)
-        {
-            i++;
-        }
-
-        if ((options & GeoRadiusOptions.WithGeoHash) != 0)
-        {
-            i++;
-        }
-
-        return i;
-    }
-
-    internal int SearchArgumentCount(RedisKey destinationKey, RedisValue? member, int count, Order? order, GeoRadiusOptions options, bool demandClosest, bool storeDistances)
-    {
-        return 1 + (!destinationKey.IsNull ? 1 : 0) + (member != RedisValue.Null ? 1 : 2) + (count >= 0 ? 1 : 0) + (order != null ? 1 : 0) + NumRadiusOptions(options) + (!demandClosest ? 1 : 0) + (storeDistances ? 1 : 0);
-    }
-
     internal abstract IEnumerable<RedisValue> GetArgs();
 }
 
