@@ -3,7 +3,7 @@
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// Specifies what side of the list to refer to.
+    /// Specifies when to set the expiry for a key.
     /// </summary>
     public enum ExpiryWhen
     {
