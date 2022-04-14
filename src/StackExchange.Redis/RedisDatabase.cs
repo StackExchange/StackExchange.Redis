@@ -170,76 +170,31 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.RedisGeoPosition);
         }
 
-        private static readonly RedisValue
-            ASC = Encoding.ASCII.GetBytes("ASC"),
-            DESC = Encoding.ASCII.GetBytes("DESC");
-
-        private static int NumRadiusOptions(GeoRadiusOptions options)
-        {
-            var i = 0;
-            if ((options & GeoRadiusOptions.WithCoordinates) != 0)
-            {
-                i++;
-            }
-
-            if ((options & GeoRadiusOptions.WithDistance) != 0)
-            {
-                i++;
-            }
-
-            if ((options & GeoRadiusOptions.WithGeoHash) != 0)
-            {
-                i++;
-            }
-
-            return i;
-        }
-
-        private static int GeoSearchArgumentCount(RedisValue? member, int count, Order? order, GeoRadiusOptions options, bool demandClosest, bool storeDistances, GeoSearchShape shape)
-        {
-            var i = 0;
-            i += member != null ? 2 : 3; // number of args for subcommand
-            i += (count >= 0 ? 2 : 0) + (!demandClosest ? 1 : 0); // number of args for count
-            i += NumRadiusOptions(options); // number of result sub-command arguments
-            i += shape.ArgCount; // number of arguments required of the sub-command
-            i += storeDistances ? 1 : 0; // num of args required for storeDistance sub-command
-            i += order != null ? 1 : 0; // num of args required for order option
-
-            return i;
-        }
-
         private Message GetGeoSearchMessage(in RedisKey sourceKey, in RedisKey destinationKey, RedisValue? member, double longitude, double latitude, GeoSearchShape shape, int count, bool demandClosest, bool storeDistances, Order? order, GeoRadiusOptions options, CommandFlags flags)
         {
-            var command = destinationKey.IsNull ? RedisCommand.GEOSEARCH : RedisCommand.GEOSEARCHSTORE;
-            var arr = new RedisValue[GeoSearchArgumentCount(member, count, order, options, demandClosest, storeDistances, shape)];
-            int i = 0;
-
+            var redisValues = new List<RedisValue>(15);
             if (member != null)
             {
-                arr[i++] = RedisLiterals.FROMMEMBER;
-                arr[i++] = member.Value;
+                redisValues.Add(RedisLiterals.FROMMEMBER);
+                redisValues.Add(member.Value);
             }
             else
             {
-                arr[i++] = RedisLiterals.FROMLONLAT;
-                arr[i++] = longitude;
-                arr[i++] = latitude;
+                redisValues.Add(RedisLiterals.FROMLONLAT);
+                redisValues.Add(longitude);
+                redisValues.Add(latitude);
             }
 
-            foreach (var item in shape.GetArgs())
-            {
-                arr[i++] = item;
-            }
+            shape.AddArgs(redisValues);
 
             if (order != null)
             {
-                arr[i++] = order.Value.ToLiteral();
+                redisValues.Add(order.Value.ToLiteral());
             }
-
             if (count >= 0)
             {
-                arr[i++] = RedisLiterals.COUNT;
-                arr[i++] = count;
+                redisValues.Add(RedisLiterals.COUNT);
+                redisValues.Add(count);
             }
 
             if (!demandClosest)
@@ -248,40 +203,24 @@ namespace StackExchange.Redis
                 {
                     throw new ArgumentException($"{nameof(demandClosest)} must be true if you are not limiting the count for a GEOSEARCH");
                 }
-                arr[i++] = RedisLiterals.ANY;
+                redisValues.Add(RedisLiterals.ANY);
             }
 
-            if ((options & GeoRadiusOptions.WithCoordinates) != 0)
-            {
-                arr[i++] = RedisLiterals.WITHCOORD;
-            }
-
-            if ((options & GeoRadiusOptions.WithDistance) != 0)
-            {
-                arr[i++] = RedisLiterals.WITHDIST;
-            }
-
-            if ((options & GeoRadiusOptions.WithGeoHash) != 0)
-            {
-                arr[i++] = RedisLiterals.WITHHASH;
-            }
+            options.AddArgs(redisValues);
 
             if (storeDistances)
             {
-                arr[i++] = RedisLiterals.STOREDIST;
+                redisValues.Add(RedisLiterals.STOREDIST);
             }
 
-            if (destinationKey.IsNull)
-            {
-                return Message.Create(Database, flags, command, sourceKey, arr);
-            }
-
-            return Message.Create(Database, flags, command, destinationKey, sourceKey, arr);
+            return destinationKey.IsNull
+                ? Message.Create(Database, flags, RedisCommand.GEOSEARCH, sourceKey, redisValues.ToArray())
+                : Message.Create(Database, flags, RedisCommand.GEOSEARCHSTORE, destinationKey, sourceKey, redisValues.ToArray());
         }
 
         private Message GetGeoRadiusMessage(in RedisKey key, RedisValue? member, double longitude, double latitude, double radius, GeoUnit unit, int count, Order? order, GeoRadiusOptions options, CommandFlags flags)
         {
-            var redisValues = new List<RedisValue>();
+            var redisValues = new List<RedisValue>(10);
             RedisCommand command;
             if (member == null)
             {
@@ -294,11 +233,11 @@ namespace StackExchange.Redis
                 redisValues.Add(member.Value);
                 command = RedisCommand.GEORADIUSBYMEMBER;
             }
+
             redisValues.Add(radius);
-            redisValues.Add(StackExchange.Redis.GeoPosition.GetRedisUnit(unit));
-            if ((options & GeoRadiusOptions.WithCoordinates) != 0) redisValues.Add(RedisLiterals.WITHCOORD);
-            if ((options & GeoRadiusOptions.WithDistance) != 0) redisValues.Add(RedisLiterals.WITHDIST);
-            if ((options & GeoRadiusOptions.WithGeoHash) != 0) redisValues.Add(RedisLiterals.WITHHASH);
+            redisValues.Add(Redis.GeoPosition.GetRedisUnit(unit));
+            options.AddArgs(redisValues);
+
             if (count > 0)
             {
                 redisValues.Add(RedisLiterals.COUNT);

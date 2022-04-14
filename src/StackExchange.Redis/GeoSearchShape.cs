@@ -26,7 +26,7 @@ public abstract class GeoSearchShape
         Unit = unit;
     }
 
-    internal abstract IEnumerable<RedisValue> GetArgs();
+    internal abstract void AddArgs(List<RedisValue> args);
 }
 
 /// <summary>
@@ -52,11 +52,11 @@ public class GeoSearchCircle : GeoSearchShape
     /// Gets the <exception cref="RedisValue"/>s for this shape
     /// </summary>
     /// <returns></returns>
-    internal override IEnumerable<RedisValue> GetArgs()
+    internal override void AddArgs(List<RedisValue> args)
     {
-        yield return RedisLiterals.BYRADIUS;
-        yield return _radius;
-        yield return Unit.ToLiteral();
+        args.Add(RedisLiterals.BYRADIUS);
+        args.Add(_radius);
+        args.Add(Unit.ToLiteral());
     }
 }
 
@@ -83,11 +83,11 @@ public class GeoSearchBox : GeoSearchShape
 
     internal override int ArgCount => 4;
 
-    internal override IEnumerable<RedisValue> GetArgs()
+    internal override void AddArgs(List<RedisValue> args)
     {
-        yield return RedisLiterals.BYBOX;
-        yield return _width;
-        yield return _height;
-        yield return Unit.ToLiteral();
+        args.Add(RedisLiterals.BYBOX);
+        args.Add(_width);
+        args.Add(_height);
+        args.Add(Unit.ToLiteral());
     }
 }
