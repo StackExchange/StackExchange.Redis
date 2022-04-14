@@ -291,7 +291,12 @@ namespace StackExchange.Redis.Tests
             {
                 configuration = GetConfiguration();
                 if (configuration == _fixture.Configuration)
-                {   // only if the
+                {
+                    // Only return if we match
+                    if (require != null)
+                    {
+                        Skip.IfBelow(_fixture.Connection, require);
+                    }
                     return _fixture.Connection;
                 }
             }
