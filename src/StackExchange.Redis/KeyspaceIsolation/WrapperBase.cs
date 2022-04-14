@@ -96,6 +96,16 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<long> HashLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.HashLengthAsync(ToInner(key), flags);
 
+        public Task<RedisValue> HashRandomFieldAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
+            Inner.HashRandomFieldAsync(ToInner(key), flags);
+
+        public Task<RedisValue[]> HashRandomFieldsAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None) =>
+            Inner.HashRandomFieldsAsync(ToInner(key), count, flags);
+
+        public Task<HashEntry[]> HashRandomFieldsWithValuesAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None) =>
+            Inner.HashRandomFieldsWithValuesAsync(ToInner(key), count, flags);
+
+
         public IAsyncEnumerable<HashEntry> HashScanAsync(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags) =>
             Inner.HashScanAsync(ToInner(key), pattern, pageSize, cursor, pageOffset, flags);
 

@@ -338,6 +338,35 @@ namespace StackExchange.Redis
         long HashLength(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Gets a random field from the hash at <paramref name="key"/>.
+        /// </summary>
+        /// <param name="key">The key of the hash.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>A random hash field name or <see cref="RedisValue.Null"/> if the hash does not exist.</returns>
+        /// <remarks>https://redis.io/commands/hrandfield</remarks>
+        RedisValue HashRandomField(RedisKey key, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Gets <paramref name="count"/> field names from the hash at <paramref name="key"/>.
+        /// </summary>
+        /// <param name="key">The key of the hash.</param>
+        /// <param name="count">The number of fields to return.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>An array of hash field names of size of at most <paramref name="count"/>, or <see cref="Array.Empty{RedisValue}"/> if the hash does not exist.</returns>
+        /// <remarks>https://redis.io/commands/hrandfield</remarks>
+        RedisValue[] HashRandomFields(RedisKey key, long count, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Gets <paramref name="count"/> field names and values from the hash at <paramref name="key"/>.
+        /// </summary>
+        /// <param name="key">The key of the hash.</param>
+        /// <param name="count">The number of fields to return.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>An array of hash entries of size of at most <paramref name="count"/>, or <see cref="Array.Empty{HashEntry}"/> if the hash does not exist.</returns>
+        /// <remarks>https://redis.io/commands/hrandfield</remarks>
+        HashEntry[] HashRandomFieldsWithValues(RedisKey key, long count, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// The HSCAN command is used to incrementally iterate over a hash.
         /// </summary>
         /// <param name="key">The key of the hash.</param>
