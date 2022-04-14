@@ -146,14 +146,14 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public bool KeyExpire(RedisKey key, DateTime? expiry, CommandFlags flags = CommandFlags.None) =>
             Inner.KeyExpire(ToInner(key), expiry, flags);
 
-        public bool KeyExpire(RedisKey key, DateTime expire, ExpiryWhen expireWhen, CommandFlags flags = CommandFlags.None) =>
-            Inner.KeyExpire(ToInner(key), expire, expireWhen, flags);
+        public bool KeyExpire(RedisKey key, DateTime? expiry, ExpiryWhen when, CommandFlags flags = CommandFlags.None) =>
+            Inner.KeyExpire(ToInner(key), expiry, when, flags);
 
         public bool KeyExpire(RedisKey key, TimeSpan? expiry, CommandFlags flags = CommandFlags.None) =>
             Inner.KeyExpire(ToInner(key), expiry, flags);
 
-        public bool KeyExpire(RedisKey key, TimeSpan expiry, ExpiryWhen expireWhen, CommandFlags flags = CommandFlags.None) =>
-            Inner.KeyExpire(ToInner(key), expiry, expireWhen, flags);
+        public bool KeyExpire(RedisKey key, TimeSpan? expiry, ExpiryWhen when, CommandFlags flags = CommandFlags.None) =>
+            Inner.KeyExpire(ToInner(key), expiry, when, flags);
 
         public TimeSpan? KeyExpireTime(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.KeyExpireTime(ToInner(key), flags);

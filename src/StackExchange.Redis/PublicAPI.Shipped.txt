@@ -367,6 +367,12 @@ StackExchange.Redis.Exclude.Both = StackExchange.Redis.Exclude.Start | StackExch
 StackExchange.Redis.Exclude.None = 0 -> StackExchange.Redis.Exclude
 StackExchange.Redis.Exclude.Start = 1 -> StackExchange.Redis.Exclude
 StackExchange.Redis.Exclude.Stop = 2 -> StackExchange.Redis.Exclude
+StackExchange.Redis.ExpiryWhen
+StackExchange.Redis.ExpiryWhen.Always = 0 -> StackExchange.Redis.ExpiryWhen
+StackExchange.Redis.ExpiryWhen.GreaterThanCurrentExpiry = 1 -> StackExchange.Redis.ExpiryWhen
+StackExchange.Redis.ExpiryWhen.HasExpiry = 2 -> StackExchange.Redis.ExpiryWhen
+StackExchange.Redis.ExpiryWhen.HasNoExpiry = 3 -> StackExchange.Redis.ExpiryWhen
+StackExchange.Redis.ExpiryWhen.LessThanCurrentExpiry = 4 -> StackExchange.Redis.ExpiryWhen
 StackExchange.Redis.ExponentialRetry
 StackExchange.Redis.ExponentialRetry.ExponentialRetry(int deltaBackOffMilliseconds) -> void
 StackExchange.Redis.ExponentialRetry.ExponentialRetry(int deltaBackOffMilliseconds, int maxDeltaBackOffMilliseconds) -> void
@@ -414,11 +420,6 @@ StackExchange.Redis.GeoUnit.Miles = 2 -> StackExchange.Redis.GeoUnit
 StackExchange.Redis.ListSide
 StackExchange.Redis.ListSide.Left = 0 -> StackExchange.Redis.ListSide
 StackExchange.Redis.ListSide.Right = 1 -> StackExchange.Redis.ListSide
-StackExchange.Redis.ExpiryOption
-StackExchange.Redis.ExpiryOption.NX = 0 -> StackExchange.Redis.ExpiryOption
-StackExchange.Redis.ExpiryOption.XX = 1 -> StackExchange.Redis.ExpiryOption
-StackExchange.Redis.ExpiryOption.GT = 2 -> StackExchange.Redis.ExpiryOption
-StackExchange.Redis.ExpiryOption.LT = 3 -> StackExchange.Redis.ExpiryOption
 StackExchange.Redis.HashEntry
 StackExchange.Redis.HashEntry.Equals(StackExchange.Redis.HashEntry other) -> bool
 StackExchange.Redis.HashEntry.HashEntry() -> void
@@ -530,9 +531,9 @@ StackExchange.Redis.IDatabase.KeyDump(StackExchange.Redis.RedisKey key, StackExc
 StackExchange.Redis.IDatabase.KeyExists(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> bool
 StackExchange.Redis.IDatabase.KeyExists(StackExchange.Redis.RedisKey[]! keys, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
 StackExchange.Redis.IDatabase.KeyExpire(StackExchange.Redis.RedisKey key, System.DateTime? expiry, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> bool
-StackExchange.Redis.IDatabase.KeyExpire(StackExchange.Redis.RedisKey key, System.DateTime expire, StackExchange.Redis.ExpiryOption expireWhen, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> bool
+StackExchange.Redis.IDatabase.KeyExpire(StackExchange.Redis.RedisKey key, System.DateTime? expiry, StackExchange.Redis.ExpiryWhen when, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> bool
 StackExchange.Redis.IDatabase.KeyExpire(StackExchange.Redis.RedisKey key, System.TimeSpan? expiry, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> bool
-StackExchange.Redis.IDatabase.KeyExpire(StackExchange.Redis.RedisKey key, System.TimeSpan expire, StackExchange.Redis.ExpiryOption expireWhen, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> bool
+StackExchange.Redis.IDatabase.KeyExpire(StackExchange.Redis.RedisKey key, System.TimeSpan? expiry, StackExchange.Redis.ExpiryWhen when, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> bool
 StackExchange.Redis.IDatabase.KeyExpireTime(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.TimeSpan?
 StackExchange.Redis.IDatabase.KeyIdleTime(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.TimeSpan?
 StackExchange.Redis.IDatabase.KeyMigrate(StackExchange.Redis.RedisKey key, System.Net.EndPoint! toServer, int toDatabase = 0, int timeoutMilliseconds = 0, StackExchange.Redis.MigrateOptions migrateOptions = StackExchange.Redis.MigrateOptions.None, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> void
@@ -724,9 +725,9 @@ StackExchange.Redis.IDatabaseAsync.KeyDumpAsync(StackExchange.Redis.RedisKey key
 StackExchange.Redis.IDatabaseAsync.KeyExistsAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<bool>!
 StackExchange.Redis.IDatabaseAsync.KeyExistsAsync(StackExchange.Redis.RedisKey[]! keys, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
 StackExchange.Redis.IDatabaseAsync.KeyExpireAsync(StackExchange.Redis.RedisKey key, System.DateTime? expiry, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<bool>!
-StackExchange.Redis.IDatabaseAsync.KeyExpireAsync(StackExchange.Redis.RedisKey key, System.DateTime expire, StackExchange.Redis.ExpiryOption expireWhen, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<bool>!
+StackExchange.Redis.IDatabaseAsync.KeyExpireAsync(StackExchange.Redis.RedisKey key, System.DateTime? expiry, StackExchange.Redis.ExpiryWhen when, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<bool>!
 StackExchange.Redis.IDatabaseAsync.KeyExpireAsync(StackExchange.Redis.RedisKey key, System.TimeSpan? expiry, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<bool>!
-StackExchange.Redis.IDatabaseAsync.KeyExpireAsync(StackExchange.Redis.RedisKey key, System.TimeSpan expire, StackExchange.Redis.ExpiryOption expireWhen, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<bool>!
+StackExchange.Redis.IDatabaseAsync.KeyExpireAsync(StackExchange.Redis.RedisKey key, System.TimeSpan? expiry, StackExchange.Redis.ExpiryWhen when, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<bool>!
 StackExchange.Redis.IDatabaseAsync.KeyExpireTimeAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<System.TimeSpan?>!
 StackExchange.Redis.IDatabaseAsync.KeyIdleTimeAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<System.TimeSpan?>!
 StackExchange.Redis.IDatabaseAsync.KeyMigrateAsync(StackExchange.Redis.RedisKey key, System.Net.EndPoint! toServer, int toDatabase = 0, int timeoutMilliseconds = 0, StackExchange.Redis.MigrateOptions migrateOptions = StackExchange.Redis.MigrateOptions.None, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task!
