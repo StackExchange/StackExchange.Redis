@@ -1,6 +1,5 @@
 ﻿using Xunit;
 using System;
-using System.Linq;
 using Xunit.Abstractions;
 using System.Threading.Tasks;
 
@@ -235,10 +234,10 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task GeoSearchCircleMemberAsync()
         {
-            using var conn = Create();
-            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
+            using var conn = Create(require: RedisFeatures.v6_2_0);
+
+            var key = Me();
             var db = conn.GetDatabase();
-            RedisKey key = Me();
             await GeoSearchSetupAsync(key, db);
 
             var circle = new GeoSearchCircle(500, GeoUnit.Miles);
@@ -247,19 +246,19 @@ namespace StackExchange.Redis.Tests
             Assert.Contains(res, x => x.Member == "red sox");
             Assert.Contains(res, x => x.Member == "orioles");
             Assert.Contains(res, x => x.Member == "blue jays");
-            Assert.NotNull(res.First().Distance);
-            Assert.NotNull(res.First().Position);
-            Assert.Null(res.First().Hash);
+            Assert.NotNull(res[0].Distance);
+            Assert.NotNull(res[0].Position);
+            Assert.Null(res[0].Hash);
             Assert.Equal(4, res.Length);
         }
 
         [Fact]
         public async Task GeoSearchCircleMemberAsyncOnlyHash()
         {
-            using var conn = Create();
-            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
+            using var conn = Create(require: RedisFeatures.v6_2_0);
+
+            var key = Me();
             var db = conn.GetDatabase();
-            RedisKey key = Me();
             await GeoSearchSetupAsync(key, db);
 
             var circle = new GeoSearchCircle(500, GeoUnit.Miles);
@@ -268,19 +267,19 @@ namespace StackExchange.Redis.Tests
             Assert.Contains(res, x => x.Member == "red sox");
             Assert.Contains(res, x => x.Member == "orioles");
             Assert.Contains(res, x => x.Member == "blue jays");
-            Assert.Null(res.First().Distance);
-            Assert.Null(res.First().Position);
-            Assert.NotNull(res.First().Hash);
+            Assert.Null(res[0].Distance);
+            Assert.Null(res[0].Position);
+            Assert.NotNull(res[0].Hash);
             Assert.Equal(4, res.Length);
         }
 
         [Fact]
         public async Task GeoSearchCircleMemberAsyncHashAndDistance()
         {
-            using var conn = Create();
-            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
+            using var conn = Create(require: RedisFeatures.v6_2_0);
+
+            var key = Me();
             var db = conn.GetDatabase();
-            RedisKey key = Me();
             await GeoSearchSetupAsync(key, db);
 
             var circle = new GeoSearchCircle(500, GeoUnit.Miles);
@@ -289,19 +288,19 @@ namespace StackExchange.Redis.Tests
             Assert.Contains(res, x => x.Member == "red sox");
             Assert.Contains(res, x => x.Member == "orioles");
             Assert.Contains(res, x => x.Member == "blue jays");
-            Assert.NotNull(res.First().Distance);
-            Assert.Null(res.First().Position);
-            Assert.NotNull(res.First().Hash);
+            Assert.NotNull(res[0].Distance);
+            Assert.Null(res[0].Position);
+            Assert.NotNull(res[0].Hash);
             Assert.Equal(4, res.Length);
         }
 
         [Fact]
         public async Task GeoSearchCircleLonLatAsync()
         {
-            using var conn = Create();
-            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
+            using var conn = Create(require: RedisFeatures.v6_2_0);
+
+            var key = Me();
             var db = conn.GetDatabase();
-            RedisKey key = Me();
             await GeoSearchSetupAsync(key, db);
 
             var circle = new GeoSearchCircle(500, GeoUnit.Miles);
@@ -316,10 +315,10 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void GeoSearchCircleMember()
         {
-            using var conn = Create();
-            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
+            using var conn = Create(require: RedisFeatures.v6_2_0);
+
+            var key = Me();
             var db = conn.GetDatabase();
-            RedisKey key = Me();
             GeoSearchSetup(key, db);
 
             var circle = new GeoSearchCircle(500 * 1609);
@@ -334,10 +333,10 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void GeoSearchCircleLonLat()
         {
-            using var conn = Create();
-            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
+            using var conn = Create(require: RedisFeatures.v6_2_0);
+
+            var key = Me();
             var db = conn.GetDatabase();
-            RedisKey key = Me();
             GeoSearchSetup(key, db);
 
             var circle = new GeoSearchCircle(500 * 5280, GeoUnit.Feet);
@@ -352,10 +351,10 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task GeoSearchBoxMemberAsync()
         {
-            using var conn = Create();
-            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
+            using var conn = Create(require: RedisFeatures.v6_2_0);
+
+            var key = Me();
             var db = conn.GetDatabase();
-            RedisKey key = Me();
             await GeoSearchSetupAsync(key, db);
 
             var box = new GeoSearchBox(500, 500, GeoUnit.Kilometers);
@@ -369,10 +368,10 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task GeoSearchBoxLonLatAsync()
         {
-            using var conn = Create();
-            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
+            using var conn = Create(require: RedisFeatures.v6_2_0);
+
+            var key = Me();
             var db = conn.GetDatabase();
-            RedisKey key = Me();
             await GeoSearchSetupAsync(key, db);
 
             var box = new GeoSearchBox(500, 500, GeoUnit.Kilometers);
@@ -386,10 +385,10 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void GeoSearchBoxMember()
         {
-            using var conn = Create();
-            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
+            using var conn = Create(require: RedisFeatures.v6_2_0);
+
+            var key = Me();
             var db = conn.GetDatabase();
-            RedisKey key = Me();
             GeoSearchSetup(key, db);
 
             var box = new GeoSearchBox(500, 500, GeoUnit.Kilometers);
@@ -403,10 +402,10 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void GeoSearchBoxLonLat()
         {
-            using var conn = Create();
-            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
+            using var conn = Create(require: RedisFeatures.v6_2_0);
+
+            var key = Me();
             var db = conn.GetDatabase();
-            RedisKey key = Me();
             GeoSearchSetup(key, db);
 
             var box = new GeoSearchBox(500, 500, GeoUnit.Kilometers);
@@ -420,10 +419,10 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void GeoSearchLimitCount()
         {
-            using var conn = Create();
-            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
+            using var conn = Create(require: RedisFeatures.v6_2_0);
+
+            var key = Me();
             var db = conn.GetDatabase();
-            RedisKey key = Me();
             GeoSearchSetup(key, db);
 
             var box = new GeoSearchBox(500, 500, GeoUnit.Kilometers);
@@ -436,10 +435,10 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void GeoSearchLimitCountMakeNoDemands()
         {
-            using var conn = Create();
-            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
+            using var conn = Create(require: RedisFeatures.v6_2_0);
+
+            var key = Me();
             var db = conn.GetDatabase();
-            RedisKey key = Me();
             GeoSearchSetup(key, db);
 
             var box = new GeoSearchBox(500, 500, GeoUnit.Kilometers);
@@ -452,10 +451,10 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task GeoSearchBoxLonLatDescending()
         {
-            using var conn = Create();
-            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
+            using var conn = Create(require: RedisFeatures.v6_2_0);
+
+            var key = Me();
             var db = conn.GetDatabase();
-            RedisKey key = Me();
             await GeoSearchSetupAsync(key, db);
 
             var box = new GeoSearchBox(500, 500, GeoUnit.Kilometers);
@@ -464,16 +463,16 @@ namespace StackExchange.Redis.Tests
             Assert.Contains(res, x => x.Member == "red sox");
             Assert.Contains(res, x => x.Member == "orioles");
             Assert.Equal(3, res.Length);
-            Assert.Equal("red sox", res.First().Member);
+            Assert.Equal("red sox", res[0].Member);
         }
 
         [Fact]
         public async Task GeoSearchBoxMemberAndStoreAsync()
         {
-            using var conn = Create();
-            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
-            var db = conn.GetDatabase();
+            using var conn = Create(require: RedisFeatures.v6_2_0);
+
             var me = Me();
+            var db = conn.GetDatabase();
             RedisKey sourceKey = $"{me}:source";
             RedisKey destinationKey = $"{me}:destination";
             await db.KeyDeleteAsync(destinationKey);
@@ -492,10 +491,10 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task GeoSearchBoxLonLatAndStoreAsync()
         {
-            using var conn = Create();
-            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
-            var db = conn.GetDatabase();
+            using var conn = Create(require: RedisFeatures.v6_2_0);
+
             var me = Me();
+            var db = conn.GetDatabase();
             RedisKey sourceKey = $"{me}:source";
             RedisKey destinationKey = $"{me}:destination";
             await db.KeyDeleteAsync(destinationKey);
@@ -514,10 +513,10 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task GeoSearchCircleMemberAndStoreAsync()
         {
-            using var conn = Create();
-            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
-            var db = conn.GetDatabase();
+            using var conn = Create(require: RedisFeatures.v6_2_0);
+
             var me = Me();
+            var db = conn.GetDatabase();
             RedisKey sourceKey = $"{me}:source";
             RedisKey destinationKey = $"{me}:destination";
             await db.KeyDeleteAsync(destinationKey);
@@ -536,10 +535,10 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task GeoSearchCircleLonLatAndStoreAsync()
         {
-            using var conn = Create();
-            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
-            var db = conn.GetDatabase();
+            using var conn = Create(require: RedisFeatures.v6_2_0);
+
             var me = Me();
+            var db = conn.GetDatabase();
             RedisKey sourceKey = $"{me}:source";
             RedisKey destinationKey = $"{me}:destination";
             await db.KeyDeleteAsync(destinationKey);
@@ -558,10 +557,10 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void GeoSearchCircleMemberAndStore()
         {
-            using var conn = Create();
-            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
-            var db = conn.GetDatabase();
+            using var conn = Create(require: RedisFeatures.v6_2_0);
+
             var me = Me();
+            var db = conn.GetDatabase();
             RedisKey sourceKey = $"{me}:source";
             RedisKey destinationKey = $"{me}:destination";
             db.KeyDelete(destinationKey);
@@ -580,10 +579,10 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void GeoSearchCircleLonLatAndStore()
         {
-            using var conn = Create();
-            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
-            var db = conn.GetDatabase();
+            using var conn = Create(require: RedisFeatures.v6_2_0);
+
             var me = Me();
+            var db = conn.GetDatabase();
             RedisKey sourceKey = $"{me}:source";
             RedisKey destinationKey = $"{me}:destination";
             db.KeyDelete(destinationKey);
@@ -602,10 +601,10 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void GeoSearchCircleAndStoreDistOnly()
         {
-            using var conn = Create();
-            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
-            var db = conn.GetDatabase();
+            using var conn = Create(require: RedisFeatures.v6_2_0);
+
             var me = Me();
+            var db = conn.GetDatabase();
             RedisKey sourceKey = $"{me}:source";
             RedisKey destinationKey = $"{me}:destination";
             db.KeyDelete(destinationKey);
@@ -617,9 +616,9 @@ namespace StackExchange.Redis.Tests
             Assert.Contains(set, x => x.Element == "yankees");
             Assert.Contains(set, x => x.Element == "red sox");
             Assert.Contains(set, x => x.Element == "orioles");
-            Assert.InRange(set.First(x=>x.Element == "yankees").Score, 0, .2 );
-            Assert.InRange(set.First(x=>x.Element == "orioles").Score, 286, 287);
-            Assert.InRange(set.First(x=>x.Element == "red sox").Score, 289, 290);
+            Assert.InRange(Array.Find(set, x => x.Element == "yankees").Score, 0, .2);
+            Assert.InRange(Array.Find(set, x => x.Element == "orioles").Score, 286, 287);
+            Assert.InRange(Array.Find(set, x => x.Element == "red sox").Score, 289, 290);
             Assert.Equal(3, set.Length);
             Assert.Equal(3, res);
         }
@@ -627,10 +626,10 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void GeoSearchBadArgs()
         {
-            using var conn = Create();
-            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
-            var db = conn.GetDatabase();
+            using var conn = Create(require: RedisFeatures.v6_2_0);
+
             var key = Me();
+            var db = conn.GetDatabase();
             db.KeyDelete(key);
             var circle = new GeoSearchCircle(500, GeoUnit.Kilometers);
             var exception = Assert.Throws<ArgumentException>(() =>
