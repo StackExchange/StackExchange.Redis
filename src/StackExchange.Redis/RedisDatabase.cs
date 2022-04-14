@@ -458,10 +458,46 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
+        public RedisValue HashRandomField(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.HRANDFIELD, key);
+            return ExecuteSync(msg, ResultProcessor.RedisValue);
+        }
+
+        public RedisValue[] HashRandomFields(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.HRANDFIELD, key, count);
+            return ExecuteSync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
+        }
+
+        public HashEntry[] HashRandomFieldsWithValues(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.HRANDFIELD, key, count, RedisLiterals.WITHVALUES);
+            return ExecuteSync(msg, ResultProcessor.HashEntryArray, defaultValue: Array.Empty<HashEntry>());
+        }
+
         public Task<long> HashLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.HLEN, key);
             return ExecuteAsync(msg, ResultProcessor.Int64);
+        }
+
+        public Task<RedisValue> HashRandomFieldAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.HRANDFIELD, key);
+            return ExecuteAsync(msg, ResultProcessor.RedisValue);
+        }
+
+        public Task<RedisValue[]> HashRandomFieldsAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.HRANDFIELD, key, count);
+            return ExecuteAsync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
+        }
+
+        public Task<HashEntry[]> HashRandomFieldsWithValuesAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.HRANDFIELD, key, count, RedisLiterals.WITHVALUES);
+            return ExecuteAsync(msg, ResultProcessor.HashEntryArray, defaultValue: Array.Empty<HashEntry>());
         }
 
         IEnumerable<HashEntry> IDatabase.HashScan(RedisKey key, RedisValue pattern, int pageSize, CommandFlags flags)
@@ -753,6 +789,18 @@ namespace StackExchange.Redis
         {
             var msg = Message.Create(Database, flags, RedisCommand.DUMP, key);
             return ExecuteAsync(msg, ResultProcessor.ByteArray);
+        }
+
+        public string? KeyEncoding(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.OBJECT, RedisLiterals.ENCODING, key);
+            return ExecuteSync(msg, ResultProcessor.String);
+        }
+
+        public Task<string?> KeyEncodingAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.OBJECT, RedisLiterals.ENCODING, key);
+            return ExecuteAsync(msg, ResultProcessor.String);
         }
 
         public bool KeyExists(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -2074,10 +2122,22 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.NullableDouble);
         }
 
+        public double?[] SortedSetScores(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.ZMSCORE, key, members);
+            return ExecuteSync(msg, ResultProcessor.NullableDoubleArray, defaultValue: Array.Empty<double?>());
+        }
+
         public Task<double?> SortedSetScoreAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.ZSCORE, key, member);
             return ExecuteAsync(msg, ResultProcessor.NullableDouble);
+        }
+
+        public Task<double?[]> SortedSetScoresAsync(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.ZMSCORE, key, members);
+            return ExecuteAsync(msg, ResultProcessor.NullableDoubleArray, defaultValue: Array.Empty<double?>());
         }
 
         public SortedSetEntry? SortedSetPop(RedisKey key, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)

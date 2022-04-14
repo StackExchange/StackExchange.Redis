@@ -93,6 +93,15 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public long HashLength(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.HashLength(ToInner(key), flags);
 
+        public RedisValue HashRandomField(RedisKey key, CommandFlags flags = CommandFlags.None) =>
+            Inner.HashRandomField(ToInner(key), flags);
+
+        public RedisValue[] HashRandomFields(RedisKey key, long count, CommandFlags flags = CommandFlags.None) =>
+            Inner.HashRandomFields(ToInner(key), count, flags);
+
+        public HashEntry[] HashRandomFieldsWithValues(RedisKey key, long count, CommandFlags flags = CommandFlags.None) =>
+            Inner.HashRandomFieldsWithValues(ToInner(key), count, flags);
+
         public bool HashSet(RedisKey key, RedisValue hashField, RedisValue value, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
             Inner.HashSet(ToInner(key), hashField, value, when, flags);
 
@@ -137,6 +146,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public byte[]? KeyDump(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.KeyDump(ToInner(key), flags);
+
+        public string? KeyEncoding(RedisKey key, CommandFlags flags = CommandFlags.None) =>
+            Inner.KeyEncoding(ToInner(key), flags);
 
         public bool KeyExists(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.KeyExists(ToInner(key), flags);
@@ -447,6 +459,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public double? SortedSetScore(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetScore(ToInner(key), member, flags);
+
+        public double?[] SortedSetScores(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None) =>
+            Inner.SortedSetScores(ToInner(key), members, flags);
 
         public SortedSetEntry? SortedSetPop(RedisKey key, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetPop(ToInner(key), order, flags);

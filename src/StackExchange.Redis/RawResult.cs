@@ -254,6 +254,9 @@ namespace StackExchange.Redis
         internal Sequence<RawResult> GetItems() => _items.Cast<RawResult>();
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal double?[]? GetItemsAsDoubles() => this.ToArray<double?>((in RawResult x) => x.TryGetDouble(out double val) ? val : null);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal RedisKey[]? GetItemsAsKeys() => this.ToArray<RedisKey>((in RawResult x) => x.AsRedisKey());
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
