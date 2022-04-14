@@ -147,7 +147,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<byte[]?> KeyDumpAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.KeyDumpAsync(ToInner(key), flags);
 
-        public Task<RedisValue> KeyEncodingAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
+        public Task<string?> KeyEncodingAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.KeyEncodingAsync(ToInner(key), flags);
 
         public Task<bool> KeyExistsAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>

@@ -523,7 +523,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The Redis encoding for the value or <see langword="null"/> is the key does not exist.</returns>
         /// <remarks>https://redis.io/commands/object-encoding</remarks>
-        RedisValue KeyEncoding(RedisKey key, CommandFlags flags = CommandFlags.None);
+        string? KeyEncoding(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Returns if key exists.
