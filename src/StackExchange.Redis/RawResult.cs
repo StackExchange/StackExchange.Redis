@@ -6,6 +6,7 @@ using StackExchange.Redis.Transports;
 
 namespace StackExchange.Redis
 {
+    // incorporates a single Result (deframed payload) and the corresponding underlying Buffer (underlying memory) associated with a single response
     internal readonly struct RawResultBuffer
     {
         public readonly ITransportState Transport;
@@ -132,6 +133,21 @@ namespace StackExchange.Redis
                     foreach (var item in span)
                         item.ReleaseItemsRecursive();
                     segment.Release();
+                }
+            }
+        }
+
+        internal void PreserveItemsRecursive()
+        {
+            if (_type == (ResultType.MultiBulk | NonNullFlag))
+            {
+                var seq = GetSequence<RawResult>();
+                foreach (var segment in seq)
+                {
+                    segment.Preserve();
+                    var span = segment.Span;
+                    foreach (var item in span)
+                        item.PreserveItemsRecursive();
                 }
             }
         }
@@ -495,7 +511,7 @@ namespace StackExchange.Redis
 
         internal bool TryGetInt64(out long value)
         {
-            if (IsNull || Payload.IsEmpty || Payload.Length > PhysicalConnection.MaxInt64TextLen)
+            if (IsNull || Payload.IsEmpty || Payload.Length > MessageFormatter.MaxInt64TextLen)
             {
                 value = 0;
                 return false;

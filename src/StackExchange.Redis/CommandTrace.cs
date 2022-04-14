@@ -72,9 +72,10 @@ namespace StackExchange.Redis
 
         private class CommandTraceProcessor : ResultProcessor<CommandTrace[]>
         {
-            protected override bool SetResultCore(ITransportState transport, Message message, in RawResult result)
+            protected override bool SetResultCore(ITransportState transport, Message message, in RawResultBuffer resultBuffer)
             {
-                switch(result.Type)
+                ref readonly var result = ref resultBuffer.Result;
+                switch (result.Type)
                 {
                     case ResultType.MultiBulk:
                         var parts = result.GetItems();

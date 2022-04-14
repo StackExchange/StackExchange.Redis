@@ -4,31 +4,51 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Net;
+using System.Runtime.CompilerServices;
 using System.Threading;
-using System.Threading.Channels;
 using System.Threading.Tasks;
+using System.Threading.Tasks.Sources;
 using Microsoft.Extensions.Logging;
 using static StackExchange.Redis.PhysicalConnection;
 
 #nullable enable
 namespace StackExchange.Redis.Transports
 {
-    internal abstract class Transport : ITransportState
+    internal abstract class Transport : ITransportState, IDisposable, IValueTaskSource, IBridge
     {
-        private readonly ITransportState? _parentState;
+        sealed class DefaultState : ITransportState
+        {
+            private DefaultState() { }
+            private static DefaultState? s_instance;
+            public static DefaultState Instance => s_instance ?? (s_instance = new DefaultState());
+
+            CommandMap ITransportState.CommandMap => CommandMap.Default;
+
+            byte[]? ITransportState.ChannelPrefix => null;
+
+            ServerEndPoint? ITransportState.ServerEndPoint => null;
+
+            void ITransportState.OnTransactionLogImpl(string message) { }
+            void ITransportState.TraceImpl(string message) { }
+            void ITransportState.RecordConnectionFailed(ConnectionFailureType failureType, Exception? exception) { }
+            ConnectionType ITransportState.ConnectionType => ConnectionType.None;
+        }
+
+        private readonly ITransportState _parentState;
         private readonly int _inputBufferSize, _outputBufferSize;
-        private readonly bool _pubsub;
+        private volatile ReadStatus _readStatus;
         private readonly ILogger? _logger;
         private readonly RefCountedMemoryPool<byte> _pool;
-        private readonly ServerEndPoint _server; 
-        private volatile ReadStatus _readStatus;
+        private readonly ServerEndPoint _server;
+
+        public void Dispose() => Abort();
 
         public ReadStatus ReadStatus => _readStatus;
 
         bool IncludeDetailInExceptions => _server?.Multiplexer?.IncludeDetailInExceptions ?? false;
 
-        
-        public Transport(int inputBufferSize, int outputBufferSize, ILogger? logger, RefCountedMemoryPool<byte>? pool, ITransportState? parentState, ServerEndPoint server, bool pubsub)
+
+        public Transport(int inputBufferSize, int outputBufferSize, ILogger? logger, RefCountedMemoryPool<byte>? pool, ITransportState? parentState, ServerEndPoint server, ConnectionType connectionType)
         {
             _server = server!;
             _inputBufferSize = inputBufferSize;
@@ -36,23 +56,52 @@ namespace StackExchange.Redis.Transports
             _logger = logger;
             _pool = pool ?? RefCountedMemoryPool<byte>.Shared;
             _readStatus = ReadStatus.NotStarted;
-            _pubsub = pubsub;
-            _parentState = parentState;
+            ConnectionType = connectionType;
+            _parentState = parentState ?? DefaultState.Instance;
+            _cancellationToken = _cancellation.Token;
 
             if (server is null) ThrowNull(nameof(server));
             if (inputBufferSize <= 0) ThrowBufferSize(nameof(inputBufferSize));
             if (outputBufferSize <= 0) ThrowBufferSize(nameof(outputBufferSize));
 
+            // start the actual IO loops
+            _ = Task.Run(WriteAllAsync);
+            _ = Task.Run(ReadAllAsync);
+
             static void ThrowBufferSize(string parameterName) => throw new ArgumentOutOfRangeException(parameterName);
             static void ThrowNull(string parameterName) => throw new ArgumentNullException(parameterName);
         }
 
+        ManualResetValueTaskSourceCore<bool> _pendingWork;
+
+        ValueTaskSourceStatus IValueTaskSource.GetStatus(short token) => _pendingWork.GetStatus(token);
+        void IValueTaskSource.GetResult(short token)
+        {
+            lock (_queue)
+            {
+                _pendingWork.GetResult(token);
+                _pendingWork.Reset();
+            }
+        }
+
+        void IValueTaskSource.OnCompleted(Action<object?> continuation, object? state, short token, ValueTaskSourceOnCompletedFlags flags)
+            => _pendingWork.OnCompleted(continuation, state, token, flags);
+
         private static RefCountedMemoryPool<RawResult> ResultPool => RefCountedMemoryPool<RawResult>.Shared;
 
-        CommandMap ITransportState.CommandMap => _parentState?.CommandMap ?? CommandMap.Default;
+        CommandMap ITransportState.CommandMap => _parentState.CommandMap;
         ServerEndPoint ITransportState.ServerEndPoint => _server;
+        public ConnectionType ConnectionType { get; }
 
-        public byte[]? ChannelPrefix => _parentState?.ChannelPrefix;
+        void ITransportState.RecordConnectionFailed(ConnectionFailureType failureType, Exception? exception)
+        {
+            // more here?
+            _parentState.RecordConnectionFailed(failureType, exception);
+        }
+
+        public byte[]? ChannelPrefix => _parentState.ChannelPrefix;
+
+        public long SubscriptionCount { get; set; }
 
         protected abstract ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken);
         protected abstract ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken);
@@ -62,22 +111,75 @@ namespace StackExchange.Redis.Transports
 
         protected virtual ValueTask FlushAsync(CancellationToken cancellationToken) => default;
 
-        public async Task WriteAllAsync(ChannelReader<WrittenMessage> messages, CancellationToken cancellationToken)
+        private readonly Queue<WrittenMessage> _queue = new Queue<WrittenMessage>();
+
+        private readonly CancellationTokenSource _cancellation = new CancellationTokenSource();
+        private readonly CancellationToken _cancellationToken;
+        private bool _writerNeedsActivation;
+        WriteResult IBridge.Write(Message message)
+        {
+            if (_cancellation.IsCancellationRequested)
+            {
+                _logger.Debug(message, static (state, _) => "Writing to aborted transport: " + state.CommandAndKey);
+                return WriteResult.NoConnectionAvailable;
+            }
+
+            WrittenMessage payload;
+            try
+            {
+                payload = MessageWriter.Write(message, this);
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex);
+                return WriteResult.WriteFailure;
+            }
+            lock (_queue)
+            {
+                _queue.Enqueue(payload);
+                if (_writerNeedsActivation)
+                {
+                    _writerNeedsActivation = false;
+                    ThreadPool.QueueUserWorkItem(s_ActivateWriter, this);
+                }
+                return WriteResult.Success;
+            }
+        }
+
+        static readonly WaitCallback s_ActivateWriter = static state => Unsafe.As<Transport>(state)!._pendingWork.SetResult(true);
+
+        void ThrowIfCancellationRequested() => _cancellationToken.ThrowIfCancellationRequested();
+
+        ValueTask NextMessageAvailableAsync()
+        {
+            lock (_queue)
+            {
+                if (_queue.Count != 0) return default;
+                _writerNeedsActivation = true;
+                return new ValueTask(this, _pendingWork.Version);
+            }
+        }
+        private async Task WriteAllAsync()
         {
             byte[]? bufferArray = null;
             try
             {
                 int buffered = 0, capacity = _outputBufferSize;
-                do
+
+                while (!_cancellation.IsCancellationRequested) // any time we get here: we have the conch
                 {
                     bool needFlush = false;
-                    while (true) // try to read synchronously
+                    while (true)
                     {
-                        if (!messages.TryRead(out var pair))
+                        WrittenMessage pair;
+                        lock (_queue) // try to read synchronously
                         {
-                            break;
-                            //await Task.Yield(); // blink; see if things improved
-                            //if (!source.TryRead(out frame)) break; // nope, definitely nothing there
+#if NETCOREAPP3_1_OR_GREATER
+                            if (!_queue.TryDequeue(out pair)) break;
+#else
+                            if (_queue.Count == 0) break;
+                            pair = _queue.Dequeue();
+#endif
                         }
 
                         var sequence = pair.Payload;
@@ -114,7 +216,7 @@ namespace StackExchange.Redis.Transports
                             if (buffered == 0 && inboundLength >= capacity)
                             {
                                 // scenario A
-                                await WriteAsync(inbound, cancellationToken);
+                                await WriteAsync(inbound, _cancellationToken);
                             }
                             else
                             {
@@ -134,7 +236,7 @@ namespace StackExchange.Redis.Transports
                                     if (capacity == 0) // all full up
                                     {
                                         _logger.Debug<ReadOnlyMemory<byte>>(bufferArray, static (state, _) => $"(B2) Writing {state.Length} bytes from buffer: {state.ToHex()}");
-                                        await WriteAsync(bufferArray, 0, buffered, cancellationToken);
+                                        await WriteAsync(bufferArray, 0, buffered, _cancellationToken);
                                         capacity = buffered;
                                         buffered = 0;
                                     }
@@ -148,7 +250,7 @@ namespace StackExchange.Redis.Transports
                                     var remaining = inbound.Slice(start: capacity);
                                     buffered += capacity;
                                     Debug.Assert(buffered == bufferArray.Length, "we expect to have filled the buffer");
-                                    await WriteAsync(bufferArray, 0, buffered, cancellationToken);
+                                    await WriteAsync(bufferArray, 0, buffered, _cancellationToken);
                                     capacity = buffered;
                                     buffered = 0;
 
@@ -163,7 +265,7 @@ namespace StackExchange.Redis.Transports
                                     else
                                     {
                                         // scenario E
-                                        await WriteAsync(remaining, cancellationToken);
+                                        await WriteAsync(remaining, _cancellationToken);
                                     }
                                 }
                             }
@@ -180,7 +282,7 @@ namespace StackExchange.Redis.Transports
                         {
                             if (buffered != 0)
                             {
-                                await WriteAsync(bufferArray, 0, buffered, cancellationToken);
+                                await WriteAsync(bufferArray, 0, buffered, _cancellationToken);
                                 buffered = 0;
                             }
 
@@ -189,25 +291,27 @@ namespace StackExchange.Redis.Transports
                         }
 
                         _logger.Debug("Flushing...");
-                        await FlushAsync(cancellationToken);
+                        await FlushAsync(_cancellationToken);
                     }
+
                     _logger.Debug("Awaiting more work...");
+                    await NextMessageAvailableAsync(); // self-activation via IVTS
                 }
-                while (await messages.WaitToReadAsync(cancellationToken));
-                _logger.Debug("Exiting write-loop due to end of data");
+                _logger.Debug("Exiting write-loop cleanly due to cancellation");
             }
-            catch (OperationCanceledException oce) when (oce.CancellationToken == cancellationToken)
+            catch (OperationCanceledException oce) when (oce.CancellationToken == _cancellationToken)
             {
-                _logger.Debug("Exiting write-loop due to cancellation");
+                _logger.Debug("Exiting write-loop via fault due to cancellation");
             }
             catch (Exception ex)
             {
+                // unexected error
                 _logger.Error(ex);
-                throw;
             }
             finally
             {
                 Return(ref bufferArray);
+                Abort();
             }
 
             static void Return(ref byte[]? buffer)
@@ -220,7 +324,55 @@ namespace StackExchange.Redis.Transports
             }
         }
 
-        public async Task ReadAllAsync(CancellationToken cancellationToken)
+        void Abort()
+        {
+            // prevent anything new coming in
+            try
+            {
+                if (!_cancellation.IsCancellationRequested)
+                {
+                    _cancellation.Cancel(false);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex);
+            }
+
+            // clean up anything that already came in
+            try
+            {
+                while (true)
+                {
+                    WrittenMessage pair;
+                    lock (_queue)
+                    {
+                        if (_queue.Count == 0) break;
+                        pair = _queue.Dequeue();
+                    }
+                    try { pair.Payload.Release(); }
+                    catch (Exception ex)
+                    {
+                        _logger.Error(ex);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex);
+            }
+
+            lock (_queue)
+            {
+                if (_writerNeedsActivation)
+                {   // awaken the writer, to allow clean exit
+                    _writerNeedsActivation = false;
+                    ThreadPool.QueueUserWorkItem(s_ActivateWriter, this);
+                }
+            }
+        }
+
+        private async Task ReadAllAsync()
         {
             _readStatus = ReadStatus.Init;
             try
@@ -240,7 +392,7 @@ namespace StackExchange.Redis.Transports
                     }
 
                     _readStatus = ReadStatus.ReadAsync;
-                    int bytesRead = await ReadAsync(readBuffer, cancellationToken);
+                    int bytesRead = await ReadAsync(readBuffer, _cancellationToken);
 
                     //_readStatus = ReadStatus.UpdateWriteTime;
                     //UpdateLastReadTime();
@@ -282,6 +434,7 @@ namespace StackExchange.Redis.Transports
             {
                 _logger.Error(ex);
                 _readStatus = ReadStatus.Faulted;
+                Abort();
             }
         }
 
@@ -324,7 +477,7 @@ namespace StackExchange.Redis.Transports
         {
             // check to see if it could be an out-of-band pubsub message
             var obj = ExecutableResult.Create(in result, _server);
-            if (_pubsub && result.Type == ResultType.MultiBulk)
+            if (ConnectionType == ConnectionType.Subscription && result.Type == ResultType.MultiBulk)
             {
                 var muxer = _server.Multiplexer;
                 if (muxer is null)
@@ -410,7 +563,11 @@ namespace StackExchange.Redis.Transports
             return false;
         }
 
-        public void OnTransactionLogImpl(string message) => _parentState.OnTransactionLog(message);
+        [Obsolete] // if OnTransactionLogImpl is being called, we can forward it directly
+        void ITransportState.OnTransactionLogImpl(string message) => _parentState.OnTransactionLogImpl(message);
+
+        [Obsolete] // if TraceImpl is being called, we can forward it directly
+        void ITransportState.TraceImpl(string message) => _parentState.TraceImpl(message);
 
         private readonly Queue<Message> _writtenAwaitingResponse = new Queue<Message>();
 

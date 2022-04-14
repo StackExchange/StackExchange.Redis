@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Reflection;
 using System.Text;
 using System.Threading;
 
@@ -28,7 +27,7 @@ namespace StackExchange.Redis
             => new RedisCommandException("This operation has been disabled in the command-map and cannot be used: " + command);
 
         internal static Exception TooManyArgs(string command, int argCount)
-            => new RedisCommandException($"This operation would involve too many arguments ({argCount + 1} vs the redis limit of {PhysicalConnection.REDIS_MAX_ARGS}): {command}");
+            => new RedisCommandException($"This operation would involve too many arguments ({argCount + 1} vs the redis limit of {MessageFormatter.REDIS_MAX_ARGS}): {command}");
 
         internal static Exception ConnectionFailure(bool includeDetail, ConnectionFailureType failureType, string message, ServerEndPoint server)
         {

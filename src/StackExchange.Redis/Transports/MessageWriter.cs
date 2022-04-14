@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Buffers;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -10,15 +11,16 @@ namespace StackExchange.Redis.Transports
     internal class MessageWriter : IBufferWriter<byte>
     {
         private readonly List<ReadOnlyMemory<byte>> _buffers = new();
-        private readonly RefCountedMemoryPool<byte> _pool;
+        private RefCountedMemoryPool<byte> Pool => RefCountedMemoryPool<byte>.Shared;
 
-        public MessageWriter(RefCountedMemoryPool<byte>? pool = null)
-            => _pool = pool ?? RefCountedMemoryPool<byte>.Shared;
+        private static readonly ConcurrentQueue<MessageWriter> s_pool = new ConcurrentQueue<MessageWriter>();
 
-        public WrittenMessage Write(Message message, PhysicalConnection connection)
+        public static WrittenMessage Write(Message message, ITransportState transport)
         {
-            message.WriteTo(connection, this);
-            return new WrittenMessage(Flush(), message);
+            var writer = s_pool.TryDequeue(out var result) ? result : new MessageWriter();
+            message.WriteTo(transport, writer);
+            var payload = writer.FlushAndRecycle();
+            return new WrittenMessage(payload, message);
         }
 
         private Memory<byte> _current;
@@ -41,7 +43,7 @@ namespace StackExchange.Redis.Transports
             if (_current.Length < _committed + sizeHint)
             {
                 FlushCurrent();
-                _current = _pool.RentMemory(sizeHint);
+                _current = Pool.RentMemory(sizeHint);
             }
             return _current.Slice(_committed);
         }
@@ -51,7 +53,7 @@ namespace StackExchange.Redis.Transports
         {
             if (_committed == 0)
             {
-                _pool.Return(_current);
+                Pool.Return(_current);
             }
             else if (_committed == _current.Length)
             {
@@ -63,18 +65,23 @@ namespace StackExchange.Redis.Transports
             {
                 _current.Preserve(); // we'll now have an extra segment, logically
                 _buffers.Add(_current.Slice(0, _committed));
-                _pool.Return(_current.Slice(_committed));
+                Pool.Return(_current.Slice(_committed));
                 _committed = 0;
             }
             _current = default;
         }
 
-        public ReadOnlySequence<byte> Flush()
+        private ReadOnlySequence<byte> FlushAndRecycle()
         {
             FlushCurrent();
             var result = CreateSequence(_buffers);
             Debug.Assert(result.Length == _buffers.Sum(x => x.Length), $"MessageWriter length mismatch: {result.Length} vs {_buffers.Sum(x => x.Length)}; {_buffers.Count} buffers");
             _buffers.Clear();
+
+            const int MAX_APPROX_COUNT = 16;
+            if (s_pool.Count < MAX_APPROX_COUNT)
+                s_pool.Enqueue(this);
+
             return result;
         }
 

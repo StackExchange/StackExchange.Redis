@@ -21,8 +21,6 @@ namespace StackExchange.Redis
 
         private const double ProfileLogSeconds = (ConnectionMultiplexer.MillisecondsPerHeartbeat * ProfileLogSamples) / 1000.0;
 
-        private static readonly Message ReusableAskingCommand = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.ASKING);
-
         private readonly long[] profileLog = new long[ProfileLogSamples];
 
         /// <summary>
@@ -1234,22 +1232,22 @@ namespace StackExchange.Redis
 #if !NETCOREAPP
             using (lockToken)
 #endif
-            try
-            {
-                var result = await flush.ForAwait();
-                physical.SetIdle();
-                return result;
-            }
-            catch (Exception ex)
-            {
-                return HandleWriteException(message, ex);
-            }
-            finally
-            {
+                try
+                {
+                    var result = await flush.ForAwait();
+                    physical.SetIdle();
+                    return result;
+                }
+                catch (Exception ex)
+                {
+                    return HandleWriteException(message, ex);
+                }
+                finally
+                {
 #if NETCOREAPP
                 _singleWriterMutex.Release();
 #endif
-            }
+                }
         }
 
         private WriteResult HandleWriteException(Message message, Exception ex)
@@ -1374,7 +1372,7 @@ namespace StackExchange.Redis
                 {
                     throw ExceptionFactory.PrimaryOnly(Multiplexer.RawConfig.IncludeDetailInExceptions, message.Command, message, ServerEndPoint);
                 }
-                switch(cmd)
+                switch (cmd)
                 {
                     case RedisCommand.QUIT:
                         connection.RecordQuit();
@@ -1404,7 +1402,7 @@ namespace StackExchange.Redis
                     }
                     if (message.IsAsking)
                     {
-                        var asking = ReusableAskingCommand;
+                        var asking = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.ASKING);
                         connection.EnqueueInsideWriteLock(asking);
                         asking.WriteTo(connection, connection.DefaultOutput);
                         asking.SetRequestSent();

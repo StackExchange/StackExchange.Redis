@@ -759,14 +759,14 @@ namespace StackExchange.Redis
             {
                 bool isCopy = (migrateOptions & MigrateOptions.Copy) != 0;
                 bool isReplace = (migrateOptions & MigrateOptions.Replace) != 0;
-                PhysicalConnection.WriteHeader(writeState, output, Command, 5 + (isCopy ? 1 : 0) + (isReplace ? 1 : 0));
-                PhysicalConnection.WriteBulkString(output, toHost);
-                PhysicalConnection.WriteBulkString(output, toPort);
-                PhysicalConnection.Write(output, Key);
-                PhysicalConnection.WriteBulkString(output, toDatabase);
-                PhysicalConnection.WriteBulkString(output, timeoutMilliseconds);
-                if (isCopy) PhysicalConnection.WriteBulkString(output, RedisLiterals.COPY);
-                if (isReplace) PhysicalConnection.WriteBulkString(output, RedisLiterals.REPLACE);
+                MessageFormatter.WriteHeader(writeState, output, Command, 5 + (isCopy ? 1 : 0) + (isReplace ? 1 : 0));
+                MessageFormatter.WriteBulkString(output, toHost);
+                MessageFormatter.WriteBulkString(output, toPort);
+                MessageFormatter.Write(output, Key);
+                MessageFormatter.WriteBulkString(output, toDatabase);
+                MessageFormatter.WriteBulkString(output, timeoutMilliseconds);
+                if (isCopy) MessageFormatter.WriteBulkString(output, RedisLiterals.COPY);
+                if (isReplace) MessageFormatter.WriteBulkString(output, RedisLiterals.REPLACE);
             }
 
             public override int ArgCount
@@ -3836,9 +3836,9 @@ namespace StackExchange.Redis
 
             protected override void WriteImpl(ITransportState writeState, IBufferWriter<byte> output)
             {
-                PhysicalConnection.WriteHeader(writeState, output, Command, 2);
-                PhysicalConnection.WriteBulkString(output, RedisLiterals.LOAD);
-                PhysicalConnection.WriteBulkString(output, (RedisValue)Script);
+                MessageFormatter.WriteHeader(writeState, output, Command, 2);
+                MessageFormatter.WriteBulkString(output, RedisLiterals.LOAD);
+                MessageFormatter.WriteBulkString(output, (RedisValue)Script);
             }
             public override int ArgCount => 2;
         }
@@ -3855,8 +3855,9 @@ namespace StackExchange.Redis
         {
             protected abstract T[] Parse(in RawResult result, out int count);
 
-            protected override bool SetResultCore(ITransportState transport, Message message, in RawResult result)
+            protected override bool SetResultCore(ITransportState transport, Message message, in RawResultBuffer resultBuffer)
             {
+                ref readonly var result = ref resultBuffer.Result;
                 switch (result.Type)
                 {
                     case ResultType.MultiBulk:
@@ -3885,7 +3886,7 @@ namespace StackExchange.Redis
 
             public ExecuteMessage(CommandMap map, int db, CommandFlags flags, string command, ICollection<object> args) : base(db, flags, RedisCommand.UNKNOWN)
             {
-                if (args != null && args.Count >= PhysicalConnection.REDIS_MAX_ARGS) // using >= here because we will be adding 1 for the command itself (which is an arg for the purposes of the multi-bulk protocol)
+                if (args != null && args.Count >= MessageFormatter.REDIS_MAX_ARGS) // using >= here because we will be adding 1 for the command itself (which is an arg for the purposes of the multi-bulk protocol)
                 {
                     throw ExceptionFactory.TooManyArgs(command, args.Count);
                 }
@@ -3896,22 +3897,22 @@ namespace StackExchange.Redis
 
             protected override void WriteImpl(ITransportState writeState, IBufferWriter<byte> output)
             {
-                PhysicalConnection.WriteHeader(writeState, output, RedisCommand.UNKNOWN, _args.Count, Command);
+                MessageFormatter.WriteHeader(writeState, output, RedisCommand.UNKNOWN, _args.Count, Command);
                 foreach (object arg in _args)
                 {
                     if (arg is RedisKey key)
                     {
-                        PhysicalConnection.Write(output, key);
+                        MessageFormatter.Write(output, key);
                     }
                     else if (arg is RedisChannel channel)
                     {
-                        PhysicalConnection.Write(writeState, output, channel);
+                        MessageFormatter.Write(writeState, output, channel);
                     }
                     else
                     {   // recognises well-known types
                         var val = RedisValue.TryParse(arg, out var valid);
                         if (!valid) throw new InvalidCastException($"Unable to parse value: '{arg}'");
-                        PhysicalConnection.WriteBulkString(output, val);
+                        MessageFormatter.WriteBulkString(output, val);
                     }
                 }
             }
@@ -4003,24 +4004,24 @@ namespace StackExchange.Redis
             {
                 if (hexHash != null)
                 {
-                    PhysicalConnection.WriteHeader(writeState, output, RedisCommand.EVALSHA, 2 + keys.Length + values.Length);
-                    PhysicalConnection.WriteSha1AsHex(output, hexHash);
+                    MessageFormatter.WriteHeader(writeState, output, RedisCommand.EVALSHA, 2 + keys.Length + values.Length);
+                    MessageFormatter.WriteSha1AsHex(output, hexHash);
                 }
                 else if (asciiHash != null)
                 {
-                    PhysicalConnection.WriteHeader(writeState, output, RedisCommand.EVALSHA, 2 + keys.Length + values.Length);
-                    PhysicalConnection.WriteBulkString(output, (RedisValue)asciiHash);
+                    MessageFormatter.WriteHeader(writeState, output, RedisCommand.EVALSHA, 2 + keys.Length + values.Length);
+                    MessageFormatter.WriteBulkString(output, (RedisValue)asciiHash);
                 }
                 else
                 {
-                    PhysicalConnection.WriteHeader(writeState, output, RedisCommand.EVAL, 2 + keys.Length + values.Length);
-                    PhysicalConnection.WriteBulkString(output, (RedisValue)script);
+                    MessageFormatter.WriteHeader(writeState, output, RedisCommand.EVAL, 2 + keys.Length + values.Length);
+                    MessageFormatter.WriteBulkString(output, (RedisValue)script);
                 }
-                PhysicalConnection.WriteBulkString(output, keys.Length);
+                MessageFormatter.WriteBulkString(output, keys.Length);
                 for (int i = 0; i < keys.Length; i++)
-                    PhysicalConnection.Write(output, keys[i]);
+                    MessageFormatter.Write(output, keys[i]);
                 for (int i = 0; i < values.Length; i++)
-                    PhysicalConnection.WriteBulkString(output, values[i]);
+                    MessageFormatter.WriteBulkString(output, values[i]);
             }
             public override int ArgCount => 2 + keys.Length + values.Length;
         }
@@ -4129,13 +4130,13 @@ namespace StackExchange.Redis
 
             protected override void WriteImpl(ITransportState writeState, IBufferWriter<byte> output)
             {
-                PhysicalConnection.WriteHeader(writeState, output, Command, 2 + keys.Length + values.Length);
-                PhysicalConnection.Write(output, Key);
-                PhysicalConnection.WriteBulkString(output, keys.Length);
+                MessageFormatter.WriteHeader(writeState, output, Command, 2 + keys.Length + values.Length);
+                MessageFormatter.Write(output, Key);
+                MessageFormatter.WriteBulkString(output, keys.Length);
                 for (int i = 0; i < keys.Length; i++)
-                    PhysicalConnection.Write(output, keys[i]);
+                    MessageFormatter.Write(output, keys[i]);
                 for (int i = 0; i < values.Length; i++)
-                    PhysicalConnection.WriteBulkString(output, values[i]);
+                    MessageFormatter.WriteBulkString(output, values[i]);
             }
             public override int ArgCount => 2 + keys.Length + values.Length;
         }
@@ -4186,8 +4187,8 @@ namespace StackExchange.Redis
 
             protected override void WriteImpl(ITransportState writeState, IBufferWriter<byte> output)
             {
-                PhysicalConnection.WriteHeader(writeState, output, command, 1);
-                PhysicalConnection.Write(output, Key);
+                MessageFormatter.WriteHeader(writeState, output, command, 1);
+                MessageFormatter.Write(output, Key);
             }
             public override int ArgCount => 1;
         }
@@ -4196,8 +4197,9 @@ namespace StackExchange.Redis
         {
             public static readonly ResultProcessor<RedisValueWithExpiry> Default = new StringGetWithExpiryProcessor();
             private StringGetWithExpiryProcessor() { }
-            protected override bool SetResultCore(ITransportState transport, Message message, in RawResult result)
+            protected override bool SetResultCore(ITransportState transport, Message message, in RawResultBuffer resultBuffer)
             {
+                ref readonly var result = ref resultBuffer.Result;
                 switch (result.Type)
                 {
                     case ResultType.Integer:

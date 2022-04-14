@@ -11,8 +11,8 @@ namespace StackExchange.Redis.Transports
     {
         private readonly Stream _duplexStream;
 
-        public StreamTransport(Stream duplexStream, int inputBufferSize, int outputBufferSize, ILogger? logger, RefCountedMemoryPool<byte>? pool, ServerEndPoint server, bool pubsub)
-            : base(inputBufferSize, outputBufferSize, logger, pool, server, pubsub)
+        public StreamTransport(Stream duplexStream, int inputBufferSize, int outputBufferSize, ILogger? logger, RefCountedMemoryPool<byte>? pool, ITransportState parentState, ServerEndPoint server, ConnectionType connectionType)
+            : base(inputBufferSize, outputBufferSize, logger, pool, parentState, server, connectionType)
         {
             _duplexStream = duplexStream!;
             if (duplexStream is null) ThrowNull(nameof(duplexStream));

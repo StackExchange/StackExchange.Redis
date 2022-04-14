@@ -825,14 +825,14 @@ namespace StackExchange.Redis
 
                     return value._memory.ToArray();
                 case StorageType.Int64:
-                    Span<byte> span = stackalloc byte[PhysicalConnection.MaxInt64TextLen + 2];
-                    int len = PhysicalConnection.WriteRaw(span, value.OverlappedValueInt64, false, 0);
+                    Span<byte> span = stackalloc byte[MessageFormatter.MaxInt64TextLen + 2];
+                    int len = MessageFormatter.WriteRaw(span, value.OverlappedValueInt64, false, 0);
                     arr = new byte[len - 2]; // don't need the CRLF
                     span.Slice(0, arr.Length).CopyTo(arr);
                     return arr;
                 case StorageType.UInt64:
                     // we know it is a huge value - just jump straight to Utf8Formatter
-                    span = stackalloc byte[PhysicalConnection.MaxInt64TextLen];
+                    span = stackalloc byte[MessageFormatter.MaxInt64TextLen];
                     if (!Utf8Formatter.TryFormat(value.OverlappedValueUInt64, span, out len))
                         throw new InvalidOperationException("TryFormat failed");
                     arr = new byte[len];
@@ -1124,11 +1124,11 @@ namespace StackExchange.Redis
                     s = Format.ToString(OverlappedValueDouble);
                     goto HaveString;
                 case StorageType.Int64:
-                    leased = ArrayPool<byte>.Shared.Rent(PhysicalConnection.MaxInt64TextLen + 2); // reused code has CRLF terminator
-                    len = PhysicalConnection.WriteRaw(leased, OverlappedValueInt64) - 2; // drop the CRLF
+                    leased = ArrayPool<byte>.Shared.Rent(MessageFormatter.MaxInt64TextLen + 2); // reused code has CRLF terminator
+                    len = MessageFormatter.WriteRaw(leased, OverlappedValueInt64) - 2; // drop the CRLF
                     return new ReadOnlyMemory<byte>(leased, 0, len);
                 case StorageType.UInt64:
-                    leased = ArrayPool<byte>.Shared.Rent(PhysicalConnection.MaxInt64TextLen); // reused code has CRLF terminator
+                    leased = ArrayPool<byte>.Shared.Rent(MessageFormatter.MaxInt64TextLen); // reused code has CRLF terminator
                     // value is huge, jump direct to Utf8Formatter
                     if (!Utf8Formatter.TryFormat(OverlappedValueUInt64, leased, out len))
                         throw new InvalidOperationException("TryFormat failed");

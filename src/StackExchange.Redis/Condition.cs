@@ -373,8 +373,9 @@ namespace StackExchange.Redis
                 new ConditionMessage(condition, db, flags, command, key, value, value1);
 
             [System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0071:Simplify interpolation", Justification = "Allocations (string.Concat vs. string.Format)")]
-            protected override bool SetResultCore(ITransportState transport, Message message, in RawResult result)
+            protected override bool SetResultCore(ITransportState transport, Message message, in RawResultBuffer resultBuffer)
             {
+                ref readonly var result = ref resultBuffer.Result;
                 transport.OnTransactionLog($"condition '{message.CommandAndKey}' got '{result.ToString()}'");
                 var msg = message as ConditionMessage;
                 var condition = msg?.Condition;
@@ -409,17 +410,17 @@ namespace StackExchange.Redis
                 {
                     if (value.IsNull)
                     {
-                        PhysicalConnection.WriteHeader(writeState, output, command, 1);
-                        PhysicalConnection.Write(output, Key);
+                        MessageFormatter.WriteHeader(writeState, output, command, 1);
+                        MessageFormatter.Write(output, Key);
                     }
                     else
                     {
-                        PhysicalConnection.WriteHeader(writeState, output, command, value1.IsNull ? 2 : 3);
-                        PhysicalConnection.Write(output, Key);
-                        PhysicalConnection.WriteBulkString(output, value);
+                        MessageFormatter.WriteHeader(writeState, output, command, value1.IsNull ? 2 : 3);
+                        MessageFormatter.Write(output, Key);
+                        MessageFormatter.WriteBulkString(output, value);
                         if (!value1.IsNull)
                         {
-                            PhysicalConnection.WriteBulkString(output, value1);
+                            MessageFormatter.WriteBulkString(output, value1);
                         }
                     }
                 }

@@ -172,13 +172,14 @@ namespace StackExchange.Redis
         {
             public static readonly ResultProcessor<bool> Default = new QueuedProcessor();
 
-            protected override bool SetResultCore(ITransportState transport, Message message, in RawResult result)
+            protected override bool SetResultCore(ITransportState transport, Message message, in RawResultBuffer resultBuffer)
             {
+                ref readonly var result = ref resultBuffer.Result;
                 if (result.Type == ResultType.SimpleString && result.IsEqual(CommonReplies.QUEUED))
                 {
                     if (message is QueuedMessage q)
                     {
-                        transaction.OnTransactionLog("Observed QUEUED for " + q.Wrapped?.CommandAndKey);
+                        transport.OnTransactionLog("Observed QUEUED for " + q.Wrapped?.CommandAndKey);
                         q.WasQueued = true;
                     }
                     return true;
@@ -412,7 +413,7 @@ namespace StackExchange.Redis
             }
 
             protected override void WriteImpl(ITransportState writeState, IBufferWriter<byte> output)
-                => PhysicalConnection.WriteHeader(writeState, output, Command, 0);
+                => MessageFormatter.WriteHeader(writeState, output, Command, 0);
 
             public override int ArgCount => 0;
 
@@ -440,8 +441,9 @@ namespace StackExchange.Redis
         {
             public static readonly TransactionProcessor Default = new();
 
-            public override bool SetResult(ITransportState transport, Message message, in RawResult result)
+            public override bool SetResult(ITransportState transport, Message message, in RawResultBuffer resultBuffer)
             {
+                ref readonly var result = ref resultBuffer.Result;
                 if (result.IsError && message is TransactionMessage tran)
                 {
                     string error = result.GetString();
@@ -452,11 +454,12 @@ namespace StackExchange.Redis
                         inner.Complete();
                     }
                 }
-                return base.SetResult(transport, message, result);
+                return base.SetResult(transport, message, resultBuffer);
             }
 
-            protected override bool SetResultCore(ITransportState transport, Message message, in RawResult result)
+            protected override bool SetResultCore(ITransportState transport, Message message, in RawResultBuffer resultBuffer)
             {
+                ref readonly var result = ref resultBuffer.Result;
                 transport.OnTransactionLog($"got {result} for {message.CommandAndKey}");
                 if (message is TransactionMessage tran)
                 {
@@ -466,14 +469,14 @@ namespace StackExchange.Redis
                         case ResultType.SimpleString:
                             if (tran.IsAborted && result.IsEqual(CommonReplies.OK))
                             {
-                                connection.Trace("Acknowledging UNWATCH (aborted electively)");
+                                transport.Trace("Acknowledging UNWATCH (aborted electively)");
                                 SetResult(message, false);
                                 return true;
                             }
                             //EXEC returned with a NULL
                             if (!tran.IsAborted && result.IsNull)
                             {
-                                connection.Trace("Server aborted due to failed EXEC");
+                                transport.Trace("Server aborted due to failed EXEC");
                                 //cancel the commands in the transaction and mark them as complete with the completion manager
                                 foreach (var op in wrapped)
                                 {
@@ -492,7 +495,7 @@ namespace StackExchange.Redis
                                 if (result.IsNull)
                                 {
                                     transport.OnTransactionLog("Aborting wrapped messages (failed watch)");
-                                    connection.Trace("Server aborted due to failed WATCH");
+                                    transport.Trace("Server aborted due to failed WATCH");
                                     foreach (var op in wrapped)
                                     {
                                         var inner = op.Wrapped;
@@ -504,7 +507,7 @@ namespace StackExchange.Redis
                                 }
                                 else if (wrapped.Length == arr.Length)
                                 {
-                                    connection.Trace("Server committed; processing nested replies");
+                                    transport.Trace("Server committed; processing nested replies");
                                     transport.OnTransactionLog($"Processing {arr.Length} wrapped messages");
 
                                     int i = 0;
@@ -512,10 +515,11 @@ namespace StackExchange.Redis
                                     {
                                         var inner = wrapped[i++].Wrapped;
                                         transport.OnTransactionLog($"> got {iter.Current.ToString()} for {inner.CommandAndKey}");
-                                        if (inner.ComputeResult(connection, in iter.Current))
-                                        {
-                                            inner.Complete();
-                                        }
+                                        // SetBufferAndQueueExecute will Preserve the buffer before, and Release both the buffer and the Result after;
+                                        // as such, we need to additionally Preserve the Result before, to achieve stability
+                                        // (note that this does mean we're preserving the entire buffer for all items; we'll survive)
+                                        iter.Current.PreserveItemsRecursive();
+                                        inner.SetBufferAndQueueExecute(transport, resultBuffer.Buffer, iter.Current);
                                     }
                                     SetResult(message, true);
                                     return true;
@@ -529,7 +533,7 @@ namespace StackExchange.Redis
                     {
                         if (op?.Wrapped is Message inner)
                         {
-                            inner.Fail(ConnectionFailureType.ProtocolFailure, null, "Transaction failure", connection?.BridgeCouldBeNull?.Multiplexer);
+                            inner.Fail(ConnectionFailureType.ProtocolFailure, null, "Transaction failure", transport.ServerEndPoint?.Multiplexer);
                             inner.Complete();
                         }
                     }

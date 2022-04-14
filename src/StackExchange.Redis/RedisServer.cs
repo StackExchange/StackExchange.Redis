@@ -814,8 +814,9 @@ namespace StackExchange.Redis
             public static readonly ResultProcessor<ScanResult> processor = new ScanResultProcessor();
             private class ScanResultProcessor : ResultProcessor<ScanResult>
             {
-                protected override bool SetResultCore(ITransportState transport, Message message, in RawResult result)
+                protected override bool SetResultCore(ITransportState transport, Message message, in RawResultBuffer resultBuffer)
                 {
+                    ref readonly var result = ref resultBuffer.Result;
                     switch (result.Type)
                     {
                         case ResultType.MultiBulk:
