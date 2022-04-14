@@ -56,6 +56,10 @@ namespace StackExchange.Redis
 
         public static readonly ResultProcessor<double?>
                             NullableDouble = new NullableDoubleProcessor();
+
+        public static readonly ResultProcessor<double?[]>
+                            NullableDoubleArray = new NullableDoubleArrayProcessor();
+
         public static readonly ResultProcessor<long?>
             NullableInt64 = new NullableInt64Processor();
 
@@ -1109,6 +1113,20 @@ namespace StackExchange.Redis
                     }
                 }
                 return base.SetResultCore(connection, message, result);
+            }
+        }
+
+        private sealed class NullableDoubleArrayProcessor : ResultProcessor<double?[]>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                if (result.Type == ResultType.MultiBulk && !result.IsNull)
+                {
+                    var arr = result.GetItemsAsDoubles()!;
+                    SetResult(message, arr);
+                    return true;
+                }
+                return false;
             }
         }
 

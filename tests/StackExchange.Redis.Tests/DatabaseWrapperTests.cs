@@ -267,6 +267,13 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void KeyEncoding()
+        {
+            wrapper.KeyEncoding("key", CommandFlags.None);
+            mock.Verify(_ => _.KeyEncoding("prefix:key", CommandFlags.None));
+        }
+
+        [Fact]
         public void KeyExists()
         {
             wrapper.KeyExists("key", CommandFlags.None);
@@ -964,6 +971,13 @@ namespace StackExchange.Redis.Tests
         {
             wrapper.SortedSetScore("key", "member", CommandFlags.None);
             mock.Verify(_ => _.SortedSetScore("prefix:key", "member", CommandFlags.None));
+        }
+
+        [Fact]
+        public void SortedSetScore_Multiple()
+        {
+            wrapper.SortedSetScores("key", new RedisValue[] { "member1", "member2" }, CommandFlags.None);
+            mock.Verify(_ => _.SortedSetScores("prefix:key", new RedisValue[] { "member1", "member2" }, CommandFlags.None));
         }
 
         [Fact]
