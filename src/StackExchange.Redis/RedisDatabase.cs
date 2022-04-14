@@ -3099,58 +3099,69 @@ namespace StackExchange.Redis
 
         private Message GetMultiStreamReadMessage(StreamPosition[] streamPositions, int? countPerStream, CommandFlags flags)
         {
-            // Example: XREAD COUNT 2 STREAMS mystream writers 0-0 0-0
+            return new MultiStreamReadCommandMessage(Database, flags, streamPositions, countPerStream);            
+        }
+        private sealed class MultiStreamReadCommandMessage : Message // XREAD with multiple stream. Example: XREAD COUNT 2 STREAMS mystream writers 0-0 0-0
+        {
+            private readonly StreamPosition[] streamPositions;            
+            private readonly int? countPerStream;            
+            private readonly int argCount;
 
-            if (streamPositions == null) throw new ArgumentNullException(nameof(streamPositions));
-            if (streamPositions.Length == 0) throw new ArgumentOutOfRangeException(nameof(streamPositions), "streamOffsetPairs must contain at least one item.");
-
-            if (countPerStream.HasValue && countPerStream <= 0)
+            public MultiStreamReadCommandMessage(int db, CommandFlags flags, StreamPosition[] streamPositions, int? countPerStream)
+                : base(db, flags, RedisCommand.XREAD)
             {
-                throw new ArgumentOutOfRangeException(nameof(countPerStream), "countPerStream must be greater than 0.");
+                if (streamPositions == null) throw new ArgumentNullException(nameof(streamPositions));
+                if (streamPositions.Length == 0) throw new ArgumentOutOfRangeException(nameof(streamPositions), "streamOffsetPairs must contain at least one item.");
+                for (int i = 0; i < streamPositions.Length; i++)
+                {
+                    streamPositions[i].Key.AssertNotNull();
+                }
+
+                if (countPerStream.HasValue && countPerStream <= 0)
+                {
+                    throw new ArgumentOutOfRangeException(nameof(countPerStream), "countPerStream must be greater than 0.");
+                }               
+
+                this.streamPositions = streamPositions;                
+                this.countPerStream = countPerStream;                
+
+                argCount = 1                             // Streams keyword.
+                    + (countPerStream.HasValue ? 2 : 0)  // Room for "COUNT num" or 0 if countPerStream is null.
+                    + (streamPositions.Length * 2);      // Room for the stream names and the ID after which to begin reading.
             }
 
-            var values = new RedisValue[
-                1                                     // Streams keyword.
-                + (streamPositions.Length * 2)          // Room for the stream names and the ID after which to begin reading.
-                + (countPerStream.HasValue ? 2 : 0)]; // Room for "COUNT num" or 0 if countPerStream is null.
-
-            var offset = 0;
-
-            if (countPerStream.HasValue)
+            public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
             {
-                values[offset++] = StreamConstants.Count;
-                values[offset++] = countPerStream;
+                int slot = ServerSelectionStrategy.NoSlot;
+                for (int i = 0; i < streamPositions.Length; i++)
+                {
+                    slot = serverSelectionStrategy.CombineSlot(slot, streamPositions[i].Key);
+                }
+                return slot;
             }
 
-            values[offset++] = StreamConstants.Streams;
-
-            // Write the stream names and the message IDs from which to read for the associated stream. Each pair
-            // will be separated by an offset of the index of the stream name plus the pair count.
-
-            /*
-             * [0] = COUNT
-             * [1] = 2
-             * [3] = STREAMS
-             * [4] = stream1
-             * [5] = stream2
-             * [6] = stream3
-             * [7] = id1
-             * [8] = id2
-             * [9] = id3
-             *
-             * */
-
-            var pairCount = streamPositions.Length;
-
-            for (var i = 0; i < pairCount; i++)
+            protected override void WriteImpl(PhysicalConnection physical)
             {
-                values[offset] = streamPositions[i].Key.AsRedisValue();
-                values[offset + pairCount] = StreamPosition.Resolve(streamPositions[i].Position, RedisCommand.XREAD);
+                physical.WriteHeader(Command, argCount);
 
-                offset++;
+                if (countPerStream.HasValue)
+                {
+                    physical.WriteBulkString(StreamConstants.Count);
+                    physical.WriteBulkString(countPerStream.Value);
+                }                
+
+                physical.WriteBulkString(StreamConstants.Streams);
+                for (int i = 0; i < streamPositions.Length; i++)
+                {
+                    physical.Write(streamPositions[i].Key);
+                }
+                for (int i = 0; i < streamPositions.Length; i++)
+                {
+                    physical.WriteBulkString(StreamPosition.Resolve(streamPositions[i].Position, RedisCommand.XREADGROUP));
+                }
             }
 
-            return Message.Create(Database, flags, RedisCommand.XREAD, values);
+            public override int ArgCount => argCount;
         }
 
         private static RedisValue GetRange(double value, Exclude exclude, bool isStart)
@@ -3703,9 +3714,9 @@ namespace StackExchange.Redis
 
         private Message GetStreamReadGroupMessage(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue afterId, int? count, bool noAck, CommandFlags flags)
         {            
-            return new StreamReadGroupCommandMessage(Database, flags, key, groupName, consumerName, afterId, count, noAck);            
+            return new SingleStreamReadGroupCommandMessage(Database, flags, key, groupName, consumerName, afterId, count, noAck);            
         }
-        private sealed class StreamReadGroupCommandMessage : Message.CommandKeyBase // XREADGROUP with single stream. eg XREADGROUP GROUP mygroup Alice COUNT 1 STREAMS mystream >
+        private sealed class SingleStreamReadGroupCommandMessage : Message.CommandKeyBase // XREADGROUP with single stream. eg XREADGROUP GROUP mygroup Alice COUNT 1 STREAMS mystream >
         {
             private readonly RedisValue groupName;
             private readonly RedisValue consumerName;            
@@ -3714,7 +3725,7 @@ namespace StackExchange.Redis
             private readonly bool noAck;
             private readonly int argCount;
 
-            public StreamReadGroupCommandMessage(int db, CommandFlags flags, RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue afterId, int? count, bool noAck)
+            public SingleStreamReadGroupCommandMessage(int db, CommandFlags flags, RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue afterId, int? count, bool noAck)
                 : base(db, flags, RedisCommand.XREADGROUP, key) {
                 if (count.HasValue && count <= 0)
                 {
@@ -3760,30 +3771,47 @@ namespace StackExchange.Redis
 
         private Message GetSingleStreamReadMessage(RedisKey key, RedisValue afterId, int? count, CommandFlags flags)
         {
-            if (count.HasValue && count <= 0)
-            {
-                throw new ArgumentOutOfRangeException(nameof(count), "count must be greater than 0.");
-            }
-
-            var values = new RedisValue[3 + (count.HasValue ? 2 : 0)];
-            var offset = 0;
-
-            if (count.HasValue)
-            {
-                values[offset++] = StreamConstants.Count;
-                values[offset++] = count.Value;
-            }
-
-            values[offset++] = StreamConstants.Streams;
-            values[offset++] = key.AsRedisValue();
-            values[offset] = afterId;
-
-            // Example: > XREAD COUNT 2 STREAMS writers 1526999352406-0
-            return Message.Create(Database,
-                flags,
-                RedisCommand.XREAD,
-                values);
+            return new SingleStreamReadCommandMessage(Database, flags, key, afterId, count);
         }
+        private sealed class SingleStreamReadCommandMessage : Message.CommandKeyBase // XREAD with a single stream. Example: XREAD COUNT 2 STREAMS mystream 0-0
+        {
+            private readonly RedisValue afterId;
+            private readonly int? count;            
+            private readonly int argCount;
+
+            public SingleStreamReadCommandMessage(int db, CommandFlags flags, RedisKey key, RedisValue afterId, int? count)
+                : base(db, flags, RedisCommand.XREAD, key)
+            {
+                if (count.HasValue && count <= 0)
+                {
+                    throw new ArgumentOutOfRangeException(nameof(count), "count must be greater than 0.");
+                }
+
+                afterId.AssertNotNull();
+
+                this.afterId = afterId;
+                this.count = count;
+                argCount = count.HasValue ? 5 : 3;
+            }
+
+            protected override void WriteImpl(PhysicalConnection physical)
+            {
+                physical.WriteHeader(Command, argCount);
+
+                if (count.HasValue)
+                {
+                    physical.WriteBulkString(StreamConstants.Count);
+                    physical.WriteBulkString(count.Value);
+                }                
+
+                physical.WriteBulkString(StreamConstants.Streams);
+                physical.Write(Key);
+                physical.WriteBulkString(afterId);
+            }
+
+            public override int ArgCount => argCount;
+        }
+
 
         private Message GetStreamTrimMessage(RedisKey key, int maxLength, bool useApproximateMaxLength, CommandFlags flags)
         {
