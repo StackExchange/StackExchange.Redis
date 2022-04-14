@@ -227,6 +227,14 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void KeyEncodingAsync()
+        {
+            wrapper.KeyEncodingAsync("key", CommandFlags.None);
+            mock.Verify(_ => _.KeyEncodingAsync("prefix:key", CommandFlags.None));
+        }
+
+
+        [Fact]
         public void KeyExistsAsync()
         {
             wrapper.KeyExistsAsync("key", CommandFlags.None);

@@ -266,6 +266,32 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public async Task KeyEncoding()
+        {
+            using var muxer = Create();
+            var key = Me();
+            var db = muxer.GetDatabase();
+
+            db.KeyDelete(key, CommandFlags.FireAndForget);
+            db.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
+
+            Assert.Equal("embstr", db.KeyEncoding(key));
+            Assert.Equal("embstr", await db.KeyEncodingAsync(key));
+
+            db.KeyDelete(key, CommandFlags.FireAndForget);
+            db.ListLeftPush(key, "new value", flags: CommandFlags.FireAndForget);
+
+            // Depending on server version, this is going to vary - we're sanity checking here.
+            var listTypes = new [] { "ziplist", "quicklist" };
+            Assert.Contains(db.KeyEncoding(key), listTypes);
+            Assert.Contains(await db.KeyEncodingAsync(key), listTypes);
+
+            var keyNotExists = key + "no-exist";
+            Assert.Null(db.KeyEncoding(keyNotExists));
+            Assert.Null(await db.KeyEncodingAsync(keyNotExists));
+        }
+
+        [Fact]
         public async Task KeyRefCount()
         {
             using var muxer = Create();
