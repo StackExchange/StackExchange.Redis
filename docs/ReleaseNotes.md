@@ -19,6 +19,7 @@
 - Adds: Support for `OBJECT REFCOUNT` with `.KeyRefCount()`/`.KeyRefCountAsync()` ([#2087 by Avital-Fine](https://github.com/StackExchange/StackExchange.Redis/pull/2087))
 - Adds: Support for `OBJECT ENCODING` with `.KeyEncoding()`/`.KeyEncodingAsync()` ([#2088 by Avital-Fine](https://github.com/StackExchange/StackExchange.Redis/pull/2088))
 - Adds: Support for `HRANDFIELD` with `.HashRandomField()`/`.HashRandomFieldAsync()`, `.HashRandomFields()`/`.HashRandomFieldsAsync()`, and `.HashRandomFieldsWithValues()`/`.HashRandomFieldsWithValuesAsync()` ([#2090 by slorello89](https://github.com/StackExchange/StackExchange.Redis/pull/2090))
+- Adds: Support for `XAUTOCLAIM` with `.StreamAutoClaim()`/.`StreamAutoClaimAsync()` ([#2095 by ttingen](https://github.com/StackExchange/StackExchange.Redis/pull/2095))
 
 ## 2.5.61
 
