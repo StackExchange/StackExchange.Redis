@@ -893,16 +893,16 @@ namespace StackExchange.Redis.Tests
 
             var res = await db.ListLeftPopAsync(new RedisKey[] {key}, 1);
 
-            Assert.NotNull(res);
-            Assert.Single(res.Value.Values);
-            Assert.Equal("rays", res.Value.Values.First());
+            Assert.False(res.IsNull);
+            Assert.Single(res.Values);
+            Assert.Equal("rays", res.Values.First());
 
             res = await db.ListRightPopAsync(new RedisKey[] {key}, 2);
 
-            Assert.NotNull(res);
-            Assert.Equal(2, res.Value.Values.Length);
-            Assert.Equal("yankees", res.Value.Values.First());
-            Assert.Equal("blue jays", res.Value.Values.Last());
+            Assert.False(res.IsNull);
+            Assert.Equal(2, res.Values.Length);
+            Assert.Equal("yankees", res.Values.First());
+            Assert.Equal("blue jays", res.Values.Last());
         }
 
         [Fact]
@@ -923,16 +923,16 @@ namespace StackExchange.Redis.Tests
 
             var res = await db.ListLeftPopAsync(new RedisKey[] {"empty-key", key, "also-empty"}, 2);
 
-            Assert.NotNull(res);
-            Assert.Equal(2, res.Value.Values.Length);
-            Assert.Equal("rays", res.Value.Values.First());
-            Assert.Equal("red sox", res.Value.Values.Last());
+            Assert.False(res.IsNull);
+            Assert.Equal(2, res.Values.Length);
+            Assert.Equal("rays", res.Values.First());
+            Assert.Equal("red sox", res.Values.Last());
 
             res = await db.ListRightPopAsync(new RedisKey[] {"empty-key", key, "also-empty"}, 1);
 
-            Assert.NotNull(res);
-            Assert.Single(res.Value.Values);
-            Assert.Equal("yankees", res.Value.Values.First());
+            Assert.False(res.IsNull);
+            Assert.Single(res.Values);
+            Assert.Equal("yankees", res.Values.First());
         }
 
         [Fact]
@@ -953,16 +953,16 @@ namespace StackExchange.Redis.Tests
 
             var res = db.ListLeftPop(new RedisKey[] {key}, 1);
 
-            Assert.NotNull(res);
-            Assert.Single(res.Value.Values);
-            Assert.Equal("rays", res.Value.Values.First());
+            Assert.False(res.IsNull);
+            Assert.Single(res.Values);
+            Assert.Equal("rays", res.Values.First());
 
             res = db.ListRightPop(new RedisKey[] {key}, 2);
 
-            Assert.NotNull(res);
-            Assert.Equal(2, res.Value.Values.Length);
-            Assert.Equal("yankees", res.Value.Values.First());
-            Assert.Equal("blue jays", res.Value.Values.Last());
+            Assert.False(res.IsNull);
+            Assert.Equal(2, res.Values.Length);
+            Assert.Equal("yankees", res.Values.First());
+            Assert.Equal("blue jays", res.Values.Last());
         }
 
         [Fact]
@@ -991,7 +991,7 @@ namespace StackExchange.Redis.Tests
 
             var res = await db.ListLeftPopAsync(new RedisKey[] {key}, 1);
 
-            Assert.Null(res);
+            Assert.True(res.IsNull);
         }
     }
 }

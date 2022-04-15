@@ -753,9 +753,9 @@ namespace StackExchange.Redis
         /// <param name="keys">The keys to look through for elements to pop.</param>
         /// <param name="count">The maximum number of elements to pop from the list.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>A span of contiguous elements from the list, or <see cref="ListSpan.Null"/> if no non-empty lists are found.</returns>
+        /// <returns>A span of contiguous elements from the list, or <see cref="ListEntries.Null"/> if no non-empty lists are found.</returns>
         /// <remarks>https://redis.io/commands/lmpop</remarks>
-        Task<ListSpan?> ListLeftPopAsync(RedisKey[] keys, long count, CommandFlags flags = CommandFlags.None);
+        Task<ListEntries> ListLeftPopAsync(RedisKey[] keys, long count, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Scans through the list stored at <paramref name="key"/> looking for <paramref name="element"/>, returning the 0-based
@@ -896,16 +896,16 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// Removes and returns at most specified <paramref name="count"/> of elements from the first non-empty list
-        /// within the set of <paramref name="keys"/> passed into it. Starts on the right side of the list.
-        /// If the Length of the first non-empty list is less than the the <paramref name="count"/> only the elements within that
-        /// list are returned.
+        /// within the set of <paramref name="keys"/> passed into it.
+        /// Starts on the right side of the list.
+        /// If the Length of the first non-empty list is less than the the <paramref name="count"/> only the elements within that list are returned.
         /// </summary>
-        /// <param name="keys">The keys to look through for popable elements.</param>
-        /// <param name="count">The maximum number of eelemnts to pop out of the list</param>
-        /// <param name="flags"></param>
+        /// <param name="keys">The keys to look through for elements to pop.</param>
+        /// <param name="count">The maximum number of elements to pop from the list.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>A span of contiguous elements from the list, or <see cref="ListEntries.Null"/> if no non-empty lists are found.</returns>
         /// <remarks>https://redis.io/commands/lmpop</remarks>
-        /// <returns>A span of contiguous elements from the list. Null if no non-empty lists are encountered.</returns>
-        Task<ListSpan?> ListRightPopAsync(RedisKey[] keys, long count, CommandFlags flags = CommandFlags.None);
+        Task<ListEntries> ListRightPopAsync(RedisKey[] keys, long count, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Atomically returns and removes the last element (tail) of the list stored at source, and pushes the element at the first element (head) of the list stored at destination.
@@ -1899,9 +1899,9 @@ namespace StackExchange.Redis
         /// /// <param name="count">The maximum number of records to pop out of the sorted set.</param>
         /// <param name="order">The order to sort by when popping items out of the set.</param>
         /// <param name="flags">The flags to use for the operation.</param>
-        /// <returns>A contiguous portion of sorted set entry with the key they were popped from.</returns>
+        /// <returns>A contiguous portion of sorted set entry with the key they were popped from. Or <see cref="SortedSetEntries.Null"/> if none of the keys provided has any sorted set entries.</returns>
         /// <remarks>https://redis.io/commands/zmpop</remarks>
-        Task<SortedSetSpan?> SortedSetPopAsync(RedisKey[] keys, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None);
+        Task<SortedSetEntries> SortedSetPopAsync(RedisKey[] keys, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Allow the consumer to mark a pending message as correctly processed. Returns the number of messages acknowledged.

@@ -23,6 +23,8 @@ namespace StackExchange.Redis
 
         internal bool IsNull => KeyPrefix == null && KeyValue == null;
 
+        internal static RedisKey Null { get; } = new RedisKey(null, null);
+
         internal bool IsEmpty
         {
             get

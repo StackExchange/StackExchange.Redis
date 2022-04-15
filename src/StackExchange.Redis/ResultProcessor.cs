@@ -112,11 +112,11 @@ namespace StackExchange.Redis
         public static readonly SortedSetEntryArrayProcessor
             SortedSetWithScores = new SortedSetEntryArrayProcessor();
 
-        public static readonly SortedSetSpanProcessor
-            SortedSetSpan = new SortedSetSpanProcessor();
+        public static readonly SortedSetEntriesProcessor
+            SortedSetEntries = new SortedSetEntriesProcessor();
 
-        public static readonly ListSpanProcessor
-            ListSpan = new ListSpanProcessor();
+        public static readonly ListEntriesProcessor
+            ListEntries = new ListEntriesProcessor();
 
         public static readonly SingleStreamProcessor
             SingleStream = new SingleStreamProcessor();
@@ -566,7 +566,7 @@ namespace StackExchange.Redis
                 new SortedSetEntry(first.AsRedisValue(), second.TryGetDouble(out double val) ? val : double.NaN);
         }
 
-        internal sealed class SortedSetSpanProcessor : ResultProcessor<SortedSetSpan?>
+        internal sealed class SortedSetEntriesProcessor : ResultProcessor<SortedSetEntries>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
@@ -574,6 +574,7 @@ namespace StackExchange.Redis
                 {
                     if (result.IsNull)
                     {
+                        SetResult(message, Redis.SortedSetEntries.Null);
                         return true;
                     }
 
@@ -588,7 +589,7 @@ namespace StackExchange.Redis
                         entries[i++] = item.GetItemsAsSortedSetEntry();
                     }
 
-                    SetResult(message, new SortedSetSpan(key, entries));
+                    SetResult(message, new SortedSetEntries(key, entries));
                     return true;
                 }
 
@@ -596,7 +597,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal sealed class ListSpanProcessor : ResultProcessor<ListSpan?>
+        internal sealed class ListEntriesProcessor : ResultProcessor<ListEntries>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
@@ -604,6 +605,7 @@ namespace StackExchange.Redis
                 {
                     if (result.IsNull)
                     {
+                        SetResult(message, Redis.ListEntries.Null);
                         return true;
                     }
 
@@ -618,7 +620,7 @@ namespace StackExchange.Redis
                         entries[i++] = item.AsRedisValue();
                     }
 
-                    SetResult(message, new ListSpan(key, entries));
+                    SetResult(message, new ListEntries(key, entries));
                     return true;
                 }
 
