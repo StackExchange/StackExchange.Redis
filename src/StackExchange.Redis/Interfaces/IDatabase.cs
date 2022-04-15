@@ -338,6 +338,35 @@ namespace StackExchange.Redis
         long HashLength(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Gets a random field from the hash at <paramref name="key"/>.
+        /// </summary>
+        /// <param name="key">The key of the hash.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>A random hash field name or <see cref="RedisValue.Null"/> if the hash does not exist.</returns>
+        /// <remarks>https://redis.io/commands/hrandfield</remarks>
+        RedisValue HashRandomField(RedisKey key, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Gets <paramref name="count"/> field names from the hash at <paramref name="key"/>.
+        /// </summary>
+        /// <param name="key">The key of the hash.</param>
+        /// <param name="count">The number of fields to return.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>An array of hash field names of size of at most <paramref name="count"/>, or <see cref="Array.Empty{RedisValue}"/> if the hash does not exist.</returns>
+        /// <remarks>https://redis.io/commands/hrandfield</remarks>
+        RedisValue[] HashRandomFields(RedisKey key, long count, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Gets <paramref name="count"/> field names and values from the hash at <paramref name="key"/>.
+        /// </summary>
+        /// <param name="key">The key of the hash.</param>
+        /// <param name="count">The number of fields to return.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>An array of hash entries of size of at most <paramref name="count"/>, or <see cref="Array.Empty{HashEntry}"/> if the hash does not exist.</returns>
+        /// <remarks>https://redis.io/commands/hrandfield</remarks>
+        HashEntry[] HashRandomFieldsWithValues(RedisKey key, long count, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// The HSCAN command is used to incrementally iterate over a hash.
         /// </summary>
         /// <param name="key">The key of the hash.</param>
@@ -515,6 +544,15 @@ namespace StackExchange.Redis
         /// <returns>The serialized value.</returns>
         /// <remarks>https://redis.io/commands/dump</remarks>
         byte[]? KeyDump(RedisKey key, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Returns the internal encoding for the Redis object stored at <paramref name="key"/>.
+        /// </summary>
+        /// <param name="key">The key to dump.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The Redis encoding for the value or <see langword="null"/> is the key does not exist.</returns>
+        /// <remarks>https://redis.io/commands/object-encoding</remarks>
+        string? KeyEncoding(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Returns if key exists.
@@ -1837,6 +1875,20 @@ namespace StackExchange.Redis
         /// <returns>The score of the member.</returns>
         /// <remarks>https://redis.io/commands/zscore</remarks>
         double? SortedSetScore(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Returns the scores of members in the sorted set at <paramref name="key"/>.
+        /// If a member does not exist in the sorted set, or key does not exist, <see langword="null"/> is returned.
+        /// </summary>
+        /// <param name="key">The key of the sorted set.</param>
+        /// <param name="members">The members to get a score for.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>
+        /// The scores of the members in the same order as the <paramref name="members"/> array.
+        /// If a member does not exist in the set, <see langword="null"/> is returned.
+        /// </returns>
+        /// <remarks>https://redis.io/commands/zmscore</remarks>
+        double?[] SortedSetScores(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Removes and returns the first element from the sorted set stored at key, by default with the scores ordered from low to high.

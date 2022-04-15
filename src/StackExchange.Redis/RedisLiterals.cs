@@ -56,6 +56,7 @@ namespace StackExchange.Redis
             DB = "DB",
             DESC = "DESC",
             DOCTOR = "DOCTOR",
+            ENCODING = "ENCODING",
             EX = "EX",
             EXAT = "EXAT",
             EXISTS = "EXISTS",
@@ -109,6 +110,7 @@ namespace StackExchange.Redis
             TYPE = "TYPE",
             WEIGHTS = "WEIGHTS",
             WITHSCORES = "WITHSCORES",
+            WITHVALUES = "WITHVALUES",
             XOR = "XOR",
             XX = "XX",
 
