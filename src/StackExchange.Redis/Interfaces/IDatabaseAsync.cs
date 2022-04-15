@@ -746,15 +746,15 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// Removes and returns at most specified <paramref name="count"/> of elements from the first non-empty list
-        /// within the set of <paramref name="keys"/> passed into it. Starts on the left side of the list.
-        /// If the Length of the first non-empty list is less than the the <paramref name="count"/> only the elements within that
-        /// list are returned.
+        /// within the set of <paramref name="keys"/> passed into it.
+        /// Starts on the left side of the list.
+        /// If the Length of the first non-empty list is less than the the <paramref name="count"/> only the elements within that list are returned.
         /// </summary>
-        /// <param name="keys">The keys to look through for popable elements.</param>
-        /// <param name="count">The maximum number of eelemnts to pop out of the list</param>
-        /// <param name="flags"></param>
+        /// <param name="keys">The keys to look through for elements to pop.</param>
+        /// <param name="count">The maximum number of elements to pop from the list.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>A span of contiguous elements from the list, or <see cref="ListSpan.Null"/> if no non-empty lists are found.</returns>
         /// <remarks>https://redis.io/commands/lmpop</remarks>
-        /// <returns>A span of contiguous elements from the list.</returns>
         Task<ListSpan?> ListLeftPopAsync(RedisKey[] keys, long count, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
