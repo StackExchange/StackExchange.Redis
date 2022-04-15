@@ -1027,11 +1027,11 @@ namespace StackExchange.Redis.Tests
             var key = Me();
             db.KeyDelete(key);
 
-            db.SortedSetAdd(key, new SortedSetEntry[] {new("rays", 100)});
-            db.SortedSetAdd(key, new SortedSetEntry[] {new("yankees", 92)});
-            db.SortedSetAdd(key, new SortedSetEntry[] {new("red sox", 92)});
-            db.SortedSetAdd(key, new SortedSetEntry[] {new("blue jays", 91)});
-            db.SortedSetAdd(key, new SortedSetEntry[] {new("orioles", 52)});
+            db.SortedSetAdd(key, new SortedSetEntry[] {new SortedSetEntry("rays", 100)});
+            db.SortedSetAdd(key, new SortedSetEntry[] {new SortedSetEntry("yankees", 92)});
+            db.SortedSetAdd(key, new SortedSetEntry[] {new SortedSetEntry("red sox", 92)});
+            db.SortedSetAdd(key, new SortedSetEntry[] {new SortedSetEntry("blue jays", 91)});
+            db.SortedSetAdd(key, new SortedSetEntry[] {new SortedSetEntry("orioles", 52)});
 
             var highest = db.SortedSetPop(new RedisKey[] {key}, 1, order: Order.Descending);
             Assert.NotNull(highest);
@@ -1059,11 +1059,11 @@ namespace StackExchange.Redis.Tests
             var key = Me();
             db.KeyDelete(key);
 
-            db.SortedSetAdd(key, new SortedSetEntry[] {new("rays", 100)});
-            db.SortedSetAdd(key, new SortedSetEntry[] {new("yankees", 92)});
-            db.SortedSetAdd(key, new SortedSetEntry[] {new("red sox", 92)});
-            db.SortedSetAdd(key, new SortedSetEntry[] {new("blue jays", 91)});
-            db.SortedSetAdd(key, new SortedSetEntry[] {new("orioles", 52)});
+            db.SortedSetAdd(key, new SortedSetEntry[] {new SortedSetEntry("rays", 100)});
+            db.SortedSetAdd(key, new SortedSetEntry[] {new SortedSetEntry("yankees", 92)});
+            db.SortedSetAdd(key, new SortedSetEntry[] {new SortedSetEntry("red sox", 92)});
+            db.SortedSetAdd(key, new SortedSetEntry[] {new SortedSetEntry("blue jays", 91)});
+            db.SortedSetAdd(key, new SortedSetEntry[] {new SortedSetEntry("orioles", 52)});
 
             var highest = db.SortedSetPop(new RedisKey[] {"not a real key", key, "yet another not a real key"}, 1, order: Order.Descending);
             Assert.NotNull(highest);
@@ -1117,11 +1117,11 @@ namespace StackExchange.Redis.Tests
             var key = Me();
             db.KeyDelete(key);
 
-            db.SortedSetAdd(key, new SortedSetEntry[] {new("rays", 100)});
-            db.SortedSetAdd(key, new SortedSetEntry[] {new("yankees", 92)});
-            db.SortedSetAdd(key, new SortedSetEntry[] {new("red sox", 92)});
-            db.SortedSetAdd(key, new SortedSetEntry[] {new("blue jays", 91)});
-            db.SortedSetAdd(key, new SortedSetEntry[] {new("orioles", 52)});
+            db.SortedSetAdd(key, new SortedSetEntry[] {new SortedSetEntry("rays", 100)});
+            db.SortedSetAdd(key, new SortedSetEntry[] {new SortedSetEntry("yankees", 92)});
+            db.SortedSetAdd(key, new SortedSetEntry[] {new SortedSetEntry("red sox", 92)});
+            db.SortedSetAdd(key, new SortedSetEntry[] {new SortedSetEntry("blue jays", 91)});
+            db.SortedSetAdd(key, new SortedSetEntry[] {new SortedSetEntry("orioles", 52)});
 
             var highest = await db.SortedSetPopAsync(
                 new RedisKey[] {"not a real key", key, "yet another not a real key"}, 1, order: Order.Descending);

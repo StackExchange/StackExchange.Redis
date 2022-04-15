@@ -287,7 +287,7 @@ namespace StackExchange.Redis
         internal SortedSetEntry GetItemsAsSortedSetEntry()
         {
             var items = GetItems();
-            return new(items[0].AsRedisValue(), items[1].TryGetDouble(out double val) ? val : double.NaN);
+            return new SortedSetEntry(items[0].AsRedisValue(), items[1].TryGetDouble(out double val) ? val : double.NaN);
         }
 
         private static GeoPosition AsGeoPosition(in Sequence<RawResult> coords)

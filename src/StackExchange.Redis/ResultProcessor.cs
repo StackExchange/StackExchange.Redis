@@ -588,7 +588,7 @@ namespace StackExchange.Redis
                         entries[i++] = item.GetItemsAsSortedSetEntry();
                     }
 
-                    SetResult(message, new(key, entries));
+                    SetResult(message, new SortedSetSpan(key, entries));
                     return true;
                 }
 
@@ -618,7 +618,7 @@ namespace StackExchange.Redis
                         entries[i++] = item.AsRedisValue();
                     }
 
-                    SetResult(message, new(key, entries));
+                    SetResult(message, new ListSpan(key, entries));
                     return true;
                 }
 
