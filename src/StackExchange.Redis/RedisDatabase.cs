@@ -3041,6 +3041,13 @@ namespace StackExchange.Redis
 
         private Message GetListMultiPopMessage(RedisKey[] keys, RedisValue side, long count, CommandFlags flags)
         {
+            if (keys.Length == 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(keys), "keys Must have a size of at least 1");
+            }
+
+            var slot = multiplexer.ServerSelectionStrategy.HashSlot(keys[0]);
+
             var args = new RedisValue[2 + keys.Length + (count == 1 ? 0 : 2)];
             var i = 0;
             args[i++] = keys.Length;
@@ -3057,11 +3064,19 @@ namespace StackExchange.Redis
                 args[i++] = count;
             }
 
-            return Message.Create(Database, flags, RedisCommand.LMPOP, args);
+            return Message.CreateInSlot(Database, slot, flags, RedisCommand.LMPOP, args);
         }
 
         private Message GetSortedSetMultiPopMessage(RedisKey[] keys, Order order, long count, CommandFlags flags)
         {
+            if (keys.Length == 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(keys), "keys Must have a size of at least 1");
+
+            }
+
+            var slot = multiplexer.ServerSelectionStrategy.HashSlot(keys[0]);
+
             var args = new RedisValue[2 + keys.Length + (count == 1 ? 0 : 2)];
             var i = 0;
             args[i++] = keys.Length;
@@ -3078,7 +3093,7 @@ namespace StackExchange.Redis
                 args[i++] = count;
             }
 
-            return Message.Create(Database, flags, RedisCommand.ZMPOP, args);
+            return Message.CreateInSlot(Database, slot, flags, RedisCommand.ZMPOP, args);
         }
 
         private Message? GetHashSetMessage(RedisKey key, HashEntry[] hashFields, CommandFlags flags)

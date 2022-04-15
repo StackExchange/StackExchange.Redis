@@ -993,5 +993,19 @@ namespace StackExchange.Redis.Tests
 
             Assert.True(res.IsNull);
         }
+
+        [Fact]
+        public void ListMultiPopEmptyKeys()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v7_0_0_rc1);
+
+            var db = conn.GetDatabase();
+            var exception = Assert.Throws<ArgumentOutOfRangeException>(()=>db.ListRightPop(Array.Empty<RedisKey>(), 5));
+            Assert.Contains("keys Must have a size of at least 1", exception.Message);
+
+            exception = Assert.Throws<ArgumentOutOfRangeException>(()=>db.ListLeftPop(Array.Empty<RedisKey>(), 5));
+            Assert.Contains("keys Must have a size of at least 1", exception.Message);
+        }
     }
 }
