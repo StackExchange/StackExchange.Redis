@@ -1744,7 +1744,7 @@ The coordinates as a two items x,y array (longitude,latitude).
             {
                 // See https://redis.io/commands/xautoclaim for command documentation.
 
-                if (!result.IsNull)
+                if (!result.IsNull && result.Type == ResultType.MultiBulk)
                 {
                     var items = result.GetItems();
 
@@ -1754,11 +1754,15 @@ The coordinates as a two items x,y array (longitude,latitude).
                     // [1] The array of either StreamEntry's or message IDs.
                     var entriesOrIds = items[1].GetItems();
 
-                    // [2] Contains the list of message IDs deleted from the stream.
-                    //     This is available starting in 7.0.
-                    var deletedIds = items.Length == 3
-                        ? items[2].GetItemsAsValues() ?? Array.Empty<RedisValue>()
-                        : Array.Empty<RedisValue>();
+                    // [2] The array of message IDs deleted from the stream that were in the PEL.
+                    //     This is not available in 6.2 so we need to be defensive when reading
+                    //     this part of the response.
+                    RedisValue[] deletedIds = null!;
+
+                    if (items.Length == 3)
+                    {
+                        deletedIds = items[2].GetItemsAsValues()!;
+                    }
 
                     var arr = new StreamEntry[entriesOrIds.Length];
 
@@ -1766,12 +1770,13 @@ The coordinates as a two items x,y array (longitude,latitude).
                     {
                         var item = entriesOrIds[i];
 
+                        // If JUSTID was sent with the request, only populate the ID of the StreamEntry.
                         arr[i] = processIdsOnly
                             ? new StreamEntry(item.AsRedisValue(), Array.Empty<NameValueEntry>())
                             : ParseRedisStreamEntry(entriesOrIds[i]);
                     }
 
-                    SetResult(message, new StreamAutoClaimResult(nextStartId, arr, deletedIds));
+                    SetResult(message, new StreamAutoClaimResult(nextStartId, arr, deletedIds ?? Array.Empty<RedisValue>()));
                     return true;
                 }
 

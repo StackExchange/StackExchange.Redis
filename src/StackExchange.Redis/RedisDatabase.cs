@@ -2066,9 +2066,7 @@ namespace StackExchange.Redis
                 idsOnly,
                 flags);
 
-            return idsOnly
-                ? ExecuteSync(msg, ResultProcessor.StreamAutoClaimIdsOnly)
-                : ExecuteSync(msg, ResultProcessor.StreamAutoClaim);
+            return ExecuteSync(msg, idsOnly ? ResultProcessor.StreamAutoClaimIdsOnly : ResultProcessor.StreamAutoClaim);
         }
 
         public Task<StreamAutoClaimResult> StreamAutoClaimAsync(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue startAtId, int? count = null, bool idsOnly = false, CommandFlags flags = CommandFlags.None)
@@ -2082,9 +2080,7 @@ namespace StackExchange.Redis
                 idsOnly,
                 flags);
 
-            return idsOnly
-                ? ExecuteAsync(msg, ResultProcessor.StreamAutoClaimIdsOnly)
-                : ExecuteAsync(msg, ResultProcessor.StreamAutoClaim);
+            return ExecuteAsync(msg, idsOnly ? ResultProcessor.StreamAutoClaimIdsOnly : ResultProcessor.StreamAutoClaim);
         }
 
         public StreamEntry[] StreamClaim(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
