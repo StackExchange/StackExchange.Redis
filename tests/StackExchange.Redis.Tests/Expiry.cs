@@ -50,6 +50,35 @@ namespace StackExchange.Redis.Tests
         }
 
         [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public void TestExpiryOptions(bool disablePTimes)
+        {
+            using var muxer = Create(disabledCommands: GetMap(disablePTimes), require: RedisFeatures.v7_0_0_rc1);
+
+            var key = Me();
+            var conn = muxer.GetDatabase();
+            conn.KeyDelete(key, CommandFlags.FireAndForget);
+            conn.StringSet(key, "value", flags: CommandFlags.FireAndForget);
+
+            // The key has no expiry
+            Assert.False(conn.KeyExpire(key, TimeSpan.FromHours(1), ExpireWhen.HasExpiry));
+            Assert.True(conn.KeyExpire(key, TimeSpan.FromHours(1), ExpireWhen.HasNoExpiry));
+
+            // The key has an existing expiry
+            Assert.True(conn.KeyExpire(key, TimeSpan.FromHours(1), ExpireWhen.HasExpiry));
+            Assert.False(conn.KeyExpire(key, TimeSpan.FromHours(1), ExpireWhen.HasNoExpiry));
+
+            // Set only when the new expiry is greater than current one
+            Assert.True(conn.KeyExpire(key, TimeSpan.FromHours(1.5), ExpireWhen.GreaterThanCurrentExpiry));
+            Assert.False(conn.KeyExpire(key, TimeSpan.FromHours(0.5), ExpireWhen.GreaterThanCurrentExpiry));
+
+            // Set only when the new expiry is less than current one
+            Assert.True(conn.KeyExpire(key, TimeSpan.FromHours(0.5), ExpireWhen.LessThanCurrentExpiry));
+            Assert.False(conn.KeyExpire(key, TimeSpan.FromHours(1.5), ExpireWhen.LessThanCurrentExpiry));
+        }
+
+        [Theory]
         [InlineData(true, true)]
         [InlineData(false, true)]
         [InlineData(true, false)]
@@ -103,6 +132,68 @@ namespace StackExchange.Redis.Tests
                 Assert.Null(await e);
                 Assert.Null(await f);
             }
+        }
+
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public void KeyExpiryTime(bool disablePTimes)
+        {
+            using var muxer = Create(disabledCommands: GetMap(disablePTimes), require: RedisFeatures.v7_0_0_rc1);
+
+            var key = Me();
+            var conn = muxer.GetDatabase();
+            conn.KeyDelete(key, CommandFlags.FireAndForget);
+
+            var expireTime = DateTime.UtcNow.AddHours(1);
+            conn.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
+            conn.KeyExpire(key, expireTime, CommandFlags.FireAndForget);
+
+            var time = conn.KeyExpireTime(key);
+            Assert.NotNull(time);
+            Assert.Equal(expireTime, time.Value, TimeSpan.FromSeconds(30));
+
+            // Without associated expiration time
+            conn.KeyDelete(key, CommandFlags.FireAndForget);
+            conn.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
+            time = conn.KeyExpireTime(key);
+            Assert.Null(time);
+
+            // Non existing key
+            conn.KeyDelete(key, CommandFlags.FireAndForget);
+            time = conn.KeyExpireTime(key);
+            Assert.Null(time);
+        }
+
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public async Task KeyExpiryTimeAsync(bool disablePTimes)
+        {
+            using var muxer = Create(disabledCommands: GetMap(disablePTimes), require: RedisFeatures.v7_0_0_rc1);
+
+            var key = Me();
+            var conn = muxer.GetDatabase();
+            conn.KeyDelete(key, CommandFlags.FireAndForget);
+
+            var expireTime = DateTime.UtcNow.AddHours(1);
+            conn.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
+            conn.KeyExpire(key, expireTime, CommandFlags.FireAndForget);
+
+            var time = await conn.KeyExpireTimeAsync(key);
+            Assert.NotNull(time);
+            Assert.Equal(expireTime, time.Value, TimeSpan.FromSeconds(30));
+
+            // Without associated expiration time
+            conn.KeyDelete(key, CommandFlags.FireAndForget);
+            conn.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
+            time = await conn.KeyExpireTimeAsync(key);
+            Assert.Null(time);
+
+            // Non existing key
+            conn.KeyDelete(key, CommandFlags.FireAndForget);
+            time = await conn.KeyExpireTimeAsync(key);
+            Assert.Null(time);
         }
     }
 }

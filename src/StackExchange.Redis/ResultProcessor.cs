@@ -41,6 +41,10 @@ namespace StackExchange.Redis
         public static readonly ResultProcessor<DateTime>
             DateTime = new DateTimeProcessor();
 
+        public static readonly ResultProcessor<DateTime?>
+            NullableDateTimeFromMilliseconds = new NullableDateTimeProcessor(fromMilliseconds: true),
+            NullableDateTimeFromSeconds = new NullableDateTimeProcessor(fromMilliseconds: false);
+
         public static readonly ResultProcessor<double>
                                             Double = new DoubleProcessor();
         public static readonly ResultProcessor<IGrouping<string, KeyValuePair<string, string>>[]>
@@ -964,6 +968,34 @@ namespace StackExchange.Redis
                                 break;
                         }
                         break;
+                }
+                return false;
+            }
+        }
+
+        public sealed class NullableDateTimeProcessor : ResultProcessor<DateTime?>
+        {
+            private readonly bool isMilliseconds;
+            public NullableDateTimeProcessor(bool fromMilliseconds) => isMilliseconds = fromMilliseconds;
+
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                switch (result.Type)
+                {
+                    case ResultType.Integer when result.TryGetInt64(out var duration):
+                        DateTime? expiry = duration switch
+                        {
+                            // -1 means no expiry and -2 means key does not exist
+                            < 0 => null,
+                            _ when isMilliseconds => RedisBase.UnixEpoch.AddMilliseconds(duration),
+                            _ => RedisBase.UnixEpoch.AddSeconds(duration)
+                        };
+                        SetResult(message, expiry);
+                        return true;
+
+                    case ResultType.BulkString when result.IsNull:
+                        SetResult(message, null);
+                        return true;
                 }
                 return false;
             }
