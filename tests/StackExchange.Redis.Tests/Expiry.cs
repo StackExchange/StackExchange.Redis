@@ -63,20 +63,20 @@ namespace StackExchange.Redis.Tests
             conn.StringSet(key, "value", flags: CommandFlags.FireAndForget);
 
             // The key has no expiry
-            Assert.False(conn.KeyExpire(key, TimeSpan.FromHours(1), ExpiryWhen.HasExpiry));
-            Assert.True(conn.KeyExpire(key, TimeSpan.FromHours(1), ExpiryWhen.HasNoExpiry));
+            Assert.False(conn.KeyExpire(key, TimeSpan.FromHours(1), ExpireWhen.HasExpiry));
+            Assert.True(conn.KeyExpire(key, TimeSpan.FromHours(1), ExpireWhen.HasNoExpiry));
 
             // The key has an existing expiry
-            Assert.True(conn.KeyExpire(key, TimeSpan.FromHours(1), ExpiryWhen.HasExpiry));
-            Assert.False(conn.KeyExpire(key, TimeSpan.FromHours(1), ExpiryWhen.HasNoExpiry));
+            Assert.True(conn.KeyExpire(key, TimeSpan.FromHours(1), ExpireWhen.HasExpiry));
+            Assert.False(conn.KeyExpire(key, TimeSpan.FromHours(1), ExpireWhen.HasNoExpiry));
 
             // Set only when the new expiry is greater than current one
-            Assert.True(conn.KeyExpire(key, TimeSpan.FromHours(1.5), ExpiryWhen.GreaterThanCurrentExpiry));
-            Assert.False(conn.KeyExpire(key, TimeSpan.FromHours(0.5), ExpiryWhen.GreaterThanCurrentExpiry));
+            Assert.True(conn.KeyExpire(key, TimeSpan.FromHours(1.5), ExpireWhen.GreaterThanCurrentExpiry));
+            Assert.False(conn.KeyExpire(key, TimeSpan.FromHours(0.5), ExpireWhen.GreaterThanCurrentExpiry));
 
             // Set only when the new expiry is less than current one
-            Assert.True(conn.KeyExpire(key, TimeSpan.FromHours(0.5), ExpiryWhen.LessThanCurrentExpiry));
-            Assert.False(conn.KeyExpire(key, TimeSpan.FromHours(1.5), ExpiryWhen.LessThanCurrentExpiry));
+            Assert.True(conn.KeyExpire(key, TimeSpan.FromHours(0.5), ExpireWhen.LessThanCurrentExpiry));
+            Assert.False(conn.KeyExpire(key, TimeSpan.FromHours(1.5), ExpireWhen.LessThanCurrentExpiry));
         }
 
         [Theory]
@@ -140,8 +140,7 @@ namespace StackExchange.Redis.Tests
         [InlineData(false)]
         public void KeyExpiryTime(bool disablePTimes)
         {
-            using var muxer = Create(disabledCommands: GetMap(disablePTimes));
-            Skip.IfBelow(muxer, RedisFeatures.v7_0_0_rc1);
+            using var muxer = Create(disabledCommands: GetMap(disablePTimes), require: RedisFeatures.v7_0_0_rc1);
 
             var key = Me();
             var conn = muxer.GetDatabase();
@@ -172,8 +171,7 @@ namespace StackExchange.Redis.Tests
         [InlineData(false)]
         public async Task KeyExpiryTimeAsync(bool disablePTimes)
         {
-            using var muxer = Create(disabledCommands: GetMap(disablePTimes));
-            Skip.IfBelow(muxer, RedisFeatures.v7_0_0_rc1);
+            using var muxer = Create(disabledCommands: GetMap(disablePTimes), require: RedisFeatures.v7_0_0_rc1);
 
             var key = Me();
             var conn = muxer.GetDatabase();
