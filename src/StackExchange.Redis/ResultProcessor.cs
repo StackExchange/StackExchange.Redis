@@ -579,10 +579,7 @@ namespace StackExchange.Redis
                     }
 
                     var arr = result.GetItems();
-                    var key = arr[0].AsRedisKey();
-                    var entries = arr[1].ToArray((in RawResult x) => x.GetItemsAsSortedSetEntry())!;
-
-                    SetResult(message, new SortedSetPopResult(key, entries));
+                    SetResult(message, new SortedSetPopResult(arr[0].AsRedisKey(), arr[1].GetItemsAsSortedSetEntryArray()!));
                     return true;
                 }
 
