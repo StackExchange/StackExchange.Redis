@@ -54,8 +54,7 @@ namespace StackExchange.Redis.Tests
         [InlineData(false)]
         public void TestExpiryOptions(bool disablePTimes)
         {
-            using var muxer = Create(disabledCommands: GetMap(disablePTimes));
-            Skip.IfBelow(muxer, RedisFeatures.v7_0_0_rc1);
+            using var muxer = Create(disabledCommands: GetMap(disablePTimes), require: RedisFeatures.v7_0_0_rc1);
 
             var key = Me();
             var conn = muxer.GetDatabase();
