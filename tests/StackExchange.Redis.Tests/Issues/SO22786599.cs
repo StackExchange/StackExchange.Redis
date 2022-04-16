@@ -3,35 +3,33 @@ using System.Linq;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace StackExchange.Redis.Tests.Issues
+namespace StackExchange.Redis.Tests.Issues;
+
+public class SO22786599 : TestBase
 {
-    public class SO22786599 : TestBase
+    public SO22786599(ITestOutputHelper output) : base(output) { }
+
+    [Fact]
+    public void Execute()
     {
-        public SO22786599(ITestOutputHelper output) : base(output) { }
+        string CurrentIdsSetDbKey = Me() + ".x";
+        string CurrentDetailsSetDbKey = Me() + ".y";
 
-        [Fact]
-        public void Execute()
-        {
-            string CurrentIdsSetDbKey = Me() + ".x";
-            string CurrentDetailsSetDbKey = Me() + ".y";
+        RedisValue[] stringIds = Enumerable.Range(1, 750).Select(i => (RedisValue)(i + " id")).ToArray();
+        RedisValue[] stringDetails = Enumerable.Range(1, 750).Select(i => (RedisValue)(i + " detail")).ToArray();
 
-            RedisValue[] stringIds = Enumerable.Range(1, 750).Select(i => (RedisValue)(i + " id")).ToArray();
-            RedisValue[] stringDetails = Enumerable.Range(1, 750).Select(i => (RedisValue)(i + " detail")).ToArray();
+        using var conn = Create();
 
-            using (var conn = Create())
-            {
-                var db = conn.GetDatabase();
-                var tran = db.CreateTransaction();
+        var db = conn.GetDatabase();
+        var tran = db.CreateTransaction();
 
-                tran.SetAddAsync(CurrentIdsSetDbKey, stringIds);
-                tran.SetAddAsync(CurrentDetailsSetDbKey, stringDetails);
+        tran.SetAddAsync(CurrentIdsSetDbKey, stringIds);
+        tran.SetAddAsync(CurrentDetailsSetDbKey, stringDetails);
 
-                var watch = Stopwatch.StartNew();
-                var isOperationSuccessful = tran.Execute();
-                watch.Stop();
-                Log("{0}ms", watch.ElapsedMilliseconds);
-                Assert.True(isOperationSuccessful);
-            }
-        }
+        var watch = Stopwatch.StartNew();
+        var isOperationSuccessful = tran.Execute();
+        watch.Stop();
+        Log("{0}ms", watch.ElapsedMilliseconds);
+        Assert.True(isOperationSuccessful);
     }
 }
