@@ -15,18 +15,6 @@ public static class Skip
         }
     }
 
-    public static void IfBelow(IConnectionMultiplexer conn, Version minVersion)
-    {
-        var serverVersion = conn.GetServer(conn.GetEndPoints()[0]).Version;
-        if (minVersion > serverVersion)
-        {
-            throw new SkipTestException($"Requires server version {minVersion}, but server is only {serverVersion}.")
-            {
-                MissingFeatures = $"Server version >= {minVersion}."
-            };
-        }
-    }
-
     internal static void IfMissingDatabase(IConnectionMultiplexer conn, int dbId)
     {
         var dbCount = conn.GetServer(conn.GetEndPoints()[0]).DatabaseCount;

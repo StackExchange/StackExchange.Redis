@@ -290,13 +290,10 @@ public abstract class TestBase : IDisposable
             && backlogPolicy == null)
         {
             configuration = GetConfiguration();
+            // Only return if we match
             if (configuration == _fixture.Configuration)
             {
-                // Only return if we match
-                if (require != null)
-                {
-                    Skip.IfBelow(_fixture.Connection, require);
-                }
+                ThrowIfBelowMinVersion(_fixture.Connection, require);
                 return _fixture.Connection;
             }
         }
@@ -313,15 +310,29 @@ public abstract class TestBase : IDisposable
             backlogPolicy,
             caller);
 
-        if (require != null)
-        {
-            Skip.IfBelow(muxer, require);
-        }
+        ThrowIfBelowMinVersion(muxer, require);
 
         muxer.InternalError += OnInternalError;
         muxer.ConnectionFailed += OnConnectionFailed;
         muxer.ConnectionRestored += (s, e) => Log($"Connection Restored ({e.ConnectionType},{e.FailureType}): {e.Exception}");
         return muxer;
+    }
+
+    private void ThrowIfBelowMinVersion(IInternalConnectionMultiplexer conn, Version? requiredVersion)
+    {
+        if (requiredVersion is null)
+        {
+            return;
+        }
+
+        var serverVersion = conn.GetServer(conn.GetEndPoints()[0]).Version;
+        if (requiredVersion > serverVersion)
+        {
+            throw new SkipTestException($"Requires server version {requiredVersion}, but server is only {serverVersion}.")
+            {
+                MissingFeatures = $"Server version >= {requiredVersion}."
+            };
+        }
     }
 
     public static ConnectionMultiplexer CreateDefault(
