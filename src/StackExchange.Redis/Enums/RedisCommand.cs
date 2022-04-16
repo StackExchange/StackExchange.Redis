@@ -48,6 +48,8 @@
         GEOPOS,
         GEORADIUS,
         GEORADIUSBYMEMBER,
+        GEOSEARCH,
+        GEOSEARCHSTORE,
 
         GET,
         GETBIT,
