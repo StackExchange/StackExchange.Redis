@@ -3170,7 +3170,7 @@ namespace StackExchange.Redis
         {
             if (keys is null || keys.Length == 0)
             {
-                throw new ArgumentOutOfRangeException(nameof(keys), "keys Must have a size of at least 1");
+                throw new ArgumentOutOfRangeException(nameof(keys), "keys must have a size of at least 1");
             }
 
             var slot = multiplexer.ServerSelectionStrategy.HashSlot(keys[0]);
@@ -3198,7 +3198,7 @@ namespace StackExchange.Redis
         {
             if (keys is null || keys.Length == 0)
             {
-                throw new ArgumentOutOfRangeException(nameof(keys), "keys Must have a size of at least 1");
+                throw new ArgumentOutOfRangeException(nameof(keys), "keys must have a size of at least 1");
             }
 
             var slot = multiplexer.ServerSelectionStrategy.HashSlot(keys[0]);
