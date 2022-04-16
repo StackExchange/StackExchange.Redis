@@ -3041,7 +3041,7 @@ namespace StackExchange.Redis
 
         private Message GetListMultiPopMessage(RedisKey[] keys, RedisValue side, long count, CommandFlags flags)
         {
-            if (keys.Length == 0)
+            if (keys is null || keys.Length == 0)
             {
                 throw new ArgumentOutOfRangeException(nameof(keys), "keys Must have a size of at least 1");
             }
@@ -3069,10 +3069,9 @@ namespace StackExchange.Redis
 
         private Message GetSortedSetMultiPopMessage(RedisKey[] keys, Order order, long count, CommandFlags flags)
         {
-            if (keys.Length == 0)
+            if (keys is null || keys.Length == 0)
             {
                 throw new ArgumentOutOfRangeException(nameof(keys), "keys Must have a size of at least 1");
-
             }
 
             var slot = multiplexer.ServerSelectionStrategy.HashSlot(keys[0]);

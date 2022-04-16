@@ -1940,14 +1940,14 @@ namespace StackExchange.Redis
         SortedSetEntry[] SortedSetPop(RedisKey key, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Removes and returns up to the the specified <paramref name="count"/> of entries from the first non-empty sorted set specified by <paramref name="keys"/>
-        /// returns <see langword="null"/> if none of the specified <paramref name="keys"/> contain any elements.
+        /// Removes and returns up to the the specified <paramref name="count"/> of entries from the first non-empty sorted set specified by <paramref name="keys"/>.
+        /// Returns <see cref="SortedSetEntries.Null"/> if none of the specified <paramref name="keys"/> contain any elements.
         /// </summary>
         /// <param name="keys">The keys to check.</param>
         /// <param name="count">The maximum number of records to pop out of the sorted set.</param>
         /// <param name="order">The order to sort by when popping items out of the set.</param>
         /// <param name="flags">The flags to use for the operation.</param>
-        /// <returns>A contiguous portion of sorted set entry with the key they were popped from. Or <see cref="SortedSetEntries.Null"/> if none of the keys has any sorted set entries.</returns>
+        /// <returns>A contiguous collection of sorted set entries with the key they were popped from, or <see cref="SortedSetEntries.Null"/> if no non-empty sorted sets are found.</returns>
         /// <remarks>https://redis.io/commands/zmpop</remarks>
         SortedSetEntries SortedSetPop(RedisKey[] keys, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None);
 
