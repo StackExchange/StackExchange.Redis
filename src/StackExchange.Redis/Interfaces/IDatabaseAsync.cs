@@ -855,10 +855,8 @@ namespace StackExchange.Redis
         Task<RedisValue[]> ListLeftPopAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Removes and returns at most specified <paramref name="count"/> of elements from the first non-empty list
-        /// within the set of <paramref name="keys"/> passed into it.
+        /// Removes and returns at most <paramref name="count"/> elements from the first non-empty list in <paramref name="keys"/>.
         /// Starts on the left side of the list.
-        /// If the length of the first non-empty list is less than <paramref name="count"/>, only the elements within that list are returned.
         /// </summary>
         /// <param name="keys">The keys to look through for elements to pop.</param>
         /// <param name="count">The maximum number of elements to pop from the list.</param>
@@ -1005,10 +1003,8 @@ namespace StackExchange.Redis
         Task<RedisValue[]> ListRightPopAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Removes and returns at most specified <paramref name="count"/> of elements from the first non-empty list
-        /// within the set of <paramref name="keys"/> passed into it.
+        /// Removes and returns at most <paramref name="count"/> elements from the first non-empty list in <paramref name="keys"/>.
         /// Starts on the right side of the list.
-        /// If the length of the first non-empty list is less than <paramref name="count"/>, only the elements within that list are returned.
         /// </summary>
         /// <param name="keys">The keys to look through for elements to pop.</param>
         /// <param name="count">The maximum number of elements to pop from the list.</param>
