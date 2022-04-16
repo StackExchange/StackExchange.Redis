@@ -4,77 +4,73 @@ using System.Threading;
 using System.Threading.Tasks;
 using Xunit.Abstractions;
 
-namespace StackExchange.Redis.Tests.Issues
+namespace StackExchange.Redis.Tests.Issues;
+
+public class Massive_Delete : TestBase
 {
-    public class Massive_Delete : TestBase
+    public Massive_Delete(ITestOutputHelper output) : base(output) { }
+
+    private void Prep(int dbId, string key)
     {
-        public Massive_Delete(ITestOutputHelper output) : base(output) { }
+        using var conn = Create(allowAdmin: true);
 
-        private void Prep(int db, string key)
+        var prefix = Me();
+        Skip.IfMissingDatabase(conn, dbId);
+        GetServer(conn).FlushDatabase(dbId);
+        Task? last = null;
+        var db = conn.GetDatabase(dbId);
+        for (int i = 0; i < 10000; i++)
         {
-            var prefix = Me();
-            using (var muxer = Create(allowAdmin: true))
-            {
-                Skip.IfMissingDatabase(muxer, db);
-                GetServer(muxer).FlushDatabase(db);
-                Task? last = null;
-                var conn = muxer.GetDatabase(db);
-                for (int i = 0; i < 10000; i++)
-                {
-                    string iKey = prefix + i;
-                    conn.StringSetAsync(iKey, iKey);
-                    last = conn.SetAddAsync(key, iKey);
-                }
-                conn.Wait(last!);
-            }
+            string iKey = prefix + i;
+            db.StringSetAsync(iKey, iKey);
+            last = db.SetAddAsync(key, iKey);
         }
+        db.Wait(last!);
+    }
 
-        [FactLongRunning]
-        public async Task ExecuteMassiveDelete()
+    [FactLongRunning]
+    public async Task ExecuteMassiveDelete()
+    {
+        var dbId = TestConfig.GetDedicatedDB();
+        var key = Me();
+        Prep(dbId, key);
+        var watch = Stopwatch.StartNew();
+        using var conn = Create();
+        using var throttle = new SemaphoreSlim(1);
+        var db = conn.GetDatabase(dbId);
+        var originally = await db.SetLengthAsync(key).ForAwait();
+        int keepChecking = 1;
+        Task? last = null;
+        while (Volatile.Read(ref keepChecking) == 1)
         {
-            var dbId = TestConfig.GetDedicatedDB();
-            var key = Me();
-            Prep(dbId, key);
-            var watch = Stopwatch.StartNew();
-            using (var muxer = Create())
-            using (var throttle = new SemaphoreSlim(1))
+            throttle.Wait(); // acquire
+            var x = db.SetPopAsync(key).ContinueWith(task =>
             {
-                var conn = muxer.GetDatabase(dbId);
-                var originally = await conn.SetLengthAsync(key).ForAwait();
-                int keepChecking = 1;
-                Task? last = null;
-                while (Volatile.Read(ref keepChecking) == 1)
+                throttle.Release();
+                if (task.IsCompleted)
                 {
-                    throttle.Wait(); // acquire
-                    var x = conn.SetPopAsync(key).ContinueWith(task =>
+                    if ((string?)task.Result == null)
                     {
-                        throttle.Release();
-                        if (task.IsCompleted)
-                        {
-                            if ((string?)task.Result == null)
-                            {
-                                Volatile.Write(ref keepChecking, 0);
-                            }
-                            else
-                            {
-                                last = conn.KeyDeleteAsync((string?)task.Result);
-                            }
-                        }
-                    });
-                    GC.KeepAlive(x);
+                        Volatile.Write(ref keepChecking, 0);
+                    }
+                    else
+                    {
+                        last = db.KeyDeleteAsync((string?)task.Result);
+                    }
                 }
-                if (last != null)
-                {
-                    await last;
-                }
-                watch.Stop();
-                long remaining = await conn.SetLengthAsync(key).ForAwait();
-                Log("From {0} to {1}; {2}ms", originally, remaining,
-                    watch.ElapsedMilliseconds);
-
-                var counters = GetServer(muxer).GetCounters();
-                Log("Completions: {0} sync, {1} async", counters.Interactive.CompletedSynchronously, counters.Interactive.CompletedAsynchronously);
-            }
+            });
+            GC.KeepAlive(x);
         }
+        if (last != null)
+        {
+            await last;
+        }
+        watch.Stop();
+        long remaining = await db.SetLengthAsync(key).ForAwait();
+        Log("From {0} to {1}; {2}ms", originally, remaining,
+            watch.ElapsedMilliseconds);
+
+        var counters = GetServer(conn).GetCounters();
+        Log("Completions: {0} sync, {1} async", counters.Interactive.CompletedSynchronously, counters.Interactive.CompletedAsynchronously);
     }
 }
