@@ -121,6 +121,25 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public async Task StreamAutoClaim_MissingKey()
+        {
+            using var conn = Create(require: RedisFeatures.v6_2_0);
+
+            var key = Me();
+            var db = conn.GetDatabase();
+            const string group = "consumerGroup",
+                         consumer = "consumer";
+
+            db.KeyDelete(key);
+
+            var ex = Assert.Throws<RedisServerException>(() => db.StreamAutoClaim(key, group, consumer, 0, "0-0"));
+            Assert.StartsWith("NOGROUP No such key", ex.Message);
+
+            ex = await Assert.ThrowsAsync<RedisServerException>(() => db.StreamAutoClaimAsync(key, group, consumer, 0, "0-0"));
+            Assert.StartsWith("NOGROUP No such key", ex.Message);
+        }
+
+        [Fact]
         public void StreamAutoClaim_ClaimsPendingMessages()
         {
             using var conn = Create(require: RedisFeatures.v6_2_0);
