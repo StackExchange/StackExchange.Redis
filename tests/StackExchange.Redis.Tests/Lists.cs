@@ -890,13 +890,13 @@ namespace StackExchange.Redis.Tests
             db.ListLeftPush(key, "red sox");
             db.ListLeftPush(key, "rays");
 
-            var res = await db.ListLeftPopAsync(new RedisKey[] {key}, 1);
+            var res = await db.ListLeftPopAsync(new RedisKey[] { key }, 1);
 
             Assert.False(res.IsNull);
             Assert.Single(res.Values);
             Assert.Equal("rays", res.Values.First());
 
-            res = await db.ListRightPopAsync(new RedisKey[] {key}, 2);
+            res = await db.ListRightPopAsync(new RedisKey[] { key }, 2);
 
             Assert.False(res.IsNull);
             Assert.Equal(2, res.Values.Length);
@@ -919,14 +919,14 @@ namespace StackExchange.Redis.Tests
             db.ListLeftPush(key, "red sox");
             db.ListLeftPush(key, "rays");
 
-            var res = await db.ListLeftPopAsync(new RedisKey[] {"empty-key", key, "also-empty"}, 2);
+            var res = await db.ListLeftPopAsync(new RedisKey[] { "empty-key", key, "also-empty" }, 2);
 
             Assert.False(res.IsNull);
             Assert.Equal(2, res.Values.Length);
             Assert.Equal("rays", res.Values.First());
             Assert.Equal("red sox", res.Values.Last());
 
-            res = await db.ListRightPopAsync(new RedisKey[] {"empty-key", key, "also-empty"}, 1);
+            res = await db.ListRightPopAsync(new RedisKey[] { "empty-key", key, "also-empty" }, 1);
 
             Assert.False(res.IsNull);
             Assert.Single(res.Values);
@@ -948,13 +948,13 @@ namespace StackExchange.Redis.Tests
             db.ListLeftPush(key, "red sox");
             db.ListLeftPush(key, "rays");
 
-            var res = db.ListLeftPop(new RedisKey[] {key}, 1);
+            var res = db.ListLeftPop(new RedisKey[] { key }, 1);
 
             Assert.False(res.IsNull);
             Assert.Single(res.Values);
             Assert.Equal("rays", res.Values.First());
 
-            res = db.ListRightPop(new RedisKey[] {key}, 2);
+            res = db.ListRightPop(new RedisKey[] { key }, 2);
 
             Assert.False(res.IsNull);
             Assert.Equal(2, res.Values.Length);
@@ -971,7 +971,7 @@ namespace StackExchange.Redis.Tests
             var key = Me();
             db.KeyDelete(key);
 
-            var exception = await Assert.ThrowsAsync<RedisServerException>( () => db.ListLeftPopAsync(new RedisKey[] {key}, 0));
+            var exception = await Assert.ThrowsAsync<RedisServerException>(() => db.ListLeftPopAsync(new RedisKey[] { key }, 0));
             Assert.Contains("ERR count should be greater than 0", exception.Message);
         }
 
@@ -984,8 +984,7 @@ namespace StackExchange.Redis.Tests
             var key = Me();
             db.KeyDelete(key);
 
-            var res = await db.ListLeftPopAsync(new RedisKey[] {key}, 1);
-
+            var res = await db.ListLeftPopAsync(new RedisKey[] { key }, 1);
             Assert.True(res.IsNull);
         }
 
@@ -995,11 +994,11 @@ namespace StackExchange.Redis.Tests
             using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
             var db = conn.GetDatabase();
-            var exception = Assert.Throws<ArgumentOutOfRangeException>(()=>db.ListRightPop(Array.Empty<RedisKey>(), 5));
-            Assert.Contains("keys Must have a size of at least 1", exception.Message);
+            var exception = Assert.Throws<ArgumentOutOfRangeException>(() => db.ListRightPop(Array.Empty<RedisKey>(), 5));
+            Assert.Contains("keys must have a size of at least 1", exception.Message);
 
-            exception = Assert.Throws<ArgumentOutOfRangeException>(()=>db.ListLeftPop(Array.Empty<RedisKey>(), 5));
-            Assert.Contains("keys Must have a size of at least 1", exception.Message);
+            exception = Assert.Throws<ArgumentOutOfRangeException>(() => db.ListLeftPop(Array.Empty<RedisKey>(), 5));
+            Assert.Contains("keys must have a size of at least 1", exception.Message);
         }
     }
 }

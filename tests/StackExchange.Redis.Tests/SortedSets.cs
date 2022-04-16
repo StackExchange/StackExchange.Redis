@@ -1020,31 +1020,30 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void SortedSetMultiPopSingleKey()
         {
-            using var conn = Create();
-            Skip.IfBelow(conn, RedisFeatures.v7_0_0_rc1);
+            using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
             var db = conn.GetDatabase();
             var key = Me();
             db.KeyDelete(key);
 
-            db.SortedSetAdd(key, new SortedSetEntry[] {new SortedSetEntry("rays", 100)});
-            db.SortedSetAdd(key, new SortedSetEntry[] {new SortedSetEntry("yankees", 92)});
-            db.SortedSetAdd(key, new SortedSetEntry[] {new SortedSetEntry("red sox", 92)});
-            db.SortedSetAdd(key, new SortedSetEntry[] {new SortedSetEntry("blue jays", 91)});
-            db.SortedSetAdd(key, new SortedSetEntry[] {new SortedSetEntry("orioles", 52)});
+            db.SortedSetAdd(key, new SortedSetEntry[] { new SortedSetEntry("rays", 100) });
+            db.SortedSetAdd(key, new SortedSetEntry[] { new SortedSetEntry("yankees", 92) });
+            db.SortedSetAdd(key, new SortedSetEntry[] { new SortedSetEntry("red sox", 92) });
+            db.SortedSetAdd(key, new SortedSetEntry[] { new SortedSetEntry("blue jays", 91) });
+            db.SortedSetAdd(key, new SortedSetEntry[] { new SortedSetEntry("orioles", 52) });
 
-            var highest = db.SortedSetPop(new RedisKey[] {key}, 1, order: Order.Descending);
+            var highest = db.SortedSetPop(new RedisKey[] { key }, 1, order: Order.Descending);
             Assert.False(highest.IsNull);
             Assert.Equal(key, highest.Key);
             Assert.Equal("rays", highest.Entries.Single().Element);
             Assert.Equal(100, highest.Entries.Single().Score);
 
-            var bottom2 = db.SortedSetPop(new RedisKey[] {key}, 2);
+            var bottom2 = db.SortedSetPop(new RedisKey[] { key }, 2);
             Assert.False(bottom2.IsNull);
-            Assert.Equal(key,bottom2.Key);
+            Assert.Equal(key, bottom2.Key);
             Assert.Equal(2, bottom2.Entries.Length);
-            Assert.Equal("orioles", bottom2.Entries.First().Element);
-            Assert.Equal(52, bottom2.Entries.First().Score);
+            Assert.Equal("orioles", bottom2.Entries[0].Element);
+            Assert.Equal(52, bottom2.Entries[0].Score);
             Assert.Equal("blue jays", bottom2.Entries.Last().Element);
             Assert.Equal(91, bottom2.Entries.Last().Score);
         }
@@ -1052,31 +1051,30 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void SortedSetMultiPopMultiKey()
         {
-            using var conn = Create();
-            Skip.IfBelow(conn, RedisFeatures.v7_0_0_rc1);
+            using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
             var db = conn.GetDatabase();
             var key = Me();
             db.KeyDelete(key);
 
-            db.SortedSetAdd(key, new SortedSetEntry[] {new SortedSetEntry("rays", 100)});
-            db.SortedSetAdd(key, new SortedSetEntry[] {new SortedSetEntry("yankees", 92)});
-            db.SortedSetAdd(key, new SortedSetEntry[] {new SortedSetEntry("red sox", 92)});
-            db.SortedSetAdd(key, new SortedSetEntry[] {new SortedSetEntry("blue jays", 91)});
-            db.SortedSetAdd(key, new SortedSetEntry[] {new SortedSetEntry("orioles", 52)});
+            db.SortedSetAdd(key, new SortedSetEntry[] { new SortedSetEntry("rays", 100) });
+            db.SortedSetAdd(key, new SortedSetEntry[] { new SortedSetEntry("yankees", 92) });
+            db.SortedSetAdd(key, new SortedSetEntry[] { new SortedSetEntry("red sox", 92) });
+            db.SortedSetAdd(key, new SortedSetEntry[] { new SortedSetEntry("blue jays", 91) });
+            db.SortedSetAdd(key, new SortedSetEntry[] { new SortedSetEntry("orioles", 52) });
 
-            var highest = db.SortedSetPop(new RedisKey[] {"not a real key", key, "yet another not a real key"}, 1, order: Order.Descending);
+            var highest = db.SortedSetPop(new RedisKey[] { "not a real key", key, "yet another not a real key" }, 1, order: Order.Descending);
             Assert.False(highest.IsNull);
             Assert.Equal(key, highest.Key);
             Assert.Equal("rays", highest.Entries.Single().Element);
             Assert.Equal(100, highest.Entries.Single().Score);
 
-            var bottom2 = db.SortedSetPop(new RedisKey[] {"not a real key", key, "yet another not a real key"}, 2);
+            var bottom2 = db.SortedSetPop(new RedisKey[] { "not a real key", key, "yet another not a real key" }, 2);
             Assert.False(bottom2.IsNull);
-            Assert.Equal(key,bottom2.Key);
+            Assert.Equal(key, bottom2.Key);
             Assert.Equal(2, bottom2.Entries.Length);
-            Assert.Equal("orioles", bottom2.Entries.First().Element);
-            Assert.Equal(52, bottom2.Entries.First().Score);
+            Assert.Equal("orioles", bottom2.Entries[0].Element);
+            Assert.Equal(52, bottom2.Entries[0].Score);
             Assert.Equal("blue jays", bottom2.Entries.Last().Element);
             Assert.Equal(91, bottom2.Entries.Last().Score);
         }
@@ -1084,54 +1082,50 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void SortedSetMultiPopNoSet()
         {
-            using var conn = Create();
-            Skip.IfBelow(conn, RedisFeatures.v7_0_0_rc1);
+            using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
             var db = conn.GetDatabase();
             var key = Me();
             db.KeyDelete(key);
-            var res = db.SortedSetPop(new RedisKey[] {key}, 1);
+            var res = db.SortedSetPop(new RedisKey[] { key }, 1);
             Assert.True(res.IsNull);
         }
 
         [Fact]
         public void SortedSetMultiPopCount0()
         {
-            using var conn = Create();
-            Skip.IfBelow(conn, RedisFeatures.v7_0_0_rc1);
+            using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
             var db = conn.GetDatabase();
             var key = Me();
             db.KeyDelete(key);
-            var exception = Assert.Throws<RedisServerException>(() => db.SortedSetPop(new RedisKey[] {key}, 0));
+            var exception = Assert.Throws<RedisServerException>(() => db.SortedSetPop(new RedisKey[] { key }, 0));
             Assert.Contains("ERR count should be greater than 0", exception.Message);
         }
 
         [Fact]
         public async Task SortedSetMultiPopAsync()
         {
-            using var conn = Create();
-            Skip.IfBelow(conn, RedisFeatures.v7_0_0_rc1);
+            using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
             var db = conn.GetDatabase();
             var key = Me();
             db.KeyDelete(key);
 
-            db.SortedSetAdd(key, new SortedSetEntry[] {new SortedSetEntry("rays", 100)});
-            db.SortedSetAdd(key, new SortedSetEntry[] {new SortedSetEntry("yankees", 92)});
-            db.SortedSetAdd(key, new SortedSetEntry[] {new SortedSetEntry("red sox", 92)});
-            db.SortedSetAdd(key, new SortedSetEntry[] {new SortedSetEntry("blue jays", 91)});
-            db.SortedSetAdd(key, new SortedSetEntry[] {new SortedSetEntry("orioles", 52)});
+            db.SortedSetAdd(key, new SortedSetEntry[] { new SortedSetEntry("rays", 100) });
+            db.SortedSetAdd(key, new SortedSetEntry[] { new SortedSetEntry("yankees", 92) });
+            db.SortedSetAdd(key, new SortedSetEntry[] { new SortedSetEntry("red sox", 92) });
+            db.SortedSetAdd(key, new SortedSetEntry[] { new SortedSetEntry("blue jays", 91) });
+            db.SortedSetAdd(key, new SortedSetEntry[] { new SortedSetEntry("orioles", 52) });
 
             var highest = await db.SortedSetPopAsync(
-                new RedisKey[] {"not a real key", key, "yet another not a real key"}, 1, order: Order.Descending);
+                new RedisKey[] { "not a real key", key, "yet another not a real key" }, 1, order: Order.Descending);
             Assert.False(highest.IsNull);
             Assert.Equal(key, highest.Key);
             Assert.Equal("rays", highest.Entries.Single().Element);
             Assert.Equal(100, highest.Entries.Single().Score);
 
-            var bottom2 =
-                await db.SortedSetPopAsync(new RedisKey[] {"not a real key", key, "yet another not a real key"}, 2);
+            var bottom2 = await db.SortedSetPopAsync(new RedisKey[] { "not a real key", key, "yet another not a real key" }, 2);
             Assert.False(bottom2.IsNull);
             Assert.Equal(key, bottom2.Key);
             Assert.Equal(2, bottom2.Entries.Length);
@@ -1144,12 +1138,11 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void SortedSetMultiPopEmptyKeys()
         {
-            using var conn = Create();
-            Skip.IfBelow(conn, RedisFeatures.v7_0_0_rc1);
+            using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
             var db = conn.GetDatabase();
-            var exception = Assert.Throws<ArgumentOutOfRangeException>(()=>db.SortedSetPop(Array.Empty<RedisKey>(), 5));
-            Assert.Contains("keys Must have a size of at least 1", exception.Message);
+            var exception = Assert.Throws<ArgumentOutOfRangeException>(() => db.SortedSetPop(Array.Empty<RedisKey>(), 5));
+            Assert.Contains("keys must have a size of at least 1", exception.Message);
         }
 
         [Fact]
@@ -1160,7 +1153,7 @@ namespace StackExchange.Redis.Tests
 
             var db = conn.GetDatabase();
             var key = Me();
-            var memberName = "member";
+            const string memberName = "member";
 
             db.KeyDelete(key);
             db.SortedSetAdd(key, memberName, 1.5);
@@ -1179,7 +1172,7 @@ namespace StackExchange.Redis.Tests
 
             var db = conn.GetDatabase();
             var key = Me();
-            var memberName = "member";
+            const string memberName = "member";
 
             await db.KeyDeleteAsync(key);
             await db.SortedSetAddAsync(key, memberName, 1.5);
