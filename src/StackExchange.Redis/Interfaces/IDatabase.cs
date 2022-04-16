@@ -194,6 +194,74 @@ namespace StackExchange.Redis
         GeoRadiusResult[] GeoRadius(RedisKey key, double longitude, double latitude, double radius, GeoUnit unit = GeoUnit.Meters, int count = -1, Order? order = null, GeoRadiusOptions options = GeoRadiusOptions.Default, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Return the members of the geo-encoded sorted set stored at <paramref name="key"/> bounded by the provided
+        /// <paramref name="shape"/>, centered at the provided set <paramref name="member"/>.
+        /// </summary>
+        /// <param name="key">The key of the set.</param>
+        /// <param name="member">The set member to use as the center of the shape.</param>
+        /// <param name="shape">The shape to use to bound the geo search.</param>
+        /// <param name="count">The maximum number of results to pull back.</param>
+        /// <param name="demandClosest">Whether or not to terminate the search after finding <paramref name="count"/> results. Must be true of count is -1.</param>
+        /// <param name="order">The order to sort by (defaults to unordered).</param>
+        /// <param name="options">The search options to use</param>
+        /// <param name="flags">The flags for this operation.</param>
+        /// <returns>The results found within the shape, if any.</returns>
+        /// <remarks>https://redis.io/commands/geosearch</remarks>
+        GeoRadiusResult[] GeoSearch(RedisKey key, RedisValue member, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, GeoRadiusOptions options = GeoRadiusOptions.Default, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Return the members of the geo-encoded sorted set stored at <paramref name="key"/> bounded by the provided
+        /// <paramref name="shape"/>, centered at the point provided by the <paramref name="longitude"/> and <paramref name="latitude"/>.
+        /// </summary>
+        /// <param name="key">The key of the set.</param>
+        /// <param name="longitude">The longitude of the center point.</param>
+        /// <param name="latitude">The latitude of the center point.</param>
+        /// <param name="shape">The shape to use to bound the geo search.</param>
+        /// <param name="count">The maximum number of results to pull back.</param>
+        /// <param name="demandClosest">Whether or not to terminate the search after finding <paramref name="count"/> results. Must be true of count is -1.</param>
+        /// <param name="order">The order to sort by (defaults to unordered).</param>
+        /// <param name="options">The search options to use</param>
+        /// <param name="flags">The flags for this operation.</param>
+        /// <returns>The results found within the shape, if any.</returns>
+        /// /// <remarks>https://redis.io/commands/geosearch</remarks>
+        GeoRadiusResult[] GeoSearch(RedisKey key, double longitude, double latitude, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, GeoRadiusOptions options = GeoRadiusOptions.Default, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Stores the members of the geo-encoded sorted set stored at <paramref name="sourceKey"/> bounded by the provided
+        /// <paramref name="shape"/>, centered at the provided set <paramref name="member"/>.
+        /// </summary>
+        /// <param name="sourceKey">The key of the set.</param>
+        /// <param name="destinationKey">The key to store the result at.</param>
+        /// <param name="member">The set member to use as the center of the shape.</param>
+        /// <param name="shape">The shape to use to bound the geo search.</param>
+        /// <param name="count">The maximum number of results to pull back.</param>
+        /// <param name="demandClosest">Whether or not to terminate the search after finding <paramref name="count"/> results. Must be true of count is -1.</param>
+        /// <param name="order">The order to sort by (defaults to unordered).</param>
+        /// <param name="storeDistances">If set to true, the resulting set will be a regular sorted-set containing only distances, rather than a geo-encoded sorted-set.</param>
+        /// <param name="flags">The flags for this operation.</param>
+        /// <returns>The size of the set stored at <paramref name="destinationKey"/>.</returns>
+        /// <remarks>https://redis.io/commands/geosearchstore</remarks>
+        long GeoSearchAndStore(RedisKey sourceKey, RedisKey destinationKey, RedisValue member, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, bool storeDistances = false, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Stores the members of the geo-encoded sorted set stored at <paramref name="sourceKey"/> bounded by the provided
+        /// <paramref name="shape"/>, centered at the point provided by the <paramref name="longitude"/> and <paramref name="latitude"/>.
+        /// </summary>
+        /// <param name="sourceKey">The key of the set.</param>
+        /// <param name="destinationKey">The key to store the result at.</param>
+        /// <param name="longitude">The longitude of the center point.</param>
+        /// <param name="latitude">The latitude of the center point.</param>
+        /// <param name="shape">The shape to use to bound the geo search.</param>
+        /// <param name="count">The maximum number of results to pull back.</param>
+        /// <param name="demandClosest">Whether or not to terminate the search after finding <paramref name="count"/> results. Must be true of count is -1.</param>
+        /// <param name="order">The order to sort by (defaults to unordered).</param>
+        /// <param name="storeDistances">If set to true, the resulting set will be a regular sorted-set containing only distances, rather than a geo-encoded sorted-set.</param>
+        /// <param name="flags">The flags for this operation.</param>
+        /// <returns>The size of the set stored at <paramref name="destinationKey"/>.</returns>
+        /// <remarks>https://redis.io/commands/geosearchstore</remarks>
+        long GeoSearchAndStore(RedisKey sourceKey, RedisKey destinationKey, double longitude, double latitude, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, bool storeDistances = false, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Decrements the number stored at field in the hash stored at key by decrement.
         /// If key does not exist, a new key holding a hash is created.
         /// If field does not exist the value is set to 0 before the operation is performed.
@@ -573,7 +641,8 @@ namespace StackExchange.Redis
         long KeyExists(RedisKey[] keys, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Set a timeout on key. After the timeout has expired, the key will automatically be deleted.
+        /// Set a timeout on <paramref name="key"/>.
+        /// After the timeout has expired, the key will automatically be deleted.
         /// A key with an associated timeout is said to be volatile in Redis terminology.
         /// </summary>
         /// <param name="key">The key to set the expiration for.</param>
@@ -597,7 +666,22 @@ namespace StackExchange.Redis
         bool KeyExpire(RedisKey key, TimeSpan? expiry, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Set a timeout on key. After the timeout has expired, the key will automatically be deleted.
+        /// Set a timeout on <paramref name="key"/>.
+        /// After the timeout has expired, the key will automatically be deleted.
+        /// A key with an associated timeout is said to be volatile in Redis terminology.
+        /// </summary>
+        /// <param name="key">The key to set the expiration for.</param>
+        /// <param name="expiry">The timeout to set.</param>
+        /// <param name="when">Since Redis 7.0.0, you can choose under which condition the expiration will be set using <see cref="ExpireWhen"/>.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns><see langword="true"/> if the timeout was set. <see langword="false"/> if key does not exist or the timeout could not be set.</returns>
+        /// <remarks>https://redis.io/commands/expire</remarks>
+        /// <remarks>https://redis.io/commands/pexpire</remarks>
+        bool KeyExpire(RedisKey key, TimeSpan? expiry, ExpireWhen when, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Set a timeout on <paramref name="key"/>.
+        /// After the timeout has expired, the key will automatically be deleted.
         /// A key with an associated timeout is said to be volatile in Redis terminology.
         /// </summary>
         /// <param name="key">The key to set the expiration for.</param>
@@ -619,6 +703,30 @@ namespace StackExchange.Redis
         /// <remarks>https://redis.io/commands/pexpireat</remarks>
         /// <remarks>https://redis.io/commands/persist</remarks>
         bool KeyExpire(RedisKey key, DateTime? expiry, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Set a timeout on <paramref name="key"/>.
+        /// After the timeout has expired, the key will automatically be deleted.
+        /// A key with an associated timeout is said to be volatile in Redis terminology.
+        /// </summary>
+        /// <param name="key">The key to set the expiration for.</param>
+        /// <param name="expiry">The timeout to set.</param>
+        /// <param name="when">Since Redis 7.0.0, you can choose under which condition the expiration will be set using <see cref="ExpireWhen"/>.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns><see langword="true"/> if the timeout was set. <see langword="false"/> if key does not exist or the timeout could not be set.</returns>
+        /// <remarks>https://redis.io/commands/expire</remarks>
+        /// <remarks>https://redis.io/commands/pexpire</remarks>
+        bool KeyExpire(RedisKey key, DateTime? expiry, ExpireWhen when, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Returns the absolute time at which the given <paramref name="key"/> will expire, if it exists and has an expiration.
+        /// </summary>
+        /// <param name="key">The key to get the expiration for.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The time at which the given key will expire, or <see langword="null"/> if the key does not exist or has no associated expiration time.</returns>
+        /// <remarks>https://redis.io/commands/expiretime</remarks>
+        /// <remarks>https://redis.io/commands/pexpiretime</remarks>
+        DateTime? KeyExpireTime(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Returns the time since the object stored at the specified key is idle (not requested by read or write operations).

@@ -37,6 +37,7 @@
         EXISTS,
         EXPIRE,
         EXPIREAT,
+        EXPIRETIME,
 
         FLUSHALL,
         FLUSHDB,
@@ -47,6 +48,8 @@
         GEOPOS,
         GEORADIUS,
         GEORADIUSBYMEMBER,
+        GEOSEARCH,
+        GEOSEARCHSTORE,
 
         GET,
         GETBIT,
@@ -108,6 +111,7 @@
         PERSIST,
         PEXPIRE,
         PEXPIREAT,
+        PEXPIRETIME,
         PFADD,
         PFCOUNT,
         PFMERGE,
