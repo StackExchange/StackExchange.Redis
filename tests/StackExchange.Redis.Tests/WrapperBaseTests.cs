@@ -258,7 +258,7 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void KeyExpire_3()
+        public void KeyExpireAsync_3()
         {
             TimeSpan expiry = TimeSpan.FromSeconds(123);
             wrapper.KeyExpireAsync("key", expiry, ExpireWhen.HasNoExpiry, CommandFlags.None);
@@ -266,7 +266,7 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void KeyExpire_4()
+        public void KeyExpireAsync_4()
         {
             DateTime expiry = DateTime.Now;
             wrapper.KeyExpireAsync("key", expiry, ExpireWhen.HasNoExpiry, CommandFlags.None);
