@@ -46,6 +46,8 @@ namespace StackExchange.Redis
             AGGREGATE = "AGGREGATE",
             ALPHA = "ALPHA",
             AND = "AND",
+            ANY = "ANY",
+            ASC = "ASC",
             BEFORE = "BEFORE",
             BY = "BY",
             BYLEX = "BYLEX",
@@ -140,6 +142,22 @@ namespace StackExchange.Redis
             MinusSymbol = "-",
             PlusSumbol = "+",
             Wildcard = "*",
+
+            // Geo Radius/Search Literals
+            BYBOX = "BYBOX",
+            BYRADIUS = "BYRADIUS",
+            FROMMEMBER = "FROMMEMBER",
+            FROMLONLAT = "FROMLONLAT",
+            STOREDIST = "STOREDIST",
+            WITHCOORD = "WITHCOORD",
+            WITHDIST = "WITHDIST",
+            WITHHASH = "WITHHASH",
+
+            // geo units
+            ft = "ft",
+            km = "km",
+            m = "m",
+            mi = "mi",
 
             // misc (config, etc)
             databases = "databases",
