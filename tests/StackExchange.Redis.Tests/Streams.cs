@@ -309,7 +309,6 @@ namespace StackExchange.Redis.Tests
             // Claim a single pending message and reassign it to consumer2.
             var result = db.StreamAutoClaim(key, group, consumer2, 0, "0-0", count: 1);
 
-            // Should be id2 from above.
             Assert.Equal("0-0", result.NextStartId);
             Assert.NotEmpty(result.ClaimedEntries);
             Assert.NotEmpty(result.DeletedIds);
@@ -338,7 +337,6 @@ namespace StackExchange.Redis.Tests
             // Claim a single pending message and reassign it to consumer2.
             var result = await db.StreamAutoClaimAsync(key, group, consumer2, 0, "0-0", count: 1);
 
-            // Should be id2 from above.
             Assert.Equal("0-0", result.NextStartId);
             Assert.NotEmpty(result.ClaimedEntries);
             Assert.NotEmpty(result.DeletedIds);
