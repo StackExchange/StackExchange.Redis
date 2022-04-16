@@ -222,9 +222,9 @@ namespace StackExchange.Redis.Tests
 
             // Should be the second message ID from the call to prepare.
             Assert.Equal(messageIds[1], result.NextStartId);
-            Assert.NotEmpty(result.ClaimedEntryIds);
-            Assert.True(result.ClaimedEntryIds.Length == 1);
-            Assert.Equal(messageIds[0], result.ClaimedEntryIds[0]);
+            Assert.NotEmpty(result.ClaimedIds);
+            Assert.True(result.ClaimedIds.Length == 1);
+            Assert.Equal(messageIds[0], result.ClaimedIds[0]);
             Assert.Empty(result.DeletedIds);
         }
 
@@ -276,9 +276,9 @@ namespace StackExchange.Redis.Tests
 
             // Should be the second message ID from the call to prepare.
             Assert.Equal(messageIds[1], result.NextStartId);
-            Assert.NotEmpty(result.ClaimedEntryIds);
-            Assert.True(result.ClaimedEntryIds.Length == 1);
-            Assert.Equal(messageIds[0], result.ClaimedEntryIds[0]);
+            Assert.NotEmpty(result.ClaimedIds);
+            Assert.True(result.ClaimedIds.Length == 1);
+            Assert.Equal(messageIds[0], result.ClaimedIds[0]);
             Assert.Empty(result.DeletedIds);
         }
 
@@ -464,11 +464,11 @@ namespace StackExchange.Redis.Tests
             var result = db.StreamAutoClaimIdsOnly(key, group, consumer2, 0, "0-0");
 
             Assert.Equal("0-0", result.NextStartId);
-            Assert.NotEmpty(result.ClaimedEntryIds);
+            Assert.NotEmpty(result.ClaimedIds);
             Assert.Empty(result.DeletedIds);
-            Assert.True(result.ClaimedEntryIds.Length == 2);
-            Assert.Equal(messageIds[0], result.ClaimedEntryIds[0]);
-            Assert.Equal(messageIds[1], result.ClaimedEntryIds[1]);
+            Assert.True(result.ClaimedIds.Length == 2);
+            Assert.Equal(messageIds[0], result.ClaimedIds[0]);
+            Assert.Equal(messageIds[1], result.ClaimedIds[1]);
         }
 
         [Fact]
@@ -491,11 +491,11 @@ namespace StackExchange.Redis.Tests
             var result = await db.StreamAutoClaimIdsOnlyAsync(key, group, consumer2, 0, "0-0");
 
             Assert.Equal("0-0", result.NextStartId);
-            Assert.NotEmpty(result.ClaimedEntryIds);
+            Assert.NotEmpty(result.ClaimedIds);
             Assert.Empty(result.DeletedIds);
-            Assert.True(result.ClaimedEntryIds.Length == 2);
-            Assert.Equal(messageIds[0], result.ClaimedEntryIds[0]);
-            Assert.Equal(messageIds[1], result.ClaimedEntryIds[1]);
+            Assert.True(result.ClaimedIds.Length == 2);
+            Assert.Equal(messageIds[0], result.ClaimedIds[0]);
+            Assert.Equal(messageIds[1], result.ClaimedIds[1]);
         }
 
         private RedisValue[] StreamAutoClaim_PrepareTestData(IDatabase db, RedisKey key, RedisValue group, RedisValue consumer)

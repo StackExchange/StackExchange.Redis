@@ -1786,35 +1786,19 @@ The coordinates as a two items x,y array (longitude,latitude).
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
                 // See https://redis.io/commands/xautoclaim for command documentation.
-
                 if (!result.IsNull && result.Type == ResultType.MultiBulk)
                 {
                     var items = result.GetItems();
 
                     // [0] The next start ID.
                     var nextStartId = items[0].AsRedisValue();
-
                     // [1] The array of StreamEntry's.
-                    var entries = items[1].GetItems();
-
+                    var entries = ParseRedisStreamEntries(items[1]);
                     // [2] The array of message IDs deleted from the stream that were in the PEL.
-                    //     This is not available in 6.2 so we need to be defensive when reading
-                    //     this part of the response.
-                    RedisValue[]? deletedIds = null;
+                    //     This is not available in 6.2 so we need to be defensive when reading this part of the response.
+                    var deletedIds = (items.Length == 3 ? items[2].GetItemsAsValues() : null) ?? Array.Empty<RedisValue>();
 
-                    if (items.Length == 3)
-                    {
-                        deletedIds = items[2].GetItemsAsValues();
-                    }
-
-                    var arr = new StreamEntry[entries.Length];
-
-                    for (var i = 0; i < arr.Length; i++)
-                    {
-                        arr[i] = ParseRedisStreamEntry(entries[i]);
-                    }
-
-                    SetResult(message, new StreamAutoClaimResult(nextStartId, arr, deletedIds ?? Array.Empty<RedisValue>()));
+                    SetResult(message, new StreamAutoClaimResult(nextStartId, entries, deletedIds));
                     return true;
                 }
 
@@ -1827,33 +1811,20 @@ The coordinates as a two items x,y array (longitude,latitude).
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
                 // Process the result when the command was sent the JUSTID option.
-
                 // See https://redis.io/commands/xautoclaim for command documentation.
-
                 if (!result.IsNull && result.Type == ResultType.MultiBulk)
                 {
                     var items = result.GetItems();
 
                     // [0] The next start ID.
                     var nextStartId = items[0].AsRedisValue();
-
                     // [1] The array of claimed message IDs.
-                    var claimedIds = items[1].GetItemsAsValues();
-
+                    var claimedIds = items[1].GetItemsAsValues() ?? Array.Empty<RedisValue>();
                     // [2] The array of message IDs deleted from the stream that were in the PEL.
-                    //     This is not available in 6.2 so we need to be defensive when reading
-                    //     this part of the response.
-                    RedisValue[]? deletedIds = null;
+                    //     This is not available in 6.2 so we need to be defensive when reading this part of the response.
+                    var deletedIds = (items.Length == 3 ? items[2].GetItemsAsValues() : null) ?? Array.Empty<RedisValue>();
 
-                    if (items.Length == 3)
-                    {
-                        deletedIds = items[2].GetItemsAsValues();
-                    }
-
-                    SetResult(message, new StreamAutoClaimIdsOnlyResult(nextStartId,
-                        claimedIds ?? Array.Empty<RedisValue>(),
-                        deletedIds ?? Array.Empty<RedisValue>()));
-
+                    SetResult(message, new StreamAutoClaimIdsOnlyResult(nextStartId, claimedIds, deletedIds));
                     return true;
                 }
 
