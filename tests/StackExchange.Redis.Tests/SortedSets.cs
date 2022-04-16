@@ -1025,11 +1025,13 @@ namespace StackExchange.Redis.Tests
             var key = Me();
             db.KeyDelete(key);
 
-            db.SortedSetAdd(key, new SortedSetEntry[] { new SortedSetEntry("rays", 100) });
-            db.SortedSetAdd(key, new SortedSetEntry[] { new SortedSetEntry("yankees", 92) });
-            db.SortedSetAdd(key, new SortedSetEntry[] { new SortedSetEntry("red sox", 92) });
-            db.SortedSetAdd(key, new SortedSetEntry[] { new SortedSetEntry("blue jays", 91) });
-            db.SortedSetAdd(key, new SortedSetEntry[] { new SortedSetEntry("orioles", 52) });
+            db.SortedSetAdd(key, new SortedSetEntry[] {
+                new SortedSetEntry("rays", 100),
+                new SortedSetEntry("yankees", 92),
+                new SortedSetEntry("red sox", 92),
+                new SortedSetEntry("blue jays", 91),
+                new SortedSetEntry("orioles", 52),
+            });
 
             var highest = db.SortedSetPop(new RedisKey[] { key }, 1, order: Order.Descending);
             Assert.False(highest.IsNull);
@@ -1057,11 +1059,13 @@ namespace StackExchange.Redis.Tests
             var key = Me();
             db.KeyDelete(key);
 
-            db.SortedSetAdd(key, new SortedSetEntry[] { new SortedSetEntry("rays", 100) });
-            db.SortedSetAdd(key, new SortedSetEntry[] { new SortedSetEntry("yankees", 92) });
-            db.SortedSetAdd(key, new SortedSetEntry[] { new SortedSetEntry("red sox", 92) });
-            db.SortedSetAdd(key, new SortedSetEntry[] { new SortedSetEntry("blue jays", 91) });
-            db.SortedSetAdd(key, new SortedSetEntry[] { new SortedSetEntry("orioles", 52) });
+            db.SortedSetAdd(key, new SortedSetEntry[] {
+                new SortedSetEntry("rays", 100),
+                new SortedSetEntry("yankees", 92),
+                new SortedSetEntry("red sox", 92),
+                new SortedSetEntry("blue jays", 91),
+                new SortedSetEntry("orioles", 52),
+            });
 
             var highest = db.SortedSetPop(new RedisKey[] { "not a real key", key, "yet another not a real key" }, 1, order: Order.Descending);
             Assert.False(highest.IsNull);
@@ -1113,11 +1117,13 @@ namespace StackExchange.Redis.Tests
             var key = Me();
             db.KeyDelete(key);
 
-            db.SortedSetAdd(key, new SortedSetEntry[] { new SortedSetEntry("rays", 100) });
-            db.SortedSetAdd(key, new SortedSetEntry[] { new SortedSetEntry("yankees", 92) });
-            db.SortedSetAdd(key, new SortedSetEntry[] { new SortedSetEntry("red sox", 92) });
-            db.SortedSetAdd(key, new SortedSetEntry[] { new SortedSetEntry("blue jays", 91) });
-            db.SortedSetAdd(key, new SortedSetEntry[] { new SortedSetEntry("orioles", 52) });
+            db.SortedSetAdd(key, new SortedSetEntry[] {
+                new SortedSetEntry("rays", 100),
+                new SortedSetEntry("yankees", 92),
+                new SortedSetEntry("red sox", 92),
+                new SortedSetEntry("blue jays", 91),
+                new SortedSetEntry("orioles", 52),
+            });
 
             var highest = await db.SortedSetPopAsync(
                 new RedisKey[] { "not a real key", key, "yet another not a real key" }, 1, order: Order.Descending);
@@ -1263,9 +1269,9 @@ namespace StackExchange.Redis.Tests
 
             var db = conn.GetDatabase();
             var key = Me();
-            var member1 = "member1";
-            var member2 = "member2";
-            var member3 = "member3";
+            const string member1 = "member1",
+                         member2 = "member2",
+                         member3 = "member3";
 
             db.KeyDelete(key);
             db.SortedSetAdd(key, member1, 1.5);
@@ -1289,9 +1295,9 @@ namespace StackExchange.Redis.Tests
 
             var db = conn.GetDatabase();
             var key = Me();
-            var member1 = "member1";
-            var member2 = "member2";
-            var member3 = "member3";
+            const string member1 = "member1",
+                         member2 = "member2",
+                         member3 = "member3";
 
             await db.KeyDeleteAsync(key);
             await db.SortedSetAddAsync(key, member1, 1.5);
@@ -1357,10 +1363,10 @@ namespace StackExchange.Redis.Tests
 
             var db = conn.GetDatabase();
             var key = Me();
-            var member1 = "member1";
-            var member2 = "member2";
-            var member3 = "member3";
-            var bogusMember = "bogusMember";
+            const string member1 = "member1",
+                         member2 = "member2",
+                         member3 = "member3",
+                         bogusMember = "bogusMember";
 
             db.KeyDelete(key);
 
@@ -1386,10 +1392,10 @@ namespace StackExchange.Redis.Tests
 
             var db = conn.GetDatabase();
             var key = Me();
-            var member1 = "member1";
-            var member2 = "member2";
-            var member3 = "member3";
-            var bogusMember = "bogusMember";
+            const string member1 = "member1",
+                         member2 = "member2",
+                         member3 = "member3",
+                         bogusMember = "bogusMember";
 
             await db.KeyDeleteAsync(key);
 
