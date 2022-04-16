@@ -210,5 +210,433 @@ namespace StackExchange.Redis.Tests
                 Assert.NotNull(result);
             }
         }
+
+        private async Task GeoSearchSetupAsync(RedisKey key, IDatabase db)
+        {
+            await db.KeyDeleteAsync(key);
+            await db.GeoAddAsync(key, 82.6534, 27.7682, "rays");
+            await db.GeoAddAsync(key, 79.3891, 43.6418, "blue jays");
+            await db.GeoAddAsync(key, 76.6217, 39.2838, "orioles");
+            await db.GeoAddAsync(key, 71.0927, 42.3467, "red sox");
+            await db.GeoAddAsync(key, 73.9262, 40.8296, "yankees");
+        }
+
+        private void GeoSearchSetup(RedisKey key, IDatabase db)
+        {
+            db.KeyDelete(key);
+            db.GeoAdd(key, 82.6534, 27.7682, "rays");
+            db.GeoAdd(key, 79.3891, 43.6418, "blue jays");
+            db.GeoAdd(key, 76.6217, 39.2838, "orioles");
+            db.GeoAdd(key, 71.0927, 42.3467, "red sox");
+            db.GeoAdd(key, 73.9262, 40.8296, "yankees");
+        }
+
+        [Fact]
+        public async Task GeoSearchCircleMemberAsync()
+        {
+            using var conn = Create(require: RedisFeatures.v6_2_0);
+
+            var key = Me();
+            var db = conn.GetDatabase();
+            await GeoSearchSetupAsync(key, db);
+
+            var circle = new GeoSearchCircle(500, GeoUnit.Miles);
+            var res = await db.GeoSearchAsync(key, "yankees", circle);
+            Assert.Contains(res, x => x.Member == "yankees");
+            Assert.Contains(res, x => x.Member == "red sox");
+            Assert.Contains(res, x => x.Member == "orioles");
+            Assert.Contains(res, x => x.Member == "blue jays");
+            Assert.NotNull(res[0].Distance);
+            Assert.NotNull(res[0].Position);
+            Assert.Null(res[0].Hash);
+            Assert.Equal(4, res.Length);
+        }
+
+        [Fact]
+        public async Task GeoSearchCircleMemberAsyncOnlyHash()
+        {
+            using var conn = Create(require: RedisFeatures.v6_2_0);
+
+            var key = Me();
+            var db = conn.GetDatabase();
+            await GeoSearchSetupAsync(key, db);
+
+            var circle = new GeoSearchCircle(500, GeoUnit.Miles);
+            var res = await db.GeoSearchAsync(key, "yankees", circle, options: GeoRadiusOptions.WithGeoHash);
+            Assert.Contains(res, x => x.Member == "yankees");
+            Assert.Contains(res, x => x.Member == "red sox");
+            Assert.Contains(res, x => x.Member == "orioles");
+            Assert.Contains(res, x => x.Member == "blue jays");
+            Assert.Null(res[0].Distance);
+            Assert.Null(res[0].Position);
+            Assert.NotNull(res[0].Hash);
+            Assert.Equal(4, res.Length);
+        }
+
+        [Fact]
+        public async Task GeoSearchCircleMemberAsyncHashAndDistance()
+        {
+            using var conn = Create(require: RedisFeatures.v6_2_0);
+
+            var key = Me();
+            var db = conn.GetDatabase();
+            await GeoSearchSetupAsync(key, db);
+
+            var circle = new GeoSearchCircle(500, GeoUnit.Miles);
+            var res = await db.GeoSearchAsync(key, "yankees", circle, options: GeoRadiusOptions.WithGeoHash | GeoRadiusOptions.WithDistance);
+            Assert.Contains(res, x => x.Member == "yankees");
+            Assert.Contains(res, x => x.Member == "red sox");
+            Assert.Contains(res, x => x.Member == "orioles");
+            Assert.Contains(res, x => x.Member == "blue jays");
+            Assert.NotNull(res[0].Distance);
+            Assert.Null(res[0].Position);
+            Assert.NotNull(res[0].Hash);
+            Assert.Equal(4, res.Length);
+        }
+
+        [Fact]
+        public async Task GeoSearchCircleLonLatAsync()
+        {
+            using var conn = Create(require: RedisFeatures.v6_2_0);
+
+            var key = Me();
+            var db = conn.GetDatabase();
+            await GeoSearchSetupAsync(key, db);
+
+            var circle = new GeoSearchCircle(500, GeoUnit.Miles);
+            var res = await db.GeoSearchAsync(key, 73.9262, 40.8296, circle);
+            Assert.Contains(res, x => x.Member == "yankees");
+            Assert.Contains(res, x => x.Member == "red sox");
+            Assert.Contains(res, x => x.Member == "orioles");
+            Assert.Contains(res, x => x.Member == "blue jays");
+            Assert.Equal(4, res.Length);
+        }
+
+        [Fact]
+        public void GeoSearchCircleMember()
+        {
+            using var conn = Create(require: RedisFeatures.v6_2_0);
+
+            var key = Me();
+            var db = conn.GetDatabase();
+            GeoSearchSetup(key, db);
+
+            var circle = new GeoSearchCircle(500 * 1609);
+            var res = db.GeoSearch(key, "yankees", circle);
+            Assert.Contains(res, x => x.Member == "yankees");
+            Assert.Contains(res, x => x.Member == "red sox");
+            Assert.Contains(res, x => x.Member == "orioles");
+            Assert.Contains(res, x => x.Member == "blue jays");
+            Assert.Equal(4, res.Length);
+        }
+
+        [Fact]
+        public void GeoSearchCircleLonLat()
+        {
+            using var conn = Create(require: RedisFeatures.v6_2_0);
+
+            var key = Me();
+            var db = conn.GetDatabase();
+            GeoSearchSetup(key, db);
+
+            var circle = new GeoSearchCircle(500 * 5280, GeoUnit.Feet);
+            var res = db.GeoSearch(key, 73.9262, 40.8296, circle);
+            Assert.Contains(res, x => x.Member == "yankees");
+            Assert.Contains(res, x => x.Member == "red sox");
+            Assert.Contains(res, x => x.Member == "orioles");
+            Assert.Contains(res, x => x.Member == "blue jays");
+            Assert.Equal(4, res.Length);
+        }
+
+        [Fact]
+        public async Task GeoSearchBoxMemberAsync()
+        {
+            using var conn = Create(require: RedisFeatures.v6_2_0);
+
+            var key = Me();
+            var db = conn.GetDatabase();
+            await GeoSearchSetupAsync(key, db);
+
+            var box = new GeoSearchBox(500, 500, GeoUnit.Kilometers);
+            var res = await db.GeoSearchAsync(key, "yankees", box);
+            Assert.Contains(res, x => x.Member == "yankees");
+            Assert.Contains(res, x => x.Member == "red sox");
+            Assert.Contains(res, x => x.Member == "orioles");
+            Assert.Equal(3, res.Length);
+        }
+
+        [Fact]
+        public async Task GeoSearchBoxLonLatAsync()
+        {
+            using var conn = Create(require: RedisFeatures.v6_2_0);
+
+            var key = Me();
+            var db = conn.GetDatabase();
+            await GeoSearchSetupAsync(key, db);
+
+            var box = new GeoSearchBox(500, 500, GeoUnit.Kilometers);
+            var res = await db.GeoSearchAsync(key, 73.9262, 40.8296, box);
+            Assert.Contains(res, x => x.Member == "yankees");
+            Assert.Contains(res, x => x.Member == "red sox");
+            Assert.Contains(res, x => x.Member == "orioles");
+            Assert.Equal(3, res.Length);
+        }
+
+        [Fact]
+        public void GeoSearchBoxMember()
+        {
+            using var conn = Create(require: RedisFeatures.v6_2_0);
+
+            var key = Me();
+            var db = conn.GetDatabase();
+            GeoSearchSetup(key, db);
+
+            var box = new GeoSearchBox(500, 500, GeoUnit.Kilometers);
+            var res = db.GeoSearch(key, "yankees", box);
+            Assert.Contains(res, x => x.Member == "yankees");
+            Assert.Contains(res, x => x.Member == "red sox");
+            Assert.Contains(res, x => x.Member == "orioles");
+            Assert.Equal(3, res.Length);
+        }
+
+        [Fact]
+        public void GeoSearchBoxLonLat()
+        {
+            using var conn = Create(require: RedisFeatures.v6_2_0);
+
+            var key = Me();
+            var db = conn.GetDatabase();
+            GeoSearchSetup(key, db);
+
+            var box = new GeoSearchBox(500, 500, GeoUnit.Kilometers);
+            var res = db.GeoSearch(key, 73.9262, 40.8296, box);
+            Assert.Contains(res, x => x.Member == "yankees");
+            Assert.Contains(res, x => x.Member == "red sox");
+            Assert.Contains(res, x => x.Member == "orioles");
+            Assert.Equal(3, res.Length);
+        }
+
+        [Fact]
+        public void GeoSearchLimitCount()
+        {
+            using var conn = Create(require: RedisFeatures.v6_2_0);
+
+            var key = Me();
+            var db = conn.GetDatabase();
+            GeoSearchSetup(key, db);
+
+            var box = new GeoSearchBox(500, 500, GeoUnit.Kilometers);
+            var res = db.GeoSearch(key, 73.9262, 40.8296, box, count: 2);
+            Assert.Contains(res, x => x.Member == "yankees");
+            Assert.Contains(res, x => x.Member == "orioles");
+            Assert.Equal(2, res.Length);
+        }
+
+        [Fact]
+        public void GeoSearchLimitCountMakeNoDemands()
+        {
+            using var conn = Create(require: RedisFeatures.v6_2_0);
+
+            var key = Me();
+            var db = conn.GetDatabase();
+            GeoSearchSetup(key, db);
+
+            var box = new GeoSearchBox(500, 500, GeoUnit.Kilometers);
+            var res = db.GeoSearch(key, 73.9262, 40.8296, box, count: 2, demandClosest: false);
+            Assert.Contains(res, x => x.Member == "red sox"); // this order MIGHT not be fully deterministic, seems to work for our purposes.
+            Assert.Contains(res, x => x.Member == "orioles");
+            Assert.Equal(2, res.Length);
+        }
+
+        [Fact]
+        public async Task GeoSearchBoxLonLatDescending()
+        {
+            using var conn = Create(require: RedisFeatures.v6_2_0);
+
+            var key = Me();
+            var db = conn.GetDatabase();
+            await GeoSearchSetupAsync(key, db);
+
+            var box = new GeoSearchBox(500, 500, GeoUnit.Kilometers);
+            var res = await db.GeoSearchAsync(key, 73.9262, 40.8296, box, order: Order.Descending);
+            Assert.Contains(res, x => x.Member == "yankees");
+            Assert.Contains(res, x => x.Member == "red sox");
+            Assert.Contains(res, x => x.Member == "orioles");
+            Assert.Equal(3, res.Length);
+            Assert.Equal("red sox", res[0].Member);
+        }
+
+        [Fact]
+        public async Task GeoSearchBoxMemberAndStoreAsync()
+        {
+            using var conn = Create(require: RedisFeatures.v6_2_0);
+
+            var me = Me();
+            var db = conn.GetDatabase();
+            RedisKey sourceKey = $"{me}:source";
+            RedisKey destinationKey = $"{me}:destination";
+            await db.KeyDeleteAsync(destinationKey);
+            await GeoSearchSetupAsync(sourceKey, db);
+
+            var box = new GeoSearchBox(500, 500, GeoUnit.Kilometers);
+            var res = await db.GeoSearchAndStoreAsync(sourceKey, destinationKey, "yankees", box);
+            var set = await db.GeoSearchAsync(destinationKey, "yankees", new GeoSearchCircle(10000, GeoUnit.Miles));
+            Assert.Contains(set, x => x.Member == "yankees");
+            Assert.Contains(set, x => x.Member == "red sox");
+            Assert.Contains(set, x => x.Member == "orioles");
+            Assert.Equal(3, set.Length);
+            Assert.Equal(3, res);
+        }
+
+        [Fact]
+        public async Task GeoSearchBoxLonLatAndStoreAsync()
+        {
+            using var conn = Create(require: RedisFeatures.v6_2_0);
+
+            var me = Me();
+            var db = conn.GetDatabase();
+            RedisKey sourceKey = $"{me}:source";
+            RedisKey destinationKey = $"{me}:destination";
+            await db.KeyDeleteAsync(destinationKey);
+            await GeoSearchSetupAsync(sourceKey, db);
+
+            var box = new GeoSearchBox(500, 500, GeoUnit.Kilometers);
+            var res = await db.GeoSearchAndStoreAsync(sourceKey, destinationKey, 73.9262, 40.8296, box);
+            var set = await db.GeoSearchAsync(destinationKey, "yankees", new GeoSearchCircle(10000, GeoUnit.Miles));
+            Assert.Contains(set, x => x.Member == "yankees");
+            Assert.Contains(set, x => x.Member == "red sox");
+            Assert.Contains(set, x => x.Member == "orioles");
+            Assert.Equal(3, set.Length);
+            Assert.Equal(3, res);
+        }
+
+        [Fact]
+        public async Task GeoSearchCircleMemberAndStoreAsync()
+        {
+            using var conn = Create(require: RedisFeatures.v6_2_0);
+
+            var me = Me();
+            var db = conn.GetDatabase();
+            RedisKey sourceKey = $"{me}:source";
+            RedisKey destinationKey = $"{me}:destination";
+            await db.KeyDeleteAsync(destinationKey);
+            await GeoSearchSetupAsync(sourceKey, db);
+
+            var circle = new GeoSearchCircle(500, GeoUnit.Kilometers);
+            var res = await db.GeoSearchAndStoreAsync(sourceKey, destinationKey, "yankees", circle);
+            var set = await db.GeoSearchAsync(destinationKey, "yankees", new GeoSearchCircle(10000, GeoUnit.Miles));
+            Assert.Contains(set, x => x.Member == "yankees");
+            Assert.Contains(set, x => x.Member == "red sox");
+            Assert.Contains(set, x => x.Member == "orioles");
+            Assert.Equal(3, set.Length);
+            Assert.Equal(3, res);
+        }
+
+        [Fact]
+        public async Task GeoSearchCircleLonLatAndStoreAsync()
+        {
+            using var conn = Create(require: RedisFeatures.v6_2_0);
+
+            var me = Me();
+            var db = conn.GetDatabase();
+            RedisKey sourceKey = $"{me}:source";
+            RedisKey destinationKey = $"{me}:destination";
+            await db.KeyDeleteAsync(destinationKey);
+            await GeoSearchSetupAsync(sourceKey, db);
+
+            var circle = new GeoSearchCircle(500, GeoUnit.Kilometers);
+            var res = await db.GeoSearchAndStoreAsync(sourceKey, destinationKey, 73.9262, 40.8296, circle);
+            var set = await db.GeoSearchAsync(destinationKey, "yankees", new GeoSearchCircle(10000, GeoUnit.Miles));
+            Assert.Contains(set, x => x.Member == "yankees");
+            Assert.Contains(set, x => x.Member == "red sox");
+            Assert.Contains(set, x => x.Member == "orioles");
+            Assert.Equal(3, set.Length);
+            Assert.Equal(3, res);
+        }
+
+        [Fact]
+        public void GeoSearchCircleMemberAndStore()
+        {
+            using var conn = Create(require: RedisFeatures.v6_2_0);
+
+            var me = Me();
+            var db = conn.GetDatabase();
+            RedisKey sourceKey = $"{me}:source";
+            RedisKey destinationKey = $"{me}:destination";
+            db.KeyDelete(destinationKey);
+            GeoSearchSetup(sourceKey, db);
+
+            var circle = new GeoSearchCircle(500, GeoUnit.Kilometers);
+            var res = db.GeoSearchAndStore(sourceKey, destinationKey, "yankees", circle);
+            var set = db.GeoSearch(destinationKey, "yankees", new GeoSearchCircle(10000, GeoUnit.Miles));
+            Assert.Contains(set, x => x.Member == "yankees");
+            Assert.Contains(set, x => x.Member == "red sox");
+            Assert.Contains(set, x => x.Member == "orioles");
+            Assert.Equal(3, set.Length);
+            Assert.Equal(3, res);
+        }
+
+        [Fact]
+        public void GeoSearchCircleLonLatAndStore()
+        {
+            using var conn = Create(require: RedisFeatures.v6_2_0);
+
+            var me = Me();
+            var db = conn.GetDatabase();
+            RedisKey sourceKey = $"{me}:source";
+            RedisKey destinationKey = $"{me}:destination";
+            db.KeyDelete(destinationKey);
+            GeoSearchSetup(sourceKey, db);
+
+            var circle = new GeoSearchCircle(500, GeoUnit.Kilometers);
+            var res = db.GeoSearchAndStore(sourceKey, destinationKey, 73.9262, 40.8296, circle);
+            var set = db.GeoSearch(destinationKey, "yankees", new GeoSearchCircle(10000, GeoUnit.Miles));
+            Assert.Contains(set, x => x.Member == "yankees");
+            Assert.Contains(set, x => x.Member == "red sox");
+            Assert.Contains(set, x => x.Member == "orioles");
+            Assert.Equal(3, set.Length);
+            Assert.Equal(3, res);
+        }
+
+        [Fact]
+        public void GeoSearchCircleAndStoreDistOnly()
+        {
+            using var conn = Create(require: RedisFeatures.v6_2_0);
+
+            var me = Me();
+            var db = conn.GetDatabase();
+            RedisKey sourceKey = $"{me}:source";
+            RedisKey destinationKey = $"{me}:destination";
+            db.KeyDelete(destinationKey);
+            GeoSearchSetup(sourceKey, db);
+
+            var circle = new GeoSearchCircle(500, GeoUnit.Kilometers);
+            var res = db.GeoSearchAndStore(sourceKey, destinationKey, 73.9262, 40.8296, circle, storeDistances: true);
+            var set = db.SortedSetRangeByRankWithScores(destinationKey);
+            Assert.Contains(set, x => x.Element == "yankees");
+            Assert.Contains(set, x => x.Element == "red sox");
+            Assert.Contains(set, x => x.Element == "orioles");
+            Assert.InRange(Array.Find(set, x => x.Element == "yankees").Score, 0, .2);
+            Assert.InRange(Array.Find(set, x => x.Element == "orioles").Score, 286, 287);
+            Assert.InRange(Array.Find(set, x => x.Element == "red sox").Score, 289, 290);
+            Assert.Equal(3, set.Length);
+            Assert.Equal(3, res);
+        }
+
+        [Fact]
+        public void GeoSearchBadArgs()
+        {
+            using var conn = Create(require: RedisFeatures.v6_2_0);
+
+            var key = Me();
+            var db = conn.GetDatabase();
+            db.KeyDelete(key);
+            var circle = new GeoSearchCircle(500, GeoUnit.Kilometers);
+            var exception = Assert.Throws<ArgumentException>(() =>
+                db.GeoSearch(key, "irrelevant", circle, demandClosest: false));
+
+            Assert.Contains("demandClosest must be true if you are not limiting the count for a GEOSEARCH",
+                exception.Message);
+        }
     }
 }

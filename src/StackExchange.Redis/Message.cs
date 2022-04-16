@@ -509,6 +509,27 @@ namespace StackExchange.Redis
             };
         }
 
+        internal static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisKey key0, in RedisKey key1, RedisValue[] values)
+        {
+#if NET6_0_OR_GREATER
+            ArgumentNullException.ThrowIfNull(values);
+#else
+            if (values == null) throw new ArgumentNullException(nameof(values));
+#endif
+            return values.Length switch
+            {
+                0 => new CommandKeyKeyMessage(db, flags, command, key0, key1),
+                1 => new CommandKeyKeyValueMessage(db, flags, command, key0, key1, values[0]),
+                2 => new CommandKeyKeyValueValueMessage(db, flags, command, key0, key1, values[0], values[1]),
+                3 => new CommandKeyKeyValueValueValueMessage(db, flags, command, key0, key1, values[0], values[1], values[2]),
+                4 => new CommandKeyKeyValueValueValueValueMessage(db, flags, command, key0, key1, values[0], values[1], values[2], values[3]),
+                5 => new CommandKeyKeyValueValueValueValueValueMessage(db, flags, command, key0, key1, values[0], values[1], values[2], values[3], values[4]),
+                6 => new CommandKeyKeyValueValueValueValueValueValueMessage(db, flags, command, key0, key1, values[0], values[1], values[2], values[3],values[4],values[5]),
+                7 => new CommandKeyKeyValueValueValueValueValueValueValueMessage(db, flags, command, key0, key1, values[0], values[1], values[2], values[3], values[4], values[5], values[6]),
+                _ => new CommandKeyKeyValuesMessage(db, flags, command, key0, key1, values),
+            };
+        }
+
         internal static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisKey key0, RedisValue[] values, in RedisKey key1)
         {
 #if NET6_0_OR_GREATER
@@ -1060,6 +1081,32 @@ namespace StackExchange.Redis
             {
                 physical.WriteHeader(Command, values.Length + 1);
                 physical.Write(Key);
+                for (int i = 0; i < values.Length; i++) physical.WriteBulkString(values[i]);
+            }
+            public override int ArgCount => values.Length + 1;
+        }
+
+        private sealed class CommandKeyKeyValuesMessage : CommandKeyBase
+        {
+            private readonly RedisKey key1;
+            private readonly RedisValue[] values;
+            public CommandKeyKeyValuesMessage(int db, CommandFlags flags, RedisCommand command, in RedisKey key, in RedisKey key1, RedisValue[] values) : base(db, flags, command, key)
+            {
+                for (int i = 0; i < values.Length; i++)
+                {
+                    values[i].AssertNotNull();
+                }
+
+                key1.AssertNotNull();
+                this.key1 = key1;
+                this.values = values;
+            }
+
+            protected override void WriteImpl(PhysicalConnection physical)
+            {
+                physical.WriteHeader(Command, values.Length + 2);
+                physical.Write(Key);
+                physical.Write(key1);
                 for (int i = 0; i < values.Length; i++) physical.WriteBulkString(values[i]);
             }
             public override int ArgCount => values.Length + 1;

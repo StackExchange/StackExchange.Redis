@@ -265,6 +265,7 @@ namespace StackExchange.Redis.Tests
             bool shared = true,
             int? defaultDatabase = null,
             BacklogPolicy? backlogPolicy = null,
+            Version? require = null,
             [CallerMemberName] string? caller = null)
         {
             if (Output == null)
@@ -290,7 +291,12 @@ namespace StackExchange.Redis.Tests
             {
                 configuration = GetConfiguration();
                 if (configuration == _fixture.Configuration)
-                {   // only if the
+                {
+                    // Only return if we match
+                    if (require != null)
+                    {
+                        Skip.IfBelow(_fixture.Connection, require);
+                    }
                     return _fixture.Connection;
                 }
             }
@@ -306,6 +312,12 @@ namespace StackExchange.Redis.Tests
                 logTransactionData, defaultDatabase,
                 backlogPolicy,
                 caller);
+
+            if (require != null)
+            {
+                Skip.IfBelow(muxer, require);
+            }
+
             muxer.InternalError += OnInternalError;
             muxer.ConnectionFailed += OnConnectionFailed;
             muxer.ConnectionRestored += (s, e) => Log($"Connection Restored ({e.ConnectionType},{e.FailureType}): {e.Exception}");
