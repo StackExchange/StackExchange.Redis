@@ -105,9 +105,9 @@ public class PubSubMultiserver : TestBase
         var config = TestConfig.Current.PrimaryServerAndPort + "," + TestConfig.Current.ReplicaServerAndPort;
         Log("Connecting...");
 
-        using var muxer = (Create(configuration: config, shared: false, allowAdmin: true) as ConnectionMultiplexer)!;
+        using var conn = (Create(configuration: config, shared: false, allowAdmin: true) as ConnectionMultiplexer)!;
 
-        var sub = muxer.GetSubscriber();
+        var sub = conn.GetSubscriber();
         var channel = (RedisChannel)(Me() + flags.ToString()); // Individual channel per case to not overlap publishers
 
         var count = 0;
@@ -128,21 +128,21 @@ public class PubSubMultiserver : TestBase
         Log($"  Published (1) to {publishedTo} subscriber(s).");
 
         var endpoint = sub.SubscribedEndpoint(channel);
-        var subscribedServer = muxer.GetServer(endpoint);
-        var subscribedServerEndpoint = muxer.GetServerEndPoint(endpoint);
+        var subscribedServer = conn.GetServer(endpoint);
+        var subscribedServerEndpoint = conn.GetServerEndPoint(endpoint);
 
         Assert.True(subscribedServer.IsConnected, "subscribedServer.IsConnected");
         Assert.NotNull(subscribedServerEndpoint);
         Assert.True(subscribedServerEndpoint.IsConnected, "subscribedServerEndpoint.IsConnected");
         Assert.True(subscribedServerEndpoint.IsSubscriberConnected, "subscribedServerEndpoint.IsSubscriberConnected");
 
-        Assert.True(muxer.TryGetSubscription(channel, out var subscription));
+        Assert.True(conn.TryGetSubscription(channel, out var subscription));
         var initialServer = subscription.GetCurrentServer();
         Assert.NotNull(initialServer);
         Assert.True(initialServer.IsConnected);
         Log("Connected to: " + initialServer);
 
-        muxer.AllowConnect = false;
+        conn.AllowConnect = false;
         subscribedServerEndpoint.SimulateConnectionFailure(SimulatedFailureType.AllSubscription);
 
         Assert.True(subscribedServerEndpoint.IsConnected, "subscribedServerEndpoint.IsConnected");
@@ -166,7 +166,7 @@ public class PubSubMultiserver : TestBase
             Log("Unable to reconnect (as expected)");
 
             // Allow connecting back to the original
-            muxer.AllowConnect = true;
+            conn.AllowConnect = true;
             await UntilConditionAsync(TimeSpan.FromSeconds(5), () => subscription.IsConnected);
             Assert.True(subscription.IsConnected);
 

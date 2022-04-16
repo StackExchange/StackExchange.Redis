@@ -537,11 +537,11 @@ public class Config : TestBase
             socket.DontFragment = true;
             socket.Ttl = (short)(connType == ConnectionType.Interactive ? 12 : 123);
         };
-        var muxer = ConnectionMultiplexer.Connect(options);
-        Assert.True(muxer.IsConnected);
+        using var conn = ConnectionMultiplexer.Connect(options);
+        Assert.True(conn.IsConnected);
         Assert.Equal(2, count);
 
-        var endpoint = muxer.GetServerSnapshot()[0];
+        var endpoint = conn.GetServerSnapshot()[0];
         var interactivePhysical = endpoint.GetBridge(ConnectionType.Interactive)?.TryConnect(null);
         var subscriptionPhysical = endpoint.GetBridge(ConnectionType.Subscription)?.TryConnect(null);
         Assert.NotNull(interactivePhysical);

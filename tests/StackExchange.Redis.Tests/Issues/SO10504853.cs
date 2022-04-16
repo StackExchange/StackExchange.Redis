@@ -23,9 +23,9 @@ public class SO10504853 : TestBase
         for (int i = 0; i < COUNT; i++)
         {
             Trace.WriteLine("### incr:" + i);
-            using var muxer = Create();
-            var conn = muxer.GetDatabase();
-            Assert.Equal(i + 1, conn.StringIncrement(key));
+            using var conn = Create();
+            var db = conn.GetDatabase();
+            Assert.Equal(i + 1, db.StringIncrement(key));
         }
         Trace.WriteLine("### close");
         using (var conn = Create())

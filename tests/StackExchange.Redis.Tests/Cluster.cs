@@ -21,10 +21,10 @@ public class Cluster : TestBase
     {
         if (File.Exists("cluster.zip")) File.Delete("cluster.zip");
         Assert.False(File.Exists("cluster.zip"));
-        using (var muxer = Create(allowAdmin: true))
+        using (var conn = Create(allowAdmin: true))
         using (var file = File.Create("cluster.zip"))
         {
-            muxer.ExportConfiguration(file);
+            conn.ExportConfiguration(file);
         }
         Assert.True(File.Exists("cluster.zip"));
     }

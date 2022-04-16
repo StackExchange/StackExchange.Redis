@@ -75,9 +75,9 @@ public class ConnectCustomConfig : TestBase
     public void TiebreakerIncorrectType()
     {
         var tiebreakerKey = Me();
-        using var fubarMuxer = Create(allowAdmin: true, log: Writer);
+        using var fubarConn = Create(allowAdmin: true, log: Writer);
         // Store something nonsensical in the tiebreaker key:
-        fubarMuxer.GetDatabase().HashSet(tiebreakerKey, "foo", "bar");
+        fubarConn.GetDatabase().HashSet(tiebreakerKey, "foo", "bar");
 
         // Ensure the next connection getting an invalid type still connects
         using var conn = Create(allowAdmin: true, tieBreaker: tiebreakerKey, log: Writer);

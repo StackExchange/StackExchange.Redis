@@ -104,58 +104,57 @@ public class SSL : TestBase
         var clone = ConfigurationOptions.Parse(configString);
         Assert.Equal(configString, clone.ToString());
 
-        using (var log = new StringWriter())
-        using (var muxer = ConnectionMultiplexer.Connect(config, log))
+        using var log = new StringWriter();
+        using var conn = ConnectionMultiplexer.Connect(config, log);
+
+        Log("Connect log:");
+        lock (log)
         {
-            Log("Connect log:");
-            lock (log)
-            {
-                Log(log.ToString());
-            }
-            Log("====");
-            muxer.ConnectionFailed += OnConnectionFailed;
-            muxer.InternalError += OnInternalError;
-            var db = muxer.GetDatabase();
-            await db.PingAsync().ForAwait();
-            using (var file = File.Create("ssl-" + useSsl + "-" + specifyHost + ".zip"))
-            {
-                muxer.ExportConfiguration(file);
-            }
-            RedisKey key = "SE.Redis";
-
-            const int AsyncLoop = 2000;
-            // perf; async
-            await db.KeyDeleteAsync(key).ForAwait();
-            var watch = Stopwatch.StartNew();
-            for (int i = 0; i < AsyncLoop; i++)
-            {
-                try
-                {
-                    await db.StringIncrementAsync(key, flags: CommandFlags.FireAndForget).ForAwait();
-                }
-                catch (Exception ex)
-                {
-                    Log($"Failure on i={i}: {ex.Message}");
-                    throw;
-                }
-            }
-            // need to do this inside the timer to measure the TTLB
-            long value = (long)await db.StringGetAsync(key).ForAwait();
-            watch.Stop();
-            Assert.Equal(AsyncLoop, value);
-            Log("F&F: {0} INCR, {1:###,##0}ms, {2} ops/s; final value: {3}",
-                AsyncLoop,
-                watch.ElapsedMilliseconds,
-                (long)(AsyncLoop / watch.Elapsed.TotalSeconds),
-                value);
-
-            // perf: sync/multi-threaded
-            // TestConcurrent(db, key, 30, 10);
-            //TestConcurrent(db, key, 30, 20);
-            //TestConcurrent(db, key, 30, 30);
-            //TestConcurrent(db, key, 30, 40);
-            //TestConcurrent(db, key, 30, 50);
+            Log(log.ToString());
         }
+        Log("====");
+        conn.ConnectionFailed += OnConnectionFailed;
+        conn.InternalError += OnInternalError;
+        var db = conn.GetDatabase();
+        await db.PingAsync().ForAwait();
+        using (var file = File.Create("ssl-" + useSsl + "-" + specifyHost + ".zip"))
+        {
+            conn.ExportConfiguration(file);
+        }
+        RedisKey key = "SE.Redis";
+
+        const int AsyncLoop = 2000;
+        // perf; async
+        await db.KeyDeleteAsync(key).ForAwait();
+        var watch = Stopwatch.StartNew();
+        for (int i = 0; i < AsyncLoop; i++)
+        {
+            try
+            {
+                await db.StringIncrementAsync(key, flags: CommandFlags.FireAndForget).ForAwait();
+            }
+            catch (Exception ex)
+            {
+                Log($"Failure on i={i}: {ex.Message}");
+                throw;
+            }
+        }
+        // need to do this inside the timer to measure the TTLB
+        long value = (long)await db.StringGetAsync(key).ForAwait();
+        watch.Stop();
+        Assert.Equal(AsyncLoop, value);
+        Log("F&F: {0} INCR, {1:###,##0}ms, {2} ops/s; final value: {3}",
+            AsyncLoop,
+            watch.ElapsedMilliseconds,
+            (long)(AsyncLoop / watch.Elapsed.TotalSeconds),
+            value);
+
+        // perf: sync/multi-threaded
+        // TestConcurrent(db, key, 30, 10);
+        //TestConcurrent(db, key, 30, 20);
+        //TestConcurrent(db, key, 30, 30);
+        //TestConcurrent(db, key, 30, 40);
+        //TestConcurrent(db, key, 30, 50);
     }
 
     [Fact]

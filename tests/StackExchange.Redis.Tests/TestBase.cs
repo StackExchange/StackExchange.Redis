@@ -298,7 +298,7 @@ public abstract class TestBase : IDisposable
             }
         }
 
-        var muxer = CreateDefault(
+        var conn = CreateDefault(
             Writer,
             configuration ?? GetConfiguration(),
             clientName, syncTimeout, allowAdmin, keepAlive,
@@ -310,12 +310,12 @@ public abstract class TestBase : IDisposable
             backlogPolicy,
             caller);
 
-        ThrowIfBelowMinVersion(muxer, require);
+        ThrowIfBelowMinVersion(conn, require);
 
-        muxer.InternalError += OnInternalError;
-        muxer.ConnectionFailed += OnConnectionFailed;
-        muxer.ConnectionRestored += (s, e) => Log($"Connection Restored ({e.ConnectionType},{e.FailureType}): {e.Exception}");
-        return muxer;
+        conn.InternalError += OnInternalError;
+        conn.ConnectionFailed += OnConnectionFailed;
+        conn.ConnectionRestored += (s, e) => Log($"Connection Restored ({e.ConnectionType},{e.FailureType}): {e.Exception}");
+        return conn;
     }
 
     private void ThrowIfBelowMinVersion(IInternalConnectionMultiplexer conn, Version? requiredVersion)
@@ -411,8 +411,8 @@ public abstract class TestBase : IDisposable
             {
                 Log(output, "Connect took: " + watch.ElapsedMilliseconds + "ms");
             }
-            var muxer = task.Result;
-            if (checkConnect && !muxer.IsConnected)
+            var conn = task.Result;
+            if (checkConnect && !conn.IsConnected)
             {
                 // If fail is true, we throw.
                 Assert.False(fail, failMessage + "Server is not available");
@@ -420,7 +420,7 @@ public abstract class TestBase : IDisposable
             }
             if (output != null)
             {
-                muxer.MessageFaulted += (msg, ex, origin) =>
+                conn.MessageFaulted += (msg, ex, origin) =>
                 {
                     output?.WriteLine($"Faulted from '{origin}': '{msg}' - '{(ex == null ? "(null)" : ex.Message)}'");
                     if (ex != null && ex.Data.Contains("got"))
@@ -428,16 +428,16 @@ public abstract class TestBase : IDisposable
                         output?.WriteLine($"Got: '{ex.Data["got"]}'");
                     }
                 };
-                muxer.Connecting += (e, t) => output?.WriteLine($"Connecting to {Format.ToString(e)} as {t}");
+                conn.Connecting += (e, t) => output?.WriteLine($"Connecting to {Format.ToString(e)} as {t}");
                 if (logTransactionData)
                 {
-                    muxer.TransactionLog += msg => output?.WriteLine("tran: " + msg);
+                    conn.TransactionLog += msg => output?.WriteLine("tran: " + msg);
                 }
-                muxer.InfoMessage += msg => output?.WriteLine(msg);
-                muxer.Resurrecting += (e, t) => output?.WriteLine($"Resurrecting {Format.ToString(e)} as {t}");
-                muxer.Closing += complete => output?.WriteLine(complete ? "Closed" : "Closing...");
+                conn.InfoMessage += msg => output?.WriteLine(msg);
+                conn.Resurrecting += (e, t) => output?.WriteLine($"Resurrecting {Format.ToString(e)} as {t}");
+                conn.Closing += complete => output?.WriteLine(complete ? "Closed" : "Closing...");
             }
-            return muxer;
+            return conn;
         }
         catch
         {

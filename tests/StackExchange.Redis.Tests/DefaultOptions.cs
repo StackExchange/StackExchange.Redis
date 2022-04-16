@@ -120,9 +120,9 @@ public class DefaultOptions : TestBase
         var provider = new TestAfterConnectOptionsProvider();
         options.Defaults = provider;
 
-        using var muxer = await ConnectionMultiplexer.ConnectAsync(options, Writer);
+        using var conn = await ConnectionMultiplexer.ConnectAsync(options, Writer);
 
-        Assert.True(muxer.IsConnected);
+        Assert.True(conn.IsConnected);
         Assert.Equal(1, provider.Calls);
     }
 

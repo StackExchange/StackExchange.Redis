@@ -444,9 +444,9 @@ public class Strings : TestBase // https://redis.io/commands#string
     [Fact]
     public async Task IncrDecrFloat()
     {
-        using var muxer = Create(require: RedisFeatures.v2_6_0);
+        using var conn = Create(require: RedisFeatures.v2_6_0);
 
-        var db = muxer.GetDatabase();
+        var db = conn.GetDatabase();
         var key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
