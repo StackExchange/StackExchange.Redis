@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
@@ -1035,8 +1034,9 @@ namespace StackExchange.Redis.Tests
             var highest = db.SortedSetPop(new RedisKey[] { key }, 1, order: Order.Descending);
             Assert.False(highest.IsNull);
             Assert.Equal(key, highest.Key);
-            Assert.Equal("rays", highest.Entries.Single().Element);
-            Assert.Equal(100, highest.Entries.Single().Score);
+            var entry = Assert.Single(highest.Entries);
+            Assert.Equal("rays", entry.Element);
+            Assert.Equal(100, entry.Score);
 
             var bottom2 = db.SortedSetPop(new RedisKey[] { key }, 2);
             Assert.False(bottom2.IsNull);
@@ -1044,8 +1044,8 @@ namespace StackExchange.Redis.Tests
             Assert.Equal(2, bottom2.Entries.Length);
             Assert.Equal("orioles", bottom2.Entries[0].Element);
             Assert.Equal(52, bottom2.Entries[0].Score);
-            Assert.Equal("blue jays", bottom2.Entries.Last().Element);
-            Assert.Equal(91, bottom2.Entries.Last().Score);
+            Assert.Equal("blue jays", bottom2.Entries[1].Element);
+            Assert.Equal(91, bottom2.Entries[1].Score);
         }
 
         [Fact]
@@ -1066,8 +1066,9 @@ namespace StackExchange.Redis.Tests
             var highest = db.SortedSetPop(new RedisKey[] { "not a real key", key, "yet another not a real key" }, 1, order: Order.Descending);
             Assert.False(highest.IsNull);
             Assert.Equal(key, highest.Key);
-            Assert.Equal("rays", highest.Entries.Single().Element);
-            Assert.Equal(100, highest.Entries.Single().Score);
+            var entry = Assert.Single(highest.Entries);
+            Assert.Equal("rays", entry.Element);
+            Assert.Equal(100, entry.Score);
 
             var bottom2 = db.SortedSetPop(new RedisKey[] { "not a real key", key, "yet another not a real key" }, 2);
             Assert.False(bottom2.IsNull);
@@ -1075,8 +1076,8 @@ namespace StackExchange.Redis.Tests
             Assert.Equal(2, bottom2.Entries.Length);
             Assert.Equal("orioles", bottom2.Entries[0].Element);
             Assert.Equal(52, bottom2.Entries[0].Score);
-            Assert.Equal("blue jays", bottom2.Entries.Last().Element);
-            Assert.Equal(91, bottom2.Entries.Last().Score);
+            Assert.Equal("blue jays", bottom2.Entries[1].Element);
+            Assert.Equal(91, bottom2.Entries[1].Score);
         }
 
         [Fact]
@@ -1122,17 +1123,18 @@ namespace StackExchange.Redis.Tests
                 new RedisKey[] { "not a real key", key, "yet another not a real key" }, 1, order: Order.Descending);
             Assert.False(highest.IsNull);
             Assert.Equal(key, highest.Key);
-            Assert.Equal("rays", highest.Entries.Single().Element);
-            Assert.Equal(100, highest.Entries.Single().Score);
+            var entry = Assert.Single(highest.Entries);
+            Assert.Equal("rays", entry.Element);
+            Assert.Equal(100, entry.Score);
 
             var bottom2 = await db.SortedSetPopAsync(new RedisKey[] { "not a real key", key, "yet another not a real key" }, 2);
             Assert.False(bottom2.IsNull);
             Assert.Equal(key, bottom2.Key);
             Assert.Equal(2, bottom2.Entries.Length);
-            Assert.Equal("orioles", bottom2.Entries.First().Element);
-            Assert.Equal(52, bottom2.Entries.First().Score);
-            Assert.Equal("blue jays", bottom2.Entries.Last().Element);
-            Assert.Equal(91, bottom2.Entries.Last().Score);
+            Assert.Equal("orioles", bottom2.Entries[0].Element);
+            Assert.Equal(52, bottom2.Entries[0].Score);
+            Assert.Equal("blue jays", bottom2.Entries[1].Element);
+            Assert.Equal(91, bottom2.Entries[1].Score);
         }
 
         [Fact]
