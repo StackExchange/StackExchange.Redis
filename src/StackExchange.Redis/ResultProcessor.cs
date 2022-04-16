@@ -1781,12 +1781,16 @@ The coordinates as a two items x,y array (longitude,latitude).
             }
         }
 
+        /// <summary>
+        /// This processor is for <see cref="RedisCommand.XAUTOCLAIM"/> *without* the <see cref="StreamConstants.JustId"/> option.
+        /// </summary>
         internal sealed class StreamAutoClaimProcessor : StreamProcessorBase<StreamAutoClaimResult>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
                 // See https://redis.io/commands/xautoclaim for command documentation.
-                if (!result.IsNull && result.Type == ResultType.MultiBulk)
+                // Note that the result should never be null, so intentionally treating it as a failure to parse here
+                if (result.Type == ResultType.MultiBulk && !result.IsNull)
                 {
                     var items = result.GetItems();
 
@@ -1806,13 +1810,16 @@ The coordinates as a two items x,y array (longitude,latitude).
             }
         }
 
+        /// <summary>
+        /// This processor is for <see cref="RedisCommand.XAUTOCLAIM"/> *with* the <see cref="StreamConstants.JustId"/> option.
+        /// </summary>
         internal sealed class StreamAutoClaimIdsOnlyProcessor : ResultProcessor<StreamAutoClaimIdsOnlyResult>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
-                // Process the result when the command was sent the JUSTID option.
                 // See https://redis.io/commands/xautoclaim for command documentation.
-                if (!result.IsNull && result.Type == ResultType.MultiBulk)
+                // Note that the result should never be null, so intentionally treating it as a failure to parse here
+                if (result.Type == ResultType.MultiBulk && !result.IsNull)
                 {
                     var items = result.GetItems();
 
