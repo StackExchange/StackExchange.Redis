@@ -418,14 +418,14 @@ StackExchange.Redis.GeoUnit.Feet = 3 -> StackExchange.Redis.GeoUnit
 StackExchange.Redis.GeoUnit.Kilometers = 1 -> StackExchange.Redis.GeoUnit
 StackExchange.Redis.GeoUnit.Meters = 0 -> StackExchange.Redis.GeoUnit
 StackExchange.Redis.GeoUnit.Miles = 2 -> StackExchange.Redis.GeoUnit
-StackExchange.Redis.ListSide
-StackExchange.Redis.ListSide.Left = 0 -> StackExchange.Redis.ListSide
-StackExchange.Redis.ListSide.Right = 1 -> StackExchange.Redis.ListSide
 StackExchange.Redis.ListPopResult
 StackExchange.Redis.ListPopResult.IsNull.get -> bool
 StackExchange.Redis.ListPopResult.Key.get -> StackExchange.Redis.RedisKey
 StackExchange.Redis.ListPopResult.ListPopResult() -> void
 StackExchange.Redis.ListPopResult.Values.get -> StackExchange.Redis.RedisValue[]!
+StackExchange.Redis.ListSide
+StackExchange.Redis.ListSide.Left = 0 -> StackExchange.Redis.ListSide
+StackExchange.Redis.ListSide.Right = 1 -> StackExchange.Redis.ListSide
 StackExchange.Redis.HashEntry
 StackExchange.Redis.HashEntry.Equals(StackExchange.Redis.HashEntry other) -> bool
 StackExchange.Redis.HashEntry.HashEntry() -> void

@@ -816,7 +816,7 @@ namespace StackExchange.Redis
         /// Removes and returns at most specified <paramref name="count"/> of elements from the first non-empty list
         /// within the set of <paramref name="keys"/> passed into it.
         /// Starts on the left side of the list.
-        /// If the Length of the first non-empty list is less than the the <paramref name="count"/> only the elements within that list are returned.
+        /// If the length of the first non-empty list is less than <paramref name="count"/>, only the elements within that list are returned.
         /// </summary>
         /// <param name="keys">The keys to look through for elements to pop.</param>
         /// <param name="count">The maximum number of elements to pop from the list.</param>
@@ -966,7 +966,7 @@ namespace StackExchange.Redis
         /// Removes and returns at most specified <paramref name="count"/> of elements from the first non-empty list
         /// within the set of <paramref name="keys"/> passed into it.
         /// Starts on the right side of the list.
-        /// If the Length of the first non-empty list is less than the the <paramref name="count"/> only the elements within that list are returned.
+        /// If the length of the first non-empty list is less than <paramref name="count"/>, only the elements within that list are returned.
         /// </summary>
         /// <param name="keys">The keys to look through for elements to pop.</param>
         /// <param name="count">The maximum number of elements to pop from the list.</param>
@@ -1960,11 +1960,11 @@ namespace StackExchange.Redis
         Task<SortedSetEntry[]> SortedSetPopAsync(RedisKey key, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Removes and returns up to the the specified <paramref name="count"/> of entries from the first non-empty sorted set specified by <paramref name="keys"/>.
-        /// Returns <see cref="SortedSetPopResult.Null"/> if none of the specified <paramref name="keys"/> contain any elements.
+        /// Removes and returns up to <paramref name="count"/> entries from the first non-empty sorted set in <paramref name="keys"/>.
+        /// Returns <see cref="SortedSetPopResult.Null"/> if none of the sets exist or contain any elements.
         /// </summary>
         /// <param name="keys">The keys to check.</param>
-        /// /// <param name="count">The maximum number of records to pop out of the sorted set.</param>
+        /// <param name="count">The maximum number of records to pop out of the sorted set.</param>
         /// <param name="order">The order to sort by when popping items out of the set.</param>
         /// <param name="flags">The flags to use for the operation.</param>
         /// <returns>A contiguous collection of sorted set entries with the key they were popped from, or <see cref="SortedSetPopResult.Null"/> if no non-empty sorted sets are found.</returns>
