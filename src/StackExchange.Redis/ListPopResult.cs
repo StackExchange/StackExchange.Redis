@@ -5,12 +5,12 @@ namespace StackExchange.Redis;
 /// <summary>
 /// A contiguous portion of a redis list.
 /// </summary>
-public readonly struct ListEntries
+public readonly struct ListPopResult
 {
     /// <summary>
-    /// A null ListEntries, indicating no results.
+    /// A null ListPopResult, indicating no results.
     /// </summary>
-    public static ListEntries Null { get; } = new ListEntries(RedisKey.Null, Array.Empty<RedisValue>());
+    public static ListPopResult Null { get; } = new ListPopResult(RedisKey.Null, Array.Empty<RedisValue>());
 
     /// <summary>
     /// Whether this object is null/empty.
@@ -27,7 +27,7 @@ public readonly struct ListEntries
     /// </summary>
     public RedisValue[] Values { get; }
 
-    internal ListEntries(RedisKey key, RedisValue[] values)
+    internal ListPopResult(RedisKey key, RedisValue[] values)
     {
         Key = key;
         Values = values;

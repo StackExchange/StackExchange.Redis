@@ -1083,10 +1083,10 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
         }
 
-        public ListEntries ListLeftPop(RedisKey[] keys, long count, CommandFlags flags = CommandFlags.None)
+        public ListPopResult ListLeftPop(RedisKey[] keys, long count, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetListMultiPopMessage(keys, RedisLiterals.LEFT, count, flags);
-            return ExecuteSync(msg, ResultProcessor.ListEntries);
+            return ExecuteSync(msg, ResultProcessor.ListPopResult);
         }
 
         public long ListPosition(RedisKey key, RedisValue element, long rank = 1, long maxLength = 0, CommandFlags flags = CommandFlags.None)
@@ -1113,10 +1113,10 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
         }
 
-        public Task<ListEntries> ListLeftPopAsync(RedisKey[] keys, long count, CommandFlags flags = CommandFlags.None)
+        public Task<ListPopResult> ListLeftPopAsync(RedisKey[] keys, long count, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetListMultiPopMessage(keys, RedisLiterals.LEFT, count, flags);
-            return ExecuteAsync(msg, ResultProcessor.ListEntries);
+            return ExecuteAsync(msg, ResultProcessor.ListPopResult);
         }
 
         public Task<long> ListPositionAsync(RedisKey key, RedisValue element, long rank = 1, long maxLength = 0, CommandFlags flags = CommandFlags.None)
@@ -1237,10 +1237,10 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
         }
 
-        public ListEntries ListRightPop(RedisKey[] keys, long count, CommandFlags flags = CommandFlags.None)
+        public ListPopResult ListRightPop(RedisKey[] keys, long count, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetListMultiPopMessage(keys, RedisLiterals.RIGHT, count, flags);
-            return ExecuteSync(msg, ResultProcessor.ListEntries);
+            return ExecuteSync(msg, ResultProcessor.ListPopResult);
         }
 
         public Task<RedisValue> ListRightPopAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -1255,10 +1255,10 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
         }
 
-        public Task<ListEntries> ListRightPopAsync(RedisKey[] keys, long count, CommandFlags flags = CommandFlags.None)
+        public Task<ListPopResult> ListRightPopAsync(RedisKey[] keys, long count, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetListMultiPopMessage(keys, RedisLiterals.RIGHT, count, flags);
-            return ExecuteAsync(msg, ResultProcessor.ListEntries);
+            return ExecuteAsync(msg, ResultProcessor.ListPopResult);
         }
 
         public RedisValue ListRightPopLeftPush(RedisKey source, RedisKey destination, CommandFlags flags = CommandFlags.None)
@@ -2142,10 +2142,10 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.SortedSetWithScores, defaultValue: Array.Empty<SortedSetEntry>());
         }
 
-        public SortedSetEntries SortedSetPop(RedisKey[] keys, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
+        public SortedSetPopResult SortedSetPop(RedisKey[] keys, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetSortedSetMultiPopMessage(keys, order, count, flags);
-            return ExecuteSync(msg, ResultProcessor.SortedSetEntries);
+            return ExecuteSync(msg, ResultProcessor.SortedSetPopResult);
         }
 
         public Task<SortedSetEntry[]> SortedSetPopAsync(RedisKey key, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
@@ -2157,10 +2157,10 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.SortedSetWithScores, defaultValue: Array.Empty<SortedSetEntry>());
         }
 
-        public Task<SortedSetEntries> SortedSetPopAsync(RedisKey[] keys, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
+        public Task<SortedSetPopResult> SortedSetPopAsync(RedisKey[] keys, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetSortedSetMultiPopMessage(keys, order, count, flags);
-            return ExecuteAsync(msg, ResultProcessor.SortedSetEntries);
+            return ExecuteAsync(msg, ResultProcessor.SortedSetPopResult);
         }
 
         public long StreamAcknowledge(RedisKey key, RedisValue groupName, RedisValue messageId, CommandFlags flags = CommandFlags.None)

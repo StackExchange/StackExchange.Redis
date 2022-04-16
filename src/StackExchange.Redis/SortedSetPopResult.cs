@@ -5,12 +5,12 @@ namespace StackExchange.Redis;
 /// <summary>
 /// A contiguous portion of a redis sorted set.
 /// </summary>
-public readonly struct SortedSetEntries
+public readonly struct SortedSetPopResult
 {
     /// <summary>
-    /// A null SortedSetEntries, indicating no results.
+    /// A null SortedSetPopResult, indicating no results.
     /// </summary>
-    public static SortedSetEntries Null { get; } = new SortedSetEntries(RedisKey.Null, Array.Empty<SortedSetEntry>());
+    public static SortedSetPopResult Null { get; } = new SortedSetPopResult(RedisKey.Null, Array.Empty<SortedSetEntry>());
 
     /// <summary>
     /// Whether this object is null/empty.
@@ -27,7 +27,7 @@ public readonly struct SortedSetEntries
     /// </summary>
     public SortedSetEntry[] Entries { get; }
 
-    internal SortedSetEntries(RedisKey key, SortedSetEntry[] entries)
+    internal SortedSetPopResult(RedisKey key, SortedSetEntry[] entries)
     {
         Key = key;
         Entries = entries;

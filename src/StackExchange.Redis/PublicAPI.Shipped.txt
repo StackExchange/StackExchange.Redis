@@ -421,11 +421,11 @@ StackExchange.Redis.GeoUnit.Miles = 2 -> StackExchange.Redis.GeoUnit
 StackExchange.Redis.ListSide
 StackExchange.Redis.ListSide.Left = 0 -> StackExchange.Redis.ListSide
 StackExchange.Redis.ListSide.Right = 1 -> StackExchange.Redis.ListSide
-StackExchange.Redis.ListEntries
-StackExchange.Redis.ListEntries.IsNull.get -> bool
-StackExchange.Redis.ListEntries.Key.get -> StackExchange.Redis.RedisKey
-StackExchange.Redis.ListEntries.ListEntries() -> void
-StackExchange.Redis.ListEntries.Values.get -> StackExchange.Redis.RedisValue[]!
+StackExchange.Redis.ListPopResult
+StackExchange.Redis.ListPopResult.IsNull.get -> bool
+StackExchange.Redis.ListPopResult.Key.get -> StackExchange.Redis.RedisKey
+StackExchange.Redis.ListPopResult.ListPopResult() -> void
+StackExchange.Redis.ListPopResult.Values.get -> StackExchange.Redis.RedisValue[]!
 StackExchange.Redis.HashEntry
 StackExchange.Redis.HashEntry.Equals(StackExchange.Redis.HashEntry other) -> bool
 StackExchange.Redis.HashEntry.HashEntry() -> void
@@ -564,7 +564,7 @@ StackExchange.Redis.IDatabase.ListInsertBefore(StackExchange.Redis.RedisKey key,
 StackExchange.Redis.IDatabase.ListMove(StackExchange.Redis.RedisKey sourceKey, StackExchange.Redis.RedisKey destinationKey, StackExchange.Redis.ListSide sourceSide, StackExchange.Redis.ListSide destinationSide, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue
 StackExchange.Redis.IDatabase.ListLeftPop(StackExchange.Redis.RedisKey key, long count, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue[]!
 StackExchange.Redis.IDatabase.ListLeftPop(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue
-StackExchange.Redis.IDatabase.ListLeftPop(StackExchange.Redis.RedisKey[]! keys, long count, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.ListEntries
+StackExchange.Redis.IDatabase.ListLeftPop(StackExchange.Redis.RedisKey[]! keys, long count, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.ListPopResult
 StackExchange.Redis.IDatabase.ListLeftPush(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue value, StackExchange.Redis.When when = StackExchange.Redis.When.Always, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
 StackExchange.Redis.IDatabase.ListLeftPush(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue[]! values, StackExchange.Redis.CommandFlags flags) -> long
 StackExchange.Redis.IDatabase.ListLeftPush(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue[]! values, StackExchange.Redis.When when = StackExchange.Redis.When.Always, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
@@ -575,7 +575,7 @@ StackExchange.Redis.IDatabase.ListRange(StackExchange.Redis.RedisKey key, long s
 StackExchange.Redis.IDatabase.ListRemove(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue value, long count = 0, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
 StackExchange.Redis.IDatabase.ListRightPop(StackExchange.Redis.RedisKey key, long count, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue[]!
 StackExchange.Redis.IDatabase.ListRightPop(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue
-StackExchange.Redis.IDatabase.ListRightPop(StackExchange.Redis.RedisKey[]! keys, long count, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.ListEntries
+StackExchange.Redis.IDatabase.ListRightPop(StackExchange.Redis.RedisKey[]! keys, long count, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.ListPopResult
 StackExchange.Redis.IDatabase.ListRightPopLeftPush(StackExchange.Redis.RedisKey source, StackExchange.Redis.RedisKey destination, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue
 StackExchange.Redis.IDatabase.ListRightPush(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue value, StackExchange.Redis.When when = StackExchange.Redis.When.Always, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
 StackExchange.Redis.IDatabase.ListRightPush(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue[]! values, StackExchange.Redis.CommandFlags flags) -> long
@@ -628,7 +628,7 @@ StackExchange.Redis.IDatabase.SortedSetLength(StackExchange.Redis.RedisKey key, 
 StackExchange.Redis.IDatabase.SortedSetLengthByValue(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue min, StackExchange.Redis.RedisValue max, StackExchange.Redis.Exclude exclude = StackExchange.Redis.Exclude.None, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
 StackExchange.Redis.IDatabase.SortedSetPop(StackExchange.Redis.RedisKey key, long count, StackExchange.Redis.Order order = StackExchange.Redis.Order.Ascending, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.SortedSetEntry[]!
 StackExchange.Redis.IDatabase.SortedSetPop(StackExchange.Redis.RedisKey key, StackExchange.Redis.Order order = StackExchange.Redis.Order.Ascending, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.SortedSetEntry?
-StackExchange.Redis.IDatabase.SortedSetPop(StackExchange.Redis.RedisKey[]! keys, long count, StackExchange.Redis.Order order = StackExchange.Redis.Order.Ascending, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.SortedSetEntries
+StackExchange.Redis.IDatabase.SortedSetPop(StackExchange.Redis.RedisKey[]! keys, long count, StackExchange.Redis.Order order = StackExchange.Redis.Order.Ascending, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.SortedSetPopResult
 StackExchange.Redis.IDatabase.SortedSetRandomMember(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue
 StackExchange.Redis.IDatabase.SortedSetRandomMembers(StackExchange.Redis.RedisKey key, long count, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue[]!
 StackExchange.Redis.IDatabase.SortedSetRandomMembersWithScores(StackExchange.Redis.RedisKey key, long count, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.SortedSetEntry[]!
@@ -777,7 +777,7 @@ StackExchange.Redis.IDatabaseAsync.ListInsertBeforeAsync(StackExchange.Redis.Red
 StackExchange.Redis.IDatabaseAsync.ListMoveAsync(StackExchange.Redis.RedisKey sourceKey, StackExchange.Redis.RedisKey destinationKey, StackExchange.Redis.ListSide sourceSide, StackExchange.Redis.ListSide destinationSide, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue>!
 StackExchange.Redis.IDatabaseAsync.ListLeftPopAsync(StackExchange.Redis.RedisKey key, long count, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue[]!>!
 StackExchange.Redis.IDatabaseAsync.ListLeftPopAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue>!
-StackExchange.Redis.IDatabaseAsync.ListLeftPopAsync(StackExchange.Redis.RedisKey[]! keys, long count, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.ListEntries>!
+StackExchange.Redis.IDatabaseAsync.ListLeftPopAsync(StackExchange.Redis.RedisKey[]! keys, long count, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.ListPopResult>!
 StackExchange.Redis.IDatabaseAsync.ListLeftPushAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue value, StackExchange.Redis.When when = StackExchange.Redis.When.Always, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
 StackExchange.Redis.IDatabaseAsync.ListLeftPushAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue[]! values, StackExchange.Redis.CommandFlags flags) -> System.Threading.Tasks.Task<long>!
 StackExchange.Redis.IDatabaseAsync.ListLeftPushAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue[]! values, StackExchange.Redis.When when = StackExchange.Redis.When.Always, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
@@ -788,7 +788,7 @@ StackExchange.Redis.IDatabaseAsync.ListRangeAsync(StackExchange.Redis.RedisKey k
 StackExchange.Redis.IDatabaseAsync.ListRemoveAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue value, long count = 0, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
 StackExchange.Redis.IDatabaseAsync.ListRightPopAsync(StackExchange.Redis.RedisKey key, long count, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue[]!>!
 StackExchange.Redis.IDatabaseAsync.ListRightPopAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue>!
-StackExchange.Redis.IDatabaseAsync.ListRightPopAsync(StackExchange.Redis.RedisKey[]! keys, long count, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.ListEntries>!
+StackExchange.Redis.IDatabaseAsync.ListRightPopAsync(StackExchange.Redis.RedisKey[]! keys, long count, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.ListPopResult>!
 StackExchange.Redis.IDatabaseAsync.ListRightPopLeftPushAsync(StackExchange.Redis.RedisKey source, StackExchange.Redis.RedisKey destination, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue>!
 StackExchange.Redis.IDatabaseAsync.ListRightPushAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue value, StackExchange.Redis.When when = StackExchange.Redis.When.Always, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
 StackExchange.Redis.IDatabaseAsync.ListRightPushAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue[]! values, StackExchange.Redis.CommandFlags flags) -> System.Threading.Tasks.Task<long>!
@@ -840,7 +840,7 @@ StackExchange.Redis.IDatabaseAsync.SortedSetLengthAsync(StackExchange.Redis.Redi
 StackExchange.Redis.IDatabaseAsync.SortedSetLengthByValueAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue min, StackExchange.Redis.RedisValue max, StackExchange.Redis.Exclude exclude = StackExchange.Redis.Exclude.None, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
 StackExchange.Redis.IDatabaseAsync.SortedSetPopAsync(StackExchange.Redis.RedisKey key, long count, StackExchange.Redis.Order order = StackExchange.Redis.Order.Ascending, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.SortedSetEntry[]!>!
 StackExchange.Redis.IDatabaseAsync.SortedSetPopAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.Order order = StackExchange.Redis.Order.Ascending, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.SortedSetEntry?>!
-StackExchange.Redis.IDatabaseAsync.SortedSetPopAsync(StackExchange.Redis.RedisKey[]! keys, long count, StackExchange.Redis.Order order = StackExchange.Redis.Order.Ascending, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.SortedSetEntries>!
+StackExchange.Redis.IDatabaseAsync.SortedSetPopAsync(StackExchange.Redis.RedisKey[]! keys, long count, StackExchange.Redis.Order order = StackExchange.Redis.Order.Ascending, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.SortedSetPopResult>!
 StackExchange.Redis.IDatabaseAsync.SortedSetRandomMemberAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue>!
 StackExchange.Redis.IDatabaseAsync.SortedSetRandomMembersAsync(StackExchange.Redis.RedisKey key, long count, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue[]!>!
 StackExchange.Redis.IDatabaseAsync.SortedSetRandomMembersWithScoresAsync(StackExchange.Redis.RedisKey key, long count, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.SortedSetEntry[]!>!
@@ -1385,11 +1385,11 @@ StackExchange.Redis.SortedSetOrder
 StackExchange.Redis.SortedSetOrder.ByLex = 2 -> StackExchange.Redis.SortedSetOrder
 StackExchange.Redis.SortedSetOrder.ByRank = 0 -> StackExchange.Redis.SortedSetOrder
 StackExchange.Redis.SortedSetOrder.ByScore = 1 -> StackExchange.Redis.SortedSetOrder
-StackExchange.Redis.SortedSetEntries
-StackExchange.Redis.SortedSetEntries.Entries.get -> StackExchange.Redis.SortedSetEntry[]!
-StackExchange.Redis.SortedSetEntries.IsNull.get -> bool
-StackExchange.Redis.SortedSetEntries.Key.get -> StackExchange.Redis.RedisKey
-StackExchange.Redis.SortedSetEntries.SortedSetEntries() -> void
+StackExchange.Redis.SortedSetPopResult
+StackExchange.Redis.SortedSetPopResult.Entries.get -> StackExchange.Redis.SortedSetEntry[]!
+StackExchange.Redis.SortedSetPopResult.IsNull.get -> bool
+StackExchange.Redis.SortedSetPopResult.Key.get -> StackExchange.Redis.RedisKey
+StackExchange.Redis.SortedSetPopResult.SortedSetPopResult() -> void
 StackExchange.Redis.SortType
 StackExchange.Redis.SortType.Alphabetic = 1 -> StackExchange.Redis.SortType
 StackExchange.Redis.SortType.Numeric = 0 -> StackExchange.Redis.SortType
@@ -1543,7 +1543,7 @@ static StackExchange.Redis.HashEntry.operator ==(StackExchange.Redis.HashEntry x
 static StackExchange.Redis.KeyspaceIsolation.DatabaseExtensions.WithKeyPrefix(this StackExchange.Redis.IDatabase! database, StackExchange.Redis.RedisKey keyPrefix) -> StackExchange.Redis.IDatabase!
 static StackExchange.Redis.Lease<T>.Create(int length, bool clear = true) -> StackExchange.Redis.Lease<T>!
 static StackExchange.Redis.Lease<T>.Empty.get -> StackExchange.Redis.Lease<T>!
-static StackExchange.Redis.ListEntries.Null.get -> StackExchange.Redis.ListEntries
+static StackExchange.Redis.ListPopResult.Null.get -> StackExchange.Redis.ListPopResult
 static StackExchange.Redis.LuaScript.GetCachedScriptCount() -> int
 static StackExchange.Redis.LuaScript.Prepare(string! script) -> StackExchange.Redis.LuaScript!
 static StackExchange.Redis.LuaScript.PurgeCache() -> void
@@ -1661,7 +1661,7 @@ static StackExchange.Redis.SortedSetEntry.implicit operator StackExchange.Redis.
 static StackExchange.Redis.SortedSetEntry.implicit operator System.Collections.Generic.KeyValuePair<StackExchange.Redis.RedisValue, double>(StackExchange.Redis.SortedSetEntry value) -> System.Collections.Generic.KeyValuePair<StackExchange.Redis.RedisValue, double>
 static StackExchange.Redis.SortedSetEntry.operator !=(StackExchange.Redis.SortedSetEntry x, StackExchange.Redis.SortedSetEntry y) -> bool
 static StackExchange.Redis.SortedSetEntry.operator ==(StackExchange.Redis.SortedSetEntry x, StackExchange.Redis.SortedSetEntry y) -> bool
-static StackExchange.Redis.SortedSetEntries.Null.get -> StackExchange.Redis.SortedSetEntries
+static StackExchange.Redis.SortedSetPopResult.Null.get -> StackExchange.Redis.SortedSetPopResult
 static StackExchange.Redis.StreamEntry.Null.get -> StackExchange.Redis.StreamEntry
 static StackExchange.Redis.StreamPosition.Beginning.get -> StackExchange.Redis.RedisValue
 static StackExchange.Redis.StreamPosition.NewMessages.get -> StackExchange.Redis.RedisValue
