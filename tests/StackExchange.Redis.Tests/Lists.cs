@@ -878,8 +878,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task ListMultiPopSingleKeyAsync()
         {
-            using var conn = Create();
-            Skip.IfBelow(conn, RedisFeatures.v7_0_0_rc1);
+            using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
             var db = conn.GetDatabase();
             var key = Me();
@@ -908,8 +907,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task ListMultiPopMultipleKeysAsync()
         {
-            using var conn = Create();
-            Skip.IfBelow(conn, RedisFeatures.v7_0_0_rc1);
+            using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
             var db = conn.GetDatabase();
             var key = Me();
@@ -938,8 +936,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void ListMultiPopSingleKey()
         {
-            using var conn = Create();
-            Skip.IfBelow(conn, RedisFeatures.v7_0_0_rc1);
+            using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
             var db = conn.GetDatabase();
             var key = Me();
@@ -968,8 +965,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task ListMultiPopZeroCount()
         {
-            using var conn = Create();
-            Skip.IfBelow(conn, RedisFeatures.v7_0_0_rc1);
+            using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
             var db = conn.GetDatabase();
             var key = Me();
@@ -982,8 +978,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task ListMultiPopEmpty()
         {
-            using var conn = Create();
-            Skip.IfBelow(conn, RedisFeatures.v7_0_0_rc1);
+            using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
             var db = conn.GetDatabase();
             var key = Me();
@@ -997,8 +992,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void ListMultiPopEmptyKeys()
         {
-            using var conn = Create();
-            Skip.IfBelow(conn, RedisFeatures.v7_0_0_rc1);
+            using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
             var db = conn.GetDatabase();
             var exception = Assert.Throws<ArgumentOutOfRangeException>(()=>db.ListRightPop(Array.Empty<RedisKey>(), 5));
