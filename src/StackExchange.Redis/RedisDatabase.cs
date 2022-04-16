@@ -2115,7 +2115,7 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.RedisValue);
         }
 
-        public StreamAutoClaimResult StreamAutoClaim(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue startAtId, int? count = null, bool idsOnly = false, CommandFlags flags = CommandFlags.None)
+        public StreamAutoClaimResult StreamAutoClaim(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue startAtId, int? count = null, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStreamAutoClaimMessage(key,
                 consumerGroup,
@@ -2123,13 +2123,13 @@ namespace StackExchange.Redis
                 minIdleTimeInMs,
                 startAtId,
                 count,
-                idsOnly,
+                returnJustIds: false,
                 flags);
 
-            return ExecuteSync(msg, idsOnly ? ResultProcessor.StreamAutoClaimIdsOnly : ResultProcessor.StreamAutoClaim);
+            return ExecuteSync(msg, ResultProcessor.StreamAutoClaim);
         }
 
-        public Task<StreamAutoClaimResult> StreamAutoClaimAsync(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue startAtId, int? count = null, bool idsOnly = false, CommandFlags flags = CommandFlags.None)
+        public Task<StreamAutoClaimResult> StreamAutoClaimAsync(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue startAtId, int? count = null, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStreamAutoClaimMessage(key,
                 consumerGroup,
@@ -2137,10 +2137,38 @@ namespace StackExchange.Redis
                 minIdleTimeInMs,
                 startAtId,
                 count,
-                idsOnly,
+                returnJustIds: false,
                 flags);
 
-            return ExecuteAsync(msg, idsOnly ? ResultProcessor.StreamAutoClaimIdsOnly : ResultProcessor.StreamAutoClaim);
+            return ExecuteAsync(msg, ResultProcessor.StreamAutoClaim);
+        }
+
+        public StreamAutoClaimIdsOnlyResult StreamAutoClaimIdsOnly(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue startAtId, int? count = null, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetStreamAutoClaimMessage(key,
+                consumerGroup,
+                claimingConsumer,
+                minIdleTimeInMs,
+                startAtId,
+                count,
+                returnJustIds: true,
+                flags);
+
+            return ExecuteSync(msg, ResultProcessor.StreamAutoClaimIdsOnly);
+        }
+
+        public Task<StreamAutoClaimIdsOnlyResult> StreamAutoClaimIdsOnlyAsync(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue startAtId, int? count = null, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetStreamAutoClaimMessage(key,
+                consumerGroup,
+                claimingConsumer,
+                minIdleTimeInMs,
+                startAtId,
+                count,
+                returnJustIds: true,
+                flags);
+
+            return ExecuteAsync(msg, ResultProcessor.StreamAutoClaimIdsOnly);
         }
 
         public StreamEntry[] StreamClaim(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)

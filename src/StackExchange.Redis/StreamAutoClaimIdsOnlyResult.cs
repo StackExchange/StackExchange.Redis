@@ -1,14 +1,14 @@
 ﻿namespace StackExchange.Redis
 {
     /// <summary>
-    /// The result of the XAUTOCLAIM command.
+    /// The result of the XAUTOCLAIM command with the JUSTID option.
     /// </summary>
-    public readonly struct StreamAutoClaimResult
+    public readonly struct StreamAutoClaimIdsOnlyResult
     {
-        internal StreamAutoClaimResult(RedisValue nextStartId, StreamEntry[] claimedEntries, RedisValue[] deletedIds)
+        internal StreamAutoClaimIdsOnlyResult(RedisValue nextStartId, RedisValue[] claimedEntryIds, RedisValue[] deletedIds)
         {
             NextStartId = nextStartId;
-            ClaimedEntries = claimedEntries;
+            ClaimedEntryIds = claimedEntryIds;
             DeletedIds = deletedIds;
         }
 
@@ -18,12 +18,12 @@
         public RedisValue NextStartId { get; }
 
         /// <summary>
-        /// An array of <see cref="StreamEntry"/> for the successfully claimed entries.
+        /// Array of IDs claimed by the command.
         /// </summary>
-        public StreamEntry[] ClaimedEntries { get; }
+        public RedisValue[] ClaimedEntryIds { get; }
 
         /// <summary>
-        /// An array of message IDs deleted from the stream.
+        /// Array of message IDs deleted from the stream.
         /// </summary>
         public RedisValue[] DeletedIds { get; }
     }

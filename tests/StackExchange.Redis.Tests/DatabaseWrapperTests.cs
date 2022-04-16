@@ -990,8 +990,15 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamAutoClaim()
         {
-            wrapper.StreamAutoClaim("key", "group", "consumer", 0, "0-0", 100, true, CommandFlags.None);
-            mock.Verify(_ => _.StreamAutoClaim("prefix:key", "group", "consumer", 0, "0-0", 100, true, CommandFlags.None));
+            wrapper.StreamAutoClaim("key", "group", "consumer", 0, "0-0", 100, CommandFlags.None);
+            mock.Verify(_ => _.StreamAutoClaim("prefix:key", "group", "consumer", 0, "0-0", 100, CommandFlags.None));
+        }
+
+        [Fact]
+        public void StreamAutoClaimIdsOnly()
+        {
+            wrapper.StreamAutoClaimIdsOnly("key", "group", "consumer", 0, "0-0", 100, CommandFlags.None);
+            mock.Verify(_ => _.StreamAutoClaimIdsOnly("prefix:key", "group", "consumer", 0, "0-0", 100, CommandFlags.None));
         }
 
         [Fact]

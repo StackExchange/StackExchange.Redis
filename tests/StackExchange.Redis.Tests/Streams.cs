@@ -202,6 +202,33 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void StreamAutoClaim_ClaimsSingleMessageWithCountOptionIdsOnly()
+        {
+            var key = Me();
+            var group = "consumerGroup";
+            var consumer1 = "c1";
+            var consumer2 = "c2";
+
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
+
+            var db = conn.GetDatabase();
+
+            // Create Consumer Group, add messages, and read messages into a consumer.
+            var messageIds = StreamAutoClaim_PrepareTestData(db, key, group, consumer1);
+
+            // Claim a single pending message and reassign it to consumer2.
+            var result = db.StreamAutoClaimIdsOnly(key, group, consumer2, 0, "0-0", count: 1);
+
+            // Should be the second message ID from the call to prepare.
+            Assert.Equal(messageIds[1], result.NextStartId);
+            Assert.NotEmpty(result.ClaimedEntryIds);
+            Assert.True(result.ClaimedEntryIds.Length == 1);
+            Assert.Equal(messageIds[0], result.ClaimedEntryIds[0]);
+            Assert.Empty(result.DeletedIds);
+        }
+
+        [Fact]
         public async Task StreamAutoClaim_ClaimsSingleMessageWithCountOptionAsync()
         {
             var key = Me();
@@ -226,6 +253,33 @@ namespace StackExchange.Redis.Tests
             Assert.Empty(result.DeletedIds);
             Assert.True(result.ClaimedEntries.Length == 1);
             Assert.Equal("value1", result.ClaimedEntries[0].Values[0].Value);
+        }
+
+        [Fact]
+        public async Task StreamAutoClaim_ClaimsSingleMessageWithCountOptionIdsOnlyAsync()
+        {
+            var key = Me();
+            var group = "consumerGroup";
+            var consumer1 = "c1";
+            var consumer2 = "c2";
+
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
+
+            var db = conn.GetDatabase();
+
+            // Create Consumer Group, add messages, and read messages into a consumer.
+            var messageIds = StreamAutoClaim_PrepareTestData(db, key, group, consumer1);
+
+            // Claim a single pending message and reassign it to consumer2.
+            var result = await db.StreamAutoClaimIdsOnlyAsync(key, group, consumer2, 0, "0-0", count: 1);
+
+            // Should be the second message ID from the call to prepare.
+            Assert.Equal(messageIds[1], result.NextStartId);
+            Assert.NotEmpty(result.ClaimedEntryIds);
+            Assert.True(result.ClaimedEntryIds.Length == 1);
+            Assert.Equal(messageIds[0], result.ClaimedEntryIds[0]);
+            Assert.Empty(result.DeletedIds);
         }
 
         [Fact]
@@ -359,7 +413,7 @@ namespace StackExchange.Redis.Tests
             _ = StreamAutoClaim_PrepareTestData(db, key, group, consumer1);
 
             // Claim messages idle for more than 5 minutes, should return an empty array.
-            var result = db.StreamAutoClaim(key, group, consumer2, 300000, "0-0", idsOnly: true);
+            var result = db.StreamAutoClaim(key, group, consumer2, 300000, "0-0");
 
             Assert.Equal("0-0", result.NextStartId);
             Assert.Empty(result.ClaimedEntries);
@@ -383,7 +437,7 @@ namespace StackExchange.Redis.Tests
             _ = StreamAutoClaim_PrepareTestData(db, key, group, consumer1);
 
             // Claim messages idle for more than 5 minutes, should return an empty array.
-            var result = await db.StreamAutoClaimAsync(key, group, consumer2, 300000, "0-0", idsOnly: true);
+            var result = await db.StreamAutoClaimAsync(key, group, consumer2, 300000, "0-0");
 
             Assert.Equal("0-0", result.NextStartId);
             Assert.Empty(result.ClaimedEntries);
@@ -391,7 +445,7 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void StreamAutoClaim_ReturnsStreamIdOnly()
+        public void StreamAutoClaim_ReturnsMessageIdOnly()
         {
             var key = Me();
             var group = "consumerGroup";
@@ -407,20 +461,18 @@ namespace StackExchange.Redis.Tests
             var messageIds = StreamAutoClaim_PrepareTestData(db, key, group, consumer1);
 
             // Claim any pending messages and reassign them to consumer2.
-            var result = db.StreamAutoClaim(key, group, consumer2, 0, "0-0", idsOnly: true);
+            var result = db.StreamAutoClaimIdsOnly(key, group, consumer2, 0, "0-0");
 
             Assert.Equal("0-0", result.NextStartId);
-            Assert.NotEmpty(result.ClaimedEntries);
+            Assert.NotEmpty(result.ClaimedEntryIds);
             Assert.Empty(result.DeletedIds);
-            Assert.True(result.ClaimedEntries.Length == 2);
-            Assert.Equal(messageIds[0], result.ClaimedEntries[0].Id);
-            Assert.Equal(messageIds[1], result.ClaimedEntries[1].Id);
-            Assert.Empty(result.ClaimedEntries[0].Values);
-            Assert.Empty(result.ClaimedEntries[1].Values);
+            Assert.True(result.ClaimedEntryIds.Length == 2);
+            Assert.Equal(messageIds[0], result.ClaimedEntryIds[0]);
+            Assert.Equal(messageIds[1], result.ClaimedEntryIds[1]);
         }
 
         [Fact]
-        public async Task StreamAutoClaim_ReturnsStreamIdOnlyAsync()
+        public async Task StreamAutoClaim_ReturnsMessageIdOnlyAsync()
         {
             var key = Me();
             var group = "consumerGroup";
@@ -436,16 +488,14 @@ namespace StackExchange.Redis.Tests
             var messageIds = StreamAutoClaim_PrepareTestData(db, key, group, consumer1);
 
             // Claim any pending messages and reassign them to consumer2.
-            var result = await db.StreamAutoClaimAsync(key, group, consumer2, 0, "0-0", idsOnly: true);
+            var result = await db.StreamAutoClaimIdsOnlyAsync(key, group, consumer2, 0, "0-0");
 
             Assert.Equal("0-0", result.NextStartId);
-            Assert.NotEmpty(result.ClaimedEntries);
+            Assert.NotEmpty(result.ClaimedEntryIds);
             Assert.Empty(result.DeletedIds);
-            Assert.True(result.ClaimedEntries.Length == 2);
-            Assert.Equal(messageIds[0], result.ClaimedEntries[0].Id);
-            Assert.Equal(messageIds[1], result.ClaimedEntries[1].Id);
-            Assert.Empty(result.ClaimedEntries[0].Values);
-            Assert.Empty(result.ClaimedEntries[1].Values);
+            Assert.True(result.ClaimedEntryIds.Length == 2);
+            Assert.Equal(messageIds[0], result.ClaimedEntryIds[0]);
+            Assert.Equal(messageIds[1], result.ClaimedEntryIds[1]);
         }
 
         private RedisValue[] StreamAutoClaim_PrepareTestData(IDatabase db, RedisKey key, RedisValue group, RedisValue consumer)

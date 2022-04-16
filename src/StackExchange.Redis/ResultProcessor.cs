@@ -121,8 +121,8 @@ namespace StackExchange.Redis
         public static readonly StreamAutoClaimProcessor
             StreamAutoClaim = new StreamAutoClaimProcessor();
 
-        public static readonly StreamAutoClaimProcessor
-            StreamAutoClaimIdsOnly = new StreamAutoClaimProcessor(processIdsOnly: true);
+        public static readonly StreamAutoClaimIdsOnlyProcessor
+            StreamAutoClaimIdsOnly = new StreamAutoClaimIdsOnlyProcessor();
 
         public static readonly StreamConsumerInfoProcessor
             StreamConsumerInfo = new StreamConsumerInfoProcessor();
@@ -1751,13 +1751,6 @@ The coordinates as a two items x,y array (longitude,latitude).
 
         internal sealed class StreamAutoClaimProcessor : StreamProcessorBase<StreamAutoClaimResult>
         {
-            private readonly bool processIdsOnly;
-
-            public StreamAutoClaimProcessor(bool processIdsOnly = false)
-            {
-                this.processIdsOnly = processIdsOnly;
-            }
-
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
                 // See https://redis.io/commands/xautoclaim for command documentation.
@@ -1769,32 +1762,66 @@ The coordinates as a two items x,y array (longitude,latitude).
                     // [0] The next start ID.
                     var nextStartId = items[0].AsRedisValue();
 
-                    // [1] The array of either StreamEntry's or message IDs.
-                    var entriesOrIds = items[1].GetItems();
+                    // [1] The array of StreamEntry's.
+                    var entries = items[1].GetItems();
 
                     // [2] The array of message IDs deleted from the stream that were in the PEL.
                     //     This is not available in 6.2 so we need to be defensive when reading
                     //     this part of the response.
-                    RedisValue[] deletedIds = null!;
+                    RedisValue[]? deletedIds = null;
 
                     if (items.Length == 3)
                     {
-                        deletedIds = items[2].GetItemsAsValues()!;
+                        deletedIds = items[2].GetItemsAsValues();
                     }
 
-                    var arr = new StreamEntry[entriesOrIds.Length];
+                    var arr = new StreamEntry[entries.Length];
 
                     for (var i = 0; i < arr.Length; i++)
                     {
-                        var item = entriesOrIds[i];
-
-                        // If JUSTID was sent with the request, only populate the ID of the StreamEntry.
-                        arr[i] = processIdsOnly
-                            ? new StreamEntry(item.AsRedisValue(), Array.Empty<NameValueEntry>())
-                            : ParseRedisStreamEntry(entriesOrIds[i]);
+                        arr[i] = ParseRedisStreamEntry(entries[i]);
                     }
 
                     SetResult(message, new StreamAutoClaimResult(nextStartId, arr, deletedIds ?? Array.Empty<RedisValue>()));
+                    return true;
+                }
+
+                return false;
+            }
+        }
+
+        internal sealed class StreamAutoClaimIdsOnlyProcessor : ResultProcessor<StreamAutoClaimIdsOnlyResult>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                // Process the result when the command was sent the JUSTID option.
+
+                // See https://redis.io/commands/xautoclaim for command documentation.
+
+                if (!result.IsNull && result.Type == ResultType.MultiBulk)
+                {
+                    var items = result.GetItems();
+
+                    // [0] The next start ID.
+                    var nextStartId = items[0].AsRedisValue();
+
+                    // [1] The array of claimed message IDs.
+                    var claimedIds = items[1].GetItemsAsValues();
+
+                    // [2] The array of message IDs deleted from the stream that were in the PEL.
+                    //     This is not available in 6.2 so we need to be defensive when reading
+                    //     this part of the response.
+                    RedisValue[]? deletedIds = null;
+
+                    if (items.Length == 3)
+                    {
+                        deletedIds = items[2].GetItemsAsValues();
+                    }
+
+                    SetResult(message, new StreamAutoClaimIdsOnlyResult(nextStartId,
+                        claimedIds ?? Array.Empty<RedisValue>(),
+                        deletedIds ?? Array.Empty<RedisValue>()));
+
                     return true;
                 }
 
