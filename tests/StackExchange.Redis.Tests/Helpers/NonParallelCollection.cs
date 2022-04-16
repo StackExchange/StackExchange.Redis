@@ -1,10 +1,9 @@
 ﻿using Xunit;
 
-namespace StackExchange.Redis.Tests
+namespace StackExchange.Redis.Tests;
+
+[CollectionDefinition(Name, DisableParallelization = true)]
+public static class NonParallelCollection
 {
-    [CollectionDefinition(Name, DisableParallelization = true)]
-    public static class NonParallelCollection
-    {
-        public const string Name = "NonParallel";
-    }
+    public const string Name = "NonParallel";
 }
