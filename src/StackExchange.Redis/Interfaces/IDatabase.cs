@@ -573,7 +573,8 @@ namespace StackExchange.Redis
         long KeyExists(RedisKey[] keys, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Set a timeout on key. After the timeout has expired, the key will automatically be deleted.
+        /// Set a timeout on <paramref name="key"/>.
+        /// After the timeout has expired, the key will automatically be deleted.
         /// A key with an associated timeout is said to be volatile in Redis terminology.
         /// </summary>
         /// <param name="key">The key to set the expiration for.</param>
@@ -597,7 +598,8 @@ namespace StackExchange.Redis
         bool KeyExpire(RedisKey key, TimeSpan? expiry, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Set a timeout on key. After the timeout has expired, the key will automatically be deleted.
+        /// Set a timeout on <paramref name="key"/>.
+        /// After the timeout has expired, the key will automatically be deleted.
         /// A key with an associated timeout is said to be volatile in Redis terminology.
         /// </summary>
         /// <param name="key">The key to set the expiration for.</param>
@@ -610,7 +612,8 @@ namespace StackExchange.Redis
         bool KeyExpire(RedisKey key, TimeSpan? expiry, ExpiryWhen when, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Set a timeout on key. After the timeout has expired, the key will automatically be deleted.
+        /// Set a timeout on <paramref name="key"/>.
+        /// After the timeout has expired, the key will automatically be deleted.
         /// A key with an associated timeout is said to be volatile in Redis terminology.
         /// </summary>
         /// <param name="key">The key to set the expiration for.</param>
@@ -634,7 +637,8 @@ namespace StackExchange.Redis
         bool KeyExpire(RedisKey key, DateTime? expiry, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Set a timeout on key. After the timeout has expired, the key will automatically be deleted.
+        /// Set a timeout on <paramref name="key"/>.
+        /// After the timeout has expired, the key will automatically be deleted.
         /// A key with an associated timeout is said to be volatile in Redis terminology.
         /// </summary>
         /// <param name="key">The key to set the expiration for.</param>
@@ -647,11 +651,11 @@ namespace StackExchange.Redis
         bool KeyExpire(RedisKey key, DateTime? expiry, ExpiryWhen when, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Returns the absolute time at which the given <paramref name="key"/> will expire, if it exists and has a expiration.
+        /// Returns the absolute time at which the given <paramref name="key"/> will expire, if it exists and has an expiration.
         /// </summary>
         /// <param name="key">The key to get the expiration for.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The time at which the given key will expire, or <see langword="null"/> if the key does not exist or the key exists but has no associated expiration time.</returns>
+        /// <returns>The time at which the given key will expire, or <see langword="null"/> if the key does not exist or has no associated expiration time.</returns>
         /// <remarks>https://redis.io/commands/expiretime</remarks>
         /// <remarks>https://redis.io/commands/pexpiretime</remarks>
         DateTime? KeyExpireTime(RedisKey key, CommandFlags flags = CommandFlags.None);
