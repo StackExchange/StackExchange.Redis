@@ -570,7 +570,7 @@ namespace StackExchange.Redis
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
-                if(result.Type == ResultType.MultiBulk)
+                if (result.Type == ResultType.MultiBulk)
                 {
                     if (result.IsNull)
                     {
@@ -578,16 +578,9 @@ namespace StackExchange.Redis
                         return true;
                     }
 
-                    var outterArry = result.GetItems();
-                    var key = outterArry[0].AsRedisKey();
-                    var innerArray = outterArry[1].GetItems();
-                    var entries = new SortedSetEntry[innerArray.Length];
-                    var i = 0;
-
-                    foreach (var item in innerArray)
-                    {
-                        entries[i++] = item.GetItemsAsSortedSetEntry();
-                    }
+                    var arr = result.GetItems();
+                    var key = arr[0].AsRedisKey();
+                    var entries = arr[1].ToArray((in RawResult x) => x.GetItemsAsSortedSetEntry())!;
 
                     SetResult(message, new SortedSetPopResult(key, entries));
                     return true;
@@ -601,7 +594,7 @@ namespace StackExchange.Redis
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
-                if(result.Type == ResultType.MultiBulk)
+                if (result.Type == ResultType.MultiBulk)
                 {
                     if (result.IsNull)
                     {
@@ -609,18 +602,8 @@ namespace StackExchange.Redis
                         return true;
                     }
 
-                    var outterArry = result.GetItems();
-                    var key = outterArry[0].AsRedisKey();
-                    var innerArray = outterArry[1].GetItems();
-                    var entries = new RedisValue[innerArray.Length];
-                    var i = 0;
-
-                    foreach (var item in innerArray)
-                    {
-                        entries[i++] = item.AsRedisValue();
-                    }
-
-                    SetResult(message, new ListPopResult(key, entries));
+                    var arr = result.GetItems();
+                    SetResult(message, new ListPopResult(arr[0].AsRedisKey(), arr[1].GetItemsAsValues()!));
                     return true;
                 }
 
