@@ -1396,11 +1396,13 @@ StackExchange.Redis.SortType.Numeric = 0 -> StackExchange.Redis.SortType
 StackExchange.Redis.StreamAutoClaimIdsOnlyResult
 StackExchange.Redis.StreamAutoClaimIdsOnlyResult.ClaimedIds.get -> StackExchange.Redis.RedisValue[]!
 StackExchange.Redis.StreamAutoClaimIdsOnlyResult.DeletedIds.get -> StackExchange.Redis.RedisValue[]!
+StackExchange.Redis.StreamAutoClaimIdsOnlyResult.IsNull.get -> bool
 StackExchange.Redis.StreamAutoClaimIdsOnlyResult.NextStartId.get -> StackExchange.Redis.RedisValue
 StackExchange.Redis.StreamAutoClaimIdsOnlyResult.StreamAutoClaimIdsOnlyResult() -> void
 StackExchange.Redis.StreamAutoClaimResult
 StackExchange.Redis.StreamAutoClaimResult.ClaimedEntries.get -> StackExchange.Redis.StreamEntry[]!
 StackExchange.Redis.StreamAutoClaimResult.DeletedIds.get -> StackExchange.Redis.RedisValue[]!
+StackExchange.Redis.StreamAutoClaimResult.IsNull.get -> bool
 StackExchange.Redis.StreamAutoClaimResult.NextStartId.get -> StackExchange.Redis.RedisValue
 StackExchange.Redis.StreamAutoClaimResult.StreamAutoClaimResult() -> void
 StackExchange.Redis.StreamConsumer
@@ -1670,6 +1672,8 @@ static StackExchange.Redis.SortedSetEntry.implicit operator StackExchange.Redis.
 static StackExchange.Redis.SortedSetEntry.implicit operator System.Collections.Generic.KeyValuePair<StackExchange.Redis.RedisValue, double>(StackExchange.Redis.SortedSetEntry value) -> System.Collections.Generic.KeyValuePair<StackExchange.Redis.RedisValue, double>
 static StackExchange.Redis.SortedSetEntry.operator !=(StackExchange.Redis.SortedSetEntry x, StackExchange.Redis.SortedSetEntry y) -> bool
 static StackExchange.Redis.SortedSetEntry.operator ==(StackExchange.Redis.SortedSetEntry x, StackExchange.Redis.SortedSetEntry y) -> bool
+static StackExchange.Redis.StreamAutoClaimIdsOnlyResult.Null.get -> StackExchange.Redis.StreamAutoClaimIdsOnlyResult
+static StackExchange.Redis.StreamAutoClaimResult.Null.get -> StackExchange.Redis.StreamAutoClaimResult
 static StackExchange.Redis.StreamEntry.Null.get -> StackExchange.Redis.StreamEntry
 static StackExchange.Redis.StreamPosition.Beginning.get -> StackExchange.Redis.RedisValue
 static StackExchange.Redis.StreamPosition.NewMessages.get -> StackExchange.Redis.RedisValue

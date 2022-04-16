@@ -123,15 +123,13 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamAutoClaim_ClaimsPendingMessages()
         {
+            using var conn = Create(require: RedisFeatures.v6_2_0);
+
             var key = Me();
-            var group = "consumerGroup";
-            var consumer1 = "c1";
-            var consumer2 = "c2";
-
-            using var conn = Create();
-            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
-
             var db = conn.GetDatabase();
+            const string group = "consumerGroup",
+                         consumer1 = "c1",
+                         consumer2 = "c2";
 
             // Create Consumer Group, add messages, and read messages into a consumer.
             _ = StreamAutoClaim_PrepareTestData(db, key, group, consumer1);
@@ -150,15 +148,13 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task StreamAutoClaim_ClaimsPendingMessagesAsync()
         {
+            using var conn = Create(require: RedisFeatures.v6_2_0);
+
             var key = Me();
-            var group = "consumerGroup";
-            var consumer1 = "c1";
-            var consumer2 = "c2";
-
-            using var conn = Create();
-            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
-
             var db = conn.GetDatabase();
+            const string group = "consumerGroup",
+                         consumer1 = "c1",
+                         consumer2 = "c2";
 
             // Create Consumer Group, add messages, and read messages into a consumer.
             _ = StreamAutoClaim_PrepareTestData(db, key, group, consumer1);
@@ -177,15 +173,13 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamAutoClaim_ClaimsSingleMessageWithCountOption()
         {
+            using var conn = Create(require: RedisFeatures.v6_2_0);
+
             var key = Me();
-            var group = "consumerGroup";
-            var consumer1 = "c1";
-            var consumer2 = "c2";
-
-            using var conn = Create();
-            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
-
             var db = conn.GetDatabase();
+            const string group = "consumerGroup",
+                         consumer1 = "c1",
+                         consumer2 = "c2";
 
             // Create Consumer Group, add messages, and read messages into a consumer.
             var messageIds = StreamAutoClaim_PrepareTestData(db, key, group, consumer1);
@@ -204,15 +198,13 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamAutoClaim_ClaimsSingleMessageWithCountOptionIdsOnly()
         {
+            using var conn = Create(require: RedisFeatures.v6_2_0);
+
             var key = Me();
-            var group = "consumerGroup";
-            var consumer1 = "c1";
-            var consumer2 = "c2";
-
-            using var conn = Create();
-            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
-
             var db = conn.GetDatabase();
+            const string group = "consumerGroup",
+                         consumer1 = "c1",
+                         consumer2 = "c2";
 
             // Create Consumer Group, add messages, and read messages into a consumer.
             var messageIds = StreamAutoClaim_PrepareTestData(db, key, group, consumer1);
@@ -231,15 +223,13 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task StreamAutoClaim_ClaimsSingleMessageWithCountOptionAsync()
         {
+            using var conn = Create(require: RedisFeatures.v6_2_0);
+
             var key = Me();
-            var group = "consumerGroup";
-            var consumer1 = "c1";
-            var consumer2 = "c2";
-
-            using var conn = Create();
-            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
-
             var db = conn.GetDatabase();
+            const string group = "consumerGroup",
+                         consumer1 = "c1",
+                         consumer2 = "c2";
 
             // Create Consumer Group, add messages, and read messages into a consumer.
             var messageIds = StreamAutoClaim_PrepareTestData(db, key, group, consumer1);
@@ -258,15 +248,13 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task StreamAutoClaim_ClaimsSingleMessageWithCountOptionIdsOnlyAsync()
         {
+            using var conn = Create(require: RedisFeatures.v6_2_0);
+
             var key = Me();
-            var group = "consumerGroup";
-            var consumer1 = "c1";
-            var consumer2 = "c2";
-
-            using var conn = Create();
-            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
-
             var db = conn.GetDatabase();
+            const string group = "consumerGroup",
+                         consumer1 = "c1",
+                         consumer2 = "c2";
 
             // Create Consumer Group, add messages, and read messages into a consumer.
             var messageIds = StreamAutoClaim_PrepareTestData(db, key, group, consumer1);
@@ -285,15 +273,13 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamAutoClaim_IncludesDeletedMessageId()
         {
+            using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+
             var key = Me();
-            var group = "consumerGroup";
-            var consumer1 = "c1";
-            var consumer2 = "c2";
-
-            using var conn = Create();
-            Skip.IfBelow(conn, RedisFeatures.v7_0_0_rc1);
-
             var db = conn.GetDatabase();
+            const string group = "consumerGroup",
+                         consumer1 = "c1",
+                         consumer2 = "c2";
 
             // Create Consumer Group, add messages, and read messages into a consumer.
             var messageIds = StreamAutoClaim_PrepareTestData(db, key, group, consumer1);
@@ -316,15 +302,13 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task StreamAutoClaim_IncludesDeletedMessageIdAsync()
         {
+            using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+
             var key = Me();
-            var group = "consumerGroup";
-            var consumer1 = "c1";
-            var consumer2 = "c2";
-
-            using var conn = Create();
-            Skip.IfBelow(conn, RedisFeatures.v7_0_0_rc1);
-
             var db = conn.GetDatabase();
+            const string group = "consumerGroup",
+                         consumer1 = "c1",
+                         consumer2 = "c2";
 
             // Create Consumer Group, add messages, and read messages into a consumer.
             var messageIds = StreamAutoClaim_PrepareTestData(db, key, group, consumer1);
@@ -347,13 +331,11 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamAutoClaim_NoMessagesToClaim()
         {
+            using var conn = Create(require: RedisFeatures.v6_2_0);
+
             var key = Me();
-            var group = "consumerGroup";
-
-            using var conn = Create();
-            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
-
             var db = conn.GetDatabase();
+            const string group = "consumerGroup";
 
             // Create the group.
             db.KeyDelete(key);
@@ -373,13 +355,11 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task StreamAutoClaim_NoMessagesToClaimAsync()
         {
+            using var conn = Create(require: RedisFeatures.v6_2_0);
+
             var key = Me();
-            var group = "consumerGroup";
-
-            using var conn = Create();
-            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
-
             var db = conn.GetDatabase();
+            const string group = "consumerGroup";
 
             // Create the group.
             db.KeyDelete(key);
@@ -399,15 +379,13 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamAutoClaim_NoMessageMeetsMinIdleTime()
         {
+            using var conn = Create(require: RedisFeatures.v6_2_0);
+
             var key = Me();
-            var group = "consumerGroup";
-            var consumer1 = "c1";
-            var consumer2 = "c2";
-
-            using var conn = Create();
-            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
-
             var db = conn.GetDatabase();
+            const string group = "consumerGroup",
+                         consumer1 = "c1",
+                         consumer2 = "c2";
 
             // Create Consumer Group, add messages, and read messages into a consumer.
             _ = StreamAutoClaim_PrepareTestData(db, key, group, consumer1);
@@ -423,15 +401,13 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task StreamAutoClaim_NoMessageMeetsMinIdleTimeAsync()
         {
+            using var conn = Create(require: RedisFeatures.v6_2_0);
+
             var key = Me();
-            var group = "consumerGroup";
-            var consumer1 = "c1";
-            var consumer2 = "c2";
-
-            using var conn = Create();
-            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
-
             var db = conn.GetDatabase();
+            const string group = "consumerGroup",
+                         consumer1 = "c1",
+                         consumer2 = "c2";
 
             // Create Consumer Group, add messages, and read messages into a consumer.
             _ = StreamAutoClaim_PrepareTestData(db, key, group, consumer1);
@@ -447,15 +423,13 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamAutoClaim_ReturnsMessageIdOnly()
         {
+            using var conn = Create(require: RedisFeatures.v6_2_0);
+
             var key = Me();
-            var group = "consumerGroup";
-            var consumer1 = "c1";
-            var consumer2 = "c2";
-
-            using var conn = Create();
-            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
-
             var db = conn.GetDatabase();
+            const string group = "consumerGroup",
+                         consumer1 = "c1",
+                         consumer2 = "c2";
 
             // Create Consumer Group, add messages, and read messages into a consumer.
             var messageIds = StreamAutoClaim_PrepareTestData(db, key, group, consumer1);
@@ -474,15 +448,13 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task StreamAutoClaim_ReturnsMessageIdOnlyAsync()
         {
+            using var conn = Create(require: RedisFeatures.v6_2_0);
+
             var key = Me();
-            var group = "consumerGroup";
-            var consumer1 = "c1";
-            var consumer2 = "c2";
-
-            using var conn = Create();
-            Skip.IfBelow(conn, RedisFeatures.v6_2_0);
-
             var db = conn.GetDatabase();
+            const string group = "consumerGroup",
+                         consumer1 = "c1",
+                         consumer2 = "c2";
 
             // Create Consumer Group, add messages, and read messages into a consumer.
             var messageIds = StreamAutoClaim_PrepareTestData(db, key, group, consumer1);

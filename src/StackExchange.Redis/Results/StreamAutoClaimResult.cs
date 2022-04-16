@@ -1,4 +1,6 @@
-﻿namespace StackExchange.Redis;
+﻿using System;
+
+namespace StackExchange.Redis;
 
 /// <summary>
 /// The result of the XAUTOCLAIM command.
@@ -11,6 +13,16 @@ public readonly struct StreamAutoClaimResult
         ClaimedEntries = claimedEntries;
         DeletedIds = deletedIds;
     }
+
+    /// <summary>
+    /// A null <see cref="StreamAutoClaimResult"/>, indicating no results.
+    /// </summary>
+    public static StreamAutoClaimResult Null { get; } = new StreamAutoClaimResult(RedisValue.Null, Array.Empty<StreamEntry>(), Array.Empty<RedisValue>());
+
+    /// <summary>
+    /// Whether this object is null/empty.
+    /// </summary>
+    public bool IsNull => NextStartId.IsNull && ClaimedEntries == Array.Empty<StreamEntry>() && DeletedIds == Array.Empty<RedisValue>();
 
     /// <summary>
     /// The stream ID to be used in the next call to StreamAutoClaim.

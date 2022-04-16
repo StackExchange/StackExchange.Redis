@@ -1,4 +1,6 @@
-﻿namespace StackExchange.Redis;
+﻿using System;
+
+namespace StackExchange.Redis;
 
 /// <summary>
 /// The result of the XAUTOCLAIM command with the JUSTID option.
@@ -11,6 +13,16 @@ public readonly struct StreamAutoClaimIdsOnlyResult
         ClaimedIds = claimedIds;
         DeletedIds = deletedIds;
     }
+
+    /// <summary>
+    /// A null <see cref="StreamAutoClaimIdsOnlyResult"/>, indicating no results.
+    /// </summary>
+    public static StreamAutoClaimIdsOnlyResult Null { get; } = new StreamAutoClaimIdsOnlyResult(RedisValue.Null, Array.Empty<RedisValue>(), Array.Empty<RedisValue>());
+
+    /// <summary>
+    /// Whether this object is null/empty.
+    /// </summary>
+    public bool IsNull => NextStartId.IsNull && ClaimedIds == Array.Empty<RedisValue>() && DeletedIds == Array.Empty<RedisValue>();
 
     /// <summary>
     /// The stream ID to be used in the next call to StreamAutoClaim.
