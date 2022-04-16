@@ -258,6 +258,29 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void KeyExpireAsync_3()
+        {
+            TimeSpan expiry = TimeSpan.FromSeconds(123);
+            wrapper.KeyExpireAsync("key", expiry, ExpireWhen.HasNoExpiry, CommandFlags.None);
+            mock.Verify(_ => _.KeyExpireAsync("prefix:key", expiry, ExpireWhen.HasNoExpiry, CommandFlags.None));
+        }
+
+        [Fact]
+        public void KeyExpireAsync_4()
+        {
+            DateTime expiry = DateTime.Now;
+            wrapper.KeyExpireAsync("key", expiry, ExpireWhen.HasNoExpiry, CommandFlags.None);
+            mock.Verify(_ => _.KeyExpireAsync("prefix:key", expiry, ExpireWhen.HasNoExpiry, CommandFlags.None));
+        }
+
+        [Fact]
+        public void KeyExpireTimeAsync()
+        {
+            wrapper.KeyExpireTimeAsync("key", CommandFlags.None);
+            mock.Verify(_ => _.KeyExpireTimeAsync("prefix:key", CommandFlags.None));
+        }
+
+        [Fact]
         public void KeyMigrateAsync()
         {
             EndPoint toServer = new IPEndPoint(IPAddress.Loopback, 123);

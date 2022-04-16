@@ -641,7 +641,8 @@ namespace StackExchange.Redis
         long KeyExists(RedisKey[] keys, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Set a timeout on key. After the timeout has expired, the key will automatically be deleted.
+        /// Set a timeout on <paramref name="key"/>.
+        /// After the timeout has expired, the key will automatically be deleted.
         /// A key with an associated timeout is said to be volatile in Redis terminology.
         /// </summary>
         /// <param name="key">The key to set the expiration for.</param>
@@ -665,7 +666,22 @@ namespace StackExchange.Redis
         bool KeyExpire(RedisKey key, TimeSpan? expiry, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Set a timeout on key. After the timeout has expired, the key will automatically be deleted.
+        /// Set a timeout on <paramref name="key"/>.
+        /// After the timeout has expired, the key will automatically be deleted.
+        /// A key with an associated timeout is said to be volatile in Redis terminology.
+        /// </summary>
+        /// <param name="key">The key to set the expiration for.</param>
+        /// <param name="expiry">The timeout to set.</param>
+        /// <param name="when">Since Redis 7.0.0, you can choose under which condition the expiration will be set using <see cref="ExpireWhen"/>.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns><see langword="true"/> if the timeout was set. <see langword="false"/> if key does not exist or the timeout could not be set.</returns>
+        /// <remarks>https://redis.io/commands/expire</remarks>
+        /// <remarks>https://redis.io/commands/pexpire</remarks>
+        bool KeyExpire(RedisKey key, TimeSpan? expiry, ExpireWhen when, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Set a timeout on <paramref name="key"/>.
+        /// After the timeout has expired, the key will automatically be deleted.
         /// A key with an associated timeout is said to be volatile in Redis terminology.
         /// </summary>
         /// <param name="key">The key to set the expiration for.</param>
@@ -687,6 +703,30 @@ namespace StackExchange.Redis
         /// <remarks>https://redis.io/commands/pexpireat</remarks>
         /// <remarks>https://redis.io/commands/persist</remarks>
         bool KeyExpire(RedisKey key, DateTime? expiry, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Set a timeout on <paramref name="key"/>.
+        /// After the timeout has expired, the key will automatically be deleted.
+        /// A key with an associated timeout is said to be volatile in Redis terminology.
+        /// </summary>
+        /// <param name="key">The key to set the expiration for.</param>
+        /// <param name="expiry">The timeout to set.</param>
+        /// <param name="when">Since Redis 7.0.0, you can choose under which condition the expiration will be set using <see cref="ExpireWhen"/>.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns><see langword="true"/> if the timeout was set. <see langword="false"/> if key does not exist or the timeout could not be set.</returns>
+        /// <remarks>https://redis.io/commands/expire</remarks>
+        /// <remarks>https://redis.io/commands/pexpire</remarks>
+        bool KeyExpire(RedisKey key, DateTime? expiry, ExpireWhen when, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Returns the absolute time at which the given <paramref name="key"/> will expire, if it exists and has an expiration.
+        /// </summary>
+        /// <param name="key">The key to get the expiration for.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The time at which the given key will expire, or <see langword="null"/> if the key does not exist or has no associated expiration time.</returns>
+        /// <remarks>https://redis.io/commands/expiretime</remarks>
+        /// <remarks>https://redis.io/commands/pexpiretime</remarks>
+        DateTime? KeyExpireTime(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Returns the time since the object stored at the specified key is idle (not requested by read or write operations).
