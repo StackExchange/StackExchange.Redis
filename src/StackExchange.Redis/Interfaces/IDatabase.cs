@@ -672,7 +672,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="key">The key to set the expiration for.</param>
         /// <param name="expiry">The timeout to set.</param>
-        /// <param name="when">Since Redis 7.0.0, you can choose on which condition the timeout will be set using <see cref="ExpireWhen"/>.</param>
+        /// <param name="when">Since Redis 7.0.0, you can choose under which condition the expiration will be set using <see cref="ExpireWhen"/>.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns><see langword="true"/> if the timeout was set. <see langword="false"/> if key does not exist or the timeout could not be set.</returns>
         /// <remarks>https://redis.io/commands/expire</remarks>
@@ -711,7 +711,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="key">The key to set the expiration for.</param>
         /// <param name="expiry">The timeout to set.</param>
-        /// <param name="when">Since Redis 7.0.0, you can choose on which condition the timeout will be set using <see cref="ExpireWhen"/>.</param>
+        /// <param name="when">Since Redis 7.0.0, you can choose under which condition the expiration will be set using <see cref="ExpireWhen"/>.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns><see langword="true"/> if the timeout was set. <see langword="false"/> if key does not exist or the timeout could not be set.</returns>
         /// <remarks>https://redis.io/commands/expire</remarks>
