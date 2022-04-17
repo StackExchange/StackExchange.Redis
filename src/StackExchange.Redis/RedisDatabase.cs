@@ -2945,6 +2945,9 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
+        // Backwards compatibility overloads:
+        public bool StringSet(RedisKey key, RedisValue value, TimeSpan? expiry, When when) =>
+            StringSet(key, value, expiry, false, when, CommandFlags.None);
         public bool StringSet(RedisKey key, RedisValue value, TimeSpan? expiry, When when, CommandFlags flags) =>
             StringSet(key, value, expiry, false, when, flags);
 
@@ -2960,6 +2963,9 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.Boolean);
         }
 
+        // Backwards compatibility overloads:
+        public Task<bool> StringSetAsync(RedisKey key, RedisValue value, TimeSpan? expiry, When when) =>
+            StringSetAsync(key, value, expiry, false, when);
         public Task<bool> StringSetAsync(RedisKey key, RedisValue value, TimeSpan? expiry, When when, CommandFlags flags) =>
             StringSetAsync(key, value, expiry, false, when, flags);
 
