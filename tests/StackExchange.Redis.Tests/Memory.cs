@@ -2,85 +2,76 @@
 using Xunit;
 using Xunit.Abstractions;
 
-namespace StackExchange.Redis.Tests
+namespace StackExchange.Redis.Tests;
+
+[Collection(SharedConnectionFixture.Key)]
+public class Memory : TestBase
 {
-    [Collection(SharedConnectionFixture.Key)]
-    public class Memory : TestBase
+    public Memory(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
+
+    [Fact]
+    public async Task CanCallDoctor()
     {
-        public Memory(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
+        using var conn = Create(require: RedisFeatures.v4_0_0);
 
-        [Fact]
-        public async Task CanCallDoctor()
-        {
-            using (var conn = Create())
-            {
-                Skip.IfBelow(conn, RedisFeatures.v4_0_0);
-                var server = conn.GetServer(conn.GetEndPoints()[0]);
-                string? doctor = server.MemoryDoctor();
-                Assert.NotNull(doctor);
-                Assert.NotEqual("", doctor);
+        var server = conn.GetServer(conn.GetEndPoints()[0]);
+        string? doctor = server.MemoryDoctor();
+        Assert.NotNull(doctor);
+        Assert.NotEqual("", doctor);
 
-                doctor = await server.MemoryDoctorAsync();
-                Assert.NotNull(doctor);
-                Assert.NotEqual("", doctor);
-            }
-        }
+        doctor = await server.MemoryDoctorAsync();
+        Assert.NotNull(doctor);
+        Assert.NotEqual("", doctor);
+    }
 
-        [Fact]
-        public async Task CanPurge()
-        {
-            using (var conn = Create())
-            {
-                Skip.IfBelow(conn, RedisFeatures.v4_0_0);
-                var server = conn.GetServer(conn.GetEndPoints()[0]);
-                server.MemoryPurge();
-                await server.MemoryPurgeAsync();
+    [Fact]
+    public async Task CanPurge()
+    {
+        using var conn = Create(require: RedisFeatures.v4_0_0);
 
-                await server.MemoryPurgeAsync();
-            }
-        }
+        var server = conn.GetServer(conn.GetEndPoints()[0]);
+        server.MemoryPurge();
+        await server.MemoryPurgeAsync();
 
-        [Fact]
-        public async Task GetAllocatorStats()
-        {
-            using (var conn = Create())
-            {
-                Skip.IfBelow(conn, RedisFeatures.v4_0_0);
-                var server = conn.GetServer(conn.GetEndPoints()[0]);
+        await server.MemoryPurgeAsync();
+    }
 
-                var stats = server.MemoryAllocatorStats();
-                Assert.False(string.IsNullOrWhiteSpace(stats));
+    [Fact]
+    public async Task GetAllocatorStats()
+    {
+        using var conn = Create(require: RedisFeatures.v4_0_0);
 
-                stats = await server.MemoryAllocatorStatsAsync();
-                Assert.False(string.IsNullOrWhiteSpace(stats));
-            }
-        }
+        var server = conn.GetServer(conn.GetEndPoints()[0]);
 
-        [Fact]
-        public async Task GetStats()
-        {
-            using (var conn = Create())
-            {
-                Skip.IfBelow(conn, RedisFeatures.v4_0_0);
-                var server = conn.GetServer(conn.GetEndPoints()[0]);
-                var stats = server.MemoryStats();
-                Assert.NotNull(stats);
-                Assert.Equal(ResultType.MultiBulk, stats.Type);
+        var stats = server.MemoryAllocatorStats();
+        Assert.False(string.IsNullOrWhiteSpace(stats));
 
-                var parsed = stats.ToDictionary();
+        stats = await server.MemoryAllocatorStatsAsync();
+        Assert.False(string.IsNullOrWhiteSpace(stats));
+    }
 
-                var alloc = parsed["total.allocated"];
-                Assert.Equal(ResultType.Integer, alloc.Type);
-                Assert.True(alloc.AsInt64() > 0);
+    [Fact]
+    public async Task GetStats()
+    {
+        using var conn = Create(require: RedisFeatures.v4_0_0);
 
-                stats = await server.MemoryStatsAsync();
-                Assert.NotNull(stats);
-                Assert.Equal(ResultType.MultiBulk, stats.Type);
+        var server = conn.GetServer(conn.GetEndPoints()[0]);
+        var stats = server.MemoryStats();
+        Assert.NotNull(stats);
+        Assert.Equal(ResultType.MultiBulk, stats.Type);
 
-                alloc = parsed["total.allocated"];
-                Assert.Equal(ResultType.Integer, alloc.Type);
-                Assert.True(alloc.AsInt64() > 0);
-            }
-        }
+        var parsed = stats.ToDictionary();
+
+        var alloc = parsed["total.allocated"];
+        Assert.Equal(ResultType.Integer, alloc.Type);
+        Assert.True(alloc.AsInt64() > 0);
+
+        stats = await server.MemoryStatsAsync();
+        Assert.NotNull(stats);
+        Assert.Equal(ResultType.MultiBulk, stats.Type);
+
+        alloc = parsed["total.allocated"];
+        Assert.Equal(ResultType.Integer, alloc.Type);
+        Assert.True(alloc.AsInt64() > 0);
     }
 }

@@ -5,99 +5,100 @@ using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace StackExchange.Redis.Tests
+namespace StackExchange.Redis.Tests;
+
+[Collection(NonParallelCollection.Name)]
+public class SentinelFailover : SentinelBase
 {
-    [Collection(NonParallelCollection.Name)]
-    public class SentinelFailover : SentinelBase, IAsyncLifetime
+    public SentinelFailover(ITestOutputHelper output) : base(output) { }
+
+    [Fact]
+    public async Task ManagedPrimaryConnectionEndToEndWithFailoverTest()
     {
-        public SentinelFailover(ITestOutputHelper output) : base(output) { }
+        var connectionString = $"{TestConfig.Current.SentinelServer}:{TestConfig.Current.SentinelPortA},serviceName={ServiceOptions.ServiceName},allowAdmin=true";
+        using var conn = await ConnectionMultiplexer.ConnectAsync(connectionString);
 
-        [Fact]
-        public async Task ManagedPrimaryConnectionEndToEndWithFailoverTest()
-        {
-            var connectionString = $"{TestConfig.Current.SentinelServer}:{TestConfig.Current.SentinelPortA},serviceName={ServiceOptions.ServiceName},allowAdmin=true";
-            var conn = await ConnectionMultiplexer.ConnectAsync(connectionString);
-            conn.ConfigurationChanged += (s, e) => Log($"Configuration changed: {e.EndPoint}");
-            var sub = conn.GetSubscriber();
-            sub.Subscribe("*", (channel, message) => Log($"Sub: {channel}, message:{message}"));
+        conn.ConfigurationChanged += (s, e) => Log($"Configuration changed: {e.EndPoint}");
 
-            var db = conn.GetDatabase();
-            await db.PingAsync();
+        var sub = conn.GetSubscriber();
+        sub.Subscribe("*", (channel, message) => Log($"Sub: {channel}, message:{message}"));
 
-            var endpoints = conn.GetEndPoints();
-            Assert.Equal(2, endpoints.Length);
+        var db = conn.GetDatabase();
+        await db.PingAsync();
 
-            var servers = endpoints.Select(e => conn.GetServer(e)).ToArray();
-            Assert.Equal(2, servers.Length);
+        var endpoints = conn.GetEndPoints();
+        Assert.Equal(2, endpoints.Length);
 
-            var primary = servers.FirstOrDefault(s => !s.IsReplica);
-            Assert.NotNull(primary);
-            var replica = servers.FirstOrDefault(s => s.IsReplica);
-            Assert.NotNull(replica);
-            Assert.NotEqual(primary.EndPoint.ToString(), replica.EndPoint.ToString());
+        var servers = endpoints.Select(e => conn.GetServer(e)).ToArray();
+        Assert.Equal(2, servers.Length);
 
-            // Set string value on current primary
-            var expected = DateTime.Now.Ticks.ToString();
-            Log("Tick Key: " + expected);
-            var key = Me();
-            await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
-            await db.StringSetAsync(key, expected);
+        var primary = servers.FirstOrDefault(s => !s.IsReplica);
+        Assert.NotNull(primary);
+        var replica = servers.FirstOrDefault(s => s.IsReplica);
+        Assert.NotNull(replica);
+        Assert.NotEqual(primary.EndPoint.ToString(), replica.EndPoint.ToString());
 
-            var value = await db.StringGetAsync(key);
-            Assert.Equal(expected, value);
+        // Set string value on current primary
+        var expected = DateTime.Now.Ticks.ToString();
+        Log("Tick Key: " + expected);
+        var key = Me();
+        await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
+        await db.StringSetAsync(key, expected);
 
-            Log("Waiting for first replication check...");
-            // force read from replica, replication has some lag
-            await WaitForReplicationAsync(servers[0]).ForAwait();
-            value = await db.StringGetAsync(key, CommandFlags.DemandReplica);
-            Assert.Equal(expected, value);
+        var value = await db.StringGetAsync(key);
+        Assert.Equal(expected, value);
 
-            Log("Waiting for ready pre-failover...");
-            await WaitForReadyAsync();
+        Log("Waiting for first replication check...");
+        // force read from replica, replication has some lag
+        await WaitForReplicationAsync(servers[0]).ForAwait();
+        value = await db.StringGetAsync(key, CommandFlags.DemandReplica);
+        Assert.Equal(expected, value);
 
-            // capture current replica
-            var replicas = SentinelServerA.SentinelGetReplicaAddresses(ServiceName);
+        Log("Waiting for ready pre-failover...");
+        await WaitForReadyAsync();
 
-            Log("Starting failover...");
-            var sw = Stopwatch.StartNew();
-            SentinelServerA.SentinelFailover(ServiceName);
+        // capture current replica
+        var replicas = SentinelServerA.SentinelGetReplicaAddresses(ServiceName);
 
-            // There's no point in doing much for 10 seconds - this is a built-in delay of how Sentinel works.
-            // The actual completion invoking the replication of the former primary is handled via
-            // https://github.com/redis/redis/blob/f233c4c59d24828c77eb1118f837eaee14695f7f/src/sentinel.c#L4799-L4808
-            // ...which is invoked by INFO polls every 10 seconds (https://github.com/redis/redis/blob/f233c4c59d24828c77eb1118f837eaee14695f7f/src/sentinel.c#L81)
-            // ...which is calling https://github.com/redis/redis/blob/f233c4c59d24828c77eb1118f837eaee14695f7f/src/sentinel.c#L2666
-            // However, the quicker iteration on INFO during an o_down does not apply here: https://github.com/redis/redis/blob/f233c4c59d24828c77eb1118f837eaee14695f7f/src/sentinel.c#L3089-L3104
-            // So...we're waiting 10 seconds, no matter what. Might as well just idle to be more stable.
-            await Task.Delay(TimeSpan.FromSeconds(10));
+        Log("Starting failover...");
+        var sw = Stopwatch.StartNew();
+        SentinelServerA.SentinelFailover(ServiceName);
 
-            // wait until the replica becomes the primary
-            Log("Waiting for ready post-failover...");
-            await WaitForReadyAsync(expectedPrimary: replicas[0]);
-            Log($"Time to failover: {sw.Elapsed}");
+        // There's no point in doing much for 10 seconds - this is a built-in delay of how Sentinel works.
+        // The actual completion invoking the replication of the former primary is handled via
+        // https://github.com/redis/redis/blob/f233c4c59d24828c77eb1118f837eaee14695f7f/src/sentinel.c#L4799-L4808
+        // ...which is invoked by INFO polls every 10 seconds (https://github.com/redis/redis/blob/f233c4c59d24828c77eb1118f837eaee14695f7f/src/sentinel.c#L81)
+        // ...which is calling https://github.com/redis/redis/blob/f233c4c59d24828c77eb1118f837eaee14695f7f/src/sentinel.c#L2666
+        // However, the quicker iteration on INFO during an o_down does not apply here: https://github.com/redis/redis/blob/f233c4c59d24828c77eb1118f837eaee14695f7f/src/sentinel.c#L3089-L3104
+        // So...we're waiting 10 seconds, no matter what. Might as well just idle to be more stable.
+        await Task.Delay(TimeSpan.FromSeconds(10));
 
-            endpoints = conn.GetEndPoints();
-            Assert.Equal(2, endpoints.Length);
+        // wait until the replica becomes the primary
+        Log("Waiting for ready post-failover...");
+        await WaitForReadyAsync(expectedPrimary: replicas[0]);
+        Log($"Time to failover: {sw.Elapsed}");
 
-            servers = endpoints.Select(e => conn.GetServer(e)).ToArray();
-            Assert.Equal(2, servers.Length);
+        endpoints = conn.GetEndPoints();
+        Assert.Equal(2, endpoints.Length);
 
-            var newPrimary = servers.FirstOrDefault(s => !s.IsReplica);
-            Assert.NotNull(newPrimary);
-            Assert.Equal(replica.EndPoint.ToString(), newPrimary.EndPoint.ToString());
-            var newReplica = servers.FirstOrDefault(s => s.IsReplica);
-            Assert.NotNull(newReplica);
-            Assert.Equal(primary.EndPoint.ToString(), newReplica.EndPoint.ToString());
-            Assert.NotEqual(primary.EndPoint.ToString(), replica.EndPoint.ToString());
+        servers = endpoints.Select(e => conn.GetServer(e)).ToArray();
+        Assert.Equal(2, servers.Length);
 
-            value = await db.StringGetAsync(key);
-            Assert.Equal(expected, value);
+        var newPrimary = servers.FirstOrDefault(s => !s.IsReplica);
+        Assert.NotNull(newPrimary);
+        Assert.Equal(replica.EndPoint.ToString(), newPrimary.EndPoint.ToString());
+        var newReplica = servers.FirstOrDefault(s => s.IsReplica);
+        Assert.NotNull(newReplica);
+        Assert.Equal(primary.EndPoint.ToString(), newReplica.EndPoint.ToString());
+        Assert.NotEqual(primary.EndPoint.ToString(), replica.EndPoint.ToString());
 
-            Log("Waiting for second replication check...");
-            // force read from replica, replication has some lag
-            await WaitForReplicationAsync(newPrimary).ForAwait();
-            value = await db.StringGetAsync(key, CommandFlags.DemandReplica);
-            Assert.Equal(expected, value);
-        }
+        value = await db.StringGetAsync(key);
+        Assert.Equal(expected, value);
+
+        Log("Waiting for second replication check...");
+        // force read from replica, replication has some lag
+        await WaitForReplicationAsync(newPrimary).ForAwait();
+        value = await db.StringGetAsync(key, CommandFlags.DemandReplica);
+        Assert.Equal(expected, value);
     }
 }

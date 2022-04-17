@@ -1272,6 +1272,5 @@ namespace StackExchange.Redis.Tests
             wrapper.KeyTouchAsync(keys, CommandFlags.None);
             mock.Verify(_ => _.KeyTouchAsync(It.Is(valid), CommandFlags.None));
         }
-#pragma warning restore RCS1047 // Non-asynchronous method name should not end with 'Async'.
     }
 }

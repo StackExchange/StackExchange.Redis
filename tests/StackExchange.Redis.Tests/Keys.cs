@@ -5,307 +5,295 @@ using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace StackExchange.Redis.Tests
+namespace StackExchange.Redis.Tests;
+
+[Collection(SharedConnectionFixture.Key)]
+public class Keys : TestBase
 {
-    [Collection(SharedConnectionFixture.Key)]
-    public class Keys : TestBase
+    public Keys(ITestOutputHelper output, SharedConnectionFixture fixture) : base (output, fixture) { }
+
+    [Fact]
+    public void TestScan()
     {
-        public Keys(ITestOutputHelper output, SharedConnectionFixture fixture) : base (output, fixture) { }
+        using var conn = Create(allowAdmin: true);
 
-        [Fact]
-        public void TestScan()
+        var dbId = TestConfig.GetDedicatedDB();
+        var db = conn.GetDatabase(dbId);
+        var server = GetAnyPrimary(conn);
+        var prefix = Me();
+        server.FlushDatabase(dbId, flags: CommandFlags.FireAndForget);
+
+        const int Count = 1000;
+        for (int i = 0; i < Count; i++)
+            db.StringSet(prefix + "x" + i, "y" + i, flags: CommandFlags.FireAndForget);
+
+        var count = server.Keys(dbId, prefix + "*").Count();
+        Assert.Equal(Count, count);
+    }
+
+    [Fact]
+    public void FlushFetchRandomKey()
+    {
+        using var conn = Create(allowAdmin: true);
+
+        var dbId = TestConfig.GetDedicatedDB(conn);
+        Skip.IfMissingDatabase(conn, dbId);
+        var db = conn.GetDatabase(dbId);
+        var prefix = Me();
+        conn.GetServer(TestConfig.Current.PrimaryServerAndPort).FlushDatabase(dbId, CommandFlags.FireAndForget);
+        string? anyKey = db.KeyRandom();
+
+        Assert.Null(anyKey);
+        db.StringSet(prefix + "abc", "def");
+        byte[]? keyBytes = db.KeyRandom();
+
+        Assert.NotNull(keyBytes);
+        Assert.Equal(prefix + "abc", Encoding.UTF8.GetString(keyBytes));
+    }
+
+    [Fact]
+    public void Zeros()
+    {
+        using var conn = Create();
+
+        var db = conn.GetDatabase();
+        var key = Me();
+        db.KeyDelete(key, CommandFlags.FireAndForget);
+        db.StringSet(key, 123, flags: CommandFlags.FireAndForget);
+        int k = (int)db.StringGet(key);
+        Assert.Equal(123, k);
+
+        db.KeyDelete(key, CommandFlags.FireAndForget);
+        int i = (int)db.StringGet(key);
+        Assert.Equal(0, i);
+
+        Assert.True(db.StringGet(key).IsNull);
+        int? value = (int?)db.StringGet(key);
+        Assert.False(value.HasValue);
+    }
+
+    [Fact]
+    public void PrependAppend()
+    {
         {
-            using (var muxer = Create(allowAdmin: true))
-            {
-                var dbId = TestConfig.GetDedicatedDB();
-                var db = muxer.GetDatabase(dbId);
-                var server = GetAnyPrimary(muxer);
-                var prefix = Me();
-                server.FlushDatabase(dbId, flags: CommandFlags.FireAndForget);
-
-                const int Count = 1000;
-                for (int i = 0; i < Count; i++)
-                    db.StringSet(prefix + "x" + i, "y" + i, flags: CommandFlags.FireAndForget);
-
-                var count = server.Keys(dbId, prefix + "*").Count();
-                Assert.Equal(Count, count);
-            }
+            // simple
+            RedisKey key = "world";
+            var ret = key.Prepend("hello");
+            Assert.Equal("helloworld", ret);
         }
 
-        [Fact]
-        public void FlushFetchRandomKey()
         {
-            using (var conn = Create(allowAdmin: true))
-            {
-                var dbId = TestConfig.GetDedicatedDB(conn);
-                Skip.IfMissingDatabase(conn, dbId);
-                var db = conn.GetDatabase(dbId);
-                var prefix = Me();
-                conn.GetServer(TestConfig.Current.PrimaryServerAndPort).FlushDatabase(dbId, CommandFlags.FireAndForget);
-                string? anyKey = db.KeyRandom();
-
-                Assert.Null(anyKey);
-                db.StringSet(prefix + "abc", "def");
-                byte[]? keyBytes = db.KeyRandom();
-
-                Assert.NotNull(keyBytes);
-                Assert.Equal(prefix + "abc", Encoding.UTF8.GetString(keyBytes));
-            }
+            RedisKey key1 = "world";
+            RedisKey key2 = Encoding.UTF8.GetBytes("hello");
+            var key3 = key1.Prepend(key2);
+            Assert.True(ReferenceEquals(key1.KeyValue, key3.KeyValue));
+            Assert.True(ReferenceEquals(key2.KeyValue, key3.KeyPrefix));
+            Assert.Equal("helloworld", key3);
         }
 
-        [Fact]
-        public void Zeros()
         {
-            using (var conn = Create())
-            {
-                var db = conn.GetDatabase();
-                var key = Me();
-                db.KeyDelete(key, CommandFlags.FireAndForget);
-                db.StringSet(key, 123, flags: CommandFlags.FireAndForget);
-                int k = (int)db.StringGet(key);
-                Assert.Equal(123, k);
-
-                db.KeyDelete(key, CommandFlags.FireAndForget);
-                int i = (int)db.StringGet(key);
-                Assert.Equal(0, i);
-
-                Assert.True(db.StringGet(key).IsNull);
-                int? value = (int?)db.StringGet(key);
-                Assert.False(value.HasValue);
-            }
+            RedisKey key = "hello";
+            var ret = key.Append("world");
+            Assert.Equal("helloworld", ret);
         }
 
-        [Fact]
-        public void PrependAppend()
         {
-            {
-                // simple
-                RedisKey key = "world";
-                var ret = key.Prepend("hello");
-                Assert.Equal("helloworld", ret);
-            }
-
-            {
-                RedisKey key1 = "world";
-                RedisKey key2 = Encoding.UTF8.GetBytes("hello");
-                var key3 = key1.Prepend(key2);
-                Assert.True(ReferenceEquals(key1.KeyValue, key3.KeyValue));
-                Assert.True(ReferenceEquals(key2.KeyValue, key3.KeyPrefix));
-                Assert.Equal("helloworld", key3);
-            }
-
-            {
-                RedisKey key = "hello";
-                var ret = key.Append("world");
-                Assert.Equal("helloworld", ret);
-            }
-
-            {
-                RedisKey key1 = Encoding.UTF8.GetBytes("hello");
-                RedisKey key2 = "world";
-                var key3 = key1.Append(key2);
-                Assert.True(ReferenceEquals(key2.KeyValue, key3.KeyValue));
-                Assert.True(ReferenceEquals(key1.KeyValue, key3.KeyPrefix));
-                Assert.Equal("helloworld", key3);
-            }
+            RedisKey key1 = Encoding.UTF8.GetBytes("hello");
+            RedisKey key2 = "world";
+            var key3 = key1.Append(key2);
+            Assert.True(ReferenceEquals(key2.KeyValue, key3.KeyValue));
+            Assert.True(ReferenceEquals(key1.KeyValue, key3.KeyPrefix));
+            Assert.Equal("helloworld", key3);
         }
+    }
 
-        [Fact]
-        public void Exists()
-        {
-            using (var muxer = Create())
-            {
-                RedisKey key = Me();
-                RedisKey key2 = Me() + "2";
-                var db = muxer.GetDatabase();
-                db.KeyDelete(key, CommandFlags.FireAndForget);
-                db.KeyDelete(key2, CommandFlags.FireAndForget);
+    [Fact]
+    public void Exists()
+    {
+        using var conn = Create();
 
-                Assert.False(db.KeyExists(key));
-                Assert.False(db.KeyExists(key2));
-                Assert.Equal(0, db.KeyExists(new[] { key, key2 }));
+        RedisKey key = Me();
+        RedisKey key2 = Me() + "2";
+        var db = conn.GetDatabase();
+        db.KeyDelete(key, CommandFlags.FireAndForget);
+        db.KeyDelete(key2, CommandFlags.FireAndForget);
 
-                db.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
-                Assert.True(db.KeyExists(key));
-                Assert.False(db.KeyExists(key2));
-                Assert.Equal(1, db.KeyExists(new[] { key, key2 }));
+        Assert.False(db.KeyExists(key));
+        Assert.False(db.KeyExists(key2));
+        Assert.Equal(0, db.KeyExists(new[] { key, key2 }));
 
-                db.StringSet(key2, "new value", flags: CommandFlags.FireAndForget);
-                Assert.True(db.KeyExists(key));
-                Assert.True(db.KeyExists(key2));
-                Assert.Equal(2, db.KeyExists(new[] { key, key2 }));
-            }
-        }
+        db.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
+        Assert.True(db.KeyExists(key));
+        Assert.False(db.KeyExists(key2));
+        Assert.Equal(1, db.KeyExists(new[] { key, key2 }));
 
-        [Fact]
-        public async Task ExistsAsync()
-        {
-            using (var muxer = Create())
-            {
-                RedisKey key = Me();
-                RedisKey key2 = Me() + "2";
-                var db = muxer.GetDatabase();
-                db.KeyDelete(key, CommandFlags.FireAndForget);
-                db.KeyDelete(key2, CommandFlags.FireAndForget);
-                var a1 = db.KeyExistsAsync(key).ForAwait();
-                var a2 = db.KeyExistsAsync(key2).ForAwait();
-                var a3 = db.KeyExistsAsync(new[] { key, key2 }).ForAwait();
+        db.StringSet(key2, "new value", flags: CommandFlags.FireAndForget);
+        Assert.True(db.KeyExists(key));
+        Assert.True(db.KeyExists(key2));
+        Assert.Equal(2, db.KeyExists(new[] { key, key2 }));
+    }
 
-                db.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
+    [Fact]
+    public async Task ExistsAsync()
+    {
+        using var conn = Create();
 
-                var b1 = db.KeyExistsAsync(key).ForAwait();
-                var b2 = db.KeyExistsAsync(key2).ForAwait();
-                var b3 = db.KeyExistsAsync(new[] { key, key2 }).ForAwait();
+        RedisKey key = Me();
+        RedisKey key2 = Me() + "2";
+        var db = conn.GetDatabase();
+        db.KeyDelete(key, CommandFlags.FireAndForget);
+        db.KeyDelete(key2, CommandFlags.FireAndForget);
+        var a1 = db.KeyExistsAsync(key).ForAwait();
+        var a2 = db.KeyExistsAsync(key2).ForAwait();
+        var a3 = db.KeyExistsAsync(new[] { key, key2 }).ForAwait();
 
-                db.StringSet(key2, "new value", flags: CommandFlags.FireAndForget);
+        db.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
 
-                var c1 = db.KeyExistsAsync(key).ForAwait();
-                var c2 = db.KeyExistsAsync(key2).ForAwait();
-                var c3 = db.KeyExistsAsync(new[] { key, key2 }).ForAwait();
+        var b1 = db.KeyExistsAsync(key).ForAwait();
+        var b2 = db.KeyExistsAsync(key2).ForAwait();
+        var b3 = db.KeyExistsAsync(new[] { key, key2 }).ForAwait();
 
-                Assert.False(await a1);
-                Assert.False(await a2);
-                Assert.Equal(0, await a3);
+        db.StringSet(key2, "new value", flags: CommandFlags.FireAndForget);
 
-                Assert.True(await b1);
-                Assert.False(await b2);
-                Assert.Equal(1, await b3);
+        var c1 = db.KeyExistsAsync(key).ForAwait();
+        var c2 = db.KeyExistsAsync(key2).ForAwait();
+        var c3 = db.KeyExistsAsync(new[] { key, key2 }).ForAwait();
 
-                Assert.True(await c1);
-                Assert.True(await c2);
-                Assert.Equal(2, await c3);
-            }
-        }
+        Assert.False(await a1);
+        Assert.False(await a2);
+        Assert.Equal(0, await a3);
 
-        [Fact]
-        public async Task IdleTime()
-        {
-            using (var muxer = Create())
-            {
-                RedisKey key = Me();
-                var db = muxer.GetDatabase();
-                db.KeyDelete(key, CommandFlags.FireAndForget);
-                db.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
-                await Task.Delay(2000).ForAwait();
-                var idleTime = db.KeyIdleTime(key);
-                Assert.True(idleTime > TimeSpan.Zero);
+        Assert.True(await b1);
+        Assert.False(await b2);
+        Assert.Equal(1, await b3);
 
-                db.StringSet(key, "new value2", flags: CommandFlags.FireAndForget);
-                var idleTime2 = db.KeyIdleTime(key);
-                Assert.True(idleTime2 < idleTime);
+        Assert.True(await c1);
+        Assert.True(await c2);
+        Assert.Equal(2, await c3);
+    }
 
-                db.KeyDelete(key);
-                var idleTime3 = db.KeyIdleTime(key);
-                Assert.Null(idleTime3);
-            }
-        }
+    [Fact]
+    public async Task IdleTime()
+    {
+        using var conn = Create();
 
-        [Fact]
-        public async Task TouchIdleTime()
-        {
-            using (var muxer = Create())
-            {
-                Skip.IfBelow(muxer, RedisFeatures.v3_2_1);
+        RedisKey key = Me();
+        var db = conn.GetDatabase();
+        db.KeyDelete(key, CommandFlags.FireAndForget);
+        db.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
+        await Task.Delay(2000).ForAwait();
+        var idleTime = db.KeyIdleTime(key);
+        Assert.True(idleTime > TimeSpan.Zero);
 
-                RedisKey key = Me();
-                var db = muxer.GetDatabase();
-                db.KeyDelete(key, CommandFlags.FireAndForget);
-                db.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
-                await Task.Delay(2000).ForAwait();
-                var idleTime = db.KeyIdleTime(key);
-                Assert.True(idleTime > TimeSpan.Zero);
+        db.StringSet(key, "new value2", flags: CommandFlags.FireAndForget);
+        var idleTime2 = db.KeyIdleTime(key);
+        Assert.True(idleTime2 < idleTime);
 
-                Assert.True(db.KeyTouch(key));
-                var idleTime1 = db.KeyIdleTime(key);
-                Assert.True(idleTime1 < idleTime);
-            }
-        }
+        db.KeyDelete(key);
+        var idleTime3 = db.KeyIdleTime(key);
+        Assert.Null(idleTime3);
+    }
 
-        [Fact]
-        public async Task IdleTimeAsync()
-        {
-            using (var muxer = Create())
-            {
-                RedisKey key = Me();
-                var db = muxer.GetDatabase();
-                db.KeyDelete(key, CommandFlags.FireAndForget);
-                db.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
-                await Task.Delay(2000).ForAwait();
-                var idleTime = await db.KeyIdleTimeAsync(key).ForAwait();
-                Assert.True(idleTime > TimeSpan.Zero);
+    [Fact]
+    public async Task TouchIdleTime()
+    {
+        using var conn = Create(require: RedisFeatures.v3_2_1);
 
-                db.StringSet(key, "new value2", flags: CommandFlags.FireAndForget);
-                var idleTime2 = await db.KeyIdleTimeAsync(key).ForAwait();
-                Assert.True(idleTime2 < idleTime);
+        RedisKey key = Me();
+        var db = conn.GetDatabase();
+        db.KeyDelete(key, CommandFlags.FireAndForget);
+        db.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
+        await Task.Delay(2000).ForAwait();
+        var idleTime = db.KeyIdleTime(key);
+        Assert.True(idleTime > TimeSpan.Zero);
 
-                db.KeyDelete(key);
-                var idleTime3 = await db.KeyIdleTimeAsync(key).ForAwait();
-                Assert.Null(idleTime3);
-            }
-        }
+        Assert.True(db.KeyTouch(key));
+        var idleTime1 = db.KeyIdleTime(key);
+        Assert.True(idleTime1 < idleTime);
+    }
 
-        [Fact]
-        public async Task TouchIdleTimeAsync()
-        {
-            using (var muxer = Create())
-            {
-                Skip.IfBelow(muxer, RedisFeatures.v3_2_1);
+    [Fact]
+    public async Task IdleTimeAsync()
+    {
+        using var conn = Create();
 
-                RedisKey key = Me();
-                var db = muxer.GetDatabase();
-                db.KeyDelete(key, CommandFlags.FireAndForget);
-                db.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
-                await Task.Delay(2000).ForAwait();
-                var idleTime = await db.KeyIdleTimeAsync(key).ForAwait();
-                Assert.True(idleTime > TimeSpan.Zero);
+        RedisKey key = Me();
+        var db = conn.GetDatabase();
+        db.KeyDelete(key, CommandFlags.FireAndForget);
+        db.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
+        await Task.Delay(2000).ForAwait();
+        var idleTime = await db.KeyIdleTimeAsync(key).ForAwait();
+        Assert.True(idleTime > TimeSpan.Zero);
 
-                Assert.True(await db.KeyTouchAsync(key).ForAwait());
-                var idleTime1 = await db.KeyIdleTimeAsync(key).ForAwait();
-                Assert.True(idleTime1 < idleTime);
-            }
-        }
+        db.StringSet(key, "new value2", flags: CommandFlags.FireAndForget);
+        var idleTime2 = await db.KeyIdleTimeAsync(key).ForAwait();
+        Assert.True(idleTime2 < idleTime);
 
-        [Fact]
-        public async Task KeyEncoding()
-        {
-            using var muxer = Create();
-            var key = Me();
-            var db = muxer.GetDatabase();
+        db.KeyDelete(key);
+        var idleTime3 = await db.KeyIdleTimeAsync(key).ForAwait();
+        Assert.Null(idleTime3);
+    }
 
-            db.KeyDelete(key, CommandFlags.FireAndForget);
-            db.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
+    [Fact]
+    public async Task TouchIdleTimeAsync()
+    {
+        using var conn = Create(require: RedisFeatures.v3_2_1);
 
-            Assert.Equal("embstr", db.KeyEncoding(key));
-            Assert.Equal("embstr", await db.KeyEncodingAsync(key));
+        RedisKey key = Me();
+        var db = conn.GetDatabase();
+        db.KeyDelete(key, CommandFlags.FireAndForget);
+        db.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
+        await Task.Delay(2000).ForAwait();
+        var idleTime = await db.KeyIdleTimeAsync(key).ForAwait();
+        Assert.True(idleTime > TimeSpan.Zero);
 
-            db.KeyDelete(key, CommandFlags.FireAndForget);
-            db.ListLeftPush(key, "new value", flags: CommandFlags.FireAndForget);
+        Assert.True(await db.KeyTouchAsync(key).ForAwait());
+        var idleTime1 = await db.KeyIdleTimeAsync(key).ForAwait();
+        Assert.True(idleTime1 < idleTime);
+    }
 
-            // Depending on server version, this is going to vary - we're sanity checking here.
-            var listTypes = new [] { "ziplist", "quicklist" };
-            Assert.Contains(db.KeyEncoding(key), listTypes);
-            Assert.Contains(await db.KeyEncodingAsync(key), listTypes);
+    [Fact]
+    public async Task KeyEncoding()
+    {
+        using var conn = Create();
 
-            var keyNotExists = key + "no-exist";
-            Assert.Null(db.KeyEncoding(keyNotExists));
-            Assert.Null(await db.KeyEncodingAsync(keyNotExists));
-        }
+        var key = Me();
+        var db = conn.GetDatabase();
 
-        [Fact]
-        public async Task KeyRefCount()
-        {
-            using var muxer = Create();
-            var key = Me();
-            var db = muxer.GetDatabase();
-            db.KeyDelete(key, CommandFlags.FireAndForget);
-            db.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
+        db.KeyDelete(key, CommandFlags.FireAndForget);
+        db.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
 
-            Assert.Equal(1, db.KeyRefCount(key));
-            Assert.Equal(1, await db.KeyRefCountAsync(key));
+        Assert.Equal("embstr", db.KeyEncoding(key));
+        Assert.Equal("embstr", await db.KeyEncodingAsync(key));
 
-            var keyNotExists = key + "no-exist";
-            Assert.Null(db.KeyRefCount(keyNotExists));
-            Assert.Null(await db.KeyRefCountAsync(keyNotExists));
-        }
+        db.KeyDelete(key, CommandFlags.FireAndForget);
+        db.ListLeftPush(key, "new value", flags: CommandFlags.FireAndForget);
+
+        // Depending on server version, this is going to vary - we're sanity checking here.
+        var listTypes = new [] { "ziplist", "quicklist" };
+        Assert.Contains(db.KeyEncoding(key), listTypes);
+        Assert.Contains(await db.KeyEncodingAsync(key), listTypes);
+
+        var keyNotExists = key + "no-exist";
+        Assert.Null(db.KeyEncoding(keyNotExists));
+        Assert.Null(await db.KeyEncodingAsync(keyNotExists));
+    }
+
+    [Fact]
+    public async Task KeyRefCount()
+    {
+        using var conn = Create();
+
+        var key = Me();
+        var db = conn.GetDatabase();
+        db.KeyDelete(key, CommandFlags.FireAndForget);
+        db.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
+
+        Assert.Equal(1, db.KeyRefCount(key));
+        Assert.Equal(1, await db.KeyRefCountAsync(key));
+
+        var keyNotExists = key + "no-exist";
+        Assert.Null(db.KeyRefCount(keyNotExists));
+        Assert.Null(await db.KeyRefCountAsync(keyNotExists));
     }
 }
