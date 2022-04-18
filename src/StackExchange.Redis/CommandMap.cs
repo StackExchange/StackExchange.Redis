@@ -21,7 +21,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// The commands available to <a href="https://github.com/twitter/twemproxy">twemproxy</a>.
         /// </summary>
-        /// <remarks>https://github.com/twitter/twemproxy/blob/master/notes/redis.md</remarks>
+        /// <remarks><seealso href="https://github.com/twitter/twemproxy/blob/master/notes/redis.md"/></remarks>
         public static CommandMap Twemproxy { get; } = CreateImpl(null, exclusions: new HashSet<RedisCommand>
         {
             // see https://github.com/twitter/twemproxy/blob/master/notes/redis.md
@@ -80,7 +80,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// The commands available to <a href="https://ssdb.io/">SSDB</a>.
         /// </summary>
-        /// <remarks>https://ssdb.io/docs/redis-to-ssdb.html</remarks>
+        /// <remarks><seealso href="https://ssdb.io/docs/redis-to-ssdb.html"/></remarks>
         public static CommandMap SSDB { get; } = Create(new HashSet<string> {
             "ping",
             "get", "set", "del", "incr", "incrby", "mget", "mset", "keys", "getset", "setnx",
@@ -92,7 +92,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// The commands available to <a href="https://redis.io/topics/sentinel">Sentinel</a>.
         /// </summary>
-        /// <remarks>https://redis.io/topics/sentinel</remarks>
+        /// <remarks><seealso href="https://redis.io/topics/sentinel"/></remarks>
         public static CommandMap Sentinel { get; } = Create(new HashSet<string> {
             // see https://redis.io/topics/sentinel
             "auth", "ping", "info", "role", "sentinel", "subscribe", "shutdown", "psubscribe", "unsubscribe", "punsubscribe" }, true);

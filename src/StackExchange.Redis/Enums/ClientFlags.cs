@@ -76,7 +76,7 @@ namespace StackExchange.Redis
     ///     </item>
     /// </list>
     /// </summary>
-    /// <remarks>https://redis.io/commands/client-list</remarks>
+    /// <remarks><seealso href="https://redis.io/commands/client-list"/></remarks>
     [Flags]
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1069:Enums values should not be duplicated", Justification = "Compatibility")]
     public enum ClientFlags : long
