@@ -338,8 +338,10 @@ namespace StackExchange.Redis
                 case RedisCommand.DEL:
                 case RedisCommand.EXPIRE:
                 case RedisCommand.EXPIREAT:
+                case RedisCommand.EXPIRETIME:
                 case RedisCommand.FLUSHALL:
                 case RedisCommand.FLUSHDB:
+                case RedisCommand.GEOSEARCHSTORE:
                 case RedisCommand.GETDEL:
                 case RedisCommand.GETEX:
                 case RedisCommand.GETSET:
@@ -366,6 +368,7 @@ namespace StackExchange.Redis
                 case RedisCommand.PERSIST:
                 case RedisCommand.PEXPIRE:
                 case RedisCommand.PEXPIREAT:
+                case RedisCommand.PEXPIRETIME:
                 case RedisCommand.PFADD:
                 case RedisCommand.PFMERGE:
                 case RedisCommand.PSETEX:
@@ -392,10 +395,12 @@ namespace StackExchange.Redis
                 case RedisCommand.TOUCH:
                 case RedisCommand.UNLINK:
                 case RedisCommand.ZADD:
+                case RedisCommand.ZDIFFSTORE:
                 case RedisCommand.ZINTERSTORE:
                 case RedisCommand.ZINCRBY:
                 case RedisCommand.ZPOPMAX:
                 case RedisCommand.ZPOPMIN:
+                case RedisCommand.ZRANGESTORE:
                 case RedisCommand.ZREM:
                 case RedisCommand.ZREMRANGEBYLEX:
                 case RedisCommand.ZREMRANGEBYRANK:
