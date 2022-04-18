@@ -333,6 +333,7 @@ namespace StackExchange.Redis
                 case RedisCommand.BLPOP:
                 case RedisCommand.BRPOP:
                 case RedisCommand.BRPOPLPUSH:
+                case RedisCommand.COPY:
                 case RedisCommand.DECR:
                 case RedisCommand.DECRBY:
                 case RedisCommand.DEL:
@@ -355,6 +356,7 @@ namespace StackExchange.Redis
                 case RedisCommand.INCRBY:
                 case RedisCommand.INCRBYFLOAT:
                 case RedisCommand.LINSERT:
+                case RedisCommand.LMOVE:
                 case RedisCommand.LPOP:
                 case RedisCommand.LPUSH:
                 case RedisCommand.LPUSHX:
