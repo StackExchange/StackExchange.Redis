@@ -178,7 +178,7 @@ namespace StackExchange.Redis
         GeoRadiusResult[] GeoRadius(RedisKey key, RedisValue member, double radius, GeoUnit unit = GeoUnit.Meters, int count = -1, Order? order = null, GeoRadiusOptions options = GeoRadiusOptions.Default, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Return the members of a sorted set populated with geospatial information using GEOADD, which are
+        /// Return the members of a sorted set populated with geospatial information using <c>GEOADD</c>, which are
         /// within the borders of the area specified with the center location and the maximum distance from the center (the radius).
         /// </summary>
         /// <param name="key">The key of the set.</param>

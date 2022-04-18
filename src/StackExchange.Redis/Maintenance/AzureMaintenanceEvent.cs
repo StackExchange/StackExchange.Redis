@@ -9,7 +9,7 @@ using System.Buffers.Text;
 namespace StackExchange.Redis.Maintenance
 {
     /// <summary>
-    /// Azure node maintenance event. For more information, please see: https://aka.ms/redis/maintenanceevents
+    /// Azure node maintenance event. For more information, please see: <see href="https://aka.ms/redis/maintenanceevents"/>.
     /// </summary>
     public sealed class AzureMaintenanceEvent : ServerMaintenanceEvent
     {
