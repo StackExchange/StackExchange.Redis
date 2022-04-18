@@ -69,6 +69,7 @@ namespace StackExchange.Redis
             HISTORY = "HISTORY",
             ID = "ID",
             IDLETIME = "IDLETIME",
+            INCRBY = "INCRBY",
             KEEPTTL = "KEEPTTL",
             KILL = "KILL",
             LATEST = "LATEST",
@@ -90,6 +91,7 @@ namespace StackExchange.Redis
             NX = "NX",
             OBJECT = "OBJECT",
             OR = "OR",
+            OVERFLOW = "OVERFLOW",
             PAUSE = "PAUSE",
             PERSIST = "PERSIST",
             PING = "PING",
@@ -160,6 +162,11 @@ namespace StackExchange.Redis
             km = "km",
             m = "m",
             mi = "mi",
+
+            //Bitfield literals
+            FAIL = "FAIL",
+            SAT = "SAT",
+            WRAP = "WRAP",
 
             // misc (config, etc)
             databases = "databases",

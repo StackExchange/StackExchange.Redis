@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Buffers;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Text;
 using System.Threading.Tasks;
@@ -2721,11 +2722,39 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
+        public long StringBitfieldGet(RedisKey key, BitfieldEncoding encoding, BitfieldOffset offset,
+            CommandFlags flags = CommandFlags.None) =>
+            throw new NotImplementedException();
+
+        public long StringBitfieldSet(RedisKey key, BitfieldEncoding encoding, BitfieldOffset offset, long value,
+            CommandFlags flags = CommandFlags.None) =>
+            throw new NotImplementedException();
+
+        public long? StringBitfieldIncrement(RedisKey key, BitfieldEncoding encoding, BitfieldOffset offset, long increment,
+            BitfieldOverflowHandling overflowHandling = BitfieldOverflowHandling.Wrap, CommandFlags flags = CommandFlags.None) =>
+            throw new NotImplementedException();
+
+        public long?[] StringBitfield(RedisKey key, BitfieldSubCommand[] subcommands, CommandFlags flags = CommandFlags.None) => throw new NotImplementedException();
+
         public Task<long> StringBitCountAsync(RedisKey key, long start = 0, long end = -1, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.BITCOUNT, key, start, end);
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
+
+        public Task<long> StringBitfieldGetAsync(RedisKey key, BitfieldEncoding encoding, BitfieldOffset offset,
+            CommandFlags flags = CommandFlags.None) =>
+            throw new NotImplementedException();
+
+        public Task<long> StringBitfieldSetAsync(RedisKey key, BitfieldEncoding encoding, BitfieldOffset offset, long value,
+            CommandFlags flags = CommandFlags.None) =>
+            throw new NotImplementedException();
+
+        public Task<long?> StringBitfieldIncrementAsync(RedisKey key, BitfieldEncoding encoding, BitfieldOffset offset, long increment,
+            BitfieldOverflowHandling overflowHandling = BitfieldOverflowHandling.Wrap, CommandFlags flags = CommandFlags.None) =>
+            throw new NotImplementedException();
+
+        public Task<long?[]> StringBitfieldAsync(RedisKey key, BitfieldSubCommand[] subcommands, CommandFlags flags = CommandFlags.None) => throw new NotImplementedException();
 
         public long StringBitOperation(Bitwise operation, RedisKey destination, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None)
         {
@@ -3056,6 +3085,33 @@ namespace StackExchange.Redis
             DateTimeKind.Local or DateTimeKind.Utc => (when.ToUniversalTime() - RedisBase.UnixEpoch).Ticks / TimeSpan.TicksPerMillisecond,
             _ => throw new ArgumentException("Expiry time must be either Utc or Local", nameof(when)),
         };
+
+        private Message GetBitfieldMessage(in RedisKey key, BitfieldSubCommand subcommand, CommandFlags flags)
+        {
+            var args = new List<RedisValue>(subcommand.NumArgs);
+            subcommand.AddArgs(args);
+            RedisCommand command = RedisCommand.BITFIELD;
+            if (subcommand is BitfieldGet && multiplexer.GetServer(multiplexer.EndPoints[0]).Version >= RedisFeatures.v6_2_0)
+            {
+                command = RedisCommand.BITFIELD_RO;
+            }
+
+            return Message.Create(Database, flags, command, key, args.ToArray());
+        }
+
+        private Message GetBitfieldMessage(in RedisKey key, BitfieldSubCommand[] subCommands, CommandFlags flags)
+        {
+            var args = new List<RedisValue>(subCommands.Sum(sc => sc.NumArgs));
+            var canBeReadonly = subCommands.All(sc => sc.IsReadonly);
+            var command = canBeReadonly && multiplexer.GetServer(multiplexer.EndPoints[0]).Version >= RedisFeatures.v6_2_0 ? RedisCommand.BITFIELD_RO : RedisCommand.BITFIELD;
+
+            foreach (var subcommand in subCommands)
+            {
+                subcommand.AddArgs(args);
+            }
+
+            return Message.Create(Database, flags, command, key, args.ToArray());
+        }
 
         private Message GetCopyMessage(in RedisKey sourceKey, RedisKey destinationKey, int destinationDatabase, bool replace, CommandFlags flags) =>
             destinationDatabase switch

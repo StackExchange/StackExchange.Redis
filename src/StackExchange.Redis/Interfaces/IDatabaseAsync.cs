@@ -2316,6 +2316,54 @@ namespace StackExchange.Redis
         Task<long> StringBitCountAsync(RedisKey key, long start = 0, long end = -1, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Pulls a single number out of a bitfield. Will execute a BITFIELD_RO if possible.
+        /// </summary>
+        /// <param name="key">The key for the string.</param>
+        /// <param name="encoding">The encoding of the number.</param>
+        /// <param name="offset">The offset into the bitfield to pull the number from.</param>
+        /// <param name="flags">The Commands for the operation.</param>
+        /// <returns>The number of the given <paramref name="encoding"/> at the provided <paramref name="offset"/>.</returns>
+        /// <remarks>https://redis.io/commands/bitfield</remarks>
+        /// <remarks>https://redis.io/commands/bitfield_ro</remarks>
+        Task<long> StringBitfieldGetAsync(RedisKey key, BitfieldEncoding encoding, BitfieldOffset offset, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Sets a single number number in a bitfield at the provided <paramref name="offset"/> to the <paramref name="value"/> provided, in the given <paramref name="encoding"/>.
+        /// </summary>
+        /// <param name="key">The key for the string.</param>
+        /// <param name="encoding">The encoding of the number.</param>
+        /// <param name="offset">The offset into the bitfield to pull the number from.</param>
+        /// <param name="value">the value to set the bitfield to.</param>
+        /// <param name="flags">The Commands for the operation.</param>
+        /// <returns>The previous value as am <see cref="Int64"/> at the provided <paramref name="offset"/>.</returns>
+        /// <remarks>https://redis.io/commands/bitfield</remarks>
+        Task<long> StringBitfieldSetAsync(RedisKey key, BitfieldEncoding encoding, BitfieldOffset offset, long value, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// increments a single number number in a bitfield at the provided <paramref name="offset"/> to the .
+        /// </summary>
+        /// <param name="key">The key for the string.</param>
+        /// <param name="encoding">The encoding of the number.</param>
+        /// <param name="offset">The offset into the bitfield to pull the number from.</param>
+        /// <param name="increment">the value to increment the bitfield by.</param>
+        /// <param name="overflowHandling">The way integer overflows are handled.</param>
+        /// <param name="flags">The Commands for the operation.</param>
+        /// <returns>The new value of the given at the provided <paramref name="offset"/> after the incrby is applied, represented as an <see cref="Int64"/>. Returns <see langword="null"/> if the operation fails.</returns>
+        /// <remarks>https://redis.io/commands/bitfield</remarks>
+        Task<long?> StringBitfieldIncrementAsync(RedisKey key, BitfieldEncoding encoding, BitfieldOffset offset, long increment, BitfieldOverflowHandling overflowHandling = BitfieldOverflowHandling.Wrap, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Executes a set of Bitfield <paramref name="subcommands"/> against the bitfield at the provided <paramref name="key"/>. Will run as a BITFIELD_RO if all operations are read-only and the command is available.
+        /// </summary>
+        /// <param name="key">The key of the string.</param>
+        /// <param name="subcommands">The subcommands to execute against the bitfield.</param>
+        /// <param name="flags">The flags for this operation.</param>
+        /// <returns>An array of numbers corresponding to the result of each sub-command. For increment subcommands, these can be null.</returns>
+        /// <remarks>https://redis.io/commands/bitfield</remarks>
+        /// <remarks>https://redis.io/commands/bitfield_ro</remarks>
+        Task<long?[]> StringBitfieldAsync(RedisKey key, BitfieldSubCommand[] subcommands, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Perform a bitwise operation between multiple keys (containing string values) and store the result in the destination key.
         /// The BITOP command supports four bitwise operations; note that NOT is a unary operator: the second key should be omitted in this case
         /// and only the first key will be considered.

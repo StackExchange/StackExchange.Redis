@@ -330,6 +330,7 @@ namespace StackExchange.Redis
             {
                 case RedisCommand.APPEND:
                 case RedisCommand.BITOP:
+                case RedisCommand.BITFIELD:
                 case RedisCommand.BLPOP:
                 case RedisCommand.BRPOP:
                 case RedisCommand.BRPOPLPUSH:
