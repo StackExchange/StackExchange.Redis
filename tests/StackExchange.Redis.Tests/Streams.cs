@@ -27,6 +27,94 @@ public class Streams : TestBase
     }
 
     [Fact]
+    public void StreamOpsFailOnReplica()
+    {
+        using var conn = Create(configuration: TestConfig.Current.PrimaryServerAndPort, require: RedisFeatures.v5_0_0);
+        using var replicaConn = Create(configuration: TestConfig.Current.ReplicaServerAndPort, require: RedisFeatures.v5_0_0);
+
+        var db = conn.GetDatabase();
+        var replicaDb = replicaConn.GetDatabase();
+
+        // XADD: Works on primary, not secondary
+        db.StreamAdd(GetUniqueKey("auto_id"), "field1", "value1");
+        var ex = Assert.Throws<RedisConnectionException>(() => replicaDb.StreamAdd(GetUniqueKey("auto_id"), "field1", "value1"));
+        Assert.StartsWith("No connection (requires writable - not eligible for replica) is active/available", ex.Message);
+
+        // Add stream content to primary
+        var key = GetUniqueKey("group_ack");
+        const string groupName1 = "test_group1",
+                     groupName2 = "test_group2",
+                     consumer1 = "test_consumer1",
+                     consumer2 = "test_consumer2";
+
+        // Add for primary
+        var id1 = db.StreamAdd(key, "field1", "value1");
+        var id2 = db.StreamAdd(key, "field2", "value2");
+        var id3 = db.StreamAdd(key, "field3", "value3");
+        var id4 = db.StreamAdd(key, "field4", "value4");
+
+        // XGROUP: Works on primary, not replica
+        db.StreamCreateConsumerGroup(key, groupName1, StreamPosition.Beginning);
+        ex = Assert.Throws<RedisConnectionException>(() => replicaDb.StreamCreateConsumerGroup(key, groupName2, StreamPosition.Beginning));
+        Assert.StartsWith("No connection (requires writable - not eligible for replica) is active/available", ex.Message);
+
+        // Create the second group on the primary, for the rest of the tests.
+        db.StreamCreateConsumerGroup(key, groupName2, StreamPosition.Beginning);
+
+        // XREADGROUP: Works on primary, not replica
+        // Read all 4 messages, they will be assigned to the consumer
+        var entries = db.StreamReadGroup(key, groupName1, consumer1, StreamPosition.NewMessages);
+        ex = Assert.Throws<RedisConnectionException>(() => replicaDb.StreamReadGroup(key, groupName2, consumer2, StreamPosition.NewMessages));
+        Assert.StartsWith("No connection (requires writable - not eligible for replica) is active/available", ex.Message);
+
+        // XACK: Works on primary, not secondary
+        var oneAck = db.StreamAcknowledge(key, groupName1, id1);
+        ex = Assert.Throws<RedisConnectionException>(() => replicaDb.StreamAcknowledge(key, groupName2, id1));
+        Assert.StartsWith("No connection (requires writable - not eligible for replica) is active/available", ex.Message);
+
+        // XPENDING: Works on primary and replica
+        // Get the pending messages for consumer2.
+        var pendingMessages = db.StreamPendingMessages(key, groupName1, 10, consumer1);
+        var pendingMessages2 = replicaDb.StreamPendingMessages(key, groupName2, 10, consumer2);
+
+        // XCLAIM: Works on primary, not replica
+        // Claim the messages for consumer1.
+        var messages = db.StreamClaim(key, groupName1, consumer1, 0, messageIds: pendingMessages.Select(pm => pm.MessageId).ToArray());
+        ex = Assert.Throws<RedisConnectionException>(() => replicaDb.StreamClaim(key, groupName2, consumer2, 0, messageIds: pendingMessages.Select(pm => pm.MessageId).ToArray()));
+        Assert.StartsWith("No connection (requires writable - not eligible for replica) is active/available", ex.Message);
+
+        // XDEL: Works on primary, not replica
+        db.StreamDelete(key, new RedisValue[] { id4 });
+        ex = Assert.Throws<RedisConnectionException>(() => replicaDb.StreamDelete(key, new RedisValue[] { id3 }));
+        Assert.StartsWith("No connection (requires writable - not eligible for replica) is active/available", ex.Message);
+
+        // XINFO: Works on primary and replica
+        db.StreamInfo(key);
+        replicaDb.StreamInfo(key);
+
+        // XLEN: Works on primary and replica
+        db.StreamLength(key);
+        replicaDb.StreamLength(key);
+
+        // XRANGE: Works on primary and replica
+        db.StreamRange(key);
+        replicaDb.StreamRange(key);
+
+        // XREVRANGE: Works on primary and replica
+        db.StreamRange(key, messageOrder: Order.Descending);
+        replicaDb.StreamRange(key, messageOrder: Order.Descending);
+
+        // XREAD: Works on primary and replica
+        db.StreamRead(key, "0-1");
+        replicaDb.StreamRead(key, "0-1");
+
+        // XTRIM: Works on primary, not replica
+        db.StreamTrim(key, 10);
+        ex = Assert.Throws<RedisConnectionException>(() => replicaDb.StreamTrim(key, 10));
+        Assert.StartsWith("No connection (requires writable - not eligible for replica) is active/available", ex.Message);
+    }
+
+    [Fact]
     public void StreamAddSinglePairWithAutoId()
     {
         using var conn = Create(require: RedisFeatures.v5_0_0);
