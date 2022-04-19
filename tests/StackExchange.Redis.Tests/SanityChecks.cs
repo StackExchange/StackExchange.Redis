@@ -12,7 +12,7 @@ public sealed class SanityChecks
     /// Ensure we don't reference System.ValueTuple as it causes issues with .NET Full Framework
     /// </summary>
     /// <remarks>
-    /// Modified from <see href="https://github.com/ltrzesniewski/InlineIL.Fody/blob/137e8b57f78b08cdc3abdaaf50ac01af50c58759/src/InlineIL.Tests/AssemblyTests.cs#L14"/>.
+    /// Modified from https://github.com/ltrzesniewski/InlineIL.Fody/blob/137e8b57f78b08cdc3abdaaf50ac01af50c58759/src/InlineIL.Tests/AssemblyTests.cs#L14
     /// Thanks Lucas Trzesniewski!
     /// </remarks>
     [Fact]

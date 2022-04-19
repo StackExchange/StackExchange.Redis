@@ -628,6 +628,7 @@ public class PubSub : TestBase
     [Fact]
     public async Task Issue38()
     {
+        // https://code.google.com/p/booksleeve/issues/detail?id=38
         using var conn = Create(log: Writer);
 
         var sub = conn.GetSubscriber();

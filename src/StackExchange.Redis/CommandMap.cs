@@ -21,9 +21,10 @@ namespace StackExchange.Redis
         /// <summary>
         /// The commands available to <a href="https://github.com/twitter/twemproxy">twemproxy</a>.
         /// </summary>
-        /// <remarks><seealso href="https://github.com/twitter/twemproxy/blob/master/notes/redis.md"/></remarks>
+        /// <remarks>https://github.com/twitter/twemproxy/blob/master/notes/redis.md</remarks>
         public static CommandMap Twemproxy { get; } = CreateImpl(null, exclusions: new HashSet<RedisCommand>
         {
+            // see https://github.com/twitter/twemproxy/blob/master/notes/redis.md
             RedisCommand.KEYS, RedisCommand.MIGRATE, RedisCommand.MOVE, RedisCommand.OBJECT, RedisCommand.RANDOMKEY,
             RedisCommand.RENAME, RedisCommand.RENAMENX, RedisCommand.SCAN,
 
@@ -47,9 +48,9 @@ namespace StackExchange.Redis
         /// <summary>
         /// The commands available to <a href="https://github.com/envoyproxy/envoy">envoyproxy</a>.
         /// </summary>
-        /// <remarks><seealso href="https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/other_protocols/redis.html?highlight=redis"/></remarks>
         public static CommandMap Envoyproxy { get; } = CreateImpl(null, exclusions: new HashSet<RedisCommand>
         {
+            // see https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/other_protocols/redis.html?highlight=redis
             RedisCommand.KEYS, RedisCommand.MIGRATE, RedisCommand.MOVE, RedisCommand.OBJECT, RedisCommand.RANDOMKEY,
             RedisCommand.RENAME, RedisCommand.RENAMENX, RedisCommand.SORT, RedisCommand.SCAN,
 
@@ -79,7 +80,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// The commands available to <a href="https://ssdb.io/">SSDB</a>.
         /// </summary>
-        /// <remarks><seealso href="https://ssdb.io/docs/redis-to-ssdb.html"/></remarks>
+        /// <remarks>https://ssdb.io/docs/redis-to-ssdb.html</remarks>
         public static CommandMap SSDB { get; } = Create(new HashSet<string> {
             "ping",
             "get", "set", "del", "incr", "incrby", "mget", "mset", "keys", "getset", "setnx",
@@ -91,8 +92,9 @@ namespace StackExchange.Redis
         /// <summary>
         /// The commands available to <a href="https://redis.io/topics/sentinel">Sentinel</a>.
         /// </summary>
-        /// <remarks><seealso href="https://redis.io/topics/sentinel"/></remarks>
+        /// <remarks>https://redis.io/topics/sentinel</remarks>
         public static CommandMap Sentinel { get; } = Create(new HashSet<string> {
+            // see https://redis.io/topics/sentinel
             "auth", "ping", "info", "role", "sentinel", "subscribe", "shutdown", "psubscribe", "unsubscribe", "punsubscribe" }, true);
 
         /// <summary>

@@ -1663,9 +1663,6 @@ The coordinates as a two items x,y array (longitude,latitude).
                 this.skipStreamName = skipStreamName;
             }
 
-            /// <summary>
-            /// Handles <see href="https://redis.io/commands/xread"/>.
-            /// </summary>
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
                 if (result.IsNull)
@@ -1684,6 +1681,9 @@ The coordinates as a two items x,y array (longitude,latitude).
 
                 if (skipStreamName)
                 {
+                    // Skip the first element in the array (i.e., the stream name).
+                    // See https://redis.io/commands/xread.
+
                     // > XREAD COUNT 2 STREAMS mystream 0
                     // 1) 1) "mystream"                     <== Skip the stream name
                     //    2) 1) 1) 1519073278252 - 0        <== Index 1 contains the array of stream entries
@@ -1712,15 +1712,14 @@ The coordinates as a two items x,y array (longitude,latitude).
             }
         }
 
-        /// <summary>
-        /// Handles <see href="https://redis.io/commands/xread"/>.
-        /// </summary>
         internal sealed class MultiStreamProcessor : StreamProcessorBase<RedisStream[]>
         {
             /*
                 The result is similar to the XRANGE result (see SingleStreamProcessor)
                 with the addition of the stream name as the first element of top level
                 Multibulk array.
+
+                See https://redis.io/commands/xread.
 
                 > XREAD COUNT 2 STREAMS mystream writers 0-0 0-0
                 1) 1) "mystream"
@@ -2081,11 +2080,10 @@ The coordinates as a two items x,y array (longitude,latitude).
             }
         }
 
-        /// <summary>
-        /// Handles stream responses. For formats, see <see href="https://redis.io/topics/streams-intro"/>.
-        /// </summary>
         internal abstract class StreamProcessorBase<T> : ResultProcessor<T>
         {
+            // For command response formats see https://redis.io/topics/streams-intro.
+
             protected static StreamEntry ParseRedisStreamEntry(in RawResult item)
             {
                 if (item.IsNull || item.Type != ResultType.MultiBulk)

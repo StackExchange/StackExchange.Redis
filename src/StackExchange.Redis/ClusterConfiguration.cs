@@ -264,7 +264,6 @@ namespace StackExchange.Redis
     /// <summary>
     /// Represents the configuration of a single node in a cluster configuration.
     /// </summary>
-    /// <remarks><seealso href="https://redis.io/commands/cluster-nodes"/></remarks>
     public sealed class ClusterNode :  IEquatable<ClusterNode>, IComparable<ClusterNode>, IComparable
     {
         private readonly ClusterConfiguration configuration;
@@ -274,6 +273,7 @@ namespace StackExchange.Redis
 
         internal ClusterNode(ClusterConfiguration configuration, string raw, EndPoint origin)
         {
+            // https://redis.io/commands/cluster-nodes
             this.configuration = configuration;
             Raw = raw;
             var parts = raw.Split(StringSplits.Space);
