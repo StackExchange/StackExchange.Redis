@@ -19,7 +19,7 @@ namespace StackExchange.Redis
 
     internal static class ListSideExtensions
     {
-        public static RedisValue ToLiteral(this ListSide side) => side switch
+        internal static RedisValue ToLiteral(this ListSide side) => side switch
         {
             ListSide.Left => RedisLiterals.LEFT,
             ListSide.Right => RedisLiterals.RIGHT,
