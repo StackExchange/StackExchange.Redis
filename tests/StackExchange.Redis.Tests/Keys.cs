@@ -300,29 +300,43 @@ public class Keys : TestBase
     [Fact]
     public async Task KeyFrequency()
     {
-        using var conn = Create();
+        using var conn = Create(allowAdmin: true, require: RedisFeatures.v4_0_0);
 
         var key = Me();
         var db = conn.GetDatabase();
+        var server = GetServer(conn);
 
-        await db.ExecuteAsync("CONFIG", "SET", "maxmemory-policy", "allkeys-lfu");
+        var serverConfig = server.ConfigGet("maxmemory-policy");
+        var maxMemoryPolicy = serverConfig.Length == 1 ? serverConfig[0].Value : "";
+        Log($"maxmemory-policy detected as {maxMemoryPolicy}");
+        var isLfu = maxMemoryPolicy.Contains("lfu");
 
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
         db.StringGet(key);
 
-        var count = db.KeyFrequency(key);
-        Assert.True(count > 0);
+        if (isLfu)
+        {
+            var count = db.KeyFrequency(key);
+            Assert.True(count > 0);
 
-        count = await db.KeyFrequencyAsync(key);
-        Assert.True(count > 0);
+            count = await db.KeyFrequencyAsync(key);
+            Assert.True(count > 0);
 
-        // Key not exists
-        db.KeyDelete(key, CommandFlags.FireAndForget);
-        var res = db.KeyFrequency(key);
-        Assert.Null(res);
+            // Key not exists
+            db.KeyDelete(key, CommandFlags.FireAndForget);
+            var res = db.KeyFrequency(key);
+            Assert.Null(res);
 
-        res = await db.KeyFrequencyAsync(key);
-        Assert.Null(res);
+            res = await db.KeyFrequencyAsync(key);
+            Assert.Null(res);
+        }
+        else
+        {
+            var ex = Assert.Throws<RedisServerException>(() => db.KeyFrequency(key));
+            Assert.Contains("An LFU maxmemory policy is not selected", ex.Message);
+            ex = await Assert.ThrowsAsync<RedisServerException>(() => db.KeyFrequencyAsync(key));
+            Assert.Contains("An LFU maxmemory policy is not selected", ex.Message);
+        }
     }
 }
