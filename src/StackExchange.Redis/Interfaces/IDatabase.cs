@@ -756,12 +756,13 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// Returns the logarithmic access frequency counter of the object stored at <paramref name="key"/>.
-        /// The command is only available when the `maxmemory-policy` configuration directive is set to one of the LFU policies.
+        /// The command is only available when the <c>maxmemory-policy</c> configuration directive is set to
+        /// one of <see href="https://redis.io/docs/manual/eviction/#the-new-lfu-mode">the LFU policies</see>.
         /// </summary>
         /// <param name="key">The key to get a frequency count for.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The number of logarithmic access frequency counter, (<see langword="Null"/> if the key does not exist).</returns>
-        /// <remarks>https://redis.io/commands/object-freq</remarks>
+        /// <returns>The number of logarithmic access frequency counter, (<see langword="null"/> if the key does not exist).</returns>
+        /// <remarks><seealso href="https://redis.io/commands/object-freq"/></remarks>
         long? KeyFrequency(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
