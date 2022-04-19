@@ -3510,23 +3510,15 @@ namespace StackExchange.Redis
             // most common cases; no "get", no "by", no "destination", no "skip", no "take"
             if (destination.IsNull && skip == 0 && take == -1 && by.IsNull && (get == null || get.Length == 0))
             {
-                switch (order)
+                return order switch
                 {
-                    case Order.Ascending:
-                        switch (sortType)
-                        {
-                            case SortType.Numeric: return Message.Create(Database, flags, command, key);
-                            case SortType.Alphabetic: return Message.Create(Database, flags, command, key, RedisLiterals.ALPHA);
-                        }
-                        break;
-                    case Order.Descending:
-                        switch (sortType)
-                        {
-                            case SortType.Numeric: return Message.Create(Database, flags, command, key, RedisLiterals.DESC);
-                            case SortType.Alphabetic: return Message.Create(Database, flags, command, key, RedisLiterals.DESC, RedisLiterals.ALPHA);
-                        }
-                        break;
-                }
+                    Order.Ascending  when sortType == SortType.Numeric    => Message.Create(Database, flags, command, key),
+                    Order.Ascending  when sortType == SortType.Alphabetic => Message.Create(Database, flags, command, key, RedisLiterals.ALPHA),
+                    Order.Descending when sortType == SortType.Numeric    => Message.Create(Database, flags, command, key, RedisLiterals.DESC),
+                    Order.Descending when sortType == SortType.Alphabetic => Message.Create(Database, flags, command, key, RedisLiterals.DESC, RedisLiterals.ALPHA),
+                    Order.Ascending or Order.Descending => throw new ArgumentOutOfRangeException(nameof(sortType)),
+                    _ => throw new ArgumentOutOfRangeException(nameof(order)),
+                };
             }
 
             // and now: more complicated scenarios...
