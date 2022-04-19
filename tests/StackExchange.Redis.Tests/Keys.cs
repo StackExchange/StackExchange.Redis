@@ -305,6 +305,8 @@ public class Keys : TestBase
         var key = Me();
         var db = conn.GetDatabase();
 
+        await db.ExecuteAsync("CONFIG", "SET", "maxmemory-policy", "allkeys-lfu");
+
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
         db.StringGet(key);
@@ -314,5 +316,13 @@ public class Keys : TestBase
 
         count = await db.KeyFrequencyAsync(key);
         Assert.True(count > 0);
+
+        // Key not exists
+        db.KeyDelete(key, CommandFlags.FireAndForget);
+        var res = db.KeyFrequency(key);
+        Assert.Null(res);
+
+        res = await db.KeyFrequencyAsync(key);
+        Assert.Null(res);
     }
 }
