@@ -3683,10 +3683,11 @@ namespace StackExchange.Redis
             return Message.Create(Database, flags, RedisCommand.XADD, key, values);
         }
 
+        /// <summary>
+        /// Gets message for <see href="https://redis.io/commands/xadd"/>.
+        /// </summary>
         private Message GetStreamAddMessage(RedisKey key, RedisValue entryId, int? maxLength, bool useApproximateMaxLength, NameValueEntry[] streamPairs, CommandFlags flags)
         {
-            // See https://redis.io/commands/xadd.
-
             if (streamPairs == null) throw new ArgumentNullException(nameof(streamPairs));
             if (streamPairs.Length == 0) throw new ArgumentOutOfRangeException(nameof(streamPairs), "streamPairs must contain at least one item.");
 
@@ -3779,6 +3780,10 @@ namespace StackExchange.Redis
                 values);
         }
 
+        /// <summary>
+        /// Gets a message for <see href="https://redis.io/commands/xpending/"/>
+        /// </summary>
+        /// <remarks><seealso href="https://redis.io/topics/streams-intro"/></remarks>
         private Message GetStreamPendingMessagesMessage(RedisKey key, RedisValue groupName, RedisValue? minId, RedisValue? maxId, int count, RedisValue consumerName, CommandFlags flags)
         {
             // > XPENDING mystream mygroup - + 10 [consumer name]
@@ -3790,8 +3795,6 @@ namespace StackExchange.Redis
             //    2) "Bob"
             //    3) (integer)74170458
             //    4) (integer)1
-
-            // See https://redis.io/topics/streams-intro.
 
             if (count <= 0)
             {
