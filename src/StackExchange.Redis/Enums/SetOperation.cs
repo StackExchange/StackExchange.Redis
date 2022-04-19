@@ -23,7 +23,7 @@ namespace StackExchange.Redis
 
     internal static class SetOperationExtensions
     {
-        public static RedisCommand ToCommand(this SetOperation operation, bool store) => operation switch
+        internal static RedisCommand ToCommand(this SetOperation operation, bool store) => operation switch
         {
             SetOperation.Intersect  when store => RedisCommand.ZINTERSTORE,
             SetOperation.Intersect             => RedisCommand.ZINTER,
