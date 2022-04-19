@@ -189,6 +189,7 @@ internal enum RedisCommand
 
     XACK,
     XADD,
+    XAUTOCLAIM,
     XCLAIM,
     XDEL,
     XGROUP,
@@ -324,6 +325,7 @@ internal static class RedisCommandExtensions
             case RedisCommand.UNLINK:
             case RedisCommand.XACK:
             case RedisCommand.XADD:
+            case RedisCommand.XAUTOCLAIM:
             case RedisCommand.XCLAIM:
             case RedisCommand.XDEL:
             case RedisCommand.XGROUP:

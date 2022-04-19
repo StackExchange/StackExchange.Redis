@@ -2118,6 +2118,37 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// Change ownership of messages consumed, but not yet acknowledged, by a different consumer.
+        /// Messages that have been idle for more than <paramref name="minIdleTimeInMs"/> will be claimed.
+        /// </summary>
+        /// <param name="key">The key of the stream.</param>
+        /// <param name="consumerGroup">The consumer group.</param>
+        /// <param name="claimingConsumer">The consumer claiming the messages(s).</param>
+        /// <param name="minIdleTimeInMs">The minimum idle time threshold for pending messages to be claimed.</param>
+        /// <param name="startAtId">The starting ID to scan for pending messages that have an idle time greater than <paramref name="minIdleTimeInMs"/>.</param>
+        /// <param name="count">The upper limit of the number of entries that the command attempts to claim. If <see langword="null"/>, Redis will default the value to 100.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>An instance of <see cref="StreamAutoClaimResult"/>.</returns>
+        /// <remarks><seealso href="https://redis.io/commands/xautoclaim"/></remarks>
+        Task<StreamAutoClaimResult> StreamAutoClaimAsync(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue startAtId, int? count = null, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Change ownership of messages consumed, but not yet acknowledged, by a different consumer.
+        /// Messages that have been idle for more than <paramref name="minIdleTimeInMs"/> will be claimed.
+        /// The result will contain the claimed message IDs instead of a <see cref="StreamEntry"/> instance.
+        /// </summary>
+        /// <param name="key">The key of the stream.</param>
+        /// <param name="consumerGroup">The consumer group.</param>
+        /// <param name="claimingConsumer">The consumer claiming the messages(s).</param>
+        /// <param name="minIdleTimeInMs">The minimum idle time threshold for pending messages to be claimed.</param>
+        /// <param name="startAtId">The starting ID to scan for pending messages that have an idle time greater than <paramref name="minIdleTimeInMs"/>.</param>
+        /// <param name="count">The upper limit of the number of entries that the command attempts to claim. If <see langword="null"/>, Redis will default the value to 100.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>An instance of <see cref="StreamAutoClaimIdsOnlyResult"/>.</returns>
+        /// <remarks><seealso href="https://redis.io/commands/xautoclaim"/></remarks>
+        Task<StreamAutoClaimIdsOnlyResult> StreamAutoClaimIdsOnlyAsync(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue startAtId, int? count = null, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Change ownership of messages consumed, but not yet acknowledged, by a different consumer.
         /// This method returns the complete message for the claimed message(s).
         /// </summary>
         /// <param name="key">The key of the stream.</param>
