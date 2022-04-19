@@ -73,10 +73,8 @@ StackExchange.Redis.BitfieldEncoding.Signedness.get -> StackExchange.Redis.Signe
 StackExchange.Redis.BitfieldEncoding.Size.get -> byte
 StackExchange.Redis.BitfieldGet
 StackExchange.Redis.BitfieldGet.BitfieldGet(StackExchange.Redis.BitfieldEncoding encoding, StackExchange.Redis.BitfieldOffset offset) -> void
-StackExchange.Redis.BitfieldGet.BitfieldGet(string! encoding, string! offset) -> void
 StackExchange.Redis.BitfieldIncrby
 StackExchange.Redis.BitfieldIncrby.BitfieldIncrby(StackExchange.Redis.BitfieldEncoding encoding, StackExchange.Redis.BitfieldOffset offset, long increment, StackExchange.Redis.BitfieldOverflowHandling overflowHandling = StackExchange.Redis.BitfieldOverflowHandling.Wrap) -> void
-StackExchange.Redis.BitfieldIncrby.BitfieldIncrby(string! encoding, string! offset, long increment) -> void
 StackExchange.Redis.BitfieldIncrby.Increment.get -> long
 StackExchange.Redis.BitfieldIncrby.OverflowHandling.get -> StackExchange.Redis.BitfieldOverflowHandling
 StackExchange.Redis.BitfieldOffset
@@ -90,7 +88,6 @@ StackExchange.Redis.BitfieldOverflowHandling.Saturate = 1 -> StackExchange.Redis
 StackExchange.Redis.BitfieldOverflowHandling.Wrap = 0 -> StackExchange.Redis.BitfieldOverflowHandling
 StackExchange.Redis.BitfieldSet
 StackExchange.Redis.BitfieldSet.BitfieldSet(StackExchange.Redis.BitfieldEncoding encoding, StackExchange.Redis.BitfieldOffset offset, long value) -> void
-StackExchange.Redis.BitfieldSet.BitfieldSet(string! encoding, string! offset, long value) -> void
 StackExchange.Redis.BitfieldSet.Value.get -> long
 StackExchange.Redis.BitfieldSubCommand
 StackExchange.Redis.BitfieldSubCommand.Encoding.get -> StackExchange.Redis.BitfieldEncoding

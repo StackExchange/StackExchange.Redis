@@ -26,12 +26,6 @@ public abstract class BitfieldSubCommand
         Offset = offset;
     }
 
-    internal BitfieldSubCommand(string encoding, string offset)
-    {
-        Encoding = BitfieldEncoding.Parse(encoding);
-        Offset = BitfieldOffset.Parse(offset);
-    }
-
 }
 
 /// <summary>
@@ -45,15 +39,6 @@ public sealed class BitfieldGet : BitfieldSubCommand
     /// <param name="encoding">the encoding of the subcommand.</param>
     /// <param name="offset">The offset into the bitfield of the subcommand</param>
     public BitfieldGet(BitfieldEncoding encoding, BitfieldOffset offset) : base(encoding, offset)
-    {
-    }
-
-    /// <summary>
-    /// Initializes a bitfield get subcommand
-    /// </summary>
-    /// <param name="encoding">the encoding of the subcommand.</param>
-    /// <param name="offset">The offset into the bitfield of the subcommand</param>
-    public BitfieldGet(string encoding, string offset) : base(encoding, offset)
     {
     }
 
@@ -86,17 +71,6 @@ public sealed class BitfieldSet : BitfieldSubCommand
     /// <param name="offset">The offset into the bitfield to set.</param>
     /// <param name="value">The value to set.</param>
     public BitfieldSet(BitfieldEncoding encoding, BitfieldOffset offset, long value) : base(encoding, offset)
-    {
-        Value = value;
-    }
-
-    /// <summary>
-    /// Initializes a sub-command for a Bitfield Set.
-    /// </summary>
-    /// <param name="encoding">The number's encoding.</param>
-    /// <param name="offset">The offset into the bitfield to set.</param>
-    /// <param name="value">The value to set.</param>
-    public BitfieldSet(string encoding, string offset, long value) : base(encoding, offset)
     {
         Value = value;
     }
@@ -138,17 +112,6 @@ public sealed class BitfieldIncrby : BitfieldSubCommand
     {
         Increment = increment;
         OverflowHandling = overflowHandling;
-    }
-
-    /// <summary>
-    /// Initializes a sub-command for a Bitfield Set.
-    /// </summary>
-    /// <param name="encoding">The number's encoding.</param>
-    /// <param name="offset">The offset into the bitfield to set.</param>
-    /// <param name="increment">The value to set.</param>
-    public BitfieldIncrby(string encoding, string offset, long increment) : base(encoding, offset)
-    {
-        Increment = increment;
     }
 
     internal override int NumArgs => OverflowHandling == BitfieldOverflowHandling.Wrap ? 4 : 6;
@@ -200,33 +163,6 @@ public readonly struct BitfieldOffset
         ByEncoding = byEncoding;
         Offset = offset;
     }
-
-    internal static BitfieldOffset Parse(string str)
-    {
-        if (str.IsNullOrEmpty())
-        {
-            throw new ArgumentException($"Cannot parse {nameof(BitfieldOffset)} from an empty or null string.", nameof(str));
-        }
-
-        long offset;
-
-        if (str[0] == '#')
-        {
-            if (long.TryParse(str.Substring(1), out offset))
-            {
-                return new BitfieldOffset(true, offset);
-            }
-        }
-        else
-        {
-            if (long.TryParse(str, out offset))
-            {
-                return new BitfieldOffset(false, offset);
-            }
-        }
-
-        throw new ArgumentException($"{str} could not be parsed into a {nameof(BitfieldOffset)}.", nameof(str));
-    }
 }
 
 /// <summary>
@@ -253,30 +189,5 @@ public readonly struct BitfieldEncoding
     {
         Signedness = signedness;
         Size = size;
-    }
-
-    internal static BitfieldEncoding Parse(string str)
-    {
-        if (str.IsNullOrEmpty())
-        {
-            throw new ArgumentException($"Cannot parse {nameof(BitfieldEncoding)} from an empty or null String", nameof(str));
-        }
-
-        if (!byte.TryParse(str.Substring(1), out byte size))
-        {
-            throw new ArgumentException($"Could not parse {nameof(BitfieldEncoding)} from {str}", nameof(str));
-        }
-
-        if (char.ToLowerInvariant('i') == char.ToLowerInvariant(str[0]))
-        {
-            return new BitfieldEncoding(Signedness.Signed, size);
-        }
-
-        if (char.ToLowerInvariant('u') == char.ToLowerInvariant(str[0]))
-        {
-            return new BitfieldEncoding(Signedness.Unsigned, size);
-        }
-
-        throw new ArgumentException($"Could not parse {nameof(BitfieldEncoding)} from {str}", nameof(str));
     }
 }
