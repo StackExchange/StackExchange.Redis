@@ -24,7 +24,7 @@
         /// <summary>
         /// Whether a proxy supports databases (e.g. database > 0).
         /// </summary>
-        public static bool SupportsDatabases(this Proxy proxy) => proxy switch
+        internal static bool SupportsDatabases(this Proxy proxy) => proxy switch
         {
             Proxy.Twemproxy => false,
             Proxy.Envoyproxy => false,
@@ -34,7 +34,7 @@
         /// <summary>
         /// Whether a proxy supports pub/sub.
         /// </summary>
-        public static bool SupportsPubSub(this Proxy proxy) => proxy switch
+        internal static bool SupportsPubSub(this Proxy proxy) => proxy switch
         {
             Proxy.Twemproxy => false,
             Proxy.Envoyproxy => false,
@@ -44,7 +44,7 @@
         /// <summary>
         /// Whether a proxy supports the <c>ConnectionMultiplexer.GetServer</c>.
         /// </summary>
-        public static bool SupportsServerApi(this Proxy proxy) => proxy switch
+        internal static bool SupportsServerApi(this Proxy proxy) => proxy switch
         {
             Proxy.Twemproxy => false,
             Proxy.Envoyproxy => false,
