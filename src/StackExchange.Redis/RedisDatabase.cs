@@ -2748,26 +2748,26 @@ namespace StackExchange.Redis
 
         public long StringBitfieldGet(RedisKey key, BitfieldEncoding encoding, BitfieldOffset offset, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetBitfieldMessage(key, new BitfieldGet(encoding, offset), flags);
-            return ExecuteSync(msg, ResultProcessor.Int64);
+            var msg = GetBitfieldMessage(key, new BitfieldGet(encoding, offset), flags, out ServerEndPoint? server);
+            return ExecuteSync(msg, ResultProcessor.Int64, server);
         }
 
         public long StringBitfieldSet(RedisKey key, BitfieldEncoding encoding, BitfieldOffset offset, long value, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetBitfieldMessage(key, new BitfieldSet(encoding, offset, value), flags);
-            return ExecuteSync(msg, ResultProcessor.Int64);
+            var msg = GetBitfieldMessage(key, new BitfieldSet(encoding, offset, value), flags, out ServerEndPoint? server);
+            return ExecuteSync(msg, ResultProcessor.Int64, server);
         }
 
         public long? StringBitfieldIncrement(RedisKey key, BitfieldEncoding encoding, BitfieldOffset offset, long increment, BitfieldOverflowHandling overflowHandling = BitfieldOverflowHandling.Wrap, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetBitfieldMessage(key, new BitfieldIncrby(encoding, offset, increment, overflowHandling), flags);
-            return ExecuteSync(msg, ResultProcessor.NullableInt64);
+            var msg = GetBitfieldMessage(key, new BitfieldIncrby(encoding, offset, increment, overflowHandling), flags, out ServerEndPoint? server);
+            return ExecuteSync(msg, ResultProcessor.NullableInt64, server);
         }
 
         public long?[] StringBitfield(RedisKey key, BitfieldSubCommand[] subcommands, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetBitfieldMessage(key, subcommands, flags);
-            return ExecuteSync(msg, ResultProcessor.NullableInt64Array, defaultValue: Array.Empty<long?>());
+            var msg = GetBitfieldMessage(key, subcommands, flags, out ServerEndPoint? server);
+            return ExecuteSync(msg, ResultProcessor.NullableInt64Array, defaultValue: Array.Empty<long?>(), server: server);
         }
 
         public Task<long> StringBitCountAsync(RedisKey key, long start = 0, long end = -1, CommandFlags flags = CommandFlags.None)
@@ -2778,26 +2778,26 @@ namespace StackExchange.Redis
 
         public Task<long> StringBitfieldGetAsync(RedisKey key, BitfieldEncoding encoding, BitfieldOffset offset, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetBitfieldMessage(key, new BitfieldGet(encoding, offset), flags);
-            return ExecuteAsync(msg, ResultProcessor.Int64);
+            var msg = GetBitfieldMessage(key, new BitfieldGet(encoding, offset), flags, out ServerEndPoint? server);
+            return ExecuteAsync(msg, ResultProcessor.Int64, server);
         }
 
         public Task<long> StringBitfieldSetAsync(RedisKey key, BitfieldEncoding encoding, BitfieldOffset offset, long value, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetBitfieldMessage(key, new BitfieldSet(encoding, offset, value), flags);
+            var msg = GetBitfieldMessage(key, new BitfieldSet(encoding, offset, value), flags, out ServerEndPoint? server);
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
         public Task<long?> StringBitfieldIncrementAsync(RedisKey key, BitfieldEncoding encoding, BitfieldOffset offset, long increment, BitfieldOverflowHandling overflowHandling = BitfieldOverflowHandling.Wrap, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetBitfieldMessage(key, new BitfieldIncrby(encoding, offset, increment, overflowHandling), flags);
-            return ExecuteAsync(msg, ResultProcessor.NullableInt64);
+            var msg = GetBitfieldMessage(key, new BitfieldIncrby(encoding, offset, increment, overflowHandling), flags, out ServerEndPoint? server);
+            return ExecuteAsync(msg, ResultProcessor.NullableInt64, server);
         }
 
         public Task<long?[]> StringBitfieldAsync(RedisKey key, BitfieldSubCommand[] subcommands, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetBitfieldMessage(key, subcommands, flags);
-            return ExecuteAsync(msg, ResultProcessor.NullableInt64Array, defaultValue: Array.Empty<long?>());
+            var msg = GetBitfieldMessage(key, subcommands, flags, out ServerEndPoint? server);
+            return ExecuteAsync(msg, ResultProcessor.NullableInt64Array, defaultValue: Array.Empty<long?>(), server: server);
         }
 
         public long StringBitOperation(Bitwise operation, RedisKey destination, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None)
@@ -3130,12 +3130,13 @@ namespace StackExchange.Redis
             _ => throw new ArgumentException("Expiry time must be either Utc or Local", nameof(when)),
         };
 
-        private Message GetBitfieldMessage(in RedisKey key, BitfieldSubCommand subcommand, CommandFlags flags)
+        private Message GetBitfieldMessage(in RedisKey key, BitfieldSubCommand subcommand, CommandFlags flags, out ServerEndPoint? server)
         {
+            var features = GetFeatures(key, flags, out server);
             var args = new List<RedisValue>(subcommand.NumArgs);
             subcommand.AddArgs(args);
             RedisCommand command = RedisCommand.BITFIELD;
-            if (subcommand is BitfieldGet && multiplexer.GetServer(multiplexer.EndPoints[0]).Version >= RedisFeatures.v6_2_0)
+            if (subcommand is BitfieldGet && features.ReadOnlyBitfield)
             {
                 command = RedisCommand.BITFIELD_RO;
             }
@@ -3143,11 +3144,12 @@ namespace StackExchange.Redis
             return Message.Create(Database, flags, command, key, args.ToArray());
         }
 
-        private Message GetBitfieldMessage(in RedisKey key, BitfieldSubCommand[] subCommands, CommandFlags flags)
+        private Message GetBitfieldMessage(in RedisKey key, BitfieldSubCommand[] subCommands, CommandFlags flags, out ServerEndPoint? server)
         {
+            var features = GetFeatures(key, flags, out server);
             var args = new List<RedisValue>(subCommands.Sum(sc => sc.NumArgs));
             var canBeReadonly = subCommands.All(sc => sc.IsReadonly);
-            var command = canBeReadonly && multiplexer.GetServer(multiplexer.EndPoints[0]).Version >= RedisFeatures.v6_2_0 ? RedisCommand.BITFIELD_RO : RedisCommand.BITFIELD;
+            var command = canBeReadonly &&features.ReadOnlyBitfield ? RedisCommand.BITFIELD_RO : RedisCommand.BITFIELD;
 
             foreach (var subcommand in subCommands)
             {
