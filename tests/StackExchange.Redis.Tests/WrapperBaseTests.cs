@@ -281,6 +281,13 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void KeyFrequencyAsync()
+        {
+            wrapper.KeyFrequencyAsync("key", CommandFlags.None);
+            mock.Verify(_ => _.KeyFrequencyAsync("prefix:key", CommandFlags.None));
+        }
+
+        [Fact]
         public void KeyMigrateAsync()
         {
             EndPoint toServer = new IPEndPoint(IPAddress.Loopback, 123);
