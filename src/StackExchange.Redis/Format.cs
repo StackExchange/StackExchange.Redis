@@ -234,19 +234,12 @@ namespace StackExchange.Redis
             return true;
         }
 
-        /// <summary>
-        /// <para>
-        /// Adapted from IPEndPointParser in Microsoft.AspNetCore
-        /// Link: <see href="https://github.com/aspnet/BasicMiddleware/blob/f320511b63da35571e890d53f3906c7761cd00a1/src/Microsoft.AspNetCore.HttpOverrides/Internal/IPEndPointParser.cs#L8"/>
-        /// </para>
-        /// <para>
-        /// Copyright (c) .NET Foundation. All rights reserved.
-        /// Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
-        /// </para>
-        /// </summary>
-        /// <exception cref="PlatformNotSupportedException">If Unix sockets are attempted but not supported.</exception>
         internal static bool TryParseEndPoint(string? addressWithPort, [NotNullWhen(true)] out EndPoint? endpoint)
         {
+            // Adapted from IPEndPointParser in Microsoft.AspNetCore
+            // Link: https://github.com/aspnet/BasicMiddleware/blob/f320511b63da35571e890d53f3906c7761cd00a1/src/Microsoft.AspNetCore.HttpOverrides/Internal/IPEndPointParser.cs#L8
+            // Copyright (c) .NET Foundation. All rights reserved.
+            // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
             string addressPart;
             string? portPart = null;
             if (addressWithPort.IsNullOrEmpty())

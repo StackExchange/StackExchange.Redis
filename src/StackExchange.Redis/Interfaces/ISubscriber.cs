@@ -16,7 +16,11 @@ namespace StackExchange.Redis
         /// <param name="flags">The command flags to use.</param>
         EndPoint? IdentifyEndpoint(RedisChannel channel, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="IdentifyEndpoint(RedisChannel, CommandFlags)"/>
+        /// <summary>
+        /// Indicate exactly which redis server we are talking to.
+        /// </summary>
+        /// <param name="channel">The channel to identify the server endpoint by.</param>
+        /// <param name="flags">The command flags to use.</param>
         Task<EndPoint?> IdentifyEndpointAsync(RedisChannel channel, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -26,7 +30,6 @@ namespace StackExchange.Redis
         /// server is chosen arbitrarily from the primaries.
         /// </summary>
         /// <param name="channel">The channel to identify the server endpoint by.</param>
-        /// <returns><see langword="true" /> if connected, <see langword="false"/> otherwise.</returns>
         bool IsConnected(RedisChannel channel = default);
 
         /// <summary>
@@ -39,10 +42,20 @@ namespace StackExchange.Redis
         /// The number of clients that received the message *on the destination server*,
         /// note that this doesn't mean much in a cluster as clients can get the message through other nodes.
         /// </returns>
-        /// <remarks><seealso href="https://redis.io/commands/publish"/></remarks>
+        /// <remarks>https://redis.io/commands/publish</remarks>
         long Publish(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="Publish(RedisChannel, RedisValue, CommandFlags)"/>
+        /// <summary>
+        /// Posts a message to the given channel.
+        /// </summary>
+        /// <param name="channel">The channel to publish to.</param>
+        /// <param name="message">The message to publish.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>
+        /// The number of clients that received the message *on the destination server*,
+        /// note that this doesn't mean much in a cluster as clients can get the message through other nodes.
+        /// </returns>
+        /// <remarks>https://redis.io/commands/publish</remarks>
         Task<long> PublishAsync(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -51,14 +64,9 @@ namespace StackExchange.Redis
         /// <param name="channel">The channel to subscribe to.</param>
         /// <param name="handler">The handler to invoke when a message is received on <paramref name="channel"/>.</param>
         /// <param name="flags">The command flags to use.</param>
-        /// <remarks>
-        /// <seealso href="https://redis.io/commands/subscribe"/>,
-        /// <seealso href="https://redis.io/commands/psubscribe"/>
-        /// </remarks>
+        /// <remarks>https://redis.io/commands/subscribe</remarks>
+        /// <remarks>https://redis.io/commands/psubscribe</remarks>
         void Subscribe(RedisChannel channel, Action<RedisChannel, RedisValue> handler, CommandFlags flags = CommandFlags.None);
-
-        /// <inheritdoc cref="Subscribe(RedisChannel, Action{RedisChannel, RedisValue}, CommandFlags)"/>
-        Task SubscribeAsync(RedisChannel channel, Action<RedisChannel, RedisValue> handler, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Subscribe to perform some operation when a message to the preferred/active node is broadcast, as a queue that guarantees ordered handling.
@@ -66,13 +74,28 @@ namespace StackExchange.Redis
         /// <param name="channel">The redis channel to subscribe to.</param>
         /// <param name="flags">The command flags to use.</param>
         /// <returns>A channel that represents this source</returns>
-        /// <remarks>
-        /// <seealso href="https://redis.io/commands/subscribe"/>,
-        /// <seealso href="https://redis.io/commands/psubscribe"/>
-        /// </remarks>
+        /// <remarks>https://redis.io/commands/subscribe</remarks>
+        /// <remarks>https://redis.io/commands/psubscribe</remarks>
         ChannelMessageQueue Subscribe(RedisChannel channel, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="Subscribe(RedisChannel, CommandFlags)"/>
+        /// <summary>
+        /// Subscribe to perform some operation when a change to the preferred/active node is broadcast.
+        /// </summary>
+        /// <param name="channel">The channel to subscribe to.</param>
+        /// <param name="handler">The handler to invoke when a message is received on <paramref name="channel"/>.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <remarks>https://redis.io/commands/subscribe</remarks>
+        /// <remarks>https://redis.io/commands/psubscribe</remarks>
+        Task SubscribeAsync(RedisChannel channel, Action<RedisChannel, RedisValue> handler, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Subscribe to perform some operation when a change to the preferred/active node is broadcast, as a channel.
+        /// </summary>
+        /// <param name="channel">The redis channel to subscribe to.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>A channel that represents this source</returns>
+        /// <remarks>https://redis.io/commands/subscribe</remarks>
+        /// <remarks>https://redis.io/commands/psubscribe</remarks>
         Task<ChannelMessageQueue> SubscribeAsync(RedisChannel channel, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -90,26 +113,36 @@ namespace StackExchange.Redis
         /// <param name="channel">The channel that was subscribed to.</param>
         /// <param name="handler">The handler to no longer invoke when a message is received on <paramref name="channel"/>.</param>
         /// <param name="flags">The command flags to use.</param>
-        /// <remarks>
-        /// <seealso href="https://redis.io/commands/unsubscribe"/>,
-        /// <seealso href="https://redis.io/commands/punsubscribe"/>
-        /// </remarks>
+        /// <remarks>https://redis.io/commands/unsubscribe</remarks>
+        /// <remarks>https://redis.io/commands/punsubscribe</remarks>
         void Unsubscribe(RedisChannel channel, Action<RedisChannel, RedisValue>? handler = null, CommandFlags flags = CommandFlags.None);
-
-        /// <inheritdoc cref="Unsubscribe(RedisChannel, Action{RedisChannel, RedisValue}?, CommandFlags)"/>
-        Task UnsubscribeAsync(RedisChannel channel, Action<RedisChannel, RedisValue>? handler = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Unsubscribe all subscriptions on this instance.
         /// </summary>
         /// <param name="flags">The command flags to use.</param>
-        /// <remarks>
-        /// <seealso href="https://redis.io/commands/unsubscribe"/>,
-        /// <seealso href="https://redis.io/commands/punsubscribe"/>
-        /// </remarks>
+        /// <remarks>https://redis.io/commands/unsubscribe</remarks>
+        /// <remarks>https://redis.io/commands/punsubscribe</remarks>
         void UnsubscribeAll(CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="UnsubscribeAll(CommandFlags)"/>
+        /// <summary>
+        /// Unsubscribe all subscriptions on this instance.
+        /// </summary>
+        /// <param name="flags">The command flags to use.</param>
+        /// <remarks>https://redis.io/commands/unsubscribe</remarks>
+        /// <remarks>https://redis.io/commands/punsubscribe</remarks>
         Task UnsubscribeAllAsync(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Unsubscribe from a specified message channel.
+        /// Note: if no handler is specified, the subscription is canceled regardless of the subscribers.
+        /// If a handler is specified, the subscription is only canceled if this handler is the last handler remaining against the channel.
+        /// </summary>
+        /// <param name="channel">The channel that was subscribed to.</param>
+        /// <param name="handler">The handler to no longer invoke when a message is received on <paramref name="channel"/>.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <remarks>https://redis.io/commands/unsubscribe</remarks>
+        /// <remarks>https://redis.io/commands/punsubscribe</remarks>
+        Task UnsubscribeAsync(RedisChannel channel, Action<RedisChannel, RedisValue>? handler = null, CommandFlags flags = CommandFlags.None);
     }
 }

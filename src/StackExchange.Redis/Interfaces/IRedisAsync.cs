@@ -18,7 +18,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="flags">The command flags to use.</param>
         /// <returns>The observed latency.</returns>
-        /// <remarks><seealso href="https://redis.io/commands/ping"/></remarks>
+        /// <remarks>https://redis.io/commands/ping</remarks>
         Task<TimeSpan> PingAsync(CommandFlags flags = CommandFlags.None);
 
         /// <summary>

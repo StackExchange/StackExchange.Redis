@@ -73,18 +73,27 @@ namespace StackExchange.Redis
         int DatabaseCount { get; }
 
         /// <summary>
-        /// The <c>CLIENT KILL</c> command closes a given client connection identified by <c>ip:port</c>.
-        /// The <c>ip:port</c> should match a line returned by the <c>CLIENT LIST</c> command.
+        /// The CLIENT KILL command closes a given client connection identified by ip:port.
+        /// The ip:port should match a line returned by the CLIENT LIST command.
         /// Due to the single-threaded nature of Redis, it is not possible to kill a client connection while it is executing a command.
         /// From the client point of view, the connection can never be closed in the middle of the execution of a command.
         /// However, the client will notice the connection has been closed only when the next command is sent (and results in network error).
         /// </summary>
         /// <param name="endpoint">The endpoint of the client to kill.</param>
         /// <param name="flags">The command flags to use.</param>
-        /// <remarks><seealso href="https://redis.io/commands/client-kill"/></remarks>
+        /// <remarks>https://redis.io/commands/client-kill</remarks>
         void ClientKill(EndPoint endpoint, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="ClientKill(EndPoint, CommandFlags)"/>
+        /// <summary>
+        /// The CLIENT KILL command closes a given client connection identified by ip:port.
+        /// The ip:port should match a line returned by the CLIENT LIST command.
+        /// Due to the single-threaded nature of Redis, it is not possible to kill a client connection while it is executing a command.
+        /// From the client point of view, the connection can never be closed in the middle of the execution of a command.
+        /// However, the client will notice the connection has been closed only when the next command is sent (and results in network error).
+        /// </summary>
+        /// <param name="endpoint">The endpoint of the client to kill.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <remarks>https://redis.io/commands/client-kill</remarks>
         Task ClientKillAsync(EndPoint endpoint, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -96,40 +105,61 @@ namespace StackExchange.Redis
         /// <param name="skipMe">Whether to skip the current connection.</param>
         /// <param name="flags">The command flags to use.</param>
         /// <returns>the number of clients killed.</returns>
-        /// <remarks><seealso href="https://redis.io/commands/client-kill"/></remarks>
+        /// <remarks>https://redis.io/commands/client-kill</remarks>
         long ClientKill(long? id = null, ClientType? clientType = null, EndPoint? endpoint = null, bool skipMe = true, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="ClientKill(long?, ClientType?, EndPoint?, bool, CommandFlags)"/>
+        /// <summary>
+        /// The CLIENT KILL command closes multiple connections that match the specified filters.
+        /// </summary>
+        /// <param name="id">The ID of the client to kill.</param>
+        /// <param name="clientType">The type of client.</param>
+        /// <param name="endpoint">The endpoint to kill.</param>
+        /// <param name="skipMe">Whether to skip the current connection.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>the number of clients killed.</returns>
+        /// <remarks>https://redis.io/commands/client-kill</remarks>
         Task<long> ClientKillAsync(long? id = null, ClientType? clientType = null, EndPoint? endpoint = null, bool skipMe = true, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// The <c>CLIENT LIST</c> command returns information and statistics about the client connections server in a mostly human readable format.
+        /// The CLIENT LIST command returns information and statistics about the client connections server in a mostly human readable format.
         /// </summary>
         /// <param name="flags">The command flags to use.</param>
-        /// <remarks><seealso href="https://redis.io/commands/client-list"/></remarks>
+        /// <remarks>https://redis.io/commands/client-list</remarks>
         ClientInfo[] ClientList(CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="ClientList(CommandFlags)"/>
+        /// <summary>
+        /// The CLIENT LIST command returns information and statistics about the client connections server in a mostly human readable format.
+        /// </summary>
+        /// <param name="flags">The command flags to use.</param>
+        /// <remarks>https://redis.io/commands/client-list</remarks>
         Task<ClientInfo[]> ClientListAsync(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Obtains the current CLUSTER NODES output from a cluster server.
         /// </summary>
         /// <param name="flags">The command flags to use.</param>
-        /// <remarks><seealso href="https://redis.io/commands/cluster-nodes/"/></remarks>
+        /// <remarks>https://redis.io/commands/cluster-nodes/</remarks>
         ClusterConfiguration? ClusterNodes(CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="ClusterNodes(CommandFlags)"/>
+        /// <summary>
+        /// Obtains the current CLUSTER NODES output from a cluster server.
+        /// </summary>
+        /// <param name="flags">The command flags to use.</param>
+        /// <remarks>https://redis.io/commands/cluster-nodes/</remarks>
         Task<ClusterConfiguration?> ClusterNodesAsync(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Obtains the current raw CLUSTER NODES output from a cluster server.
         /// </summary>
         /// <param name="flags">The command flags to use.</param>
-        /// <remarks><seealso href="https://redis.io/commands/cluster-nodes/"/></remarks>
+        /// <remarks>https://redis.io/commands/cluster-nodes/</remarks>
         string? ClusterNodesRaw(CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="ClusterNodesRaw(CommandFlags)"/>
+        /// <summary>
+        /// Obtains the current raw CLUSTER NODES output from a cluster server.
+        /// </summary>
+        /// <param name="flags">The command flags to use.</param>
+        /// <remarks>https://redis.io/commands/cluster-nodes/</remarks>
         Task<string?> ClusterNodesRawAsync(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -138,20 +168,30 @@ namespace StackExchange.Redis
         /// <param name="pattern">The pattern of config values to get.</param>
         /// <param name="flags">The command flags to use.</param>
         /// <returns>All matching configuration parameters.</returns>
-        /// <remarks><seealso href="https://redis.io/commands/config-get"/></remarks>
+        /// <remarks>https://redis.io/commands/config-get</remarks>
         KeyValuePair<string, string>[] ConfigGet(RedisValue pattern = default, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="ConfigGet(RedisValue, CommandFlags)"/>
+        /// <summary>
+        /// Get all configuration parameters matching the specified pattern.
+        /// </summary>
+        /// <param name="pattern">The pattern of config values to get.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>All matching configuration parameters.</returns>
+        /// <remarks>https://redis.io/commands/config-get</remarks>
         Task<KeyValuePair<string, string>[]> ConfigGetAsync(RedisValue pattern = default, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Resets the statistics reported by Redis using the INFO command.
         /// </summary>
         /// <param name="flags">The command flags to use.</param>
-        /// <remarks><seealso href="https://redis.io/commands/config-resetstat"/></remarks>
+        /// <remarks>https://redis.io/commands/config-resetstat</remarks>
         void ConfigResetStatistics(CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="ConfigResetStatistics(CommandFlags)"/>
+        /// <summary>
+        /// Resets the statistics reported by Redis using the INFO command.
+        /// </summary>
+        /// <param name="flags">The command flags to use.</param>
+        /// <remarks>https://redis.io/commands/config-resetstat</remarks>
         Task ConfigResetStatisticsAsync(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -160,10 +200,16 @@ namespace StackExchange.Redis
         /// used by the server, that may be different compared to the original one because of the use of the CONFIG SET command.
         /// </summary>
         /// <param name="flags">The command flags to use.</param>
-        /// <remarks><seealso href="https://redis.io/commands/config-rewrite"/></remarks>
+        /// <remarks>https://redis.io/commands/config-rewrite</remarks>
         void ConfigRewrite(CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="ConfigRewrite(CommandFlags)"/>
+        /// <summary>
+        /// The CONFIG REWRITE command rewrites the redis.conf file the server was started with,
+        /// applying the minimal changes needed to make it reflecting the configuration currently
+        /// used by the server, that may be different compared to the original one because of the use of the CONFIG SET command.
+        /// </summary>
+        /// <param name="flags">The command flags to use.</param>
+        /// <remarks>https://redis.io/commands/config-rewrite</remarks>
         Task ConfigRewriteAsync(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -173,10 +219,17 @@ namespace StackExchange.Redis
         /// <param name="setting">The setting name.</param>
         /// <param name="value">The new setting value.</param>
         /// <param name="flags">The command flags to use.</param>
-        /// <remarks><seealso href="https://redis.io/commands/config-set"/></remarks>
+        /// <remarks>https://redis.io/commands/config-set</remarks>
         void ConfigSet(RedisValue setting, RedisValue value, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="ConfigSet(RedisValue, RedisValue, CommandFlags)"/>
+        /// <summary>
+        /// The CONFIG SET command is used in order to reconfigure the server at runtime without the need to restart Redis.
+        /// You can change both trivial parameters or switch from one to another persistence option using this command.
+        /// </summary>
+        /// <param name="setting">The setting name.</param>
+        /// <param name="value">The new setting value.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <remarks>https://redis.io/commands/config-set</remarks>
         Task ConfigSetAsync(RedisValue setting, RedisValue value, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -184,10 +237,15 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="database">The database ID.</param>
         /// <param name="flags">The command flags to use.</param>
-        /// <remarks><seealso href="https://redis.io/commands/dbsize"/></remarks>
+        /// <remarks>https://redis.io/commands/dbsize</remarks>
         long DatabaseSize(int database = -1, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="DatabaseSize(int, CommandFlags)"/>
+        /// <summary>
+        /// Return the number of keys in the database.
+        /// </summary>
+        /// <param name="database">The database ID.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <remarks>https://redis.io/commands/dbsize</remarks>
         Task<long> DatabaseSizeAsync(int database = -1, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -195,10 +253,15 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="message">The message to echo.</param>
         /// <param name="flags">The command flags to use.</param>
-        /// <remarks><seealso href="https://redis.io/commands/echo"/></remarks>
+        /// <remarks>https://redis.io/commands/echo</remarks>
         RedisValue Echo(RedisValue message, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="Echo(RedisValue, CommandFlags)"/>
+        /// <summary>
+        /// Return the same message passed in.
+        /// </summary>
+        /// <param name="message">The message to echo.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <remarks>https://redis.io/commands/echo</remarks>
         Task<RedisValue> EchoAsync(RedisValue message, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -208,11 +271,31 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="command">The command to run.</param>
         /// <param name="args">The arguments to pass for the command.</param>
-        /// <returns>A dynamic representation of the command's result.</returns>
-        /// <remarks>This API should be considered an advanced feature; inappropriate use can be harmful.</remarks>
+        /// <remarks>This API should be considered an advanced feature; inappropriate use can be harmful</remarks>
+        /// <returns>A dynamic representation of the command's result</returns>
         RedisResult Execute(string command, params object[] args);
 
-        /// <inheritdoc cref="Execute(string, object[])"/>
+        /// <summary>
+        /// Execute an arbitrary command against the server; this is primarily intended for
+        /// executing modules, but may also be used to provide access to new features that lack
+        /// a direct API.
+        /// </summary>
+        /// <param name="command">The command to run.</param>
+        /// <param name="args">The arguments to pass for the command.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <remarks>This API should be considered an advanced feature; inappropriate use can be harmful</remarks>
+        /// <returns>A dynamic representation of the command's result</returns>
+        RedisResult Execute(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Execute an arbitrary command against the server; this is primarily intended for
+        /// executing modules, but may also be used to provide access to new features that lack
+        /// a direct API.
+        /// </summary>
+        /// <param name="command">The command to run.</param>
+        /// <param name="args">The arguments to pass for the command.</param>
+        /// <remarks>This API should be considered an advanced feature; inappropriate use can be harmful</remarks>
+        /// <returns>A dynamic representation of the command's result</returns>
         Task<RedisResult> ExecuteAsync(string command, params object[] args);
 
         /// <summary>
@@ -223,21 +306,22 @@ namespace StackExchange.Redis
         /// <param name="command">The command to run.</param>
         /// <param name="args">The arguments to pass for the command.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>A dynamic representation of the command's result.</returns>
-        /// <remarks>This API should be considered an advanced feature; inappropriate use can be harmful.</remarks>
-        RedisResult Execute(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None);
-
-        /// <inheritdoc cref="Execute(string, ICollection{object}, CommandFlags)"/>
+        /// <remarks>This API should be considered an advanced feature; inappropriate use can be harmful</remarks>
+        /// <returns>A dynamic representation of the command's result</returns>
         Task<RedisResult> ExecuteAsync(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Delete all the keys of all databases on the server.
         /// </summary>
         /// <param name="flags">The command flags to use.</param>
-        /// <remarks><seealso href="https://redis.io/commands/flushall"/></remarks>
+        /// <remarks>https://redis.io/commands/flushall</remarks>
         void FlushAllDatabases(CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="FlushAllDatabases(CommandFlags)"/>
+        /// <summary>
+        /// Delete all the keys of all databases on the server.
+        /// </summary>
+        /// <param name="flags">The command flags to use.</param>
+        /// <remarks>https://redis.io/commands/flushall</remarks>
         Task FlushAllDatabasesAsync(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -245,10 +329,15 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="database">The database ID.</param>
         /// <param name="flags">The command flags to use.</param>
-        /// <remarks><seealso href="https://redis.io/commands/flushdb"/></remarks>
+        /// <remarks>https://redis.io/commands/flushdb</remarks>
         void FlushDatabase(int database = -1, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="FlushDatabase(int, CommandFlags)"/>
+        /// <summary>
+        /// Delete all the keys of the database.
+        /// </summary>
+        /// <param name="database">The database ID.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <remarks>https://redis.io/commands/flushdb</remarks>
         Task FlushDatabaseAsync(int database = -1, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -261,11 +350,15 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="section">The info section to get, if getting a specific one.</param>
         /// <param name="flags">The command flags to use.</param>
-        /// <returns>A grouping of key/value pairs, grouped by their section header.</returns>
-        /// <remarks><seealso href="https://redis.io/commands/info"/></remarks>
+        /// <remarks>https://redis.io/commands/info</remarks>
         IGrouping<string, KeyValuePair<string, string>>[] Info(RedisValue section = default, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="Info(RedisValue, CommandFlags)"/>
+        /// <summary>
+        /// The INFO command returns information and statistics about the server in a format that is simple to parse by computers and easy to read by humans.
+        /// </summary>
+        /// <param name="section">The info section to get, if getting a specific one.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <remarks>https://redis.io/commands/info</remarks>
         Task<IGrouping<string, KeyValuePair<string, string>>[]> InfoAsync(RedisValue section = default, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -273,20 +366,33 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="section">The info section to get, if getting a specific one.</param>
         /// <param name="flags">The command flags to use.</param>
-        /// <returns>The entire raw <c>INFO</c> string.</returns>
-        /// <remarks><seealso href="https://redis.io/commands/info"/></remarks>
+        /// <remarks>https://redis.io/commands/info</remarks>
         string? InfoRaw(RedisValue section = default, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="InfoRaw(RedisValue, CommandFlags)"/>
+        /// <summary>
+        /// The INFO command returns information and statistics about the server in a format that is simple to parse by computers and easy to read by humans.
+        /// </summary>
+        /// <param name="section">The info section to get, if getting a specific one.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <remarks>https://redis.io/commands/info</remarks>
         Task<string?> InfoRawAsync(RedisValue section = default, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="Keys(int, RedisValue, int, long, int, CommandFlags)"/>
+        /// <summary>
+        /// Returns all keys matching pattern; the KEYS or SCAN commands will be used based on the server capabilities.
+        /// </summary>
+        /// <param name="database">The database ID.</param>
+        /// <param name="pattern">The pattern to use.</param>
+        /// <param name="pageSize">The page size to iterate by.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <remarks>Warning: consider KEYS as a command that should only be used in production environments with extreme care.</remarks>
+        /// <remarks>https://redis.io/commands/keys</remarks>
+        /// <remarks>https://redis.io/commands/scan</remarks>
         IEnumerable<RedisKey> Keys(int database, RedisValue pattern, int pageSize, CommandFlags flags);
 
         /// <summary>
-        /// Returns all keys matching <paramref name="pattern"/>.
-        /// The <c>KEYS</c> or <c>SCAN</c> commands will be used based on the server capabilities.
-        /// Note: to resume an iteration via <i>cursor</i>, cast the original enumerable or enumerator to <see cref="IScanningCursor"/>.
+        /// Returns all keys matching pattern.
+        /// The KEYS or SCAN commands will be used based on the server capabilities.
+        /// Note: to resume an iteration via <i>cursor</i>, cast the original enumerable or enumerator to <i>IScanningCursor</i>.
         /// </summary>
         /// <param name="database">The database ID.</param>
         /// <param name="pattern">The pattern to use.</param>
@@ -294,33 +400,51 @@ namespace StackExchange.Redis
         /// <param name="cursor">The cursor position to resume at.</param>
         /// <param name="pageOffset">The page offset to start at.</param>
         /// <param name="flags">The command flags to use.</param>
-        /// <returns>An enumeration of matching redis keys.</returns>
-        /// <remarks>
-        /// <para>Warning: consider KEYS as a command that should only be used in production environments with extreme care.</para>
-        /// <para>
-        /// <seealso href="https://redis.io/commands/keys"/>,
-        /// <seealso href="https://redis.io/commands/scan"/>
-        /// </para>
-        /// </remarks>
+        /// <remarks>Warning: consider KEYS as a command that should only be used in production environments with extreme care.</remarks>
+        /// <remarks>https://redis.io/commands/keys</remarks>
+        /// <remarks>https://redis.io/commands/scan</remarks>
         IEnumerable<RedisKey> Keys(int database = -1, RedisValue pattern = default, int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="Keys(int, RedisValue, int, long, int, CommandFlags)"/>
+        /// <summary>
+        /// Returns all keys matching pattern.
+        /// The KEYS or SCAN commands will be used based on the server capabilities.
+        /// Note: to resume an iteration via <i>cursor</i>, cast the original enumerable or enumerator to <i>IScanningCursor</i>.
+        /// </summary>
+        /// <param name="database">The database ID.</param>
+        /// <param name="pattern">The pattern to use.</param>
+        /// <param name="pageSize">The page size to iterate by.</param>
+        /// <param name="cursor">The cursor position to resume at.</param>
+        /// <param name="pageOffset">The page offset to start at.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <remarks>Warning: consider KEYS as a command that should only be used in production environments with extreme care.</remarks>
+        /// <remarks>https://redis.io/commands/keys</remarks>
+        /// <remarks>https://redis.io/commands/scan</remarks>
         IAsyncEnumerable<RedisKey> KeysAsync(int database = -1, RedisValue pattern = default, int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Return the time of the last DB save executed with success.
-        /// A client may check if a <c>BGSAVE</c> command succeeded reading the <c>LASTSAVE</c> value, then issuing a BGSAVE command
-        /// and checking at regular intervals every N seconds if <c>LASTSAVE</c> changed.
+        /// A client may check if a BGSAVE command succeeded reading the LASTSAVE value, then issuing a BGSAVE command
+        /// and checking at regular intervals every N seconds if LASTSAVE changed.
         /// </summary>
         /// <param name="flags">The command flags to use.</param>
-        /// <returns>The last time a save was performed.</returns>
-        /// <remarks><seealso href="https://redis.io/commands/lastsave"/></remarks>
+        /// <remarks>https://redis.io/commands/lastsave</remarks>
         DateTime LastSave(CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="LastSave(CommandFlags)"/>
+        /// <summary>
+        /// Return the time of the last DB save executed with success.
+        /// A client may check if a BGSAVE command succeeded reading the LASTSAVE value, then issuing a BGSAVE command
+        /// and checking at regular intervals every N seconds if LASTSAVE changed.
+        /// </summary>
+        /// <param name="flags">The command flags to use.</param>
+        /// <remarks>https://redis.io/commands/lastsave</remarks>
         Task<DateTime> LastSaveAsync(CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="MakePrimaryAsync(ReplicationChangeOptions, TextWriter?)"/>
+        /// <summary>
+        /// Promote the selected node to be primary.
+        /// </summary>
+        /// <param name="options">The options to use for this topology change.</param>
+        /// <param name="log">The log to write output to.</param>
+        /// <remarks>https://redis.io/commands/replicaof/</remarks>
         [Obsolete("Please use " + nameof(MakePrimaryAsync) + ", this will be removed in 3.0.")]
         void MakeMaster(ReplicationChangeOptions options, TextWriter? log = null);
 
@@ -329,16 +453,19 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="options">The options to use for this topology change.</param>
         /// <param name="log">The log to write output to.</param>
-        /// <remarks><seealso href="https://redis.io/commands/replicaof/"/></remarks>
+        /// <remarks>https://redis.io/commands/replicaof/</remarks>
         Task MakePrimaryAsync(ReplicationChangeOptions options, TextWriter? log = null);
 
         /// <summary>
         /// Returns the role info for the current server.
         /// </summary>
-        /// <remarks><seealso href="https://redis.io/commands/role"/></remarks>
+        /// <remarks>https://redis.io/commands/role</remarks>
         Role Role(CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="Role(CommandFlags)"/>
+        /// <summary>
+        /// Returns the role info for the current server.
+        /// </summary>
+        /// <remarks>https://redis.io/commands/role</remarks>
         Task<Role> RoleAsync(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -346,15 +473,21 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="type">The method of the save (e.g. background or foreground).</param>
         /// <param name="flags">The command flags to use.</param>
-        /// <remarks>
-        /// <seealso href="https://redis.io/commands/bgrewriteaof"/>,
-        /// <seealso href="https://redis.io/commands/bgsave"/>,
-        /// <seealso href="https://redis.io/commands/save"/>,
-        /// <seealso href="https://redis.io/topics/persistence"/>
-        /// </remarks>
+        /// <remarks>https://redis.io/commands/bgrewriteaof</remarks>
+        /// <remarks>https://redis.io/commands/bgsave</remarks>
+        /// <remarks>https://redis.io/commands/save</remarks>
+        /// <remarks>https://redis.io/topics/persistence</remarks>
         void Save(SaveType type, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="Save(SaveType, CommandFlags)"/>
+        /// <summary>
+        /// Explicitly request the database to persist the current state to disk.
+        /// </summary>
+        /// <param name="type">The method of the save (e.g. background or foreground).</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <remarks>https://redis.io/commands/bgrewriteaof</remarks>
+        /// <remarks>https://redis.io/commands/bgsave</remarks>
+        /// <remarks>https://redis.io/commands/save</remarks>
+        /// <remarks>https://redis.io/topics/persistence</remarks>
         Task SaveAsync(SaveType type, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -362,10 +495,23 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="script">The text of the script to check for on the server.</param>
         /// <param name="flags">The command flags to use.</param>
-        /// <remarks><seealso href="https://redis.io/commands/script-exists/"/></remarks>
+        /// <remarks>https://redis.io/commands/script-exists/</remarks>
         bool ScriptExists(string script, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="ScriptExists(string, CommandFlags)"/>
+        /// <summary>
+        /// Indicates whether the specified script hash is defined on the server.
+        /// </summary>
+        /// <param name="sha1">The SHA1 of the script to check for on the server.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <remarks>https://redis.io/commands/script-exists/</remarks>
+        bool ScriptExists(byte[] sha1, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Indicates whether the specified script is defined on the server.
+        /// </summary>
+        /// <param name="script">The text of the script to check for on the server.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <remarks>https://redis.io/commands/script-exists/</remarks>
         Task<bool> ScriptExistsAsync(string script, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -373,20 +519,21 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="sha1">The SHA1 of the script to check for on the server.</param>
         /// <param name="flags">The command flags to use.</param>
-        /// <remarks><seealso href="https://redis.io/commands/script-exists/"/></remarks>
-        bool ScriptExists(byte[] sha1, CommandFlags flags = CommandFlags.None);
-
-        /// <inheritdoc cref="ScriptExists(byte[], CommandFlags)"/>
+        /// <remarks>https://redis.io/commands/script-exists/</remarks>
         Task<bool> ScriptExistsAsync(byte[] sha1, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Removes all cached scripts on this server.
         /// </summary>
         /// <param name="flags">The command flags to use.</param>
-        /// <remarks><seealso href="https://redis.io/commands/script-flush/"/></remarks>
+        /// <remarks>https://redis.io/commands/script-flush/</remarks>
         void ScriptFlush(CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="ScriptFlush(CommandFlags)"/>
+        /// <summary>
+        /// Removes all cached scripts on this server.
+        /// </summary>
+        /// <param name="flags">The command flags to use.</param>
+        /// <remarks>https://redis.io/commands/script-flush/</remarks>
         Task ScriptFlushAsync(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -394,11 +541,23 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="script">The script to load.</param>
         /// <param name="flags">The command flags to use.</param>
-        /// <returns>The SHA1 of the loaded script.</returns>
-        /// <remarks><seealso href="https://redis.io/commands/script-load/"/></remarks>
+        /// <remark>https://redis.io/commands/script-load/</remark>
         byte[] ScriptLoad(string script, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="ScriptLoad(string, CommandFlags)"/>
+        /// <summary>
+        /// Explicitly defines a script on the server.
+        /// </summary>
+        /// <param name="script">The script to load.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <remark>https://redis.io/commands/script-load/</remark>
+        LoadedLuaScript ScriptLoad(LuaScript script, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Explicitly defines a script on the server.
+        /// </summary>
+        /// <param name="script">The script to load.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <remark>https://redis.io/commands/script-load/</remark>
         Task<byte[]> ScriptLoadAsync(string script, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -406,32 +565,39 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="script">The script to load.</param>
         /// <param name="flags">The command flags to use.</param>
-        /// <returns>The loaded script, ready for rapid reuse based on the SHA1.</returns>
-        /// <remarks><seealso href="https://redis.io/commands/script-load/"/></remarks>
-        LoadedLuaScript ScriptLoad(LuaScript script, CommandFlags flags = CommandFlags.None);
-
-        /// <inheritdoc cref="ScriptLoad(LuaScript, CommandFlags)"/>
+        /// <remark>https://redis.io/commands/script-load/</remark>
         Task<LoadedLuaScript> ScriptLoadAsync(LuaScript script, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Asks the redis server to shutdown, killing all connections. Please FULLY read the notes on the <c>SHUTDOWN</c> command.
+        /// Asks the redis server to shutdown, killing all connections. Please FULLY read the notes on the SHUTDOWN command.
         /// </summary>
         /// <param name="shutdownMode">The mode of the shutdown.</param>
         /// <param name="flags">The command flags to use.</param>
-        /// <remarks><seealso href="https://redis.io/commands/shutdown"/></remarks>
+        /// <remarks>https://redis.io/commands/shutdown</remarks>
         void Shutdown(ShutdownMode shutdownMode = ShutdownMode.Default, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="ReplicaOfAsync(EndPoint, CommandFlags)"/>
+        /// <summary>
+        /// The REPLICAOF command can change the replication settings of a replica on the fly.
+        /// If a Redis server is already acting as replica, specifying a null primary will turn off the replication,
+        /// turning the Redis server into a PRIMARY. Specifying a non-null primary will make the server a replica of
+        /// another server listening at the specified hostname and port.
+        /// </summary>
+        /// <param name="master">Endpoint of the new primary to replicate from.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <remarks>https://redis.io/commands/replicaof</remarks>
         [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(ReplicaOfAsync) + " instead, this will be removed in 3.0.")]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         void SlaveOf(EndPoint master, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="ReplicaOfAsync(EndPoint, CommandFlags)"/>
-        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(ReplicaOfAsync) + " instead, this will be removed in 3.0.")]
-        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
-        Task SlaveOfAsync(EndPoint master, CommandFlags flags = CommandFlags.None);
-
-        /// <inheritdoc cref="ReplicaOfAsync(EndPoint, CommandFlags)"/>
+        /// <summary>
+        /// The REPLICAOF command can change the replication settings of a replica on the fly.
+        /// If a Redis server is already acting as replica, specifying a null primary will turn off the replication,
+        /// turning the Redis server into a PRIMARY. Specifying a non-null primary will make the server a replica of
+        /// another server listening at the specified hostname and port.
+        /// </summary>
+        /// <param name="master">Endpoint of the new primary to replicate from.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <remarks>https://redis.io/commands/replicaof</remarks>
         [Obsolete("Please use " + nameof(ReplicaOfAsync) + ", this will be removed in 3.0.")]
         void ReplicaOf(EndPoint master, CommandFlags flags = CommandFlags.None);
 
@@ -443,7 +609,20 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="master">Endpoint of the new primary to replicate from.</param>
         /// <param name="flags">The command flags to use.</param>
-        /// <remarks><seealso href="https://redis.io/commands/replicaof"/></remarks>
+        /// <remarks>https://redis.io/commands/replicaof</remarks>
+        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(ReplicaOfAsync) + " instead, this will be removed in 3.0.")]
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
+        Task SlaveOfAsync(EndPoint master, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// The REPLICAOF command can change the replication settings of a replica on the fly.
+        /// If a Redis server is already acting as replica, specifying a null primary will turn off the replication,
+        /// turning the Redis server into a PRIMARY. Specifying a non-null primary will make the server a replica of
+        /// another server listening at the specified hostname and port.
+        /// </summary>
+        /// <param name="master">Endpoint of the new primary to replicate from.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <remarks>https://redis.io/commands/replicaof</remarks>
         Task ReplicaOfAsync(EndPoint master, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -452,21 +631,30 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="count">The count of items to get.</param>
         /// <param name="flags">The command flags to use.</param>
-        /// <returns>The slow command traces as recorded by the Redis server.</returns>
-        /// <remarks><seealso href="https://redis.io/commands/slowlog"/></remarks>
+        /// <remarks>https://redis.io/commands/slowlog</remarks>
         CommandTrace[] SlowlogGet(int count = 0, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="SlowlogGet(int, CommandFlags)"/>
+        /// <summary>
+        /// To read the slow log the SLOWLOG GET command is used, that returns every entry in the slow log.
+        /// It is possible to return only the N most recent entries passing an additional argument to the command (for instance SLOWLOG GET 10).
+        /// </summary>
+        /// <param name="count">The count of items to get.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <remarks>https://redis.io/commands/slowlog</remarks>
         Task<CommandTrace[]> SlowlogGetAsync(int count = 0, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// You can reset the slow log using the SLOWLOG RESET command. Once deleted the information is lost forever.
         /// </summary>
         /// <param name="flags">The command flags to use.</param>
-        /// <remarks><seealso href="https://redis.io/commands/slowlog"/></remarks>
+        /// <remarks>https://redis.io/commands/slowlog</remarks>
         void SlowlogReset(CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="SlowlogReset(CommandFlags)"/>
+        /// <summary>
+        /// You can reset the slow log using the SLOWLOG RESET command. Once deleted the information is lost forever.
+        /// </summary>
+        /// <param name="flags">The command flags to use.</param>
+        /// <remarks>https://redis.io/commands/slowlog</remarks>
         Task SlowlogResetAsync(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -476,10 +664,17 @@ namespace StackExchange.Redis
         /// <param name="pattern">The channel name pattern to get channels for.</param>
         /// <param name="flags">The command flags to use.</param>
         /// <returns> a list of active channels, optionally matching the specified pattern.</returns>
-        /// <remarks><seealso href="https://redis.io/commands/pubsub"/></remarks>
+        /// <remarks>https://redis.io/commands/pubsub</remarks>
         RedisChannel[] SubscriptionChannels(RedisChannel pattern = default, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="SubscriptionChannels(RedisChannel, CommandFlags)"/>
+        /// <summary>
+        /// Lists the currently active channels.
+        /// An active channel is a Pub/Sub channel with one ore more subscribers (not including clients subscribed to patterns).
+        /// </summary>
+        /// <param name="pattern">The channel name pattern to get channels for.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns> a list of active channels, optionally matching the specified pattern.</returns>
+        /// <remarks>https://redis.io/commands/pubsub</remarks>
         Task<RedisChannel[]> SubscriptionChannelsAsync(RedisChannel pattern = default, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -488,10 +683,16 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="flags">The command flags to use.</param>
         /// <returns>the number of patterns all the clients are subscribed to.</returns>
-        /// <remarks><seealso href="https://redis.io/commands/pubsub"/></remarks>
+        /// <remarks>https://redis.io/commands/pubsub</remarks>
         long SubscriptionPatternCount(CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="SubscriptionPatternCount(CommandFlags)"/>
+        /// <summary>
+        /// Returns the number of subscriptions to patterns (that are performed using the PSUBSCRIBE command).
+        /// Note that this is not just the count of clients subscribed to patterns but the total number of patterns all the clients are subscribed to.
+        /// </summary>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>the number of patterns all the clients are subscribed to.</returns>
+        /// <remarks>https://redis.io/commands/pubsub</remarks>
         Task<long> SubscriptionPatternCountAsync(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -499,127 +700,144 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="channel">The channel to get a subscriber count for.</param>
         /// <param name="flags">The command flags to use.</param>
-        /// <returns>The number of subscribers on this server.</returns>
-        /// <remarks><seealso href="https://redis.io/commands/pubsub"/></remarks>
+        /// <remarks>https://redis.io/commands/pubsub</remarks>
         long SubscriptionSubscriberCount(RedisChannel channel, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="SubscriptionSubscriberCount(RedisChannel, CommandFlags)"/>
+        /// <summary>
+        /// Returns the number of subscribers (not counting clients subscribed to patterns) for the specified channel.
+        /// </summary>
+        /// <param name="channel">The channel to get a subscriber count for.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <remarks>https://redis.io/commands/pubsub</remarks>
         Task<long> SubscriptionSubscriberCountAsync(RedisChannel channel, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Swaps two Redis databases, so that immediately all the clients connected to a given database will see the data of the other database, and the other way around.
+        /// Swaps two Redis databases, so that immediately all the clients connected to a given database will see the data of the other database, and the other way around
         /// </summary>
         /// <param name="first">The ID of the first database.</param>
         /// <param name="second">The ID of the second database.</param>
         /// <param name="flags">The command flags to use.</param>
-        /// <remarks><seealso href="https://redis.io/commands/swapdb"/></remarks>
+        /// <remarks>https://redis.io/commands/swapdb</remarks>
         void SwapDatabases(int first, int second, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="SwapDatabases(int, int, CommandFlags)"/>
+        /// <summary>
+        /// Swaps two Redis databases, so that immediately all the clients connected to a given database will see the data of the other database, and the other way around
+        /// </summary>
+        /// <param name="first">The ID of the first database.</param>
+        /// <param name="second">The ID of the second database.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <remarks>https://redis.io/commands/swapdb</remarks>
         Task SwapDatabasesAsync(int first, int second, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// The <c>TIME</c> command returns the current server time in UTC format.
-        /// Use the <see cref="DateTime.ToLocalTime"/> method to get local time.
+        /// The TIME command returns the current server time in UTC format.
+        /// Use the DateTime.ToLocalTime() method to get local time.
         /// </summary>
         /// <param name="flags">The command flags to use.</param>
         /// <returns>The server's current time.</returns>
-        /// <remarks><seealso href="https://redis.io/commands/time"/></remarks>
+        /// <remarks>https://redis.io/commands/time</remarks>
         DateTime Time(CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="Time(CommandFlags)"/>
+        /// <summary>
+        /// The TIME command returns the current server time in UTC format.
+        /// Use the DateTime.ToLocalTime() method to get local time.
+        /// </summary>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>The server's current time.</returns>
+        /// <remarks>https://redis.io/commands/time</remarks>
         Task<DateTime> TimeAsync(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Gets a text-based latency diagnostic.
         /// </summary>
-        /// <returns>The full text result of latency doctor.</returns>
-        /// <remarks>
-        /// <seealso href="https://redis.io/topics/latency-monitor"/>,
-        /// <seealso href="https://redis.io/commands/latency-doctor"/>
-        /// </remarks>
-        string LatencyDoctor(CommandFlags flags = CommandFlags.None);
-
-        /// <inheritdoc cref="LatencyDoctor(CommandFlags)"/>
+        /// <remarks>https://redis.io/topics/latency-monitor</remarks>
         Task<string> LatencyDoctorAsync(CommandFlags flags = CommandFlags.None);
+        /// <summary>
+        /// Gets a text-based latency diagnostic.
+        /// </summary>
+        /// <remarks>https://redis.io/topics/latency-monitor</remarks>
+        string LatencyDoctor(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Resets the given events (or all if none are specified), discarding the currently logged latency spike events, and resetting the maximum event time register.
         /// </summary>
-        /// <returns>The number of events that were reset.</returns>
-        /// <remarks>
-        /// <seealso href="https://redis.io/topics/latency-monitor"/>,
-        /// <seealso href="https://redis.io/commands/latency-reset"/>
-        /// </remarks>
+        /// <remarks>https://redis.io/topics/latency-monitor</remarks>
+        Task<long> LatencyResetAsync(string[]? eventNames = null, CommandFlags flags = CommandFlags.None);
+        /// <summary>
+        /// Resets the given events (or all if none are specified), discarding the currently logged latency spike events, and resetting the maximum event time register.
+        /// </summary>
+        /// <remarks>https://redis.io/topics/latency-monitor</remarks>
         long LatencyReset(string[]? eventNames = null, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="LatencyReset(string[], CommandFlags)"/>
-        Task<long> LatencyResetAsync(string[]? eventNames = null, CommandFlags flags = CommandFlags.None);
-
         /// <summary>
-        /// Fetch raw latency data from the event time series, as timestamp-latency pairs.
+        /// Fetch raw latency data from the event time series, as timestamp-latency pairs
         /// </summary>
-        /// <returns>An array of latency history entries.</returns>
-        /// <remarks>
-        /// <seealso href="https://redis.io/topics/latency-monitor"/>,
-        /// <seealso href="https://redis.io/commands/latency-history"/>
-        /// </remarks>
+        /// <remarks>https://redis.io/topics/latency-monitor</remarks>
+        Task<LatencyHistoryEntry[]> LatencyHistoryAsync(string eventName, CommandFlags flags = CommandFlags.None);
+        /// <summary>
+        /// Fetch raw latency data from the event time series, as timestamp-latency pairs
+        /// </summary>
+        /// <remarks>https://redis.io/topics/latency-monitor</remarks>
         LatencyHistoryEntry[] LatencyHistory(string eventName, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="LatencyHistory(string, CommandFlags)"/>
-        Task<LatencyHistoryEntry[]> LatencyHistoryAsync(string eventName, CommandFlags flags = CommandFlags.None);
-
         /// <summary>
-        /// Fetch raw latency data from the event time series, as timestamp-latency pairs.
+        /// Fetch raw latency data from the event time series, as timestamp-latency pairs
         /// </summary>
-        /// <returns>An array of the latest latency history entries.</returns>
-        /// <remarks>
-        /// <seealso href="https://redis.io/topics/latency-monitor"/>,
-        /// <seealso href="https://redis.io/commands/latency-latest"/>
-        /// </remarks>
-        LatencyLatestEntry[] LatencyLatest(CommandFlags flags = CommandFlags.None);
-
-        /// <inheritdoc cref="LatencyLatest(CommandFlags)"/>
+        /// <remarks>https://redis.io/topics/latency-monitor</remarks>
         Task<LatencyLatestEntry[]> LatencyLatestAsync(CommandFlags flags = CommandFlags.None);
+        /// <summary>
+        /// Fetch raw latency data from the event time series, as timestamp-latency pairs
+        /// </summary>
+        /// <remarks>https://redis.io/topics/latency-monitor</remarks>
+        LatencyLatestEntry[] LatencyLatest(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Reports about different memory-related issues that the Redis server experiences, and advises about possible remedies.
         /// </summary>
-        /// <returns>The full text result of memory doctor.</returns>
-        /// <remarks><seealso href="https://redis.io/commands/memory-doctor"/></remarks>
-        string MemoryDoctor(CommandFlags flags = CommandFlags.None);
-
-        /// <inheritdoc cref="MemoryDoctor(CommandFlags)"/>
+        /// <remarks>https://redis.io/commands/memory-doctor</remarks>
         Task<string> MemoryDoctorAsync(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Reports about different memory-related issues that the Redis server experiences, and advises about possible remedies.
+        /// </summary>
+        /// <remarks>https://redis.io/commands/memory-doctor</remarks>
+        string MemoryDoctor(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Attempts to purge dirty pages so these can be reclaimed by the allocator.
         /// </summary>
-        /// <remarks><seealso href="https://redis.io/commands/memory-purge"/></remarks>
-        void MemoryPurge(CommandFlags flags = CommandFlags.None);
-
-        /// <inheritdoc cref="MemoryPurge(CommandFlags)"/>
+        /// <remarks>https://redis.io/commands/memory-purge</remarks>
         Task MemoryPurgeAsync(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Attempts to purge dirty pages so these can be reclaimed by the allocator.
+        /// </summary>
+        /// <remarks>https://redis.io/commands/memory-purge</remarks>
+        void MemoryPurge(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Returns an array reply about the memory usage of the server.
         /// </summary>
-        /// <returns>An array reply of memory stat metrics and values.</returns>
-        /// <remarks><seealso href="https://redis.io/commands/memory-stats"/></remarks>
-        RedisResult MemoryStats(CommandFlags flags = CommandFlags.None);
-
-        /// <inheritdoc cref="MemoryStats(CommandFlags)"/>
+        /// <remarks>https://redis.io/commands/memory-stats</remarks>
         Task<RedisResult> MemoryStatsAsync(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Returns an array reply about the memory usage of the server.
+        /// </summary>
+        /// <remarks>https://redis.io/commands/memory-stats</remarks>
+        RedisResult MemoryStats(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Provides an internal statistics report from the memory allocator.
         /// </summary>
-        /// <returns>The full text result of memory allocation stats.</returns>
-        /// <remarks><seealso href="https://redis.io/commands/memory-malloc-stats"/></remarks>
-        string? MemoryAllocatorStats(CommandFlags flags = CommandFlags.None);
-
-        /// <inheritdoc cref="MemoryAllocatorStats(CommandFlags)"/>
+        /// <remarks>https://redis.io/commands/memory-malloc-stats</remarks>
         Task<string?> MemoryAllocatorStatsAsync(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Provides an internal statistics report from the memory allocator.
+        /// </summary>
+        /// <remarks>https://redis.io/commands/memory-malloc-stats</remarks>
+        string? MemoryAllocatorStats(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Returns the IP and port number of the primary with that name.
@@ -628,10 +846,17 @@ namespace StackExchange.Redis
         /// <param name="serviceName">The sentinel service name.</param>
         /// <param name="flags">The command flags to use.</param>
         /// <returns>The primary IP and port.</returns>
-        /// <remarks><seealso href="https://redis.io/topics/sentinel"/></remarks>
+        /// <remarks>https://redis.io/topics/sentinel</remarks>
         EndPoint? SentinelGetMasterAddressByName(string serviceName, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="SentinelGetMasterAddressByName(string, CommandFlags)"/>
+        /// <summary>
+        /// Returns the IP and port number of the primary with that name.
+        /// If a failover is in progress or terminated successfully for this primary it returns the address and port of the promoted replica.
+        /// </summary>
+        /// <param name="serviceName">The sentinel service name.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>The primary IP and port.</returns>
+        /// <remarks>https://redis.io/topics/sentinel</remarks>
         Task<EndPoint?> SentinelGetMasterAddressByNameAsync(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -640,10 +865,14 @@ namespace StackExchange.Redis
         /// <param name="serviceName">The sentinel service name.</param>
         /// <param name="flags">The command flags to use.</param>
         /// <returns>A list of the sentinel IPs and ports.</returns>
-        /// <remarks><seealso href="https://redis.io/topics/sentinel"/></remarks>
         EndPoint[] SentinelGetSentinelAddresses(string serviceName, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="SentinelGetSentinelAddresses(string, CommandFlags)"/>
+        /// <summary>
+        /// Returns the IP and port numbers of all known Sentinels for the given service name.
+        /// </summary>
+        /// <param name="serviceName">The sentinel service name.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>A list of the sentinel IPs and ports.</returns>
         Task<EndPoint[]> SentinelGetSentinelAddressesAsync(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -652,10 +881,14 @@ namespace StackExchange.Redis
         /// <param name="serviceName">The sentinel service name.</param>
         /// <param name="flags">The command flags to use.</param>
         /// <returns>A list of the replica IPs and ports.</returns>
-        /// <remarks><seealso href="https://redis.io/topics/sentinel"/></remarks>
         EndPoint[] SentinelGetReplicaAddresses(string serviceName, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="SentinelGetReplicaAddresses(string, CommandFlags)"/>
+        /// <summary>
+        /// Returns the IP and port numbers of all known Sentinel replicas for the given service name.
+        /// </summary>
+        /// <param name="serviceName">The sentinel service name.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>A list of the replica IPs and ports.</returns>
         Task<EndPoint[]> SentinelGetReplicaAddressesAsync(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -664,10 +897,16 @@ namespace StackExchange.Redis
         /// <param name="serviceName">The sentinel service name.</param>
         /// <param name="flags">The command flags to use.</param>
         /// <returns>The primaries state as KeyValuePairs.</returns>
-        /// <remarks><seealso href="https://redis.io/topics/sentinel"/></remarks>
+        /// <remarks>https://redis.io/topics/sentinel</remarks>
         KeyValuePair<string, string>[] SentinelMaster(string serviceName, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="SentinelMaster(string, CommandFlags)"/>
+        /// <summary>
+        /// Show the state and info of the specified primary.
+        /// </summary>
+        /// <param name="serviceName">The sentinel service name.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>The primaries state as KeyValuePairs.</returns>
+        /// <remarks>https://redis.io/topics/sentinel</remarks>
         Task<KeyValuePair<string, string>[]> SentinelMasterAsync(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -675,18 +914,44 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="flags">The command flags to use.</param>
         /// <returns>An array of primaries state KeyValuePair arrays.</returns>
-        /// <remarks><seealso href="https://redis.io/topics/sentinel"/></remarks>
+        /// <remarks>https://redis.io/topics/sentinel</remarks>
         KeyValuePair<string, string>[][] SentinelMasters(CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="SentinelMasters(CommandFlags)"/>
+        /// <summary>
+        /// Show a list of monitored primaries and their state.
+        /// </summary>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>An array of primaries state KeyValuePair arrays.</returns>
+        /// <remarks>https://redis.io/topics/sentinel</remarks>
         Task<KeyValuePair<string, string>[][]> SentinelMastersAsync(CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="SentinelReplicas(string, CommandFlags)"/>
+        /// <summary>
+        /// Show a list of replicas for this primary, and their state.
+        /// </summary>
+        /// <param name="serviceName">The sentinel service name.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>An array of replica state KeyValuePair arrays.</returns>
+        /// <remarks>https://redis.io/topics/sentinel</remarks>
         [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(SentinelReplicas) + " instead, this will be removed in 3.0.")]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         KeyValuePair<string, string>[][] SentinelSlaves(string serviceName, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="SentinelReplicas(string, CommandFlags)"/>
+        /// <summary>
+        /// Show a list of replicas for this primary, and their state.
+        /// </summary>
+        /// <param name="serviceName">The sentinel service name.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>An array of replica state KeyValuePair arrays.</returns>
+        /// <remarks>https://redis.io/topics/sentinel</remarks>
+        KeyValuePair<string, string>[][] SentinelReplicas(string serviceName, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Show a list of replicas for this primary, and their state.
+        /// </summary>
+        /// <param name="serviceName">The sentinel service name.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>An array of replica state KeyValuePair arrays.</returns>
+        /// <remarks>https://redis.io/topics/sentinel</remarks>
         [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(SentinelReplicasAsync) + " instead, this will be removed in 3.0.")]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         Task<KeyValuePair<string, string>[][]> SentinelSlavesAsync(string serviceName, CommandFlags flags = CommandFlags.None);
@@ -697,10 +962,7 @@ namespace StackExchange.Redis
         /// <param name="serviceName">The sentinel service name.</param>
         /// <param name="flags">The command flags to use.</param>
         /// <returns>An array of replica state KeyValuePair arrays.</returns>
-        /// <remarks><seealso href="https://redis.io/topics/sentinel"/></remarks>
-        KeyValuePair<string, string>[][] SentinelReplicas(string serviceName, CommandFlags flags = CommandFlags.None);
-
-        /// <inheritdoc cref="SentinelReplicas(string, CommandFlags)"/>
+        /// <remarks>https://redis.io/topics/sentinel</remarks>
         Task<KeyValuePair<string, string>[][]> SentinelReplicasAsync(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -709,10 +971,16 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="serviceName">The sentinel service name.</param>
         /// <param name="flags">The command flags to use.</param>
-        /// <remarks><seealso href="https://redis.io/topics/sentinel"/></remarks>
+        /// <remarks>https://redis.io/topics/sentinel</remarks>
         void SentinelFailover(string serviceName, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="SentinelFailover(string, CommandFlags)"/>
+        /// <summary>
+        /// Force a failover as if the primary was not reachable, and without asking for agreement to other Sentinels
+        /// (however a new version of the configuration will be published so that the other Sentinels will update their configurations).
+        /// </summary>
+        /// <param name="serviceName">The sentinel service name.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <remarks>https://redis.io/topics/sentinel</remarks>
         Task SentinelFailoverAsync(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -720,11 +988,117 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="serviceName">The sentinel service name.</param>
         /// <param name="flags">The command flags to use.</param>
-        /// <remarks><seealso href="https://redis.io/topics/sentinel"/></remarks>
+        /// <remarks>https://redis.io/topics/sentinel</remarks>
         KeyValuePair<string, string>[][] SentinelSentinels(string serviceName, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="SentinelSentinels(string, CommandFlags)"/>
+        /// <summary>
+        /// Show a list of sentinels for a primary, and their state.
+        /// </summary>
+        /// <param name="serviceName">The sentinel service name.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <remarks>https://redis.io/topics/sentinel</remarks>
         Task<KeyValuePair<string, string>[][]> SentinelSentinelsAsync(string serviceName, CommandFlags flags = CommandFlags.None);
+    }
+
+    /// <summary>
+    /// A latency entry as reported by the built-in LATENCY HISTORY command
+    /// </summary>
+    public readonly struct LatencyHistoryEntry
+    {
+        internal static readonly ResultProcessor<LatencyHistoryEntry[]> ToArray = new Processor();
+
+        private sealed class Processor : ArrayResultProcessor<LatencyHistoryEntry>
+        {
+            protected override bool TryParse(in RawResult raw, out LatencyHistoryEntry parsed)
+            {
+                if (raw.Type == ResultType.MultiBulk)
+                {
+                    var items = raw.GetItems();
+                    if (items.Length >= 2
+                        && items[0].TryGetInt64(out var timestamp)
+                        && items[1].TryGetInt64(out var duration))
+                    {
+                        parsed = new LatencyHistoryEntry(timestamp, duration);
+                        return true;
+                    }
+                }
+                parsed = default;
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// The time at which this entry was recorded
+        /// </summary>
+        public DateTime Timestamp { get; }
+
+        /// <summary>
+        /// The latency recorded for this event
+        /// </summary>
+        public int DurationMilliseconds { get; }
+
+        internal LatencyHistoryEntry(long timestamp, long duration)
+        {
+            Timestamp = RedisBase.UnixEpoch.AddSeconds(timestamp);
+            DurationMilliseconds = checked((int)duration);
+        }
+    }
+
+    /// <summary>
+    /// A latency entry as reported by the built-in LATENCY LATEST command
+    /// </summary>
+    public readonly struct LatencyLatestEntry
+    {
+        internal static readonly ResultProcessor<LatencyLatestEntry[]> ToArray = new Processor();
+
+        private sealed class Processor : ArrayResultProcessor<LatencyLatestEntry>
+        {
+            protected override bool TryParse(in RawResult raw, out LatencyLatestEntry parsed)
+            {
+                if (raw.Type == ResultType.MultiBulk)
+                {
+                    var items = raw.GetItems();
+                    if (items.Length >= 4
+                        && items[1].TryGetInt64(out var timestamp)
+                        && items[2].TryGetInt64(out var duration)
+                        && items[3].TryGetInt64(out var maxDuration))
+                    {
+                        parsed = new LatencyLatestEntry(items[0].GetString()!, timestamp, duration, maxDuration);
+                        return true;
+                    }
+                }
+                parsed = default;
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// The name of this event
+        /// </summary>
+        public string EventName { get; }
+
+        /// <summary>
+        /// The time at which this entry was recorded
+        /// </summary>
+        public DateTime Timestamp { get; }
+
+        /// <summary>
+        /// The latency recorded for this event
+        /// </summary>
+        public int DurationMilliseconds { get; }
+
+        /// <summary>
+        /// The max latency recorded for all events
+        /// </summary>
+        public int MaxDurationMilliseconds { get; }
+
+        internal LatencyLatestEntry(string eventName, long timestamp, long duration, long maxDuration)
+        {
+            EventName = eventName;
+            Timestamp = RedisBase.UnixEpoch.AddSeconds(timestamp);
+            DurationMilliseconds = checked((int)duration);
+            MaxDurationMilliseconds = checked((int)maxDuration);
+        }
     }
 
     internal static class IServerExtensions

@@ -105,7 +105,7 @@ namespace StackExchange.Redis
         ///     </item>
         /// </list>
         /// </summary>
-        /// <remarks><seealso href="https://redis.io/commands/client-list"/></remarks>
+        /// <remarks>https://redis.io/commands/client-list</remarks>
         public string? FlagsRaw { get; private set; }
 
         /// <summary>
