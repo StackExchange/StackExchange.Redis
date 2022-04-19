@@ -31,7 +31,7 @@ public enum ExpireWhen
 
 internal static class ExpiryOptionExtensions
 {
-    public static RedisValue ToLiteral(this ExpireWhen op) => op switch
+    internal static RedisValue ToLiteral(this ExpireWhen op) => op switch
     {
         ExpireWhen.HasNoExpiry => RedisLiterals.NX,
         ExpireWhen.HasExpiry => RedisLiterals.XX,

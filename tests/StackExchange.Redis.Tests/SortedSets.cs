@@ -1104,6 +1104,22 @@ public class SortedSets : TestBase
     }
 
     [Fact]
+    public void SortedSetRangeStoreFailForReplica()
+    {
+        using var conn = Create(require: RedisFeatures.v6_2_0);
+
+        var db = conn.GetDatabase();
+        var me = Me();
+        var sourceKey = $"{me}:ZSetSource";
+        var destinationKey = $"{me}:ZSetDestination";
+
+        db.KeyDelete(new RedisKey[] { sourceKey, destinationKey }, CommandFlags.FireAndForget);
+        db.SortedSetAdd(sourceKey, lexEntries, CommandFlags.FireAndForget);
+        var exception = Assert.Throws<RedisCommandException>(() => db.SortedSetRangeAndStore(sourceKey, destinationKey, 0, -1, flags: CommandFlags.DemandReplica));
+        Assert.Contains("Command cannot be issued to a replica", exception.Message);
+    }
+
+    [Fact]
     public void SortedSetScoresSingle()
     {
         using var conn = Create(require: RedisFeatures.v2_1_0);
