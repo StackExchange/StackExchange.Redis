@@ -2362,7 +2362,7 @@ namespace StackExchange.Redis
         long StringBitCount(RedisKey key, long start = 0, long end = -1, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Pulls a single number out of a bitfield. Will execute a BITFIELD_RO if possible.
+        /// Pulls a single number out of a bitfield of the provided <paramref name="encoding"/> at the given offset. Will execute a BITFIELD_RO if possible.
         /// </summary>
         /// <param name="key">The key for the string.</param>
         /// <param name="encoding">The encoding of the number.</param>
@@ -2387,7 +2387,7 @@ namespace StackExchange.Redis
 
 
         /// <summary>
-        /// increments a single number number in a bitfield at the provided <paramref name="offset"/> to the .
+        /// increments a single number number in a bitfield at the provided <paramref name="offset"/> in the provided <paramref name="encoding"/> by the given <paramref name="increment"/>.
         /// </summary>
         /// <param name="key">The key for the string.</param>
         /// <param name="encoding">The encoding of the number.</param>

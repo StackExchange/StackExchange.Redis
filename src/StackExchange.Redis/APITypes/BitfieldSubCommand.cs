@@ -4,17 +4,21 @@ using System.Collections.Generic;
 namespace StackExchange.Redis;
 
 /// <summary>
-/// A subcommand for a bitfield.
+/// An abstract subcommand for a bitfield.
 /// </summary>
 public abstract class BitfieldSubCommand
 {
     internal abstract int NumArgs { get; }
+
     internal abstract void AddArgs(IList<RedisValue> args);
+
     internal virtual bool IsReadonly => false;
+
     /// <summary>
-    /// The encoding of the sub-command. This might be a signed or unsigned integer.
+    /// The encoding of the sub-command. A signed or unsigned integer of a given size.
     /// </summary>
     public BitfieldEncoding Encoding { get; }
+
     /// <summary>
     /// The offset into the bitfield the subcommand will traverse.
     /// </summary>
@@ -29,14 +33,14 @@ public abstract class BitfieldSubCommand
 }
 
 /// <summary>
-/// Represents a Bitfield GET, which returns the specified bitfield.
+/// Represents a Bitfield GET, which returns the number stored in the specified offset of a bitfield at the given encoding.
 /// </summary>
 public sealed class BitfieldGet : BitfieldSubCommand
 {
     /// <summary>
-    /// Initializes a bitfield get subcommand
+    /// Initializes a bitfield GET subcommand
     /// </summary>
-    /// <param name="encoding">the encoding of the subcommand.</param>
+    /// <param name="encoding">The encoding of the subcommand.</param>
     /// <param name="offset">The offset into the bitfield of the subcommand</param>
     public BitfieldGet(BitfieldEncoding encoding, BitfieldOffset offset) : base(encoding, offset)
     {
@@ -55,7 +59,7 @@ public sealed class BitfieldGet : BitfieldSubCommand
 }
 
 /// <summary>
-/// Bitfield sub-command which set's the specified range of bits to the specified value.
+/// Bitfield subcommand which SETs the specified range of bits to the specified value.
 /// </summary>
 public sealed class BitfieldSet : BitfieldSubCommand
 {
@@ -65,7 +69,7 @@ public sealed class BitfieldSet : BitfieldSubCommand
     public long Value { get; }
 
     /// <summary>
-    /// Initializes a sub-command for a Bitfield Set.
+    /// Initializes a subcommand for a Bitfield SET.
     /// </summary>
     /// <param name="encoding">The number's encoding.</param>
     /// <param name="offset">The offset into the bitfield to set.</param>
@@ -87,12 +91,12 @@ public sealed class BitfieldSet : BitfieldSubCommand
 }
 
 /// <summary>
-/// Bitfield sub-command which increments the number at the specified range of bits by the provided value
+/// Bitfield subcommand INCRBY, which increments the number at the specified range of bits by the provided value
 /// </summary>
 public sealed class BitfieldIncrby : BitfieldSubCommand
 {
     /// <summary>
-    /// The value to set.
+    /// The value to increment by.
     /// </summary>
     public long Increment { get; }
 
@@ -102,7 +106,7 @@ public sealed class BitfieldIncrby : BitfieldSubCommand
     public BitfieldOverflowHandling OverflowHandling { get; }
 
     /// <summary>
-    /// Initializes a sub-command for a Bitfield Set.
+    /// Initializes a sub-command for a Bitfield INCRBY.
     /// </summary>
     /// <param name="encoding">The number's encoding.</param>
     /// <param name="offset">The offset into the bitfield to set.</param>
@@ -166,15 +170,17 @@ public readonly struct BitfieldOffset
 }
 
 /// <summary>
-/// The encoding that a sub-command should use. This is either a signed or unsigned integer.
+/// The encoding that a sub-command should use. This is either a signed or unsigned integer of a specified length.
 /// </summary>
 public readonly struct BitfieldEncoding
 {
     internal RedisValue AsRedisValue => $"{Signedness.SignChar()}{Size}";
+
     /// <summary>
     /// The signedness of the integer.
     /// </summary>
     public Signedness Signedness { get; }
+
     /// <summary>
     /// The size of the integer.
     /// </summary>
