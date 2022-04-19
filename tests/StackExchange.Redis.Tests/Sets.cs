@@ -343,4 +343,42 @@ public class Sets : TestBase
         var arr = db.SetPop(key, 1);
         Assert.Empty(arr);
     }
+
+    [Fact]
+    public async Task TestSort()
+    {
+        using var conn = Create();
+
+        var db = conn.GetDatabase();
+        var key = Me();
+        await db.KeyDeleteAsync(key);
+
+        var random = new Random();
+        var items = Enumerable.Repeat(0, 200).Select(x => random.Next()).ToList();
+        await db.SetAddAsync(key, items.Select(x=>(RedisValue)x).ToArray());
+        items.Sort();
+
+        var result = (await db.SortAsync(key)).Select(x=>(int)x);
+        Assert.Equal(items.Count,result.Count() );
+        Assert.Equivalent(items, result);
+    }
+
+    [Fact]
+    public async Task TestSortRo()
+    {
+        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+
+        var db = conn.GetDatabase();
+        var key = Me();
+        await db.KeyDeleteAsync(key);
+
+        var random = new Random();
+        var items = Enumerable.Repeat(0, 200).Select(x => random.Next()).ToList();
+        await db.SetAddAsync(key, items.Select(x=>(RedisValue)x).ToArray());
+        items.Sort();
+
+        var result = (await db.SortAsync(key)).Select(x=>(int)x);
+        Assert.Equal(items.Count,result.Count() );
+        Assert.Equivalent(items, result);
+    }
 }
