@@ -128,6 +128,12 @@ namespace StackExchange.Redis
         public static readonly SingleStreamProcessor
             SingleStreamWithNameSkip = new SingleStreamProcessor(skipStreamName: true);
 
+        public static readonly StreamAutoClaimProcessor
+            StreamAutoClaim = new StreamAutoClaimProcessor();
+
+        public static readonly StreamAutoClaimIdsOnlyProcessor
+            StreamAutoClaimIdsOnly = new StreamAutoClaimIdsOnlyProcessor();
+
         public static readonly StreamConsumerInfoProcessor
             StreamConsumerInfo = new StreamConsumerInfoProcessor();
 
@@ -1822,6 +1828,64 @@ The coordinates as a two items x,y array (longitude,latitude).
 
                 SetResult(message, streams);
                 return true;
+            }
+        }
+
+        /// <summary>
+        /// This processor is for <see cref="RedisCommand.XAUTOCLAIM"/> *without* the <see cref="StreamConstants.JustId"/> option.
+        /// </summary>
+        internal sealed class StreamAutoClaimProcessor : StreamProcessorBase<StreamAutoClaimResult>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                // See https://redis.io/commands/xautoclaim for command documentation.
+                // Note that the result should never be null, so intentionally treating it as a failure to parse here
+                if (result.Type == ResultType.MultiBulk && !result.IsNull)
+                {
+                    var items = result.GetItems();
+
+                    // [0] The next start ID.
+                    var nextStartId = items[0].AsRedisValue();
+                    // [1] The array of StreamEntry's.
+                    var entries = ParseRedisStreamEntries(items[1]);
+                    // [2] The array of message IDs deleted from the stream that were in the PEL.
+                    //     This is not available in 6.2 so we need to be defensive when reading this part of the response.
+                    var deletedIds = (items.Length == 3 ? items[2].GetItemsAsValues() : null) ?? Array.Empty<RedisValue>();
+
+                    SetResult(message, new StreamAutoClaimResult(nextStartId, entries, deletedIds));
+                    return true;
+                }
+
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// This processor is for <see cref="RedisCommand.XAUTOCLAIM"/> *with* the <see cref="StreamConstants.JustId"/> option.
+        /// </summary>
+        internal sealed class StreamAutoClaimIdsOnlyProcessor : ResultProcessor<StreamAutoClaimIdsOnlyResult>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                // See https://redis.io/commands/xautoclaim for command documentation.
+                // Note that the result should never be null, so intentionally treating it as a failure to parse here
+                if (result.Type == ResultType.MultiBulk && !result.IsNull)
+                {
+                    var items = result.GetItems();
+
+                    // [0] The next start ID.
+                    var nextStartId = items[0].AsRedisValue();
+                    // [1] The array of claimed message IDs.
+                    var claimedIds = items[1].GetItemsAsValues() ?? Array.Empty<RedisValue>();
+                    // [2] The array of message IDs deleted from the stream that were in the PEL.
+                    //     This is not available in 6.2 so we need to be defensive when reading this part of the response.
+                    var deletedIds = (items.Length == 3 ? items[2].GetItemsAsValues() : null) ?? Array.Empty<RedisValue>();
+
+                    SetResult(message, new StreamAutoClaimIdsOnlyResult(nextStartId, claimedIds, deletedIds));
+                    return true;
+                }
+
+                return false;
             }
         }
 

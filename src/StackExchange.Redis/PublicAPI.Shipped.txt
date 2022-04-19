@@ -662,6 +662,8 @@ StackExchange.Redis.IDatabase.StreamAcknowledge(StackExchange.Redis.RedisKey key
 StackExchange.Redis.IDatabase.StreamAcknowledge(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue groupName, StackExchange.Redis.RedisValue[]! messageIds, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
 StackExchange.Redis.IDatabase.StreamAdd(StackExchange.Redis.RedisKey key, StackExchange.Redis.NameValueEntry[]! streamPairs, StackExchange.Redis.RedisValue? messageId = null, int? maxLength = null, bool useApproximateMaxLength = false, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue
 StackExchange.Redis.IDatabase.StreamAdd(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue streamField, StackExchange.Redis.RedisValue streamValue, StackExchange.Redis.RedisValue? messageId = null, int? maxLength = null, bool useApproximateMaxLength = false, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue
+StackExchange.Redis.IDatabase.StreamAutoClaim(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue consumerGroup, StackExchange.Redis.RedisValue claimingConsumer, long minIdleTimeInMs, StackExchange.Redis.RedisValue startAtId, int? count = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.StreamAutoClaimResult
+StackExchange.Redis.IDatabase.StreamAutoClaimIdsOnly(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue consumerGroup, StackExchange.Redis.RedisValue claimingConsumer, long minIdleTimeInMs, StackExchange.Redis.RedisValue startAtId, int? count = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.StreamAutoClaimIdsOnlyResult
 StackExchange.Redis.IDatabase.StreamClaim(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue consumerGroup, StackExchange.Redis.RedisValue claimingConsumer, long minIdleTimeInMs, StackExchange.Redis.RedisValue[]! messageIds, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.StreamEntry[]!
 StackExchange.Redis.IDatabase.StreamClaimIdsOnly(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue consumerGroup, StackExchange.Redis.RedisValue claimingConsumer, long minIdleTimeInMs, StackExchange.Redis.RedisValue[]! messageIds, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue[]!
 StackExchange.Redis.IDatabase.StreamConsumerGroupSetPosition(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue groupName, StackExchange.Redis.RedisValue position, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> bool
@@ -876,6 +878,8 @@ StackExchange.Redis.IDatabaseAsync.StreamAcknowledgeAsync(StackExchange.Redis.Re
 StackExchange.Redis.IDatabaseAsync.StreamAcknowledgeAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue groupName, StackExchange.Redis.RedisValue[]! messageIds, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
 StackExchange.Redis.IDatabaseAsync.StreamAddAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.NameValueEntry[]! streamPairs, StackExchange.Redis.RedisValue? messageId = null, int? maxLength = null, bool useApproximateMaxLength = false, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue>!
 StackExchange.Redis.IDatabaseAsync.StreamAddAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue streamField, StackExchange.Redis.RedisValue streamValue, StackExchange.Redis.RedisValue? messageId = null, int? maxLength = null, bool useApproximateMaxLength = false, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue>!
+StackExchange.Redis.IDatabaseAsync.StreamAutoClaimAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue consumerGroup, StackExchange.Redis.RedisValue claimingConsumer, long minIdleTimeInMs, StackExchange.Redis.RedisValue startAtId, int? count = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.StreamAutoClaimResult>!
+StackExchange.Redis.IDatabaseAsync.StreamAutoClaimIdsOnlyAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue consumerGroup, StackExchange.Redis.RedisValue claimingConsumer, long minIdleTimeInMs, StackExchange.Redis.RedisValue startAtId, int? count = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.StreamAutoClaimIdsOnlyResult>!
 StackExchange.Redis.IDatabaseAsync.StreamClaimAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue consumerGroup, StackExchange.Redis.RedisValue claimingConsumer, long minIdleTimeInMs, StackExchange.Redis.RedisValue[]! messageIds, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.StreamEntry[]!>!
 StackExchange.Redis.IDatabaseAsync.StreamClaimIdsOnlyAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue consumerGroup, StackExchange.Redis.RedisValue claimingConsumer, long minIdleTimeInMs, StackExchange.Redis.RedisValue[]! messageIds, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue[]!>!
 StackExchange.Redis.IDatabaseAsync.StreamConsumerGroupSetPositionAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue groupName, StackExchange.Redis.RedisValue position, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<bool>!
@@ -1405,6 +1409,18 @@ StackExchange.Redis.SortedSetPopResult.SortedSetPopResult() -> void
 StackExchange.Redis.SortType
 StackExchange.Redis.SortType.Alphabetic = 1 -> StackExchange.Redis.SortType
 StackExchange.Redis.SortType.Numeric = 0 -> StackExchange.Redis.SortType
+StackExchange.Redis.StreamAutoClaimIdsOnlyResult
+StackExchange.Redis.StreamAutoClaimIdsOnlyResult.ClaimedIds.get -> StackExchange.Redis.RedisValue[]!
+StackExchange.Redis.StreamAutoClaimIdsOnlyResult.DeletedIds.get -> StackExchange.Redis.RedisValue[]!
+StackExchange.Redis.StreamAutoClaimIdsOnlyResult.IsNull.get -> bool
+StackExchange.Redis.StreamAutoClaimIdsOnlyResult.NextStartId.get -> StackExchange.Redis.RedisValue
+StackExchange.Redis.StreamAutoClaimIdsOnlyResult.StreamAutoClaimIdsOnlyResult() -> void
+StackExchange.Redis.StreamAutoClaimResult
+StackExchange.Redis.StreamAutoClaimResult.ClaimedEntries.get -> StackExchange.Redis.StreamEntry[]!
+StackExchange.Redis.StreamAutoClaimResult.DeletedIds.get -> StackExchange.Redis.RedisValue[]!
+StackExchange.Redis.StreamAutoClaimResult.IsNull.get -> bool
+StackExchange.Redis.StreamAutoClaimResult.NextStartId.get -> StackExchange.Redis.RedisValue
+StackExchange.Redis.StreamAutoClaimResult.StreamAutoClaimResult() -> void
 StackExchange.Redis.StreamConsumer
 StackExchange.Redis.StreamConsumer.Name.get -> StackExchange.Redis.RedisValue
 StackExchange.Redis.StreamConsumer.PendingMessageCount.get -> int
@@ -1674,6 +1690,8 @@ static StackExchange.Redis.SortedSetEntry.implicit operator System.Collections.G
 static StackExchange.Redis.SortedSetEntry.operator !=(StackExchange.Redis.SortedSetEntry x, StackExchange.Redis.SortedSetEntry y) -> bool
 static StackExchange.Redis.SortedSetEntry.operator ==(StackExchange.Redis.SortedSetEntry x, StackExchange.Redis.SortedSetEntry y) -> bool
 static StackExchange.Redis.SortedSetPopResult.Null.get -> StackExchange.Redis.SortedSetPopResult
+static StackExchange.Redis.StreamAutoClaimIdsOnlyResult.Null.get -> StackExchange.Redis.StreamAutoClaimIdsOnlyResult
+static StackExchange.Redis.StreamAutoClaimResult.Null.get -> StackExchange.Redis.StreamAutoClaimResult
 static StackExchange.Redis.StreamEntry.Null.get -> StackExchange.Redis.StreamEntry
 static StackExchange.Redis.StreamPosition.Beginning.get -> StackExchange.Redis.RedisValue
 static StackExchange.Redis.StreamPosition.NewMessages.get -> StackExchange.Redis.RedisValue
