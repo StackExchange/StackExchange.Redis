@@ -8,8 +8,11 @@ using System.Threading.Tasks;
 
 namespace StackExchange.Redis.Tests;
 
+/// <summary>
+/// Tests for <see href="https://redis.io/commands#hash"/>.
+/// </summary>
 [Collection(SharedConnectionFixture.Key)]
-public class Hashes : TestBase // https://redis.io/commands#hash
+public class Hashes : TestBase
 {
     public Hashes(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
 
@@ -219,8 +222,11 @@ public class Hashes : TestBase // https://redis.io/commands#hash
         }
     }
 
+    /// <summary>
+    /// Tests for <see href="https://redis.io/commands/hset"/>.
+    /// </summary>
     [Fact]
-    public async Task TestSet() // https://redis.io/commands/hset
+    public async Task TestSet()
     {
         using var conn = Create();
 
@@ -258,8 +264,11 @@ public class Hashes : TestBase // https://redis.io/commands#hash
         Assert.Equal("", await val5);
     }
 
+    /// <summary>
+    /// Tests for <see href="https://redis.io/commands/hsetnx"/>.
+    /// </summary>
     [Fact]
-    public async Task TestSetNotExists() // https://redis.io/commands/hsetnx
+    public async Task TestSetNotExists()
     {
         using var conn = Create();
 
@@ -289,8 +298,11 @@ public class Hashes : TestBase // https://redis.io/commands#hash
         Assert.False(await set3);
     }
 
+    /// <summary>
+    /// Tests for <see href="https://redis.io/commands/hdel"/>.
+    /// </summary>
     [Fact]
-    public async Task TestDelSingle() // https://redis.io/commands/hdel
+    public async Task TestDelSingle()
     {
         using var conn = Create();
 
@@ -309,8 +321,11 @@ public class Hashes : TestBase // https://redis.io/commands#hash
         Assert.False(await del2);
     }
 
+    /// <summary>
+    /// Tests for <see href="https://redis.io/commands/hdel"/>.
+    /// </summary>
     [Fact]
-    public async Task TestDelMulti() // https://redis.io/commands/hdel
+    public async Task TestDelMulti()
     {
         using var conn = Create();
 
@@ -346,8 +361,11 @@ public class Hashes : TestBase // https://redis.io/commands#hash
         Assert.Equal(1, await removeFinal);
     }
 
+    /// <summary>
+    /// Tests for <see href="https://redis.io/commands/hdel"/>.
+    /// </summary>
     [Fact]
-    public async Task TestDelMultiInsideTransaction() // https://redis.io/commands/hdel
+    public async Task TestDelMultiInsideTransaction()
     {
         using var conn = Create();
 
@@ -382,8 +400,11 @@ public class Hashes : TestBase // https://redis.io/commands#hash
         }
     }
 
+    /// <summary>
+    /// Tests for <see href="https://redis.io/commands/hexists"/>.
+    /// </summary>
     [Fact]
-    public async Task TestExists() // https://redis.io/commands/hexists
+    public async Task TestExists()
     {
         using var conn = Create();
 
@@ -401,8 +422,11 @@ public class Hashes : TestBase // https://redis.io/commands#hash
         Assert.False(await ex0);
     }
 
+    /// <summary>
+    /// Tests for <see href="https://redis.io/commands/hkeys"/>.
+    /// </summary>
     [Fact]
-    public async Task TestHashKeys() // https://redis.io/commands/hkeys
+    public async Task TestHashKeys()
     {
         using var conn = Create();
 
@@ -424,8 +448,11 @@ public class Hashes : TestBase // https://redis.io/commands#hash
         Assert.Equal("bar", arr[1]);
     }
 
+    /// <summary>
+    /// Tests for <see href="https://redis.io/commands/hvals"/>.
+    /// </summary>
     [Fact]
-    public async Task TestHashValues() // https://redis.io/commands/hvals
+    public async Task TestHashValues()
     {
         using var conn = Create();
 
@@ -448,8 +475,11 @@ public class Hashes : TestBase // https://redis.io/commands#hash
         Assert.Equal("def", Encoding.UTF8.GetString(arr[1]!));
     }
 
+    /// <summary>
+    /// Tests for <see href="https://redis.io/commands/hlen"/>.
+    /// </summary>
     [Fact]
-    public async Task TestHashLength() // https://redis.io/commands/hlen
+    public async Task TestHashLength()
     {
         using var conn = Create();
 
@@ -468,8 +498,11 @@ public class Hashes : TestBase // https://redis.io/commands#hash
         Assert.Equal(2, await len1);
     }
 
+    /// <summary>
+    /// Tests for <see href="https://redis.io/commands/hmget"/>.
+    /// </summary>
     [Fact]
-    public async Task TestGetMulti() // https://redis.io/commands/hmget
+    public async Task TestGetMulti()
     {
         using var conn = Create();
 
@@ -502,8 +535,11 @@ public class Hashes : TestBase // https://redis.io/commands#hash
         Assert.Null((string?)arr2[2]);
     }
 
+    /// <summary>
+    /// Tests for <see href="https://redis.io/commands/hgetall"/>.
+    /// </summary>
     [Fact]
-    public void TestGetPairs() // https://redis.io/commands/hgetall
+    public void TestGetPairs()
     {
         using var conn = Create();
 
@@ -525,8 +561,11 @@ public class Hashes : TestBase // https://redis.io/commands#hash
         Assert.Equal("def", result["bar"]);
     }
 
+    /// <summary>
+    /// Tests for <see href="https://redis.io/commands/hmset"/>.
+    /// </summary>
     [Fact]
-    public void TestSetPairs() // https://redis.io/commands/hmset
+    public void TestSetPairs()
     {
         using var conn = Create();
 
