@@ -359,8 +359,7 @@ public class Sets : TestBase
         items.Sort();
 
         var result = (await db.SortAsync(key)).Select(x=>(int)x);
-        Assert.Equal(items.Count,result.Count() );
-        Assert.Equivalent(items, result);
+        Assert.Equal(items, result);
     }
 
     [Fact]
@@ -378,7 +377,6 @@ public class Sets : TestBase
         items.Sort();
 
         var result = (await db.SortAsync(key)).Select(x=>(int)x);
-        Assert.Equal(items.Count,result.Count() );
-        Assert.Equivalent(items, result);
+        Assert.Equal(items, result);
     }
 }
