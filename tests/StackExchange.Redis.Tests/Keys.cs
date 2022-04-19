@@ -298,12 +298,11 @@ public class Keys : TestBase
         Assert.Null(await db.KeyRefCountAsync(keyNotExists));
     }
 
-
     private static void TestTotalLengthAndCopyTo(in RedisKey key, int expectedLength)
     {
         var length = key.TotalLength();
         Assert.Equal(expectedLength, length);
-        var arr = ArrayPool<byte>.Shared.Rent(length + 20); // deliberately oversized
+        var arr = ArrayPool<byte>.Shared.Rent(length + 20); // deliberately over-sized
         try
         {
             var written = key.CopyTo(arr);
@@ -319,6 +318,7 @@ public class Keys : TestBase
             ArrayPool<byte>.Shared.Return(arr);
         }
     }
+
     [Fact]
     public void NullKeySlot()
     {

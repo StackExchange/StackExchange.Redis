@@ -299,20 +299,19 @@ namespace StackExchange.Redis
         /// <param name="suffix">The suffix to append.</param>
         public RedisKey Append(RedisKey suffix) => WithPrefix(this, suffix);
 
-
         internal bool TryGetSimpleBuffer([NotNullWhen(true)] out byte[]? arr)
         {
             arr = KeyValue is null ? Array.Empty<byte>() : KeyValue as byte[];
             return arr is not null && (KeyPrefix is null || KeyPrefix.Length == 0);
         }
 
-        internal int TotalLength()
-            => (KeyPrefix is null ? 0 : KeyPrefix.Length) + KeyValue switch
-                {
-                    null => 0,
-                    string s => Encoding.UTF8.GetByteCount(s),
-                    _ => ((byte[])KeyValue).Length,
-                };
+        internal int TotalLength() =>
+            (KeyPrefix is null ? 0 : KeyPrefix.Length) + KeyValue switch
+            {
+                null => 0,
+                string s => Encoding.UTF8.GetByteCount(s),
+                _ => ((byte[])KeyValue).Length,
+            };
 
         internal int CopyTo(Span<byte> destination)
         {
