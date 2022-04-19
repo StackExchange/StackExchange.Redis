@@ -8,8 +8,11 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
+/// <summary>
+/// Tests for <see href="https://redis.io/commands#string"/>.
+/// </summary>
 [Collection(SharedConnectionFixture.Key)]
-public class Strings : TestBase // https://redis.io/commands#string
+public class Strings : TestBase
 {
     public Strings(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
 

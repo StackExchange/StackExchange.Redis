@@ -122,6 +122,12 @@ namespace StackExchange.Redis
         public static readonly SingleStreamProcessor
             SingleStreamWithNameSkip = new SingleStreamProcessor(skipStreamName: true);
 
+        public static readonly StreamAutoClaimProcessor
+            StreamAutoClaim = new StreamAutoClaimProcessor();
+
+        public static readonly StreamAutoClaimIdsOnlyProcessor
+            StreamAutoClaimIdsOnly = new StreamAutoClaimIdsOnlyProcessor();
+
         public static readonly StreamConsumerInfoProcessor
             StreamConsumerInfo = new StreamConsumerInfoProcessor();
 
@@ -1663,6 +1669,9 @@ The coordinates as a two items x,y array (longitude,latitude).
                 this.skipStreamName = skipStreamName;
             }
 
+            /// <summary>
+            /// Handles <see href="https://redis.io/commands/xread"/>.
+            /// </summary>
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
                 if (result.IsNull)
@@ -1681,9 +1690,6 @@ The coordinates as a two items x,y array (longitude,latitude).
 
                 if (skipStreamName)
                 {
-                    // Skip the first element in the array (i.e., the stream name).
-                    // See https://redis.io/commands/xread.
-
                     // > XREAD COUNT 2 STREAMS mystream 0
                     // 1) 1) "mystream"                     <== Skip the stream name
                     //    2) 1) 1) 1519073278252 - 0        <== Index 1 contains the array of stream entries
@@ -1712,14 +1718,15 @@ The coordinates as a two items x,y array (longitude,latitude).
             }
         }
 
+        /// <summary>
+        /// Handles <see href="https://redis.io/commands/xread"/>.
+        /// </summary>
         internal sealed class MultiStreamProcessor : StreamProcessorBase<RedisStream[]>
         {
             /*
                 The result is similar to the XRANGE result (see SingleStreamProcessor)
                 with the addition of the stream name as the first element of top level
                 Multibulk array.
-
-                See https://redis.io/commands/xread.
 
                 > XREAD COUNT 2 STREAMS mystream writers 0-0 0-0
                 1) 1) "mystream"
@@ -1772,6 +1779,64 @@ The coordinates as a two items x,y array (longitude,latitude).
 
                 SetResult(message, streams);
                 return true;
+            }
+        }
+
+        /// <summary>
+        /// This processor is for <see cref="RedisCommand.XAUTOCLAIM"/> *without* the <see cref="StreamConstants.JustId"/> option.
+        /// </summary>
+        internal sealed class StreamAutoClaimProcessor : StreamProcessorBase<StreamAutoClaimResult>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                // See https://redis.io/commands/xautoclaim for command documentation.
+                // Note that the result should never be null, so intentionally treating it as a failure to parse here
+                if (result.Type == ResultType.MultiBulk && !result.IsNull)
+                {
+                    var items = result.GetItems();
+
+                    // [0] The next start ID.
+                    var nextStartId = items[0].AsRedisValue();
+                    // [1] The array of StreamEntry's.
+                    var entries = ParseRedisStreamEntries(items[1]);
+                    // [2] The array of message IDs deleted from the stream that were in the PEL.
+                    //     This is not available in 6.2 so we need to be defensive when reading this part of the response.
+                    var deletedIds = (items.Length == 3 ? items[2].GetItemsAsValues() : null) ?? Array.Empty<RedisValue>();
+
+                    SetResult(message, new StreamAutoClaimResult(nextStartId, entries, deletedIds));
+                    return true;
+                }
+
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// This processor is for <see cref="RedisCommand.XAUTOCLAIM"/> *with* the <see cref="StreamConstants.JustId"/> option.
+        /// </summary>
+        internal sealed class StreamAutoClaimIdsOnlyProcessor : ResultProcessor<StreamAutoClaimIdsOnlyResult>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                // See https://redis.io/commands/xautoclaim for command documentation.
+                // Note that the result should never be null, so intentionally treating it as a failure to parse here
+                if (result.Type == ResultType.MultiBulk && !result.IsNull)
+                {
+                    var items = result.GetItems();
+
+                    // [0] The next start ID.
+                    var nextStartId = items[0].AsRedisValue();
+                    // [1] The array of claimed message IDs.
+                    var claimedIds = items[1].GetItemsAsValues() ?? Array.Empty<RedisValue>();
+                    // [2] The array of message IDs deleted from the stream that were in the PEL.
+                    //     This is not available in 6.2 so we need to be defensive when reading this part of the response.
+                    var deletedIds = (items.Length == 3 ? items[2].GetItemsAsValues() : null) ?? Array.Empty<RedisValue>();
+
+                    SetResult(message, new StreamAutoClaimIdsOnlyResult(nextStartId, claimedIds, deletedIds));
+                    return true;
+                }
+
+                return false;
             }
         }
 
@@ -2080,10 +2145,11 @@ The coordinates as a two items x,y array (longitude,latitude).
             }
         }
 
+        /// <summary>
+        /// Handles stream responses. For formats, see <see href="https://redis.io/topics/streams-intro"/>.
+        /// </summary>
         internal abstract class StreamProcessorBase<T> : ResultProcessor<T>
         {
-            // For command response formats see https://redis.io/topics/streams-intro.
-
             protected static StreamEntry ParseRedisStreamEntry(in RawResult item)
             {
                 if (item.IsNull || item.Type != ResultType.MultiBulk)
