@@ -944,6 +944,20 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void StreamAutoClaimAsync()
+        {
+            wrapper.StreamAutoClaimAsync("key", "group", "consumer", 0, "0-0", 100, CommandFlags.None);
+            mock.Verify(_ => _.StreamAutoClaimAsync("prefix:key", "group", "consumer", 0, "0-0", 100, CommandFlags.None));
+        }
+
+        [Fact]
+        public void StreamAutoClaimIdsOnlyAsync()
+        {
+            wrapper.StreamAutoClaimIdsOnlyAsync("key", "group", "consumer", 0, "0-0", 100, CommandFlags.None);
+            mock.Verify(_ => _.StreamAutoClaimIdsOnlyAsync("prefix:key", "group", "consumer", 0, "0-0", 100, CommandFlags.None));
+        }
+
+        [Fact]
         public void StreamClaimMessagesAsync()
         {
             var messageIds = Array.Empty<RedisValue>();

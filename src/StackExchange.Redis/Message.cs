@@ -106,7 +106,7 @@ namespace StackExchange.Redis
                 }
             }
 
-            bool primaryOnly = IsPrimaryOnly(command);
+            bool primaryOnly = command.IsPrimaryOnly();
             Db = db;
             this.command = command;
             Flags = flags & UserSelectableFlags;
@@ -323,90 +323,6 @@ namespace StackExchange.Redis
 
         public static Message CreateInSlot(int db, int slot, CommandFlags flags, RedisCommand command, RedisValue[] values) =>
             new CommandSlotValuesMessage(db, slot, flags, command, values);
-
-        public static bool IsPrimaryOnly(RedisCommand command)
-        {
-            switch (command)
-            {
-                case RedisCommand.APPEND:
-                case RedisCommand.BITOP:
-                case RedisCommand.BITFIELD:
-                case RedisCommand.BLPOP:
-                case RedisCommand.BRPOP:
-                case RedisCommand.BRPOPLPUSH:
-                case RedisCommand.DECR:
-                case RedisCommand.DECRBY:
-                case RedisCommand.DEL:
-                case RedisCommand.EXPIRE:
-                case RedisCommand.EXPIREAT:
-                case RedisCommand.FLUSHALL:
-                case RedisCommand.FLUSHDB:
-                case RedisCommand.GETDEL:
-                case RedisCommand.GETEX:
-                case RedisCommand.GETSET:
-                case RedisCommand.HDEL:
-                case RedisCommand.HINCRBY:
-                case RedisCommand.HINCRBYFLOAT:
-                case RedisCommand.HMSET:
-                case RedisCommand.HSET:
-                case RedisCommand.HSETNX:
-                case RedisCommand.INCR:
-                case RedisCommand.INCRBY:
-                case RedisCommand.INCRBYFLOAT:
-                case RedisCommand.LINSERT:
-                case RedisCommand.LPOP:
-                case RedisCommand.LPUSH:
-                case RedisCommand.LPUSHX:
-                case RedisCommand.LREM:
-                case RedisCommand.LSET:
-                case RedisCommand.LTRIM:
-                case RedisCommand.MIGRATE:
-                case RedisCommand.MOVE:
-                case RedisCommand.MSET:
-                case RedisCommand.MSETNX:
-                case RedisCommand.PERSIST:
-                case RedisCommand.PEXPIRE:
-                case RedisCommand.PEXPIREAT:
-                case RedisCommand.PFADD:
-                case RedisCommand.PFMERGE:
-                case RedisCommand.PSETEX:
-                case RedisCommand.RENAME:
-                case RedisCommand.RENAMENX:
-                case RedisCommand.RESTORE:
-                case RedisCommand.RPOP:
-                case RedisCommand.RPOPLPUSH:
-                case RedisCommand.RPUSH:
-                case RedisCommand.RPUSHX:
-                case RedisCommand.SADD:
-                case RedisCommand.SDIFFSTORE:
-                case RedisCommand.SET:
-                case RedisCommand.SETBIT:
-                case RedisCommand.SETEX:
-                case RedisCommand.SETNX:
-                case RedisCommand.SETRANGE:
-                case RedisCommand.SINTERSTORE:
-                case RedisCommand.SMOVE:
-                case RedisCommand.SPOP:
-                case RedisCommand.SREM:
-                case RedisCommand.SUNIONSTORE:
-                case RedisCommand.SWAPDB:
-                case RedisCommand.TOUCH:
-                case RedisCommand.UNLINK:
-                case RedisCommand.ZADD:
-                case RedisCommand.ZINTERSTORE:
-                case RedisCommand.ZINCRBY:
-                case RedisCommand.ZPOPMAX:
-                case RedisCommand.ZPOPMIN:
-                case RedisCommand.ZREM:
-                case RedisCommand.ZREMRANGEBYLEX:
-                case RedisCommand.ZREMRANGEBYRANK:
-                case RedisCommand.ZREMRANGEBYSCORE:
-                case RedisCommand.ZUNIONSTORE:
-                    return true;
-                default:
-                    return false;
-            }
-        }
 
         /// <summary>Gets whether this is primary-only.</summary>
         /// <remarks>
