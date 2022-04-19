@@ -1762,25 +1762,25 @@ namespace StackExchange.Redis
 
         public RedisValue[] Sort(RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default, RedisValue[]? get = null, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetSortMessage(RedisKey.Null, key, skip, take, order, sortType, by, get, flags, out ServerEndPoint? server);
-            return ExecuteSync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>(), server: server);
+            var msg = GetSortMessage(RedisKey.Null, key, skip, take, order, sortType, by, get, flags, out var server);
+            return ExecuteSync(msg, ResultProcessor.RedisValueArray, server: server, defaultValue: Array.Empty<RedisValue>());
         }
 
         public long SortAndStore(RedisKey destination, RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default, RedisValue[]? get = null, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetSortMessage(destination, key, skip, take, order, sortType, by, get, flags, out ServerEndPoint? server);
+            var msg = GetSortMessage(destination, key, skip, take, order, sortType, by, get, flags, out var server);
             return ExecuteSync(msg, ResultProcessor.Int64, server);
         }
 
         public Task<long> SortAndStoreAsync(RedisKey destination, RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default, RedisValue[]? get = null, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetSortMessage(destination, key, skip, take, order, sortType, by, get, flags, out ServerEndPoint? server);
+            var msg = GetSortMessage(destination, key, skip, take, order, sortType, by, get, flags, out var server);
             return ExecuteAsync(msg, ResultProcessor.Int64, server);
         }
 
         public Task<RedisValue[]> SortAsync(RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default, RedisValue[]? get = null, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetSortMessage(RedisKey.Null, key, skip, take, order, sortType, by, get, flags, out ServerEndPoint? server);
+            var msg = GetSortMessage(RedisKey.Null, key, skip, take, order, sortType, by, get, flags, out var server);
             return ExecuteAsync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>(), server: server);
         }
 
@@ -3502,8 +3502,10 @@ namespace StackExchange.Redis
 
         private Message GetSortMessage(RedisKey destination, RedisKey key, long skip, long take, Order order, SortType sortType, RedisValue by, RedisValue[]? get, CommandFlags flags, out ServerEndPoint? server)
         {
-            var features = GetFeatures(key, flags, out server);
-            var command = destination.IsNull && features.ReadOnlySort ? RedisCommand.SORT_RO : RedisCommand.SORT;
+            server = null;
+            var command = destination.IsNull && GetFeatures(key, flags, out server).ReadOnlySort
+                ? RedisCommand.SORT_RO
+                : RedisCommand.SORT;
 
             // most common cases; no "get", no "by", no "destination", no "skip", no "take"
             if (destination.IsNull && skip == 0 && take == -1 && by.IsNull && (get == null || get.Length == 0))
