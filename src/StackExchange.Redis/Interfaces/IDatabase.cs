@@ -729,6 +729,16 @@ namespace StackExchange.Redis
         DateTime? KeyExpireTime(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Returns the logarithmic access frequency counter of the object stored at <paramref name="key"/>.
+        /// The command is only available when the `maxmemory-policy` configuration directive is set to one of the LFU policies.
+        /// </summary>
+        /// <param name="key">The key to get a frequency count for.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The number of logarithmic access frequency counter, (<see langword="Null"/> if the key does not exist).</returns>
+        /// <remarks>https://redis.io/commands/object-freq</remarks>
+        long? KeyFrequency(RedisKey key, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Returns the time since the object stored at the specified key is idle (not requested by read or write operations).
         /// </summary>
         /// <param name="key">The key to get the time of.</param>

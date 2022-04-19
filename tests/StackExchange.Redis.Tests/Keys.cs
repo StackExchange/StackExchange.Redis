@@ -296,4 +296,23 @@ public class Keys : TestBase
         Assert.Null(db.KeyRefCount(keyNotExists));
         Assert.Null(await db.KeyRefCountAsync(keyNotExists));
     }
+
+    [Fact]
+    public async Task KeyFrequency()
+    {
+        using var conn = Create();
+
+        var key = Me();
+        var db = conn.GetDatabase();
+
+        db.KeyDelete(key, CommandFlags.FireAndForget);
+        db.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
+        db.StringGet(key);
+
+        var count = db.KeyFrequency(key);
+        Assert.True(count > 0);
+
+        count = await db.KeyFrequencyAsync(key);
+        Assert.True(count > 0);
+    }
 }

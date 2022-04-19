@@ -320,6 +320,13 @@ public sealed class DatabaseWrapperTests
     }
 
     [Fact]
+    public void KeyFrequency()
+    {
+        wrapper.KeyFrequency("key", CommandFlags.None);
+        mock.Verify(_ => _.KeyFrequency("prefix:key", CommandFlags.None));
+    }
+
+    [Fact]
     public void KeyMigrate()
     {
         EndPoint toServer = new IPEndPoint(IPAddress.Loopback, 123);

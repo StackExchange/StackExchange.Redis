@@ -193,6 +193,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<DateTime?> KeyExpireTimeAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.KeyExpireTimeAsync(ToInner(key), flags);
 
+        public Task<long?> KeyFrequencyAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
+            Inner.KeyFrequencyAsync(ToInner(key), flags);
+
         public Task<TimeSpan?> KeyIdleTimeAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.KeyIdleTimeAsync(ToInner(key), flags);
 
