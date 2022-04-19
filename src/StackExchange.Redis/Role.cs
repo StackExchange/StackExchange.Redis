@@ -5,7 +5,7 @@ namespace StackExchange.Redis
     /// <summary>
     /// Result of the ROLE command. Values depend on the role: master, replica, or sentinel.
     /// </summary>
-    /// <remarks>https://redis.io/commands/role</remarks>
+    /// <remarks><seealso href="https://redis.io/commands/role"/></remarks>
     public abstract class Role
     {
         internal static Unknown Null { get; } = new Unknown("");
@@ -23,7 +23,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Result of the ROLE command for a primary node.
         /// </summary>
-        /// <remarks>https://redis.io/commands/role#master-output</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/role#master-output"/></remarks>
         public sealed class Master : Role
         {
             /// <summary>
@@ -74,7 +74,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Result of the ROLE command for a replica node.
         /// </summary>
-        /// <remarks>https://redis.io/commands/role#output-of-the-command-on-replicas</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/role#output-of-the-command-on-replicas"/></remarks>
         public sealed class Replica : Role
         {
             /// <summary>
@@ -109,7 +109,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Result of the ROLE command for a sentinel node.
         /// </summary>
-        /// <remarks>https://redis.io/commands/role#sentinel-output</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/role#sentinel-output"/></remarks>
         public sealed class Sentinel : Role
         {
             /// <summary>

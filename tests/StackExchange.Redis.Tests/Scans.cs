@@ -332,7 +332,10 @@ public class Scans : TestBase
         Assert.Equal(2000, count);
     }
 
-    [Fact] // See https://github.com/StackExchange/StackExchange.Redis/issues/729
+    /// <summary>
+    /// See <see href="https://github.com/StackExchange/StackExchange.Redis/issues/729"/>.
+    /// </summary>
+    [Fact]
     public void HashScanThresholds()
     {
         using var conn = Create(allowAdmin: true);
