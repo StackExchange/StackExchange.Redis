@@ -244,7 +244,7 @@ internal static class RedisCommandExtensions
     /// <param name="command">The <see cref="RedisCommand"/> to check.</param>
     /// <returns><see langword="true"/> if the command is primary-only, <see langword="false"/> otherwise.</returns>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0066:Convert switch statement to expression", Justification = "No, it'd be ridiculous.")]
-    public static bool IsPrimaryOnly(this RedisCommand command)
+    internal static bool IsPrimaryOnly(this RedisCommand command)
     {
         switch (command)
         {
