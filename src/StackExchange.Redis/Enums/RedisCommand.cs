@@ -249,6 +249,10 @@ internal static class RedisCommandExtensions
         switch (command)
         {
             // Commands that can only be issued to a primary (writable) server
+            // If a command *may* be writable (e.g. an EVAL script), it should *not* be primary-only
+            //   because that'd block a legitimate use case of a read-only script on replica servers,
+            //   for example spreading load via a .DemandReplica flag in the caller.
+            // Basically: would it fail on a read-only replica in 100% of cases? Then it goes in the list.
             case RedisCommand.APPEND:
             case RedisCommand.BITOP:
             case RedisCommand.BLPOP:
