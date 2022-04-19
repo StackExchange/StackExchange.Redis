@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Net;
 using System.Threading.Tasks;
 
@@ -2634,12 +2633,16 @@ namespace StackExchange.Redis
         /// <remarks><seealso href="https://redis.io/commands/strlen"/></remarks>
         Task<long> StringLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="StringSetAsync(RedisKey, RedisValue, TimeSpan?, bool, When, CommandFlags)" />
-        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
-        Task<bool> StringSetAsync(RedisKey key, RedisValue value, TimeSpan? expiry, When when);
-
-        /// <inheritdoc cref="StringSetAsync(RedisKey, RedisValue, TimeSpan?, bool, When, CommandFlags)" />
-        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
+        /// <summary>
+        /// Set key to hold the string value. If key already holds a value, it is overwritten, regardless of its type.
+        /// </summary>
+        /// <param name="key">The key of the string.</param>
+        /// <param name="value">The value to set.</param>
+        /// <param name="expiry">The expiry to set.</param>
+        /// <param name="when">Which condition to set the value under (defaults to always).</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns><see langword="true"/> if the string was set, <see langword="false"/> otherwise.</returns>
+        /// <remarks>https://redis.io/commands/set</remarks>
         Task<bool> StringSetAsync(RedisKey key, RedisValue value, TimeSpan? expiry, When when, CommandFlags flags);
 
         /// <summary>

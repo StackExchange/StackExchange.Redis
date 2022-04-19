@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
@@ -133,14 +132,7 @@ public class Naming : TestBase
             var pFrom = method.GetParameters();
             Type[] args = pFrom.Select(x => x.ParameterType).ToArray();
             Log("Checking: {0}.{1}", from.Name, method.Name);
-            if (method.GetCustomAttribute<EditorBrowsableAttribute>() is EditorBrowsableAttribute attr && attr.State == EditorBrowsableState.Never)
-            {
-                // For compatibility overloads, explicitly don't ensure CommandFlags is last
-            }
-            else
-            {
-                Assert.Equal(typeof(CommandFlags), args.Last());
-            }
+            Assert.Equal(typeof(CommandFlags), args.Last());
             var found = to.GetMethod(huntName, flags, null, method.CallingConvention, args, null);
             Assert.NotNull(found); // "Found " + name + ", no " + huntName
             var pTo = found.GetParameters();
