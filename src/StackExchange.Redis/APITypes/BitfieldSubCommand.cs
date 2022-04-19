@@ -151,7 +151,7 @@ public sealed class BitfieldIncrby : BitfieldSubCommand
         Increment = increment;
     }
 
-    internal override int NumArgs => 4;
+    internal override int NumArgs => OverflowHandling == BitfieldOverflowHandling.Wrap ? 4 : 6;
 
     internal override void AddArgs(IList<RedisValue> args)
     {
