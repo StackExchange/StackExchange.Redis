@@ -90,6 +90,7 @@ internal enum RedisCommand
     LINSERT,
     LLEN,
     LMOVE,
+    LMPOP,
     LPOP,
     LPOS,
     LPUSH,
@@ -212,6 +213,7 @@ internal enum RedisCommand
     ZINTERCARD,
     ZINTERSTORE,
     ZLEXCOUNT,
+    ZMPOP,
     ZMSCORE,
     ZPOPMAX,
     ZPOPMIN,
@@ -284,6 +286,7 @@ internal static class RedisCommandExtensions
             case RedisCommand.INCRBYFLOAT:
             case RedisCommand.LINSERT:
             case RedisCommand.LMOVE:
+            case RedisCommand.LMPOP:
             case RedisCommand.LPOP:
             case RedisCommand.LPUSH:
             case RedisCommand.LPUSHX:
@@ -335,6 +338,7 @@ internal static class RedisCommandExtensions
             case RedisCommand.ZDIFFSTORE:
             case RedisCommand.ZINTERSTORE:
             case RedisCommand.ZINCRBY:
+            case RedisCommand.ZMPOP:
             case RedisCommand.ZPOPMAX:
             case RedisCommand.ZPOPMIN:
             case RedisCommand.ZRANGESTORE:
