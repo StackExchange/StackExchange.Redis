@@ -116,6 +116,12 @@ namespace StackExchange.Redis
         public static readonly SortedSetEntryArrayProcessor
             SortedSetWithScores = new SortedSetEntryArrayProcessor();
 
+        public static readonly SortedSetPopResultProcessor
+            SortedSetPopResult = new SortedSetPopResultProcessor();
+
+        public static readonly ListPopResultProcessor
+            ListPopResult = new ListPopResultProcessor();
+
         public static readonly SingleStreamProcessor
             SingleStream = new SingleStreamProcessor();
 
@@ -569,6 +575,49 @@ namespace StackExchange.Redis
             protected override SortedSetEntry Parse(in RawResult first, in RawResult second) =>
                 new SortedSetEntry(first.AsRedisValue(), second.TryGetDouble(out double val) ? val : double.NaN);
         }
+
+        internal sealed class SortedSetPopResultProcessor : ResultProcessor<SortedSetPopResult>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                if (result.Type == ResultType.MultiBulk)
+                {
+                    if (result.IsNull)
+                    {
+                        SetResult(message, Redis.SortedSetPopResult.Null);
+                        return true;
+                    }
+
+                    var arr = result.GetItems();
+                    SetResult(message, new SortedSetPopResult(arr[0].AsRedisKey(), arr[1].GetItemsAsSortedSetEntryArray()!));
+                    return true;
+                }
+
+                return false;
+            }
+        }
+
+        internal sealed class ListPopResultProcessor : ResultProcessor<ListPopResult>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                if (result.Type == ResultType.MultiBulk)
+                {
+                    if (result.IsNull)
+                    {
+                        SetResult(message, Redis.ListPopResult.Null);
+                        return true;
+                    }
+
+                    var arr = result.GetItems();
+                    SetResult(message, new ListPopResult(arr[0].AsRedisKey(), arr[1].GetItemsAsValues()!));
+                    return true;
+                }
+
+                return false;
+            }
+        }
+
 
         internal sealed class HashEntryArrayProcessor : ValuePairInterleavedProcessorBase<HashEntry>
         {

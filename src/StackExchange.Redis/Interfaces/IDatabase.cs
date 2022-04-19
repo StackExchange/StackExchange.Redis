@@ -923,6 +923,17 @@ namespace StackExchange.Redis
         RedisValue[] ListLeftPop(RedisKey key, long count, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Removes and returns at most <paramref name="count"/> elements from the first non-empty list in <paramref name="keys"/>.
+        /// Starts on the left side of the list.
+        /// </summary>
+        /// <param name="keys">The keys to look through for elements to pop.</param>
+        /// <param name="count">The maximum number of elements to pop from the list.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>A span of contiguous elements from the list, or <see cref="ListPopResult.Null"/> if no non-empty lists are found.</returns>
+        /// <remarks><seealso href="https://redis.io/commands/lmpop"/></remarks>
+        ListPopResult ListLeftPop(RedisKey[] keys, long count, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Scans through the list stored at <paramref name="key"/> looking for <paramref name="element"/>, returning the 0-based
         /// index of the first matching element.
         /// </summary>
@@ -1064,6 +1075,17 @@ namespace StackExchange.Redis
         /// <returns>Array of values that were popped, or nil if the key doesn't exist.</returns>
         /// <remarks><seealso href="https://redis.io/commands/rpop"/></remarks>
         RedisValue[] ListRightPop(RedisKey key, long count, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Removes and returns at most <paramref name="count"/> elements from the first non-empty list in <paramref name="keys"/>.
+        /// Starts on the right side of the list.
+        /// </summary>
+        /// <param name="keys">The keys to look through for elements to pop.</param>
+        /// <param name="count">The maximum number of elements to pop from the list.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>A span of contiguous elements from the list, or <see cref="ListPopResult.Null"/> if no non-empty lists are found.</returns>
+        /// <remarks><seealso href="https://redis.io/commands/lmpop"/></remarks>
+        ListPopResult ListRightPop(RedisKey[] keys, long count, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Atomically returns and removes the last element (tail) of the list stored at source, and pushes the element at the first element (head) of the list stored at destination.
@@ -2109,6 +2131,18 @@ namespace StackExchange.Redis
         /// <seealso href="https://redis.io/commands/zpopmax"/>
         /// </remarks>
         SortedSetEntry[] SortedSetPop(RedisKey key, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Removes and returns up to <paramref name="count"/> entries from the first non-empty sorted set in <paramref name="keys"/>.
+        /// Returns <see cref="SortedSetPopResult.Null"/> if none of the sets exist or contain any elements.
+        /// </summary>
+        /// <param name="keys">The keys to check.</param>
+        /// <param name="count">The maximum number of records to pop out of the sorted set.</param>
+        /// <param name="order">The order to sort by when popping items out of the set.</param>
+        /// <param name="flags">The flags to use for the operation.</param>
+        /// <returns>A contiguous collection of sorted set entries with the key they were popped from, or <see cref="SortedSetPopResult.Null"/> if no non-empty sorted sets are found.</returns>
+        /// <remarks><seealso href="https://redis.io/commands/zmpop"/></remarks>
+        SortedSetPopResult SortedSetPop(RedisKey[] keys, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Allow the consumer to mark a pending message as correctly processed. Returns the number of messages acknowledged.
