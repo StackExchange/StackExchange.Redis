@@ -39,7 +39,7 @@ public class AsyncTests : TestBase
         Assert.NotNull(c.Exception);
         var ex = c.Exception.InnerExceptions.Single();
         Assert.IsType<RedisConnectionException>(ex);
-        Assert.StartsWith("No connection is active/available to service this operation: SADD " + key.ToString(), ex.Message);
+        Assert.StartsWith("No connection (requires writable - not eligible for replica) is active/available to service this operation: SADD " + key.ToString(), ex.Message);
     }
 
     [Fact]

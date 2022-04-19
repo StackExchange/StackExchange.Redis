@@ -27,6 +27,16 @@ public class Streams : TestBase
     }
 
     [Fact]
+    public void StreamOpsFailOnReplica()
+    {
+        using var conn = Create(configuration: TestConfig.Current.ReplicaServerAndPort, require: RedisFeatures.v5_0_0);
+
+        var db = conn.GetDatabase();
+        var ex = Assert.Throws<RedisConnectionException>(() => db.StreamAdd(GetUniqueKey("auto_id"), "field1", "value1"));
+        Assert.StartsWith("No connection (requires writable - not eligible for replica) is active/available", ex.Message);
+    }
+
+    [Fact]
     public void StreamAddSinglePairWithAutoId()
     {
         using var conn = Create(require: RedisFeatures.v5_0_0);

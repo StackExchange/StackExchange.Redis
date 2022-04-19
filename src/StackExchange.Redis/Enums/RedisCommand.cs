@@ -322,6 +322,7 @@ internal static class RedisCommandExtensions
             case RedisCommand.SWAPDB:
             case RedisCommand.TOUCH:
             case RedisCommand.UNLINK:
+            case RedisCommand.XADD:
             case RedisCommand.ZADD:
             case RedisCommand.ZDIFFSTORE:
             case RedisCommand.ZINTERSTORE:
@@ -429,7 +430,6 @@ internal static class RedisCommandExtensions
             case RedisCommand.UNWATCH:
             case RedisCommand.WATCH:
             case RedisCommand.XACK:
-            case RedisCommand.XADD:
             case RedisCommand.XCLAIM:
             case RedisCommand.XDEL:
             case RedisCommand.XGROUP:
