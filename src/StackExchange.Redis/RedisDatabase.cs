@@ -2722,19 +2722,29 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
-        public long StringBitfieldGet(RedisKey key, BitfieldEncoding encoding, BitfieldOffset offset,
-            CommandFlags flags = CommandFlags.None) =>
-            throw new NotImplementedException();
+        public long StringBitfieldGet(RedisKey key, BitfieldEncoding encoding, BitfieldOffset offset, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetBitfieldMessage(key, new BitfieldGet(encoding, offset), flags);
+            return ExecuteSync(msg, ResultProcessor.Int64);
+        }
 
-        public long StringBitfieldSet(RedisKey key, BitfieldEncoding encoding, BitfieldOffset offset, long value,
-            CommandFlags flags = CommandFlags.None) =>
-            throw new NotImplementedException();
+        public long StringBitfieldSet(RedisKey key, BitfieldEncoding encoding, BitfieldOffset offset, long value, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetBitfieldMessage(key, new BitfieldSet(encoding, offset, value), flags);
+            return ExecuteSync(msg, ResultProcessor.Int64);
+        }
 
-        public long? StringBitfieldIncrement(RedisKey key, BitfieldEncoding encoding, BitfieldOffset offset, long increment,
-            BitfieldOverflowHandling overflowHandling = BitfieldOverflowHandling.Wrap, CommandFlags flags = CommandFlags.None) =>
-            throw new NotImplementedException();
+        public long? StringBitfieldIncrement(RedisKey key, BitfieldEncoding encoding, BitfieldOffset offset, long increment, BitfieldOverflowHandling overflowHandling = BitfieldOverflowHandling.Wrap, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetBitfieldMessage(key, new BitfieldIncrby(encoding, offset, increment, overflowHandling), flags);
+            return ExecuteSync(msg, ResultProcessor.NullableInt64);
+        }
 
-        public long?[] StringBitfield(RedisKey key, BitfieldSubCommand[] subcommands, CommandFlags flags = CommandFlags.None) => throw new NotImplementedException();
+        public long?[] StringBitfield(RedisKey key, BitfieldSubCommand[] subcommands, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetBitfieldMessage(key, subcommands, flags);
+            return ExecuteSync(msg, ResultProcessor.NullableInt64Array, defaultValue: Array.Empty<long?>());
+        }
 
         public Task<long> StringBitCountAsync(RedisKey key, long start = 0, long end = -1, CommandFlags flags = CommandFlags.None)
         {
@@ -2742,19 +2752,29 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
-        public Task<long> StringBitfieldGetAsync(RedisKey key, BitfieldEncoding encoding, BitfieldOffset offset,
-            CommandFlags flags = CommandFlags.None) =>
-            throw new NotImplementedException();
+        public Task<long> StringBitfieldGetAsync(RedisKey key, BitfieldEncoding encoding, BitfieldOffset offset, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetBitfieldMessage(key, new BitfieldGet(encoding, offset), flags);
+            return ExecuteAsync(msg, ResultProcessor.Int64);
+        }
 
-        public Task<long> StringBitfieldSetAsync(RedisKey key, BitfieldEncoding encoding, BitfieldOffset offset, long value,
-            CommandFlags flags = CommandFlags.None) =>
-            throw new NotImplementedException();
+        public Task<long> StringBitfieldSetAsync(RedisKey key, BitfieldEncoding encoding, BitfieldOffset offset, long value, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetBitfieldMessage(key, new BitfieldSet(encoding, offset, value), flags);
+            return ExecuteAsync(msg, ResultProcessor.Int64);
+        }
 
-        public Task<long?> StringBitfieldIncrementAsync(RedisKey key, BitfieldEncoding encoding, BitfieldOffset offset, long increment,
-            BitfieldOverflowHandling overflowHandling = BitfieldOverflowHandling.Wrap, CommandFlags flags = CommandFlags.None) =>
-            throw new NotImplementedException();
+        public Task<long?> StringBitfieldIncrementAsync(RedisKey key, BitfieldEncoding encoding, BitfieldOffset offset, long increment, BitfieldOverflowHandling overflowHandling = BitfieldOverflowHandling.Wrap, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetBitfieldMessage(key, new BitfieldIncrby(encoding, offset, increment, overflowHandling), flags);
+            return ExecuteAsync(msg, ResultProcessor.NullableInt64);
+        }
 
-        public Task<long?[]> StringBitfieldAsync(RedisKey key, BitfieldSubCommand[] subcommands, CommandFlags flags = CommandFlags.None) => throw new NotImplementedException();
+        public Task<long?[]> StringBitfieldAsync(RedisKey key, BitfieldSubCommand[] subcommands, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetBitfieldMessage(key, subcommands, flags);
+            return ExecuteAsync(msg, ResultProcessor.NullableInt64Array, defaultValue: Array.Empty<long?>());
+        }
 
         public long StringBitOperation(Bitwise operation, RedisKey destination, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None)
         {

@@ -64,6 +64,9 @@ namespace StackExchange.Redis
         public static readonly ResultProcessor<double?[]>
                             NullableDoubleArray = new NullableDoubleArrayProcessor();
 
+        public static readonly ResultProcessor<long?[]>
+            NullableInt64Array = new NullableInt64ArrayProcessor();
+
         public static readonly ResultProcessor<long?>
             NullableInt64 = new NullableInt64Processor();
 
@@ -1126,6 +1129,14 @@ namespace StackExchange.Redis
                             return true;
                         }
                         break;
+                    case ResultType.MultiBulk:
+                        if (result.GetItems()[0].TryGetInt64(out i64))
+                        {
+                            SetResult(message, i64);
+                            return true;
+                        }
+
+                        break;
                 }
                 return false;
             }
@@ -1145,6 +1156,21 @@ namespace StackExchange.Redis
                     }
                 }
                 return base.SetResultCore(connection, message, result);
+            }
+        }
+
+
+        private sealed class NullableInt64ArrayProcessor : ResultProcessor<long?[]>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                if (result.Type == ResultType.MultiBulk && !result.IsNull)
+                {
+                    var arr = result.GetItemsAsInt64s()!;
+                    SetResult(message, arr);
+                    return true;
+                }
+                return false;
             }
         }
 
@@ -1208,6 +1234,21 @@ namespace StackExchange.Redis
                             SetResult(message, i64);
                             return true;
                         }
+                        break;
+                    case ResultType.MultiBulk:
+                        var item = result.GetItems()[0];
+                        if (item.IsNull)
+                        {
+                            SetResult(message, null);
+                            return true;
+                        }
+
+                        if (item.TryGetInt64(out i64))
+                        {
+                            SetResult(message, i64);
+                            return true;
+                        }
+
                         break;
                 }
                 return false;

@@ -122,6 +122,9 @@ public sealed class BitfieldIncrby : BitfieldSubCommand
     /// </summary>
     public long Increment { get; }
 
+    /// <summary>
+    /// Determines how overflows are handled for the bitfield.
+    /// </summary>
     public BitfieldOverflowHandling OverflowHandling { get; }
 
     /// <summary>

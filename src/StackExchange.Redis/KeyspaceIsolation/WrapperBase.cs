@@ -585,6 +585,19 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<long> StringBitCountAsync(RedisKey key, long start = 0, long end = -1, CommandFlags flags = CommandFlags.None) =>
             Inner.StringBitCountAsync(ToInner(key), start, end, flags);
 
+        public Task<long> StringBitfieldGetAsync(RedisKey key, BitfieldEncoding encoding, BitfieldOffset offset,
+            CommandFlags flags = CommandFlags.None) =>
+            Inner.StringBitfieldGetAsync(ToInner(key), encoding, offset, flags);
+
+        public Task<long> StringBitfieldSetAsync(RedisKey key, BitfieldEncoding encoding, BitfieldOffset offset, long value, CommandFlags flags = CommandFlags.None) =>
+            Inner.StringBitfieldSetAsync(ToInner(key), encoding, offset, value, flags);
+
+        public Task<long?> StringBitfieldIncrementAsync(RedisKey key, BitfieldEncoding encoding, BitfieldOffset offset, long increment, BitfieldOverflowHandling overflowHandling = BitfieldOverflowHandling.Wrap, CommandFlags flags = CommandFlags.None) =>
+            Inner.StringBitfieldIncrementAsync(ToInner(key), encoding, offset, increment, overflowHandling, flags);
+
+        public Task<long?[]> StringBitfieldAsync(RedisKey key, BitfieldSubCommand[] subcommands, CommandFlags flags = CommandFlags.None) =>
+            Inner.StringBitfieldAsync(ToInner(key), subcommands, flags);
+
         public Task<long> StringBitOperationAsync(Bitwise operation, RedisKey destination, RedisKey[] keys, CommandFlags flags = CommandFlags.None) =>
             Inner.StringBitOperationAsync(operation, ToInner(destination), ToInner(keys), flags);
 
