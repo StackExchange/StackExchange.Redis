@@ -4,31 +4,28 @@ using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace StackExchange.Redis.Tests.Issues
+namespace StackExchange.Redis.Tests.Issues;
+
+public class SO10825542 : TestBase
 {
-    public class SO10825542 : TestBase
+    public SO10825542(ITestOutputHelper output) : base(output) { }
+
+    [Fact]
+    public async Task Execute()
     {
-        public SO10825542(ITestOutputHelper output) : base(output) { }
+        using var conn = Create();
+        var key = Me();
 
-        [Fact]
-        public async Task Execute()
-        {
-            using (var muxer = Create())
-            {
-                var key = Me();
+        var db = conn.GetDatabase();
+        // set the field value and expiration
+        _ = db.HashSetAsync(key, "field1", Encoding.UTF8.GetBytes("hello world"));
+        _ = db.KeyExpireAsync(key, TimeSpan.FromSeconds(7200));
+        _ = db.HashSetAsync(key, "field2", "fooobar");
+        var result = await db.HashGetAllAsync(key).ForAwait();
 
-                var con = muxer.GetDatabase();
-                // set the field value and expiration
-                _ = con.HashSetAsync(key, "field1", Encoding.UTF8.GetBytes("hello world"));
-                _ = con.KeyExpireAsync(key, TimeSpan.FromSeconds(7200));
-                _ = con.HashSetAsync(key, "field2", "fooobar");
-                var result = await con.HashGetAllAsync(key).ForAwait();
-
-                Assert.Equal(2, result.Length);
-                var dict = result.ToStringDictionary();
-                Assert.Equal("hello world", dict["field1"]);
-                Assert.Equal("fooobar", dict["field2"]);
-            }
-        }
+        Assert.Equal(2, result.Length);
+        var dict = result.ToStringDictionary();
+        Assert.Equal("hello world", dict["field1"]);
+        Assert.Equal("fooobar", dict["field2"]);
     }
 }

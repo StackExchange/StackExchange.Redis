@@ -1,15 +1,13 @@
-﻿using System;
-using StackExchange.Redis.Profiling;
+﻿using StackExchange.Redis.Profiling;
 
-namespace StackExchange.Redis.Tests
+namespace StackExchange.Redis.Tests;
+
+public static class TestExtensions
 {
-    public static class TestExtensions
+    public static ProfilingSession AddProfiler(this IConnectionMultiplexer mutex)
     {
-        public static ProfilingSession AddProfiler(this IConnectionMultiplexer mutex)
-        {
-            var session = new ProfilingSession();
-            mutex.RegisterProfiler(() => session);
-            return session;
-        }
+        var session = new ProfilingSession();
+        mutex.RegisterProfiler(() => session);
+        return session;
     }
 }

@@ -46,6 +46,8 @@ namespace StackExchange.Redis
             AGGREGATE = "AGGREGATE",
             ALPHA = "ALPHA",
             AND = "AND",
+            ANY = "ANY",
+            ASC = "ASC",
             BEFORE = "BEFORE",
             BY = "BY",
             BYLEX = "BYLEX",
@@ -63,6 +65,7 @@ namespace StackExchange.Redis
             FLUSH = "FLUSH",
             GET = "GET",
             GETNAME = "GETNAME",
+            GT = "GT",
             HISTORY = "HISTORY",
             ID = "ID",
             IDX="IDX",
@@ -75,6 +78,7 @@ namespace StackExchange.Redis
             LIMIT = "LIMIT",
             LIST = "LIST",
             LOAD = "LOAD",
+            LT = "LT",
             MATCH = "MATCH",
             MALLOC_STATS = "MALLOC-STATS",
             MAX = "MAX",
@@ -143,6 +147,22 @@ namespace StackExchange.Redis
             MinusSymbol = "-",
             PlusSumbol = "+",
             Wildcard = "*",
+
+            // Geo Radius/Search Literals
+            BYBOX = "BYBOX",
+            BYRADIUS = "BYRADIUS",
+            FROMMEMBER = "FROMMEMBER",
+            FROMLONLAT = "FROMLONLAT",
+            STOREDIST = "STOREDIST",
+            WITHCOORD = "WITHCOORD",
+            WITHDIST = "WITHDIST",
+            WITHHASH = "WITHHASH",
+
+            // geo units
+            ft = "ft",
+            km = "km",
+            m = "m",
+            mi = "mi",
 
             // misc (config, etc)
             databases = "databases",

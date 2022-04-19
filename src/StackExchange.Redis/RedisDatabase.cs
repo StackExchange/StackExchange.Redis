@@ -170,16 +170,57 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.RedisGeoPosition);
         }
 
-        private static readonly RedisValue
-            WITHCOORD = Encoding.ASCII.GetBytes("WITHCOORD"),
-            WITHDIST = Encoding.ASCII.GetBytes("WITHDIST"),
-            WITHHASH = Encoding.ASCII.GetBytes("WITHHASH"),
-            COUNT = Encoding.ASCII.GetBytes("COUNT"),
-            ASC = Encoding.ASCII.GetBytes("ASC"),
-            DESC = Encoding.ASCII.GetBytes("DESC");
+        private Message GetGeoSearchMessage(in RedisKey sourceKey, in RedisKey destinationKey, RedisValue? member, double longitude, double latitude, GeoSearchShape shape, int count, bool demandClosest, bool storeDistances, Order? order, GeoRadiusOptions options, CommandFlags flags)
+        {
+            var redisValues = new List<RedisValue>(15);
+            if (member != null)
+            {
+                redisValues.Add(RedisLiterals.FROMMEMBER);
+                redisValues.Add(member.Value);
+            }
+            else
+            {
+                redisValues.Add(RedisLiterals.FROMLONLAT);
+                redisValues.Add(longitude);
+                redisValues.Add(latitude);
+            }
+
+            shape.AddArgs(redisValues);
+
+            if (order != null)
+            {
+                redisValues.Add(order.Value.ToLiteral());
+            }
+            if (count >= 0)
+            {
+                redisValues.Add(RedisLiterals.COUNT);
+                redisValues.Add(count);
+            }
+
+            if (!demandClosest)
+            {
+                if (count < 0)
+                {
+                    throw new ArgumentException($"{nameof(demandClosest)} must be true if you are not limiting the count for a GEOSEARCH");
+                }
+                redisValues.Add(RedisLiterals.ANY);
+            }
+
+            options.AddArgs(redisValues);
+
+            if (storeDistances)
+            {
+                redisValues.Add(RedisLiterals.STOREDIST);
+            }
+
+            return destinationKey.IsNull
+                ? Message.Create(Database, flags, RedisCommand.GEOSEARCH, sourceKey, redisValues.ToArray())
+                : Message.Create(Database, flags, RedisCommand.GEOSEARCHSTORE, destinationKey, sourceKey, redisValues.ToArray());
+        }
+
         private Message GetGeoRadiusMessage(in RedisKey key, RedisValue? member, double longitude, double latitude, double radius, GeoUnit unit, int count, Order? order, GeoRadiusOptions options, CommandFlags flags)
         {
-            var redisValues = new List<RedisValue>();
+            var redisValues = new List<RedisValue>(10);
             RedisCommand command;
             if (member == null)
             {
@@ -192,24 +233,19 @@ namespace StackExchange.Redis
                 redisValues.Add(member.Value);
                 command = RedisCommand.GEORADIUSBYMEMBER;
             }
+
             redisValues.Add(radius);
-            redisValues.Add(StackExchange.Redis.GeoPosition.GetRedisUnit(unit));
-            if ((options & GeoRadiusOptions.WithCoordinates) != 0) redisValues.Add(WITHCOORD);
-            if ((options & GeoRadiusOptions.WithDistance) != 0) redisValues.Add(WITHDIST);
-            if ((options & GeoRadiusOptions.WithGeoHash) != 0) redisValues.Add(WITHHASH);
+            redisValues.Add(Redis.GeoPosition.GetRedisUnit(unit));
+            options.AddArgs(redisValues);
+
             if (count > 0)
             {
-                redisValues.Add(COUNT);
+                redisValues.Add(RedisLiterals.COUNT);
                 redisValues.Add(count);
             }
             if (order != null)
             {
-                switch (order.Value)
-                {
-                    case Order.Ascending: redisValues.Add(ASC); break;
-                    case Order.Descending: redisValues.Add(DESC); break;
-                    default: throw new ArgumentOutOfRangeException(nameof(order));
-                }
+                redisValues.Add(order.Value.ToLiteral());
             }
 
             return Message.Create(Database, flags, command, key, redisValues.ToArray());
@@ -243,6 +279,54 @@ namespace StackExchange.Redis
         public Task<GeoRadiusResult[]> GeoRadiusAsync(RedisKey key, double longitude, double latitude, double radius, GeoUnit unit, int count, Order? order, GeoRadiusOptions options, CommandFlags flags)
         {
             return ExecuteAsync(GetGeoRadiusMessage(key, null, longitude, latitude, radius, unit, count, order, options, flags), ResultProcessor.GeoRadiusArray(options), defaultValue: Array.Empty<GeoRadiusResult>());
+        }
+
+        public GeoRadiusResult[] GeoSearch(RedisKey key, RedisValue member, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, GeoRadiusOptions options = GeoRadiusOptions.Default, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetGeoSearchMessage(key, RedisKey.Null, member, double.NaN, double.NaN, shape, count, demandClosest, false, order, options, flags);
+            return ExecuteSync(msg, ResultProcessor.GeoRadiusArray(options), defaultValue: Array.Empty<GeoRadiusResult>());
+        }
+
+        public GeoRadiusResult[] GeoSearch(RedisKey key, double longitude, double latitude, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, GeoRadiusOptions options = GeoRadiusOptions.Default, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetGeoSearchMessage(key, RedisKey.Null, null, longitude, latitude, shape, count, demandClosest, false, order, options, flags);
+            return ExecuteSync(msg, ResultProcessor.GeoRadiusArray(options), defaultValue: Array.Empty<GeoRadiusResult>());
+        }
+
+        public Task<GeoRadiusResult[]> GeoSearchAsync(RedisKey key, RedisValue member, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, GeoRadiusOptions options = GeoRadiusOptions.Default, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetGeoSearchMessage(key, RedisKey.Null, member, double.NaN, double.NaN, shape, count, demandClosest, false, order, options, flags);
+            return ExecuteAsync(msg, ResultProcessor.GeoRadiusArray(options), defaultValue: Array.Empty<GeoRadiusResult>());
+        }
+
+        public Task<GeoRadiusResult[]> GeoSearchAsync(RedisKey key, double longitude, double latitude, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, GeoRadiusOptions options = GeoRadiusOptions.Default, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetGeoSearchMessage(key, RedisKey.Null, null, longitude, latitude, shape, count, demandClosest, false, order, options, flags);
+            return ExecuteAsync(msg, ResultProcessor.GeoRadiusArray(options), defaultValue: Array.Empty<GeoRadiusResult>());
+        }
+
+        public long GeoSearchAndStore(RedisKey sourceKey, RedisKey destinationKey, RedisValue member, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, bool storeDistances = false, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetGeoSearchMessage(sourceKey, destinationKey, member, double.NaN, double.NaN, shape, count, demandClosest, storeDistances, order, GeoRadiusOptions.None, flags);
+            return ExecuteSync(msg, ResultProcessor.Int64);
+        }
+
+        public long GeoSearchAndStore(RedisKey sourceKey, RedisKey destinationKey, double longitude, double latitude, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, bool storeDistances = false, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetGeoSearchMessage(sourceKey, destinationKey, null, longitude, latitude, shape, count, demandClosest, storeDistances, order, GeoRadiusOptions.None, flags);
+            return ExecuteSync(msg, ResultProcessor.Int64);
+        }
+
+        public Task<long> GeoSearchAndStoreAsync(RedisKey sourceKey, RedisKey destinationKey, RedisValue member, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, bool storeDistances = false, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetGeoSearchMessage(sourceKey, destinationKey, member, double.NaN, double.NaN, shape, count, demandClosest, storeDistances, order, GeoRadiusOptions.None, flags);
+            return ExecuteAsync(msg, ResultProcessor.Int64);
+        }
+
+        public Task<long> GeoSearchAndStoreAsync(RedisKey sourceKey, RedisKey destinationKey, double longitude, double latitude, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, bool storeDistances = false, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetGeoSearchMessage(sourceKey, destinationKey, null, longitude, latitude, shape, count, demandClosest, storeDistances, order, GeoRadiusOptions.None, flags);
+            return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
         public long HashDecrement(RedisKey key, RedisValue hashField, long value = 1, CommandFlags flags = CommandFlags.None)
@@ -745,28 +829,52 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
-        public bool KeyExpire(RedisKey key, TimeSpan? expiry, CommandFlags flags = CommandFlags.None)
+        public bool KeyExpire(RedisKey key, TimeSpan? expiry, CommandFlags flags = CommandFlags.None) =>
+            KeyExpire(key, expiry, ExpireWhen.Always, flags);
+
+        public bool KeyExpire(RedisKey key, DateTime? expiry, CommandFlags flags = CommandFlags.None) =>
+            KeyExpire(key, expiry, ExpireWhen.Always, flags);
+
+        public bool KeyExpire(RedisKey key, TimeSpan? expiry, ExpireWhen when, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetExpiryMessage(key, flags, expiry, out ServerEndPoint? server);
+            var msg = GetExpiryMessage(key, flags, expiry, when, out ServerEndPoint? server);
             return ExecuteSync(msg, ResultProcessor.Boolean, server: server);
         }
 
-        public bool KeyExpire(RedisKey key, DateTime? expiry, CommandFlags flags = CommandFlags.None)
+        public bool KeyExpire(RedisKey key, DateTime? expiry, ExpireWhen when, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetExpiryMessage(key, flags, expiry, out ServerEndPoint? server);
+            var msg = GetExpiryMessage(key, flags, expiry, when, out ServerEndPoint? server);
             return ExecuteSync(msg, ResultProcessor.Boolean, server: server);
         }
 
-        public Task<bool> KeyExpireAsync(RedisKey key, TimeSpan? expiry, CommandFlags flags = CommandFlags.None)
+        public Task<bool> KeyExpireAsync(RedisKey key, TimeSpan? expiry, CommandFlags flags = CommandFlags.None) =>
+            KeyExpireAsync(key, expiry, ExpireWhen.Always, flags);
+
+        public Task<bool> KeyExpireAsync(RedisKey key, DateTime? expiry, CommandFlags flags = CommandFlags.None) =>
+            KeyExpireAsync(key, expiry, ExpireWhen.Always, flags);
+
+        public Task<bool> KeyExpireAsync(RedisKey key, TimeSpan? expiry, ExpireWhen when, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetExpiryMessage(key, flags, expiry, out ServerEndPoint? server);
+            var msg = GetExpiryMessage(key, flags, expiry, when, out ServerEndPoint? server);
             return ExecuteAsync(msg, ResultProcessor.Boolean, server: server);
         }
 
-        public Task<bool> KeyExpireAsync(RedisKey key, DateTime? expiry, CommandFlags flags = CommandFlags.None)
+        public Task<bool> KeyExpireAsync(RedisKey key, DateTime? expire, ExpireWhen when, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetExpiryMessage(key, flags, expiry, out ServerEndPoint? server);
+            var msg = GetExpiryMessage(key, flags, expire, when, out ServerEndPoint? server);
             return ExecuteAsync(msg, ResultProcessor.Boolean, server: server);
+        }
+
+        public DateTime? KeyExpireTime(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.PEXPIRETIME, key);
+            return ExecuteSync(msg, ResultProcessor.NullableDateTimeFromMilliseconds);
+        }
+
+        public Task<DateTime?> KeyExpireTimeAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.PEXPIRETIME, key);
+            return ExecuteAsync(msg, ResultProcessor.NullableDateTimeFromMilliseconds);
         }
 
         public TimeSpan? KeyIdleTime(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -2971,48 +3079,67 @@ namespace StackExchange.Redis
                 _               => Message.Create(Database, flags, RedisCommand.COPY, sourceKey, destinationKey, RedisLiterals.DB, destinationDatabase),
             };
 
-        private Message GetExpiryMessage(in RedisKey key, CommandFlags flags, TimeSpan? expiry, out ServerEndPoint? server)
+        private Message GetExpiryMessage(in RedisKey key, CommandFlags flags, TimeSpan? expiry, ExpireWhen when, out ServerEndPoint? server)
         {
-            TimeSpan duration;
-            if (expiry == null || (duration = expiry.Value) == TimeSpan.MaxValue)
+            if (expiry is null || expiry.Value == TimeSpan.MaxValue)
             {
                 server = null;
-                return Message.Create(Database, flags, RedisCommand.PERSIST, key);
-            }
-            long milliseconds = duration.Ticks / TimeSpan.TicksPerMillisecond;
-            if ((milliseconds % 1000) != 0)
-            {
-                var features = GetFeatures(key, flags, out server);
-                if (server != null && features.MillisecondExpiry && multiplexer.CommandMap.IsAvailable(RedisCommand.PEXPIRE))
+                return when switch
                 {
-                    return Message.Create(Database, flags, RedisCommand.PEXPIRE, key, milliseconds);
-                }
+                    ExpireWhen.Always => Message.Create(Database, flags, RedisCommand.PERSIST, key),
+                    _ => throw new ArgumentException("PERSIST cannot be used with when.")
+                };
             }
-            server = null;
-            long seconds = milliseconds / 1000;
-            return Message.Create(Database, flags, RedisCommand.EXPIRE, key, seconds);
+
+            long milliseconds = expiry.Value.Ticks / TimeSpan.TicksPerMillisecond;
+            return GetExpiryMessage(key, RedisCommand.PEXPIRE, RedisCommand.EXPIRE, milliseconds, when, flags, out server);
         }
 
-        private Message GetExpiryMessage(in RedisKey key, CommandFlags flags, DateTime? expiry, out ServerEndPoint? server)
+        private Message GetExpiryMessage(in RedisKey key, CommandFlags flags, DateTime? expiry, ExpireWhen when, out ServerEndPoint? server)
         {
-            DateTime when;
-            if (expiry == null || (when = expiry.Value) == DateTime.MaxValue)
+            if (expiry is null || expiry == DateTime.MaxValue)
             {
                 server = null;
-                return Message.Create(Database, flags, RedisCommand.PERSIST, key);
+                return when switch
+                {
+                    ExpireWhen.Always => Message.Create(Database, flags, RedisCommand.PERSIST, key),
+                    _ => throw new ArgumentException("PERSIST cannot be used with when.")
+                };
             }
-            long milliseconds = GetMillisecondsUntil(when);
+
+            long milliseconds = GetMillisecondsUntil(expiry.Value);
+            return GetExpiryMessage(key, RedisCommand.PEXPIREAT, RedisCommand.EXPIREAT, milliseconds, when, flags, out server);
+        }
+
+        private Message GetExpiryMessage(in RedisKey key,
+            RedisCommand millisecondsCommand,
+            RedisCommand secondsCommand,
+            long milliseconds,
+            ExpireWhen when,
+            CommandFlags flags,
+            out ServerEndPoint? server)
+        {
+            server = null;
             if ((milliseconds % 1000) != 0)
             {
                 var features = GetFeatures(key, flags, out server);
-                if (server != null && features.MillisecondExpiry && multiplexer.CommandMap.IsAvailable(RedisCommand.PEXPIREAT))
+                if (server is not null && features.MillisecondExpiry && multiplexer.CommandMap.IsAvailable(millisecondsCommand))
                 {
-                    return Message.Create(Database, flags, RedisCommand.PEXPIREAT, key, milliseconds);
+                    return when switch
+                    {
+                        ExpireWhen.Always => Message.Create(Database, flags, millisecondsCommand, key, milliseconds),
+                        _ => Message.Create(Database, flags, millisecondsCommand, key, milliseconds, when.ToLiteral())
+                    };
                 }
+                server = null;
             }
-            server = null;
+
             long seconds = milliseconds / 1000;
-            return Message.Create(Database, flags, RedisCommand.EXPIREAT, key, seconds);
+            return when switch
+            {
+                ExpireWhen.Always => Message.Create(Database, flags, secondsCommand, key, seconds),
+                _ => Message.Create(Database, flags, secondsCommand, key, seconds, when.ToLiteral())
+            };
         }
 
         private Message? GetHashSetMessage(RedisKey key, HashEntry[] hashFields, CommandFlags flags)
