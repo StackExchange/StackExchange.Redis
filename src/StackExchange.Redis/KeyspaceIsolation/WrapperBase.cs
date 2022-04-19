@@ -280,6 +280,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<bool> LockTakeAsync(RedisKey key, RedisValue value, TimeSpan expiry, CommandFlags flags = CommandFlags.None) =>
             Inner.LockTakeAsync(ToInner(key), value, expiry, flags);
 
+        public Task<LCSMatchResult> LongestCommonSubsequenceAsync(RedisKey key1, RedisKey key2, long minSubMatchLength = 0, LCSOptions options = LCSOptions.None, CommandFlags flags = CommandFlags.None) =>
+            Inner.LongestCommonSubsequenceAsync(ToInner(key1), ToInner(key2), minSubMatchLength, options, flags);
+
         public Task<long> PublishAsync(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None) =>
             Inner.PublishAsync(ToInner(channel), message, flags);
 

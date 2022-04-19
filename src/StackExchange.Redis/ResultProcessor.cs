@@ -135,6 +135,8 @@ namespace StackExchange.Redis
 
         public static ResultProcessor<GeoRadiusResult[]> GeoRadiusArray(GeoRadiusOptions options) => GeoRadiusResultArrayProcessor.Get(options);
 
+        public static ResultProcessor<LCSMatchResult> LCSResult(LCSOptions options) => LongestCommonSubsequenceProcessor.Get(options);
+
         public static readonly ResultProcessor<string?>
             String = new StringProcessor(),
             TieBreaker = new TieBreakerProcessor(),
@@ -1432,6 +1434,75 @@ The coordinates as a two items x,y array (longitude,latitude).
                     position = new GeoPosition(longitude, latitude);
                 }
                 return new GeoRadiusResult(member, distance, hash, position);
+            }
+        }
+
+        private sealed class LongestCommonSubsequenceProcessor : ResultProcessor<LCSMatchResult>
+        {
+            private static readonly LongestCommonSubsequenceProcessor[] instances;
+            private readonly LCSOptions options;
+            static LongestCommonSubsequenceProcessor()
+            {
+                instances = new LongestCommonSubsequenceProcessor[2];
+                for (int i = 0; i < 2; i++) instances[i] = new LongestCommonSubsequenceProcessor((LCSOptions)i);
+            }
+
+            public static LongestCommonSubsequenceProcessor Get(LCSOptions options)
+            {
+                int i = (int)options;
+                if (i < 0 || i >= instances.Length) throw new ArgumentOutOfRangeException(nameof(options));
+                return instances[i];
+            }
+
+            private LongestCommonSubsequenceProcessor(LCSOptions options)
+            {
+                this.options = options;
+            }
+
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                switch (result.Type)
+                {
+                    case ResultType.Integer:
+                    case ResultType.SimpleString:
+                    case ResultType.BulkString:
+                        SetResult(message, Parse(result, this.options));
+                        return true;
+                }
+                return false;
+            }
+
+            private static LCSMatchResult Parse(in RawResult result, LCSOptions options)
+            {
+                if (options == LCSOptions.None)
+                {
+                    // Without any option specified, the command just returns the string representing the longest common substring.
+                    return new LCSMatchResult(matchedString: result.AsRedisValue(), null, null);
+                }
+                else if (options == LCSOptions.Length)
+                {
+                    // If Length was option is specified, the command return an integer value that represents the length of the longest common substring.
+                    return new LCSMatchResult(null, null, matchLength: (long)result.AsRedisValue());
+                }
+                else
+                {
+                    // If WithMatchedPositions option is specified, the command returns an array of arrays, where each sub-array represents the the ranges in both the strings, start and end offset for each string.
+                    MatchedPosition[] matchedPositions = new MatchedPosition[result.GetItems().Length];
+                    int i = 0;
+                    var matches = result.GetItems()[1]; // skip the first element (title "matches")
+                    foreach (var match in matches.GetItems())
+                    {
+                        var firstMatch = match.GetItems()[0];
+                        var firstStringPositionRange = new PositionRange((long)firstMatch.GetItems()[0].AsRedisValue(), (long)firstMatch.GetItems()[1].AsRedisValue());
+                        var secondMatch = match.GetItems()[1];
+                        var secondStringPositionRange = new PositionRange((long)secondMatch.GetItems()[0].AsRedisValue(), (long)secondMatch.GetItems()[1].AsRedisValue());
+
+                        matchedPositions[i++] = new MatchedPosition(firstStringPositionRange, secondStringPositionRange);
+                    }
+                    var len = (long)result.GetItems()[3].AsRedisValue();
+
+                    return new LCSMatchResult(null, matchedPositions, len);
+                }
             }
         }
 

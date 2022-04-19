@@ -81,6 +81,7 @@
 
         LASTSAVE,
         LATENCY,
+        LCS,
         LINDEX,
         LINSERT,
         LLEN,

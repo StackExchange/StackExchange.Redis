@@ -621,6 +621,29 @@ namespace StackExchange.Redis.Tests
             }
         }
 
+        [Fact]
+        public void LongestCommonSubsequence()
+        {
+            using var conn = Create();
+            Skip.IfBelow(conn, RedisFeatures.v7_0_0_rc1);
+
+            var database = conn.GetDatabase();
+            var key1 = Me() + "1";
+            var key2 = Me() + "2";
+            database.StringSet(key1, "ohmytext");
+            database.StringSet(key2, "mynewtext");
+
+            var stringMatchResult = database.LongestCommonSubsequence(key1, key2);
+            Assert.Equal("mytext", stringMatchResult.MatchedString);
+
+            stringMatchResult = database.LongestCommonSubsequence(key1, key2, options: LCSOptions.WithMatchedPositions);
+            Assert.Equal(stringMatchResult.MatchLength, 6);
+            Assert.Equal(2, stringMatchResult.Matcheds?.Length);
+
+            stringMatchResult = database.LongestCommonSubsequence(key1, key2, 10);
+            Assert.Equal(0, stringMatchResult.Matcheds?.Length);
+        }
+
         private static byte[] Encode(string value) => Encoding.UTF8.GetBytes(value);
         private static string? Decode(byte[]? value) => value is null ? null : Encoding.UTF8.GetString(value);
     }

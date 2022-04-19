@@ -1298,6 +1298,18 @@ namespace StackExchange.Redis
             return StringSetAsync(key, value, expiry, When.NotExists, flags);
         }
 
+        public LCSMatchResult LongestCommonSubsequence(RedisKey key1, RedisKey key2, long minSubMatchLength = 0, LCSOptions options = LCSOptions.None, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetLongestCommonSubsequenceMessage(key1, key2, minSubMatchLength, options, flags);
+            return ExecuteSync(msg, ResultProcessor.LCSResult(options));
+        }
+
+        public Task<LCSMatchResult> LongestCommonSubsequenceAsync(RedisKey key1, RedisKey key2, long minSubMatchLength = 0, LCSOptions options = LCSOptions.None, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetLongestCommonSubsequenceMessage(key1, key2, minSubMatchLength, options, flags);
+            return ExecuteAsync(msg, ResultProcessor.LCSResult(options));
+        }
+
         public long Publish(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None)
         {
             if (channel.IsNullOrEmpty) throw new ArgumentNullException(nameof(channel));
@@ -3063,6 +3075,29 @@ namespace StackExchange.Redis
             result[0] = (exclude & (isStart ? Exclude.Start : Exclude.Stop)) == 0 ? (byte)'[' : (byte)'(';
             Buffer.BlockCopy(orig, 0, result, 1, orig.Length);
             return result;
+        }
+
+        private Message GetLongestCommonSubsequenceMessage(RedisKey key1, RedisKey key2, long minSubMatchLength, LCSOptions options, CommandFlags flags)
+        {
+            var i = 0;
+            var values = new RedisValue[6];
+
+            values[i++] = key1.AsRedisValue();
+            values[i++] = key2.AsRedisValue();
+            if ((options & LCSOptions.Length) != 0)
+            {
+                values[i++] = RedisLiterals.LEN;
+            }
+            if ((options & LCSOptions.WithMatchedPositions) != 0)
+            {
+                values[i++] = RedisLiterals.IDX;
+            }
+            if (minSubMatchLength > 0)
+            {
+                values[i++] = RedisLiterals.MINMATCHLEN;
+                values[i++] = minSubMatchLength;
+            }
+            return Message.Create(Database, flags, RedisCommand.LCS, values ?? RedisValue.EmptyArray);
         }
 
         private Message GetMultiStreamReadGroupMessage(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, bool noAck, CommandFlags flags)
