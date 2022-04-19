@@ -3,7 +3,7 @@
 namespace StackExchange.Redis;
 
 /// <summary>
-/// Result of the XAUTOCLAIM command with the JUSTID option.
+/// Result of the <see href="https://redis.io/commands/xautoclaim/">XAUTOCLAIM</see> command with the <c>JUSTID</c> option.
 /// </summary>
 public readonly struct StreamAutoClaimIdsOnlyResult
 {

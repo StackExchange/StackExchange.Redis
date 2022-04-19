@@ -2128,7 +2128,7 @@ namespace StackExchange.Redis
         /// <param name="count">The upper limit of the number of entries that the command attempts to claim. If <see langword="null"/>, Redis will default the value to 100.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>An instance of <see cref="StreamAutoClaimResult"/>.</returns>
-        /// <remarks>https://redis.io/commands/xautoclaim</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/xautoclaim"/></remarks>
         Task<StreamAutoClaimResult> StreamAutoClaimAsync(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue startAtId, int? count = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2144,7 +2144,7 @@ namespace StackExchange.Redis
         /// <param name="count">The upper limit of the number of entries that the command attempts to claim. If <see langword="null"/>, Redis will default the value to 100.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>An instance of <see cref="StreamAutoClaimIdsOnlyResult"/>.</returns>
-        /// <remarks>https://redis.io/commands/xautoclaim</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/xautoclaim"/></remarks>
         Task<StreamAutoClaimIdsOnlyResult> StreamAutoClaimIdsOnlyAsync(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue startAtId, int? count = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>

@@ -3,7 +3,7 @@
 namespace StackExchange.Redis;
 
 /// <summary>
-/// Result of the XAUTOCLAIM command.
+/// Result of the <see href="https://redis.io/commands/xautoclaim/">XAUTOCLAIM</see> command.
 /// </summary>
 public readonly struct StreamAutoClaimResult
 {
