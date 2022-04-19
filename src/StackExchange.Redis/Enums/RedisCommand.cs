@@ -322,7 +322,13 @@ internal static class RedisCommandExtensions
             case RedisCommand.SWAPDB:
             case RedisCommand.TOUCH:
             case RedisCommand.UNLINK:
+            case RedisCommand.XACK:
             case RedisCommand.XADD:
+            case RedisCommand.XCLAIM:
+            case RedisCommand.XDEL:
+            case RedisCommand.XGROUP:
+            case RedisCommand.XREADGROUP:
+            case RedisCommand.XTRIM:
             case RedisCommand.ZADD:
             case RedisCommand.ZDIFFSTORE:
             case RedisCommand.ZINTERSTORE:
@@ -429,18 +435,13 @@ internal static class RedisCommandExtensions
             case RedisCommand.UNSUBSCRIBE:
             case RedisCommand.UNWATCH:
             case RedisCommand.WATCH:
-            case RedisCommand.XACK:
-            case RedisCommand.XCLAIM:
-            case RedisCommand.XDEL:
-            case RedisCommand.XGROUP:
+            // Stream commands verified working on replicas
             case RedisCommand.XINFO:
             case RedisCommand.XLEN:
             case RedisCommand.XPENDING:
             case RedisCommand.XRANGE:
             case RedisCommand.XREAD:
-            case RedisCommand.XREADGROUP:
             case RedisCommand.XREVRANGE:
-            case RedisCommand.XTRIM:
             case RedisCommand.ZCARD:
             case RedisCommand.ZCOUNT:
             case RedisCommand.ZDIFF:
