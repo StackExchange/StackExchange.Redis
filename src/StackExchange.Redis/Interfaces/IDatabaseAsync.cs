@@ -28,7 +28,7 @@ namespace StackExchange.Redis
         /// <param name="timeoutMilliseconds">The timeout to use for the transfer.</param>
         /// <param name="migrateOptions">The options to use for this migration.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <remarks>https://redis.io/commands/MIGRATE</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/migrate"/></remarks>
         Task KeyMigrateAsync(RedisKey key, EndPoint toServer, int toDatabase = 0, int timeoutMilliseconds = 0, MigrateOptions migrateOptions = MigrateOptions.None, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -38,7 +38,7 @@ namespace StackExchange.Redis
         /// <param name="key">The key to debug.</param>
         /// <param name="flags">The flags to use for this migration.</param>
         /// <returns>The raw output from DEBUG OBJECT.</returns>
-        /// <remarks>https://redis.io/commands/debug-object</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/debug-object"/></remarks>
         Task<RedisValue> DebugObjectAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -52,7 +52,7 @@ namespace StackExchange.Redis
         /// <param name="member">The value to set at this entry.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns><see langword="true"/> if the specified member was not already present in the set, else <see langword="false"/>.</returns>
-        /// <remarks>https://redis.io/commands/geoadd</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/geoadd"/></remarks>
         Task<bool> GeoAddAsync(RedisKey key, double longitude, double latitude, RedisValue member, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -64,8 +64,8 @@ namespace StackExchange.Redis
         /// <param name="value">The geo value to store.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns><see langword="true"/> if the specified member was not already present in the set, else <see langword="false"/>.</returns>
-        /// <remarks>https://redis.io/commands/geoadd</remarks>
-        Task<bool> GeoAddAsync(RedisKey key, StackExchange.Redis.GeoEntry value, CommandFlags flags = CommandFlags.None);
+        /// <remarks><seealso href="https://redis.io/commands/geoadd"/></remarks>
+        Task<bool> GeoAddAsync(RedisKey key, GeoEntry value, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Add the specified members to the set stored at key.
@@ -76,7 +76,7 @@ namespace StackExchange.Redis
         /// <param name="values">The geo values add to the set.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of elements that were added to the set, not including all the elements already present into the set.</returns>
-        /// <remarks>https://redis.io/commands/geoadd</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/geoadd"/></remarks>
         Task<long> GeoAddAsync(RedisKey key, GeoEntry[] values, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -87,7 +87,7 @@ namespace StackExchange.Redis
         /// <param name="member">The geo value to remove.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns><see langword="true"/> if the member existed in the sorted set and was removed, else <see langword="false"/>.</returns>
-        /// <remarks>https://redis.io/commands/zrem</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/zrem"/></remarks>
         Task<bool> GeoRemoveAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -99,7 +99,7 @@ namespace StackExchange.Redis
         /// <param name="unit">The unit of distance to return (defaults to meters).</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The command returns the distance as a double (represented as a string) in the specified unit, or <see langword="null"/> if one or both the elements are missing.</returns>
-        /// <remarks>https://redis.io/commands/geodist</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/geodist"/></remarks>
         Task<double?> GeoDistanceAsync(RedisKey key, RedisValue member1, RedisValue member2, GeoUnit unit = GeoUnit.Meters, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -109,7 +109,7 @@ namespace StackExchange.Redis
         /// <param name="members">The members to get.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The command returns an array where each element is the Geohash corresponding to each member name passed as argument to the command.</returns>
-        /// <remarks>https://redis.io/commands/geohash</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/geohash"/></remarks>
         Task<string?[]> GeoHashAsync(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -119,7 +119,7 @@ namespace StackExchange.Redis
         /// <param name="member">The member to get.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The command returns an array where each element is the Geohash corresponding to each member name passed as argument to the command.</returns>
-        /// <remarks>https://redis.io/commands/geohash</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/geohash"/></remarks>
         Task<string?> GeoHashAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -132,7 +132,7 @@ namespace StackExchange.Redis
         /// The command returns an array where each element is a two elements array representing longitude and latitude (x,y) of each member name passed as argument to the command.
         /// Non existing elements are reported as NULL elements of the array.
         /// </returns>
-        /// <remarks>https://redis.io/commands/geopos</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/geopos"/></remarks>
         Task<GeoPosition?[]> GeoPositionAsync(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -145,7 +145,7 @@ namespace StackExchange.Redis
         /// The command returns an array where each element is a two elements array representing longitude and latitude (x,y) of each member name passed as argument to the command.
         /// Non existing elements are reported as NULL elements of the array.
         /// </returns>
-        /// <remarks>https://redis.io/commands/geopos</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/geopos"/></remarks>
         Task<GeoPosition?> GeoPositionAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -161,7 +161,7 @@ namespace StackExchange.Redis
         /// <param name="options">The search options to use.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The results found within the radius, if any.</returns>
-        /// <remarks>https://redis.io/commands/georadius</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/georadius"/></remarks>
         Task<GeoRadiusResult[]> GeoRadiusAsync(RedisKey key, RedisValue member, double radius, GeoUnit unit = GeoUnit.Meters, int count = -1, Order? order = null, GeoRadiusOptions options = GeoRadiusOptions.Default, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -178,7 +178,7 @@ namespace StackExchange.Redis
         /// <param name="options">The search options to use.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The results found within the radius, if any.</returns>
-        /// <remarks>https://redis.io/commands/georadius</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/georadius"/></remarks>
         Task<GeoRadiusResult[]> GeoRadiusAsync(RedisKey key, double longitude, double latitude, double radius, GeoUnit unit = GeoUnit.Meters, int count = -1, Order? order = null, GeoRadiusOptions options = GeoRadiusOptions.Default, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -194,7 +194,7 @@ namespace StackExchange.Redis
         /// <param name="options">The search options to use.</param>
         /// <param name="flags">The flags for this operation.</param>
         /// <returns>The results found within the shape, if any.</returns>
-        /// <remarks>https://redis.io/commands/geosearch</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/geosearch"/></remarks>
         Task<GeoRadiusResult[]> GeoSearchAsync(RedisKey key, RedisValue member, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, GeoRadiusOptions options = GeoRadiusOptions.Default, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -211,7 +211,7 @@ namespace StackExchange.Redis
         /// <param name="options">The search options to use.</param>
         /// <param name="flags">The flags for this operation.</param>
         /// <returns>The results found within the shape, if any.</returns>
-        /// /// <remarks>https://redis.io/commands/geosearch</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/geosearch"/></remarks>
         Task<GeoRadiusResult[]> GeoSearchAsync(RedisKey key, double longitude, double latitude, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, GeoRadiusOptions options = GeoRadiusOptions.Default, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -228,7 +228,7 @@ namespace StackExchange.Redis
         /// <param name="storeDistances">If set to true, the resulting set will be a regular sorted-set containing only distances, rather than a geo-encoded sorted-set.</param>
         /// <param name="flags">The flags for this operation.</param>
         /// <returns>The size of the set stored at <paramref name="destinationKey"/>.</returns>
-        /// <remarks>https://redis.io/commands/geosearchstore</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/geosearchstore"/></remarks>
         Task<long> GeoSearchAndStoreAsync(RedisKey sourceKey, RedisKey destinationKey, RedisValue member, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, bool storeDistances = false, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -246,7 +246,7 @@ namespace StackExchange.Redis
         /// <param name="storeDistances">If set to true, the resulting set will be a regular sorted-set containing only distances, rather than a geo-encoded sorted-set.</param>
         /// <param name="flags">The flags for this operation.</param>
         /// <returns>The size of the set stored at <paramref name="destinationKey"/>.</returns>
-        /// <remarks>https://redis.io/commands/geosearchstore</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/geosearchstore"/></remarks>
         Task<long> GeoSearchAndStoreAsync(RedisKey sourceKey, RedisKey destinationKey, double longitude, double latitude, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, bool storeDistances = false, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -259,8 +259,10 @@ namespace StackExchange.Redis
         /// <param name="value">The amount to decrement by.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The value at field after the decrement operation.</returns>
-        /// <remarks>The range of values supported by HINCRBY is limited to 64 bit signed integers.</remarks>
-        /// <remarks>https://redis.io/commands/hincrby</remarks>
+        /// <remarks>
+        /// <para>The range of values supported by HINCRBY is limited to 64 bit signed integers.</para>
+        /// <para><seealso href="https://redis.io/commands/hincrby"/></para>
+        /// </remarks>
         Task<long> HashDecrementAsync(RedisKey key, RedisValue hashField, long value = 1, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -272,8 +274,10 @@ namespace StackExchange.Redis
         /// <param name="value">The amount to decrement by.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The value at field after the decrement operation.</returns>
-        /// <remarks>The precision of the output is fixed at 17 digits after the decimal point regardless of the actual internal precision of the computation.</remarks>
-        /// <remarks>https://redis.io/commands/hincrbyfloat</remarks>
+        /// <remarks>
+        /// <para>The precision of the output is fixed at 17 digits after the decimal point regardless of the actual internal precision of the computation.</para>
+        /// <para><seealso href="https://redis.io/commands/hincrbyfloat"/></para>
+        /// </remarks>
         Task<double> HashDecrementAsync(RedisKey key, RedisValue hashField, double value, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -284,7 +288,7 @@ namespace StackExchange.Redis
         /// <param name="hashField">The field in the hash to delete.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of fields that were removed.</returns>
-        /// <remarks>https://redis.io/commands/hdel</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/hdel"/></remarks>
         Task<bool> HashDeleteAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -295,7 +299,7 @@ namespace StackExchange.Redis
         /// <param name="hashFields">The fields in the hash to delete.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of fields that were removed.</returns>
-        /// <remarks>https://redis.io/commands/hdel</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/hdel"/></remarks>
         Task<long> HashDeleteAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -305,7 +309,7 @@ namespace StackExchange.Redis
         /// <param name="hashField">The field in the hash to check.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns><see langword="true"/> if the hash contains field, <see langword="false"/> if the hash does not contain field, or key does not exist.</returns>
-        /// <remarks>https://redis.io/commands/hexists</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/hexists"/></remarks>
         Task<bool> HashExistsAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -315,7 +319,7 @@ namespace StackExchange.Redis
         /// <param name="hashField">The field in the hash to get.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The value associated with field, or nil when field is not present in the hash or key does not exist.</returns>
-        /// <remarks>https://redis.io/commands/hget</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/hget"/></remarks>
         Task<RedisValue> HashGetAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -325,7 +329,7 @@ namespace StackExchange.Redis
         /// <param name="hashField">The field in the hash to get.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The value associated with field, or nil when field is not present in the hash or key does not exist.</returns>
-        /// <remarks>https://redis.io/commands/hget</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/hget"/></remarks>
         Task<Lease<byte>?> HashGetLeaseAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -336,7 +340,7 @@ namespace StackExchange.Redis
         /// <param name="hashFields">The fields in the hash to get.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>List of values associated with the given fields, in the same order as they are requested.</returns>
-        /// <remarks>https://redis.io/commands/hmget</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/hmget"/></remarks>
         Task<RedisValue[]> HashGetAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -345,7 +349,7 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the hash to get all entries from.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>List of fields and their values stored in the hash, or an empty list when key does not exist.</returns>
-        /// <remarks>https://redis.io/commands/hgetall</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/hgetall"/></remarks>
         Task<HashEntry[]> HashGetAllAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -358,8 +362,10 @@ namespace StackExchange.Redis
         /// <param name="value">The amount to increment by.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The value at field after the increment operation.</returns>
-        /// <remarks>The range of values supported by HINCRBY is limited to 64 bit signed integers.</remarks>
-        /// <remarks>https://redis.io/commands/hincrby</remarks>
+        /// <remarks>
+        /// <para>The range of values supported by <c>HINCRBY</c> is limited to 64 bit signed integers.</para>
+        /// <para><seealso href="https://redis.io/commands/hincrby"/></para>
+        /// </remarks>
         Task<long> HashIncrementAsync(RedisKey key, RedisValue hashField, long value = 1, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -371,8 +377,10 @@ namespace StackExchange.Redis
         /// <param name="value">The amount to increment by.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The value at field after the increment operation.</returns>
-        /// <remarks>The precision of the output is fixed at 17 digits after the decimal point regardless of the actual internal precision of the computation.</remarks>
-        /// <remarks>https://redis.io/commands/hincrbyfloat</remarks>
+        /// <remarks>
+        /// <para>The precision of the output is fixed at 17 digits after the decimal point regardless of the actual internal precision of the computation.</para>
+        /// <para><seealso href="https://redis.io/commands/hincrbyfloat"/></para>
+        /// </remarks>
         Task<double> HashIncrementAsync(RedisKey key, RedisValue hashField, double value, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -381,7 +389,7 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the hash.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>List of fields in the hash, or an empty list when key does not exist.</returns>
-        /// <remarks>https://redis.io/commands/hkeys</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/hkeys"/></remarks>
         Task<RedisValue[]> HashKeysAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -390,7 +398,7 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the hash.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of fields in the hash, or 0 when key does not exist.</returns>
-        /// <remarks>https://redis.io/commands/hlen</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/hlen"/></remarks>
         Task<long> HashLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -399,7 +407,7 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the hash.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>A random hash field name or <see cref="RedisValue.Null"/> if the hash does not exist.</returns>
-        /// <remarks>https://redis.io/commands/hrandfield</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/hrandfield"/></remarks>
         Task<RedisValue> HashRandomFieldAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -409,7 +417,7 @@ namespace StackExchange.Redis
         /// <param name="count">The number of fields to return.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>An array of hash field names of size of at most <paramref name="count"/>, or <see cref="Array.Empty{RedisValue}"/> if the hash does not exist.</returns>
-        /// <remarks>https://redis.io/commands/hrandfield</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/hrandfield"/></remarks>
         Task<RedisValue[]> HashRandomFieldsAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -419,7 +427,7 @@ namespace StackExchange.Redis
         /// <param name="count">The number of fields to return.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>An array of hash entries of size of at most <paramref name="count"/>, or <see cref="Array.Empty{HashEntry}"/> if the hash does not exist.</returns>
-        /// <remarks>https://redis.io/commands/hrandfield</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/hrandfield"/></remarks>
         Task<HashEntry[]> HashRandomFieldsWithValuesAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -433,7 +441,7 @@ namespace StackExchange.Redis
         /// <param name="pageOffset">The page offset to start at.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>Yields all elements of the hash matching the pattern.</returns>
-        /// <remarks>https://redis.io/commands/hscan</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/hscan"/></remarks>
         IAsyncEnumerable<HashEntry> HashScanAsync(RedisKey key, RedisValue pattern = default, int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -444,7 +452,7 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the hash.</param>
         /// <param name="hashFields">The entries to set in the hash.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <remarks>https://redis.io/commands/hmset</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/hmset"/></remarks>
         Task HashSetAsync(RedisKey key, HashEntry[] hashFields, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -458,8 +466,10 @@ namespace StackExchange.Redis
         /// <param name="when">Which conditions under which to set the field value (defaults to always).</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns><see langword="true"/> if field is a new field in the hash and value was set, <see langword="false"/> if field already exists in the hash and the value was updated.</returns>
-        /// <remarks>https://redis.io/commands/hset</remarks>
-        /// <remarks>https://redis.io/commands/hsetnx</remarks>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/hset"/>,
+        /// <seealso href="https://redis.io/commands/hsetnx"/>
+        /// </remarks>
         Task<bool> HashSetAsync(RedisKey key, RedisValue hashField, RedisValue value, When when = When.Always, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -469,7 +479,7 @@ namespace StackExchange.Redis
         /// <param name="hashField">The field containing the string</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The length of the string at field, or 0 when key does not exist.</returns>
-        /// <remarks>https://redis.io/commands/hstrlen</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/hstrlen"/></remarks>
         Task<long> HashStringLengthAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -478,7 +488,7 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the hash.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>List of values in the hash, or an empty list when key does not exist.</returns>
-        /// <remarks>https://redis.io/commands/hvals</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/hvals"/></remarks>
         Task<RedisValue[]> HashValuesAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -488,7 +498,7 @@ namespace StackExchange.Redis
         /// <param name="value">The value to add.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns><see langword="true"/> if at least 1 HyperLogLog internal register was altered, <see langword="false"/> otherwise.</returns>
-        /// <remarks>https://redis.io/commands/pfadd</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/pfadd"/></remarks>
         Task<bool> HyperLogLogAddAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -498,7 +508,7 @@ namespace StackExchange.Redis
         /// <param name="values">The values to add.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns><see langword="true"/> if at least 1 HyperLogLog internal register was altered, <see langword="false"/> otherwise.</returns>
-        /// <remarks>https://redis.io/commands/pfadd</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/pfadd"/></remarks>
         Task<bool> HyperLogLogAddAsync(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -507,7 +517,7 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the hyperloglog.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The approximated number of unique elements observed via HyperLogLogAdd.</returns>
-        /// <remarks>https://redis.io/commands/pfcount</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/pfcount"/></remarks>
         Task<long> HyperLogLogLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -516,7 +526,7 @@ namespace StackExchange.Redis
         /// <param name="keys">The keys of the hyperloglogs.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The approximated number of unique elements observed via HyperLogLogAdd.</returns>
-        /// <remarks>https://redis.io/commands/pfcount</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/pfcount"/></remarks>
         Task<long> HyperLogLogLengthAsync(RedisKey[] keys, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -526,7 +536,7 @@ namespace StackExchange.Redis
         /// <param name="first">The key of the first hyperloglog to merge.</param>
         /// <param name="second">The key of the first hyperloglog to merge.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <remarks>https://redis.io/commands/pfmerge</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/pfmerge"/></remarks>
         Task HyperLogLogMergeAsync(RedisKey destination, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -535,7 +545,7 @@ namespace StackExchange.Redis
         /// <param name="destination">The key of the merged hyperloglog.</param>
         /// <param name="sourceKeys">The keys of the hyperloglogs to merge.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <remarks>https://redis.io/commands/pfmerge</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/pfmerge"/></remarks>
         Task HyperLogLogMergeAsync(RedisKey destination, RedisKey[] sourceKeys, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -555,7 +565,7 @@ namespace StackExchange.Redis
         /// <param name="replace">Whether to overwrite an existing values at <paramref name="destinationKey"/>. If <see langword="false"/> and the key exists, the copy will not succeed.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns><see langword="true"/> if key was copied. <see langword="false"/> if key was not copied.</returns>
-        /// <remarks>https://redis.io/commands/copy</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/copy"/></remarks>
         Task<bool> KeyCopyAsync(RedisKey sourceKey, RedisKey destinationKey, int destinationDatabase = -1, bool replace = false, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -565,8 +575,10 @@ namespace StackExchange.Redis
         /// <param name="key">The key to delete.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns><see langword="true"/> if the key was removed.</returns>
-        /// <remarks>https://redis.io/commands/del</remarks>
-        /// <remarks>https://redis.io/commands/unlink</remarks>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/del"/>,
+        /// <seealso href="https://redis.io/commands/unlink"/>
+        /// </remarks>
         Task<bool> KeyDeleteAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -576,8 +588,10 @@ namespace StackExchange.Redis
         /// <param name="keys">The keys to delete.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of keys that were removed.</returns>
-        /// <remarks>https://redis.io/commands/del</remarks>
-        /// <remarks>https://redis.io/commands/unlink</remarks>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/del"/>,
+        /// <seealso href="https://redis.io/commands/unlink"/>
+        /// </remarks>
         Task<long> KeyDeleteAsync(RedisKey[] keys, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -587,7 +601,7 @@ namespace StackExchange.Redis
         /// <param name="key">The key to dump.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The serialized value.</returns>
-        /// <remarks>https://redis.io/commands/dump</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/dump"/></remarks>
         Task<byte[]?> KeyDumpAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -596,7 +610,7 @@ namespace StackExchange.Redis
         /// <param name="key">The key to dump.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The Redis encoding for the value or <see langword="null"/> is the key does not exist.</returns>
-        /// <remarks>https://redis.io/commands/object-encoding</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/object-encoding"/></remarks>
         Task<string?> KeyEncodingAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -605,7 +619,7 @@ namespace StackExchange.Redis
         /// <param name="key">The key to check.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns><see langword="true"/> if the key exists. <see langword="false"/> if the key does not exist.</returns>
-        /// <remarks>https://redis.io/commands/exists</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/exists"/></remarks>
         Task<bool> KeyExistsAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -614,7 +628,7 @@ namespace StackExchange.Redis
         /// <param name="keys">The keys to check.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of keys that existed.</returns>
-        /// <remarks>https://redis.io/commands/exists</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/exists"/></remarks>
         Task<long> KeyExistsAsync(RedisKey[] keys, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -637,10 +651,12 @@ namespace StackExchange.Redis
         /// It is also possible to remove the timeout using the PERSIST command.
         /// See the page on key expiry for more information.
         /// </para>
+        /// <para>
+        /// <seealso href="https://redis.io/commands/expire"/>,
+        /// <seealso href="https://redis.io/commands/pexpire"/>,
+        /// <seealso href="https://redis.io/commands/persist"/>
+        /// </para>
         /// </remarks>
-        /// <remarks>https://redis.io/commands/expire</remarks>
-        /// <remarks>https://redis.io/commands/pexpire</remarks>
-        /// <remarks>https://redis.io/commands/persist</remarks>
         Task<bool> KeyExpireAsync(RedisKey key, TimeSpan? expiry, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -653,8 +669,10 @@ namespace StackExchange.Redis
         /// <param name="when">Since Redis 7.0.0, you can choose under which condition the expiration will be set using <see cref="ExpireWhen"/>.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns><see langword="true"/> if the timeout was set. <see langword="false"/> if key does not exist or the timeout could not be set.</returns>
-        /// <remarks>https://redis.io/commands/expire</remarks>
-        /// <remarks>https://redis.io/commands/pexpire</remarks>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/expire"/>,
+        /// <seealso href="https://redis.io/commands/pexpire"/>
+        /// </remarks>
         Task<bool> KeyExpireAsync(RedisKey key, TimeSpan? expiry, ExpireWhen when, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -677,10 +695,12 @@ namespace StackExchange.Redis
         /// It is also possible to remove the timeout using the PERSIST command.
         /// See the page on key expiry for more information.
         /// </para>
+        /// <para>
+        /// <seealso href="https://redis.io/commands/expireat"/>,
+        /// <seealso href="https://redis.io/commands/pexpireat"/>,
+        /// <seealso href="https://redis.io/commands/persist"/>
+        /// </para>
         /// </remarks>
-        /// <remarks>https://redis.io/commands/expireat</remarks>
-        /// <remarks>https://redis.io/commands/pexpireat</remarks>
-        /// <remarks>https://redis.io/commands/persist</remarks>
         Task<bool> KeyExpireAsync(RedisKey key, DateTime? expiry, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -693,8 +713,10 @@ namespace StackExchange.Redis
         /// <param name="when">Since Redis 7.0.0, you can choose under which condition the expiration will be set using <see cref="ExpireWhen"/>.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns><see langword="true"/> if the timeout was set. <see langword="false"/> if key does not exist or the timeout could not be set.</returns>
-        /// <remarks>https://redis.io/commands/expire</remarks>
-        /// <remarks>https://redis.io/commands/pexpire</remarks>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/expire"/>,
+        /// <seealso href="https://redis.io/commands/pexpire"/>
+        /// </remarks>
         Task<bool> KeyExpireAsync(RedisKey key, DateTime? expiry, ExpireWhen when, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -703,8 +725,10 @@ namespace StackExchange.Redis
         /// <param name="key">The key to get the expiration for.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The time at which the given key will expire, or <see langword="null"/> if the key does not exist or has no associated expiration time.</returns>
-        /// <remarks>https://redis.io/commands/expiretime</remarks>
-        /// <remarks>https://redis.io/commands/pexpiretime</remarks>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/expiretime"/>,
+        /// <seealso href="https://redis.io/commands/pexpiretime"/>
+        /// </remarks>
         Task<DateTime?> KeyExpireTimeAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -713,7 +737,7 @@ namespace StackExchange.Redis
         /// <param name="key">The key to get the time of.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The time since the object stored at the specified key is idle.</returns>
-        /// <remarks>https://redis.io/commands/object</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/object"/></remarks>
         Task<TimeSpan?> KeyIdleTimeAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -725,7 +749,7 @@ namespace StackExchange.Redis
         /// <param name="database">The database to move the key to.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns><see langword="true"/> if key was moved. <see langword="false"/> if key was not moved.</returns>
-        /// <remarks>https://redis.io/commands/move</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/move"/></remarks>
         Task<bool> KeyMoveAsync(RedisKey key, int database, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -734,7 +758,7 @@ namespace StackExchange.Redis
         /// <param name="key">The key to persist.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns><see langword="true"/> if the timeout was removed. <see langword="false"/> if key does not exist or does not have an associated timeout.</returns>
-        /// <remarks>https://redis.io/commands/persist</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/persist"/></remarks>
         Task<bool> KeyPersistAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -742,7 +766,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The random key, or nil when the database is empty.</returns>
-        /// <remarks>https://redis.io/commands/randomkey</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/randomkey"/></remarks>
         Task<RedisKey> KeyRandomAsync(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -751,7 +775,7 @@ namespace StackExchange.Redis
         /// <param name="key">The key to get a reference count for.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of references (<see langword="Null"/> if the key does not exist).</returns>
-        /// <remarks>https://redis.io/commands/object-refcount</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/object-refcount"/></remarks>
         Task<long?> KeyRefCountAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -763,8 +787,10 @@ namespace StackExchange.Redis
         /// <param name="when">What conditions to rename under (defaults to always).</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns><see langword="true"/> if the key was renamed, <see langword="false"/> otherwise.</returns>
-        /// <remarks>https://redis.io/commands/rename</remarks>
-        /// <remarks>https://redis.io/commands/renamenx</remarks>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/rename"/>,
+        /// <seealso href="https://redis.io/commands/renamenx"/>
+        /// </remarks>
         Task<bool> KeyRenameAsync(RedisKey key, RedisKey newKey, When when = When.Always, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -775,7 +801,7 @@ namespace StackExchange.Redis
         /// <param name="value">The value of the key.</param>
         /// <param name="expiry">The expiry to set.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <remarks>https://redis.io/commands/restore</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/restore"/></remarks>
         Task KeyRestoreAsync(RedisKey key, byte[] value, TimeSpan? expiry = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -785,7 +811,7 @@ namespace StackExchange.Redis
         /// <param name="key">The key to check.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>TTL, or nil when key does not exist or does not have a timeout.</returns>
-        /// <remarks>https://redis.io/commands/ttl</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/ttl"/></remarks>
         Task<TimeSpan?> KeyTimeToLiveAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -794,7 +820,7 @@ namespace StackExchange.Redis
         /// <param name="key">The key to touch.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns><see langword="true"/> if the key was touched, <see langword="false"/> otherwise.</returns>
-        /// <remarks>https://redis.io/commands/touch</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/touch"/></remarks>
         Task<bool> KeyTouchAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -803,7 +829,7 @@ namespace StackExchange.Redis
         /// <param name="keys">The keys to touch.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of keys that were touched.</returns>
-        /// <remarks>https://redis.io/commands/touch</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/touch"/></remarks>
         Task<long> KeyTouchAsync(RedisKey[] keys, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -813,7 +839,7 @@ namespace StackExchange.Redis
         /// <param name="key">The key to get the type of.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>Type of key, or none when key does not exist.</returns>
-        /// <remarks>https://redis.io/commands/type</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/type"/></remarks>
         Task<RedisType> KeyTypeAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -826,7 +852,7 @@ namespace StackExchange.Redis
         /// <param name="index">The index position to get the value at.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The requested element, or nil when index is out of range.</returns>
-        /// <remarks>https://redis.io/commands/lindex</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/lindex"/></remarks>
         Task<RedisValue> ListGetByIndexAsync(RedisKey key, long index, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -838,7 +864,7 @@ namespace StackExchange.Redis
         /// <param name="value">The value to insert.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The length of the list after the insert operation, or -1 when the value pivot was not found.</returns>
-        /// <remarks>https://redis.io/commands/linsert</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/linsert"/></remarks>
         Task<long> ListInsertAfterAsync(RedisKey key, RedisValue pivot, RedisValue value, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -850,7 +876,7 @@ namespace StackExchange.Redis
         /// <param name="value">The value to insert.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The length of the list after the insert operation, or -1 when the value pivot was not found.</returns>
-        /// <remarks>https://redis.io/commands/linsert</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/linsert"/></remarks>
         Task<long> ListInsertBeforeAsync(RedisKey key, RedisValue pivot, RedisValue value, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -859,7 +885,7 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the list.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The value of the first element, or nil when key does not exist.</returns>
-        /// <remarks>https://redis.io/commands/lpop</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/lpop"/></remarks>
         Task<RedisValue> ListLeftPopAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -870,7 +896,7 @@ namespace StackExchange.Redis
         /// <param name="count">The number of elements to remove</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>Array of values that were popped, or nil if the key doesn't exist.</returns>
-        /// <remarks>https://redis.io/commands/lpop</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/lpop"/></remarks>
         Task<RedisValue[]> ListLeftPopAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -883,6 +909,7 @@ namespace StackExchange.Redis
         /// <param name="maxLength">The maximum number of elements to scan through before stopping, defaults to 0 (a full scan of the list.)</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The 0-based index of the first matching element, or -1 if not found.</returns>
+        /// <remarks><seealso href="https://redis.io/commands/lpos"/></remarks>
         Task<long> ListPositionAsync(RedisKey key, RedisValue element, long rank = 1, long maxLength = 0, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -896,6 +923,7 @@ namespace StackExchange.Redis
         /// <param name="maxLength">The maximum number of elements to scan through before stopping, defaults to 0 (a full scan of the list.)</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>An array of at most <paramref name="count"/> of indexes of matching elements. If none are found, and empty array is returned.</returns>
+        /// <remarks><seealso href="https://redis.io/commands/lpos"/></remarks>
         Task<long[]> ListPositionsAsync(RedisKey key, RedisValue element, long count, long rank = 1, long maxLength = 0, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -907,8 +935,10 @@ namespace StackExchange.Redis
         /// <param name="when">Which conditions to add to the list under (defaults to always).</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The length of the list after the push operations.</returns>
-        /// <remarks>https://redis.io/commands/lpush</remarks>
-        /// <remarks>https://redis.io/commands/lpushx</remarks>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/lpush"/>,
+        /// <seealso href="https://redis.io/commands/lpushx"/>
+        /// </remarks>
         Task<long> ListLeftPushAsync(RedisKey key, RedisValue value, When when = When.Always, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -920,21 +950,23 @@ namespace StackExchange.Redis
         /// <param name="when">Which conditions to add to the list under (defaults to always).</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The length of the list after the push operations.</returns>
-        /// <remarks>https://redis.io/commands/lpush</remarks>
-        /// <remarks>https://redis.io/commands/lpushx</remarks>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/lpush"/>,
+        /// <seealso href="https://redis.io/commands/lpushx"/>
+        /// </remarks>
         Task<long> ListLeftPushAsync(RedisKey key, RedisValue[] values, When when = When.Always, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Insert all the specified values at the head of the list stored at key.
         /// If key does not exist, it is created as empty list before performing the push operations.
         /// Elements are inserted one after the other to the head of the list, from the leftmost element to the rightmost element.
-        /// So for instance the command LPUSH mylist a b c will result into a list containing c as first element, b as second element and a as third element.
+        /// So for instance the command <c>LPUSH mylist a b c</c> will result into a list containing c as first element, b as second element and a as third element.
         /// </summary>
         /// <param name="key">The key of the list.</param>
         /// <param name="values">The values to add to the head of the list.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The length of the list after the push operations.</returns>
-        /// <remarks>https://redis.io/commands/lpush</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/lpush"/></remarks>
         Task<long> ListLeftPushAsync(RedisKey key, RedisValue[] values, CommandFlags flags);
 
         /// <summary>
@@ -943,7 +975,7 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the list.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The length of the list at key.</returns>
-        /// <remarks>https://redis.io/commands/llen</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/llen"/></remarks>
         Task<long> ListLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -956,7 +988,7 @@ namespace StackExchange.Redis
         /// <param name="destinationSide">What side of the <paramref name="destinationKey"/> list to move to.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The element being popped and pushed or <see cref="RedisValue.Null"/> if there is no element to move.</returns>
-        /// <remarks>https://redis.io/commands/lmove</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/lmove"/></remarks>
         Task<RedisValue> ListMoveAsync(RedisKey sourceKey, RedisKey destinationKey, ListSide sourceSide, ListSide destinationSide, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -970,7 +1002,7 @@ namespace StackExchange.Redis
         /// <param name="stop">The stop index of the list.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>List of elements in the specified range.</returns>
-        /// <remarks>https://redis.io/commands/lrange</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/lrange"/></remarks>
         Task<RedisValue[]> ListRangeAsync(RedisKey key, long start = 0, long stop = -1, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -987,7 +1019,7 @@ namespace StackExchange.Redis
         /// <param name="count">The count behavior (see method summary).</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of removed elements.</returns>
-        /// <remarks>https://redis.io/commands/lrem</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/lrem"/></remarks>
         Task<long> ListRemoveAsync(RedisKey key, RedisValue value, long count = 0, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -996,7 +1028,7 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the list.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The element being popped.</returns>
-        /// <remarks>https://redis.io/commands/rpop</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/rpop"/></remarks>
         Task<RedisValue> ListRightPopAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1007,7 +1039,7 @@ namespace StackExchange.Redis
         /// <param name="count">The number of elements to pop</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>Array of values that were popped, or nil if the key doesn't exist.</returns>
-        /// <remarks>https://redis.io/commands/rpop</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/rpop"/></remarks>
         Task<RedisValue[]> ListRightPopAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1017,7 +1049,7 @@ namespace StackExchange.Redis
         /// <param name="destination">The key of the destination list.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The element being popped and pushed.</returns>
-        /// <remarks>https://redis.io/commands/rpoplpush</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/rpoplpush"/></remarks>
         Task<RedisValue> ListRightPopLeftPushAsync(RedisKey source, RedisKey destination, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1029,8 +1061,10 @@ namespace StackExchange.Redis
         /// <param name="when">Which conditions to add to the list under.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The length of the list after the push operation.</returns>
-        /// <remarks>https://redis.io/commands/rpush</remarks>
-        /// <remarks>https://redis.io/commands/rpushx</remarks>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/rpush"/>,
+        /// <seealso href="https://redis.io/commands/rpushx"/>
+        /// </remarks>
         Task<long> ListRightPushAsync(RedisKey key, RedisValue value, When when = When.Always, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1042,21 +1076,23 @@ namespace StackExchange.Redis
         /// <param name="when">Which conditions to add to the list under.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The length of the list after the push operation.</returns>
-        /// <remarks>https://redis.io/commands/rpush</remarks>
-        /// <remarks>https://redis.io/commands/rpushx</remarks>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/rpush"/>,
+        /// <seealso href="https://redis.io/commands/rpushx"/>
+        /// </remarks>
         Task<long> ListRightPushAsync(RedisKey key, RedisValue[] values, When when = When.Always, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Insert all the specified values at the tail of the list stored at key.
         /// If key does not exist, it is created as empty list before performing the push operation.
         /// Elements are inserted one after the other to the tail of the list, from the leftmost element to the rightmost element.
-        /// So for instance the command RPUSH mylist a b c will result into a list containing a as first element, b as second element and c as third element.
+        /// So for instance the command <c>RPUSH mylist a b c</c> will result into a list containing a as first element, b as second element and c as third element.
         /// </summary>
         /// <param name="key">The key of the list.</param>
         /// <param name="values">The values to add to the tail of the list.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The length of the list after the push operation.</returns>
-        /// <remarks>https://redis.io/commands/rpush</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/rpush"/></remarks>
         Task<long> ListRightPushAsync(RedisKey key, RedisValue[] values, CommandFlags flags);
 
         /// <summary>
@@ -1068,20 +1104,20 @@ namespace StackExchange.Redis
         /// <param name="index">The index to set the value at.</param>
         /// <param name="value">The values to add to the list.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <remarks>https://redis.io/commands/lset</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/lset"/></remarks>
         Task ListSetByIndexAsync(RedisKey key, long index, RedisValue value, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Trim an existing list so that it will contain only the specified range of elements specified.
         /// Both start and stop are zero-based indexes, where 0 is the first element of the list (the head), 1 the next element and so on.
-        /// For example: LTRIM foobar 0 2 will modify the list stored at foobar so that only the first three elements of the list will remain.
+        /// For example: <c>LTRIM foobar 0 2</c> will modify the list stored at foobar so that only the first three elements of the list will remain.
         /// start and end can also be negative numbers indicating offsets from the end of the list, where -1 is the last element of the list, -2 the penultimate element and so on.
         /// </summary>
         /// <param name="key">The key of the list.</param>
         /// <param name="start">The start index of the list to trim to.</param>
         /// <param name="stop">The end index of the list to trim to.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <remarks>https://redis.io/commands/ltrim</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/ltrim"/></remarks>
         Task ListTrimAsync(RedisKey key, long start, long stop, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1131,7 +1167,7 @@ namespace StackExchange.Redis
         /// The number of clients that received the message *on the destination server*,
         /// note that this doesn't mean much in a cluster as clients can get the message through other nodes.
         /// </returns>
-        /// <remarks>https://redis.io/commands/publish</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/publish"/></remarks>
         Task<long> PublishAsync(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1140,8 +1176,8 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="command">The command to run.</param>
         /// <param name="args">The arguments to pass for the command.</param>
-        /// <remarks>This API should be considered an advanced feature; inappropriate use can be harmful.</remarks>
         /// <returns>A dynamic representation of the command's result.</returns>
+        /// <remarks>This API should be considered an advanced feature; inappropriate use can be harmful.</remarks>
         Task<RedisResult> ExecuteAsync(string command, params object[] args);
 
         /// <summary>
@@ -1151,8 +1187,8 @@ namespace StackExchange.Redis
         /// <param name="command">The command to run.</param>
         /// <param name="args">The arguments to pass for the command.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <remarks>This API should be considered an advanced feature; inappropriate use can be harmful.</remarks>
         /// <returns>A dynamic representation of the command's result.</returns>
+        /// <remarks>This API should be considered an advanced feature; inappropriate use can be harmful.</remarks>
         Task<RedisResult> ExecuteAsync(string command, ICollection<object>? args, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1163,8 +1199,10 @@ namespace StackExchange.Redis
         /// <param name="values">The values to execute against.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>A dynamic representation of the script's result.</returns>
-        /// <remarks>https://redis.io/commands/eval</remarks>
-        /// <remarks>https://redis.io/commands/evalsha</remarks>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/eval"/>,
+        /// <seealso href="https://redis.io/commands/evalsha"/>
+        /// </remarks>
         Task<RedisResult> ScriptEvaluateAsync(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1175,7 +1213,7 @@ namespace StackExchange.Redis
         /// <param name="values">The values to execute against.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>A dynamic representation of the script's result.</returns>
-        /// <remarks>https://redis.io/commands/evalsha</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/evalsha"/></remarks>
         Task<RedisResult> ScriptEvaluateAsync(byte[] hash, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1186,7 +1224,7 @@ namespace StackExchange.Redis
         /// <param name="parameters">The parameters to pass to the script.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>A dynamic representation of the script's result.</returns>
-        /// <remarks>https://redis.io/commands/eval</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/eval"/></remarks>
         Task<RedisResult> ScriptEvaluateAsync(LuaScript script, object? parameters = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1198,7 +1236,7 @@ namespace StackExchange.Redis
         /// <param name="parameters">The parameters to pass to the script.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>A dynamic representation of the script's result.</returns>
-        /// <remarks>https://redis.io/commands/eval</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/eval"/></remarks>
         Task<RedisResult> ScriptEvaluateAsync(LoadedLuaScript script, object? parameters = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1210,7 +1248,7 @@ namespace StackExchange.Redis
         /// <param name="value">The value to add to the set.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns><see langword="true"/> if the specified member was not already present in the set, else <see langword="false"/>.</returns>
-        /// <remarks>https://redis.io/commands/sadd</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/sadd"/></remarks>
         Task<bool> SetAddAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1222,7 +1260,7 @@ namespace StackExchange.Redis
         /// <param name="values">The values to add to the set.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of elements that were added to the set, not including all the elements already present into the set.</returns>
-        /// <remarks>https://redis.io/commands/sadd</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/sadd"/></remarks>
         Task<long> SetAddAsync(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1233,9 +1271,11 @@ namespace StackExchange.Redis
         /// <param name="second">The key of the second set.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>List with members of the resulting set.</returns>
-        /// <remarks>https://redis.io/commands/sunion</remarks>
-        /// <remarks>https://redis.io/commands/sinter</remarks>
-        /// <remarks>https://redis.io/commands/sdiff</remarks>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/sunion"/>,
+        /// <seealso href="https://redis.io/commands/sinter"/>,
+        /// <seealso href="https://redis.io/commands/sdiff"/>
+        /// </remarks>
         Task<RedisValue[]> SetCombineAsync(SetOperation operation, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1245,9 +1285,11 @@ namespace StackExchange.Redis
         /// <param name="keys">The keys of the sets to operate on.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>List with members of the resulting set.</returns>
-        /// <remarks>https://redis.io/commands/sunion</remarks>
-        /// <remarks>https://redis.io/commands/sinter</remarks>
-        /// <remarks>https://redis.io/commands/sdiff</remarks>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/sunion"/>,
+        /// <seealso href="https://redis.io/commands/sinter"/>,
+        /// <seealso href="https://redis.io/commands/sdiff"/>
+        /// </remarks>
         Task<RedisValue[]> SetCombineAsync(SetOperation operation, RedisKey[] keys, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1260,9 +1302,11 @@ namespace StackExchange.Redis
         /// <param name="second">The key of the second set.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of elements in the resulting set.</returns>
-        /// <remarks>https://redis.io/commands/sunionstore</remarks>
-        /// <remarks>https://redis.io/commands/sinterstore</remarks>
-        /// <remarks>https://redis.io/commands/sdiffstore</remarks>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/sunionstore"/>,
+        /// <seealso href="https://redis.io/commands/sinterstore"/>,
+        /// <seealso href="https://redis.io/commands/sdiffstore"/>
+        /// </remarks>
         Task<long> SetCombineAndStoreAsync(SetOperation operation, RedisKey destination, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1274,9 +1318,11 @@ namespace StackExchange.Redis
         /// <param name="keys">The keys of the sets to operate on.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of elements in the resulting set.</returns>
-        /// <remarks>https://redis.io/commands/sunionstore</remarks>
-        /// <remarks>https://redis.io/commands/sinterstore</remarks>
-        /// <remarks>https://redis.io/commands/sdiffstore</remarks>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/sunionstore"/>,
+        /// <seealso href="https://redis.io/commands/sinterstore"/>,
+        /// <seealso href="https://redis.io/commands/sdiffstore"/>
+        /// </remarks>
         Task<long> SetCombineAndStoreAsync(SetOperation operation, RedisKey destination, RedisKey[] keys, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1289,7 +1335,7 @@ namespace StackExchange.Redis
         /// <see langword="true"/> if the element is a member of the set.
         /// <see langword="false"/> if the element is not a member of the set, or if key does not exist.
         /// </returns>
-        /// <remarks>https://redis.io/commands/sismember</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/sismember"/></remarks>
         Task<bool> SetContainsAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1302,7 +1348,7 @@ namespace StackExchange.Redis
         /// <see langword="true"/> if the element is a member of the set.
         /// <see langword="false"/> if the element is not a member of the set, or if key does not exist.
         /// </returns>
-        /// <remarks>https://redis.io/commands/smismember</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/smismember"/></remarks>
         Task<bool[]> SetContainsAsync(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1318,7 +1364,7 @@ namespace StackExchange.Redis
         /// <param name="limit">The number of elements to check (defaults to 0 and means unlimited).</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The cardinality (number of elements) of the set, or 0 if key does not exist.</returns>
-        /// <remarks>https://redis.io/commands/scard</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/scard"/></remarks>
         Task<long> SetIntersectionLengthAsync(RedisKey[] keys, long limit = 0, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1327,7 +1373,7 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the set.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The cardinality (number of elements) of the set, or 0 if key does not exist.</returns>
-        /// <remarks>https://redis.io/commands/scard</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/scard"/></remarks>
         Task<long> SetLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1336,7 +1382,7 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the set.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>All elements of the set.</returns>
-        /// <remarks>https://redis.io/commands/smembers</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/smembers"/></remarks>
         Task<RedisValue[]> SetMembersAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1352,7 +1398,7 @@ namespace StackExchange.Redis
         /// <see langword="true"/> if the element is moved.
         /// <see langword="false"/> if the element is not a member of source and no operation was performed.
         /// </returns>
-        /// <remarks>https://redis.io/commands/smove</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/smove"/></remarks>
         Task<bool> SetMoveAsync(RedisKey source, RedisKey destination, RedisValue value, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1361,7 +1407,7 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the set.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The removed element, or nil when key does not exist.</returns>
-        /// <remarks>https://redis.io/commands/spop</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/spop"/></remarks>
         Task<RedisValue> SetPopAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1371,16 +1417,16 @@ namespace StackExchange.Redis
         /// <param name="count">The number of elements to return.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>An array of elements, or an empty array when key does not exist.</returns>
-        /// <remarks>https://redis.io/commands/spop</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/spop"/></remarks>
         Task<RedisValue[]> SetPopAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Return a random element from the set value stored at key.
+        /// Return a random element from the set value stored at <paramref name="key"/>.
         /// </summary>
         /// <param name="key">The key of the set.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The randomly selected element, or nil when key does not exist.</returns>
-        /// <remarks>https://redis.io/commands/srandmember</remarks>
+        /// <returns>The randomly selected element, or <see cref="RedisValue.Null"/> when <paramref name="key"/> does not exist.</returns>
+        /// <remarks><seealso href="https://redis.io/commands/srandmember"/></remarks>
         Task<RedisValue> SetRandomMemberAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1391,8 +1437,8 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the set.</param>
         /// <param name="count">The count of members to get.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>An array of elements, or an empty array when key does not exist.</returns>
-        /// <remarks>https://redis.io/commands/srandmember</remarks>
+        /// <returns>An array of elements, or an empty array when <paramref name="key"/> does not exist.</returns>
+        /// <remarks><seealso href="https://redis.io/commands/srandmember"/></remarks>
         Task<RedisValue[]> SetRandomMembersAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1403,7 +1449,7 @@ namespace StackExchange.Redis
         /// <param name="value">The value to remove.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns><see langword="true"/> if the specified member was already present in the set, <see langword="false"/> otherwise.</returns>
-        /// <remarks>https://redis.io/commands/srem</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/srem"/></remarks>
         Task<bool> SetRemoveAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1414,7 +1460,7 @@ namespace StackExchange.Redis
         /// <param name="values">The values to remove.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of members that were removed from the set, not including non existing members.</returns>
-        /// <remarks>https://redis.io/commands/srem</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/srem"/></remarks>
         Task<long> SetRemoveAsync(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1428,7 +1474,7 @@ namespace StackExchange.Redis
         /// <param name="pageOffset">The page offset to start at.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>Yields all matching elements of the set.</returns>
-        /// <remarks>https://redis.io/commands/sscan</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/sscan"/></remarks>
         IAsyncEnumerable<RedisValue> SetScanAsync(RedisKey key, RedisValue pattern = default, int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1448,7 +1494,7 @@ namespace StackExchange.Redis
         /// <param name="get">The key pattern to sort by, if any e.g. ExternalKey_* would return the value of ExternalKey_{listvalue} for each entry.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The sorted elements, or the external values if <c>get</c> is specified.</returns>
-        /// <remarks>https://redis.io/commands/sort</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/sort"/></remarks>
         Task<RedisValue[]> SortAsync(RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default, RedisValue[]? get = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1456,7 +1502,7 @@ namespace StackExchange.Redis
         /// By default, the elements themselves are compared, but the values can also be used to perform external key-lookups using the <c>by</c> parameter.
         /// By default, the elements themselves are returned, but external key-lookups (one or many) can be performed instead by specifying
         /// the <c>get</c> parameter (note that <c>#</c> specifies the element itself, when used in <c>get</c>).
-        /// Referring to the <a href="https://redis.io/commands/sort">redis SORT documentation </a> for examples is recommended.
+        /// Referring to the <a href="https://redis.io/commands/sort">redis SORT documentation</a> for examples is recommended.
         /// When used in hashes, <c>by</c> and <c>get</c> can be used to specify fields using <c>-&gt;</c> notation (again, refer to redis documentation).
         /// </summary>
         /// <param name="destination">The destination key to store results in.</param>
@@ -1469,7 +1515,7 @@ namespace StackExchange.Redis
         /// <param name="get">The key pattern to sort by, if any e.g. ExternalKey_* would return the value of ExternalKey_{listvalue} for each entry.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of elements stored in the new list.</returns>
-        /// <remarks>https://redis.io/commands/sort</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/sort"/></remarks>
         Task<long> SortAndStoreAsync(RedisKey destination, RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default, RedisValue[]? get = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1481,7 +1527,7 @@ namespace StackExchange.Redis
         /// <param name="score">The score for the member to add to the sorted set.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns><see langword="true"/> if the value was added. <see langword="false"/> if it already existed (the score is still updated).</returns>
-        /// <remarks>https://redis.io/commands/zadd</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/zadd"/></remarks>
         Task<bool> SortedSetAddAsync(RedisKey key, RedisValue member, double score, CommandFlags flags);
 
         /// <summary>
@@ -1494,7 +1540,7 @@ namespace StackExchange.Redis
         /// <param name="when">What conditions to add the element under (defaults to always).</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns><see langword="true"/> if the value was added. <see langword="false"/> if it already existed (the score is still updated).</returns>
-        /// <remarks>https://redis.io/commands/zadd</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/zadd"/></remarks>
         Task<bool> SortedSetAddAsync(RedisKey key, RedisValue member, double score, When when = When.Always, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1505,7 +1551,7 @@ namespace StackExchange.Redis
         /// <param name="values">The members and values to add to the sorted set.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of elements added to the sorted sets, not including elements already existing for which the score was updated.</returns>
-        /// <remarks>https://redis.io/commands/zadd</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/zadd"/></remarks>
         Task<long> SortedSetAddAsync(RedisKey key, SortedSetEntry[] values, CommandFlags flags);
 
         /// <summary>
@@ -1517,7 +1563,7 @@ namespace StackExchange.Redis
         /// <param name="when">What conditions to add the element under (defaults to always).</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of elements added to the sorted sets, not including elements already existing for which the score was updated.</returns>
-        /// <remarks>https://redis.io/commands/zadd</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/zadd"/></remarks>
         Task<long> SortedSetAddAsync(RedisKey key, SortedSetEntry[] values, When when = When.Always, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1530,10 +1576,12 @@ namespace StackExchange.Redis
         /// <param name="weights">The optional weights per set that correspond to <paramref name="keys"/>.</param>
         /// <param name="aggregate">The aggregation method (defaults to <see cref="Aggregate.Sum"/>).</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <remarks>https://redis.io/commands/zunion</remarks>
-        /// <remarks>https://redis.io/commands/zinter</remarks>
-        /// <remarks>https://redis.io/commands/zdiff</remarks>
         /// <returns>The resulting sorted set.</returns>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/zunion"/>,
+        /// <seealso href="https://redis.io/commands/zinter"/>,
+        /// <seealso href="https://redis.io/commands/zdiff"/>
+        /// </remarks>
         Task<RedisValue[]> SortedSetCombineAsync(SetOperation operation, RedisKey[] keys, double[]? weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1546,10 +1594,12 @@ namespace StackExchange.Redis
         /// <param name="weights">The optional weights per set that correspond to <paramref name="keys"/>.</param>
         /// <param name="aggregate">The aggregation method (defaults to <see cref="Aggregate.Sum"/>).</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <remarks>https://redis.io/commands/zunion</remarks>
-        /// <remarks>https://redis.io/commands/zinter</remarks>
-        /// <remarks>https://redis.io/commands/zdiff</remarks>
         /// <returns>The resulting sorted set with scores.</returns>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/zunion"/>,
+        /// <seealso href="https://redis.io/commands/zinter"/>,
+        /// <seealso href="https://redis.io/commands/zdiff"/>
+        /// </remarks>
         Task<SortedSetEntry[]> SortedSetCombineWithScoresAsync(SetOperation operation, RedisKey[] keys, double[]? weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1563,10 +1613,12 @@ namespace StackExchange.Redis
         /// <param name="second">The key of the second sorted set.</param>
         /// <param name="aggregate">The aggregation method (defaults to sum).</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <remarks>https://redis.io/commands/zunionstore</remarks>
-        /// <remarks>https://redis.io/commands/zinterstore</remarks>
-        /// <remarks>https://redis.io/commands/zdiffstore</remarks>
         /// <returns>The number of elements in the resulting sorted set at destination.</returns>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/zunionstore"/>,
+        /// <seealso href="https://redis.io/commands/zinterstore"/>,
+        /// <seealso href="https://redis.io/commands/zdiffstore"/>
+        /// </remarks>
         Task<long> SortedSetCombineAndStoreAsync(SetOperation operation, RedisKey destination, RedisKey first, RedisKey second, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1580,10 +1632,12 @@ namespace StackExchange.Redis
         /// <param name="weights">The optional weights per set that correspond to <paramref name="keys"/>.</param>
         /// <param name="aggregate">The aggregation method (defaults to sum).</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <remarks>https://redis.io/commands/zunionstore</remarks>
-        /// <remarks>https://redis.io/commands/zinterstore</remarks>
-        /// <remarks>https://redis.io/commands/zdiffstore</remarks>
         /// <returns>The number of elements in the resulting sorted set at destination.</returns>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/zunionstore"/>,
+        /// <seealso href="https://redis.io/commands/zinterstore"/>,
+        /// <seealso href="https://redis.io/commands/zdiffstore"/>
+        /// </remarks>
         Task<long> SortedSetCombineAndStoreAsync(SetOperation operation, RedisKey destination, RedisKey[] keys, double[]? weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1595,7 +1649,7 @@ namespace StackExchange.Redis
         /// <param name="value">The amount to decrement by.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The new score of member.</returns>
-        /// <remarks>https://redis.io/commands/zincrby</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/zincrby"/></remarks>
         Task<double> SortedSetDecrementAsync(RedisKey key, RedisValue member, double value, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1606,7 +1660,7 @@ namespace StackExchange.Redis
         /// <param name="value">The amount to increment by.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The new score of member.</returns>
-        /// <remarks>https://redis.io/commands/zincrby</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/zincrby"/></remarks>
         Task<double> SortedSetIncrementAsync(RedisKey key, RedisValue member, double value, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1616,7 +1670,7 @@ namespace StackExchange.Redis
         /// <param name="limit">If the intersection cardinality reaches <paramref name="limit"/> partway through the computation, the algorithm will exit and yield <paramref name="limit"/> as the cardinality (defaults to 0 meaning unlimited).</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of elements in the resulting intersection.</returns>
-        /// <remarks>https://redis.io/commands/zintercard</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/zintercard"/></remarks>
         Task<long> SortedSetIntersectionLengthAsync(RedisKey[] keys, long limit = 0, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1628,7 +1682,7 @@ namespace StackExchange.Redis
         /// <param name="exclude">Whether to exclude <paramref name="min"/> and <paramref name="max"/> from the range check (defaults to both inclusive).</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The cardinality (number of elements) of the sorted set, or 0 if key does not exist.</returns>
-        /// <remarks>https://redis.io/commands/zcard</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/zcard"/></remarks>
         Task<long> SortedSetLengthAsync(RedisKey key, double min = double.NegativeInfinity, double max = double.PositiveInfinity, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1641,7 +1695,7 @@ namespace StackExchange.Redis
         /// <param name="exclude">Whether to exclude <paramref name="min"/> and <paramref name="max"/> from the range check (defaults to both inclusive).</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of elements in the specified score range.</returns>
-        /// <remarks>https://redis.io/commands/zlexcount</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/zlexcount"/></remarks>
         Task<long> SortedSetLengthByValueAsync(RedisKey key, RedisValue min, RedisValue max, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1650,7 +1704,7 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the sorted set.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The randomly selected element, or <see cref="RedisValue.Null"/> when <paramref name="key"/> does not exist.</returns>
-        /// <remarks>https://redis.io/commands/zrandmember</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/zrandmember"/></remarks>
         Task<RedisValue> SortedSetRandomMemberAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1669,7 +1723,7 @@ namespace StackExchange.Redis
         /// </param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The randomly selected elements, or an empty array when <paramref name="key"/> does not exist.</returns>
-        /// <remarks>https://redis.io/commands/zrandmember</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/zrandmember"/></remarks>
         Task<RedisValue[]> SortedSetRandomMembersAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1688,7 +1742,7 @@ namespace StackExchange.Redis
         /// </param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The randomly selected elements with scores, or an empty array when <paramref name="key"/> does not exist.</returns>
-        /// <remarks>https://redis.io/commands/zrandmember</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/zrandmember"/></remarks>
         Task<SortedSetEntry[]> SortedSetRandomMembersWithScoresAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1704,8 +1758,10 @@ namespace StackExchange.Redis
         /// <param name="order">The order to sort by (defaults to ascending).</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>List of elements in the specified range.</returns>
-        /// <remarks>https://redis.io/commands/zrange</remarks>
-        /// <remarks>https://redis.io/commands/zrevrange</remarks>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/zrange"/>,
+        /// <seealso href="https://redis.io/commands/zrevrange"/>
+        /// </remarks>
         Task<RedisValue[]> SortedSetRangeByRankAsync(RedisKey key, long start = 0, long stop = -1, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1726,8 +1782,8 @@ namespace StackExchange.Redis
         /// <param name="skip">The number of elements into the sorted set to skip. Note: this iterates after sorting so incurs O(n) cost for large values.</param>
         /// <param name="take">The maximum number of elements to pull into the new (<paramref name="destinationKey"/>) set.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <remarks>https://redis.io/commands/zrangestore</remarks>
         /// <returns>The cardinality of (number of elements in) the newly created sorted set.</returns>
+        /// <remarks><seealso href="https://redis.io/commands/zrangestore"/></remarks>
         Task<long> SortedSetRangeAndStoreAsync(
             RedisKey sourceKey,
             RedisKey destinationKey,
@@ -1753,8 +1809,10 @@ namespace StackExchange.Redis
         /// <param name="order">The order to sort by (defaults to ascending).</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>List of elements in the specified range.</returns>
-        /// <remarks>https://redis.io/commands/zrange</remarks>
-        /// <remarks>https://redis.io/commands/zrevrange</remarks>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/zrange"/>,
+        /// <seealso href="https://redis.io/commands/zrevrange"/>
+        /// </remarks>
         Task<SortedSetEntry[]> SortedSetRangeByRankWithScoresAsync(RedisKey key, long start = 0, long stop = -1, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1773,8 +1831,10 @@ namespace StackExchange.Redis
         /// <param name="take">How many items to take.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>List of elements in the specified score range.</returns>
-        /// <remarks>https://redis.io/commands/zrangebyscore</remarks>
-        /// <remarks>https://redis.io/commands/zrevrangebyscore</remarks>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/zrangebyscore"/>,
+        /// <seealso href="https://redis.io/commands/zrevrangebyscore"/>
+        /// </remarks>
         Task<RedisValue[]> SortedSetRangeByScoreAsync(RedisKey key,
             double start = double.NegativeInfinity,
             double stop = double.PositiveInfinity,
@@ -1800,8 +1860,10 @@ namespace StackExchange.Redis
         /// <param name="take">How many items to take.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>List of elements in the specified score range.</returns>
-        /// <remarks>https://redis.io/commands/zrangebyscore</remarks>
-        /// <remarks>https://redis.io/commands/zrevrangebyscore</remarks>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/zrangebyscore"/>,
+        /// <seealso href="https://redis.io/commands/zrevrangebyscore"/>
+        /// </remarks>
         Task<SortedSetEntry[]> SortedSetRangeByScoreWithScoresAsync(RedisKey key,
             double start = double.NegativeInfinity,
             double stop = double.PositiveInfinity,
@@ -1822,8 +1884,8 @@ namespace StackExchange.Redis
         /// <param name="skip">How many items to skip.</param>
         /// <param name="take">How many items to take.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <remarks>https://redis.io/commands/zrangebylex</remarks>
         /// <returns>List of elements in the specified score range.</returns>
+        /// <remarks><seealso href="https://redis.io/commands/zrangebylex"/></remarks>
         Task<RedisValue[]> SortedSetRangeByValueAsync(RedisKey key,
             RedisValue min,
             RedisValue max,
@@ -1844,9 +1906,11 @@ namespace StackExchange.Redis
         /// <param name="skip">How many items to skip.</param>
         /// <param name="take">How many items to take.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <remarks>https://redis.io/commands/zrangebylex</remarks>
-        /// <remarks>https://redis.io/commands/zrevrangebylex</remarks>
         /// <returns>List of elements in the specified score range.</returns>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/zrangebylex"/>,
+        /// <seealso href="https://redis.io/commands/zrevrangebylex"/>
+        /// </remarks>
         Task<RedisValue[]> SortedSetRangeByValueAsync(RedisKey key,
             RedisValue min = default,
             RedisValue max = default,
@@ -1865,8 +1929,10 @@ namespace StackExchange.Redis
         /// <param name="order">The order to sort by (defaults to ascending).</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>If member exists in the sorted set, the rank of member. If member does not exist in the sorted set or key does not exist, <see langword="null"/>.</returns>
-        /// <remarks>https://redis.io/commands/zrank</remarks>
-        /// <remarks>https://redis.io/commands/zrevrank</remarks>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/zrank"/>,
+        /// <seealso href="https://redis.io/commands/zrevrank"/>
+        /// </remarks>
         Task<long?> SortedSetRankAsync(RedisKey key, RedisValue member, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1876,7 +1942,7 @@ namespace StackExchange.Redis
         /// <param name="member">The member to remove.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns><see langword="true"/> if the member existed in the sorted set and was removed. <see langword="false"/> otherwise.</returns>
-        /// <remarks>https://redis.io/commands/zrem</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/zrem"/></remarks>
         Task<bool> SortedSetRemoveAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1886,7 +1952,7 @@ namespace StackExchange.Redis
         /// <param name="members">The members to remove.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of members removed from the sorted set, not including non existing members.</returns>
-        /// <remarks>https://redis.io/commands/zrem</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/zrem"/></remarks>
         Task<long> SortedSetRemoveAsync(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1900,7 +1966,7 @@ namespace StackExchange.Redis
         /// <param name="stop">The maximum rank to remove.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of elements removed.</returns>
-        /// <remarks>https://redis.io/commands/zremrangebyrank</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/zremrangebyrank"/></remarks>
         Task<long> SortedSetRemoveRangeByRankAsync(RedisKey key, long start, long stop, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1912,7 +1978,7 @@ namespace StackExchange.Redis
         /// <param name="exclude">Which of <paramref name="start"/> and <paramref name="stop"/> to exclude (defaults to both inclusive).</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of elements removed.</returns>
-        /// <remarks>https://redis.io/commands/zremrangebyscore</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/zremrangebyscore"/></remarks>
         Task<long> SortedSetRemoveRangeByScoreAsync(RedisKey key, double start, double stop, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1925,7 +1991,7 @@ namespace StackExchange.Redis
         /// <param name="exclude">Which of <paramref name="min"/> and <paramref name="max"/> to exclude (defaults to both inclusive).</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of elements removed.</returns>
-        /// <remarks>https://redis.io/commands/zremrangebylex</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/zremrangebylex"/></remarks>
         Task<long> SortedSetRemoveRangeByValueAsync(RedisKey key, RedisValue min, RedisValue max, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1938,7 +2004,7 @@ namespace StackExchange.Redis
         /// <param name="pageOffset">The page offset to start at.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>Yields all matching elements of the sorted set.</returns>
-        /// <remarks>https://redis.io/commands/zscan</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/zscan"/></remarks>
         IAsyncEnumerable<SortedSetEntry> SortedSetScanAsync(RedisKey key,
             RedisValue pattern = default,
             int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize,
@@ -1954,7 +2020,7 @@ namespace StackExchange.Redis
         /// <param name="member">The member to get a score for.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The score of the member.</returns>
-        /// <remarks>https://redis.io/commands/zscore</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/zscore"/></remarks>
         Task<double?> SortedSetScoreAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1968,7 +2034,7 @@ namespace StackExchange.Redis
         /// The scores of the members in the same order as the <paramref name="members"/> array.
         /// If a member does not exist in the set, <see langword="null"/> is returned.
         /// </returns>
-        /// <remarks>https://redis.io/commands/zmscore</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/zmscore"/></remarks>
         Task<double?[]> SortedSetScoresAsync(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1978,8 +2044,10 @@ namespace StackExchange.Redis
         /// <param name="order">The order to sort by (defaults to ascending).</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The removed element, or nil when key does not exist.</returns>
-        /// <remarks>https://redis.io/commands/zpopmin</remarks>
-        /// <remarks>https://redis.io/commands/zpopmax</remarks>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/zpopmin"/>,
+        /// <seealso href="https://redis.io/commands/zpopmax"/>
+        /// </remarks>
         Task<SortedSetEntry?> SortedSetPopAsync(RedisKey key, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1990,8 +2058,10 @@ namespace StackExchange.Redis
         /// <param name="order">The order to sort by (defaults to ascending).</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>An array of elements, or an empty array when key does not exist.</returns>
-        /// <remarks>https://redis.io/commands/zpopmin</remarks>
-        /// <remarks>https://redis.io/commands/zpopmax</remarks>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/zpopmin"/>,
+        /// <seealso href="https://redis.io/commands/zpopmax"/>
+        /// </remarks>
         Task<SortedSetEntry[]> SortedSetPopAsync(RedisKey key, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2002,7 +2072,7 @@ namespace StackExchange.Redis
         /// <param name="messageId">The ID of the message to acknowledge.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of messages acknowledged.</returns>
-        /// <remarks>https://redis.io/topics/streams-intro</remarks>
+        /// <remarks><seealso href="https://redis.io/topics/streams-intro"/></remarks>
         Task<long> StreamAcknowledgeAsync(RedisKey key, RedisValue groupName, RedisValue messageId, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2013,7 +2083,7 @@ namespace StackExchange.Redis
         /// <param name="messageIds">The IDs of the messages to acknowledge.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of messages acknowledged.</returns>
-        /// <remarks>https://redis.io/topics/streams-intro</remarks>
+        /// <remarks><seealso href="https://redis.io/topics/streams-intro"/></remarks>
         Task<long> StreamAcknowledgeAsync(RedisKey key, RedisValue groupName, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2029,7 +2099,7 @@ namespace StackExchange.Redis
         /// <param name="useApproximateMaxLength">If true, the "~" argument is used to allow the stream to exceed max length by a small number. This improves performance when removing messages.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The ID of the newly created message.</returns>
-        /// <remarks>https://redis.io/commands/xadd</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/xadd"/></remarks>
         Task<RedisValue> StreamAddAsync(RedisKey key, RedisValue streamField, RedisValue streamValue, RedisValue? messageId = null, int? maxLength = null, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2044,7 +2114,7 @@ namespace StackExchange.Redis
         /// <param name="useApproximateMaxLength">If true, the "~" argument is used to allow the stream to exceed max length by a small number. This improves performance when removing messages.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The ID of the newly created message.</returns>
-        /// <remarks>https://redis.io/commands/xadd</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/xadd"/></remarks>
         Task<RedisValue> StreamAddAsync(RedisKey key, NameValueEntry[] streamPairs, RedisValue? messageId = null, int? maxLength = null, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2058,7 +2128,7 @@ namespace StackExchange.Redis
         /// <param name="messageIds">The IDs of the messages to claim for the given consumer.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The messages successfully claimed by the given consumer.</returns>
-        /// <remarks>https://redis.io/topics/streams-intro</remarks>
+        /// <remarks><seealso href="https://redis.io/topics/streams-intro"/></remarks>
         Task<StreamEntry[]> StreamClaimAsync(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2072,7 +2142,7 @@ namespace StackExchange.Redis
         /// <param name="messageIds">The IDs of the messages to claim for the given consumer.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The message IDs for the messages successfully claimed by the given consumer.</returns>
-        /// <remarks>https://redis.io/topics/streams-intro</remarks>
+        /// <remarks><seealso href="https://redis.io/topics/streams-intro"/></remarks>
         Task<RedisValue[]> StreamClaimIdsOnlyAsync(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2083,6 +2153,7 @@ namespace StackExchange.Redis
         /// <param name="position">The position from which to read for the consumer group.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns><see langword="true"/> if successful, <see langword="false"/> otherwise.</returns>
+        /// <remarks><seealso href="https://redis.io/topics/streams-intro"/></remarks>
         Task<bool> StreamConsumerGroupSetPositionAsync(RedisKey key, RedisValue groupName, RedisValue position, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2093,7 +2164,7 @@ namespace StackExchange.Redis
         /// <param name="groupName">The consumer group name.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>An instance of <see cref="StreamConsumerInfo"/> for each of the consumer group's consumers.</returns>
-        /// <remarks>https://redis.io/topics/streams-intro</remarks>
+        /// <remarks><seealso href="https://redis.io/topics/streams-intro"/></remarks>
         Task<StreamConsumerInfo[]> StreamConsumerInfoAsync(RedisKey key, RedisValue groupName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2104,7 +2175,7 @@ namespace StackExchange.Redis
         /// <param name="position">The position to begin reading the stream. Defaults to <see cref="StreamPosition.NewMessages"/>.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns><see langword="true"/> if the group was created, <see langword="false"/> otherwise.</returns>
-        /// <remarks>https://redis.io/topics/streams-intro</remarks>
+        /// <remarks><seealso href="https://redis.io/topics/streams-intro"/></remarks>
         Task<bool> StreamCreateConsumerGroupAsync(RedisKey key, RedisValue groupName, RedisValue? position, CommandFlags flags);
 
         /// <summary>
@@ -2116,7 +2187,7 @@ namespace StackExchange.Redis
         /// <param name="createStream">Create the stream if it does not already exist.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns><see langword="true"/> if the group was created, <see langword="false"/> otherwise.</returns>
-        /// <remarks>https://redis.io/topics/streams-intro</remarks>
+        /// <remarks><seealso href="https://redis.io/topics/streams-intro"/></remarks>
         Task<bool> StreamCreateConsumerGroupAsync(RedisKey key, RedisValue groupName, RedisValue? position = null, bool createStream = true, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2126,7 +2197,7 @@ namespace StackExchange.Redis
         /// <param name="messageIds">The IDs of the messages to delete.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>Returns the number of messages successfully deleted from the stream.</returns>
-        /// <remarks>https://redis.io/topics/streams-intro</remarks>
+        /// <remarks><seealso href="https://redis.io/topics/streams-intro"/></remarks>
         Task<long> StreamDeleteAsync(RedisKey key, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2137,6 +2208,7 @@ namespace StackExchange.Redis
         /// <param name="consumerName">The name of the consumer.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of messages that were pending for the deleted consumer.</returns>
+        /// <remarks><seealso href="https://redis.io/topics/streams-intro"/></remarks>
         Task<long> StreamDeleteConsumerAsync(RedisKey key, RedisValue groupName, RedisValue consumerName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2146,6 +2218,7 @@ namespace StackExchange.Redis
         /// <param name="groupName">The name of the consumer group.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns><see langword="true"/> if deleted, <see langword="false"/> otherwise.</returns>
+        /// <remarks><seealso href="https://redis.io/topics/streams-intro"/></remarks>
         Task<bool> StreamDeleteConsumerGroupAsync(RedisKey key, RedisValue groupName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2154,7 +2227,7 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the stream.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>An instance of <see cref="StreamGroupInfo"/> for each of the stream's groups.</returns>
-        /// <remarks>https://redis.io/topics/streams-intro</remarks>
+        /// <remarks><seealso href="https://redis.io/topics/streams-intro"/></remarks>
         Task<StreamGroupInfo[]> StreamGroupInfoAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2163,7 +2236,7 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the stream.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>A <see cref="StreamInfo"/> instance with information about the stream.</returns>
-        /// <remarks>https://redis.io/topics/streams-intro</remarks>
+        /// <remarks><seealso href="https://redis.io/topics/streams-intro"/></remarks>
         Task<StreamInfo> StreamInfoAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2172,7 +2245,7 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the stream.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of entries inside the given stream.</returns>
-        /// <remarks>https://redis.io/commands/xlen</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/xlen"/></remarks>
         Task<long> StreamLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2188,7 +2261,7 @@ namespace StackExchange.Redis
         /// The highest and lowest ID of the pending messages, and the consumers with their pending message count.
         /// </returns>
         /// <remarks>The equivalent of calling XPENDING key group.</remarks>
-        /// <remarks>https://redis.io/commands/xpending</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/xpending"/></remarks>
         Task<StreamPendingInfo> StreamPendingAsync(RedisKey key, RedisValue groupName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2203,7 +2276,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>An instance of <see cref="StreamPendingMessageInfo"/> for each pending message.</returns>
         /// <remarks>Equivalent of calling XPENDING key group start-id end-id count consumer-name.</remarks>
-        /// <remarks>https://redis.io/commands/xpending</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/xpending"/></remarks>
         Task<StreamPendingMessageInfo[]> StreamPendingMessagesAsync(RedisKey key, RedisValue groupName, int count, RedisValue consumerName, RedisValue? minId = null, RedisValue? maxId = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2216,7 +2289,7 @@ namespace StackExchange.Redis
         /// <param name="messageOrder">The order of the messages. <see cref="Order.Ascending"/> will execute XRANGE and <see cref="Order.Descending"/> will execute XREVRANGE.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>Returns an instance of <see cref="StreamEntry"/> for each message returned.</returns>
-        /// <remarks>https://redis.io/commands/xrange</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/xrange"/></remarks>
         Task<StreamEntry[]> StreamRangeAsync(RedisKey key, RedisValue? minId = null, RedisValue? maxId = null, int? count = null, Order messageOrder = Order.Ascending, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2227,8 +2300,10 @@ namespace StackExchange.Redis
         /// <param name="count">The maximum number of messages to return.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>Returns an instance of <see cref="StreamEntry"/> for each message returned.</returns>
-        /// <remarks>Equivalent of calling XREAD COUNT num STREAMS key id.</remarks>
-        /// <remarks>https://redis.io/commands/xread</remarks>
+        /// <remarks>
+        /// <para>Equivalent of calling <c>XREAD COUNT num STREAMS key id</c>.</para>
+        /// <para><seealso href="https://redis.io/commands/xread"/></para>
+        /// </remarks>
         Task<StreamEntry[]> StreamReadAsync(RedisKey key, RedisValue position, int? count = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2238,8 +2313,10 @@ namespace StackExchange.Redis
         /// <param name="countPerStream">The maximum number of messages to return from each stream.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>A value of <see cref="RedisStream"/> for each stream.</returns>
-        /// <remarks>Equivalent of calling XREAD COUNT num STREAMS key1 key2 id1 id2.</remarks>
-        /// <remarks>https://redis.io/commands/xread</remarks>
+        /// <remarks>
+        /// <para>Equivalent of calling <c>XREAD COUNT num STREAMS key1 key2 id1 id2</c>.</para>
+        /// <para><seealso href="https://redis.io/commands/xread"/></para>
+        /// </remarks>
         Task<RedisStream[]> StreamReadAsync(StreamPosition[] streamPositions, int? countPerStream = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2252,7 +2329,7 @@ namespace StackExchange.Redis
         /// <param name="count">The maximum number of messages to return.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>Returns a value of <see cref="StreamEntry"/> for each message returned.</returns>
-        /// <remarks>https://redis.io/commands/xreadgroup</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/xreadgroup"/></remarks>
         Task<StreamEntry[]> StreamReadGroupAsync(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position, int? count, CommandFlags flags);
 
         /// <summary>
@@ -2266,7 +2343,7 @@ namespace StackExchange.Redis
         /// <param name="noAck">When true, the message will not be added to the pending message list.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>Returns a value of <see cref="StreamEntry"/> for each message returned.</returns>
-        /// <remarks>https://redis.io/commands/xreadgroup</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/xreadgroup"/></remarks>
         Task<StreamEntry[]> StreamReadGroupAsync(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position = null, int? count = null, bool noAck = false, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2279,8 +2356,10 @@ namespace StackExchange.Redis
         /// <param name="countPerStream">The maximum number of messages to return from each stream.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>A value of <see cref="RedisStream"/> for each stream.</returns>
-        /// <remarks>Equivalent of calling XREADGROUP GROUP groupName consumerName COUNT countPerStream STREAMS stream1 stream2 id1 id2</remarks>
-        /// <remarks>https://redis.io/commands/xreadgroup</remarks>
+        /// <remarks>
+        /// <para>Equivalent of calling <c>XREADGROUP GROUP groupName consumerName COUNT countPerStream STREAMS stream1 stream2 id1 id2</c>.</para>
+        /// <para><seealso href="https://redis.io/commands/xreadgroup"/></para>
+        /// </remarks>
         Task<RedisStream[]> StreamReadGroupAsync(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, CommandFlags flags);
 
         /// <summary>
@@ -2294,8 +2373,10 @@ namespace StackExchange.Redis
         /// <param name="noAck">When true, the message will not be added to the pending message list.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>A value of <see cref="RedisStream"/> for each stream.</returns>
-        /// <remarks>Equivalent of calling XREADGROUP GROUP groupName consumerName COUNT countPerStream STREAMS stream1 stream2 id1 id2</remarks>
-        /// <remarks>https://redis.io/commands/xreadgroup</remarks>
+        /// <remarks>
+        /// <para>Equivalent of calling <c>XREADGROUP GROUP groupName consumerName COUNT countPerStream STREAMS stream1 stream2 id1 id2</c>.</para>
+        /// <para><seealso href="https://redis.io/commands/xreadgroup"/></para>
+        /// </remarks>
         Task<RedisStream[]> StreamReadGroupAsync(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2306,7 +2387,7 @@ namespace StackExchange.Redis
         /// <param name="useApproximateMaxLength">If true, the "~" argument is used to allow the stream to exceed max length by a small number. This improves performance when removing messages.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of messages removed from the stream.</returns>
-        /// <remarks>https://redis.io/topics/streams-intro</remarks>
+        /// <remarks><seealso href="https://redis.io/topics/streams-intro"/></remarks>
         Task<long> StreamTrimAsync(RedisKey key, int maxLength, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2317,7 +2398,7 @@ namespace StackExchange.Redis
         /// <param name="value">The value to append to the string.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The length of the string after the append operation.</returns>
-        /// <remarks>https://redis.io/commands/append</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/append"/></remarks>
         Task<long> StringAppendAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2331,7 +2412,7 @@ namespace StackExchange.Redis
         /// <param name="end">The end byte to count at.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of bits set to 1.</returns>
-        /// <remarks>https://redis.io/commands/bitcount</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/bitcount"/></remarks>
         Task<long> StringBitCountAsync(RedisKey key, long start = 0, long end = -1, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2346,7 +2427,7 @@ namespace StackExchange.Redis
         /// <param name="second">The second key to get the bit value from.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The size of the string stored in the destination key, that is equal to the size of the longest input string.</returns>
-        /// <remarks>https://redis.io/commands/bitop</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/bitop"/></remarks>
         Task<long> StringBitOperationAsync(Bitwise operation, RedisKey destination, RedisKey first, RedisKey second = default, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2359,7 +2440,7 @@ namespace StackExchange.Redis
         /// <param name="keys">The keys to get the bit values from.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The size of the string stored in the destination key, that is equal to the size of the longest input string.</returns>
-        /// <remarks>https://redis.io/commands/bitop</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/bitop"/></remarks>
         Task<long> StringBitOperationAsync(Bitwise operation, RedisKey destination, RedisKey[] keys, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2373,9 +2454,11 @@ namespace StackExchange.Redis
         /// <param name="start">The position to start looking (defaults to 0).</param>
         /// <param name="end">The position to stop looking (defaults to -1, unlimited).</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The command returns the position of the first bit set to 1 or 0 according to the request.
-        /// If we look for set bits(the bit argument is 1) and the string is empty or composed of just zero bytes, -1 is returned.</returns>
-        /// <remarks>https://redis.io/commands/bitpos</remarks>
+        /// <returns>
+        /// The command returns the position of the first bit set to 1 or 0 according to the request.
+        /// If we look for set bits(the bit argument is 1) and the string is empty or composed of just zero bytes, -1 is returned.
+        /// </returns>
+        /// <remarks><seealso href="https://redis.io/commands/bitpos"/></remarks>
         Task<long> StringBitPositionAsync(RedisKey key, bool bit, long start = 0, long end = -1, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2388,8 +2471,10 @@ namespace StackExchange.Redis
         /// <param name="value">The amount to decrement by (defaults to 1).</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The value of key after the decrement.</returns>
-        /// <remarks>https://redis.io/commands/decrby</remarks>
-        /// <remarks>https://redis.io/commands/decr</remarks>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/decrby"/>,
+        /// <seealso href="https://redis.io/commands/decr"/>
+        /// </remarks>
         Task<long> StringDecrementAsync(RedisKey key, long value = 1, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2401,7 +2486,7 @@ namespace StackExchange.Redis
         /// <param name="value">The amount to decrement by (defaults to 1).</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The value of key after the decrement.</returns>
-        /// <remarks>https://redis.io/commands/incrbyfloat</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/incrbyfloat"/></remarks>
         Task<double> StringDecrementAsync(RedisKey key, double value, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2411,7 +2496,7 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the string.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The value of key, or nil when key does not exist.</returns>
-        /// <remarks>https://redis.io/commands/get</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/get"/></remarks>
         Task<RedisValue> StringGetAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2421,7 +2506,7 @@ namespace StackExchange.Redis
         /// <param name="keys">The keys of the strings.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The values of the strings with nil for keys do not exist.</returns>
-        /// <remarks>https://redis.io/commands/mget</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/mget"/></remarks>
         Task<RedisValue[]> StringGetAsync(RedisKey[] keys, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2431,7 +2516,7 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the string.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The value of key, or nil when key does not exist.</returns>
-        /// <remarks>https://redis.io/commands/get</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/get"/></remarks>
         Task<Lease<byte>?> StringGetLeaseAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2442,7 +2527,7 @@ namespace StackExchange.Redis
         /// <param name="offset">The offset in the string to get a bit at.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The bit value stored at offset.</returns>
-        /// <remarks>https://redis.io/commands/getbit</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/getbit"/></remarks>
         Task<bool> StringGetBitAsync(RedisKey key, long offset, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2455,7 +2540,7 @@ namespace StackExchange.Redis
         /// <param name="end">The end index of the substring to get.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The substring of the string value stored at key.</returns>
-        /// <remarks>https://redis.io/commands/getrange</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/getrange"/></remarks>
         Task<RedisValue> StringGetRangeAsync(RedisKey key, long start, long end, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2465,7 +2550,7 @@ namespace StackExchange.Redis
         /// <param name="value">The value to replace the existing value with.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The old value stored at key, or nil when key did not exist.</returns>
-        /// <remarks>https://redis.io/commands/getset</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/getset"/></remarks>
         Task<RedisValue> StringGetSetAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2476,7 +2561,7 @@ namespace StackExchange.Redis
         /// <param name="expiry">The expiry to set. <see langword="null"/> will remove expiry.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The value of key, or nil when key does not exist.</returns>
-        /// <remarks>https://redis.io/commands/getex</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/getex"/></remarks>
         Task<RedisValue> StringGetSetExpiryAsync(RedisKey key, TimeSpan? expiry, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2487,7 +2572,7 @@ namespace StackExchange.Redis
         /// <param name="expiry">The exact date and time to expire at. <see cref="DateTime.MaxValue"/> will remove expiry.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The value of key, or nil when key does not exist.</returns>
-        /// <remarks>https://redis.io/commands/getex</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/getex"/></remarks>
         Task<RedisValue> StringGetSetExpiryAsync(RedisKey key, DateTime expiry, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2498,7 +2583,7 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the string.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The value of key, or nil when key does not exist.</returns>
-        /// <remarks>https://redis.io/commands/getdelete</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/getdelete"/></remarks>
         Task<RedisValue> StringGetDeleteAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2509,7 +2594,7 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the string.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The value of key and its expiry, or nil when key does not exist.</returns>
-        /// <remarks>https://redis.io/commands/get</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/get"/></remarks>
         Task<RedisValueWithExpiry> StringGetWithExpiryAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2522,8 +2607,10 @@ namespace StackExchange.Redis
         /// <param name="value">The amount to increment by (defaults to 1).</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The value of key after the increment.</returns>
-        /// <remarks>https://redis.io/commands/incrby</remarks>
-        /// <remarks>https://redis.io/commands/incr</remarks>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/incrby"/>,
+        /// <seealso href="https://redis.io/commands/incr"/>
+        /// </remarks>
         Task<long> StringIncrementAsync(RedisKey key, long value = 1, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2535,7 +2622,7 @@ namespace StackExchange.Redis
         /// <param name="value">The amount to increment by (defaults to 1).</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The value of key after the increment.</returns>
-        /// <remarks>https://redis.io/commands/incrbyfloat</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/incrbyfloat"/></remarks>
         Task<double> StringIncrementAsync(RedisKey key, double value, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2544,7 +2631,7 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the string.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The length of the string at key, or 0 when key does not exist.</returns>
-        /// <remarks>https://redis.io/commands/strlen</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/strlen"/></remarks>
         Task<long> StringLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <inheritdoc cref="StringSetAsync(RedisKey, RedisValue, TimeSpan?, bool, When, CommandFlags)" />
@@ -2565,7 +2652,7 @@ namespace StackExchange.Redis
         /// <param name="when">Which condition to set the value under (defaults to always).</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns><see langword="true"/> if the string was set, <see langword="false"/> otherwise.</returns>
-        /// <remarks>https://redis.io/commands/set</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/set"/></remarks>
         Task<bool> StringSetAsync(RedisKey key, RedisValue value, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2576,8 +2663,10 @@ namespace StackExchange.Redis
         /// <param name="when">Which condition to set the value under (defaults to always).</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns><see langword="true"/> if the keys were set, <see langword="false"/> otherwise.</returns>
-        /// <remarks>https://redis.io/commands/mset</remarks>
-        /// <remarks>https://redis.io/commands/msetnx</remarks>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/mset"/>,
+        /// <seealso href="https://redis.io/commands/msetnx"/>
+        /// </remarks>
         Task<bool> StringSetAsync(KeyValuePair<RedisKey, RedisValue>[] values, When when = When.Always, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2589,8 +2678,10 @@ namespace StackExchange.Redis
         /// <param name="when">Which condition to set the value under (defaults to <see cref="When.Always"/>).</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The previous value stored at <paramref name="key"/>, or nil when key did not exist.</returns>
-        /// <remarks>This method uses the SET command with the GET option introduced in Redis 6.2.0 instead of the deprecated GETSET command.</remarks>
-        /// <remarks>https://redis.io/commands/set</remarks>
+        /// <remarks>
+        /// <para>This method uses the <c>SET</c> command with the <c>GET</c> option introduced in Redis 6.2.0 instead of the deprecated <c>GETSET</c> command.</para>
+        /// <para><seealso href="https://redis.io/commands/set"/></para>
+        /// </remarks>
         Task<RedisValue> StringSetAndGetAsync(RedisKey key, RedisValue value, TimeSpan? expiry, When when, CommandFlags flags);
 
         /// <summary>
@@ -2604,7 +2695,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The previous value stored at <paramref name="key"/>, or nil when key did not exist.</returns>
         /// <remarks>This method uses the SET command with the GET option introduced in Redis 6.2.0 instead of the deprecated GETSET command.</remarks>
-        /// <remarks>https://redis.io/commands/set</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/set"/></remarks>
         Task<RedisValue> StringSetAndGetAsync(RedisKey key, RedisValue value, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2617,7 +2708,7 @@ namespace StackExchange.Redis
         /// <param name="bit">The bit value to set, true for 1, false for 0.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The original bit value stored at offset.</returns>
-        /// <remarks>https://redis.io/commands/setbit</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/setbit"/></remarks>
         Task<bool> StringSetBitAsync(RedisKey key, long offset, bool bit, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2630,7 +2721,7 @@ namespace StackExchange.Redis
         /// <param name="value">The value to overwrite with.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The length of the string after it was modified by the command.</returns>
-        /// <remarks>https://redis.io/commands/setrange</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/setrange"/></remarks>
         Task<RedisValue> StringSetRangeAsync(RedisKey key, long offset, RedisValue value, CommandFlags flags = CommandFlags.None);
     }
 }
