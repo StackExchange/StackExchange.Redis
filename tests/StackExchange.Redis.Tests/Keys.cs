@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -295,5 +296,128 @@ public class Keys : TestBase
         var keyNotExists = key + "no-exist";
         Assert.Null(db.KeyRefCount(keyNotExists));
         Assert.Null(await db.KeyRefCountAsync(keyNotExists));
+    }
+
+
+    private static void TestTotalLengthAndCopyTo(in RedisKey key, int expectedLength)
+    {
+        var length = key.TotalLength();
+        Assert.Equal(expectedLength, length);
+        var arr = ArrayPool<byte>.Shared.Rent(length + 20); // deliberately oversized
+        try
+        {
+            var written = key.CopyTo(arr);
+            Assert.Equal(length, written);
+
+            var viaCast = (byte[]?)key;
+            ReadOnlySpan<byte> x = viaCast, y = new ReadOnlySpan<byte>(arr, 0, length);
+            Assert.True(x.SequenceEqual(y));
+            Assert.True(key.IsNull == viaCast is null);
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(arr);
+        }
+    }
+    [Fact]
+    public void NullKeySlot()
+    {
+        RedisKey key = RedisKey.Null;
+        Assert.True(key.TryGetSimpleBuffer(out var buffer));
+        Assert.Empty(buffer);
+        TestTotalLengthAndCopyTo(key, 0);
+
+        Assert.Equal(-1, GetHashSlot(key));
+    }
+
+    private static readonly byte[] KeyPrefix = Encoding.UTF8.GetBytes("abcde");
+
+    private static int GetHashSlot(in RedisKey key)
+    {
+        var strategy = new ServerSelectionStrategy(null!)
+        {
+            ServerType = ServerType.Cluster
+        };
+        return strategy.HashSlot(key);
+    }
+
+    [Theory]
+    [InlineData(false, null, -1)]
+    [InlineData(false, "", 0)]
+    [InlineData(false, "f", 3168)]
+    [InlineData(false, "abcde", 16097)]
+    [InlineData(false, "abcdef", 15101)]
+    [InlineData(false, "abcdeffsdkjhsdfgkjh sdkjhsdkjf hsdkjfh skudrfy7 348iu yksef78 dssdhkfh ##$OIU", 5073)]
+    [InlineData(false, @"Lorem ipsum dolor sit amet, consectetur adipiscing elit. Cras lobortis quam ac molestie ultricies. Duis maximus, nunc a auctor faucibus, risus turpis porttitor nibh, sit amet consequat lacus nibh quis nisi. Aliquam ipsum quam, dapibus ut ex eu, efficitur vestibulum dui. Sed a nibh ut felis congue tempor vel vel lectus. Phasellus a neque placerat, blandit massa sed, imperdiet urna. Praesent scelerisque lorem ipsum, non facilisis libero hendrerit quis. Nullam sit amet malesuada velit, ac lacinia lacus. Donec mollis a massa sed egestas. Suspendisse vitae augue quis erat gravida consectetur. Aenean interdum neque id lacinia eleifend.", 4954)]
+    [InlineData(true, null, 16097)]
+    [InlineData(true, "", 16097)] // note same as false/abcde
+    [InlineData(true, "f", 15101)] // note same as false/abcdef
+    [InlineData(true, "abcde", 4089)]
+    [InlineData(true, "abcdef", 1167)]
+    [InlineData(true, "abcdeffsdkjhsdfgkjh sdkjhsdkjf hsdkjfh skudrfy7 348iu yksef78 dssdhkfh ##$OIU", 10923)]
+    [InlineData(true, @"Lorem ipsum dolor sit amet, consectetur adipiscing elit. Cras lobortis quam ac molestie ultricies. Duis maximus, nunc a auctor faucibus, risus turpis porttitor nibh, sit amet consequat lacus nibh quis nisi. Aliquam ipsum quam, dapibus ut ex eu, efficitur vestibulum dui. Sed a nibh ut felis congue tempor vel vel lectus. Phasellus a neque placerat, blandit massa sed, imperdiet urna. Praesent scelerisque lorem ipsum, non facilisis libero hendrerit quis. Nullam sit amet malesuada velit, ac lacinia lacus. Donec mollis a massa sed egestas. Suspendisse vitae augue quis erat gravida consectetur. Aenean interdum neque id lacinia eleifend.", 4452)]
+    public void TestStringKeySlot(bool prefixed, string? s, int slot)
+    {
+        RedisKey key = prefixed ? new RedisKey(KeyPrefix, s) : s;
+        if (s is null && !prefixed)
+        {
+            Assert.True(key.TryGetSimpleBuffer(out var buffer));
+            Assert.Empty(buffer);
+            TestTotalLengthAndCopyTo(key, 0);
+        }
+        else
+        {
+            Assert.False(key.TryGetSimpleBuffer(out var buffer));
+        }
+        TestTotalLengthAndCopyTo(key, Encoding.UTF8.GetByteCount(s ?? "") + (prefixed ? KeyPrefix.Length : 0));
+
+        Assert.Equal(slot, GetHashSlot(key));
+    }
+
+    [Theory]
+    [InlineData(false, -1, -1)]
+    [InlineData(false, 0, 0)]
+    [InlineData(false, 1, 10242)]
+    [InlineData(false, 6, 10015)]
+    [InlineData(false, 47, 849)]
+    [InlineData(false, 14123, 2356)]
+    [InlineData(true, -1, 16097)]
+    [InlineData(true, 0, 16097)]
+    [InlineData(true, 1, 7839)]
+    [InlineData(true, 6, 6509)]
+    [InlineData(true, 47, 2217)]
+    [InlineData(true, 14123, 6773)]
+    public void TestBlobKeySlot(bool prefixed, int count, int slot)
+    {
+        byte[]? blob = null;
+        if (count >= 0)
+        {
+            blob = new byte[count];
+            new Random(count).NextBytes(blob);
+            for (int i = 0; i < blob.Length; i++)
+            {
+                if (blob[i] == (byte)'{') blob[i] = (byte)'!'; // avoid unexpected hash tags
+            }
+        }
+        RedisKey key = prefixed ? new RedisKey(KeyPrefix, blob) : blob;
+        if (prefixed)
+        {
+            Assert.False(key.TryGetSimpleBuffer(out _));
+        }
+        else
+        {
+            Assert.True(key.TryGetSimpleBuffer(out var buffer));
+            if (blob is null)
+            {
+                Assert.Empty(buffer);
+            }
+            else
+            {
+                Assert.Same(blob, buffer);
+            }
+        }
+        TestTotalLengthAndCopyTo(key, (blob?.Length ?? 0) + (prefixed ? KeyPrefix.Length : 0));
+
+        Assert.Equal(slot, GetHashSlot(key));
     }
 }

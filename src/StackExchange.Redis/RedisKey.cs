@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
 
 namespace StackExchange.Redis
@@ -297,5 +298,59 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="suffix">The suffix to append.</param>
         public RedisKey Append(RedisKey suffix) => WithPrefix(this, suffix);
+
+
+        internal bool TryGetSimpleBuffer([NotNullWhen(true)] out byte[]? arr)
+        {
+            arr = KeyValue is null ? Array.Empty<byte>() : KeyValue as byte[];
+            return arr is not null && (KeyPrefix is null || KeyPrefix.Length == 0);
+        }
+
+        internal int TotalLength()
+            => (KeyPrefix is null ? 0 : KeyPrefix.Length) + KeyValue switch
+                {
+                    null => 0,
+                    string s => Encoding.UTF8.GetByteCount(s),
+                    _ => ((byte[])KeyValue).Length,
+                };
+
+        internal int CopyTo(Span<byte> destination)
+        {
+            int written = 0;
+            if (KeyPrefix is not null && KeyPrefix.Length != 0)
+            {
+                KeyPrefix.CopyTo(destination);
+                written += KeyPrefix.Length;
+                destination = destination.Slice(KeyPrefix.Length);
+            }
+            switch (KeyValue)
+            {
+                case null:
+                    break; // nothing to do
+                case string s:
+                    if (s.Length != 0)
+                    {
+#if NETCOREAPP3_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
+                        written += Encoding.UTF8.GetBytes(s, destination);
+#else
+                        unsafe
+                        {
+                            fixed (byte* bPtr = destination)
+                            fixed (char* cPtr = s)
+                            {
+                                written += Encoding.UTF8.GetBytes(cPtr, s.Length, bPtr, destination.Length);
+                            }
+                        }
+#endif
+                    }
+                    break;
+                default:
+                    var arr = (byte[])KeyValue;
+                    arr.CopyTo(destination);
+                    written += arr.Length;
+                    break;
+            }
+            return written;
+        }
     }
 }
