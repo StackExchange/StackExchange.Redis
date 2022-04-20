@@ -831,4 +831,130 @@ public class Lists : TestBase
 
         Assert.Equal(-1, res);
     }
+
+    [Fact]
+    public async Task ListMultiPopSingleKeyAsync()
+    {
+        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+
+        var db = conn.GetDatabase();
+        var key = Me();
+        await db.KeyDeleteAsync(key);
+
+        db.ListLeftPush(key, "yankees");
+        db.ListLeftPush(key, "blue jays");
+        db.ListLeftPush(key, "orioles");
+        db.ListLeftPush(key, "red sox");
+        db.ListLeftPush(key, "rays");
+
+        var res = await db.ListLeftPopAsync(new RedisKey[] { key }, 1);
+
+        Assert.False(res.IsNull);
+        Assert.Single(res.Values);
+        Assert.Equal("rays", res.Values[0]);
+
+        res = await db.ListRightPopAsync(new RedisKey[] { key }, 2);
+
+        Assert.False(res.IsNull);
+        Assert.Equal(2, res.Values.Length);
+        Assert.Equal("yankees", res.Values[0]);
+        Assert.Equal("blue jays", res.Values[1]);
+    }
+
+    [Fact]
+    public async Task ListMultiPopMultipleKeysAsync()
+    {
+        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+
+        var db = conn.GetDatabase();
+        var key = Me();
+        await db.KeyDeleteAsync(key);
+
+        db.ListLeftPush(key, "yankees");
+        db.ListLeftPush(key, "blue jays");
+        db.ListLeftPush(key, "orioles");
+        db.ListLeftPush(key, "red sox");
+        db.ListLeftPush(key, "rays");
+
+        var res = await db.ListLeftPopAsync(new RedisKey[] { "empty-key", key, "also-empty" }, 2);
+
+        Assert.False(res.IsNull);
+        Assert.Equal(2, res.Values.Length);
+        Assert.Equal("rays", res.Values[0]);
+        Assert.Equal("red sox", res.Values[1]);
+
+        res = await db.ListRightPopAsync(new RedisKey[] { "empty-key", key, "also-empty" }, 1);
+
+        Assert.False(res.IsNull);
+        Assert.Single(res.Values);
+        Assert.Equal("yankees", res.Values[0]);
+    }
+
+    [Fact]
+    public void ListMultiPopSingleKey()
+    {
+        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+
+        var db = conn.GetDatabase();
+        var key = Me();
+        db.KeyDelete(key);
+
+        db.ListLeftPush(key, "yankees");
+        db.ListLeftPush(key, "blue jays");
+        db.ListLeftPush(key, "orioles");
+        db.ListLeftPush(key, "red sox");
+        db.ListLeftPush(key, "rays");
+
+        var res = db.ListLeftPop(new RedisKey[] { key }, 1);
+
+        Assert.False(res.IsNull);
+        Assert.Single(res.Values);
+        Assert.Equal("rays", res.Values[0]);
+
+        res = db.ListRightPop(new RedisKey[] { key }, 2);
+
+        Assert.False(res.IsNull);
+        Assert.Equal(2, res.Values.Length);
+        Assert.Equal("yankees", res.Values[0]);
+        Assert.Equal("blue jays", res.Values[1]);
+    }
+
+    [Fact]
+    public async Task ListMultiPopZeroCount()
+    {
+        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+
+        var db = conn.GetDatabase();
+        var key = Me();
+        db.KeyDelete(key);
+
+        var exception = await Assert.ThrowsAsync<RedisServerException>(() => db.ListLeftPopAsync(new RedisKey[] { key }, 0));
+        Assert.Contains("ERR count should be greater than 0", exception.Message);
+    }
+
+    [Fact]
+    public async Task ListMultiPopEmpty()
+    {
+        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+
+        var db = conn.GetDatabase();
+        var key = Me();
+        db.KeyDelete(key);
+
+        var res = await db.ListLeftPopAsync(new RedisKey[] { key }, 1);
+        Assert.True(res.IsNull);
+    }
+
+    [Fact]
+    public void ListMultiPopEmptyKeys()
+    {
+        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+
+        var db = conn.GetDatabase();
+        var exception = Assert.Throws<ArgumentOutOfRangeException>(() => db.ListRightPop(Array.Empty<RedisKey>(), 5));
+        Assert.Contains("keys must have a size of at least 1", exception.Message);
+
+        exception = Assert.Throws<ArgumentOutOfRangeException>(() => db.ListLeftPop(Array.Empty<RedisKey>(), 5));
+        Assert.Contains("keys must have a size of at least 1", exception.Message);
+    }
 }

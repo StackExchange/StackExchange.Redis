@@ -29,14 +29,17 @@ public class Naming : TestBase
         }
     }
 
+    /// <summary>
+    /// This test iterates over all <see cref="RedisCommand"/>s to ensure we have everything accounted for as primary-only or not.
+    /// </summary>
     [Fact]
-    public void ShowReadOnlyOperations()
+    public void CheckReadOnlyOperations()
     {
-        List<object> primaryReplica = new List<object>();
-        List<object> primaryOnly = new List<object>();
+        List<RedisCommand> primaryReplica = new(),
+                           primaryOnly = new();
         foreach (var val in (RedisCommand[])Enum.GetValues(typeof(RedisCommand)))
         {
-            bool isPrimaryOnly = Message.IsPrimaryOnly(val);
+            bool isPrimaryOnly = val.IsPrimaryOnly();
             (isPrimaryOnly ? primaryOnly : primaryReplica).Add(val);
 
             if (!isPrimaryOnly)
@@ -44,18 +47,21 @@ public class Naming : TestBase
                 Log(val.ToString());
             }
         }
+        // Ensure an unknown command from nowhere would violate the check above, as any not-yet-added one would.
+        Assert.Throws<ArgumentOutOfRangeException>(() => ((RedisCommand)99999).IsPrimaryOnly());
+
         Log("primary-only: {0}, vs primary/replica: {1}", primaryOnly.Count, primaryReplica.Count);
         Log("");
         Log("primary-only:");
         foreach (var val in primaryOnly)
         {
-            Log(val?.ToString());
+            Log(val.ToString());
         }
         Log("");
         Log("primary/replica:");
         foreach (var val in primaryReplica)
         {
-            Log(val?.ToString());
+            Log(val.ToString());
         }
     }
 

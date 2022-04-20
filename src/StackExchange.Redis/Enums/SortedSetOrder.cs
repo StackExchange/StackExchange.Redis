@@ -23,7 +23,7 @@ public enum SortedSetOrder
 
 internal static class SortedSetOrderByExtensions
 {
-    public static RedisValue GetLiteral(this SortedSetOrder sortedSetOrder) => sortedSetOrder switch
+    internal static RedisValue GetLiteral(this SortedSetOrder sortedSetOrder) => sortedSetOrder switch
     {
         SortedSetOrder.ByLex => RedisLiterals.BYLEX,
         SortedSetOrder.ByScore => RedisLiterals.BYSCORE,
