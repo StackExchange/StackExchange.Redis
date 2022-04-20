@@ -407,7 +407,7 @@ namespace StackExchange.Redis
                 case string s:
                     if (s.Length != 0)
                     {
-#if NETCOREAPP3_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
+#if NETCOREAPP
                         written += Encoding.UTF8.GetBytes(s, destination);
 #else
                         unsafe
