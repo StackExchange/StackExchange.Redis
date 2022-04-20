@@ -967,6 +967,159 @@ public class SortedSets : TestBase
     }
 
     [Fact]
+    public void SortedSetMultiPopSingleKey()
+    {
+        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+
+        var db = conn.GetDatabase();
+        var key = Me();
+        db.KeyDelete(key);
+
+        db.SortedSetAdd(key, new SortedSetEntry[] {
+                new SortedSetEntry("rays", 100),
+                new SortedSetEntry("yankees", 92),
+                new SortedSetEntry("red sox", 92),
+                new SortedSetEntry("blue jays", 91),
+                new SortedSetEntry("orioles", 52),
+            });
+
+        var highest = db.SortedSetPop(new RedisKey[] { key }, 1, order: Order.Descending);
+        Assert.False(highest.IsNull);
+        Assert.Equal(key, highest.Key);
+        var entry = Assert.Single(highest.Entries);
+        Assert.Equal("rays", entry.Element);
+        Assert.Equal(100, entry.Score);
+
+        var bottom2 = db.SortedSetPop(new RedisKey[] { key }, 2);
+        Assert.False(bottom2.IsNull);
+        Assert.Equal(key, bottom2.Key);
+        Assert.Equal(2, bottom2.Entries.Length);
+        Assert.Equal("orioles", bottom2.Entries[0].Element);
+        Assert.Equal(52, bottom2.Entries[0].Score);
+        Assert.Equal("blue jays", bottom2.Entries[1].Element);
+        Assert.Equal(91, bottom2.Entries[1].Score);
+    }
+
+    [Fact]
+    public void SortedSetMultiPopMultiKey()
+    {
+        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+
+        var db = conn.GetDatabase();
+        var key = Me();
+        db.KeyDelete(key);
+
+        db.SortedSetAdd(key, new SortedSetEntry[] {
+                new SortedSetEntry("rays", 100),
+                new SortedSetEntry("yankees", 92),
+                new SortedSetEntry("red sox", 92),
+                new SortedSetEntry("blue jays", 91),
+                new SortedSetEntry("orioles", 52),
+            });
+
+        var highest = db.SortedSetPop(new RedisKey[] { "not a real key", key, "yet another not a real key" }, 1, order: Order.Descending);
+        Assert.False(highest.IsNull);
+        Assert.Equal(key, highest.Key);
+        var entry = Assert.Single(highest.Entries);
+        Assert.Equal("rays", entry.Element);
+        Assert.Equal(100, entry.Score);
+
+        var bottom2 = db.SortedSetPop(new RedisKey[] { "not a real key", key, "yet another not a real key" }, 2);
+        Assert.False(bottom2.IsNull);
+        Assert.Equal(key, bottom2.Key);
+        Assert.Equal(2, bottom2.Entries.Length);
+        Assert.Equal("orioles", bottom2.Entries[0].Element);
+        Assert.Equal(52, bottom2.Entries[0].Score);
+        Assert.Equal("blue jays", bottom2.Entries[1].Element);
+        Assert.Equal(91, bottom2.Entries[1].Score);
+    }
+
+    [Fact]
+    public void SortedSetMultiPopNoSet()
+    {
+        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+
+        var db = conn.GetDatabase();
+        var key = Me();
+        db.KeyDelete(key);
+        var res = db.SortedSetPop(new RedisKey[] { key }, 1);
+        Assert.True(res.IsNull);
+    }
+
+    [Fact]
+    public void SortedSetMultiPopCount0()
+    {
+        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+
+        var db = conn.GetDatabase();
+        var key = Me();
+        db.KeyDelete(key);
+        var exception = Assert.Throws<RedisServerException>(() => db.SortedSetPop(new RedisKey[] { key }, 0));
+        Assert.Contains("ERR count should be greater than 0", exception.Message);
+    }
+
+    [Fact]
+    public async Task SortedSetMultiPopAsync()
+    {
+        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+
+        var db = conn.GetDatabase();
+        var key = Me();
+        db.KeyDelete(key);
+
+        db.SortedSetAdd(key, new SortedSetEntry[] {
+                new SortedSetEntry("rays", 100),
+                new SortedSetEntry("yankees", 92),
+                new SortedSetEntry("red sox", 92),
+                new SortedSetEntry("blue jays", 91),
+                new SortedSetEntry("orioles", 52),
+            });
+
+        var highest = await db.SortedSetPopAsync(
+            new RedisKey[] { "not a real key", key, "yet another not a real key" }, 1, order: Order.Descending);
+        Assert.False(highest.IsNull);
+        Assert.Equal(key, highest.Key);
+        var entry = Assert.Single(highest.Entries);
+        Assert.Equal("rays", entry.Element);
+        Assert.Equal(100, entry.Score);
+
+        var bottom2 = await db.SortedSetPopAsync(new RedisKey[] { "not a real key", key, "yet another not a real key" }, 2);
+        Assert.False(bottom2.IsNull);
+        Assert.Equal(key, bottom2.Key);
+        Assert.Equal(2, bottom2.Entries.Length);
+        Assert.Equal("orioles", bottom2.Entries[0].Element);
+        Assert.Equal(52, bottom2.Entries[0].Score);
+        Assert.Equal("blue jays", bottom2.Entries[1].Element);
+        Assert.Equal(91, bottom2.Entries[1].Score);
+    }
+
+    [Fact]
+    public void SortedSetMultiPopEmptyKeys()
+    {
+        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+
+        var db = conn.GetDatabase();
+        var exception = Assert.Throws<ArgumentOutOfRangeException>(() => db.SortedSetPop(Array.Empty<RedisKey>(), 5));
+        Assert.Contains("keys must have a size of at least 1", exception.Message);
+    }
+
+    [Fact]
+    public void SortedSetRangeStoreFailForReplica()
+    {
+        using var conn = Create(require: RedisFeatures.v6_2_0);
+
+        var db = conn.GetDatabase();
+        var me = Me();
+        var sourceKey = $"{me}:ZSetSource";
+        var destinationKey = $"{me}:ZSetDestination";
+
+        db.KeyDelete(new RedisKey[] { sourceKey, destinationKey }, CommandFlags.FireAndForget);
+        db.SortedSetAdd(sourceKey, lexEntries, CommandFlags.FireAndForget);
+        var exception = Assert.Throws<RedisCommandException>(() => db.SortedSetRangeAndStore(sourceKey, destinationKey, 0, -1, flags: CommandFlags.DemandReplica));
+        Assert.Contains("Command cannot be issued to a replica", exception.Message);
+    }
+
+    [Fact]
     public void SortedSetScoresSingle()
     {
         using var conn = Create(require: RedisFeatures.v2_1_0);

@@ -230,7 +230,9 @@ public class SharedConnectionFixture : IDisposable
     }
 }
 
-// https://stackoverflow.com/questions/13829737/xunit-net-run-code-once-before-and-after-all-tests
+/// <summary>
+/// See <see href="https://stackoverflow.com/questions/13829737/xunit-net-run-code-once-before-and-after-all-tests"/>.
+/// </summary>
 [CollectionDefinition(SharedConnectionFixture.Key)]
 public class ConnectionCollection : ICollectionFixture<SharedConnectionFixture>
 {

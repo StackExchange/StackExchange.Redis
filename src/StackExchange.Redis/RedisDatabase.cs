@@ -877,11 +877,24 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.NullableDateTimeFromMilliseconds);
         }
 
+        public long? KeyFrequency(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.OBJECT, RedisLiterals.FREQ, key);
+            return ExecuteSync(msg, ResultProcessor.NullableInt64);
+        }
+
+        public Task<long?> KeyFrequencyAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.OBJECT, RedisLiterals.FREQ, key);
+            return ExecuteAsync(msg, ResultProcessor.NullableInt64);
+        }
+
         public TimeSpan? KeyIdleTime(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.OBJECT, RedisLiterals.IDLETIME, key);
             return ExecuteSync(msg, ResultProcessor.TimeSpanFromSeconds);
         }
+
         public Task<TimeSpan?> KeyIdleTimeAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.OBJECT, RedisLiterals.IDLETIME, key);
@@ -1107,6 +1120,12 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
         }
 
+        public ListPopResult ListLeftPop(RedisKey[] keys, long count, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetListMultiPopMessage(keys, RedisLiterals.LEFT, count, flags);
+            return ExecuteSync(msg, ResultProcessor.ListPopResult, defaultValue: ListPopResult.Null);
+        }
+
         public long ListPosition(RedisKey key, RedisValue element, long rank = 1, long maxLength = 0, CommandFlags flags = CommandFlags.None)
         {
             var msg = CreateListPositionMessage(Database, flags, key, element, rank, maxLength);
@@ -1129,6 +1148,12 @@ namespace StackExchange.Redis
         {
             var msg = Message.Create(Database, flags, RedisCommand.LPOP, key, count);
             return ExecuteAsync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
+        }
+
+        public Task<ListPopResult> ListLeftPopAsync(RedisKey[] keys, long count, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetListMultiPopMessage(keys, RedisLiterals.LEFT, count, flags);
+            return ExecuteAsync(msg, ResultProcessor.ListPopResult, defaultValue: ListPopResult.Null);
         }
 
         public Task<long> ListPositionAsync(RedisKey key, RedisValue element, long rank = 1, long maxLength = 0, CommandFlags flags = CommandFlags.None)
@@ -1249,6 +1274,12 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
         }
 
+        public ListPopResult ListRightPop(RedisKey[] keys, long count, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetListMultiPopMessage(keys, RedisLiterals.RIGHT, count, flags);
+            return ExecuteSync(msg, ResultProcessor.ListPopResult, defaultValue: ListPopResult.Null);
+        }
+
         public Task<RedisValue> ListRightPopAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.RPOP, key);
@@ -1259,6 +1290,12 @@ namespace StackExchange.Redis
         {
             var msg = Message.Create(Database, flags, RedisCommand.RPOP, key, count);
             return ExecuteAsync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
+        }
+
+        public Task<ListPopResult> ListRightPopAsync(RedisKey[] keys, long count, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetListMultiPopMessage(keys, RedisLiterals.RIGHT, count, flags);
+            return ExecuteAsync(msg, ResultProcessor.ListPopResult, defaultValue: ListPopResult.Null);
         }
 
         public RedisValue ListRightPopLeftPush(RedisKey source, RedisKey destination, CommandFlags flags = CommandFlags.None)
@@ -2154,6 +2191,12 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.SortedSetWithScores, defaultValue: Array.Empty<SortedSetEntry>());
         }
 
+        public SortedSetPopResult SortedSetPop(RedisKey[] keys, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetSortedSetMultiPopMessage(keys, order, count, flags);
+            return ExecuteSync(msg, ResultProcessor.SortedSetPopResult, defaultValue: SortedSetPopResult.Null);
+        }
+
         public Task<SortedSetEntry[]> SortedSetPopAsync(RedisKey key, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
         {
             if (count == 0) return CompletedTask<SortedSetEntry[]>.FromDefault(Array.Empty<SortedSetEntry>(), asyncState);
@@ -2161,6 +2204,12 @@ namespace StackExchange.Redis
                     ? Message.Create(Database, flags, order == Order.Descending ? RedisCommand.ZPOPMAX : RedisCommand.ZPOPMIN, key)
                     : Message.Create(Database, flags, order == Order.Descending ? RedisCommand.ZPOPMAX : RedisCommand.ZPOPMIN, key, count);
             return ExecuteAsync(msg, ResultProcessor.SortedSetWithScores, defaultValue: Array.Empty<SortedSetEntry>());
+        }
+
+        public Task<SortedSetPopResult> SortedSetPopAsync(RedisKey[] keys, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetSortedSetMultiPopMessage(keys, order, count, flags);
+            return ExecuteAsync(msg, ResultProcessor.SortedSetPopResult, defaultValue: SortedSetPopResult.Null);
         }
 
         public long StreamAcknowledge(RedisKey key, RedisValue groupName, RedisValue messageId, CommandFlags flags = CommandFlags.None)
@@ -2233,6 +2282,30 @@ namespace StackExchange.Redis
                 flags);
 
             return ExecuteAsync(msg, ResultProcessor.RedisValue);
+        }
+
+        public StreamAutoClaimResult StreamAutoClaim(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue startAtId, int? count = null, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetStreamAutoClaimMessage(key, consumerGroup, claimingConsumer, minIdleTimeInMs, startAtId, count, idsOnly: false, flags);
+            return ExecuteSync(msg, ResultProcessor.StreamAutoClaim, defaultValue: StreamAutoClaimResult.Null);
+        }
+
+        public Task<StreamAutoClaimResult> StreamAutoClaimAsync(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue startAtId, int? count = null, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetStreamAutoClaimMessage(key, consumerGroup, claimingConsumer, minIdleTimeInMs, startAtId, count, idsOnly: false, flags);
+            return ExecuteAsync(msg, ResultProcessor.StreamAutoClaim, defaultValue: StreamAutoClaimResult.Null);
+        }
+
+        public StreamAutoClaimIdsOnlyResult StreamAutoClaimIdsOnly(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue startAtId, int? count = null, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetStreamAutoClaimMessage(key, consumerGroup, claimingConsumer, minIdleTimeInMs, startAtId, count, idsOnly: true, flags);
+            return ExecuteSync(msg, ResultProcessor.StreamAutoClaimIdsOnly, defaultValue: StreamAutoClaimIdsOnlyResult.Null);
+        }
+
+        public Task<StreamAutoClaimIdsOnlyResult> StreamAutoClaimIdsOnlyAsync(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue startAtId, int? count = null, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetStreamAutoClaimMessage(key, consumerGroup, claimingConsumer, minIdleTimeInMs, startAtId, count, idsOnly: true, flags);
+            return ExecuteAsync(msg, ResultProcessor.StreamAutoClaimIdsOnly, defaultValue: StreamAutoClaimIdsOnlyResult.Null);
         }
 
         public StreamEntry[] StreamClaim(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
@@ -3142,6 +3215,62 @@ namespace StackExchange.Redis
             };
         }
 
+        private Message GetListMultiPopMessage(RedisKey[] keys, RedisValue side, long count, CommandFlags flags)
+        {
+            if (keys is null || keys.Length == 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(keys), "keys must have a size of at least 1");
+            }
+
+            var slot = multiplexer.ServerSelectionStrategy.HashSlot(keys[0]);
+
+            var args = new RedisValue[2 + keys.Length + (count == 1 ? 0 : 2)];
+            var i = 0;
+            args[i++] = keys.Length;
+            foreach (var key in keys)
+            {
+                args[i++] = key.AsRedisValue();
+            }
+
+            args[i++] = side;
+
+            if (count != 1)
+            {
+                args[i++] = RedisLiterals.COUNT;
+                args[i++] = count;
+            }
+
+            return Message.CreateInSlot(Database, slot, flags, RedisCommand.LMPOP, args);
+        }
+
+        private Message GetSortedSetMultiPopMessage(RedisKey[] keys, Order order, long count, CommandFlags flags)
+        {
+            if (keys is null || keys.Length == 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(keys), "keys must have a size of at least 1");
+            }
+
+            var slot = multiplexer.ServerSelectionStrategy.HashSlot(keys[0]);
+
+            var args = new RedisValue[2 + keys.Length + (count == 1 ? 0 : 2)];
+            var i = 0;
+            args[i++] = keys.Length;
+            foreach (var key in keys)
+            {
+                args[i++] = key.AsRedisValue();
+            }
+
+            args[i++] = order == Order.Ascending ? RedisLiterals.MIN : RedisLiterals.MAX;
+
+            if (count != 1)
+            {
+                args[i++] = RedisLiterals.COUNT;
+                args[i++] = count;
+            }
+
+            return Message.CreateInSlot(Database, slot, flags, RedisCommand.ZMPOP, args);
+        }
+
         private Message? GetHashSetMessage(RedisKey key, HashEntry[] hashFields, CommandFlags flags)
         {
             if (hashFields == null) throw new ArgumentNullException(nameof(hashFields));
@@ -3718,10 +3847,11 @@ namespace StackExchange.Redis
             return Message.Create(Database, flags, RedisCommand.XADD, key, values);
         }
 
+        /// <summary>
+        /// Gets message for <see href="https://redis.io/commands/xadd"/>.
+        /// </summary>
         private Message GetStreamAddMessage(RedisKey key, RedisValue entryId, int? maxLength, bool useApproximateMaxLength, NameValueEntry[] streamPairs, CommandFlags flags)
         {
-            // See https://redis.io/commands/xadd.
-
             if (streamPairs == null) throw new ArgumentNullException(nameof(streamPairs));
             if (streamPairs.Length == 0) throw new ArgumentOutOfRangeException(nameof(streamPairs), "streamPairs must contain at least one item.");
 
@@ -3763,6 +3893,32 @@ namespace StackExchange.Redis
             }
 
             return Message.Create(Database, flags, RedisCommand.XADD, key, values);
+        }
+
+        private Message GetStreamAutoClaimMessage(RedisKey key, RedisValue consumerGroup, RedisValue assignToConsumer, long minIdleTimeInMs, RedisValue startAtId, int? count, bool idsOnly, CommandFlags flags)
+        {
+            // XAUTOCLAIM <key> <group> <consumer> <min-idle-time> <start> [COUNT count] [JUSTID]
+            var values = new RedisValue[4 + (count is null ? 0 : 2) + (idsOnly ? 1 : 0)];
+
+            var offset = 0;
+
+            values[offset++] = consumerGroup;
+            values[offset++] = assignToConsumer;
+            values[offset++] = minIdleTimeInMs;
+            values[offset++] = startAtId;
+
+            if (count is not null)
+            {
+                values[offset++] = StreamConstants.Count;
+                values[offset++] = count.Value;
+            }
+
+            if (idsOnly)
+            {
+                values[offset++] = StreamConstants.JustId;
+            }
+
+            return Message.Create(Database, flags, RedisCommand.XAUTOCLAIM, key, values);
         }
 
         private Message GetStreamClaimMessage(RedisKey key, RedisValue consumerGroup, RedisValue assignToConsumer, long minIdleTimeInMs, RedisValue[] messageIds, bool returnJustIds, CommandFlags flags)
@@ -3814,6 +3970,10 @@ namespace StackExchange.Redis
                 values);
         }
 
+        /// <summary>
+        /// Gets a message for <see href="https://redis.io/commands/xpending/"/>
+        /// </summary>
+        /// <remarks><seealso href="https://redis.io/topics/streams-intro"/></remarks>
         private Message GetStreamPendingMessagesMessage(RedisKey key, RedisValue groupName, RedisValue? minId, RedisValue? maxId, int count, RedisValue consumerName, CommandFlags flags)
         {
             // > XPENDING mystream mygroup - + 10 [consumer name]
@@ -3825,8 +3985,6 @@ namespace StackExchange.Redis
             //    2) "Bob"
             //    3) (integer)74170458
             //    4) (integer)1
-
-            // See https://redis.io/topics/streams-intro.
 
             if (count <= 0)
             {
