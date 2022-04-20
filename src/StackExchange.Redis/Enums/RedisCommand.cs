@@ -163,6 +163,7 @@
         SMISMEMBER,
         SMOVE,
         SORT,
+        SORT_RO,
         SPOP,
         SRANDMEMBER,
         SREM,

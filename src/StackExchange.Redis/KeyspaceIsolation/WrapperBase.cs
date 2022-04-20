@@ -501,6 +501,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<SortedSetEntry[]> SortedSetPopAsync(RedisKey key, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetPopAsync(ToInner(key), count, order, flags);
 
+        public Task<RedisValue[]> SortReadOnlyAsync(RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default, RedisValue[]? get = null, CommandFlags flags = CommandFlags.None) =>
+            Inner.SortReadOnlyAsync(ToInner(key), skip, take, order, sortType, SortByToInner(by), SortGetToInner(get), flags);
+
         public Task<long> StreamAcknowledgeAsync(RedisKey key, RedisValue groupName, RedisValue messageId, CommandFlags flags = CommandFlags.None) =>
             Inner.StreamAcknowledgeAsync(ToInner(key), groupName, messageId, flags);
 

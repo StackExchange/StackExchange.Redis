@@ -1976,6 +1976,27 @@ namespace StackExchange.Redis
         Task<SortedSetEntry[]> SortedSetPopAsync(RedisKey key, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Sorts a list, set or sorted set (numerically or alphabetically, ascending by default).
+        /// ReadOnly version is avalible since Redis 7.0.0.
+        /// By default, the elements themselves are compared, but the values can also be used to perform external key-lookups using the <c>by</c> parameter.
+        /// By default, the elements themselves are returned, but external key-lookups (one or many) can be performed instead by specifying
+        /// the <c>get</c> parameter (note that <c>#</c> specifies the element itself, when used in <c>get</c>).
+        /// Referring to the <a href="https://redis.io/commands/sort">redis SORT documentation </a> for examples is recommended.
+        /// When used in hashes, <c>by</c> and <c>get</c> can be used to specify fields using <c>-&gt;</c> notation (again, refer to redis documentation).
+        /// </summary>
+        /// <param name="key">The key of the list, set, or sorted set.</param>
+        /// <param name="skip">How many entries to skip on the return.</param>
+        /// <param name="take">How many entries to take on the return.</param>
+        /// <param name="order">The ascending or descending order (defaults to ascending).</param>
+        /// <param name="sortType">The sorting method (defaults to numeric).</param>
+        /// <param name="by">The key pattern to sort by, if any. e.g. ExternalKey_* would sort by ExternalKey_{listvalue} as a lookup.</param>
+        /// <param name="get">The key pattern to sort by, if any e.g. ExternalKey_* would return the value of ExternalKey_{listvalue} for each entry.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The sorted elements, or the external values if <c>get</c> is specified.</returns>
+        /// <remarks>https://redis.io/commands/sort</remarks>
+        Task<RedisValue[]> SortReadOnlyAsync(RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default, RedisValue[]? get = null, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Allow the consumer to mark a pending message as correctly processed. Returns the number of messages acknowledged.
         /// </summary>
         /// <param name="key">The key of the stream.</param>

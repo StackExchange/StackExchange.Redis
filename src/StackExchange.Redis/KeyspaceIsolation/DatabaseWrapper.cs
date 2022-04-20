@@ -484,6 +484,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public SortedSetEntry[] SortedSetPop(RedisKey key, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetPop(ToInner(key), count, order, flags);
 
+        public RedisValue[] SortReadOnly(RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default, RedisValue[]? get = null, CommandFlags flags = CommandFlags.None) =>
+            Inner.SortReadOnly(ToInner(key), skip, take, order, sortType, SortByToInner(by), SortGetToInner(get), flags);
+
         public long StreamAcknowledge(RedisKey key, RedisValue groupName, RedisValue messageId, CommandFlags flags = CommandFlags.None) =>
             Inner.StreamAcknowledge(ToInner(key), groupName, messageId, flags);
 

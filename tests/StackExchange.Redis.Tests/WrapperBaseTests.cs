@@ -711,6 +711,19 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void SortReadOnlyAsync()
+        {
+            RedisValue[] get = new RedisValue[] { "a", "#" };
+            Expression<Func<RedisValue[], bool>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "#";
+
+            wrapper.SortReadOnlyAsync("key", 123, 456, Order.Descending, SortType.Alphabetic, "nosort", get, CommandFlags.None);
+            wrapper.SortReadOnlyAsync("key", 123, 456, Order.Descending, SortType.Alphabetic, "by", get, CommandFlags.None);
+
+            mock.Verify(_ => _.SortReadOnlyAsync("prefix:key", 123, 456, Order.Descending, SortType.Alphabetic, "nosort", It.Is(valid), CommandFlags.None));
+            mock.Verify(_ => _.SortReadOnlyAsync("prefix:key", 123, 456, Order.Descending, SortType.Alphabetic, "prefix:by", It.Is(valid), CommandFlags.None));
+        }
+
+        [Fact]
         public void SortedSetAddAsync_1()
         {
             wrapper.SortedSetAddAsync("key", "member", 1.23, When.Exists, CommandFlags.None);

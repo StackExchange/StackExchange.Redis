@@ -764,6 +764,19 @@ public sealed class DatabaseWrapperTests
     }
 
     [Fact]
+    public void SortReadOnly()
+    {
+        RedisValue[] get = new RedisValue[] { "a", "#" };
+        Expression<Func<RedisValue[], bool>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "#";
+
+        wrapper.SortReadOnly("key", 123, 456, Order.Descending, SortType.Alphabetic, "nosort", get, CommandFlags.None);
+        wrapper.SortReadOnly("key", 123, 456, Order.Descending, SortType.Alphabetic, "by", get, CommandFlags.None);
+
+        mock.Verify(_ => _.SortReadOnly("prefix:key", 123, 456, Order.Descending, SortType.Alphabetic, "nosort", It.Is(valid), CommandFlags.None));
+        mock.Verify(_ => _.SortReadOnly("prefix:key", 123, 456, Order.Descending, SortType.Alphabetic, "prefix:by", It.Is(valid), CommandFlags.None));
+    }
+
+    [Fact]
     public void SortedSetAdd_1()
     {
         wrapper.SortedSetAdd("key", "member", 1.23, When.Exists, CommandFlags.None);

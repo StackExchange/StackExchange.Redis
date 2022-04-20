@@ -161,9 +161,11 @@ public class Naming : TestBase
             case nameof(IDatabase.IdentifyEndpoint):
             case nameof(IDatabase.Sort):
             case nameof(IDatabase.SortAndStore):
+            case nameof(IDatabase.SortReadOnly):
             case nameof(IDatabaseAsync.IdentifyEndpointAsync):
             case nameof(IDatabaseAsync.SortAsync):
             case nameof(IDatabaseAsync.SortAndStoreAsync):
+            case nameof(IDatabaseAsync.SortReadOnlyAsync):
                 CheckName(method, isAsync);
                 break;
             default:
