@@ -320,6 +320,13 @@ public sealed class DatabaseWrapperTests
     }
 
     [Fact]
+    public void KeyFrequency()
+    {
+        wrapper.KeyFrequency("key", CommandFlags.None);
+        mock.Verify(_ => _.KeyFrequency("prefix:key", CommandFlags.None));
+    }
+
+    [Fact]
     public void KeyMigrate()
     {
         EndPoint toServer = new IPEndPoint(IPAddress.Loopback, 123);
@@ -1008,6 +1015,20 @@ public sealed class DatabaseWrapperTests
         var fields = Array.Empty<NameValueEntry>();
         wrapper.StreamAdd("key", fields, "*", 1000, true, CommandFlags.None);
         mock.Verify(_ => _.StreamAdd("prefix:key", fields, "*", 1000, true, CommandFlags.None));
+    }
+
+    [Fact]
+    public void StreamAutoClaim()
+    {
+        wrapper.StreamAutoClaim("key", "group", "consumer", 0, "0-0", 100, CommandFlags.None);
+        mock.Verify(_ => _.StreamAutoClaim("prefix:key", "group", "consumer", 0, "0-0", 100, CommandFlags.None));
+    }
+
+    [Fact]
+    public void StreamAutoClaimIdsOnly()
+    {
+        wrapper.StreamAutoClaimIdsOnly("key", "group", "consumer", 0, "0-0", 100, CommandFlags.None);
+        mock.Verify(_ => _.StreamAutoClaimIdsOnly("prefix:key", "group", "consumer", 0, "0-0", 100, CommandFlags.None));
     }
 
     [Fact]

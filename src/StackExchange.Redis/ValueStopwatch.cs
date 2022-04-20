@@ -4,8 +4,9 @@ using System.Diagnostics;
 namespace StackExchange.Redis;
 
 /// <summary>
-/// Optimization over <see cref="Stopwatch"/>, from https://github.com/dotnet/aspnetcore/blob/main/src/Shared/ValueStopwatch/ValueStopwatch.cs
+/// Optimization over <see cref="Stopwatch"/>.
 /// </summary>
+/// <remarks>From <see href="https://github.com/dotnet/aspnetcore/blob/main/src/Shared/ValueStopwatch/ValueStopwatch.cs"/>.</remarks>
 internal struct ValueStopwatch
 {
     private static readonly double TimestampToTicks = TimeSpan.TicksPerSecond / (double)Stopwatch.Frequency;

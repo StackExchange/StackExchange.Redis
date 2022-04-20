@@ -298,12 +298,54 @@ public class Keys : TestBase
         Assert.Null(await db.KeyRefCountAsync(keyNotExists));
     }
 
+    [Fact]
+    public async Task KeyFrequency()
+    {
+        using var conn = Create(allowAdmin: true, require: RedisFeatures.v4_0_0);
 
+        var key = Me();
+        var db = conn.GetDatabase();
+        var server = GetServer(conn);
+
+        var serverConfig = server.ConfigGet("maxmemory-policy");
+        var maxMemoryPolicy = serverConfig.Length == 1 ? serverConfig[0].Value : "";
+        Log($"maxmemory-policy detected as {maxMemoryPolicy}");
+        var isLfu = maxMemoryPolicy.Contains("lfu");
+
+        db.KeyDelete(key, CommandFlags.FireAndForget);
+        db.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
+        db.StringGet(key);
+
+        if (isLfu)
+        {
+            var count = db.KeyFrequency(key);
+            Assert.True(count > 0);
+
+            count = await db.KeyFrequencyAsync(key);
+            Assert.True(count > 0);
+
+            // Key not exists
+            db.KeyDelete(key, CommandFlags.FireAndForget);
+            var res = db.KeyFrequency(key);
+            Assert.Null(res);
+
+            res = await db.KeyFrequencyAsync(key);
+            Assert.Null(res);
+        }
+        else
+        {
+            var ex = Assert.Throws<RedisServerException>(() => db.KeyFrequency(key));
+            Assert.Contains("An LFU maxmemory policy is not selected", ex.Message);
+            ex = await Assert.ThrowsAsync<RedisServerException>(() => db.KeyFrequencyAsync(key));
+            Assert.Contains("An LFU maxmemory policy is not selected", ex.Message);
+        }
+    }
+    
     private static void TestTotalLengthAndCopyTo(in RedisKey key, int expectedLength)
     {
         var length = key.TotalLength();
         Assert.Equal(expectedLength, length);
-        var arr = ArrayPool<byte>.Shared.Rent(length + 20); // deliberately oversized
+        var arr = ArrayPool<byte>.Shared.Rent(length + 20); // deliberately over-sized
         try
         {
             var written = key.CopyTo(arr);
@@ -319,6 +361,7 @@ public class Keys : TestBase
             ArrayPool<byte>.Shared.Return(arr);
         }
     }
+
     [Fact]
     public void NullKeySlot()
     {
