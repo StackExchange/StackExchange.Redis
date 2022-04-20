@@ -13,6 +13,8 @@ jobs:
   main:
     name: StackExchange.Redis (Ubuntu)
     runs-on: ubuntu-latest
+    env:
+      DOTNET_SYSTEM_CONSOLE_ALLOW_ANSI_COLOR_REDIRECTION: "1" # Enable color output, even though the console output is redirected in Actions
     steps:
     - name: Checkout code
       uses: actions/checkout@v1
@@ -28,8 +30,6 @@ jobs:
       run: docker-compose -f docker-compose.yml up -d
     - name: StackExchange.Redis.Tests
       run: dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj -c Release --logger trx --results-directory ./test-results/ /p:CI=true
-      env:
-        DOTNET_SYSTEM_CONSOLE_ALLOW_ANSI_COLOR_REDIRECTION: 1
     - uses: dorny/test-reporter@v1
       continue-on-error: true
       if: success() || failure()
@@ -45,6 +45,7 @@ jobs:
     runs-on: windows-2022
     env:
       NUGET_CERT_REVOCATION_MODE: offline # Disabling signing because of massive perf hit, see https://github.com/NuGet/Home/issues/11548
+      DOTNET_SYSTEM_CONSOLE_ALLOW_ANSI_COLOR_REDIRECTION: 1
     steps:
     - name: Checkout code
       uses: actions/checkout@v1
@@ -77,8 +78,6 @@ jobs:
         Start-Service redis-*
     - name: StackExchange.Redis.Tests
       run: dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj -c Release --logger trx --results-directory ./test-results/ /p:CI=true
-      env:
-        DOTNET_SYSTEM_CONSOLE_ALLOW_ANSI_COLOR_REDIRECTION: 1
     - uses: dorny/test-reporter@v1
       continue-on-error: true
       if: success() || failure()
