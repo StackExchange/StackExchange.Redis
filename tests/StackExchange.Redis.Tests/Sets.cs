@@ -345,7 +345,7 @@ public class Sets : TestBase
     }
 
     [Fact]
-    public async Task TestSort()
+    public async Task TestSortReadonlyPrimary()
     {
         using var conn = Create();
 
@@ -354,16 +354,19 @@ public class Sets : TestBase
         await db.KeyDeleteAsync(key);
 
         var random = new Random();
-        var items = Enumerable.Repeat(0, 200).Select(x => random.Next()).ToList();
+        var items = Enumerable.Repeat(0, 200).Select(_ => random.Next()).ToList();
         await db.SetAddAsync(key, items.Select(x=>(RedisValue)x).ToArray());
         items.Sort();
 
-        var result = (await db.SortAsync(key)).Select(x=>(int)x);
+        var result = db.Sort(key).Select(x=>(int)x);
+        Assert.Equal(items, result);
+
+        result = (await db.SortAsync(key)).Select(x => (int)x);
         Assert.Equal(items, result);
     }
 
     [Fact]
-    public async Task TestSortRo()
+    public async Task TestSortReadonlyReplica()
     {
         using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
@@ -372,11 +375,18 @@ public class Sets : TestBase
         await db.KeyDeleteAsync(key);
 
         var random = new Random();
-        var items = Enumerable.Repeat(0, 200).Select(x => random.Next()).ToList();
+        var items = Enumerable.Repeat(0, 200).Select(_ => random.Next()).ToList();
         await db.SetAddAsync(key, items.Select(x=>(RedisValue)x).ToArray());
+
+        using var readonlyConn = Create(configuration: TestConfig.Current.ReplicaServerAndPort, require: RedisFeatures.v7_0_0_rc1);
+        var readonlyDb = conn.GetDatabase();
+
         items.Sort();
 
-        var result = (await db.SortAsync(key)).Select(x=>(int)x);
+        var result = readonlyDb.Sort(key).Select(x => (int)x);
+        Assert.Equal(items, result);
+
+        result = (await readonlyDb.SortAsync(key)).Select(x => (int)x);
         Assert.Equal(items, result);
     }
 }
