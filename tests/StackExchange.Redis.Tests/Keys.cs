@@ -467,7 +467,7 @@ public class Keys : TestBase
 
     [Theory]
     [MemberData(nameof(KeyEqualityData))]
-    public void KeyEquality(RedisKey x, RedisKey y, bool equal, bool testHash = true)
+    public void KeyEquality(RedisKey x, RedisKey y, bool equal)
     {
         if (equal)
         {
@@ -485,10 +485,8 @@ public class Keys : TestBase
             Assert.True(x != y);
             Assert.False(x.Equals(y));
             Assert.False(x.Equals((object)y));
-            if (testHash)
-            {
-                Assert.NotEqual(x.GetHashCode(), y.GetHashCode());
-            }
+            // note that this last one is not strictly required, but: we pass, so: yay!
+            Assert.NotEqual(x.GetHashCode(), y.GetHashCode());
         }
     }
 
@@ -505,8 +503,8 @@ public class Keys : TestBase
         yield return new object[] { RedisKey.Null, RedisKey.Null, true };
         yield return new object[] { new RedisKey((string?)null), RedisKey.Null, true };
         yield return new object[] { new RedisKey(null, (byte[]?)null), RedisKey.Null, true };
-        yield return new object[] { new RedisKey(""), RedisKey.Null, false, false };
-        yield return new object[] { new RedisKey(null, Array.Empty<byte>()), RedisKey.Null, false, false};
+        yield return new object[] { new RedisKey(""), RedisKey.Null, false };
+        yield return new object[] { new RedisKey(null, Array.Empty<byte>()), RedisKey.Null, false };
 
         yield return new object[] { abcString, abcString, true };
         yield return new object[] { abcBytes, abcBytes, true };
