@@ -208,6 +208,21 @@ public class ExceptionFactoryTests : TestBase
         }
     }
 
+    [Fact]
+    public void NoConnectionPrimaryOnlyException()
+    {
+        using var conn = ConnectionMultiplexer.Connect(TestConfig.Current.ReplicaServerAndPort, Writer);
+
+        var msg = Message.Create(0, CommandFlags.None, RedisCommand.SET, (RedisKey)Me(), (RedisValue)"test");
+        Assert.True(msg.IsPrimaryOnly());
+        var rawEx = ExceptionFactory.NoConnectionAvailable(conn, msg, null);
+        var ex = Assert.IsType<RedisConnectionException>(rawEx);
+        Writer.WriteLine("Exception: " + ex.Message);
+
+        // Ensure a primary-only operation like SET gives the additional context
+        Assert.StartsWith("No connection (requires writable - not eligible for replica) is active/available to service this operation: SET", ex.Message);
+    }
+
     [Theory]
     [InlineData(true, ConnectionFailureType.ProtocolFailure, "ProtocolFailure on [0]:GET myKey (StringProcessor), my annotation")]
     [InlineData(true, ConnectionFailureType.ConnectionDisposed, "ConnectionDisposed on [0]:GET myKey (StringProcessor), my annotation")]

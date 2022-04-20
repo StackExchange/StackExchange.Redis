@@ -281,6 +281,13 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void KeyFrequencyAsync()
+        {
+            wrapper.KeyFrequencyAsync("key", CommandFlags.None);
+            mock.Verify(_ => _.KeyFrequencyAsync("prefix:key", CommandFlags.None));
+        }
+
+        [Fact]
         public void KeyMigrateAsync()
         {
             EndPoint toServer = new IPEndPoint(IPAddress.Loopback, 123);
@@ -954,6 +961,20 @@ namespace StackExchange.Redis.Tests
             var fields = Array.Empty<NameValueEntry>();
             wrapper.StreamAddAsync("key", fields, "*", 1000, true, CommandFlags.None);
             mock.Verify(_ => _.StreamAddAsync("prefix:key", fields, "*", 1000, true, CommandFlags.None));
+        }
+
+        [Fact]
+        public void StreamAutoClaimAsync()
+        {
+            wrapper.StreamAutoClaimAsync("key", "group", "consumer", 0, "0-0", 100, CommandFlags.None);
+            mock.Verify(_ => _.StreamAutoClaimAsync("prefix:key", "group", "consumer", 0, "0-0", 100, CommandFlags.None));
+        }
+
+        [Fact]
+        public void StreamAutoClaimIdsOnlyAsync()
+        {
+            wrapper.StreamAutoClaimIdsOnlyAsync("key", "group", "consumer", 0, "0-0", 100, CommandFlags.None);
+            mock.Verify(_ => _.StreamAutoClaimIdsOnlyAsync("prefix:key", "group", "consumer", 0, "0-0", 100, CommandFlags.None));
         }
 
         [Fact]
