@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Buffers;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -462,5 +463,80 @@ public class Keys : TestBase
         TestTotalLengthAndCopyTo(key, (blob?.Length ?? 0) + (prefixed ? KeyPrefix.Length : 0));
 
         Assert.Equal(slot, GetHashSlot(key));
+    }
+
+    [Theory]
+    [MemberData(nameof(KeyEqualityData))]
+    public void KeyEquality(RedisKey x, RedisKey y, bool equal, bool testHash = true)
+    {
+        if (equal)
+        {
+            Assert.Equal(x, y);
+            Assert.True(x == y);
+            Assert.False(x != y);
+            Assert.True(x.Equals(y));
+            Assert.True(x.Equals((object)y));
+            Assert.Equal(x.GetHashCode(), y.GetHashCode());
+        }
+        else
+        {
+            Assert.NotEqual(x, y);
+            Assert.False(x == y);
+            Assert.True(x != y);
+            Assert.False(x.Equals(y));
+            Assert.False(x.Equals((object)y));
+            if (testHash)
+            {
+                Assert.NotEqual(x.GetHashCode(), y.GetHashCode());
+            }
+        }
+    }
+
+    public static IEnumerable<object[]> KeyEqualityData()
+    {
+        RedisKey abcString = "abc", abcBytes = Encoding.UTF8.GetBytes("abc");
+        RedisKey abcdefString = "abcdef", abcdefBytes = Encoding.UTF8.GetBytes("abcdef");
+
+
+        yield return new object[] { RedisKey.Null, abcString, false };
+        yield return new object[] { RedisKey.Null, abcBytes, false };
+        yield return new object[] { abcString, RedisKey.Null, false };
+        yield return new object[] { abcBytes, RedisKey.Null, false };
+        yield return new object[] { RedisKey.Null, RedisKey.Null, true };
+        yield return new object[] { new RedisKey((string?)null), RedisKey.Null, true };
+        yield return new object[] { new RedisKey(null, (byte[]?)null), RedisKey.Null, true };
+        yield return new object[] { new RedisKey(""), RedisKey.Null, false, false };
+        yield return new object[] { new RedisKey(null, Array.Empty<byte>()), RedisKey.Null, false, false};
+
+        yield return new object[] { abcString, abcString, true };
+        yield return new object[] { abcBytes, abcBytes, true };
+        yield return new object[] { abcString, abcBytes, true };
+        yield return new object[] { abcBytes, abcString, true };
+
+        yield return new object[] { abcdefString, abcdefString, true };
+        yield return new object[] { abcdefBytes, abcdefBytes, true };
+        yield return new object[] { abcdefString, abcdefBytes, true };
+        yield return new object[] { abcdefBytes, abcdefString, true };
+
+        yield return new object[] { abcString, abcdefString, false };
+        yield return new object[] { abcBytes, abcdefBytes, false };
+        yield return new object[] { abcString, abcdefBytes, false };
+        yield return new object[] { abcBytes, abcdefString, false };
+
+        yield return new object[] { abcdefString, abcString, false };
+        yield return new object[] { abcdefBytes, abcBytes, false };
+        yield return new object[] { abcdefString, abcBytes, false };
+        yield return new object[] { abcdefBytes, abcString, false };
+
+
+        var x = abcString.Append("def");
+        yield return new object[] { abcdefString, x, true };
+        yield return new object[] { abcdefBytes, x, true };
+        yield return new object[] { x, abcdefBytes, true };
+        yield return new object[] { x, abcdefString, true };
+        yield return new object[] { abcString, x, false };
+        yield return new object[] { abcString, x, false };
+        yield return new object[] { x, abcString, false };
+        yield return new object[] { x, abcString, false };
     }
 }

@@ -162,7 +162,7 @@ namespace StackExchange.Redis
             }
             if (len <= 128)
             {
-                return CopyCompare(in this, in other, len, stackalloc byte[len]);
+                return CopyCompare(in this, in other, len, stackalloc byte[len * 2]);
             }
             else
             {
@@ -186,10 +186,32 @@ namespace StackExchange.Redis
         /// <inheritdoc/>
         public override int GetHashCode()
         {
-            int chk0 = KeyPrefix == null ? 0 : RedisValue.GetHashCode(KeyPrefix),
-                chk1 = KeyValue is string ? KeyValue.GetHashCode() : RedisValue.GetHashCode((byte[]?)KeyValue);
+            // note that we need need eaulity-like behavior, regardless of whether the
+            // parts look like bytes or strings, and with/without prefix
 
-            return unchecked((17 * chk0) + chk1);
+            // the simplest way to do this is to use the CopyTo version, which normalizes that
+            if (IsNull) return -1;
+            if (TryGetSimpleBuffer(out var buffer)) return RedisValue.GetHashCode(buffer);
+            var len = TotalLength();
+            if (len == 0) return 0;
+
+            if (len <= 256)
+            {
+                Span<byte> span = stackalloc byte[len];
+                var written = CopyTo(span);
+                Debug.Assert(written == len);
+                return RedisValue.GetHashCode(span);
+            }
+            else
+            {
+                var arr = ArrayPool<byte>.Shared.Rent(len);
+                var span = new Span<byte>(arr, 0, len);
+                var written = CopyTo(span);
+                Debug.Assert(written == len);
+                var result = RedisValue.GetHashCode(span);
+                ArrayPool<byte>.Shared.Return(arr);
+                return result;
+            }
         }
 
         /// <summary>
