@@ -63,6 +63,7 @@ namespace StackExchange.Redis
             EXAT = "EXAT",
             EXISTS = "EXISTS",
             FLUSH = "FLUSH",
+            FREQ = "FREQ",
             GET = "GET",
             GETNAME = "GETNAME",
             GT = "GT",

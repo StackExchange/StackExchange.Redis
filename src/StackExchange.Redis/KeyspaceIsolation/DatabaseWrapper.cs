@@ -182,6 +182,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public DateTime? KeyExpireTime(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.KeyExpireTime(ToInner(key), flags);
 
+        public long? KeyFrequency(RedisKey key, CommandFlags flags = CommandFlags.None) =>
+            Inner.KeyFrequency(ToInner(key), flags);
+
         public TimeSpan? KeyIdleTime(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.KeyIdleTime(ToInner(key), flags);
 

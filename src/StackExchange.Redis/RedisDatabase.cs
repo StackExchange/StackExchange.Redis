@@ -877,11 +877,24 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.NullableDateTimeFromMilliseconds);
         }
 
+        public long? KeyFrequency(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.OBJECT, RedisLiterals.FREQ, key);
+            return ExecuteSync(msg, ResultProcessor.NullableInt64);
+        }
+
+        public Task<long?> KeyFrequencyAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.OBJECT, RedisLiterals.FREQ, key);
+            return ExecuteAsync(msg, ResultProcessor.NullableInt64);
+        }
+
         public TimeSpan? KeyIdleTime(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.OBJECT, RedisLiterals.IDLETIME, key);
             return ExecuteSync(msg, ResultProcessor.TimeSpanFromSeconds);
         }
+
         public Task<TimeSpan?> KeyIdleTimeAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.OBJECT, RedisLiterals.IDLETIME, key);
