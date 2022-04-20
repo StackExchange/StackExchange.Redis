@@ -1517,6 +1517,7 @@ namespace StackExchange.Redis
         /// the <c>get</c> parameter (note that <c>#</c> specifies the element itself, when used in <c>get</c>).
         /// Referring to the <a href="https://redis.io/commands/sort">redis SORT documentation </a> for examples is recommended.
         /// When used in hashes, <c>by</c> and <c>get</c> can be used to specify fields using <c>-&gt;</c> notation (again, refer to redis documentation).
+        /// Uses <a href="https://redis.io/commands/sort_ro">SORT_RO</a> when possible.
         /// </summary>
         /// <param name="key">The key of the list, set, or sorted set.</param>
         /// <param name="skip">How many entries to skip on the return.</param>

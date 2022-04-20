@@ -1775,26 +1775,26 @@ namespace StackExchange.Redis
 
         public RedisValue[] Sort(RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default, RedisValue[]? get = null, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetSortedSetAddMessage(default(RedisKey), key, skip, take, order, sortType, by, get, flags);
-            return ExecuteSync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
+            var msg = GetSortMessage(RedisKey.Null, key, skip, take, order, sortType, by, get, flags, out var server);
+            return ExecuteSync(msg, ResultProcessor.RedisValueArray, server: server, defaultValue: Array.Empty<RedisValue>());
         }
 
         public long SortAndStore(RedisKey destination, RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default, RedisValue[]? get = null, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetSortedSetAddMessage(destination, key, skip, take, order, sortType, by, get, flags);
-            return ExecuteSync(msg, ResultProcessor.Int64);
+            var msg = GetSortMessage(destination, key, skip, take, order, sortType, by, get, flags, out var server);
+            return ExecuteSync(msg, ResultProcessor.Int64, server);
         }
 
         public Task<long> SortAndStoreAsync(RedisKey destination, RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default, RedisValue[]? get = null, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetSortedSetAddMessage(destination, key, skip, take, order, sortType, by, get, flags);
-            return ExecuteAsync(msg, ResultProcessor.Int64);
+            var msg = GetSortMessage(destination, key, skip, take, order, sortType, by, get, flags, out var server);
+            return ExecuteAsync(msg, ResultProcessor.Int64, server);
         }
 
         public Task<RedisValue[]> SortAsync(RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default, RedisValue[]? get = null, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetSortedSetAddMessage(default(RedisKey), key, skip, take, order, sortType, by, get, flags);
-            return ExecuteAsync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
+            var msg = GetSortMessage(RedisKey.Null, key, skip, take, order, sortType, by, get, flags, out var server);
+            return ExecuteAsync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>(), server: server);
         }
 
         public bool SortedSetAdd(RedisKey key, RedisValue member, double score, CommandFlags flags)
@@ -3519,28 +3519,25 @@ namespace StackExchange.Redis
             }
         }
 
-        private Message GetSortedSetAddMessage(RedisKey destination, RedisKey key, long skip, long take, Order order, SortType sortType, RedisValue by, RedisValue[]? get, CommandFlags flags)
+        private Message GetSortMessage(RedisKey destination, RedisKey key, long skip, long take, Order order, SortType sortType, RedisValue by, RedisValue[]? get, CommandFlags flags, out ServerEndPoint? server)
         {
+            server = null;
+            var command = destination.IsNull && GetFeatures(key, flags, out server).ReadOnlySort
+                ? RedisCommand.SORT_RO
+                : RedisCommand.SORT;
+
             // most common cases; no "get", no "by", no "destination", no "skip", no "take"
             if (destination.IsNull && skip == 0 && take == -1 && by.IsNull && (get == null || get.Length == 0))
             {
-                switch (order)
+                return order switch
                 {
-                    case Order.Ascending:
-                        switch (sortType)
-                        {
-                            case SortType.Numeric: return Message.Create(Database, flags, RedisCommand.SORT, key);
-                            case SortType.Alphabetic: return Message.Create(Database, flags, RedisCommand.SORT, key, RedisLiterals.ALPHA);
-                        }
-                        break;
-                    case Order.Descending:
-                        switch (sortType)
-                        {
-                            case SortType.Numeric: return Message.Create(Database, flags, RedisCommand.SORT, key, RedisLiterals.DESC);
-                            case SortType.Alphabetic: return Message.Create(Database, flags, RedisCommand.SORT, key, RedisLiterals.DESC, RedisLiterals.ALPHA);
-                        }
-                        break;
-                }
+                    Order.Ascending  when sortType == SortType.Numeric    => Message.Create(Database, flags, command, key),
+                    Order.Ascending  when sortType == SortType.Alphabetic => Message.Create(Database, flags, command, key, RedisLiterals.ALPHA),
+                    Order.Descending when sortType == SortType.Numeric    => Message.Create(Database, flags, command, key, RedisLiterals.DESC),
+                    Order.Descending when sortType == SortType.Alphabetic => Message.Create(Database, flags, command, key, RedisLiterals.DESC, RedisLiterals.ALPHA),
+                    Order.Ascending or Order.Descending => throw new ArgumentOutOfRangeException(nameof(sortType)),
+                    _ => throw new ArgumentOutOfRangeException(nameof(order)),
+                };
             }
 
             // and now: more complicated scenarios...
@@ -3584,7 +3581,7 @@ namespace StackExchange.Redis
                     values.Add(item);
                 }
             }
-            if (destination.IsNull) return Message.Create(Database, flags, RedisCommand.SORT, key, values.ToArray());
+            if (destination.IsNull) return Message.Create(Database, flags, command, key, values.ToArray());
 
             // Because we are using STORE, we need to push this to a primary
             if (Message.GetPrimaryReplicaFlags(flags) == CommandFlags.DemandReplica)
