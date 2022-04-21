@@ -341,7 +341,7 @@ public class Keys : TestBase
             Assert.Contains("An LFU maxmemory policy is not selected", ex.Message);
         }
     }
-    
+
     private static void TestTotalLengthAndCopyTo(in RedisKey key, int expectedLength)
     {
         var length = key.TotalLength();
@@ -392,14 +392,15 @@ public class Keys : TestBase
     [InlineData(false, "abcde", 16097)]
     [InlineData(false, "abcdef", 15101)]
     [InlineData(false, "abcdeffsdkjhsdfgkjh sdkjhsdkjf hsdkjfh skudrfy7 348iu yksef78 dssdhkfh ##$OIU", 5073)]
-    [InlineData(false, @"Lorem ipsum dolor sit amet, consectetur adipiscing elit. Cras lobortis quam ac molestie ultricies. Duis maximus, nunc a auctor faucibus, risus turpis porttitor nibh, sit amet consequat lacus nibh quis nisi. Aliquam ipsum quam, dapibus ut ex eu, efficitur vestibulum dui. Sed a nibh ut felis congue tempor vel vel lectus. Phasellus a neque placerat, blandit massa sed, imperdiet urna. Praesent scelerisque lorem ipsum, non facilisis libero hendrerit quis. Nullam sit amet malesuada velit, ac lacinia lacus. Donec mollis a massa sed egestas. Suspendisse vitae augue quis erat gravida consectetur. Aenean interdum neque id lacinia eleifend.", 4954)]
+    [InlineData(false, "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Cras lobortis quam ac molestie ultricies. Duis maximus, nunc a auctor faucibus, risus turpis porttitor nibh, sit amet consequat lacus nibh quis nisi. Aliquam ipsum quam, dapibus ut ex eu, efficitur vestibulum dui. Sed a nibh ut felis congue tempor vel vel lectus. Phasellus a neque placerat, blandit massa sed, imperdiet urna. Praesent scelerisque lorem ipsum, non facilisis libero hendrerit quis. Nullam sit amet malesuada velit, ac lacinia lacus. Donec mollis a massa sed egestas. Suspendisse vitae augue quis erat gravida consectetur. Aenean interdum neque id lacinia eleifend.", 4954)]
     [InlineData(true, null, 16097)]
     [InlineData(true, "", 16097)] // note same as false/abcde
     [InlineData(true, "f", 15101)] // note same as false/abcdef
     [InlineData(true, "abcde", 4089)]
     [InlineData(true, "abcdef", 1167)]
+    [InlineData(true, "👻👩‍👩‍👦‍👦", 8494)]
     [InlineData(true, "abcdeffsdkjhsdfgkjh sdkjhsdkjf hsdkjfh skudrfy7 348iu yksef78 dssdhkfh ##$OIU", 10923)]
-    [InlineData(true, @"Lorem ipsum dolor sit amet, consectetur adipiscing elit. Cras lobortis quam ac molestie ultricies. Duis maximus, nunc a auctor faucibus, risus turpis porttitor nibh, sit amet consequat lacus nibh quis nisi. Aliquam ipsum quam, dapibus ut ex eu, efficitur vestibulum dui. Sed a nibh ut felis congue tempor vel vel lectus. Phasellus a neque placerat, blandit massa sed, imperdiet urna. Praesent scelerisque lorem ipsum, non facilisis libero hendrerit quis. Nullam sit amet malesuada velit, ac lacinia lacus. Donec mollis a massa sed egestas. Suspendisse vitae augue quis erat gravida consectetur. Aenean interdum neque id lacinia eleifend.", 4452)]
+    [InlineData(true, "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Cras lobortis quam ac molestie ultricies. Duis maximus, nunc a auctor faucibus, risus turpis porttitor nibh, sit amet consequat lacus nibh quis nisi. Aliquam ipsum quam, dapibus ut ex eu, efficitur vestibulum dui. Sed a nibh ut felis congue tempor vel vel lectus. Phasellus a neque placerat, blandit massa sed, imperdiet urna. Praesent scelerisque lorem ipsum, non facilisis libero hendrerit quis. Nullam sit amet malesuada velit, ac lacinia lacus. Donec mollis a massa sed egestas. Suspendisse vitae augue quis erat gravida consectetur. Aenean interdum neque id lacinia eleifend.", 4452)]
     public void TestStringKeySlot(bool prefixed, string? s, int slot)
     {
         RedisKey key = prefixed ? new RedisKey(KeyPrefix, s) : s;
@@ -411,7 +412,7 @@ public class Keys : TestBase
         }
         else
         {
-            Assert.False(key.TryGetSimpleBuffer(out var buffer));
+            Assert.False(key.TryGetSimpleBuffer(out var _));
         }
         TestTotalLengthAndCopyTo(key, Encoding.UTF8.GetByteCount(s ?? "") + (prefixed ? KeyPrefix.Length : 0));
 
@@ -495,7 +496,6 @@ public class Keys : TestBase
         RedisKey abcString = "abc", abcBytes = Encoding.UTF8.GetBytes("abc");
         RedisKey abcdefString = "abcdef", abcdefBytes = Encoding.UTF8.GetBytes("abcdef");
 
-
         yield return new object[] { RedisKey.Null, abcString, false };
         yield return new object[] { RedisKey.Null, abcBytes, false };
         yield return new object[] { abcString, RedisKey.Null, false };
@@ -525,7 +525,6 @@ public class Keys : TestBase
         yield return new object[] { abcdefBytes, abcBytes, false };
         yield return new object[] { abcdefString, abcBytes, false };
         yield return new object[] { abcdefBytes, abcString, false };
-
 
         var x = abcString.Append("def");
         yield return new object[] { abcdefString, x, true };
