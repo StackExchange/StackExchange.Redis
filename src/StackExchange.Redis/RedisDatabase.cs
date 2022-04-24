@@ -2800,6 +2800,18 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
+        public long StringBitCount2(RedisKey key, long start = 0, long end = -1, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.BITCOUNT, key, start, end, RedisLiterals.BIT);
+            return ExecuteSync(msg, ResultProcessor.Int64);
+        }
+
+        public Task<long> StringBitCount2Async(RedisKey key, long start = 0, long end = -1, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.BITCOUNT, key, start, end, RedisLiterals.BIT);
+            return ExecuteAsync(msg, ResultProcessor.Int64);
+        }
+
         public long StringBitOperation(Bitwise operation, RedisKey destination, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStringBitOperationMessage(operation, destination, first, second, flags);
@@ -2833,6 +2845,18 @@ namespace StackExchange.Redis
         public Task<long> StringBitPositionAsync(RedisKey key, bool value, long start = 0, long end = -1, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.BITPOS, key, value, start, end);
+            return ExecuteAsync(msg, ResultProcessor.Int64);
+        }
+
+        public long StringBitPosition2(RedisKey key, bool bit, long start = 0, long end = -1, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.BITPOS, key, bit, start, end, RedisLiterals.BIT);
+            return ExecuteSync(msg, ResultProcessor.Int64);
+        }
+
+        public Task<long> StringBitPosition2Async(RedisKey key, bool value, long start = 0, long end = -1, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.BITPOS, key, value, start, end, RedisLiterals.BIT);
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 

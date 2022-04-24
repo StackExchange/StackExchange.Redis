@@ -603,6 +603,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<long> StringBitCountAsync(RedisKey key, long start = 0, long end = -1, CommandFlags flags = CommandFlags.None) =>
             Inner.StringBitCountAsync(ToInner(key), start, end, flags);
 
+        public Task<long> StringBitCount2Async(RedisKey key, long start = 0, long end = -1, CommandFlags flags = CommandFlags.None) =>
+            Inner.StringBitCount2Async(ToInner(key), start, end, flags);
+
         public Task<long> StringBitOperationAsync(Bitwise operation, RedisKey destination, RedisKey[] keys, CommandFlags flags = CommandFlags.None) =>
             Inner.StringBitOperationAsync(operation, ToInner(destination), ToInner(keys), flags);
 
@@ -611,6 +614,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public Task<long> StringBitPositionAsync(RedisKey key, bool bit, long start = 0, long end = -1, CommandFlags flags = CommandFlags.None) =>
             Inner.StringBitPositionAsync(ToInner(key), bit, start, end, flags);
+
+        public Task<long> StringBitPosition2Async(RedisKey key, bool bit, long start = 0, long end = -1, CommandFlags flags = CommandFlags.None) =>
+            Inner.StringBitPosition2Async(ToInner(key), bit, start, end, flags);
 
         public Task<double> StringDecrementAsync(RedisKey key, double value, CommandFlags flags = CommandFlags.None) =>
             Inner.StringDecrementAsync(ToInner(key), value, flags);

@@ -49,6 +49,7 @@ namespace StackExchange.Redis
             ANY = "ANY",
             ASC = "ASC",
             BEFORE = "BEFORE",
+            BIT = "BIT",
             BY = "BY",
             BYLEX = "BYLEX",
             BYSCORE = "BYSCORE",

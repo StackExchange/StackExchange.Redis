@@ -2492,6 +2492,20 @@ namespace StackExchange.Redis
         Task<long> StringBitCountAsync(RedisKey key, long start = 0, long end = -1, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Count the number of set bits (population counting) in a string.
+        /// By default all the bytes contained in the string are examined.
+        /// It is possible to specify the counting operation only in an interval passing the additional arguments start and end.
+        /// Like for the GETRANGE command start and end can contain negative values in order to index bits starting from the end of the string, where -1 is the last bit, -2 is the penultimate, and so forth.
+        /// </summary>
+        /// <param name="key">The key of the string.</param>
+        /// <param name="start">The start bit to count at.</param>
+        /// <param name="end">The end bit to count at.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The number of bits set to 1.</returns>
+        /// <remarks><seealso href="https://redis.io/commands/bitcount"/></remarks>
+        Task<long> StringBitCount2Async(RedisKey key, long start = 0, long end = -1, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Perform a bitwise operation between multiple keys (containing string values) and store the result in the destination key.
         /// The BITOP command supports four bitwise operations; note that NOT is a unary operator: the second key should be omitted in this case
         /// and only the first key will be considered.
@@ -2536,6 +2550,24 @@ namespace StackExchange.Redis
         /// </returns>
         /// <remarks><seealso href="https://redis.io/commands/bitpos"/></remarks>
         Task<long> StringBitPositionAsync(RedisKey key, bool bit, long start = 0, long end = -1, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Return the position of the first bit set to 1 or 0 in a string.
+        /// The position is returned thinking at the string as an array of bits from left to right where the first byte most significant bit is at position 0, the second byte most significant bit is at position 8 and so forth.
+        /// A <paramref name="start"/> and <paramref name="end"/> may be specified - these are in bits.
+        /// <paramref name="start"/> and <paramref name="end"/> can contain negative values in order to index bytes starting from the end of the string, where -1 is the last byte, -2 is the penultimate, and so forth.
+        /// </summary>
+        /// <param name="key">The key of the string.</param>
+        /// <param name="bit">True to check for the first 1 bit, false to check for the first 0 bit.</param>
+        /// <param name="start">The start bit to  start looking (defaults to 0).</param>
+        /// <param name="end">The end bit to stop looking (defaults to -1, unlimited).</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>
+        /// The command returns the position of the first bit set to 1 or 0 according to the request.
+        /// If we look for set bits(the bit argument is 1) and the string is empty or composed of just zero bytes, -1 is returned.
+        /// </returns>
+        /// <remarks><seealso href="https://redis.io/commands/bitpos"/></remarks>
+        Task<long> StringBitPosition2Async(RedisKey key, bool bit, long start = 0, long end = -1, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Decrements the number stored at key by decrement.
