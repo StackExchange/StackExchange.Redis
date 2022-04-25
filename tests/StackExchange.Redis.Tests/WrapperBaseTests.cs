@@ -1117,10 +1117,10 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void StringBitCount2Async()
+        public void StringBitCountAsync_2()
         {
-            wrapper.StringBitCount2Async("key", 123, 456, CommandFlags.None);
-            mock.Verify(_ => _.StringBitCount2Async("prefix:key", 123, 456, CommandFlags.None));
+            wrapper.StringBitCountAsync("key", 123, 456, StringIndexUnit.Bit, CommandFlags.None);
+            mock.Verify(_ => _.StringBitCountAsync("prefix:key", 123, 456, StringIndexUnit.Bit, CommandFlags.None));
         }
 
         [Fact]
@@ -1144,13 +1144,6 @@ namespace StackExchange.Redis.Tests
         {
             wrapper.StringBitPositionAsync("key", true, 123, 456, CommandFlags.None);
             mock.Verify(_ => _.StringBitPositionAsync("prefix:key", true, 123, 456, CommandFlags.None));
-        }
-
-        [Fact]
-        public void StringBitPosition2Async()
-        {
-            wrapper.StringBitPosition2Async("key", true, 123, 456, CommandFlags.None);
-            mock.Verify(_ => _.StringBitPosition2Async("prefix:key", true, 123, 456, CommandFlags.None));
         }
 
         [Fact]

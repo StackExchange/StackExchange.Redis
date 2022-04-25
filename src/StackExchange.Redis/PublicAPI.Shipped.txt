@@ -688,12 +688,12 @@ StackExchange.Redis.IDatabase.StreamReadGroup(StackExchange.Redis.StreamPosition
 StackExchange.Redis.IDatabase.StreamReadGroup(StackExchange.Redis.StreamPosition[]! streamPositions, StackExchange.Redis.RedisValue groupName, StackExchange.Redis.RedisValue consumerName, int? countPerStream, StackExchange.Redis.CommandFlags flags) -> StackExchange.Redis.RedisStream[]!
 StackExchange.Redis.IDatabase.StreamTrim(StackExchange.Redis.RedisKey key, int maxLength, bool useApproximateMaxLength = false, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
 StackExchange.Redis.IDatabase.StringAppend(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue value, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
-StackExchange.Redis.IDatabase.StringBitCount(StackExchange.Redis.RedisKey key, long start = 0, long end = -1, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
-StackExchange.Redis.IDatabase.StringBitCount2(StackExchange.Redis.RedisKey key, long start = 0, long end = -1, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
+StackExchange.Redis.IDatabase.StringBitCount(StackExchange.Redis.RedisKey key, long start, long end, StackExchange.Redis.CommandFlags flags) -> long
+StackExchange.Redis.IDatabase.StringBitCount(StackExchange.Redis.RedisKey key, long start = 0, long end = -1, StackExchange.Redis.StringIndexUnit unit = StackExchange.Redis.StringIndexUnit.Byte, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
 StackExchange.Redis.IDatabase.StringBitOperation(StackExchange.Redis.Bitwise operation, StackExchange.Redis.RedisKey destination, StackExchange.Redis.RedisKey first, StackExchange.Redis.RedisKey second = default(StackExchange.Redis.RedisKey), StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
 StackExchange.Redis.IDatabase.StringBitOperation(StackExchange.Redis.Bitwise operation, StackExchange.Redis.RedisKey destination, StackExchange.Redis.RedisKey[]! keys, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
-StackExchange.Redis.IDatabase.StringBitPosition(StackExchange.Redis.RedisKey key, bool bit, long start = 0, long end = -1, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
-StackExchange.Redis.IDatabase.StringBitPosition2(StackExchange.Redis.RedisKey key, bool bit, long start = 0, long end = -1, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
+StackExchange.Redis.IDatabase.StringBitPosition(StackExchange.Redis.RedisKey key, bool bit, long start, long end, StackExchange.Redis.CommandFlags flags) -> long
+StackExchange.Redis.IDatabase.StringBitPosition(StackExchange.Redis.RedisKey key, bool bit, long start = 0, long end = -1, StackExchange.Redis.StringIndexUnit unit = StackExchange.Redis.StringIndexUnit.Byte, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
 StackExchange.Redis.IDatabase.StringDecrement(StackExchange.Redis.RedisKey key, double value, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> double
 StackExchange.Redis.IDatabase.StringDecrement(StackExchange.Redis.RedisKey key, long value = 1, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
 StackExchange.Redis.IDatabase.StringGet(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue
@@ -907,12 +907,12 @@ StackExchange.Redis.IDatabaseAsync.StreamReadGroupAsync(StackExchange.Redis.Stre
 StackExchange.Redis.IDatabaseAsync.StreamReadGroupAsync(StackExchange.Redis.StreamPosition[]! streamPositions, StackExchange.Redis.RedisValue groupName, StackExchange.Redis.RedisValue consumerName, int? countPerStream, StackExchange.Redis.CommandFlags flags) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisStream[]!>!
 StackExchange.Redis.IDatabaseAsync.StreamTrimAsync(StackExchange.Redis.RedisKey key, int maxLength, bool useApproximateMaxLength = false, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
 StackExchange.Redis.IDatabaseAsync.StringAppendAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue value, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
-StackExchange.Redis.IDatabaseAsync.StringBitCountAsync(StackExchange.Redis.RedisKey key, long start = 0, long end = -1, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
-StackExchange.Redis.IDatabaseAsync.StringBitCount2Async(StackExchange.Redis.RedisKey key, long start = 0, long end = -1, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
+StackExchange.Redis.IDatabaseAsync.StringBitCountAsync(StackExchange.Redis.RedisKey key, long start, long end, StackExchange.Redis.CommandFlags flags) -> System.Threading.Tasks.Task<long>!
+StackExchange.Redis.IDatabaseAsync.StringBitCountAsync(StackExchange.Redis.RedisKey key, long start = 0, long end = -1, StackExchange.Redis.StringIndexUnit unit = StackExchange.Redis.StringIndexUnit.Byte, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
 StackExchange.Redis.IDatabaseAsync.StringBitOperationAsync(StackExchange.Redis.Bitwise operation, StackExchange.Redis.RedisKey destination, StackExchange.Redis.RedisKey first, StackExchange.Redis.RedisKey second = default(StackExchange.Redis.RedisKey), StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
 StackExchange.Redis.IDatabaseAsync.StringBitOperationAsync(StackExchange.Redis.Bitwise operation, StackExchange.Redis.RedisKey destination, StackExchange.Redis.RedisKey[]! keys, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
-StackExchange.Redis.IDatabaseAsync.StringBitPositionAsync(StackExchange.Redis.RedisKey key, bool bit, long start = 0, long end = -1, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
-StackExchange.Redis.IDatabaseAsync.StringBitPosition2Async(StackExchange.Redis.RedisKey key, bool bit, long start = 0, long end = -1, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
+StackExchange.Redis.IDatabaseAsync.StringBitPositionAsync(StackExchange.Redis.RedisKey key, bool bit, long start, long end, StackExchange.Redis.CommandFlags flags) -> System.Threading.Tasks.Task<long>!
+StackExchange.Redis.IDatabaseAsync.StringBitPositionAsync(StackExchange.Redis.RedisKey key, bool bit, long start = 0, long end = -1, StackExchange.Redis.StringIndexUnit unit = StackExchange.Redis.StringIndexUnit.Byte, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
 StackExchange.Redis.IDatabaseAsync.StringDecrementAsync(StackExchange.Redis.RedisKey key, double value, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<double>!
 StackExchange.Redis.IDatabaseAsync.StringDecrementAsync(StackExchange.Redis.RedisKey key, long value = 1, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
 StackExchange.Redis.IDatabaseAsync.StringGetAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue>!
@@ -1475,6 +1475,9 @@ StackExchange.Redis.StreamPosition.Key.get -> StackExchange.Redis.RedisKey
 StackExchange.Redis.StreamPosition.Position.get -> StackExchange.Redis.RedisValue
 StackExchange.Redis.StreamPosition.StreamPosition() -> void
 StackExchange.Redis.StreamPosition.StreamPosition(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue position) -> void
+StackExchange.Redis.StringIndexUnit
+StackExchange.Redis.StringIndexUnit.Bit = 0 -> StackExchange.Redis.StringIndexUnit
+StackExchange.Redis.StringIndexUnit.Byte = 1 -> StackExchange.Redis.StringIndexUnit
 StackExchange.Redis.When
 StackExchange.Redis.When.Always = 0 -> StackExchange.Redis.When
 StackExchange.Redis.When.Exists = 1 -> StackExchange.Redis.When

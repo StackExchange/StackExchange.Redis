@@ -586,8 +586,8 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public long StringBitCount(RedisKey key, long start = 0, long end = -1, CommandFlags flags = CommandFlags.None) =>
             Inner.StringBitCount(ToInner(key), start, end, flags);
 
-        public long StringBitCount2(RedisKey key, long start = 0, long end = -1, CommandFlags flags = CommandFlags.None) =>
-            Inner.StringBitCount2(ToInner(key), start, end, flags);
+        public long StringBitCount(RedisKey key, long start = 0, long end = -1, StringIndexUnit unit = StringIndexUnit.Byte, CommandFlags flags = CommandFlags.None) =>
+            Inner.StringBitCount(ToInner(key), start, end, unit, flags);
 
         public long StringBitOperation(Bitwise operation, RedisKey destination, RedisKey[] keys, CommandFlags flags = CommandFlags.None) =>
             Inner.StringBitOperation(operation, ToInner(destination), ToInner(keys), flags);
@@ -598,8 +598,8 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public long StringBitPosition(RedisKey key, bool bit, long start = 0, long end = -1, CommandFlags flags = CommandFlags.None) =>
             Inner.StringBitPosition(ToInner(key), bit, start, end, flags);
 
-        public long StringBitPosition2(RedisKey key, bool bit, long start = 0, long end = -1, CommandFlags flags = CommandFlags.None) =>
-            Inner.StringBitPosition2(ToInner(key), bit, start, end, flags);
+        public long StringBitPosition(RedisKey key, bool bit, long start = 0, long end = -1, StringIndexUnit unit = StringIndexUnit.Byte, CommandFlags flags = CommandFlags.None) =>
+            Inner.StringBitPosition(ToInner(key), bit, start, end, unit, flags);
 
         public double StringDecrement(RedisKey key, double value, CommandFlags flags = CommandFlags.None) =>
             Inner.StringDecrement(ToInner(key), value, flags);
