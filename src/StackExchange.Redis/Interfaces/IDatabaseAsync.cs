@@ -2489,8 +2489,8 @@ namespace StackExchange.Redis
         /// Like for the GETRANGE command start and end can contain negative values in order to index bytes starting from the end of the string, where -1 is the last byte, -2 is the penultimate, and so forth.
         /// </summary>
         /// <param name="key">The key of the string.</param>
-        /// <param name="start">The start bit to count at.</param>
-        /// <param name="end">The end bit to count at.</param>
+        /// <param name="start">The start byte to count at.</param>
+        /// <param name="end">The end byte to count at.</param>
         /// <param name="unit">Since Redis 7 we can choose if <paramref name="start"/> and <paramref name="end"/> specify bit index or byte index.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of bits set to 1.</returns>
@@ -2532,13 +2532,13 @@ namespace StackExchange.Redis
         /// <summary>
         /// Return the position of the first bit set to 1 or 0 in a string.
         /// The position is returned thinking at the string as an array of bits from left to right where the first byte most significant bit is at position 0, the second byte most significant bit is at position 8 and so forth.
-        /// A <paramref name="start"/> and <paramref name="end"/> may be specified - these are in bits.
+        /// A <paramref name="start"/> and <paramref name="end"/> may be specified - these are in bytes, not bits.
         /// <paramref name="start"/> and <paramref name="end"/> can contain negative values in order to index bytes starting from the end of the string, where -1 is the last byte, -2 is the penultimate, and so forth.
         /// </summary>
         /// <param name="key">The key of the string.</param>
         /// <param name="bit">True to check for the first 1 bit, false to check for the first 0 bit.</param>
-        /// <param name="start">The start bit to  start looking (defaults to 0).</param>
-        /// <param name="end">The end bit to stop looking (defaults to -1, unlimited).</param>
+        /// <param name="start">The position to start looking (defaults to 0).</param>
+        /// <param name="end">The position to stop looking (defaults to -1, unlimited).</param>
         /// <param name="unit">Since Redis 7 we can choose if <paramref name="start"/> and <paramref name="end"/> specify bit index or byte index.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>
