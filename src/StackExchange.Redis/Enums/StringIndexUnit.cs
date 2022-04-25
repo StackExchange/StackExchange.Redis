@@ -3,7 +3,7 @@
 namespace StackExchange.Redis;
 
 /// <summary>
-/// Indicates if we speciding the index in bits or in bytes.
+/// Indicates if we index with bit unit of byte unit.
 /// </summary>
 public enum StringIndexUnit
 {
