@@ -1566,7 +1566,7 @@ namespace StackExchange.Redis
                     case ResultType.BulkString:
                         parsed = value.AsRedisValue();
                         return true;
-                    case ResultType.MultiBulk when value.ItemsCount == 1:
+                    case ResultType.MultiBulk when allowArraySingleton && value.ItemsCount == 1:
                         return TryGetPubSubPayload(in value[0], out parsed, allowArraySingleton: false);
                 }
                 parsed = default;
