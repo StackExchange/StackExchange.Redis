@@ -1318,6 +1318,14 @@ public sealed class DatabaseWrapperTests
     }
 
     [Fact]
+    public void StringSet_Compat()
+    {
+        TimeSpan? expiry = null;
+        wrapper.StringSet("key", "value", expiry, When.Exists);
+        mock.Verify(_ => _.StringSet("prefix:key", "value", expiry, When.Exists));
+    }
+
+    [Fact]
     public void StringSetBit()
     {
         wrapper.StringSetBit("key", 123, true, CommandFlags.None);

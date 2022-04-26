@@ -1251,6 +1251,14 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void StringSetAsync_Compat()
+        {
+            TimeSpan expiry = TimeSpan.FromSeconds(123);
+            wrapper.StringSetAsync("key", "value", expiry, When.Exists);
+            mock.Verify(_ => _.StringSetAsync("prefix:key", "value", expiry, When.Exists));
+        }
+
+        [Fact]
         public void StringSetBitAsync()
         {
             wrapper.StringSetBitAsync("key", 123, true, CommandFlags.None);
