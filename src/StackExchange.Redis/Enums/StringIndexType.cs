@@ -8,11 +8,11 @@ namespace StackExchange.Redis;
 public enum StringIndexType
 {
     /// <summary>
-    /// Use bit
+    /// Indicates the index is the number of bits into a string.
     /// </summary>
     Bit,
     /// <summary>
-    /// Use byte
+    /// Indicates the index is the number of bytes into a string.
     /// </summary>
     Byte,
 }
