@@ -2539,7 +2539,7 @@ namespace StackExchange.Redis
         /// <param name="bit">True to check for the first 1 bit, false to check for the first 0 bit.</param>
         /// <param name="start">The position to start looking (defaults to 0).</param>
         /// <param name="end">The position to stop looking (defaults to -1, unlimited).</param>
-        /// <param name="indexType">Since Redis 7 we can choose if <paramref name="start"/> and <paramref name="end"/> specify bit index or byte index.</param>
+        /// <param name="indexType">In Redis 7+, we can choose if <paramref name="start"/> and <paramref name="end"/> specify a bit index or byte index (defaults to <see cref="StringIndexType.Byte"/>).</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>
         /// The command returns the position of the first bit set to 1 or 0 according to the request.
