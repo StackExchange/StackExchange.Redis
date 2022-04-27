@@ -1478,8 +1478,8 @@ StackExchange.Redis.StreamPosition.Position.get -> StackExchange.Redis.RedisValu
 StackExchange.Redis.StreamPosition.StreamPosition() -> void
 StackExchange.Redis.StreamPosition.StreamPosition(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue position) -> void
 StackExchange.Redis.StringIndexType
-StackExchange.Redis.StringIndexType.Bit = 0 -> StackExchange.Redis.StringIndexType
-StackExchange.Redis.StringIndexType.Byte = 1 -> StackExchange.Redis.StringIndexType
+StackExchange.Redis.StringIndexType.Byte = 0 -> StackExchange.Redis.StringIndexType
+StackExchange.Redis.StringIndexType.Bit = 1 -> StackExchange.Redis.StringIndexType
 StackExchange.Redis.When
 StackExchange.Redis.When.Always = 0 -> StackExchange.Redis.When
 StackExchange.Redis.When.Exists = 1 -> StackExchange.Redis.When
