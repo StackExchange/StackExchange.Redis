@@ -2491,7 +2491,7 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the string.</param>
         /// <param name="start">The start byte to count at.</param>
         /// <param name="end">The end byte to count at.</param>
-        /// <param name="indexType">Since Redis 7 we can choose if <paramref name="start"/> and <paramref name="end"/> specify bit index or byte index.</param>
+        /// <param name="indexType">In Redis 7+, we can choose if <paramref name="start"/> and <paramref name="end"/> specify a bit index or byte index (defaults to <see cref="StringIndexType.Byte"/>).</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of bits set to 1.</returns>
         /// <remarks><seealso href="https://redis.io/commands/bitcount"/></remarks>
