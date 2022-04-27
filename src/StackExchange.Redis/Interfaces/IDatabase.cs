@@ -2769,16 +2769,12 @@ namespace StackExchange.Redis
         /// <remarks><seealso href="https://redis.io/commands/strlen"/></remarks>
         long StringLength(RedisKey key, CommandFlags flags = CommandFlags.None);
 
-        /// <summary>
-        /// Set key to hold the string value. If key already holds a value, it is overwritten, regardless of its type.
-        /// </summary>
-        /// <param name="key">The key of the string.</param>
-        /// <param name="value">The value to set.</param>
-        /// <param name="expiry">The expiry to set.</param>
-        /// <param name="when">Which condition to set the value under (defaults to always).</param>
-        /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns><see langword="true"/> if the string was set, <see langword="false"/> otherwise.</returns>
-        /// <remarks>https://redis.io/commands/set</remarks>
+        /// <inheritdoc cref="StringSet(RedisKey, RedisValue, TimeSpan?, bool, When, CommandFlags)" />
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
+        bool StringSet(RedisKey key, RedisValue value, TimeSpan? expiry, When when);
+
+        /// <inheritdoc cref="StringSet(RedisKey, RedisValue, TimeSpan?, bool, When, CommandFlags)" />
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         bool StringSet(RedisKey key, RedisValue value, TimeSpan? expiry, When when, CommandFlags flags);
 
         /// <summary>
