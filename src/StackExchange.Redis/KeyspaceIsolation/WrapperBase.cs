@@ -603,8 +603,8 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<long> StringBitCountAsync(RedisKey key, long start = 0, long end = -1, CommandFlags flags = CommandFlags.None) =>
             Inner.StringBitCountAsync(ToInner(key), start, end, flags);
 
-        public Task<long> StringBitCountAsync(RedisKey key, long start = 0, long end = -1, StringIndexUnit unit = StringIndexUnit.Byte, CommandFlags flags = CommandFlags.None) =>
-            Inner.StringBitCountAsync(ToInner(key), start, end, unit, flags);
+        public Task<long> StringBitCountAsync(RedisKey key, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, CommandFlags flags = CommandFlags.None) =>
+            Inner.StringBitCountAsync(ToInner(key), start, end, indexType, flags);
 
         public Task<long> StringBitOperationAsync(Bitwise operation, RedisKey destination, RedisKey[] keys, CommandFlags flags = CommandFlags.None) =>
             Inner.StringBitOperationAsync(operation, ToInner(destination), ToInner(keys), flags);
@@ -615,8 +615,8 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<long> StringBitPositionAsync(RedisKey key, bool bit, long start = 0, long end = -1, CommandFlags flags = CommandFlags.None) =>
             Inner.StringBitPositionAsync(ToInner(key), bit, start, end, flags);
 
-        public Task<long> StringBitPositionAsync(RedisKey key, bool bit, long start = 0, long end = -1, StringIndexUnit unit = StringIndexUnit.Byte, CommandFlags flags = CommandFlags.None) =>
-            Inner.StringBitPositionAsync(ToInner(key), bit, start, end, unit, flags);
+        public Task<long> StringBitPositionAsync(RedisKey key, bool bit, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, CommandFlags flags = CommandFlags.None) =>
+            Inner.StringBitPositionAsync(ToInner(key), bit, start, end, indexType, flags);
 
         public Task<double> StringDecrementAsync(RedisKey key, double value, CommandFlags flags = CommandFlags.None) =>
             Inner.StringDecrementAsync(ToInner(key), value, flags);

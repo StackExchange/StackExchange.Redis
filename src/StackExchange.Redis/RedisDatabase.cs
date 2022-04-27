@@ -2790,30 +2790,30 @@ namespace StackExchange.Redis
 
         public long StringBitCount(RedisKey key, long start = 0, long end = -1, CommandFlags flags = CommandFlags.None)
         {
-            return StringBitCount(key, start, end, StringIndexUnit.Byte, flags);
+            return StringBitCount(key, start, end, StringIndexType.Byte, flags);
         }
 
         public Task<long> StringBitCountAsync(RedisKey key, long start = 0, long end = -1, CommandFlags flags = CommandFlags.None)
         {
-            return StringBitCountAsync(key, start, end, StringIndexUnit.Byte, flags);
+            return StringBitCountAsync(key, start, end, StringIndexType.Byte, flags);
         }
 
-        public long StringBitCount(RedisKey key, long start = 0, long end = -1, StringIndexUnit unit = StringIndexUnit.Byte, CommandFlags flags = CommandFlags.None)
+        public long StringBitCount(RedisKey key, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, CommandFlags flags = CommandFlags.None)
         {
-            var msg = unit switch
+            var msg = indexType switch
             {
-                StringIndexUnit.Byte => Message.Create(Database, flags, RedisCommand.BITCOUNT, key, start, end),
-                _ => Message.Create(Database, flags, RedisCommand.BITCOUNT, key, start, end, unit.ToLiteral()),
+                StringIndexType.Byte => Message.Create(Database, flags, RedisCommand.BITCOUNT, key, start, end),
+                _ => Message.Create(Database, flags, RedisCommand.BITCOUNT, key, start, end, indexType.ToLiteral()),
             };
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
-        public Task<long> StringBitCountAsync(RedisKey key, long start = 0, long end = -1, StringIndexUnit unit = StringIndexUnit.Byte, CommandFlags flags = CommandFlags.None)
+        public Task<long> StringBitCountAsync(RedisKey key, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, CommandFlags flags = CommandFlags.None)
         {
-            var msg = unit switch
+            var msg = indexType switch
             {
-                StringIndexUnit.Byte => Message.Create(Database, flags, RedisCommand.BITCOUNT, key, start, end),
-                _ => Message.Create(Database, flags, RedisCommand.BITCOUNT, key, start, end, unit.ToLiteral()),
+                StringIndexType.Byte => Message.Create(Database, flags, RedisCommand.BITCOUNT, key, start, end),
+                _ => Message.Create(Database, flags, RedisCommand.BITCOUNT, key, start, end, indexType.ToLiteral()),
             };
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
@@ -2844,30 +2844,30 @@ namespace StackExchange.Redis
 
         public long StringBitPosition(RedisKey key, bool bit, long start = 0, long end = -1, CommandFlags flags = CommandFlags.None)
         {
-            return StringBitPosition(key, bit, start, end, StringIndexUnit.Byte, flags);
+            return StringBitPosition(key, bit, start, end, StringIndexType.Byte, flags);
         }
 
         public Task<long> StringBitPositionAsync(RedisKey key, bool bit, long start = 0, long end = -1, CommandFlags flags = CommandFlags.None)
         {
-            return StringBitPositionAsync(key, bit, start, end, StringIndexUnit.Byte, flags);
+            return StringBitPositionAsync(key, bit, start, end, StringIndexType.Byte, flags);
         }
 
-        public long StringBitPosition(RedisKey key, bool bit, long start = 0, long end = -1, StringIndexUnit unit = StringIndexUnit.Byte, CommandFlags flags = CommandFlags.None)
+        public long StringBitPosition(RedisKey key, bool bit, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, CommandFlags flags = CommandFlags.None)
         {
-            var msg = unit switch
+            var msg = indexType switch
             {
-                StringIndexUnit.Byte => Message.Create(Database, flags, RedisCommand.BITPOS, key, bit, start, end),
-                _ => Message.Create(Database, flags, RedisCommand.BITPOS, key, bit, start, end, unit.ToLiteral()),
+                StringIndexType.Byte => Message.Create(Database, flags, RedisCommand.BITPOS, key, bit, start, end),
+                _ => Message.Create(Database, flags, RedisCommand.BITPOS, key, bit, start, end, indexType.ToLiteral()),
             };
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
-        public Task<long> StringBitPositionAsync(RedisKey key, bool bit, long start = 0, long end = -1, StringIndexUnit unit = StringIndexUnit.Byte, CommandFlags flags = CommandFlags.None)
+        public Task<long> StringBitPositionAsync(RedisKey key, bool bit, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, CommandFlags flags = CommandFlags.None)
         {
-            var msg = unit switch
+            var msg = indexType switch
             {
-                StringIndexUnit.Byte => Message.Create(Database, flags, RedisCommand.BITPOS, key, bit, start, end),
-                _ => Message.Create(Database, flags, RedisCommand.BITPOS, key, bit, start, end, unit.ToLiteral()),
+                StringIndexType.Byte => Message.Create(Database, flags, RedisCommand.BITPOS, key, bit, start, end),
+                _ => Message.Create(Database, flags, RedisCommand.BITPOS, key, bit, start, end, indexType.ToLiteral()),
             };
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }

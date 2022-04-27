@@ -2526,7 +2526,7 @@ namespace StackExchange.Redis
         /// <remarks><seealso href="https://redis.io/commands/append"/></remarks>
         long StringAppend(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="StringBitCount(RedisKey, long, long, StringIndexUnit, CommandFlags)" />
+        /// <inheritdoc cref="StringBitCount(RedisKey, long, long, StringIndexType, CommandFlags)" />
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         long StringBitCount(RedisKey key, long start, long end, CommandFlags flags);
 
@@ -2539,11 +2539,11 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the string.</param>
         /// <param name="start">The start byte to count at.</param>
         /// <param name="end">The end byte to count at.</param>
-        /// <param name="unit">Since Redis 7 we can choose if <paramref name="start"/> and <paramref name="end"/> specify bit index or byte index.</param>
+        /// <param name="indexType">Since Redis 7 we can choose if <paramref name="start"/> and <paramref name="end"/> specify bit index or byte index.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of bits set to 1.</returns>
         /// <remarks><seealso href="https://redis.io/commands/bitcount"/></remarks>
-        long StringBitCount(RedisKey key, long start = 0, long end = -1, StringIndexUnit unit = StringIndexUnit.Byte, CommandFlags flags = CommandFlags.None);
+        long StringBitCount(RedisKey key, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Perform a bitwise operation between multiple keys (containing string values) and store the result in the destination key.
@@ -2573,7 +2573,7 @@ namespace StackExchange.Redis
         /// <remarks><seealso href="https://redis.io/commands/bitop"/></remarks>
         long StringBitOperation(Bitwise operation, RedisKey destination, RedisKey[] keys, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="StringBitPosition(RedisKey, bool, long, long, StringIndexUnit, CommandFlags)" />
+        /// <inheritdoc cref="StringBitPosition(RedisKey, bool, long, long, StringIndexType, CommandFlags)" />
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         long StringBitPosition(RedisKey key, bool bit, long start, long end, CommandFlags flags);
 
@@ -2587,14 +2587,14 @@ namespace StackExchange.Redis
         /// <param name="bit">True to check for the first 1 bit, false to check for the first 0 bit.</param>
         /// <param name="start">The position to start looking (defaults to 0).</param>
         /// <param name="end">The position to stop looking (defaults to -1, unlimited).</param>
-        /// <param name="unit">Since Redis 7 we can choose if <paramref name="start"/> and <paramref name="end"/> specify bit index or byte index.</param>
+        /// <param name="indexType">Since Redis 7 we can choose if <paramref name="start"/> and <paramref name="end"/> specify bit index or byte index.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>
         /// The command returns the position of the first bit set to 1 or 0 according to the request.
         /// If we look for set bits(the bit argument is 1) and the string is empty or composed of just zero bytes, -1 is returned.
         /// </returns>
         /// <remarks><seealso href="https://redis.io/commands/bitpos"/></remarks>
-        long StringBitPosition(RedisKey key, bool bit, long start = 0, long end = -1, StringIndexUnit unit = StringIndexUnit.Byte, CommandFlags flags = CommandFlags.None);
+        long StringBitPosition(RedisKey key, bool bit, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Decrements the number stored at key by decrement.

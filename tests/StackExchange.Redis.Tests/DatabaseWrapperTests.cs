@@ -1186,8 +1186,8 @@ public sealed class DatabaseWrapperTests
     [Fact]
     public void StringBitCount_2()
     {
-        wrapper.StringBitCount("key", 123, 456, StringIndexUnit.Byte, CommandFlags.None);
-        mock.Verify(_ => _.StringBitCount("prefix:key", 123, 456, StringIndexUnit.Byte, CommandFlags.None));
+        wrapper.StringBitCount("key", 123, 456, StringIndexType.Byte, CommandFlags.None);
+        mock.Verify(_ => _.StringBitCount("prefix:key", 123, 456, StringIndexType.Byte, CommandFlags.None));
     }
 
     [Fact]
@@ -1216,8 +1216,8 @@ public sealed class DatabaseWrapperTests
     [Fact]
     public void StringBitPosition_2()
     {
-        wrapper.StringBitPosition("key", true, 123, 456, StringIndexUnit.Byte, CommandFlags.None);
-        mock.Verify(_ => _.StringBitPosition("prefix:key", true, 123, 456, StringIndexUnit.Byte, CommandFlags.None));
+        wrapper.StringBitPosition("key", true, 123, 456, StringIndexType.Byte, CommandFlags.None);
+        mock.Verify(_ => _.StringBitPosition("prefix:key", true, 123, 456, StringIndexType.Byte, CommandFlags.None));
     }
 
     [Fact]

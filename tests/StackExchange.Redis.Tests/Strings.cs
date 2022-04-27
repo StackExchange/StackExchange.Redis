@@ -529,7 +529,7 @@ public class Strings : TestBase
         db.StringSet(key, "foobar", flags: CommandFlags.FireAndForget);
 
         var r1 = db.StringBitCount(key, 1, 1); // Using default byte
-        var r2 = db.StringBitCount(key, 1, 1, StringIndexUnit.Bit);
+        var r2 = db.StringBitCount(key, 1, 1, StringIndexType.Bit);
 
         Assert.Equal(6, r1);
         Assert.Equal(1, r2);
@@ -537,7 +537,7 @@ public class Strings : TestBase
         // Async
 
         r1 = await db.StringBitCountAsync(key, 1, 1); // Using default byte
-        r2 = await db.StringBitCountAsync(key, 1, 1, StringIndexUnit.Bit);
+        r2 = await db.StringBitCountAsync(key, 1, 1, StringIndexType.Bit);
 
         Assert.Equal(6, r1);
         Assert.Equal(1, r2);
@@ -672,7 +672,7 @@ public class Strings : TestBase
         db.StringSet(key, "foo", flags: CommandFlags.FireAndForget);
 
         var r1 = db.StringBitPositionAsync(key, true, 1, 3); // Using default byte
-        var r2 = db.StringBitPositionAsync(key, true, 1, 3, StringIndexUnit.Bit);
+        var r2 = db.StringBitPositionAsync(key, true, 1, 3, StringIndexType.Bit);
 
         Assert.Equal(9, await r1);
         Assert.Equal(1, await r2);
