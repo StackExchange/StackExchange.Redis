@@ -8,13 +8,13 @@ namespace StackExchange.Redis;
 public enum StringIndexType
 {
     /// <summary>
-    /// Indicates the index is the number of bits into a string.
-    /// </summary>
-    Bit,
-    /// <summary>
     /// Indicates the index is the number of bytes into a string.
     /// </summary>
     Byte,
+    /// <summary>
+    /// Indicates the index is the number of bits into a string.
+    /// </summary>
+    Bit,
 }
 
 internal static class StringIndexTypeExtensions
