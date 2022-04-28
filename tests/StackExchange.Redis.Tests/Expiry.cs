@@ -57,8 +57,8 @@ public class Expiry : TestBase
 
         var key = Me();
         var db = conn.GetDatabase();
-        db.KeyDelete(key, CommandFlags.FireAndForget);
-        db.StringSet(key, "value", flags: CommandFlags.FireAndForget);
+        db.KeyDelete(key);
+        db.StringSet(key, "value");
 
         // The key has no expiry
         Assert.False(await db.KeyExpireAsync(key, TimeSpan.FromHours(1), ExpireWhen.HasExpiry));
