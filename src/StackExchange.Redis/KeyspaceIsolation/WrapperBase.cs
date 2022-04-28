@@ -601,8 +601,8 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<long?> StringBitfieldIncrementAsync(RedisKey key, BitfieldEncoding encoding, BitfieldOffset offset, long increment, BitfieldOverflowHandling overflowHandling = BitfieldOverflowHandling.Wrap, CommandFlags flags = CommandFlags.None) =>
             Inner.StringBitfieldIncrementAsync(ToInner(key), encoding, offset, increment, overflowHandling, flags);
 
-        public Task<long?[]> StringBitfieldAsync(RedisKey key, BitfieldSubCommand[] subcommands, CommandFlags flags = CommandFlags.None) =>
-            Inner.StringBitfieldAsync(ToInner(key), subcommands, flags);
+        public Task<long?[]> StringBitfieldAsync(RedisKey key, BitfieldCommandBuilder builder, CommandFlags flags = CommandFlags.None) =>
+            Inner.StringBitfieldAsync(ToInner(key), builder, flags);
 
         public Task<long> StringBitOperationAsync(Bitwise operation, RedisKey destination, RedisKey[] keys, CommandFlags flags = CommandFlags.None) =>
             Inner.StringBitOperationAsync(operation, ToInner(destination), ToInner(keys), flags);

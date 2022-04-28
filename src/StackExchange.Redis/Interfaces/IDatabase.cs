@@ -2532,15 +2532,16 @@ namespace StackExchange.Redis
 
 
         /// <summary>
-        /// Executes a set of Bitfield <paramref name="subcommands"/> against the bitfield at the provided <paramref name="key"/>. Will run as a BITFIELD_RO if all operations are read-only and the command is available.
+        /// Executes a set of Bitfield subcommands as constructed by the <paramref name="builder"/> against the bitfield at the provided <paramref name="key"/>.
+        /// Will run as a BITFIELD_RO if all operations are read-only and the command is available.
         /// </summary>
         /// <param name="key">The key of the string.</param>
-        /// <param name="subcommands">The subcommands to execute against the bitfield.</param>
+        /// <param name="builder">The subcommands to execute against the bitfield.</param>
         /// <param name="flags">The flags for this operation.</param>
         /// <returns>An array of numbers corresponding to the result of each sub-command. For increment subcommands, these can be null.</returns>
         /// <remarks><seealso href="https://redis.io/commands/bitfield"/></remarks>
         /// <remarks><seealso href="https://redis.io/commands/bitfield_ro"/></remarks>
-        long?[] StringBitfield(RedisKey key, BitfieldSubCommand[] subcommands, CommandFlags flags = CommandFlags.None);
+        long?[] StringBitfield(RedisKey key, BitfieldCommandBuilder builder, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Perform a bitwise operation between multiple keys (containing string values) and store the result in the destination key.

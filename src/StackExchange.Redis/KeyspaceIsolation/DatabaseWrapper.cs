@@ -583,8 +583,8 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public long? StringBitfieldIncrement(RedisKey key, BitfieldEncoding encoding, BitfieldOffset offset, long increment, BitfieldOverflowHandling overflowHandling = BitfieldOverflowHandling.Wrap, CommandFlags flags = CommandFlags.None) =>
             Inner.StringBitfieldIncrement(ToInner(key), encoding, offset, increment, overflowHandling, flags);
 
-        public long?[] StringBitfield(RedisKey key, BitfieldSubCommand[] subcommands, CommandFlags flags = CommandFlags.None) =>
-            Inner.StringBitfield(key, subcommands, flags);
+        public long?[] StringBitfield(RedisKey key, BitfieldCommandBuilder builder, CommandFlags flags = CommandFlags.None) =>
+            Inner.StringBitfield(key, builder, flags);
 
         public long StringBitOperation(Bitwise operation, RedisKey destination, RedisKey[] keys, CommandFlags flags = CommandFlags.None) =>
             Inner.StringBitOperation(operation, ToInner(destination), ToInner(keys), flags);

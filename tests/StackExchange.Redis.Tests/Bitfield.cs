@@ -81,16 +81,16 @@ public class Bitfield : TestBase
         RedisKey key = Me();
         db.KeyDelete(key);
 
-        var set1 = new BitfieldSet(new BitfieldEncoding(Signedness.Unsigned, 3), new BitfieldOffset(false, 5), 7);
-        var get1 = new BitfieldGet(new BitfieldEncoding(Signedness.Unsigned, 3), new BitfieldOffset(false, 5));
-        var incr1 = new BitfieldIncrby(new BitfieldEncoding(Signedness.Unsigned, 3), new BitfieldOffset(false, 5), -1);
+        var builder = new BitfieldCommandBuilder()
+            .BitfieldSet(new BitfieldEncoding(Signedness.Unsigned, 3), new BitfieldOffset(false, 5), 7)
+            .BitfieldGet(new BitfieldEncoding(Signedness.Unsigned, 3), new BitfieldOffset(false, 5))
+            .BitfieldIncrby(new BitfieldEncoding(Signedness.Unsigned, 3), new BitfieldOffset(false, 5), -1)
+            .BitfieldSet(new BitfieldEncoding(Signedness.Signed, 45), new BitfieldOffset(true, 1), 17592186044415)
+            .BitfieldGet(new BitfieldEncoding(Signedness.Signed, 45), new BitfieldOffset(true, 1))
+            .BitfieldIncrby(new BitfieldEncoding(Signedness.Signed, 45), new BitfieldOffset(true, 1), 1,
+                BitfieldOverflowHandling.Fail);
 
-        var set2 = new BitfieldSet(new BitfieldEncoding(Signedness.Signed, 45), new BitfieldOffset(true, 1), 17592186044415);
-        var get2 = new BitfieldGet(new BitfieldEncoding(Signedness.Signed, 45), new BitfieldOffset(true, 1));
-        var incr2 = new BitfieldIncrby(new BitfieldEncoding(Signedness.Signed, 45), new BitfieldOffset(true, 1), 1, BitfieldOverflowHandling.Fail);
-
-        var subcommands = new BitfieldSubCommand[] {set1, get1, incr1, set2, get2, incr2};
-        var res = await db.StringBitfieldAsync(key, subcommands);
+        var res = await db.StringBitfieldAsync(key, builder);
 
         Assert.Equal(0, res[0]);
         Assert.Equal(7, res[1]);
