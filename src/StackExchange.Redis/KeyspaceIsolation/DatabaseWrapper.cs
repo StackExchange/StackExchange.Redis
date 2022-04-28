@@ -583,7 +583,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public long StringAppend(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None) =>
             Inner.StringAppend(ToInner(key), value, flags);
 
-        public long StringBitCount(RedisKey key, long start = 0, long end = -1, CommandFlags flags = CommandFlags.None) =>
+        public long StringBitCount(RedisKey key, long start, long end, CommandFlags flags) =>
             Inner.StringBitCount(ToInner(key), start, end, flags);
 
         public long StringBitCount(RedisKey key, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, CommandFlags flags = CommandFlags.None) =>
@@ -595,7 +595,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public long StringBitOperation(Bitwise operation, RedisKey destination, RedisKey first, RedisKey second = default, CommandFlags flags = CommandFlags.None) =>
             Inner.StringBitOperation(operation, ToInner(destination), ToInner(first), ToInnerOrDefault(second), flags);
 
-        public long StringBitPosition(RedisKey key, bool bit, long start = 0, long end = -1, CommandFlags flags = CommandFlags.None) =>
+        public long StringBitPosition(RedisKey key, bool bit, long start, long end, CommandFlags flags) =>
             Inner.StringBitPosition(ToInner(key), bit, start, end, flags);
 
         public long StringBitPosition(RedisKey key, bool bit, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, CommandFlags flags = CommandFlags.None) =>
