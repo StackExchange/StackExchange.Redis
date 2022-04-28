@@ -2791,9 +2791,6 @@ namespace StackExchange.Redis
         public long StringBitCount(RedisKey key, long start, long end, CommandFlags flags) =>
             StringBitCount(key, start, end, StringIndexType.Byte, flags);
 
-        public Task<long> StringBitCountAsync(RedisKey key, long start, long end, CommandFlags flags) =>
-            StringBitCountAsync(key, start, end, StringIndexType.Byte, flags);
-
         public long StringBitCount(RedisKey key, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, CommandFlags flags = CommandFlags.None)
         {
             var msg = indexType switch
@@ -2803,6 +2800,9 @@ namespace StackExchange.Redis
             };
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
+
+        public Task<long> StringBitCountAsync(RedisKey key, long start, long end, CommandFlags flags) =>
+            StringBitCountAsync(key, start, end, StringIndexType.Byte, flags);
 
         public Task<long> StringBitCountAsync(RedisKey key, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, CommandFlags flags = CommandFlags.None)
         {
@@ -2841,9 +2841,6 @@ namespace StackExchange.Redis
         public long StringBitPosition(RedisKey key, bool bit, long start, long end, CommandFlags flags) =>
             StringBitPosition(key, bit, start, end, StringIndexType.Byte, flags);
 
-        public Task<long> StringBitPositionAsync(RedisKey key, bool bit, long start, long end, CommandFlags flags) =>
-            StringBitPositionAsync(key, bit, start, end, StringIndexType.Byte, flags);
-
         public long StringBitPosition(RedisKey key, bool bit, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, CommandFlags flags = CommandFlags.None)
         {
             var msg = indexType switch
@@ -2853,6 +2850,9 @@ namespace StackExchange.Redis
             };
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
+
+        public Task<long> StringBitPositionAsync(RedisKey key, bool bit, long start, long end, CommandFlags flags) =>
+            StringBitPositionAsync(key, bit, start, end, StringIndexType.Byte, flags);
 
         public Task<long> StringBitPositionAsync(RedisKey key, bool bit, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, CommandFlags flags = CommandFlags.None)
         {
