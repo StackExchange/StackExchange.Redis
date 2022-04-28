@@ -829,37 +829,37 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
-        public bool KeyExpire(RedisKey key, TimeSpan? expiry, CommandFlags flags = CommandFlags.None) =>
+        public bool KeyExpire(RedisKey key, TimeSpan? expiry, CommandFlags flags) =>
             KeyExpire(key, expiry, ExpireWhen.Always, flags);
 
-        public bool KeyExpire(RedisKey key, DateTime? expiry, CommandFlags flags = CommandFlags.None) =>
+        public bool KeyExpire(RedisKey key, DateTime? expiry, CommandFlags flags) =>
             KeyExpire(key, expiry, ExpireWhen.Always, flags);
 
-        public bool KeyExpire(RedisKey key, TimeSpan? expiry, ExpireWhen when, CommandFlags flags = CommandFlags.None)
+        public bool KeyExpire(RedisKey key, TimeSpan? expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetExpiryMessage(key, flags, expiry, when, out ServerEndPoint? server);
             return ExecuteSync(msg, ResultProcessor.Boolean, server: server);
         }
 
-        public bool KeyExpire(RedisKey key, DateTime? expiry, ExpireWhen when, CommandFlags flags = CommandFlags.None)
+        public bool KeyExpire(RedisKey key, DateTime? expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetExpiryMessage(key, flags, expiry, when, out ServerEndPoint? server);
             return ExecuteSync(msg, ResultProcessor.Boolean, server: server);
         }
 
-        public Task<bool> KeyExpireAsync(RedisKey key, TimeSpan? expiry, CommandFlags flags = CommandFlags.None) =>
+        public Task<bool> KeyExpireAsync(RedisKey key, TimeSpan? expiry, CommandFlags flags) =>
             KeyExpireAsync(key, expiry, ExpireWhen.Always, flags);
 
-        public Task<bool> KeyExpireAsync(RedisKey key, DateTime? expiry, CommandFlags flags = CommandFlags.None) =>
+        public Task<bool> KeyExpireAsync(RedisKey key, DateTime? expiry, CommandFlags flags) =>
             KeyExpireAsync(key, expiry, ExpireWhen.Always, flags);
 
-        public Task<bool> KeyExpireAsync(RedisKey key, TimeSpan? expiry, ExpireWhen when, CommandFlags flags = CommandFlags.None)
+        public Task<bool> KeyExpireAsync(RedisKey key, TimeSpan? expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetExpiryMessage(key, flags, expiry, when, out ServerEndPoint? server);
             return ExecuteAsync(msg, ResultProcessor.Boolean, server: server);
         }
 
-        public Task<bool> KeyExpireAsync(RedisKey key, DateTime? expire, ExpireWhen when, CommandFlags flags = CommandFlags.None)
+        public Task<bool> KeyExpireAsync(RedisKey key, DateTime? expire, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetExpiryMessage(key, flags, expire, when, out ServerEndPoint? server);
             return ExecuteAsync(msg, ResultProcessor.Boolean, server: server);

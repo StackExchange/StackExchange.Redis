@@ -15,7 +15,7 @@
 - Adds: Support for `SINTERCARD` with `.SetIntersectionLength()`/`.SetIntersectionLengthAsync()` ([#2078 by Avital-Fine](https://github.com/StackExchange/StackExchange.Redis/pull/2078))
 - Adds: Support for `LPOS` with `.ListPosition()`/`.ListPositionAsync()` and `.ListPositions()`/`.ListPositionsAsync()` ([#2080 by slorello89](https://github.com/StackExchange/StackExchange.Redis/pull/2080))
 - Adds: Support for `ZMSCORE` with `.SortedSetScores()`/.`SortedSetScoresAsync()` ([#2082 by ttingen](https://github.com/StackExchange/StackExchange.Redis/pull/2082))
-- Adds: Support for `NX | XX | GT | LT` to `EXPIRE`, `EXPIREAT`, `PEXPIRE`, and `PEXPIREAT` with `.KeyExpire()`/`.KeyExpireAsync()` ([#2083 by Avital-Fine](https://github.com/StackExchange/StackExchange.Redis/pull/2083))
+- Adds: Support for `NX | XX | GT | LT` to `EXPIRE`, `EXPIREAT`, `PEXPIRE`, and `PEXPIREAT` with `.KeyExpire()`/`.KeyExpireAsync()` using overload ([#2083 by Avital-Fine](https://github.com/StackExchange/StackExchange.Redis/pull/2083))
 - Adds: Support for `EXPIRETIME`, and `PEXPIRETIME` with `.KeyExpireTime()`/`.KeyExpireTimeAsync()` ([#2083 by Avital-Fine](https://github.com/StackExchange/StackExchange.Redis/pull/2083))
 - Fix: For streams, properly hash `XACK`, `XCLAIM`, and `XPENDING` in cluster scenarios to eliminate `MOVED` retries ([#2085 by nielsderdaele](https://github.com/StackExchange/StackExchange.Redis/pull/2085))
 - Adds: Support for `OBJECT REFCOUNT` with `.KeyRefCount()`/`.KeyRefCountAsync()` ([#2087 by Avital-Fine](https://github.com/StackExchange/StackExchange.Redis/pull/2087))

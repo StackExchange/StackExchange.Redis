@@ -657,7 +657,8 @@ namespace StackExchange.Redis
         /// <seealso href="https://redis.io/commands/persist"/>
         /// </para>
         /// </remarks>
-        Task<bool> KeyExpireAsync(RedisKey key, TimeSpan? expiry, CommandFlags flags = CommandFlags.None);
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
+        Task<bool> KeyExpireAsync(RedisKey key, TimeSpan? expiry, CommandFlags flags);
 
         /// <summary>
         /// Set a timeout on <paramref name="key"/>.
@@ -673,7 +674,7 @@ namespace StackExchange.Redis
         /// <seealso href="https://redis.io/commands/expire"/>,
         /// <seealso href="https://redis.io/commands/pexpire"/>
         /// </remarks>
-        Task<bool> KeyExpireAsync(RedisKey key, TimeSpan? expiry, ExpireWhen when, CommandFlags flags = CommandFlags.None);
+        Task<bool> KeyExpireAsync(RedisKey key, TimeSpan? expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Set a timeout on <paramref name="key"/>.
@@ -701,7 +702,8 @@ namespace StackExchange.Redis
         /// <seealso href="https://redis.io/commands/persist"/>
         /// </para>
         /// </remarks>
-        Task<bool> KeyExpireAsync(RedisKey key, DateTime? expiry, CommandFlags flags = CommandFlags.None);
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
+        Task<bool> KeyExpireAsync(RedisKey key, DateTime? expiry, CommandFlags flags);
 
         /// <summary>
         /// Set a timeout on <paramref name="key"/>.
@@ -717,7 +719,7 @@ namespace StackExchange.Redis
         /// <seealso href="https://redis.io/commands/expire"/>,
         /// <seealso href="https://redis.io/commands/pexpire"/>
         /// </remarks>
-        Task<bool> KeyExpireAsync(RedisKey key, DateTime? expiry, ExpireWhen when, CommandFlags flags = CommandFlags.None);
+        Task<bool> KeyExpireAsync(RedisKey key, DateTime? expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Returns the absolute time at which the given <paramref name="key"/> will expire, if it exists and has an expiration.
