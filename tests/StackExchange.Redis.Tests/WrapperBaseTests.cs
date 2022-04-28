@@ -542,6 +542,8 @@ namespace StackExchange.Redis.Tests
             Expression<Func<RedisKey[], bool>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "prefix:b";
             wrapper.ScriptEvaluateAsync(hash, keys, values, CommandFlags.None);
             mock.Verify(_ => _.ScriptEvaluateAsync(hash, It.Is(valid), values, CommandFlags.None));
+            wrapper.ScriptEvaluateReadOnlyAsync(hash, keys, values, CommandFlags.None);
+            mock.Verify(_ => _.ScriptEvaluateReadOnlyAsync(hash, It.Is(valid), values, CommandFlags.None));
         }
 
         [Fact]
@@ -552,6 +554,8 @@ namespace StackExchange.Redis.Tests
             Expression<Func<RedisKey[], bool>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "prefix:b";
             wrapper.ScriptEvaluateAsync("script", keys, values, CommandFlags.None);
             mock.Verify(_ => _.ScriptEvaluateAsync("script", It.Is(valid), values, CommandFlags.None));
+            wrapper.ScriptEvaluateReadOnlyAsync("script", keys, values, CommandFlags.None);
+            mock.Verify(_ => _.ScriptEvaluateReadOnlyAsync("script", It.Is(valid), values, CommandFlags.None));
         }
 
         [Fact]

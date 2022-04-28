@@ -34,7 +34,9 @@ internal enum RedisCommand
 
     ECHO,
     EVAL,
+    EVAL_RO,
     EVALSHA,
+    EVALSHA_RO,
     EXEC,
     EXISTS,
     EXPIRE,
