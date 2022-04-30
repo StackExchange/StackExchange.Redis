@@ -156,7 +156,7 @@ public class OverloadCompat : TestBase
     }
 
     [Fact]
-    public async Task StringGet()
+    public async Task StringSet()
     {
         using var conn = Create();
         var db = conn.GetDatabase();
