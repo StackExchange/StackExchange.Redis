@@ -34,7 +34,9 @@ internal enum RedisCommand
 
     ECHO,
     EVAL,
+    EVAL_RO,
     EVALSHA,
+    EVALSHA_RO,
     EXEC,
     EXISTS,
     EXPIRE,
@@ -167,6 +169,7 @@ internal enum RedisCommand
     SMISMEMBER,
     SMOVE,
     SORT,
+    SORT_RO,
     SPOP,
     SRANDMEMBER,
     SREM,
@@ -321,6 +324,7 @@ internal static class RedisCommandExtensions
             case RedisCommand.SETRANGE:
             case RedisCommand.SINTERSTORE:
             case RedisCommand.SMOVE:
+            case RedisCommand.SORT:
             case RedisCommand.SPOP:
             case RedisCommand.SREM:
             case RedisCommand.SUNIONSTORE:
@@ -429,7 +433,7 @@ internal static class RedisCommandExtensions
             case RedisCommand.SLOWLOG:
             case RedisCommand.SMEMBERS:
             case RedisCommand.SMISMEMBER:
-            case RedisCommand.SORT:
+            case RedisCommand.SORT_RO:
             case RedisCommand.SRANDMEMBER:
             case RedisCommand.STRLEN:
             case RedisCommand.SUBSCRIBE:

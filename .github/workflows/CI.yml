@@ -13,6 +13,9 @@ jobs:
   main:
     name: StackExchange.Redis (Ubuntu)
     runs-on: ubuntu-latest
+    env:
+      DOTNET_SYSTEM_CONSOLE_ALLOW_ANSI_COLOR_REDIRECTION: "1" # Enable color output, even though the console output is redirected in Actions
+      TERM: xterm # Enable color output in GitHub Actions
     steps:
     - name: Checkout code
       uses: actions/checkout@v1
@@ -43,6 +46,8 @@ jobs:
     runs-on: windows-2022
     env:
       NUGET_CERT_REVOCATION_MODE: offline # Disabling signing because of massive perf hit, see https://github.com/NuGet/Home/issues/11548
+      DOTNET_SYSTEM_CONSOLE_ALLOW_ANSI_COLOR_REDIRECTION: "1" # Note this doesn't work yet for Windows - see https://github.com/dotnet/runtime/issues/68340
+      TERM: xterm
     steps:
     - name: Checkout code
       uses: actions/checkout@v1

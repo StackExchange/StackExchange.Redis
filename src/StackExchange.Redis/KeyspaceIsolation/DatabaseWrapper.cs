@@ -327,6 +327,14 @@ namespace StackExchange.Redis.KeyspaceIsolation
             // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
             script.Evaluate(Inner, parameters, Prefix, flags);
 
+        public RedisResult ScriptEvaluateReadOnly(byte[] hash, RedisKey[] keys, RedisValue[] values, CommandFlags flags = CommandFlags.None) =>
+            // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
+            Inner.ScriptEvaluateReadOnly(hash, ToInner(keys), values, flags);
+
+        public RedisResult ScriptEvaluateReadOnly(string script, RedisKey[] keys, RedisValue[] values, CommandFlags flags = CommandFlags.None) =>
+            // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
+            Inner.ScriptEvaluateReadOnly(script, ToInner(keys), values, flags);
+
         public long SetAdd(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None) =>
             Inner.SetAdd(ToInner(key), values, flags);
 
@@ -586,8 +594,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public long StringAppend(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None) =>
             Inner.StringAppend(ToInner(key), value, flags);
 
-        public long StringBitCount(RedisKey key, long start = 0, long end = -1, CommandFlags flags = CommandFlags.None) =>
+        public long StringBitCount(RedisKey key, long start, long end, CommandFlags flags) =>
             Inner.StringBitCount(ToInner(key), start, end, flags);
+
+        public long StringBitCount(RedisKey key, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, CommandFlags flags = CommandFlags.None) =>
+            Inner.StringBitCount(ToInner(key), start, end, indexType, flags);
 
         public long StringBitOperation(Bitwise operation, RedisKey destination, RedisKey[] keys, CommandFlags flags = CommandFlags.None) =>
             Inner.StringBitOperation(operation, ToInner(destination), ToInner(keys), flags);
@@ -595,8 +606,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public long StringBitOperation(Bitwise operation, RedisKey destination, RedisKey first, RedisKey second = default, CommandFlags flags = CommandFlags.None) =>
             Inner.StringBitOperation(operation, ToInner(destination), ToInner(first), ToInnerOrDefault(second), flags);
 
-        public long StringBitPosition(RedisKey key, bool bit, long start = 0, long end = -1, CommandFlags flags = CommandFlags.None) =>
+        public long StringBitPosition(RedisKey key, bool bit, long start, long end, CommandFlags flags) =>
             Inner.StringBitPosition(ToInner(key), bit, start, end, flags);
+
+        public long StringBitPosition(RedisKey key, bool bit, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, CommandFlags flags = CommandFlags.None) =>
+            Inner.StringBitPosition(ToInner(key), bit, start, end, indexType, flags);
 
         public double StringDecrement(RedisKey key, double value, CommandFlags flags = CommandFlags.None) =>
             Inner.StringDecrement(ToInner(key), value, flags);
@@ -646,9 +660,10 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public bool StringSet(KeyValuePair<RedisKey, RedisValue>[] values, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
             Inner.StringSet(ToInner(values), when, flags);
 
+        public bool StringSet(RedisKey key, RedisValue value, TimeSpan? expiry, When when) =>
+            Inner.StringSet(ToInner(key), value, expiry, when);
         public bool StringSet(RedisKey key, RedisValue value, TimeSpan? expiry, When when, CommandFlags flags) =>
             Inner.StringSet(ToInner(key), value, expiry, when, flags);
-
         public bool StringSet(RedisKey key, RedisValue value, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
             Inner.StringSet(ToInner(key), value, expiry, keepTtl, when, flags);
 

@@ -310,10 +310,11 @@ namespace StackExchange.Redis
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static int VectorSafeIndexOfCRLF(this ReadOnlySpan<byte> span)
-        {
-            ReadOnlySpan<byte> CRLF = stackalloc byte[2] { (byte)'\r', (byte)'\n' };
-            return span.IndexOf(CRLF);
-        }
+            => span.IndexOf(CRLF);
+
+        // note that this is *not* actually an array; this is compiled into a .data section
+        // (confirmed down to net472, which is the lowest TFM that uses this branch)
+        private static ReadOnlySpan<byte> CRLF => new byte[] { (byte)'\r', (byte)'\n' };
 #else
         internal static int VectorSafeIndexOf(this ReadOnlySpan<byte> span, byte value)
         {

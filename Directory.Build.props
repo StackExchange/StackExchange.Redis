@@ -6,7 +6,7 @@
     <AssemblyOriginatorKeyFile>$(MSBuildThisFileDirectory)StackExchange.Redis.snk</AssemblyOriginatorKeyFile>
     <PackageId>$(AssemblyName)</PackageId>
     <Features>strict</Features>
-    <Authors>Stack Exchange, Inc.; marc.gravell</Authors>
+    <Authors>Stack Exchange, Inc.; Marc Gravell; Nick Craver</Authors>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <CodeAnalysisRuleset>$(MSBuildThisFileDirectory)Shared.ruleset</CodeAnalysisRuleset>
     <MSBuildWarningsAsMessages>NETSDK1069</MSBuildWarningsAsMessages>

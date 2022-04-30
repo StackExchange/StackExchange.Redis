@@ -338,6 +338,14 @@ namespace StackExchange.Redis.KeyspaceIsolation
             // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
             script.EvaluateAsync(Inner, parameters, Prefix, flags);
 
+        public Task<RedisResult> ScriptEvaluateReadOnlyAsync(byte[] hash, RedisKey[] keys, RedisValue[] values, CommandFlags flags = CommandFlags.None) =>
+            // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
+            Inner.ScriptEvaluateReadOnlyAsync(hash, ToInner(keys), values, flags);
+
+        public Task<RedisResult> ScriptEvaluateReadOnlyAsync(string script, RedisKey[] keys, RedisValue[] values, CommandFlags flags = CommandFlags.None) =>
+            // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
+            Inner.ScriptEvaluateReadOnlyAsync(script, ToInner(keys), values, flags);
+
         public Task<long> SetAddAsync(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None) =>
             Inner.SetAddAsync(ToInner(key), values, flags);
 
@@ -603,8 +611,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<long> StringAppendAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None) =>
             Inner.StringAppendAsync(ToInner(key), value, flags);
 
-        public Task<long> StringBitCountAsync(RedisKey key, long start = 0, long end = -1, CommandFlags flags = CommandFlags.None) =>
+        public Task<long> StringBitCountAsync(RedisKey key, long start, long end, CommandFlags flags) =>
             Inner.StringBitCountAsync(ToInner(key), start, end, flags);
+
+        public Task<long> StringBitCountAsync(RedisKey key, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, CommandFlags flags = CommandFlags.None) =>
+            Inner.StringBitCountAsync(ToInner(key), start, end, indexType, flags);
 
         public Task<long> StringBitOperationAsync(Bitwise operation, RedisKey destination, RedisKey[] keys, CommandFlags flags = CommandFlags.None) =>
             Inner.StringBitOperationAsync(operation, ToInner(destination), ToInner(keys), flags);
@@ -612,8 +623,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<long> StringBitOperationAsync(Bitwise operation, RedisKey destination, RedisKey first, RedisKey second = default, CommandFlags flags = CommandFlags.None) =>
             Inner.StringBitOperationAsync(operation, ToInner(destination), ToInner(first), ToInnerOrDefault(second), flags);
 
-        public Task<long> StringBitPositionAsync(RedisKey key, bool bit, long start = 0, long end = -1, CommandFlags flags = CommandFlags.None) =>
+        public Task<long> StringBitPositionAsync(RedisKey key, bool bit, long start, long end, CommandFlags flags) =>
             Inner.StringBitPositionAsync(ToInner(key), bit, start, end, flags);
+
+        public Task<long> StringBitPositionAsync(RedisKey key, bool bit, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, CommandFlags flags = CommandFlags.None) =>
+            Inner.StringBitPositionAsync(ToInner(key), bit, start, end, indexType, flags);
 
         public Task<double> StringDecrementAsync(RedisKey key, double value, CommandFlags flags = CommandFlags.None) =>
             Inner.StringDecrementAsync(ToInner(key), value, flags);
@@ -663,9 +677,10 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<bool> StringSetAsync(KeyValuePair<RedisKey, RedisValue>[] values, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
             Inner.StringSetAsync(ToInner(values), when, flags);
 
+        public Task<bool> StringSetAsync(RedisKey key, RedisValue value, TimeSpan? expiry, When when) =>
+            Inner.StringSetAsync(ToInner(key), value, expiry, when);
         public Task<bool> StringSetAsync(RedisKey key, RedisValue value, TimeSpan? expiry, When when, CommandFlags flags) =>
             Inner.StringSetAsync(ToInner(key), value, expiry, when, flags);
-
         public Task<bool> StringSetAsync(RedisKey key, RedisValue value, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
             Inner.StringSetAsync(ToInner(key), value, expiry, keepTtl, when, flags);
 

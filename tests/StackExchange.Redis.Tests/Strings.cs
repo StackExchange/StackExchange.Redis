@@ -496,14 +496,51 @@ public class Strings : TestBase
 
         var db = conn.GetDatabase();
         var key = Me();
+        db.KeyDelete(key, flags: CommandFlags.FireAndForget);
         db.StringSet(key, "foobar", flags: CommandFlags.FireAndForget);
-        var r1 = db.StringBitCountAsync(key);
-        var r2 = db.StringBitCountAsync(key, 0, 0);
-        var r3 = db.StringBitCountAsync(key, 1, 1);
 
-        Assert.Equal(26, await r1);
-        Assert.Equal(4, await r2);
-        Assert.Equal(6, await r3);
+        var r1 = db.StringBitCount(key);
+        var r2 = db.StringBitCount(key, 0, 0);
+        var r3 = db.StringBitCount(key, 1, 1);
+
+        Assert.Equal(26, r1);
+        Assert.Equal(4, r2);
+        Assert.Equal(6, r3);
+
+        // Async
+
+        r1 = await db.StringBitCountAsync(key);
+        r2 = await db.StringBitCountAsync(key, 0, 0);
+        r3 = await db.StringBitCountAsync(key, 1, 1);
+
+        Assert.Equal(26, r1);
+        Assert.Equal(4, r2);
+        Assert.Equal(6, r3);
+    }
+
+    [Fact]
+    public async Task BitCountWithBitUnit()
+    {
+        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+
+        var db = conn.GetDatabase();
+        var key = Me();
+        db.KeyDelete(key, flags: CommandFlags.FireAndForget);
+        db.StringSet(key, "foobar", flags: CommandFlags.FireAndForget);
+
+        var r1 = db.StringBitCount(key, 1, 1); // Using default byte
+        var r2 = db.StringBitCount(key, 1, 1, StringIndexType.Bit);
+
+        Assert.Equal(6, r1);
+        Assert.Equal(1, r2);
+
+        // Async
+
+        r1 = await db.StringBitCountAsync(key, 1, 1); // Using default byte
+        r2 = await db.StringBitCountAsync(key, 1, 1, StringIndexType.Bit);
+
+        Assert.Equal(6, r1);
+        Assert.Equal(1, r2);
     }
 
     [Fact]
@@ -539,6 +576,52 @@ public class Strings : TestBase
         Assert.Equal((byte)(3 | 6 | 12), r_or);
         Assert.Equal((byte)(3 ^ 6 ^ 12), r_xor);
         Assert.Equal(unchecked((byte)(~3)), r_not);
+    }
+
+    [Fact]
+    public async Task BitPosition()
+    {
+        using var conn = Create(require: RedisFeatures.v2_6_0);
+
+        var db = conn.GetDatabase();
+        var key = Me();
+        db.KeyDelete(key, flags: CommandFlags.FireAndForget);
+        db.StringSet(key, "foo", flags: CommandFlags.FireAndForget);
+
+        var r1 = db.StringBitPosition(key, true);
+        var r2 = db.StringBitPosition(key, true, 10, 10);
+        var r3 = db.StringBitPosition(key, true, 1, 3);
+
+        Assert.Equal(1, r1);
+        Assert.Equal(-1, r2);
+        Assert.Equal(9, r3);
+
+        // Async
+
+        r1 = await db.StringBitPositionAsync(key, true);
+        r2 = await db.StringBitPositionAsync(key, true, 10, 10);
+        r3 = await db.StringBitPositionAsync(key, true, 1, 3);
+
+        Assert.Equal(1, r1);
+        Assert.Equal(-1, r2);
+        Assert.Equal(9, r3);
+    }
+
+    [Fact]
+    public async Task BitPositionWithBitUnit()
+    {
+        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+
+        var db = conn.GetDatabase();
+        var key = Me();
+        db.KeyDelete(key, flags: CommandFlags.FireAndForget);
+        db.StringSet(key, "foo", flags: CommandFlags.FireAndForget);
+
+        var r1 = db.StringBitPositionAsync(key, true, 1, 3); // Using default byte
+        var r2 = db.StringBitPositionAsync(key, true, 1, 3, StringIndexType.Bit);
+
+        Assert.Equal(9, await r1);
+        Assert.Equal(1, await r2);
     }
 
     [Fact]

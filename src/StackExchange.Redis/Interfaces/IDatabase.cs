@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Net;
 
 namespace StackExchange.Redis
@@ -1314,6 +1315,31 @@ namespace StackExchange.Redis
         RedisResult ScriptEvaluate(LoadedLuaScript script, object? parameters = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Execute a Lua script against the server.
+        /// </summary>
+        /// <param name="script">The script to execute.</param>
+        /// <param name="keys">The keys to execute against.</param>
+        /// <param name="values">The values to execute against.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>A dynamic representation of the script's result.</returns>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/eval_ro"/>,
+        /// <seealso href="https://redis.io/commands/evalsha_ro"/>
+        /// </remarks>
+        RedisResult ScriptEvaluateReadOnly(string script, RedisKey[] keys, RedisValue[] values, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Execute a Lua script against the server using just the SHA1 hash.
+        /// </summary>
+        /// <param name="hash">The hash of the script to execute.</param>
+        /// <param name="keys">The keys to execute against.</param>
+        /// <param name="values">The values to execute against.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>A dynamic representation of the script's result.</returns>
+        /// <remarks><seealso href="https://redis.io/commands/evalsha_ro"/></remarks>
+        RedisResult ScriptEvaluateReadOnly(byte[] hash, RedisKey[] keys, RedisValue[] values, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Add the specified member to the set stored at key.
         /// Specified members that are already a member of this set are ignored.
         /// If key does not exist, a new set is created before adding the specified members.
@@ -1569,6 +1595,7 @@ namespace StackExchange.Redis
         /// the <c>get</c> parameter (note that <c>#</c> specifies the element itself, when used in <c>get</c>).
         /// Referring to the <a href="https://redis.io/commands/sort">redis SORT documentation </a> for examples is recommended.
         /// When used in hashes, <c>by</c> and <c>get</c> can be used to specify fields using <c>-&gt;</c> notation (again, refer to redis documentation).
+        /// Uses <a href="https://redis.io/commands/sort_ro">SORT_RO</a> when possible.
         /// </summary>
         /// <param name="key">The key of the list, set, or sorted set.</param>
         /// <param name="skip">How many entries to skip on the return.</param>
@@ -1580,6 +1607,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The sorted elements, or the external values if <c>get</c> is specified.</returns>
         /// <remarks><seealso href="https://redis.io/commands/sort"/></remarks>
+        /// <remarks><seealso href="https://redis.io/commands/sort_ro"/></remarks>
         RedisValue[] Sort(RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default, RedisValue[]? get = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2541,6 +2569,10 @@ namespace StackExchange.Redis
         /// <remarks><seealso href="https://redis.io/commands/append"/></remarks>
         long StringAppend(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None);
 
+        /// <inheritdoc cref="StringBitCount(RedisKey, long, long, StringIndexType, CommandFlags)" />
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
+        long StringBitCount(RedisKey key, long start, long end, CommandFlags flags);
+
         /// <summary>
         /// Count the number of set bits (population counting) in a string.
         /// By default all the bytes contained in the string are examined.
@@ -2550,10 +2582,11 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the string.</param>
         /// <param name="start">The start byte to count at.</param>
         /// <param name="end">The end byte to count at.</param>
+        /// <param name="indexType">In Redis 7+, we can choose if <paramref name="start"/> and <paramref name="end"/> specify a bit index or byte index (defaults to <see cref="StringIndexType.Byte"/>).</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of bits set to 1.</returns>
         /// <remarks><seealso href="https://redis.io/commands/bitcount"/></remarks>
-        long StringBitCount(RedisKey key, long start = 0, long end = -1, CommandFlags flags = CommandFlags.None);
+        long StringBitCount(RedisKey key, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Perform a bitwise operation between multiple keys (containing string values) and store the result in the destination key.
@@ -2583,6 +2616,10 @@ namespace StackExchange.Redis
         /// <remarks><seealso href="https://redis.io/commands/bitop"/></remarks>
         long StringBitOperation(Bitwise operation, RedisKey destination, RedisKey[] keys, CommandFlags flags = CommandFlags.None);
 
+        /// <inheritdoc cref="StringBitPosition(RedisKey, bool, long, long, StringIndexType, CommandFlags)" />
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
+        long StringBitPosition(RedisKey key, bool bit, long start, long end, CommandFlags flags);
+
         /// <summary>
         /// Return the position of the first bit set to 1 or 0 in a string.
         /// The position is returned thinking at the string as an array of bits from left to right where the first byte most significant bit is at position 0, the second byte most significant bit is at position 8 and so forth.
@@ -2593,13 +2630,14 @@ namespace StackExchange.Redis
         /// <param name="bit">True to check for the first 1 bit, false to check for the first 0 bit.</param>
         /// <param name="start">The position to start looking (defaults to 0).</param>
         /// <param name="end">The position to stop looking (defaults to -1, unlimited).</param>
+        /// <param name="indexType">In Redis 7+, we can choose if <paramref name="start"/> and <paramref name="end"/> specify a bit index or byte index (defaults to <see cref="StringIndexType.Byte"/>).</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>
         /// The command returns the position of the first bit set to 1 or 0 according to the request.
         /// If we look for set bits(the bit argument is 1) and the string is empty or composed of just zero bytes, -1 is returned.
         /// </returns>
         /// <remarks><seealso href="https://redis.io/commands/bitpos"/></remarks>
-        long StringBitPosition(RedisKey key, bool bit, long start = 0, long end = -1, CommandFlags flags = CommandFlags.None);
+        long StringBitPosition(RedisKey key, bool bit, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Decrements the number stored at key by decrement.
@@ -2774,16 +2812,12 @@ namespace StackExchange.Redis
         /// <remarks><seealso href="https://redis.io/commands/strlen"/></remarks>
         long StringLength(RedisKey key, CommandFlags flags = CommandFlags.None);
 
-        /// <summary>
-        /// Set key to hold the string value. If key already holds a value, it is overwritten, regardless of its type.
-        /// </summary>
-        /// <param name="key">The key of the string.</param>
-        /// <param name="value">The value to set.</param>
-        /// <param name="expiry">The expiry to set.</param>
-        /// <param name="when">Which condition to set the value under (defaults to always).</param>
-        /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns><see langword="true"/> if the string was set, <see langword="false"/> otherwise.</returns>
-        /// <remarks>https://redis.io/commands/set</remarks>
+        /// <inheritdoc cref="StringSet(RedisKey, RedisValue, TimeSpan?, bool, When, CommandFlags)" />
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
+        bool StringSet(RedisKey key, RedisValue value, TimeSpan? expiry, When when);
+
+        /// <inheritdoc cref="StringSet(RedisKey, RedisValue, TimeSpan?, bool, When, CommandFlags)" />
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         bool StringSet(RedisKey key, RedisValue value, TimeSpan? expiry, When when, CommandFlags flags);
 
         /// <summary>

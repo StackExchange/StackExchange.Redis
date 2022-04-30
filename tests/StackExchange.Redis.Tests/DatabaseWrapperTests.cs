@@ -581,6 +581,8 @@ public sealed class DatabaseWrapperTests
         Expression<Func<RedisKey[], bool>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "prefix:b";
         wrapper.ScriptEvaluate(hash, keys, values, CommandFlags.None);
         mock.Verify(_ => _.ScriptEvaluate(hash, It.Is(valid), values, CommandFlags.None));
+        wrapper.ScriptEvaluateReadOnly(hash, keys, values, CommandFlags.None);
+        mock.Verify(_ => _.ScriptEvaluateReadOnly(hash, It.Is(valid), values, CommandFlags.None));
     }
 
     [Fact]
@@ -591,6 +593,8 @@ public sealed class DatabaseWrapperTests
         Expression<Func<RedisKey[], bool>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "prefix:b";
         wrapper.ScriptEvaluate("script", keys, values, CommandFlags.None);
         mock.Verify(_ => _.ScriptEvaluate("script", It.Is(valid), values, CommandFlags.None));
+        wrapper.ScriptEvaluateReadOnly("script", keys, values, CommandFlags.None);
+        mock.Verify(_ => _.ScriptEvaluateReadOnly("script", It.Is(valid), values, CommandFlags.None));
     }
 
     [Fact]
@@ -1184,6 +1188,13 @@ public sealed class DatabaseWrapperTests
     }
 
     [Fact]
+    public void StringBitCount_2()
+    {
+        wrapper.StringBitCount("key", 123, 456, StringIndexType.Byte, CommandFlags.None);
+        mock.Verify(_ => _.StringBitCount("prefix:key", 123, 456, StringIndexType.Byte, CommandFlags.None));
+    }
+
+    [Fact]
     public void StringBitOperation_1()
     {
         wrapper.StringBitOperation(Bitwise.Xor, "destination", "first", "second", CommandFlags.None);
@@ -1204,6 +1215,13 @@ public sealed class DatabaseWrapperTests
     {
         wrapper.StringBitPosition("key", true, 123, 456, CommandFlags.None);
         mock.Verify(_ => _.StringBitPosition("prefix:key", true, 123, 456, CommandFlags.None));
+    }
+
+    [Fact]
+    public void StringBitPosition_2()
+    {
+        wrapper.StringBitPosition("key", true, 123, 456, StringIndexType.Byte, CommandFlags.None);
+        mock.Verify(_ => _.StringBitPosition("prefix:key", true, 123, 456, StringIndexType.Byte, CommandFlags.None));
     }
 
     [Fact]
@@ -1315,6 +1333,14 @@ public sealed class DatabaseWrapperTests
         Expression<Func<KeyValuePair<RedisKey, RedisValue>[], bool>> valid = _ => _.Length == 2 && _[0].Key == "prefix:a" && _[0].Value == "x" && _[1].Key == "prefix:b" && _[1].Value == "y";
         wrapper.StringSet(values, When.Exists, CommandFlags.None);
         mock.Verify(_ => _.StringSet(It.Is(valid), When.Exists, CommandFlags.None));
+    }
+
+    [Fact]
+    public void StringSet_Compat()
+    {
+        TimeSpan? expiry = null;
+        wrapper.StringSet("key", "value", expiry, When.Exists);
+        mock.Verify(_ => _.StringSet("prefix:key", "value", expiry, When.Exists));
     }
 
     [Fact]

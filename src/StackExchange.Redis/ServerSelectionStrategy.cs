@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Buffers;
+using System.Diagnostics;
 using System.Net;
 using System.Threading;
 
@@ -59,13 +61,42 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="key">The <see cref="RedisKey"/> to determine a slot ID for.</param>
         public int HashSlot(in RedisKey key)
-            => ServerType == ServerType.Standalone || key.IsNull ? NoSlot : GetClusterSlot((byte[])key!);
+        {
+            if (ServerType == ServerType.Standalone || key.IsNull) return NoSlot;
+            if (key.TryGetSimpleBuffer(out var arr)) // key was constructed from a byte[]
+            {
+                return GetClusterSlot(arr);
+            }
+            else
+            {
+                var length = key.TotalLength();
+                if (length <= 256)
+                {
+                    Span<byte> span = stackalloc byte[length];
+                    var written = key.CopyTo(span);
+                    Debug.Assert(written == length, "key length/write error");
+                    return GetClusterSlot(span);
+                }
+                else
+                {
+                    arr = ArrayPool<byte>.Shared.Rent(length);
+                    var span = new Span<byte>(arr, 0, length);
+                    var written = key.CopyTo(span);
+                    Debug.Assert(written == length, "key length/write error");
+                    var result = GetClusterSlot(span);
+                    ArrayPool<byte>.Shared.Return(arr);
+                    return result;
+                }
+            }
+        }
 
         /// <summary>
         /// Computes the hash-slot that would be used by the given channel.
         /// </summary>
         /// <param name="channel">The <see cref="RedisChannel"/> to determine a slot ID for.</param>
         public int HashSlot(in RedisChannel channel)
+            // note that the RedisChannel->byte[] converter is always direct, so this is not an alloc
+            // (we deal with channels far less frequently, so pay the encoding cost up-front)
             => ServerType == ServerType.Standalone || channel.IsNull ? NoSlot : GetClusterSlot((byte[])channel!);
 
         /// <summary>
@@ -74,7 +105,7 @@ namespace StackExchange.Redis
         /// <remarks>
         /// HASH_SLOT = CRC16(key) mod 16384
         /// </remarks>
-        private static unsafe int GetClusterSlot(byte[] blob)
+        private static unsafe int GetClusterSlot(ReadOnlySpan<byte> blob)
         {
             unchecked
             {
