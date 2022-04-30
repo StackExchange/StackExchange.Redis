@@ -51,30 +51,30 @@ public class Expiry : TestBase
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void TestExpiryOptions(bool disablePTimes)
+    public async Task TestExpiryOptions(bool disablePTimes)
     {
         using var conn = Create(disabledCommands: GetMap(disablePTimes), require: RedisFeatures.v7_0_0_rc1);
 
         var key = Me();
-        var cb = conn.GetDatabase();
-        cb.KeyDelete(key, CommandFlags.FireAndForget);
-        cb.StringSet(key, "value", flags: CommandFlags.FireAndForget);
+        var db = conn.GetDatabase();
+        db.KeyDelete(key);
+        db.StringSet(key, "value");
 
         // The key has no expiry
-        Assert.False(cb.KeyExpire(key, TimeSpan.FromHours(1), ExpireWhen.HasExpiry));
-        Assert.True(cb.KeyExpire(key, TimeSpan.FromHours(1), ExpireWhen.HasNoExpiry));
+        Assert.False(await db.KeyExpireAsync(key, TimeSpan.FromHours(1), ExpireWhen.HasExpiry));
+        Assert.True(await db.KeyExpireAsync(key, TimeSpan.FromHours(1), ExpireWhen.HasNoExpiry));
 
         // The key has an existing expiry
-        Assert.True(cb.KeyExpire(key, TimeSpan.FromHours(1), ExpireWhen.HasExpiry));
-        Assert.False(cb.KeyExpire(key, TimeSpan.FromHours(1), ExpireWhen.HasNoExpiry));
+        Assert.True(await db.KeyExpireAsync(key, TimeSpan.FromHours(1), ExpireWhen.HasExpiry));
+        Assert.False(await db.KeyExpireAsync(key, TimeSpan.FromHours(1), ExpireWhen.HasNoExpiry));
 
         // Set only when the new expiry is greater than current one
-        Assert.True(cb.KeyExpire(key, TimeSpan.FromHours(1.5), ExpireWhen.GreaterThanCurrentExpiry));
-        Assert.False(cb.KeyExpire(key, TimeSpan.FromHours(0.5), ExpireWhen.GreaterThanCurrentExpiry));
+        Assert.True(await db.KeyExpireAsync(key, TimeSpan.FromHours(1.5), ExpireWhen.GreaterThanCurrentExpiry));
+        Assert.False(await db.KeyExpireAsync(key, TimeSpan.FromHours(0.5), ExpireWhen.GreaterThanCurrentExpiry));
 
         // Set only when the new expiry is less than current one
-        Assert.True(cb.KeyExpire(key, TimeSpan.FromHours(0.5), ExpireWhen.LessThanCurrentExpiry));
-        Assert.False(cb.KeyExpire(key, TimeSpan.FromHours(1.5), ExpireWhen.LessThanCurrentExpiry));
+        Assert.True(await db.KeyExpireAsync(key, TimeSpan.FromHours(0.5), ExpireWhen.LessThanCurrentExpiry));
+        Assert.False(await db.KeyExpireAsync(key, TimeSpan.FromHours(1.5), ExpireWhen.LessThanCurrentExpiry));
     }
 
     [Theory]
