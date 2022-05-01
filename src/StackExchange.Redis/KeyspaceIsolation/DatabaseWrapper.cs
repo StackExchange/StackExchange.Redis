@@ -333,14 +333,6 @@ namespace StackExchange.Redis.KeyspaceIsolation
             // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
             script.Evaluate(Inner, parameters, Prefix, flags);
 
-        public RedisResult ScriptEvaluateReadOnly(byte[] hash, RedisKey[] keys, RedisValue[] values, CommandFlags flags = CommandFlags.None) =>
-            // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
-            Inner.ScriptEvaluateReadOnly(hash, ToInner(keys), values, flags);
-
-        public RedisResult ScriptEvaluateReadOnly(string script, RedisKey[] keys, RedisValue[] values, CommandFlags flags = CommandFlags.None) =>
-            // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
-            Inner.ScriptEvaluateReadOnly(script, ToInner(keys), values, flags);
-
         public long SetAdd(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None) =>
             Inner.SetAdd(ToInner(key), values, flags);
 

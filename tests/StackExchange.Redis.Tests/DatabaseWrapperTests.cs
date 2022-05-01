@@ -581,8 +581,6 @@ public sealed class DatabaseWrapperTests
         Expression<Func<RedisKey[], bool>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "prefix:b";
         wrapper.ScriptEvaluate(hash, keys, values, CommandFlags.None);
         mock.Verify(_ => _.ScriptEvaluate(hash, It.Is(valid), values, CommandFlags.None));
-        wrapper.ScriptEvaluateReadOnly(hash, keys, values, CommandFlags.None);
-        mock.Verify(_ => _.ScriptEvaluateReadOnly(hash, It.Is(valid), values, CommandFlags.None));
     }
 
     [Fact]
@@ -593,8 +591,6 @@ public sealed class DatabaseWrapperTests
         Expression<Func<RedisKey[], bool>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "prefix:b";
         wrapper.ScriptEvaluate("script", keys, values, CommandFlags.None);
         mock.Verify(_ => _.ScriptEvaluate("script", It.Is(valid), values, CommandFlags.None));
-        wrapper.ScriptEvaluateReadOnly("script", keys, values, CommandFlags.None);
-        mock.Verify(_ => _.ScriptEvaluateReadOnly("script", It.Is(valid), values, CommandFlags.None));
     }
 
     [Fact]
