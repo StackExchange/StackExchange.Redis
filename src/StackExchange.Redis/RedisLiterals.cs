@@ -119,8 +119,9 @@ namespace StackExchange.Redis
             STORE = "STORE",
             TYPE = "TYPE",
             WEIGHTS = "WEIGHTS",
-            WITHSCORES = "WITHSCORES",
+            WITHMATCHLEN = "WITHMATCHLEN",
             WITHVALUES = "WITHVALUES",
+            WITHSCORES = "WITHSCORES",
             XOR = "XOR",
             XX = "XX",
 
@@ -160,7 +161,6 @@ namespace StackExchange.Redis
             WITHCOORD = "WITHCOORD",
             WITHDIST = "WITHDIST",
             WITHHASH = "WITHHASH",
-            WITHMATCHLEN= "WITHMATCHLEN",
 
             // geo units
             ft = "ft",

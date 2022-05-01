@@ -686,6 +686,7 @@ public class Strings : TestBase
 
         stringMatchResult = db.LongestCommonSubsequenceWithMatches(key1, key2, 5);
         Assert.Equal(0, stringMatchResult.Matches.Length); // no matches longer than 5 characters
+        Assert.Equal(6, stringMatchResult.MatchLength);
     }
 
     private static byte[] Encode(string value) => Encoding.UTF8.GetBytes(value);

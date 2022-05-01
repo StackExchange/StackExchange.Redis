@@ -1,12 +1,13 @@
 ﻿namespace StackExchange.Redis;
 
 /// <summary>
-/// The result of a LongestCommonSubsequence command.
+/// The result of a LongestCommonSubsequence command with IDX feature.
+/// Returns a list of the positions of each sub-match.
 /// </summary>
 public readonly struct LCSMatchResult
 {
     /// <summary>
-    /// The matched positions of all the sub-matched strings in each key/string.
+    /// The matched positions of all the sub-matched strings.
     /// </summary>
     public Match[] Matches { get; }
 
@@ -28,7 +29,7 @@ public readonly struct LCSMatchResult
 }
 
 /// <summary>
-/// Represents a sub-match of the longest match. i.e the matched substring positions in each string.
+/// Represents a sub-match of the longest match. i.e first indexes the matched substring in each string.
 /// </summary>
 public class Match
 {
