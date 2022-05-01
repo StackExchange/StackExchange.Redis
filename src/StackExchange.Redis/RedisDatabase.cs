@@ -1493,6 +1493,20 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
+        public RedisResult ScriptEvaluate(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = new ScriptEvalMessage(Database, flags, script, keys, values);
+            try
+            {
+                return ExecuteSync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
+            }
+            catch (RedisServerException) when (msg.IsScriptUnavailable)
+            {
+                // could be a NOSCRIPT; for a sync call, we can re-issue that without problem
+                return ExecuteSync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
+            }
+        }
+
         public RedisResult Execute(string command, params object[] args)
             => Execute(command, args, CommandFlags.None);
 
@@ -1509,20 +1523,6 @@ namespace StackExchange.Redis
         {
             var msg = new ExecuteMessage(multiplexer?.CommandMap, Database, flags, command, args);
             return ExecuteAsync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
-        }
-
-        public RedisResult ScriptEvaluate(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = new ScriptEvalMessage(Database, flags, script, keys, values);
-            try
-            {
-                return ExecuteSync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
-            }
-            catch (RedisServerException) when (msg.IsScriptUnavailable)
-            {
-                // could be a NOSCRIPT; for a sync call, we can re-issue that without problem
-                return ExecuteSync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
-            }
         }
 
         public RedisResult ScriptEvaluate(byte[] hash, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
