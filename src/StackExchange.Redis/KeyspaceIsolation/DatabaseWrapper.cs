@@ -299,8 +299,14 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public bool LockTake(RedisKey key, RedisValue value, TimeSpan expiry, CommandFlags flags = CommandFlags.None) =>
             Inner.LockTake(ToInner(key), value, expiry, flags);
 
-        public LCSMatchResult LongestCommonSubsequence(RedisKey key1, RedisKey key2, long minSubMatchLength = 0, LCSOptions options = LCSOptions.None, CommandFlags flags = CommandFlags.None) =>
-            Inner.LongestCommonSubsequence(ToInner(key1), ToInner(key2), minSubMatchLength, options, flags);
+        public RedisValue LongestCommonSubsequence(RedisKey key1, RedisKey key2, CommandFlags flags = CommandFlags.None) =>
+            Inner.LongestCommonSubsequence(ToInner(key1), ToInner(key2), flags);
+
+        public long LongestCommonSubsequenceLength(RedisKey key1, RedisKey key2, CommandFlags flags = CommandFlags.None) =>
+            Inner.LongestCommonSubsequenceLength(ToInner(key1), ToInner(key2), flags);
+
+        public LCSMatchResult LongestCommonSubsequenceWithMatches(RedisKey key1, RedisKey key2, long minSubMatchLength = 0, CommandFlags flags = CommandFlags.None) =>
+            Inner.LongestCommonSubsequenceWithMatches(ToInner(key1), ToInner(key2), minSubMatchLength, flags);
 
         public long Publish(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None) =>
             Inner.Publish(ToInner(channel), message, flags);

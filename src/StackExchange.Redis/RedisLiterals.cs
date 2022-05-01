@@ -160,6 +160,7 @@ namespace StackExchange.Redis
             WITHCOORD = "WITHCOORD",
             WITHDIST = "WITHDIST",
             WITHHASH = "WITHHASH",
+            WITHMATCHLEN= "WITHMATCHLEN",
 
             // geo units
             ft = "ft",

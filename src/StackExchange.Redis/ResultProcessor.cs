@@ -151,7 +151,8 @@ namespace StackExchange.Redis
 
         public static ResultProcessor<GeoRadiusResult[]> GeoRadiusArray(GeoRadiusOptions options) => GeoRadiusResultArrayProcessor.Get(options);
 
-        public static ResultProcessor<LCSMatchResult> LCSResult(LCSOptions options) => LongestCommonSubsequenceProcessor.Get(options);
+        public static readonly ResultProcessor<LCSMatchResult>
+            LCSMatchResult = new LongestCommonSubsequenceProcessor();
 
         public static readonly ResultProcessor<string?>
             String = new StringProcessor(),
@@ -1524,28 +1525,8 @@ The coordinates as a two items x,y array (longitude,latitude).
             }
         }
 
-        private sealed class LongestCommonSubsequenceProcessor : ResultProcessor<LCSMatchResult>
+         private sealed class LongestCommonSubsequenceProcessor : ResultProcessor<LCSMatchResult>
         {
-            private static readonly LongestCommonSubsequenceProcessor[] instances;
-            private readonly LCSOptions options;
-            static LongestCommonSubsequenceProcessor()
-            {
-                instances = new LongestCommonSubsequenceProcessor[2];
-                for (int i = 0; i < 2; i++) instances[i] = new LongestCommonSubsequenceProcessor((LCSOptions)i);
-            }
-
-            public static LongestCommonSubsequenceProcessor Get(LCSOptions options)
-            {
-                int i = (int)options;
-                if (i < 0 || i >= instances.Length) throw new ArgumentOutOfRangeException(nameof(options));
-                return instances[i];
-            }
-
-            private LongestCommonSubsequenceProcessor(LCSOptions options)
-            {
-                this.options = options;
-            }
-
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
                 switch (result.Type)
@@ -1553,43 +1534,30 @@ The coordinates as a two items x,y array (longitude,latitude).
                     case ResultType.Integer:
                     case ResultType.SimpleString:
                     case ResultType.BulkString:
-                        SetResult(message, Parse(result, this.options));
+                        SetResult(message, Parse(result));
                         return true;
                 }
                 return false;
             }
 
-            private static LCSMatchResult Parse(in RawResult result, LCSOptions options)
+            private static LCSMatchResult Parse(in RawResult result)
             {
-                if (options == LCSOptions.None)
+                Match[] matches = new Match[result.GetItems().Length];
+                int i = 0;
+                var matchesRawArray = result.GetItems()[1]; // skip the first element (title "matches")
+                foreach (var match in matchesRawArray.GetItems())
                 {
-                    // Without any option specified, the command just returns the string representing the longest common substring.
-                    return new LCSMatchResult(matchedString: result.AsRedisValue(), null, null);
-                }
-                else if (options == LCSOptions.Length)
-                {
-                    // If Length was option is specified, the command return an integer value that represents the length of the longest common substring.
-                    return new LCSMatchResult(null, null, matchLength: (long)result.AsRedisValue());
-                }
-                else
-                {
-                    // If WithMatchedPositions option is specified, the command returns an array of arrays, where each sub-array represents the the ranges in both the strings, start and end offset for each string.
-                    MatchedPosition[] matchedPositions = new MatchedPosition[result.GetItems().Length];
-                    int i = 0;
-                    var matches = result.GetItems()[1]; // skip the first element (title "matches")
-                    foreach (var match in matches.GetItems())
-                    {
-                        var firstMatch = match.GetItems()[0];
-                        var firstStringPositionRange = new PositionRange((long)firstMatch.GetItems()[0].AsRedisValue(), (long)firstMatch.GetItems()[1].AsRedisValue());
-                        var secondMatch = match.GetItems()[1];
-                        var secondStringPositionRange = new PositionRange((long)secondMatch.GetItems()[0].AsRedisValue(), (long)secondMatch.GetItems()[1].AsRedisValue());
+                    var firstMatch = match.GetItems()[0];
+                    var firstStringIndex = (long)firstMatch.GetItems()[0].AsRedisValue();
+                    var secondMatch = match.GetItems()[1];
+                    var secondStringIndex = (long)secondMatch.GetItems()[0].AsRedisValue();
+                    var matchLength = (long)match.GetItems()[2].AsRedisValue();
 
-                        matchedPositions[i++] = new MatchedPosition(firstStringPositionRange, secondStringPositionRange);
-                    }
-                    var len = (long)result.GetItems()[3].AsRedisValue();
-
-                    return new LCSMatchResult(null, matchedPositions, len);
+                    matches[i++] = new Match(firstStringIndex, secondStringIndex, matchLength);
                 }
+                var len = (long)result.GetItems()[3].AsRedisValue();
+
+                return new LCSMatchResult(matches, len);
             }
         }
 
