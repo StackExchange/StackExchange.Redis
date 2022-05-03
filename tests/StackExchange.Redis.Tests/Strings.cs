@@ -685,7 +685,7 @@ public class Strings : TestBase
         Assert.Equal(new Match(2, 0, length: 2), stringMatchResult.Matches[1]); // the string "my" starts at index 2 in the first string and at index 0 in the second string
 
         stringMatchResult = db.LongestCommonSubsequenceWithMatches(key1, key2, 5);
-        Assert.Equal(0, stringMatchResult.Matches.Length); // no matches longer than 5 characters
+        Assert.Empty(stringMatchResult.Matches); // no matches longer than 5 characters
         Assert.Equal(6, stringMatchResult.MatchLength);
     }
 
