@@ -1534,6 +1534,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                     case ResultType.Integer:
                     case ResultType.SimpleString:
                     case ResultType.BulkString:
+                    case ResultType.MultiBulk:
                         SetResult(message, Parse(result));
                         return true;
                 }
@@ -1542,7 +1543,7 @@ The coordinates as a two items x,y array (longitude,latitude).
 
             private static LCSMatchResult Parse(in RawResult result)
             {
-                Match[] matches = new Match[result.GetItems().Length];
+                Match[] matches = new Match[result.GetItems()[1].GetItems().Length];
                 int i = 0;
                 var matchesRawArray = result.GetItems()[1]; // skip the first element (title "matches")
                 foreach (var match in matchesRawArray.GetItems())

@@ -673,6 +673,8 @@ public class Strings : TestBase
         var db = conn.GetDatabase();
         var key1 = Me() + "1";
         var key2 = Me() + "2";
+        db.KeyDelete(key1);
+        db.KeyDelete(key2);
         db.StringSet(key1, "ohmytext");
         db.StringSet(key2, "mynewtext");
 
@@ -681,8 +683,8 @@ public class Strings : TestBase
 
         var stringMatchResult = db.LongestCommonSubsequenceWithMatches(key1, key2);
         Assert.Equal(2, stringMatchResult.Matches.Length); // "my" and "text" are the two matches of the result
-        Assert.Equal(new Match(4, 5, length: 4), stringMatchResult.Matches[0]); // the string "text" starts at index 4 in the first string and at index 5 in the second string
-        Assert.Equal(new Match(2, 0, length: 2), stringMatchResult.Matches[1]); // the string "my" starts at index 2 in the first string and at index 0 in the second string
+        Assert.Equivalent(new Match(4, 5, length: 4), stringMatchResult.Matches[0]); // the string "text" starts at index 4 in the first string and at index 5 in the second string
+        Assert.Equivalent(new Match(2, 0, length: 2), stringMatchResult.Matches[1]); // the string "my" starts at index 2 in the first string and at index 0 in the second string
 
         stringMatchResult = db.LongestCommonSubsequenceWithMatches(key1, key2, 5);
         Assert.Empty(stringMatchResult.Matches); // no matches longer than 5 characters

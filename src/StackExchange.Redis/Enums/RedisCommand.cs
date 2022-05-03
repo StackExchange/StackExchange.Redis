@@ -394,6 +394,7 @@ internal static class RedisCommandExtensions
             case RedisCommand.KEYS:
             case RedisCommand.LASTSAVE:
             case RedisCommand.LATENCY:
+            case RedisCommand.LCS:
             case RedisCommand.LINDEX:
             case RedisCommand.LLEN:
             case RedisCommand.LPOS:
