@@ -1443,19 +1443,19 @@ namespace StackExchange.Redis
             return StringSetAsync(key, value, expiry, When.NotExists, flags);
         }
 
-        public RedisValue LongestCommonSubsequence(RedisKey key1, RedisKey key2, CommandFlags flags = CommandFlags.None)
+        public RedisValue StringLongestCommonSubsequence(RedisKey key1, RedisKey key2, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.LCS, key1, key2);
             return ExecuteSync(msg, ResultProcessor.RedisValue);
         }
 
-        public long LongestCommonSubsequenceLength(RedisKey key1, RedisKey key2, CommandFlags flags = CommandFlags.None)
+        public long StringLongestCommonSubsequenceLength(RedisKey key1, RedisKey key2, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.LCS, key1, key2, RedisLiterals.LEN);
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
-        public LCSMatchResult LongestCommonSubsequenceWithMatches(RedisKey key1, RedisKey key2, long minSubMatchLength = 0, CommandFlags flags = CommandFlags.None)
+        public LCSMatchResult StringLongestCommonSubsequenceWithMatches(RedisKey key1, RedisKey key2, long minSubMatchLength = 0, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.LCS, key1, key2, RedisLiterals.IDX, RedisLiterals.MINMATCHLEN, minSubMatchLength, RedisLiterals.WITHMATCHLEN);
             return ExecuteSync(msg, ResultProcessor.LCSMatchResult);

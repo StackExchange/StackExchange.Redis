@@ -1222,7 +1222,7 @@ namespace StackExchange.Redis
         /// <param name="key2">The key of the second string.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The result of LCS algorithm, based on the given parameters.</returns>
-        RedisValue LongestCommonSubsequence(RedisKey key1, RedisKey key2, CommandFlags flags = CommandFlags.None);
+        RedisValue StringLongestCommonSubsequence(RedisKey key1, RedisKey key2, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Implements the longest common subsequence algorithm and returns the length of the result. Note that this is different than the
@@ -1232,7 +1232,7 @@ namespace StackExchange.Redis
         /// <param name="key2">The key of the second string.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The result of LCS algorithm, based on the given parameters.</returns>
-        long LongestCommonSubsequenceLength(RedisKey key1, RedisKey key2, CommandFlags flags = CommandFlags.None);
+        long StringLongestCommonSubsequenceLength(RedisKey key1, RedisKey key2, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Implements the longest common subsequence algorithm and returns the match positions in each strings. Note that this is different
@@ -1243,7 +1243,7 @@ namespace StackExchange.Redis
         /// <param name="minSubMatchLength">Can be used to restrict the list of matches to the ones of a given minimal length.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The result of LCS algorithm, based on the given parameters.</returns>
-        LCSMatchResult LongestCommonSubsequenceWithMatches(RedisKey key1, RedisKey key2, long minSubMatchLength = 0, CommandFlags flags = CommandFlags.None);
+        LCSMatchResult StringLongestCommonSubsequenceWithMatches(RedisKey key1, RedisKey key2, long minSubMatchLength = 0, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Posts a message to the given channel.
