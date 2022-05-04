@@ -1198,7 +1198,7 @@ namespace StackExchange.Redis
         /// <param name="key2">The key of the second string.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The result of LCS algorithm, based on the given parameters.</returns>
-        Task<RedisValue> LongestCommonSubsequenceAsync(RedisKey key1, RedisKey key2, CommandFlags flags = CommandFlags.None);
+        Task<RedisValue> StringLongestCommonSubsequenceAsync(RedisKey key1, RedisKey key2, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Implements the longest common subsequence algorithm and returns the length of the result. Note that this is different than the
@@ -1208,7 +1208,7 @@ namespace StackExchange.Redis
         /// <param name="key2">The key of the second string.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The result of LCS algorithm, based on the given parameters.</returns>
-        Task<long> LongestCommonSubsequenceLengthAsync(RedisKey key1, RedisKey key2, CommandFlags flags = CommandFlags.None);
+        Task<long> StringLongestCommonSubsequenceLengthAsync(RedisKey key1, RedisKey key2, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Implements the longest common subsequence algorithm and returns the match positions in each strings. Note that this is different
@@ -1219,7 +1219,7 @@ namespace StackExchange.Redis
         /// <param name="minSubMatchLength">Can be used to restrict the list of matches to the ones of a given minimal length.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The result of LCS algorithm, based on the given parameters.</returns>
-        Task<LCSMatchResult> LongestCommonSubsequenceWithMatchesAsync(RedisKey key1, RedisKey key2, long minSubMatchLength = 0, CommandFlags flags = CommandFlags.None);
+        Task<LCSMatchResult> StringLongestCommonSubsequenceWithMatchesAsync(RedisKey key1, RedisKey key2, long minSubMatchLength = 0, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Posts a message to the given channel.

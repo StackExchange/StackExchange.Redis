@@ -310,14 +310,14 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<bool> LockTakeAsync(RedisKey key, RedisValue value, TimeSpan expiry, CommandFlags flags = CommandFlags.None) =>
             Inner.LockTakeAsync(ToInner(key), value, expiry, flags);
 
-        public Task<RedisValue> LongestCommonSubsequenceAsync(RedisKey key1, RedisKey key2, CommandFlags flags = CommandFlags.None) =>
-            Inner.LongestCommonSubsequenceAsync(ToInner(key1), ToInner(key2), flags);
+        public Task<RedisValue> StringLongestCommonSubsequenceAsync(RedisKey key1, RedisKey key2, CommandFlags flags = CommandFlags.None) =>
+            Inner.StringLongestCommonSubsequenceAsync(ToInner(key1), ToInner(key2), flags);
 
-        public Task<long> LongestCommonSubsequenceLengthAsync(RedisKey key1, RedisKey key2, CommandFlags flags = CommandFlags.None) =>
-            Inner.LongestCommonSubsequenceLengthAsync(ToInner(key1), ToInner(key2), flags);
+        public Task<long> StringLongestCommonSubsequenceLengthAsync(RedisKey key1, RedisKey key2, CommandFlags flags = CommandFlags.None) =>
+            Inner.StringLongestCommonSubsequenceLengthAsync(ToInner(key1), ToInner(key2), flags);
 
-        public Task<LCSMatchResult> LongestCommonSubsequenceWithMatchesAsync(RedisKey key1, RedisKey key2, long minSubMatchLength = 0, CommandFlags flags = CommandFlags.None) =>
-            Inner.LongestCommonSubsequenceWithMatchesAsync(ToInner(key1), ToInner(key2), minSubMatchLength, flags);
+        public Task<LCSMatchResult> StringLongestCommonSubsequenceWithMatchesAsync(RedisKey key1, RedisKey key2, long minSubMatchLength = 0, CommandFlags flags = CommandFlags.None) =>
+            Inner.StringLongestCommonSubsequenceWithMatchesAsync(ToInner(key1), ToInner(key2), minSubMatchLength, flags);
 
         public Task<long> PublishAsync(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None) =>
             Inner.PublishAsync(ToInner(channel), message, flags);
