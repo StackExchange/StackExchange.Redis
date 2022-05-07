@@ -331,7 +331,14 @@ public partial class ConnectionMultiplexer
                 }
                 finally
                 {
-                    connection.sentinelPrimaryReconnectTimer?.Change(TimeSpan.FromSeconds(1), Timeout.InfiniteTimeSpan);
+                    try
+                    {
+                        connection.sentinelPrimaryReconnectTimer?.Change(TimeSpan.FromSeconds(1), Timeout.InfiniteTimeSpan);
+                    } catch (ObjectDisposedException)
+                    {
+                        // If we get here the managed connection was restored and the timer was
+                        // disposed by another thread, so there's no need to run the timer again.
+                    }
                 }
             }, null, TimeSpan.Zero, Timeout.InfiniteTimeSpan);
         }
