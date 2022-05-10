@@ -1215,37 +1215,6 @@ namespace StackExchange.Redis
         bool LockTake(RedisKey key, RedisValue value, TimeSpan expiry, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Implements the longest common subsequence algorithm. Note that this is different than the longest common string algorithm,
-        /// since matching characters in the string does not need to be contiguous.
-        /// </summary>
-        /// <param name="key1">The key of the first string.</param>
-        /// <param name="key2">The key of the second string.</param>
-        /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The result of LCS algorithm, based on the given parameters.</returns>
-        RedisValue StringLongestCommonSubsequence(RedisKey key1, RedisKey key2, CommandFlags flags = CommandFlags.None);
-
-        /// <summary>
-        /// Implements the longest common subsequence algorithm and returns the length of the result. Note that this is different than the
-        /// longest common string algorithm, since matching characters in the string does not need to be contiguous.
-        /// </summary>
-        /// <param name="key1">The key of the first string.</param>
-        /// <param name="key2">The key of the second string.</param>
-        /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The result of LCS algorithm, based on the given parameters.</returns>
-        long StringLongestCommonSubsequenceLength(RedisKey key1, RedisKey key2, CommandFlags flags = CommandFlags.None);
-
-        /// <summary>
-        /// Implements the longest common subsequence algorithm and returns the match positions in each strings. Note that this is different
-        /// than the longest common string algorithm, since matching characters in the string does not need to be contiguous.
-        /// </summary>
-        /// <param name="key1">The key of the first string.</param>
-        /// <param name="key2">The key of the second string.</param>
-        /// <param name="minSubMatchLength">Can be used to restrict the list of matches to the ones of a given minimal length.</param>
-        /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The result of LCS algorithm, based on the given parameters.</returns>
-        LCSMatchResult StringLongestCommonSubsequenceWithMatches(RedisKey key1, RedisKey key2, long minSubMatchLength = 0, CommandFlags flags = CommandFlags.None);
-
-        /// <summary>
         /// Posts a message to the given channel.
         /// </summary>
         /// <param name="channel">The channel to publish to.</param>
@@ -2799,6 +2768,37 @@ namespace StackExchange.Redis
         /// <returns>The length of the string at key, or 0 when key does not exist.</returns>
         /// <remarks><seealso href="https://redis.io/commands/strlen"/></remarks>
         long StringLength(RedisKey key, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Implements the longest common subsequence algorithm. Note that this is different than the longest common string algorithm,
+        /// since matching characters in the string does not need to be contiguous.
+        /// </summary>
+        /// <param name="key1">The key of the first string.</param>
+        /// <param name="key2">The key of the second string.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The result of LCS algorithm, based on the given parameters.</returns>
+        RedisValue StringLongestCommonSubsequence(RedisKey key1, RedisKey key2, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Implements the longest common subsequence algorithm and returns the length of the result. Note that this is different than the
+        /// longest common string algorithm, since matching characters in the string does not need to be contiguous.
+        /// </summary>
+        /// <param name="key1">The key of the first string.</param>
+        /// <param name="key2">The key of the second string.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The result of LCS algorithm, based on the given parameters.</returns>
+        long StringLongestCommonSubsequenceLength(RedisKey key1, RedisKey key2, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Implements the longest common subsequence algorithm and returns the match positions in each strings. Note that this is different
+        /// than the longest common string algorithm, since matching characters in the string does not need to be contiguous.
+        /// </summary>
+        /// <param name="key1">The key of the first string.</param>
+        /// <param name="key2">The key of the second string.</param>
+        /// <param name="minSubMatchLength">Can be used to restrict the list of matches to the ones of a given minimal length.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The result of LCS algorithm, based on the given parameters.</returns>
+        LCSMatchResult StringLongestCommonSubsequenceWithMatches(RedisKey key1, RedisKey key2, long minSubMatchLength = 0, CommandFlags flags = CommandFlags.None);
 
         /// <inheritdoc cref="StringSet(RedisKey, RedisValue, TimeSpan?, bool, When, CommandFlags)" />
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
