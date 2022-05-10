@@ -657,7 +657,8 @@ namespace StackExchange.Redis
         /// <seealso href="https://redis.io/commands/persist"/>
         /// </para>
         /// </remarks>
-        Task<bool> KeyExpireAsync(RedisKey key, TimeSpan? expiry, CommandFlags flags = CommandFlags.None);
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
+        Task<bool> KeyExpireAsync(RedisKey key, TimeSpan? expiry, CommandFlags flags);
 
         /// <summary>
         /// Set a timeout on <paramref name="key"/>.
@@ -666,14 +667,14 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="key">The key to set the expiration for.</param>
         /// <param name="expiry">The timeout to set.</param>
-        /// <param name="when">Since Redis 7.0.0, you can choose under which condition the expiration will be set using <see cref="ExpireWhen"/>.</param>
+        /// <param name="when">In Redis 7+, we choose under which condition the expiration will be set using <see cref="ExpireWhen"/>.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns><see langword="true"/> if the timeout was set. <see langword="false"/> if key does not exist or the timeout could not be set.</returns>
         /// <remarks>
         /// <seealso href="https://redis.io/commands/expire"/>,
         /// <seealso href="https://redis.io/commands/pexpire"/>
         /// </remarks>
-        Task<bool> KeyExpireAsync(RedisKey key, TimeSpan? expiry, ExpireWhen when, CommandFlags flags = CommandFlags.None);
+        Task<bool> KeyExpireAsync(RedisKey key, TimeSpan? expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Set a timeout on <paramref name="key"/>.
@@ -701,7 +702,8 @@ namespace StackExchange.Redis
         /// <seealso href="https://redis.io/commands/persist"/>
         /// </para>
         /// </remarks>
-        Task<bool> KeyExpireAsync(RedisKey key, DateTime? expiry, CommandFlags flags = CommandFlags.None);
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
+        Task<bool> KeyExpireAsync(RedisKey key, DateTime? expiry, CommandFlags flags);
 
         /// <summary>
         /// Set a timeout on <paramref name="key"/>.
@@ -710,14 +712,14 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="key">The key to set the expiration for.</param>
         /// <param name="expiry">The timeout to set.</param>
-        /// <param name="when">Since Redis 7.0.0, you can choose under which condition the expiration will be set using <see cref="ExpireWhen"/>.</param>
+        /// <param name="when">In Redis 7+, we choose under which condition the expiration will be set using <see cref="ExpireWhen"/>.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns><see langword="true"/> if the timeout was set. <see langword="false"/> if key does not exist or the timeout could not be set.</returns>
         /// <remarks>
         /// <seealso href="https://redis.io/commands/expire"/>,
         /// <seealso href="https://redis.io/commands/pexpire"/>
         /// </remarks>
-        Task<bool> KeyExpireAsync(RedisKey key, DateTime? expiry, ExpireWhen when, CommandFlags flags = CommandFlags.None);
+        Task<bool> KeyExpireAsync(RedisKey key, DateTime? expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Returns the absolute time at which the given <paramref name="key"/> will expire, if it exists and has an expiration.

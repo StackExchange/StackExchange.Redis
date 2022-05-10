@@ -15,6 +15,51 @@ public class OverloadCompat : TestBase
     public OverloadCompat(ITestOutputHelper output, SharedConnectionFixture fixture) : base (output, fixture) { }
 
     [Fact]
+    public async Task KeyExpire()
+    {
+        using var conn = Create();
+        var db = conn.GetDatabase();
+        var key = Me();
+        var expiresIn = TimeSpan.FromSeconds(10);
+        var expireTime = DateTime.UtcNow.AddHours(1);
+        var when = ExpireWhen.Always;
+        var flags = CommandFlags.None;
+
+        db.KeyExpire(key, expiresIn);
+        db.KeyExpire(key, expiresIn, when);
+        db.KeyExpire(key, expiresIn, when: when);
+        db.KeyExpire(key, expiresIn, flags);
+        db.KeyExpire(key, expiresIn, flags: flags);
+        db.KeyExpire(key, expiresIn, when, flags);
+        db.KeyExpire(key, expiresIn, when: when, flags: flags);
+
+        db.KeyExpire(key, expireTime);
+        db.KeyExpire(key, expireTime, when);
+        db.KeyExpire(key, expireTime, when: when);
+        db.KeyExpire(key, expireTime, flags);
+        db.KeyExpire(key, expireTime, flags: flags);
+        db.KeyExpire(key, expireTime, when, flags);
+        db.KeyExpire(key, expireTime, when: when, flags: flags);
+
+        // Async
+
+        await db.KeyExpireAsync(key, expiresIn);
+        await db.KeyExpireAsync(key, expiresIn, when);
+        await db.KeyExpireAsync(key, expiresIn, when: when);
+        await db.KeyExpireAsync(key, expiresIn, flags);
+        await db.KeyExpireAsync(key, expiresIn, flags: flags);
+        await db.KeyExpireAsync(key, expiresIn, when, flags);
+        await db.KeyExpireAsync(key, expiresIn, when: when, flags: flags);
+
+        await db.KeyExpireAsync(key, expireTime);
+        await db.KeyExpireAsync(key, expireTime, when);
+        await db.KeyExpireAsync(key, expireTime, when: when);
+        await db.KeyExpireAsync(key, expireTime, flags);
+        await db.KeyExpireAsync(key, expireTime, flags: flags);
+        await db.KeyExpireAsync(key, expireTime, when, flags);
+        await db.KeyExpireAsync(key, expireTime, when: when, flags: flags);
+    }
+
     public async Task StringBitCount()
     {
         using var conn = Create(require: RedisFeatures.v2_6_0);
@@ -111,12 +156,12 @@ public class OverloadCompat : TestBase
     }
 
     [Fact]
-    public async Task StringGet()
+    public async Task StringSet()
     {
         using var conn = Create();
         var db = conn.GetDatabase();
-        RedisKey key = Me();
-        RedisValue val = "myval";
+        var key = Me();
+        var val = "myval";
         var expiresIn = TimeSpan.FromSeconds(10);
         var when = When.Always;
         var flags = CommandFlags.None;
