@@ -404,11 +404,17 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<long> SortedSetAddAsync(RedisKey key, SortedSetEntry[] values, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetAddAsync(ToInner(key), values, when, flags);
 
+        public Task<long> SortedSetAddAsync(RedisKey key, SortedSetEntry[] values, When when = When.Always, UpdateWhen updateWhen = UpdateWhen.Always, CommandFlags flags = CommandFlags.None) =>
+            Inner.SortedSetAddAsync(ToInner(key), values, when, updateWhen, flags);
+
         public Task<bool> SortedSetAddAsync(RedisKey key, RedisValue member, double score, CommandFlags flags) =>
             Inner.SortedSetAddAsync(ToInner(key), member, score, flags);
 
         public Task<bool> SortedSetAddAsync(RedisKey key, RedisValue member, double score, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetAddAsync(ToInner(key), member, score, when, flags);
+
+        public Task<bool> SortedSetAddAsync(RedisKey key, RedisValue member, double score, When when = When.Always, UpdateWhen updateWhen = UpdateWhen.Always, CommandFlags flags = CommandFlags.None) =>
+            Inner.SortedSetAddAsync(ToInner(key), member, score, when, updateWhen, flags);
 
         public Task<RedisValue[]> SortedSetCombineAsync(SetOperation operation, RedisKey[] keys, double[]? weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetCombineAsync(operation, keys, weights, aggregate, flags);
