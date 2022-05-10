@@ -334,7 +334,8 @@ public partial class ConnectionMultiplexer
                     try
                     {
                         connection.sentinelPrimaryReconnectTimer?.Change(TimeSpan.FromSeconds(1), Timeout.InfiniteTimeSpan);
-                    } catch (ObjectDisposedException)
+                    }
+                    catch (ObjectDisposedException)
                     {
                         // If we get here the managed connection was restored and the timer was
                         // disposed by another thread, so there's no need to run the timer again.
