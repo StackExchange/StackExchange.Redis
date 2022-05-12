@@ -2722,35 +2722,44 @@ namespace StackExchange.Redis
         Task<long> StringLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Implements the longest common subsequence algorithm. Note that this is different than the longest common string algorithm,
+        /// Implements the longest common subsequence algorithm between the values at <paramref name="first"/> and <paramref name="second"/>,
+        /// returning a string containing the common sequence.
+        /// Note that this is different than the longest common string algorithm,
         /// since matching characters in the string does not need to be contiguous.
         /// </summary>
-        /// <param name="key1">The key of the first string.</param>
-        /// <param name="key2">The key of the second string.</param>
+        /// <param name="first">The key of the first string.</param>
+        /// <param name="second">The key of the second string.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The result of LCS algorithm, based on the given parameters.</returns>
-        Task<RedisValue> StringLongestCommonSubsequenceAsync(RedisKey key1, RedisKey key2, CommandFlags flags = CommandFlags.None);
+        /// <returns>A string (sequence of characters) of the LCS match.</returns>
+        /// <remarks><seealso href="https://redis.io/commands/lcs"/></remarks>
+        Task<string?> StringLongestCommonSubsequenceAsync(RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Implements the longest common subsequence algorithm and returns the length of the result. Note that this is different than the
-        /// longest common string algorithm, since matching characters in the string does not need to be contiguous.
+        /// Implements the longest common subsequence algorithm between the values at <paramref name="first"/> and <paramref name="second"/>,
+        /// returning the legnth of the common sequence.
+        /// Note that this is different than the longest common string algorithm,
+        /// since matching characters in the string does not need to be contiguous.
         /// </summary>
-        /// <param name="key1">The key of the first string.</param>
-        /// <param name="key2">The key of the second string.</param>
+        /// <param name="first">The key of the first string.</param>
+        /// <param name="second">The key of the second string.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The result of LCS algorithm, based on the given parameters.</returns>
-        Task<long> StringLongestCommonSubsequenceLengthAsync(RedisKey key1, RedisKey key2, CommandFlags flags = CommandFlags.None);
+        /// <returns>The length of the LCS match.</returns>
+        /// <remarks><seealso href="https://redis.io/commands/lcs"/></remarks>
+        Task<long> StringLongestCommonSubsequenceLengthAsync(RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Implements the longest common subsequence algorithm and returns the match positions in each strings. Note that this is different
-        /// than the longest common string algorithm, since matching characters in the string does not need to be contiguous.
+        /// Implements the longest common subsequence algorithm between the values at <paramref name="first"/> and <paramref name="second"/>,
+        /// returning a list of all common sequences.
+        /// Note that this is different than the longest common string algorithm,
+        /// since matching characters in the string does not need to be contiguous.
         /// </summary>
-        /// <param name="key1">The key of the first string.</param>
-        /// <param name="key2">The key of the second string.</param>
-        /// <param name="minSubMatchLength">Can be used to restrict the list of matches to the ones of a given minimal length.</param>
+        /// <param name="first">The key of the first string.</param>
+        /// <param name="second">The key of the second string.</param>
+        /// <param name="minLength">Can be used to restrict the list of matches to the ones of a given minimum length.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The result of LCS algorithm, based on the given parameters.</returns>
-        Task<LCSMatchResult> StringLongestCommonSubsequenceWithMatchesAsync(RedisKey key1, RedisKey key2, long minSubMatchLength = 0, CommandFlags flags = CommandFlags.None);
+        /// <remarks><seealso href="https://redis.io/commands/lcs"/></remarks>
+        Task<LCSMatchResult> StringLongestCommonSubsequenceWithMatchesAsync(RedisKey first, RedisKey second, long minLength = 0, CommandFlags flags = CommandFlags.None);
 
         /// <inheritdoc cref="StringSetAsync(RedisKey, RedisValue, TimeSpan?, bool, When, CommandFlags)" />
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
