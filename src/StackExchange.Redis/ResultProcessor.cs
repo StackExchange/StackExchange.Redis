@@ -1525,14 +1525,26 @@ The coordinates as a two items x,y array (longitude,latitude).
             }
         }
 
-         private sealed class LongestCommonSubsequenceProcessor : ResultProcessor<LCSMatchResult>
+        /// <summary>
+        /// Parser for the https://redis.io/commands/lcs/ format with the <see cref="RedisLiterals.IDX"/> and <see cref="RedisLiterals.WITHMATCHLEN"/> arguments.
+        /// </summary>
+        /// <remarks>
+        /// Example response:
+        /// 1) "matches"
+        /// 2) 1) 1) 1) (integer) 4
+        ///          2) (integer) 7
+        ///       2) 1) (integer) 5
+        ///          2) (integer) 8
+        ///       3) (integer) 4
+        /// 3) "len"
+        /// 4) (integer) 6
+        /// </remarks>
+        private sealed class LongestCommonSubsequenceProcessor : ResultProcessor<LCSMatchResult>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
                 switch (result.Type)
                 {
-                    case ResultType.Integer:
-                    case ResultType.SimpleString:
                     case ResultType.BulkString:
                     case ResultType.MultiBulk:
                         SetResult(message, Parse(result));
@@ -1543,20 +1555,20 @@ The coordinates as a two items x,y array (longitude,latitude).
 
             private static LCSMatchResult Parse(in RawResult result)
             {
-                Match[] matches = new Match[result.GetItems()[1].GetItems().Length];
+                var topItems = result.GetItems();
+                var matches = new LCSMatchResult.LCSMatch[topItems[1].GetItems().Length];
                 int i = 0;
-                var matchesRawArray = result.GetItems()[1]; // skip the first element (title "matches")
+                var matchesRawArray = topItems[1]; // skip the first element (title "matches")
                 foreach (var match in matchesRawArray.GetItems())
                 {
-                    var firstMatch = match.GetItems()[0];
-                    var firstStringIndex = (long)firstMatch.GetItems()[0].AsRedisValue();
-                    var secondMatch = match.GetItems()[1];
-                    var secondStringIndex = (long)secondMatch.GetItems()[0].AsRedisValue();
-                    var matchLength = (long)match.GetItems()[2].AsRedisValue();
+                    var matchItems = match.GetItems();
 
-                    matches[i++] = new Match(firstStringIndex, secondStringIndex, matchLength);
+                    matches[i++] = new LCSMatchResult.LCSMatch(
+                        firstStringIndex: (long)matchItems[0].GetItems()[0].AsRedisValue(),
+                        secondStringIndex: (long)matchItems[1].GetItems()[0].AsRedisValue(),
+                        length: (long)matchItems[2].AsRedisValue());
                 }
-                var len = (long)result.GetItems()[3].AsRedisValue();
+                var len = (long)topItems[3].AsRedisValue();
 
                 return new LCSMatchResult(matches, len);
             }

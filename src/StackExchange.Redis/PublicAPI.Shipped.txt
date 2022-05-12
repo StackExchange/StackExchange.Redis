@@ -1125,10 +1125,14 @@ StackExchange.Redis.LoadedLuaScript.ExecutableScript.get -> string!
 StackExchange.Redis.LoadedLuaScript.Hash.get -> byte[]!
 StackExchange.Redis.LoadedLuaScript.OriginalScript.get -> string!
 StackExchange.Redis.LCSMatchResult
-StackExchange.Redis.LCSMatchResult.LCSMatchResult(StackExchange.Redis.Match![]! matches, long matchLength) -> void
 StackExchange.Redis.LCSMatchResult.LCSMatchResult() -> void
-StackExchange.Redis.LCSMatchResult.Matches.get -> StackExchange.Redis.Match![]!
-StackExchange.Redis.LCSMatchResult.MatchLength.get -> long
+StackExchange.Redis.LCSMatchResult.LongestMatchLength.get -> long
+StackExchange.Redis.LCSMatchResult.Matches.get -> StackExchange.Redis.LCSMatchResult.LCSMatch[]!
+StackExchange.Redis.LCSMatchResult.LCSMatch
+StackExchange.Redis.LCSMatchResult.LCSMatch.LCSMatch() -> void
+StackExchange.Redis.LCSMatchResult.LCSMatch.FirstStringIndex.get -> long
+StackExchange.Redis.LCSMatchResult.LCSMatch.SecondStringIndex.get -> long
+StackExchange.Redis.LCSMatchResult.LCSMatch.Length.get -> long
 StackExchange.Redis.ListPopResult
 StackExchange.Redis.ListPopResult.IsNull.get -> bool
 StackExchange.Redis.ListPopResult.Key.get -> StackExchange.Redis.RedisKey
@@ -1163,10 +1167,6 @@ StackExchange.Redis.Maintenance.ServerMaintenanceEvent
 StackExchange.Redis.Maintenance.ServerMaintenanceEvent.RawMessage.get -> string?
 StackExchange.Redis.Maintenance.ServerMaintenanceEvent.ReceivedTimeUtc.get -> System.DateTime
 StackExchange.Redis.Maintenance.ServerMaintenanceEvent.StartTimeUtc.get -> System.DateTime?
-StackExchange.Redis.Match
-StackExchange.Redis.Match.Match(long a, long b, long length) -> void
-StackExchange.Redis.Match.FirstStringIndex.get -> long
-StackExchange.Redis.Match.Length.get -> long
 StackExchange.Redis.MigrateOptions
 StackExchange.Redis.MigrateOptions.Copy = 1 -> StackExchange.Redis.MigrateOptions
 StackExchange.Redis.MigrateOptions.None = 0 -> StackExchange.Redis.MigrateOptions
