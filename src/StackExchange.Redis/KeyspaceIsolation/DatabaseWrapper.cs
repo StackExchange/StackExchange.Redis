@@ -390,8 +390,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public long SortedSetAdd(RedisKey key, SortedSetEntry[] values, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetAdd(ToInner(key), values, when, flags);
 
-        public long SortedSetAdd(RedisKey key, SortedSetEntry[] values,SortedSetWhen updateWhen = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None) =>
-            Inner.SortedSetAdd(ToInner(key), values, updateWhen, flags);
+        public long SortedSetAdd(RedisKey key, SortedSetEntry[] values,SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None) =>
+            Inner.SortedSetAdd(ToInner(key), values, when, flags);
+
+        public long SortedSetUpdate(RedisKey key, SortedSetEntry[] values,SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None) =>
+            Inner.SortedSetUpdate(ToInner(key), values, when, flags);
 
         public bool SortedSetAdd(RedisKey key, RedisValue member, double score, CommandFlags flags) =>
             Inner.SortedSetAdd(ToInner(key), member, score, flags);
@@ -399,8 +402,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public bool SortedSetAdd(RedisKey key, RedisValue member, double score, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetAdd(ToInner(key), member, score, when, flags);
 
-        public bool SortedSetAdd(RedisKey key, RedisValue member, double score, SortedSetWhen updateWhen = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None) =>
-            Inner.SortedSetAdd(ToInner(key), member, score, updateWhen, flags);
+        public bool SortedSetAdd(RedisKey key, RedisValue member, double score, SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None) =>
+            Inner.SortedSetAdd(ToInner(key), member, score, when, flags);
+
+        public bool SortedSetUpdate(RedisKey key, RedisValue member, double score, SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None) =>
+            Inner.SortedSetUpdate(ToInner(key), member, score, when, flags);
 
         public RedisValue[] SortedSetCombine(SetOperation operation, RedisKey[] keys, double[]? weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetCombine(operation, keys, weights, aggregate, flags);

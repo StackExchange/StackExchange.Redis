@@ -19,17 +19,10 @@ public class SortedSetWhenTest : TestBase
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.SortedSetAdd(key, member, 2);
 
-        Assert.False(db.SortedSetAdd(key, member, 5, when: SortedSetWhen.GreaterThan));
-        Assert.Equal(5, db.SortedSetRangeByScoreWithScores(key, 0, 10)[0].Score); // check that the score was updated (5 > 2)
-
-        Assert.False(db.SortedSetAdd(key, member, 1, when: SortedSetWhen.GreaterThan));
-        Assert.Equal(5, db.SortedSetRangeByScoreWithScores(key, 0, 10)[0].Score); // check that the score was not chenged
-
-        Assert.False(db.SortedSetAdd(key, member, 1, when: SortedSetWhen.LessThan));
-        Assert.Equal(1, db.SortedSetRangeByScoreWithScores(key, 0, 10)[0].Score); // check that the score was updated (1 < 5)
-
-        Assert.False(db.SortedSetAdd(key, member, 5, when: SortedSetWhen.LessThan));
-        Assert.Equal(1, db.SortedSetRangeByScoreWithScores(key, 0, 10)[0].Score); // check that the score was not chenged
+        Assert.True(db.SortedSetUpdate(key, member, 5, when: SortedSetWhen.GreaterThan));
+        Assert.False(db.SortedSetUpdate(key, member, 1, when: SortedSetWhen.GreaterThan));
+        Assert.True(db.SortedSetUpdate(key, member, 1, when: SortedSetWhen.LessThan));
+        Assert.False(db.SortedSetUpdate(key, member, 5, when: SortedSetWhen.LessThan));
     }
 
     [Fact]

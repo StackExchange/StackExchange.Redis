@@ -2067,6 +2067,29 @@ namespace StackExchange.Redis
         Task<double?[]> SortedSetScoresAsync(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Same as <see cref="SortedSetAddAsync(RedisKey, SortedSetEntry[], SortedSetWhen, CommandFlags)" /> but return the number of the elements changed.
+        /// </summary>
+        /// <param name="key">The key of the sorted set.</param>
+        /// <param name="member">The member to add/update to the sorted set.</param>
+        /// <param name="score">The score for the member to add/update to the sorted set.</param>
+        /// <param name="when">What conditions to add the element under (defaults to always).</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The number of elements changed.</returns>
+        /// <remarks><seealso href="https://redis.io/commands/zadd"/></remarks>
+        Task<bool> SortedSetUpdateAsync(RedisKey key, RedisValue member, double score, SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Same as <see cref="SortedSetAddAsync(RedisKey, SortedSetEntry[], SortedSetWhen, CommandFlags)" /> but return the number of the elements changed.
+        /// </summary>
+        /// <param name="key">The key of the sorted set.</param>
+        /// <param name="values">The members and values to add/update to the sorted set.</param>
+        /// <param name="when">What conditions to add the element under (defaults to always).</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The number of elements changed.</returns>
+        /// <remarks><seealso href="https://redis.io/commands/zadd"/></remarks>
+        Task<long> SortedSetUpdateAsync(RedisKey key, SortedSetEntry[] values, SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Removes and returns the first element from the sorted set stored at key, by default with the scores ordered from low to high.
         /// </summary>
         /// <param name="key">The key of the sorted set.</param>

@@ -1631,17 +1631,6 @@ namespace StackExchange.Redis
         /// <remarks><seealso href="https://redis.io/commands/zadd"/></remarks>
         long SortedSetAdd(RedisKey key, SortedSetEntry[] values, SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None);
 
-        // /// <summary>
-        // /// Same as <see cref="SortedSetAdd(RedisKey, SortedSetEntry[], SortedSetWhen, CommandFlags)" /> but return the number of the elements changed.
-        // /// </summary>
-        // /// <param name="key">The key of the sorted set.</param>
-        // /// <param name="values">The members and values to add to the sorted set.</param>
-        // /// <param name="when">What conditions to add the element under (defaults to always).</param>
-        // /// <param name="flags">The flags to use for this operation.</param>
-        // /// <returns>The number of elements changed.</returns>
-        // /// <remarks><seealso href="https://redis.io/commands/zadd"/></remarks>
-        // long SortedSetUpdate(RedisKey key, SortedSetEntry[] values, SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None);
-
         /// <summary>
         /// Computes a set operation for multiple sorted sets (optionally using per-set <paramref name="weights"/>),
         /// optionally performing a specific aggregation (defaults to <see cref="Aggregate.Sum"/>).
@@ -2163,6 +2152,29 @@ namespace StackExchange.Redis
         /// <returns>A contiguous collection of sorted set entries with the key they were popped from, or <see cref="SortedSetPopResult.Null"/> if no non-empty sorted sets are found.</returns>
         /// <remarks><seealso href="https://redis.io/commands/zmpop"/></remarks>
         SortedSetPopResult SortedSetPop(RedisKey[] keys, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Same as <see cref="SortedSetAdd(RedisKey, SortedSetEntry[], SortedSetWhen, CommandFlags)" /> but return the number of the elements changed.
+        /// </summary>
+        /// <param name="key">The key of the sorted set.</param>
+        /// <param name="member">The member to add/update to the sorted set.</param>
+        /// <param name="score">The score for the member to add/update to the sorted set.</param>
+        /// <param name="when">What conditions to add the element under (defaults to always).</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The number of elements changed.</returns>
+        /// <remarks><seealso href="https://redis.io/commands/zadd"/></remarks>
+        bool SortedSetUpdate(RedisKey key, RedisValue member, double score, SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Same as <see cref="SortedSetAdd(RedisKey, SortedSetEntry[], SortedSetWhen, CommandFlags)" /> but return the number of the elements changed.
+        /// </summary>
+        /// <param name="key">The key of the sorted set.</param>
+        /// <param name="values">The members and values to add/update to the sorted set.</param>
+        /// <param name="when">What conditions to add the element under (defaults to always).</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The number of elements changed.</returns>
+        /// <remarks><seealso href="https://redis.io/commands/zadd"/></remarks>
+        long SortedSetUpdate(RedisKey key, SortedSetEntry[] values, SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Allow the consumer to mark a pending message as correctly processed. Returns the number of messages acknowledged.

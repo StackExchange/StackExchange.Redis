@@ -794,6 +794,14 @@ public sealed class DatabaseWrapperTests
     }
 
     [Fact]
+    public void SortedSetUpdate()
+    {
+        SortedSetEntry[] values = Array.Empty<SortedSetEntry>();
+        wrapper.SortedSetUpdate("key", values, SortedSetWhen.GreaterThan, CommandFlags.None);
+        mock.Verify(_ => _.SortedSetUpdate("prefix:key", values, SortedSetWhen.GreaterThan, CommandFlags.None));
+    }
+
+    [Fact]
     public void SortedSetCombine()
     {
         RedisKey[] keys = new RedisKey[] { "a", "b" };
