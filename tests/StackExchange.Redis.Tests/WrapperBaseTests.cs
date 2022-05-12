@@ -736,8 +736,8 @@ namespace StackExchange.Redis.Tests
         public void SortedSetAddAsync_3()
         {
             SortedSetEntry[] values = Array.Empty<SortedSetEntry>();
-            wrapper.SortedSetAddAsync("key", values, When.Exists, UpdateWhen.GreaterThan, CommandFlags.None);
-            mock.Verify(_ => _.SortedSetAddAsync("prefix:key", values, When.Exists, UpdateWhen.GreaterThan, CommandFlags.None));
+            wrapper.SortedSetAddAsync("key", values, SortedSetWhen.GreaterThan, CommandFlags.None);
+            mock.Verify(_ => _.SortedSetAddAsync("prefix:key", values, SortedSetWhen.GreaterThan, CommandFlags.None));
         }
 
         [Fact]

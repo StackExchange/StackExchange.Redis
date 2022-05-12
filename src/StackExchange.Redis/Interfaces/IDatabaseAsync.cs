@@ -1554,13 +1554,13 @@ namespace StackExchange.Redis
         /// <remarks><seealso href="https://redis.io/commands/sort"/></remarks>
         Task<long> SortAndStoreAsync(RedisKey destination, RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default, RedisValue[]? get = null, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="SortedSetAddAsync(RedisKey, RedisValue, double, When, UpdateWhen, CommandFlags)" />
+        /// <inheritdoc cref="SortedSetAddAsync(RedisKey, RedisValue, double, SortedSetWhen, CommandFlags)" />
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         Task<bool> SortedSetAddAsync(RedisKey key, RedisValue member, double score, CommandFlags flags);
 
-        /// <inheritdoc cref="SortedSetAddAsync(RedisKey, RedisValue, double, When, UpdateWhen, CommandFlags)" />
+        /// <inheritdoc cref="SortedSetAddAsync(RedisKey, RedisValue, double, SortedSetWhen, CommandFlags)" />
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
-        Task<bool> SortedSetAddAsync(RedisKey key, RedisValue member, double score, When when, CommandFlags flags);
+        Task<bool> SortedSetAddAsync(RedisKey key, RedisValue member, double score, When when, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Adds the specified member with the specified score to the sorted set stored at key.
@@ -1570,19 +1570,18 @@ namespace StackExchange.Redis
         /// <param name="member">The member to add to the sorted set.</param>
         /// <param name="score">The score for the member to add to the sorted set.</param>
         /// <param name="when">What conditions to add the element under (defaults to always).</param>
-        /// <param name="updateWhen">What conditions to update an existing element (defaults to always). In any case it will not prevent adding new elements.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns><see langword="true"/> if the value was added. <see langword="false"/> if it already existed (the score is still updated).</returns>
         /// <remarks><seealso href="https://redis.io/commands/zadd"/></remarks>
-        Task<bool> SortedSetAddAsync(RedisKey key, RedisValue member, double score, When when = When.Always, UpdateWhen updateWhen = UpdateWhen.Always, CommandFlags flags = CommandFlags.None);
+        Task<bool> SortedSetAddAsync(RedisKey key, RedisValue member, double score, SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="SortedSetAddAsync(RedisKey, RedisValue, double, When, UpdateWhen, CommandFlags)" />
+        /// <inheritdoc cref="SortedSetAddAsync(RedisKey, RedisValue, double, SortedSetWhen, CommandFlags)" />
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         Task<long> SortedSetAddAsync(RedisKey key, SortedSetEntry[] values, CommandFlags flags);
 
-        /// <inheritdoc cref="SortedSetAddAsync(RedisKey, RedisValue, double, When, UpdateWhen, CommandFlags)" />
+        /// <inheritdoc cref="SortedSetAddAsync(RedisKey, RedisValue, double, SortedSetWhen, CommandFlags)" />
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
-        Task<long> SortedSetAddAsync(RedisKey key, SortedSetEntry[] values, When when, CommandFlags flags);
+        Task<long> SortedSetAddAsync(RedisKey key, SortedSetEntry[] values, When when, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Adds all the specified members with the specified scores to the sorted set stored at key.
@@ -1591,11 +1590,10 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the sorted set.</param>
         /// <param name="values">The members and values to add to the sorted set.</param>
         /// <param name="when">What conditions to add the element under (defaults to always).</param>
-        /// <param name="updateWhen">What conditions to update an existing element (defaults to always). In any case it will not prevent adding new elements.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of elements added to the sorted sets, not including elements already existing for which the score was updated.</returns>
         /// <remarks><seealso href="https://redis.io/commands/zadd"/></remarks>
-        Task<long> SortedSetAddAsync(RedisKey key, SortedSetEntry[] values, When when = When.Always, UpdateWhen updateWhen = UpdateWhen.Always, CommandFlags flags = CommandFlags.None);
+        Task<long> SortedSetAddAsync(RedisKey key, SortedSetEntry[] values, SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Computes a set operation for multiple sorted sets (optionally using per-set <paramref name="weights"/>),

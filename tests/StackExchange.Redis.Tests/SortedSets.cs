@@ -62,44 +62,6 @@ public class SortedSets : TestBase
     };
 
     [Fact]
-    public async Task SortedSetAdd()
-    {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
-
-        var db = conn.GetDatabase();
-        var key = Me();
-        var member = "a";
-        db.KeyDelete(key, CommandFlags.FireAndForget);
-        db.SortedSetAdd(key, member, 2);
-
-        Assert.False(db.SortedSetAdd(key, member, 5, updateWhen: UpdateWhen.GreaterThan));
-        Assert.Equal(5, db.SortedSetRangeByScoreWithScores(key, 0, 10)[0].Score); // check that the score was updated (5 > 2)
-
-        Assert.False(db.SortedSetAdd(key, member, 1, updateWhen: UpdateWhen.GreaterThan));
-        Assert.Equal(5, db.SortedSetRangeByScoreWithScores(key, 0, 10)[0].Score); // check that the score was not chenged
-
-        Assert.False(db.SortedSetAdd(key, member, 1, updateWhen: UpdateWhen.LessThan));
-        Assert.Equal(1, db.SortedSetRangeByScoreWithScores(key, 0, 10)[0].Score); // check that the score was updated (1 < 5)
-
-        Assert.False(db.SortedSetAdd(key, member, 5, updateWhen: UpdateWhen.LessThan));
-        Assert.Equal(1, db.SortedSetRangeByScoreWithScores(key, 0, 10)[0].Score); // check that the score was not chenged
-
-        // Async
-
-        Assert.False(await db.SortedSetAddAsync(key, member, 5, updateWhen: UpdateWhen.GreaterThan));
-        Assert.Equal(5, db.SortedSetRangeByScoreWithScores(key, 0, 10)[0].Score);
-
-        Assert.False(await db.SortedSetAddAsync(key, member, 1, updateWhen: UpdateWhen.GreaterThan));
-        Assert.Equal(5, db.SortedSetRangeByScoreWithScores(key, 0, 10)[0].Score);
-
-        Assert.False(await db.SortedSetAddAsync(key, member, 1, updateWhen: UpdateWhen.LessThan));
-        Assert.Equal(1, db.SortedSetRangeByScoreWithScores(key, 0, 10)[0].Score);
-
-        Assert.False(await db.SortedSetAddAsync(key, member, 5, updateWhen: UpdateWhen.LessThan));
-        Assert.Equal(1, db.SortedSetRangeByScoreWithScores(key, 0, 10)[0].Score);
-    }
-
-    [Fact]
     public void SortedSetCombine()
     {
         using var conn = Create(require: RedisFeatures.v6_2_0);

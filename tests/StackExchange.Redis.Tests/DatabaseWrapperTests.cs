@@ -789,8 +789,8 @@ public sealed class DatabaseWrapperTests
     public void SortedSetAdd_3()
     {
         SortedSetEntry[] values = Array.Empty<SortedSetEntry>();
-        wrapper.SortedSetAdd("key", values, When.Exists, UpdateWhen.GreaterThan, CommandFlags.None);
-        mock.Verify(_ => _.SortedSetAdd("prefix:key", values, When.Exists, UpdateWhen.GreaterThan, CommandFlags.None));
+        wrapper.SortedSetAdd("key", values, SortedSetWhen.GreaterThan, CommandFlags.None);
+        mock.Verify(_ => _.SortedSetAdd("prefix:key", values, SortedSetWhen.GreaterThan, CommandFlags.None));
     }
 
     [Fact]

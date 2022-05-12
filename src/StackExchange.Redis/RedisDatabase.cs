@@ -1798,50 +1798,50 @@ namespace StackExchange.Redis
         }
 
         public bool SortedSetAdd(RedisKey key, RedisValue member, double score, CommandFlags flags) =>
-            SortedSetAdd(key, member, score, When.Always, flags);
+            SortedSetAdd(key, member, score, SortedSetWhen.Always, flags);
 
         public bool SortedSetAdd(RedisKey key, RedisValue member, double score, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
-            SortedSetAdd(key, member, score, when, UpdateWhen.Always, flags);
+            SortedSetAdd(key, member, score, SortedSetWhenExtensions.Parse(when),  flags);
 
-        public bool SortedSetAdd(RedisKey key, RedisValue member, double score, When when = When.Always, UpdateWhen updateWhen = UpdateWhen.Always, CommandFlags flags = CommandFlags.None)
+        public bool SortedSetAdd(RedisKey key, RedisValue member, double score, SortedSetWhen updateWhen = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetSortedSetAddMessage(key, member, score, when, updateWhen, flags);
+            var msg = GetSortedSetAddMessage(key, member, score, updateWhen, flags);
             return ExecuteSync(msg, ResultProcessor.Boolean);
         }
 
         public long SortedSetAdd(RedisKey key, SortedSetEntry[] values, CommandFlags flags) =>
-            SortedSetAdd(key, values, When.Always, flags);
+            SortedSetAdd(key, values, SortedSetWhen.Always, flags);
 
         public long SortedSetAdd(RedisKey key, SortedSetEntry[] values, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
-            SortedSetAdd(key, values, when, UpdateWhen.Always, flags);
+            SortedSetAdd(key, values, SortedSetWhenExtensions.Parse(when), flags);
 
-        public long SortedSetAdd(RedisKey key, SortedSetEntry[] values, When when = When.Always, UpdateWhen updateWhen = UpdateWhen.Always, CommandFlags flags = CommandFlags.None)
+        public long SortedSetAdd(RedisKey key, SortedSetEntry[] values, SortedSetWhen updateWhen = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetSortedSetAddMessage(key, values, when, updateWhen, flags);
+            var msg = GetSortedSetAddMessage(key, values, updateWhen, flags);
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
         public Task<bool> SortedSetAddAsync(RedisKey key, RedisValue member, double score, CommandFlags flags) =>
-            SortedSetAddAsync(key, member, score, When.Always, flags);
+            SortedSetAddAsync(key, member, score, SortedSetWhen.Always, flags);
 
         public Task<bool> SortedSetAddAsync(RedisKey key, RedisValue member, double score, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
-            SortedSetAddAsync(key, member, score, when, UpdateWhen.Always, flags);
+            SortedSetAddAsync(key, member, score, SortedSetWhenExtensions.Parse(when), flags);
 
-        public Task<bool> SortedSetAddAsync(RedisKey key, RedisValue member, double score, When when = When.Always, UpdateWhen updateWhen = UpdateWhen.Always, CommandFlags flags = CommandFlags.None)
+        public Task<bool> SortedSetAddAsync(RedisKey key, RedisValue member, double score, SortedSetWhen updateWhen = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetSortedSetAddMessage(key, member, score, when, updateWhen, flags);
+            var msg = GetSortedSetAddMessage(key, member, score, updateWhen, flags);
             return ExecuteAsync(msg, ResultProcessor.Boolean);
         }
 
         public Task<long> SortedSetAddAsync(RedisKey key, SortedSetEntry[] values, CommandFlags flags) =>
-            SortedSetAddAsync(key, values, When.Always, flags);
+            SortedSetAddAsync(key, values, SortedSetWhen.Always, flags);
 
         public Task<long> SortedSetAddAsync(RedisKey key, SortedSetEntry[] values, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
-            SortedSetAddAsync(key, values, when, UpdateWhen.Always, flags);
+            SortedSetAddAsync(key, values, SortedSetWhenExtensions.Parse(when), flags);
 
-        public Task<long> SortedSetAddAsync(RedisKey key, SortedSetEntry[] values, When when = When.Always, UpdateWhen updateWhen = UpdateWhen.Always, CommandFlags flags = CommandFlags.None)
+        public Task<long> SortedSetAddAsync(RedisKey key, SortedSetEntry[] values, SortedSetWhen updateWhen = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetSortedSetAddMessage(key, values, when, updateWhen, flags);
+            var msg = GetSortedSetAddMessage(key, values, updateWhen, flags);
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
@@ -3499,22 +3499,20 @@ namespace StackExchange.Redis
             return Message.Create(Database, flags, RedisCommand.SINTERCARD, values);
         }
 
-        private Message GetSortedSetAddMessage(RedisKey key, RedisValue member, double score, When when, UpdateWhen updateWhen, CommandFlags flags)
+        private Message GetSortedSetAddMessage(RedisKey key, RedisValue member, double score, SortedSetWhen when, CommandFlags flags)
         {
-            WhenAlwaysOrExistsOrNotExists(when);
-            RedisValue[] arr = new RedisValue[2 + (when == When.Always ? 0 : 1) + (updateWhen == UpdateWhen.Always ? 0 : 1)];
+            RedisValue[] arr = new RedisValue[2 + when.CountBits()];
             int index = 0;
-            if (when == When.NotExists) {
+            if ((when & SortedSetWhen.NotExists) != 0) {
                 arr[index++] = RedisLiterals.NX;
             }
-            else if (when == When.Exists) {
+            if ((when & SortedSetWhen.Exists) != 0) {
                 arr[index++] = RedisLiterals.XX;
             }
-
-            if (updateWhen == UpdateWhen.GreaterThan) {
+            if ((when & SortedSetWhen.GreaterThan) != 0) {
                 arr[index++] = RedisLiterals.GT;
             }
-            else if (updateWhen == UpdateWhen.LessThan) {
+            if ((when & SortedSetWhen.LessThan) != 0) {
                 arr[index++] = RedisLiterals.LT;
             }
             arr[index++] = score;
@@ -3522,30 +3520,27 @@ namespace StackExchange.Redis
             return Message.Create(Database, flags, RedisCommand.ZADD, key, arr);
         }
 
-        private Message? GetSortedSetAddMessage(RedisKey key, SortedSetEntry[] values, When when, UpdateWhen updateWhen, CommandFlags flags)
+        private Message? GetSortedSetAddMessage(RedisKey key, SortedSetEntry[] values, SortedSetWhen when, CommandFlags flags)
         {
-            WhenAlwaysOrExistsOrNotExists(when);
             if (values == null) throw new ArgumentNullException(nameof(values));
             switch (values.Length)
             {
                 case 0: return null;
                 case 1:
-                    return GetSortedSetAddMessage(key, values[0].element, values[0].score, when, updateWhen, flags);
+                    return GetSortedSetAddMessage(key, values[0].element, values[0].score, when, flags);
                 default:
-                    RedisValue[] arr = new RedisValue[(values.Length * 2) + (when == When.Always ? 0 : 1) + (updateWhen == UpdateWhen.Always ? 0 : 1)];
+                    RedisValue[] arr = new RedisValue[(values.Length * 2) + when.CountBits()];
                     int index = 0;
-
-                    if (when == When.NotExists) {
+                    if ((when & SortedSetWhen.NotExists) != 0) {
                         arr[index++] = RedisLiterals.NX;
                     }
-                    else if (when == When.Exists) {
+                    if ((when & SortedSetWhen.Exists) != 0) {
                         arr[index++] = RedisLiterals.XX;
                     }
-
-                    if (updateWhen == UpdateWhen.GreaterThan) {
+                    if ((when & SortedSetWhen.GreaterThan) != 0) {
                         arr[index++] = RedisLiterals.GT;
                     }
-                    else if (updateWhen == UpdateWhen.LessThan) {
+                    if ((when & SortedSetWhen.LessThan) != 0) {
                         arr[index++] = RedisLiterals.LT;
                     }
 
