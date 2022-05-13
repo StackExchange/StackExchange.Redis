@@ -689,6 +689,12 @@ public class Strings : TestBase
         stringMatchResult = db.StringLongestCommonSubsequenceWithMatches(key1, key2, 5);
         Assert.Empty(stringMatchResult.Matches); // no matches longer than 5 characters
         Assert.Equal(6, stringMatchResult.LongestMatchLength);
+
+        // Missing keys
+        db.KeyDelete(key1);
+        Assert.Equal(string.Empty, db.StringLongestCommonSubsequence(key1, key2));
+        db.KeyDelete(key2);
+        Assert.Equal(string.Empty, db.StringLongestCommonSubsequence(key1, key2));
     }
 
     [Fact]
