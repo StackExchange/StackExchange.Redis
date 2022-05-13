@@ -741,14 +741,6 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void SortedSetUpdateAsync()
-        {
-            SortedSetEntry[] values = Array.Empty<SortedSetEntry>();
-            wrapper.SortedSetUpdateAsync("key", values, SortedSetWhen.GreaterThan, CommandFlags.None);
-            mock.Verify(_ => _.SortedSetUpdateAsync("prefix:key", values, SortedSetWhen.GreaterThan, CommandFlags.None));
-        }
-
-        [Fact]
         public void SortedSetCombineAsync()
         {
             RedisKey[] keys = new RedisKey[] { "a", "b" };
@@ -934,6 +926,14 @@ namespace StackExchange.Redis.Tests
         {
             wrapper.SortedSetScoresAsync("key", new RedisValue[] { "member1", "member2" }, CommandFlags.None);
             mock.Verify(_ => _.SortedSetScoresAsync("prefix:key", new RedisValue[] { "member1", "member2" }, CommandFlags.None));
+        }
+
+        [Fact]
+        public void SortedSetUpdateAsync()
+        {
+            SortedSetEntry[] values = Array.Empty<SortedSetEntry>();
+            wrapper.SortedSetUpdateAsync("key", values, SortedSetWhen.GreaterThan, CommandFlags.None);
+            mock.Verify(_ => _.SortedSetUpdateAsync("prefix:key", values, SortedSetWhen.GreaterThan, CommandFlags.None));
         }
 
         [Fact]
