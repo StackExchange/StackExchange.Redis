@@ -641,27 +641,108 @@ public class Strings : TestBase
     {
         using var conn = Create(require: RedisFeatures.v3_2_0);
 
-        var database = conn.GetDatabase();
+        var db = conn.GetDatabase();
         var key = Me();
         const string value = "hello world";
-        database.HashSet(key, "field", value);
-        var resAsync = database.HashStringLengthAsync(key, "field");
-        var resNonExistingAsync = database.HashStringLengthAsync(key, "non-existing-field");
+        db.HashSet(key, "field", value);
+        var resAsync = db.HashStringLengthAsync(key, "field");
+        var resNonExistingAsync = db.HashStringLengthAsync(key, "non-existing-field");
         Assert.Equal(value.Length, await resAsync);
         Assert.Equal(0, await resNonExistingAsync);
     }
+
 
     [Fact]
     public void HashStringLength()
     {
         using var conn = Create(require: RedisFeatures.v3_2_0);
 
-        var database = conn.GetDatabase();
+        var db = conn.GetDatabase();
         var key = Me();
         const string value = "hello world";
-        database.HashSet(key, "field", value);
-        Assert.Equal(value.Length, database.HashStringLength(key, "field"));
-        Assert.Equal(0, database.HashStringLength(key, "non-existing-field"));
+        db.HashSet(key, "field", value);
+        Assert.Equal(value.Length, db.HashStringLength(key, "field"));
+        Assert.Equal(0, db.HashStringLength(key, "non-existing-field"));
+    }
+
+    [Fact]
+    public void LongestCommonSubsequence()
+    {
+        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+
+        var db = conn.GetDatabase();
+        var key1 = Me() + "1";
+        var key2 = Me() + "2";
+        db.KeyDelete(key1);
+        db.KeyDelete(key2);
+        db.StringSet(key1, "ohmytext");
+        db.StringSet(key2, "mynewtext");
+
+        Assert.Equal("mytext", db.StringLongestCommonSubsequence(key1, key2));
+        Assert.Equal(6, db.StringLongestCommonSubsequenceLength(key1, key2));
+
+        var stringMatchResult = db.StringLongestCommonSubsequenceWithMatches(key1, key2);
+        Assert.Equal(2, stringMatchResult.Matches.Length); // "my" and "text" are the two matches of the result
+        Assert.Equivalent(new LCSMatchResult.LCSMatch(4, 5, length: 4), stringMatchResult.Matches[0]); // the string "text" starts at index 4 in the first string and at index 5 in the second string
+        Assert.Equivalent(new LCSMatchResult.LCSMatch(2, 0, length: 2), stringMatchResult.Matches[1]); // the string "my" starts at index 2 in the first string and at index 0 in the second string
+
+        stringMatchResult = db.StringLongestCommonSubsequenceWithMatches(key1, key2, 5);
+        Assert.Empty(stringMatchResult.Matches); // no matches longer than 5 characters
+        Assert.Equal(6, stringMatchResult.LongestMatchLength);
+
+        // Missing keys
+        db.KeyDelete(key1);
+        Assert.Equal(string.Empty, db.StringLongestCommonSubsequence(key1, key2));
+        db.KeyDelete(key2);
+        Assert.Equal(string.Empty, db.StringLongestCommonSubsequence(key1, key2));
+        stringMatchResult = db.StringLongestCommonSubsequenceWithMatches(key1, key2);
+        Assert.NotNull(stringMatchResult.Matches);
+        Assert.Empty(stringMatchResult.Matches);
+        Assert.Equal(0, stringMatchResult.LongestMatchLength);
+
+        // Default value
+        stringMatchResult = db.StringLongestCommonSubsequenceWithMatches(key1, key2, flags: CommandFlags.FireAndForget);
+        Assert.Equal(stringMatchResult, LCSMatchResult.Null);
+    }
+
+    [Fact]
+    public async Task LongestCommonSubsequenceAsync()
+    {
+        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+
+        var db = conn.GetDatabase();
+        var key1 = Me() + "1";
+        var key2 = Me() + "2";
+        db.KeyDelete(key1);
+        db.KeyDelete(key2);
+        db.StringSet(key1, "ohmytext");
+        db.StringSet(key2, "mynewtext");
+
+        Assert.Equal("mytext", await db.StringLongestCommonSubsequenceAsync(key1, key2));
+        Assert.Equal(6, await db.StringLongestCommonSubsequenceLengthAsync(key1, key2));
+
+        var stringMatchResult = await db.StringLongestCommonSubsequenceWithMatchesAsync(key1, key2);
+        Assert.Equal(2, stringMatchResult.Matches.Length); // "my" and "text" are the two matches of the result
+        Assert.Equivalent(new LCSMatchResult.LCSMatch(4, 5, length: 4), stringMatchResult.Matches[0]); // the string "text" starts at index 4 in the first string and at index 5 in the second string
+        Assert.Equivalent(new LCSMatchResult.LCSMatch(2, 0, length: 2), stringMatchResult.Matches[1]); // the string "my" starts at index 2 in the first string and at index 0 in the second string
+
+        stringMatchResult = await db.StringLongestCommonSubsequenceWithMatchesAsync(key1, key2, 5);
+        Assert.Empty(stringMatchResult.Matches); // no matches longer than 5 characters
+        Assert.Equal(6, stringMatchResult.LongestMatchLength);
+
+        // Missing keys
+        db.KeyDelete(key1);
+        Assert.Equal(string.Empty, await db.StringLongestCommonSubsequenceAsync(key1, key2));
+        db.KeyDelete(key2);
+        Assert.Equal(string.Empty, await db.StringLongestCommonSubsequenceAsync(key1, key2));
+        stringMatchResult = await db.StringLongestCommonSubsequenceWithMatchesAsync(key1, key2);
+        Assert.NotNull(stringMatchResult.Matches);
+        Assert.Empty(stringMatchResult.Matches);
+        Assert.Equal(0, stringMatchResult.LongestMatchLength);
+
+        // Default value
+        stringMatchResult = await db.StringLongestCommonSubsequenceWithMatchesAsync(key1, key2, flags: CommandFlags.FireAndForget);
+        Assert.Equal(stringMatchResult, LCSMatchResult.Null);
     }
 
     private static byte[] Encode(string value) => Encoding.UTF8.GetBytes(value);

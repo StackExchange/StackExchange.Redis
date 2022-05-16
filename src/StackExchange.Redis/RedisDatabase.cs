@@ -1443,6 +1443,42 @@ namespace StackExchange.Redis
             return StringSetAsync(key, value, expiry, When.NotExists, flags);
         }
 
+        public string? StringLongestCommonSubsequence(RedisKey key1, RedisKey key2, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.LCS, key1, key2);
+            return ExecuteSync(msg, ResultProcessor.String);
+        }
+
+        public Task<string?> StringLongestCommonSubsequenceAsync(RedisKey key1, RedisKey key2, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.LCS, key1, key2);
+            return ExecuteAsync(msg, ResultProcessor.String);
+        }
+
+        public long StringLongestCommonSubsequenceLength(RedisKey key1, RedisKey key2, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.LCS, key1, key2, RedisLiterals.LEN);
+            return ExecuteSync(msg, ResultProcessor.Int64);
+        }
+
+        public Task<long> StringLongestCommonSubsequenceLengthAsync(RedisKey key1, RedisKey key2, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.LCS, key1, key2, RedisLiterals.LEN);
+            return ExecuteAsync(msg, ResultProcessor.Int64);
+        }
+
+        public LCSMatchResult StringLongestCommonSubsequenceWithMatches(RedisKey key1, RedisKey key2, long minSubMatchLength = 0, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.LCS, key1, key2, RedisLiterals.IDX, RedisLiterals.MINMATCHLEN, minSubMatchLength, RedisLiterals.WITHMATCHLEN);
+            return ExecuteSync(msg, ResultProcessor.LCSMatchResult, defaultValue: LCSMatchResult.Null);
+        }
+
+        public Task<LCSMatchResult> StringLongestCommonSubsequenceWithMatchesAsync(RedisKey key1, RedisKey key2, long minSubMatchLength = 0, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.LCS, key1, key2, RedisLiterals.IDX, RedisLiterals.MINMATCHLEN, minSubMatchLength, RedisLiterals.WITHMATCHLEN);
+            return ExecuteAsync(msg, ResultProcessor.LCSMatchResult, defaultValue: LCSMatchResult.Null);
+        }
+
         public long Publish(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None)
         {
             if (channel.IsNullOrEmpty) throw new ArgumentNullException(nameof(channel));
@@ -1473,6 +1509,7 @@ namespace StackExchange.Redis
 
         public RedisResult Execute(string command, params object[] args)
             => Execute(command, args, CommandFlags.None);
+
         public RedisResult Execute(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None)
         {
             var msg = new ExecuteMessage(multiplexer?.CommandMap, Database, flags, command, args);
