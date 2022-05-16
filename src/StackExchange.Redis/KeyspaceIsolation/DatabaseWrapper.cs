@@ -594,21 +594,21 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public long StringBitCount(RedisKey key, long start, long end, CommandFlags flags) =>
             Inner.StringBitCount(ToInner(key), start, end, flags);
-            
+
         public long StringBitCount(RedisKey key, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, CommandFlags flags = CommandFlags.None) =>
             Inner.StringBitCount(ToInner(key), start, end, indexType, flags);
 
-        public long StringBitfieldGet(RedisKey key, BitfieldEncoding encoding, BitfieldOffset offset, CommandFlags flags = CommandFlags.None) =>
-            Inner.StringBitfieldGet(ToInner(key), encoding, offset, flags);
-
-        public long StringBitfieldSet(RedisKey key, BitfieldEncoding encoding, BitfieldOffset offset, long value, CommandFlags flags = CommandFlags.None) =>
-            Inner.StringBitfieldSet(ToInner(key), encoding, offset, value, flags);
-
-        public long? StringBitfieldIncrement(RedisKey key, BitfieldEncoding encoding, BitfieldOffset offset, long increment, BitfieldOverflowHandling overflowHandling = BitfieldOverflowHandling.Wrap, CommandFlags flags = CommandFlags.None) =>
-            Inner.StringBitfieldIncrement(ToInner(key), encoding, offset, increment, overflowHandling, flags);
-
-        public long?[] StringBitfield(RedisKey key, BitfieldCommandBuilder builder, CommandFlags flags = CommandFlags.None) =>
+        public long?[] StringBitfield(RedisKey key, BitfieldCommand builder, CommandFlags flags = CommandFlags.None) =>
             Inner.StringBitfield(key, builder, flags);
+
+        //public long StringBitfieldGet(RedisKey key, BitfieldEncoding encoding, BitfieldOffset offset, CommandFlags flags = CommandFlags.None) =>
+        //    Inner.StringBitfieldGet(ToInner(key), encoding, offset, flags);
+
+        //public long StringBitfieldSet(RedisKey key, BitfieldEncoding encoding, BitfieldOffset offset, long value, CommandFlags flags = CommandFlags.None) =>
+        //    Inner.StringBitfieldSet(ToInner(key), encoding, offset, value, flags);
+
+        //public long? StringBitfieldIncrement(RedisKey key, BitfieldEncoding encoding, BitfieldOffset offset, long increment, BitfieldOverflowHandling overflowHandling = BitfieldOverflowHandling.Wrap, CommandFlags flags = CommandFlags.None) =>
+        //    Inner.StringBitfieldIncrement(ToInner(key), encoding, offset, increment, overflowHandling, flags);
 
         public long StringBitOperation(Bitwise operation, RedisKey destination, RedisKey[] keys, CommandFlags flags = CommandFlags.None) =>
             Inner.StringBitOperation(operation, ToInner(destination), ToInner(keys), flags);

@@ -66,11 +66,14 @@ StackExchange.Redis.BacklogPolicy.AbortPendingOnConnectionFailure.init -> void
 StackExchange.Redis.BacklogPolicy.BacklogPolicy() -> void
 StackExchange.Redis.BacklogPolicy.QueueWhileDisconnected.get -> bool
 StackExchange.Redis.BacklogPolicy.QueueWhileDisconnected.init -> void
-StackExchange.Redis.BitfieldCommandBuilder
-StackExchange.Redis.BitfieldCommandBuilder.BitfieldCommandBuilder() -> void
-StackExchange.Redis.BitfieldCommandBuilder.Get(StackExchange.Redis.BitfieldEncoding encoding, StackExchange.Redis.BitfieldOffset offset) -> StackExchange.Redis.BitfieldCommandBuilder!
-StackExchange.Redis.BitfieldCommandBuilder.Incrby(StackExchange.Redis.BitfieldEncoding encoding, StackExchange.Redis.BitfieldOffset offset, long increment, StackExchange.Redis.BitfieldOverflowHandling overflowHandling = StackExchange.Redis.BitfieldOverflowHandling.Wrap) -> StackExchange.Redis.BitfieldCommandBuilder!
-StackExchange.Redis.BitfieldCommandBuilder.Set(StackExchange.Redis.BitfieldEncoding encoding, StackExchange.Redis.BitfieldOffset offset, long value) -> StackExchange.Redis.BitfieldCommandBuilder!
+StackExchange.Redis.BitfieldCommand
+StackExchange.Redis.BitfieldCommand.BitfieldCommand(bool encodingIsSigned, byte encodingSize) -> void
+StackExchange.Redis.BitfieldCommand.Get(int offset, bool offsetByEncoding = false) -> StackExchange.Redis.BitfieldCommand!
+StackExchange.Redis.BitfieldCommand.Incrby(StackExchange.Redis.BitfieldOffset offset, long increment) -> StackExchange.Redis.BitfieldCommand!
+StackExchange.Redis.BitfieldCommand.Set(StackExchange.Redis.BitfieldOffset offset, long value) -> StackExchange.Redis.BitfieldCommand!
+StackExchange.Redis.BitfieldCommand.SetOverflow(StackExchange.Redis.BitfieldOverflowHandling overflowHandling) -> StackExchange.Redis.BitfieldCommand!
+StackExchange.Redis.BitfieldCommand.WithEncoding(bool isSigned, byte size) -> StackExchange.Redis.BitfieldCommand!
+StackExchange.Redis.BitfieldCommand.WithOverflow(StackExchange.Redis.BitfieldOverflowHandling overflowHandling) -> StackExchange.Redis.BitfieldCommand!
 StackExchange.Redis.BitfieldEncoding
 StackExchange.Redis.BitfieldEncoding.BitfieldEncoding() -> void
 StackExchange.Redis.BitfieldEncoding.BitfieldEncoding(bool isSigned, byte size) -> void
@@ -78,7 +81,7 @@ StackExchange.Redis.BitfieldEncoding.IsSigned.get -> bool
 StackExchange.Redis.BitfieldEncoding.Size.get -> byte
 StackExchange.Redis.BitfieldOffset
 StackExchange.Redis.BitfieldOffset.BitfieldOffset() -> void
-StackExchange.Redis.BitfieldOffset.BitfieldOffset(bool byEncoding, long offset) -> void
+StackExchange.Redis.BitfieldOffset.BitfieldOffset(long offset, bool byEncoding = false) -> void
 StackExchange.Redis.BitfieldOffset.ByEncoding.get -> bool
 StackExchange.Redis.BitfieldOffset.Offset.get -> long
 StackExchange.Redis.BitfieldOverflowHandling
@@ -701,10 +704,7 @@ StackExchange.Redis.IDatabase.StreamTrim(StackExchange.Redis.RedisKey key, int m
 StackExchange.Redis.IDatabase.StringAppend(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue value, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
 StackExchange.Redis.IDatabase.StringBitCount(StackExchange.Redis.RedisKey key, long start, long end, StackExchange.Redis.CommandFlags flags) -> long
 StackExchange.Redis.IDatabase.StringBitCount(StackExchange.Redis.RedisKey key, long start = 0, long end = -1, StackExchange.Redis.StringIndexType indexType = StackExchange.Redis.StringIndexType.Byte, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
-StackExchange.Redis.IDatabase.StringBitfield(StackExchange.Redis.RedisKey key, StackExchange.Redis.BitfieldCommandBuilder! builder, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long?[]!
-StackExchange.Redis.IDatabase.StringBitfieldGet(StackExchange.Redis.RedisKey key, StackExchange.Redis.BitfieldEncoding encoding, StackExchange.Redis.BitfieldOffset offset, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
-StackExchange.Redis.IDatabase.StringBitfieldIncrement(StackExchange.Redis.RedisKey key, StackExchange.Redis.BitfieldEncoding encoding, StackExchange.Redis.BitfieldOffset offset, long increment, StackExchange.Redis.BitfieldOverflowHandling overflowHandling = StackExchange.Redis.BitfieldOverflowHandling.Wrap, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long?
-StackExchange.Redis.IDatabase.StringBitfieldSet(StackExchange.Redis.RedisKey key, StackExchange.Redis.BitfieldEncoding encoding, StackExchange.Redis.BitfieldOffset offset, long value, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
+StackExchange.Redis.IDatabase.StringBitfield(StackExchange.Redis.RedisKey key, StackExchange.Redis.BitfieldCommand! builder, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long?[]!
 StackExchange.Redis.IDatabase.StringBitOperation(StackExchange.Redis.Bitwise operation, StackExchange.Redis.RedisKey destination, StackExchange.Redis.RedisKey first, StackExchange.Redis.RedisKey second = default(StackExchange.Redis.RedisKey), StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
 StackExchange.Redis.IDatabase.StringBitOperation(StackExchange.Redis.Bitwise operation, StackExchange.Redis.RedisKey destination, StackExchange.Redis.RedisKey[]! keys, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
 StackExchange.Redis.IDatabase.StringBitPosition(StackExchange.Redis.RedisKey key, bool bit, long start, long end, StackExchange.Redis.CommandFlags flags) -> long
@@ -928,10 +928,7 @@ StackExchange.Redis.IDatabaseAsync.StreamTrimAsync(StackExchange.Redis.RedisKey 
 StackExchange.Redis.IDatabaseAsync.StringAppendAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue value, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
 StackExchange.Redis.IDatabaseAsync.StringBitCountAsync(StackExchange.Redis.RedisKey key, long start, long end, StackExchange.Redis.CommandFlags flags) -> System.Threading.Tasks.Task<long>!
 StackExchange.Redis.IDatabaseAsync.StringBitCountAsync(StackExchange.Redis.RedisKey key, long start = 0, long end = -1, StackExchange.Redis.StringIndexType indexType = StackExchange.Redis.StringIndexType.Byte, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
-StackExchange.Redis.IDatabaseAsync.StringBitfieldAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.BitfieldCommandBuilder! builder, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long?[]!>!
-StackExchange.Redis.IDatabaseAsync.StringBitfieldGetAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.BitfieldEncoding encoding, StackExchange.Redis.BitfieldOffset offset, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
-StackExchange.Redis.IDatabaseAsync.StringBitfieldIncrementAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.BitfieldEncoding encoding, StackExchange.Redis.BitfieldOffset offset, long increment, StackExchange.Redis.BitfieldOverflowHandling overflowHandling = StackExchange.Redis.BitfieldOverflowHandling.Wrap, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long?>!
-StackExchange.Redis.IDatabaseAsync.StringBitfieldSetAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.BitfieldEncoding encoding, StackExchange.Redis.BitfieldOffset offset, long value, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
+StackExchange.Redis.IDatabaseAsync.StringBitfieldAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.BitfieldCommand! builder, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long?[]!>!
 StackExchange.Redis.IDatabaseAsync.StringBitOperationAsync(StackExchange.Redis.Bitwise operation, StackExchange.Redis.RedisKey destination, StackExchange.Redis.RedisKey first, StackExchange.Redis.RedisKey second = default(StackExchange.Redis.RedisKey), StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
 StackExchange.Redis.IDatabaseAsync.StringBitOperationAsync(StackExchange.Redis.Bitwise operation, StackExchange.Redis.RedisKey destination, StackExchange.Redis.RedisKey[]! keys, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
 StackExchange.Redis.IDatabaseAsync.StringBitPositionAsync(StackExchange.Redis.RedisKey key, bool bit, long start, long end, StackExchange.Redis.CommandFlags flags) -> System.Threading.Tasks.Task<long>!
@@ -1419,9 +1416,6 @@ StackExchange.Redis.ShutdownMode
 StackExchange.Redis.ShutdownMode.Always = 2 -> StackExchange.Redis.ShutdownMode
 StackExchange.Redis.ShutdownMode.Default = 0 -> StackExchange.Redis.ShutdownMode
 StackExchange.Redis.ShutdownMode.Never = 1 -> StackExchange.Redis.ShutdownMode
-StackExchange.Redis.Signedness
-StackExchange.Redis.Signedness.Signed = 1 -> StackExchange.Redis.Signedness
-StackExchange.Redis.Signedness.Unsigned = 0 -> StackExchange.Redis.Signedness
 StackExchange.Redis.SlotRange
 StackExchange.Redis.SlotRange.CompareTo(StackExchange.Redis.SlotRange other) -> int
 StackExchange.Redis.SlotRange.Equals(StackExchange.Redis.SlotRange other) -> bool

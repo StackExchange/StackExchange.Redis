@@ -2559,47 +2559,47 @@ namespace StackExchange.Redis
         /// <seealso href="https://redis.io/commands/bitfield"/>,
         /// <seealso href="https://redis.io/commands/bitfield_ro"/>
         /// </remarks>
-        long?[] StringBitfield(RedisKey key, BitfieldCommandBuilder builder, CommandFlags flags = CommandFlags.None);
+        long?[] StringBitfield(RedisKey key, BitfieldCommand builder, CommandFlags flags = CommandFlags.None);
 
-        /// <summary>
-        /// Pulls a single number out of a bitfield of the provided <paramref name="encoding"/> at the given offset.
-        /// Will execute a <c>BITFIELD_RO</c> if possible.
-        /// </summary>
-        /// <param name="key">The key for the string.</param>
-        /// <param name="encoding">The encoding of the number.</param>
-        /// <param name="offset">The offset into the bitfield to pull the number from.</param>
-        /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The number of the given <paramref name="encoding"/> at the provided <paramref name="offset"/>.</returns>
-        /// <remarks>
-        /// <seealso href="https://redis.io/commands/bitfield"/>,
-        /// <seealso href="https://redis.io/commands/bitfield_ro"/>
-        /// </remarks>
-        long StringBitfieldGet(RedisKey key, BitfieldEncoding encoding, BitfieldOffset offset, CommandFlags flags = CommandFlags.None);
+        ///// <summary>
+        ///// Pulls a single number out of a bitfield of the provided <paramref name="encoding"/> at the given offset.
+        ///// Will execute a <c>BITFIELD_RO</c> if possible.
+        ///// </summary>
+        ///// <param name="key">The key for the string.</param>
+        ///// <param name="encoding">The encoding of the number.</param>
+        ///// <param name="offset">The offset into the bitfield to pull the number from.</param>
+        ///// <param name="flags">The flags to use for this operation.</param>
+        ///// <returns>The number of the given <paramref name="encoding"/> at the provided <paramref name="offset"/>.</returns>
+        ///// <remarks>
+        ///// <seealso href="https://redis.io/commands/bitfield"/>,
+        ///// <seealso href="https://redis.io/commands/bitfield_ro"/>
+        ///// </remarks>
+        //long StringBitfieldGet(RedisKey key, BitfieldEncoding encoding, BitfieldOffset offset, CommandFlags flags = CommandFlags.None);
 
-        /// <summary>
-        /// Sets a single number in a bitfield at the provided <paramref name="offset"/> to the <paramref name="value"/> provided, in the given <paramref name="encoding"/>.
-        /// </summary>
-        /// <param name="key">The key for the string.</param>
-        /// <param name="encoding">The encoding of the number.</param>
-        /// <param name="offset">The offset into the bitfield to pull the number from.</param>
-        /// <param name="value">the value to set the bitfield to.</param>
-        /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The previous value as an <see cref="long"/> at the provided <paramref name="offset"/>.</returns>
-        /// <remarks><seealso href="https://redis.io/commands/bitfield"/></remarks>
-        long StringBitfieldSet(RedisKey key, BitfieldEncoding encoding, BitfieldOffset offset, long value, CommandFlags flags = CommandFlags.None);
+        ///// <summary>
+        ///// Sets a single number in a bitfield at the provided <paramref name="offset"/> to the <paramref name="value"/> provided, in the given <paramref name="encoding"/>.
+        ///// </summary>
+        ///// <param name="key">The key for the string.</param>
+        ///// <param name="encoding">The encoding of the number.</param>
+        ///// <param name="offset">The offset into the bitfield to pull the number from.</param>
+        ///// <param name="value">the value to set the bitfield to.</param>
+        ///// <param name="flags">The flags to use for this operation.</param>
+        ///// <returns>The previous value as an <see cref="long"/> at the provided <paramref name="offset"/>.</returns>
+        ///// <remarks><seealso href="https://redis.io/commands/bitfield"/></remarks>
+        //long StringBitfieldSet(RedisKey key, BitfieldEncoding encoding, BitfieldOffset offset, long value, CommandFlags flags = CommandFlags.None);
 
-        /// <summary>
-        /// Increments a single number in a bitfield at the provided <paramref name="offset"/> in the provided <paramref name="encoding"/> by the given <paramref name="increment"/>.
-        /// </summary>
-        /// <param name="key">The key for the string.</param>
-        /// <param name="encoding">The encoding of the number.</param>
-        /// <param name="offset">The offset into the bitfield to pull the number from.</param>
-        /// <param name="increment">the value to increment the bitfield by.</param>
-        /// <param name="overflowHandling">The way integer overflows are handled.</param>
-        /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The new value of the given at the provided <paramref name="offset"/> after the <c>INCRBY</c> is applied, represented as an <see cref="long"/>. Returns <see langword="null"/> if the operation fails.</returns>
-        /// <remarks><seealso href="https://redis.io/commands/bitfield"/></remarks>
-        long? StringBitfieldIncrement(RedisKey key, BitfieldEncoding encoding, BitfieldOffset offset, long increment, BitfieldOverflowHandling overflowHandling = BitfieldOverflowHandling.Wrap, CommandFlags flags = CommandFlags.None);
+        ///// <summary>
+        ///// Increments a single number in a bitfield at the provided <paramref name="offset"/> in the provided <paramref name="encoding"/> by the given <paramref name="increment"/>.
+        ///// </summary>
+        ///// <param name="key">The key for the string.</param>
+        ///// <param name="encoding">The encoding of the number.</param>
+        ///// <param name="offset">The offset into the bitfield to pull the number from.</param>
+        ///// <param name="increment">the value to increment the bitfield by.</param>
+        ///// <param name="overflowHandling">The way integer overflows are handled.</param>
+        ///// <param name="flags">The flags to use for this operation.</param>
+        ///// <returns>The new value of the given at the provided <paramref name="offset"/> after the <c>INCRBY</c> is applied, represented as an <see cref="long"/>. Returns <see langword="null"/> if the operation fails.</returns>
+        ///// <remarks><seealso href="https://redis.io/commands/bitfield"/></remarks>
+        //long? StringBitfieldIncrement(RedisKey key, BitfieldEncoding encoding, BitfieldOffset offset, long increment, BitfieldOverflowHandling overflowHandling = BitfieldOverflowHandling.Wrap, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Perform a bitwise operation between multiple keys (containing string values) and store the result in the destination key.
