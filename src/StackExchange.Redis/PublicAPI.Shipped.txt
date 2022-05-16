@@ -1419,9 +1419,6 @@ StackExchange.Redis.ShutdownMode
 StackExchange.Redis.ShutdownMode.Always = 2 -> StackExchange.Redis.ShutdownMode
 StackExchange.Redis.ShutdownMode.Default = 0 -> StackExchange.Redis.ShutdownMode
 StackExchange.Redis.ShutdownMode.Never = 1 -> StackExchange.Redis.ShutdownMode
-StackExchange.Redis.Signedness
-StackExchange.Redis.Signedness.Signed = 1 -> StackExchange.Redis.Signedness
-StackExchange.Redis.Signedness.Unsigned = 0 -> StackExchange.Redis.Signedness
 StackExchange.Redis.SlotRange
 StackExchange.Redis.SlotRange.CompareTo(StackExchange.Redis.SlotRange other) -> int
 StackExchange.Redis.SlotRange.Equals(StackExchange.Redis.SlotRange other) -> bool
