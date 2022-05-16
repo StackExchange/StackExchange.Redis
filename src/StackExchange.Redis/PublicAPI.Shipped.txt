@@ -68,13 +68,13 @@ StackExchange.Redis.BacklogPolicy.QueueWhileDisconnected.get -> bool
 StackExchange.Redis.BacklogPolicy.QueueWhileDisconnected.init -> void
 StackExchange.Redis.BitfieldCommandBuilder
 StackExchange.Redis.BitfieldCommandBuilder.BitfieldCommandBuilder() -> void
-StackExchange.Redis.BitfieldCommandBuilder.BitfieldGet(StackExchange.Redis.BitfieldEncoding encoding, StackExchange.Redis.BitfieldOffset offset) -> StackExchange.Redis.BitfieldCommandBuilder!
-StackExchange.Redis.BitfieldCommandBuilder.BitfieldIncrby(StackExchange.Redis.BitfieldEncoding encoding, StackExchange.Redis.BitfieldOffset offset, long increment, StackExchange.Redis.BitfieldOverflowHandling overflowHandling = StackExchange.Redis.BitfieldOverflowHandling.Wrap) -> StackExchange.Redis.BitfieldCommandBuilder!
-StackExchange.Redis.BitfieldCommandBuilder.BitfieldSet(StackExchange.Redis.BitfieldEncoding encoding, StackExchange.Redis.BitfieldOffset offset, long value) -> StackExchange.Redis.BitfieldCommandBuilder!
+StackExchange.Redis.BitfieldCommandBuilder.Get(StackExchange.Redis.BitfieldEncoding encoding, StackExchange.Redis.BitfieldOffset offset) -> StackExchange.Redis.BitfieldCommandBuilder!
+StackExchange.Redis.BitfieldCommandBuilder.Incrby(StackExchange.Redis.BitfieldEncoding encoding, StackExchange.Redis.BitfieldOffset offset, long increment, StackExchange.Redis.BitfieldOverflowHandling overflowHandling = StackExchange.Redis.BitfieldOverflowHandling.Wrap) -> StackExchange.Redis.BitfieldCommandBuilder!
+StackExchange.Redis.BitfieldCommandBuilder.Set(StackExchange.Redis.BitfieldEncoding encoding, StackExchange.Redis.BitfieldOffset offset, long value) -> StackExchange.Redis.BitfieldCommandBuilder!
 StackExchange.Redis.BitfieldEncoding
 StackExchange.Redis.BitfieldEncoding.BitfieldEncoding() -> void
-StackExchange.Redis.BitfieldEncoding.BitfieldEncoding(StackExchange.Redis.Signedness signedness, byte size) -> void
-StackExchange.Redis.BitfieldEncoding.Signedness.get -> StackExchange.Redis.Signedness
+StackExchange.Redis.BitfieldEncoding.BitfieldEncoding(bool isSigned, byte size) -> void
+StackExchange.Redis.BitfieldEncoding.IsSigned.get -> bool
 StackExchange.Redis.BitfieldEncoding.Size.get -> byte
 StackExchange.Redis.BitfieldOffset
 StackExchange.Redis.BitfieldOffset.BitfieldOffset() -> void

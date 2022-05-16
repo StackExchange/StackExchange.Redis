@@ -18,7 +18,7 @@ public enum BitfieldOverflowHandling
     /// <summary>
     /// If an overflow is encountered, associated subcommand fails, and the result will be NULL.
     /// </summary>
-    Fail
+    Fail,
 }
 
 internal static class BitfieldOverflowHandlingExtensions

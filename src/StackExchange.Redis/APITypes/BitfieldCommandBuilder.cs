@@ -1,6 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
+﻿using System.Collections.Generic;
 
 namespace StackExchange.Redis;
 
@@ -17,7 +15,7 @@ public class BitfieldCommandBuilder
     /// </summary>
     /// <param name="encoding">The encoding for the subcommand.</param>
     /// <param name="offset">The offset into the bitfield for the subcommand.</param>
-    public BitfieldCommandBuilder BitfieldGet(BitfieldEncoding encoding, BitfieldOffset offset)
+    public BitfieldCommandBuilder Get(BitfieldEncoding encoding, BitfieldOffset offset)
     {
         _eligibleForReadOnly = true;
         _args.AddLast(RedisLiterals.GET);
@@ -32,7 +30,7 @@ public class BitfieldCommandBuilder
     /// <param name="encoding">The encoding of the subcommand.</param>
     /// <param name="offset">The offset of the subcommand.</param>
     /// <param name="value">The value to set.</param>
-    public BitfieldCommandBuilder BitfieldSet(BitfieldEncoding encoding, BitfieldOffset offset, long value)
+    public BitfieldCommandBuilder Set(BitfieldEncoding encoding, BitfieldOffset offset, long value)
     {
         _eligibleForReadOnly = false;
         _args.AddLast(RedisLiterals.SET);
@@ -49,7 +47,7 @@ public class BitfieldCommandBuilder
     /// <param name="offset">The offset into the bitfield to increment.</param>
     /// <param name="increment">The value to increment by.</param>
     /// <param name="overflowHandling">How overflows will be handled when incrementing.</param>
-    public BitfieldCommandBuilder BitfieldIncrby(BitfieldEncoding encoding, BitfieldOffset offset, long increment, BitfieldOverflowHandling overflowHandling = BitfieldOverflowHandling.Wrap)
+    public BitfieldCommandBuilder Incrby(BitfieldEncoding encoding, BitfieldOffset offset, long increment, BitfieldOverflowHandling overflowHandling = BitfieldOverflowHandling.Wrap)
     {
         _eligibleForReadOnly = false;
         if (overflowHandling != BitfieldOverflowHandling.Wrap)
@@ -97,13 +95,42 @@ internal class BitfieldCommandMessage : Message
 }
 
 /// <summary>
+/// The encoding that a sub-command should use. This is either a signed or unsigned integer of a specified length.
+/// </summary>
+public readonly struct BitfieldEncoding
+{
+    internal RedisValue RedisValue => $"{(IsSigned ? 'i' : 'u')}{Size}";
+
+    /// <summary>
+    /// Whether the integer is signed or not.
+    /// </summary>
+    public bool IsSigned { get; }
+
+    /// <summary>
+    /// The size of the integer.
+    /// </summary>
+    public byte Size { get; }
+
+    /// <summary>
+    /// Initializes the BitfieldEncoding.
+    /// </summary>
+    /// <param name="isSigned">Whether the encoding is signed.</param>
+    /// <param name="size">The size of the integer.</param>
+    public BitfieldEncoding(bool isSigned, byte size)
+    {
+        IsSigned = isSigned;
+        Size = size;
+    }
+}
+
+/// <summary>
 /// An offset into a bitfield. This is either a literal offset (number of bits from the beginning of the bitfield) or an
 /// encoding based offset, based off the encoding of the sub-command.
 /// </summary>
 public readonly struct BitfieldOffset
 {
     /// <summary>
-    /// Returns the BitfieldOffset as a RedisValue
+    /// Returns the BitfieldOffset as a RedisValue.
     /// </summary>
     internal RedisValue RedisValue => $"{(ByEncoding ? "#" : string.Empty)}{Offset}";
 
@@ -126,34 +153,5 @@ public readonly struct BitfieldOffset
     {
         ByEncoding = byEncoding;
         Offset = offset;
-    }
-}
-
-/// <summary>
-/// The encoding that a sub-command should use. This is either a signed or unsigned integer of a specified length.
-/// </summary>
-public readonly struct BitfieldEncoding
-{
-    internal RedisValue RedisValue => $"{Signedness.SignChar()}{Size}";
-
-    /// <summary>
-    /// The signedness of the integer.
-    /// </summary>
-    public Signedness Signedness { get; }
-
-    /// <summary>
-    /// The size of the integer.
-    /// </summary>
-    public byte Size { get; }
-
-    /// <summary>
-    /// Initializes the BitfieldEncoding.
-    /// </summary>
-    /// <param name="signedness">The encoding's <see cref="Signedness"/></param>
-    /// <param name="size">The size of the integer.</param>
-    public BitfieldEncoding(Signedness signedness, byte size)
-    {
-        Signedness = signedness;
-        Size = size;
     }
 }

@@ -2866,37 +2866,37 @@ namespace StackExchange.Redis
 
         public long StringBitfieldGet(RedisKey key, BitfieldEncoding encoding, BitfieldOffset offset, CommandFlags flags = CommandFlags.None)
         {
-            var msg = new BitfieldCommandBuilder().BitfieldGet(encoding, offset).Build(Database, key, flags, this, out ServerEndPoint? server);
+            var msg = new BitfieldCommandBuilder().Get(encoding, offset).Build(Database, key, flags, this, out ServerEndPoint? server);
             return ExecuteSync(msg, ResultProcessor.Int64, server);
         }
 
         public Task<long> StringBitfieldGetAsync(RedisKey key, BitfieldEncoding encoding, BitfieldOffset offset, CommandFlags flags = CommandFlags.None)
         {
-            var msg = new BitfieldCommandBuilder().BitfieldGet(encoding, offset).Build(Database, key, flags, this, out ServerEndPoint? server);
+            var msg = new BitfieldCommandBuilder().Get(encoding, offset).Build(Database, key, flags, this, out ServerEndPoint? server);
             return ExecuteAsync(msg, ResultProcessor.Int64, server);
         }
 
         public long StringBitfieldSet(RedisKey key, BitfieldEncoding encoding, BitfieldOffset offset, long value, CommandFlags flags = CommandFlags.None)
         {
-            var msg = new BitfieldCommandBuilder().BitfieldSet(encoding, offset, value).Build(Database, key, flags, this, out ServerEndPoint? server);
+            var msg = new BitfieldCommandBuilder().Set(encoding, offset, value).Build(Database, key, flags, this, out ServerEndPoint? server);
             return ExecuteSync(msg, ResultProcessor.Int64, server);
         }
 
         public Task<long> StringBitfieldSetAsync(RedisKey key, BitfieldEncoding encoding, BitfieldOffset offset, long value, CommandFlags flags = CommandFlags.None)
         {
-            var msg = new BitfieldCommandBuilder().BitfieldSet(encoding, offset, value).Build(Database, key, flags, this, out ServerEndPoint? server);
+            var msg = new BitfieldCommandBuilder().Set(encoding, offset, value).Build(Database, key, flags, this, out ServerEndPoint? server);
             return ExecuteAsync(msg, ResultProcessor.Int64, server);
         }
 
         public long? StringBitfieldIncrement(RedisKey key, BitfieldEncoding encoding, BitfieldOffset offset, long increment, BitfieldOverflowHandling overflowHandling = BitfieldOverflowHandling.Wrap, CommandFlags flags = CommandFlags.None)
         {
-            var msg = new BitfieldCommandBuilder().BitfieldIncrby(encoding, offset, increment, overflowHandling).Build(Database, key, flags, this, out ServerEndPoint? server);
+            var msg = new BitfieldCommandBuilder().Incrby(encoding, offset, increment, overflowHandling).Build(Database, key, flags, this, out ServerEndPoint? server);
             return ExecuteSync(msg, ResultProcessor.NullableInt64, server);
         }
 
         public Task<long?> StringBitfieldIncrementAsync(RedisKey key, BitfieldEncoding encoding, BitfieldOffset offset, long increment, BitfieldOverflowHandling overflowHandling = BitfieldOverflowHandling.Wrap, CommandFlags flags = CommandFlags.None)
         {
-            var msg = new BitfieldCommandBuilder().BitfieldIncrby(encoding, offset, increment, overflowHandling).Build(Database, key, flags, this, out ServerEndPoint? server);
+            var msg = new BitfieldCommandBuilder().Incrby(encoding, offset, increment, overflowHandling).Build(Database, key, flags, this, out ServerEndPoint? server);
             return ExecuteAsync(msg, ResultProcessor.NullableInt64, server);
         }
 

@@ -17,7 +17,7 @@ public class Bitfield : TestBase
         RedisKey key = Me();
         db.KeyDelete(key);
 
-        var encoding = new BitfieldEncoding(Signedness.Signed, 10);
+        var encoding = new BitfieldEncoding(isSigned: true, 10);
         var offset = new BitfieldOffset(true, 1);
 
         // should be the old value
@@ -28,7 +28,7 @@ public class Bitfield : TestBase
         Assert.Equal(-255, getResult);
         Assert.Equal(-265, incrementResult);
 
-        encoding = new BitfieldEncoding(Signedness.Unsigned, 18);
+        encoding = new BitfieldEncoding(isSigned: false, 18);
         offset = new BitfieldOffset(false, 22);
 
         setResult = db.StringBitfieldSet(key, encoding, offset, 262123);
@@ -48,7 +48,7 @@ public class Bitfield : TestBase
         RedisKey key = Me();
         db.KeyDelete(key);
 
-        var encoding = new BitfieldEncoding(Signedness.Signed, 10);
+        var encoding = new BitfieldEncoding(isSigned: true, 10);
         var offset = new BitfieldOffset(true, 1);
 
         // should be the old value
@@ -59,7 +59,7 @@ public class Bitfield : TestBase
         Assert.Equal(-255, getResult);
         Assert.Equal(-265, incrementResult);
 
-        encoding = new BitfieldEncoding(Signedness.Unsigned, 18);
+        encoding = new BitfieldEncoding(isSigned: false, 18);
         offset = new BitfieldOffset(false, 22);
 
         setResult = await db.StringBitfieldSetAsync(key, encoding, offset, 262123);
@@ -80,12 +80,12 @@ public class Bitfield : TestBase
         db.KeyDelete(key);
 
         var builder = new BitfieldCommandBuilder()
-            .BitfieldSet(new BitfieldEncoding(Signedness.Unsigned, 3), new BitfieldOffset(false, 5), 7)
-            .BitfieldGet(new BitfieldEncoding(Signedness.Unsigned, 3), new BitfieldOffset(false, 5))
-            .BitfieldIncrby(new BitfieldEncoding(Signedness.Unsigned, 3), new BitfieldOffset(false, 5), -1)
-            .BitfieldSet(new BitfieldEncoding(Signedness.Signed, 45), new BitfieldOffset(true, 1), 17592186044415)
-            .BitfieldGet(new BitfieldEncoding(Signedness.Signed, 45), new BitfieldOffset(true, 1))
-            .BitfieldIncrby(new BitfieldEncoding(Signedness.Signed, 45), new BitfieldOffset(true, 1), 1,
+            .Set(new BitfieldEncoding(isSigned: false, 3), new BitfieldOffset(false, 5), 7)
+            .Get(new BitfieldEncoding(isSigned: false, 3), new BitfieldOffset(false, 5))
+            .Incrby(new BitfieldEncoding(isSigned: false, 3), new BitfieldOffset(false, 5), -1)
+            .Set(new BitfieldEncoding(isSigned: true, 45), new BitfieldOffset(true, 1), 17592186044415)
+            .Get(new BitfieldEncoding(isSigned: true, 45), new BitfieldOffset(true, 1))
+            .Incrby(new BitfieldEncoding(isSigned: true, 45), new BitfieldOffset(true, 1), 1,
                 BitfieldOverflowHandling.Fail);
 
         var res = await db.StringBitfieldAsync(key, builder);
@@ -106,7 +106,7 @@ public class Bitfield : TestBase
         RedisKey key = Me();
         db.KeyDelete(key);
 
-        var encoding = new BitfieldEncoding(Signedness.Signed, 3);
+        var encoding = new BitfieldEncoding(isSigned: true, 3);
         var offset = new BitfieldOffset(true, 3);
 
         await db.StringBitfieldSetAsync(key, encoding, offset, 3);
