@@ -695,6 +695,14 @@ public class Strings : TestBase
         Assert.Equal(string.Empty, db.StringLongestCommonSubsequence(key1, key2));
         db.KeyDelete(key2);
         Assert.Equal(string.Empty, db.StringLongestCommonSubsequence(key1, key2));
+        stringMatchResult = db.StringLongestCommonSubsequenceWithMatches(key1, key2);
+        Assert.NotNull(stringMatchResult.Matches);
+        Assert.Empty(stringMatchResult.Matches);
+        Assert.Equal(0, stringMatchResult.LongestMatchLength);
+
+        // Default value
+        stringMatchResult = db.StringLongestCommonSubsequenceWithMatches(key1, key2, flags: CommandFlags.FireAndForget);
+        Assert.Equal(stringMatchResult, LCSMatchResult.Null);
     }
 
     [Fact]
@@ -721,6 +729,20 @@ public class Strings : TestBase
         stringMatchResult = await db.StringLongestCommonSubsequenceWithMatchesAsync(key1, key2, 5);
         Assert.Empty(stringMatchResult.Matches); // no matches longer than 5 characters
         Assert.Equal(6, stringMatchResult.LongestMatchLength);
+
+        // Missing keys
+        db.KeyDelete(key1);
+        Assert.Equal(string.Empty, await db.StringLongestCommonSubsequenceAsync(key1, key2));
+        db.KeyDelete(key2);
+        Assert.Equal(string.Empty, await db.StringLongestCommonSubsequenceAsync(key1, key2));
+        stringMatchResult = await db.StringLongestCommonSubsequenceWithMatchesAsync(key1, key2);
+        Assert.NotNull(stringMatchResult.Matches);
+        Assert.Empty(stringMatchResult.Matches);
+        Assert.Equal(0, stringMatchResult.LongestMatchLength);
+
+        // Default value
+        stringMatchResult = await db.StringLongestCommonSubsequenceWithMatchesAsync(key1, key2, flags: CommandFlags.FireAndForget);
+        Assert.Equal(stringMatchResult, LCSMatchResult.Null);
     }
 
     private static byte[] Encode(string value) => Encoding.UTF8.GetBytes(value);
