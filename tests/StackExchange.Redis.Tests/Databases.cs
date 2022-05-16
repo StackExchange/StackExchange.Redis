@@ -10,6 +10,20 @@ public class Databases : TestBase
     public Databases(ITestOutputHelper output, SharedConnectionFixture fixture) : base (output, fixture) { }
 
     [Fact]
+    public async Task CommandCount()
+    {
+        using var conn = Create(allowAdmin: true);
+        var server = GetAnyPrimary(conn);
+        var db = conn.GetDatabase();
+
+        var count = server.CommandCount();
+        Assert.True(count > 100);
+
+        count = await server.CommandCountAsync();
+        Assert.True(count > 100);    
+    }
+
+    [Fact]    
     public async Task CountKeys()
     {
         var db1Id = TestConfig.GetDedicatedDB();

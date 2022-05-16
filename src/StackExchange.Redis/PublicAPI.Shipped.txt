@@ -980,6 +980,8 @@ StackExchange.Redis.IServer.ConfigRewrite(StackExchange.Redis.CommandFlags flags
 StackExchange.Redis.IServer.ConfigRewriteAsync(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task!
 StackExchange.Redis.IServer.ConfigSet(StackExchange.Redis.RedisValue setting, StackExchange.Redis.RedisValue value, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> void
 StackExchange.Redis.IServer.ConfigSetAsync(StackExchange.Redis.RedisValue setting, StackExchange.Redis.RedisValue value, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task!
+StackExchange.Redis.IServer.CommandCount(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
+StackExchange.Redis.IServer.CommandCountAsync(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
 StackExchange.Redis.IServer.DatabaseCount.get -> int
 StackExchange.Redis.IServer.DatabaseSize(int database = -1, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
 StackExchange.Redis.IServer.DatabaseSizeAsync(int database = -1, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!

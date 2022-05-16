@@ -180,6 +180,16 @@ namespace StackExchange.Redis
         Task ConfigSetAsync(RedisValue setting, RedisValue value, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Returns the number of total commands in this Redis server.
+        /// </summary>
+        /// <param name="flags">The command flags to use.</param>
+        /// <remarks><seealso href="https://redis.io/commands/command-count/"/></remarks>
+        long CommandCount(CommandFlags flags = CommandFlags.None);
+        
+        /// <inheritdoc cref="CommandCount(CommandFlags)"/>        
+        Task<long> CommandCountAsync(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Return the number of keys in the database.
         /// </summary>
         /// <param name="database">The database ID.</param>

@@ -204,6 +204,18 @@ namespace StackExchange.Redis
             return task;
         }
 
+        public long CommandCount(CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.COMMAND, RedisLiterals.COUNT);
+            return ExecuteSync(msg, ResultProcessor.Int64);
+        }
+
+        public Task<long> CommandCountAsync(CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.COMMAND, RedisLiterals.COUNT);
+            return ExecuteAsync(msg, ResultProcessor.Int64);
+        }
+
         public long DatabaseSize(int database = -1, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(multiplexer.ApplyDefaultDatabase(database), flags, RedisCommand.DBSIZE);
