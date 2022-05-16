@@ -167,20 +167,23 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public long KeyExists(RedisKey[] keys, CommandFlags flags = CommandFlags.None) =>
             Inner.KeyExists(ToInner(keys), flags);
 
-        public bool KeyExpire(RedisKey key, DateTime? expiry, CommandFlags flags = CommandFlags.None) =>
+        public bool KeyExpire(RedisKey key, DateTime? expiry, CommandFlags flags) =>
             Inner.KeyExpire(ToInner(key), expiry, flags);
 
-        public bool KeyExpire(RedisKey key, DateTime? expiry, ExpireWhen when, CommandFlags flags = CommandFlags.None) =>
+        public bool KeyExpire(RedisKey key, DateTime? expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None) =>
             Inner.KeyExpire(ToInner(key), expiry, when, flags);
 
-        public bool KeyExpire(RedisKey key, TimeSpan? expiry, CommandFlags flags = CommandFlags.None) =>
+        public bool KeyExpire(RedisKey key, TimeSpan? expiry, CommandFlags flags) =>
             Inner.KeyExpire(ToInner(key), expiry, flags);
 
-        public bool KeyExpire(RedisKey key, TimeSpan? expiry, ExpireWhen when, CommandFlags flags = CommandFlags.None) =>
+        public bool KeyExpire(RedisKey key, TimeSpan? expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None) =>
             Inner.KeyExpire(ToInner(key), expiry, when, flags);
 
         public DateTime? KeyExpireTime(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.KeyExpireTime(ToInner(key), flags);
+
+        public long? KeyFrequency(RedisKey key, CommandFlags flags = CommandFlags.None) =>
+            Inner.KeyFrequency(ToInner(key), flags);
 
         public TimeSpan? KeyIdleTime(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.KeyIdleTime(ToInner(key), flags);
@@ -227,6 +230,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public RedisValue[] ListLeftPop(RedisKey key, long count, CommandFlags flags = CommandFlags.None) =>
             Inner.ListLeftPop(ToInner(key), count, flags);
 
+        public ListPopResult ListLeftPop(RedisKey[] keys, long count, CommandFlags flags = CommandFlags.None) =>
+            Inner.ListLeftPop(ToInner(keys), count, flags);
+
         public long ListPosition(RedisKey key, RedisValue element, long rank = 1, long maxLength = 0, CommandFlags flags = CommandFlags.None) =>
             Inner.ListPosition(ToInner(key), element, rank, maxLength, flags);
 
@@ -260,6 +266,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public RedisValue[] ListRightPop(RedisKey key, long count, CommandFlags flags = CommandFlags.None) =>
             Inner.ListRightPop(ToInner(key), count, flags);
 
+        public ListPopResult ListRightPop(RedisKey[] keys, long count, CommandFlags flags = CommandFlags.None) =>
+            Inner.ListRightPop(ToInner(keys), count, flags);
+
         public RedisValue ListRightPopLeftPush(RedisKey source, RedisKey destination, CommandFlags flags = CommandFlags.None) =>
             Inner.ListRightPopLeftPush(ToInner(source), ToInner(destination), flags);
 
@@ -289,6 +298,15 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public bool LockTake(RedisKey key, RedisValue value, TimeSpan expiry, CommandFlags flags = CommandFlags.None) =>
             Inner.LockTake(ToInner(key), value, expiry, flags);
+
+        public string? StringLongestCommonSubsequence(RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None) =>
+            Inner.StringLongestCommonSubsequence(ToInner(first), ToInner(second), flags);
+
+        public long StringLongestCommonSubsequenceLength(RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None) =>
+            Inner.StringLongestCommonSubsequenceLength(ToInner(first), ToInner(second), flags);
+
+        public LCSMatchResult StringLongestCommonSubsequenceWithMatches(RedisKey first, RedisKey second, long minLength = 0, CommandFlags flags = CommandFlags.None) =>
+            Inner.StringLongestCommonSubsequenceWithMatches(ToInner(first), ToInner(second), minLength, flags);
 
         public long Publish(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None) =>
             Inner.Publish(ToInner(channel), message, flags);
@@ -484,6 +502,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public SortedSetEntry[] SortedSetPop(RedisKey key, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetPop(ToInner(key), count, order, flags);
 
+        public SortedSetPopResult SortedSetPop(RedisKey[] keys, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None) =>
+            Inner.SortedSetPop(ToInner(keys), count, order, flags);
+
         public long StreamAcknowledge(RedisKey key, RedisValue groupName, RedisValue messageId, CommandFlags flags = CommandFlags.None) =>
             Inner.StreamAcknowledge(ToInner(key), groupName, messageId, flags);
 
@@ -571,8 +592,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public long StringAppend(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None) =>
             Inner.StringAppend(ToInner(key), value, flags);
 
-        public long StringBitCount(RedisKey key, long start = 0, long end = -1, CommandFlags flags = CommandFlags.None) =>
+        public long StringBitCount(RedisKey key, long start, long end, CommandFlags flags) =>
             Inner.StringBitCount(ToInner(key), start, end, flags);
+            
+        public long StringBitCount(RedisKey key, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, CommandFlags flags = CommandFlags.None) =>
+            Inner.StringBitCount(ToInner(key), start, end, indexType, flags);
 
         public long StringBitfieldGet(RedisKey key, BitfieldEncoding encoding, BitfieldOffset offset, CommandFlags flags = CommandFlags.None) =>
             Inner.StringBitfieldGet(ToInner(key), encoding, offset, flags);
@@ -592,8 +616,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public long StringBitOperation(Bitwise operation, RedisKey destination, RedisKey first, RedisKey second = default, CommandFlags flags = CommandFlags.None) =>
             Inner.StringBitOperation(operation, ToInner(destination), ToInner(first), ToInnerOrDefault(second), flags);
 
-        public long StringBitPosition(RedisKey key, bool bit, long start = 0, long end = -1, CommandFlags flags = CommandFlags.None) =>
+        public long StringBitPosition(RedisKey key, bool bit, long start, long end, CommandFlags flags) =>
             Inner.StringBitPosition(ToInner(key), bit, start, end, flags);
+
+        public long StringBitPosition(RedisKey key, bool bit, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, CommandFlags flags = CommandFlags.None) =>
+            Inner.StringBitPosition(ToInner(key), bit, start, end, indexType, flags);
 
         public double StringDecrement(RedisKey key, double value, CommandFlags flags = CommandFlags.None) =>
             Inner.StringDecrement(ToInner(key), value, flags);
@@ -643,9 +670,10 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public bool StringSet(KeyValuePair<RedisKey, RedisValue>[] values, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
             Inner.StringSet(ToInner(values), when, flags);
 
+        public bool StringSet(RedisKey key, RedisValue value, TimeSpan? expiry, When when) =>
+            Inner.StringSet(ToInner(key), value, expiry, when);
         public bool StringSet(RedisKey key, RedisValue value, TimeSpan? expiry, When when, CommandFlags flags) =>
             Inner.StringSet(ToInner(key), value, expiry, when, flags);
-
         public bool StringSet(RedisKey key, RedisValue value, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
             Inner.StringSet(ToInner(key), value, expiry, keepTtl, when, flags);
 

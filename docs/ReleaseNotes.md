@@ -23,7 +23,17 @@
 - Adds: Support for `GEOSEARCH` with `.GeoSearch()`/`.GeoSearchAsync()` ([#2089 by slorello89](https://github.com/StackExchange/StackExchange.Redis/pull/2089))
 - Adds: Support for `GEOSEARCHSTORE` with `.GeoSearchAndStore()`/`.GeoSearchAndStoreAsync()` ([#2089 by slorello89](https://github.com/StackExchange/StackExchange.Redis/pull/2089))
 - Adds: Support for `HRANDFIELD` with `.HashRandomField()`/`.HashRandomFieldAsync()`, `.HashRandomFields()`/`.HashRandomFieldsAsync()`, and `.HashRandomFieldsWithValues()`/`.HashRandomFieldsWithValuesAsync()` ([#2090 by slorello89](https://github.com/StackExchange/StackExchange.Redis/pull/2090))
+- Adds: Support for `LMPOP` with `.ListLeftPop()`/`.ListLeftPopAsync()` and `.ListRightPop()`/`.ListRightPopAsync()` ([#2094 by slorello89](https://github.com/StackExchange/StackExchange.Redis/pull/2094))
+- Adds: Support for `ZMPOP` with `.SortedSetPop()`/`.SortedSetPopAsync()` ([#2094 by slorello89](https://github.com/StackExchange/StackExchange.Redis/pull/2094))
 - Adds: Support for `XAUTOCLAIM` with `.StreamAutoClaim()`/.`StreamAutoClaimAsync()` and `.StreamAutoClaimIdsOnly()`/.`StreamAutoClaimIdsOnlyAsync()` ([#2095 by ttingen](https://github.com/StackExchange/StackExchange.Redis/pull/2095))
+- Fix [#2071](https://github.com/StackExchange/StackExchange.Redis/issues/2071): Add `.StringSet()`/`.StringSetAsync()` overloads for source compat broken for 1 case in 2.5.61 ([#2098 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2098))
+- Adds: Support for `LCS` with `.StringLongestCommonSubsequence()`/`.StringLongestCommonSubsequence()`, `.StringLongestCommonSubsequenceLength()`/`.StringLongestCommonSubsequenceLengthAsync()`, and `.StringLongestCommonSubsequenceWithMatches()`/`.StringLongestCommonSubsequenceWithMatchesAsync()` ([#2104 by Avital-Fine](https://github.com/StackExchange/StackExchange.Redis/pull/2104))
+- Adds: Support for `OBJECT FREQ` with `.KeyFrequency()`/`.KeyFrequencyAsync()` ([#2105 by Avital-Fine](https://github.com/StackExchange/StackExchange.Redis/pull/2105))
+- Performance: Avoids allocations when computing cluster hash slots or testing key equality ([#2110 by Marc Gravell](https://github.com/StackExchange/StackExchange.Redis/pull/2110))
+- Adds: Support for `SORT_RO` with `.Sort()`/`.SortAsync()` ([#2111 by slorello89](https://github.com/StackExchange/StackExchange.Redis/pull/2111))
+- Adds: Support for `BIT | BYTE` to `BITCOUNT` and `BITPOS` with `.StringBitCount()`/`.StringBitCountAsync()` and `.StringBitPosition()`/`.StringBitPositionAsync()` [#2116 by Avital-Fine](https://github.com/StackExchange/StackExchange.Redis/pull/2116))
+- Adds: Support for pub/sub payloads that are unary arrays ([#2118 by Marc Gravell](https://github.com/StackExchange/StackExchange.Redis/pull/2118))
+- Fix: Sentinel timer race during dispose ([#2133 by ewisuri](https://github.com/StackExchange/StackExchange.Redis/pull/2133))
 
 ## 2.5.61
 

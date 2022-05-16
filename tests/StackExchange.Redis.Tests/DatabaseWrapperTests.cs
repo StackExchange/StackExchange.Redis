@@ -320,6 +320,13 @@ public sealed class DatabaseWrapperTests
     }
 
     [Fact]
+    public void KeyFrequency()
+    {
+        wrapper.KeyFrequency("key", CommandFlags.None);
+        mock.Verify(_ => _.KeyFrequency("prefix:key", CommandFlags.None));
+    }
+
+    [Fact]
     public void KeyMigrate()
     {
         EndPoint toServer = new IPEndPoint(IPAddress.Loopback, 123);
@@ -1177,6 +1184,13 @@ public sealed class DatabaseWrapperTests
     }
 
     [Fact]
+    public void StringBitCount_2()
+    {
+        wrapper.StringBitCount("key", 123, 456, StringIndexType.Byte, CommandFlags.None);
+        mock.Verify(_ => _.StringBitCount("prefix:key", 123, 456, StringIndexType.Byte, CommandFlags.None));
+    }
+
+    [Fact]
     public void StringBitOperation_1()
     {
         wrapper.StringBitOperation(Bitwise.Xor, "destination", "first", "second", CommandFlags.None);
@@ -1197,6 +1211,13 @@ public sealed class DatabaseWrapperTests
     {
         wrapper.StringBitPosition("key", true, 123, 456, CommandFlags.None);
         mock.Verify(_ => _.StringBitPosition("prefix:key", true, 123, 456, CommandFlags.None));
+    }
+
+    [Fact]
+    public void StringBitPosition_2()
+    {
+        wrapper.StringBitPosition("key", true, 123, 456, StringIndexType.Byte, CommandFlags.None);
+        mock.Verify(_ => _.StringBitPosition("prefix:key", true, 123, 456, StringIndexType.Byte, CommandFlags.None));
     }
 
     [Fact]
@@ -1308,6 +1329,14 @@ public sealed class DatabaseWrapperTests
         Expression<Func<KeyValuePair<RedisKey, RedisValue>[], bool>> valid = _ => _.Length == 2 && _[0].Key == "prefix:a" && _[0].Value == "x" && _[1].Key == "prefix:b" && _[1].Value == "y";
         wrapper.StringSet(values, When.Exists, CommandFlags.None);
         mock.Verify(_ => _.StringSet(It.Is(valid), When.Exists, CommandFlags.None));
+    }
+
+    [Fact]
+    public void StringSet_Compat()
+    {
+        TimeSpan? expiry = null;
+        wrapper.StringSet("key", "value", expiry, When.Exists);
+        mock.Verify(_ => _.StringSet("prefix:key", "value", expiry, When.Exists));
     }
 
     [Fact]

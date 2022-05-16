@@ -119,6 +119,12 @@ namespace StackExchange.Redis
         public static readonly SortedSetEntryArrayProcessor
             SortedSetWithScores = new SortedSetEntryArrayProcessor();
 
+        public static readonly SortedSetPopResultProcessor
+            SortedSetPopResult = new SortedSetPopResultProcessor();
+
+        public static readonly ListPopResultProcessor
+            ListPopResult = new ListPopResultProcessor();
+
         public static readonly SingleStreamProcessor
             SingleStream = new SingleStreamProcessor();
 
@@ -147,6 +153,9 @@ namespace StackExchange.Redis
             StreamPendingMessages = new StreamPendingMessagesProcessor();
 
         public static ResultProcessor<GeoRadiusResult[]> GeoRadiusArray(GeoRadiusOptions options) => GeoRadiusResultArrayProcessor.Get(options);
+
+        public static readonly ResultProcessor<LCSMatchResult>
+            LCSMatchResult = new LongestCommonSubsequenceProcessor();
 
         public static readonly ResultProcessor<string?>
             String = new StringProcessor(),
@@ -257,7 +266,7 @@ namespace StackExchange.Redis
                                 {
                                     unableToConnectError = true;
                                     err = $"Endpoint {endpoint} serving hashslot {hashSlot} is not reachable at this point of time. Please check connectTimeout value. If it is low, try increasing it to give the ConnectionMultiplexer a chance to recover from the network disconnect. "
-                                        + PerfCounterHelper.GetThreadPoolAndCPUSummary(bridge.Multiplexer.IncludePerformanceCountersInExceptions);
+                                        + PerfCounterHelper.GetThreadPoolAndCPUSummary(bridge.Multiplexer.RawConfig.IncludePerformanceCountersInExceptions);
                                 }
                             }
                         }
@@ -572,6 +581,49 @@ namespace StackExchange.Redis
             protected override SortedSetEntry Parse(in RawResult first, in RawResult second) =>
                 new SortedSetEntry(first.AsRedisValue(), second.TryGetDouble(out double val) ? val : double.NaN);
         }
+
+        internal sealed class SortedSetPopResultProcessor : ResultProcessor<SortedSetPopResult>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                if (result.Type == ResultType.MultiBulk)
+                {
+                    if (result.IsNull)
+                    {
+                        SetResult(message, Redis.SortedSetPopResult.Null);
+                        return true;
+                    }
+
+                    var arr = result.GetItems();
+                    SetResult(message, new SortedSetPopResult(arr[0].AsRedisKey(), arr[1].GetItemsAsSortedSetEntryArray()!));
+                    return true;
+                }
+
+                return false;
+            }
+        }
+
+        internal sealed class ListPopResultProcessor : ResultProcessor<ListPopResult>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                if (result.Type == ResultType.MultiBulk)
+                {
+                    if (result.IsNull)
+                    {
+                        SetResult(message, Redis.ListPopResult.Null);
+                        return true;
+                    }
+
+                    var arr = result.GetItems();
+                    SetResult(message, new ListPopResult(arr[0].AsRedisKey(), arr[1].GetItemsAsValues()!));
+                    return true;
+                }
+
+                return false;
+            }
+        }
+
 
         internal sealed class HashEntryArrayProcessor : ValuePairInterleavedProcessorBase<HashEntry>
         {
@@ -1511,6 +1563,55 @@ The coordinates as a two items x,y array (longitude,latitude).
                     position = new GeoPosition(longitude, latitude);
                 }
                 return new GeoRadiusResult(member, distance, hash, position);
+            }
+        }
+
+        /// <summary>
+        /// Parser for the https://redis.io/commands/lcs/ format with the <see cref="RedisLiterals.IDX"/> and <see cref="RedisLiterals.WITHMATCHLEN"/> arguments.
+        /// </summary>
+        /// <remarks>
+        /// Example response:
+        /// 1) "matches"
+        /// 2) 1) 1) 1) (integer) 4
+        ///          2) (integer) 7
+        ///       2) 1) (integer) 5
+        ///          2) (integer) 8
+        ///       3) (integer) 4
+        /// 3) "len"
+        /// 4) (integer) 6
+        /// </remarks>
+        private sealed class LongestCommonSubsequenceProcessor : ResultProcessor<LCSMatchResult>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                switch (result.Type)
+                {
+                    case ResultType.BulkString:
+                    case ResultType.MultiBulk:
+                        SetResult(message, Parse(result));
+                        return true;
+                }
+                return false;
+            }
+
+            private static LCSMatchResult Parse(in RawResult result)
+            {
+                var topItems = result.GetItems();
+                var matches = new LCSMatchResult.LCSMatch[topItems[1].GetItems().Length];
+                int i = 0;
+                var matchesRawArray = topItems[1]; // skip the first element (title "matches")
+                foreach (var match in matchesRawArray.GetItems())
+                {
+                    var matchItems = match.GetItems();
+
+                    matches[i++] = new LCSMatchResult.LCSMatch(
+                        firstStringIndex: (long)matchItems[0].GetItems()[0].AsRedisValue(),
+                        secondStringIndex: (long)matchItems[1].GetItems()[0].AsRedisValue(),
+                        length: (long)matchItems[2].AsRedisValue());
+                }
+                var len = (long)topItems[3].AsRedisValue();
+
+                return new LCSMatchResult(matches, len);
             }
         }
 

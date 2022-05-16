@@ -496,14 +496,51 @@ public class Strings : TestBase
 
         var db = conn.GetDatabase();
         var key = Me();
+        db.KeyDelete(key, flags: CommandFlags.FireAndForget);
         db.StringSet(key, "foobar", flags: CommandFlags.FireAndForget);
-        var r1 = db.StringBitCountAsync(key);
-        var r2 = db.StringBitCountAsync(key, 0, 0);
-        var r3 = db.StringBitCountAsync(key, 1, 1);
 
-        Assert.Equal(26, await r1);
-        Assert.Equal(4, await r2);
-        Assert.Equal(6, await r3);
+        var r1 = db.StringBitCount(key);
+        var r2 = db.StringBitCount(key, 0, 0);
+        var r3 = db.StringBitCount(key, 1, 1);
+
+        Assert.Equal(26, r1);
+        Assert.Equal(4, r2);
+        Assert.Equal(6, r3);
+
+        // Async
+
+        r1 = await db.StringBitCountAsync(key);
+        r2 = await db.StringBitCountAsync(key, 0, 0);
+        r3 = await db.StringBitCountAsync(key, 1, 1);
+
+        Assert.Equal(26, r1);
+        Assert.Equal(4, r2);
+        Assert.Equal(6, r3);
+    }
+
+    [Fact]
+    public async Task BitCountWithBitUnit()
+    {
+        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+
+        var db = conn.GetDatabase();
+        var key = Me();
+        db.KeyDelete(key, flags: CommandFlags.FireAndForget);
+        db.StringSet(key, "foobar", flags: CommandFlags.FireAndForget);
+
+        var r1 = db.StringBitCount(key, 1, 1); // Using default byte
+        var r2 = db.StringBitCount(key, 1, 1, StringIndexType.Bit);
+
+        Assert.Equal(6, r1);
+        Assert.Equal(1, r2);
+
+        // Async
+
+        r1 = await db.StringBitCountAsync(key, 1, 1); // Using default byte
+        r2 = await db.StringBitCountAsync(key, 1, 1, StringIndexType.Bit);
+
+        Assert.Equal(6, r1);
+        Assert.Equal(1, r2);
     }
 
     [Fact]
@@ -542,6 +579,52 @@ public class Strings : TestBase
     }
 
     [Fact]
+    public async Task BitPosition()
+    {
+        using var conn = Create(require: RedisFeatures.v2_6_0);
+
+        var db = conn.GetDatabase();
+        var key = Me();
+        db.KeyDelete(key, flags: CommandFlags.FireAndForget);
+        db.StringSet(key, "foo", flags: CommandFlags.FireAndForget);
+
+        var r1 = db.StringBitPosition(key, true);
+        var r2 = db.StringBitPosition(key, true, 10, 10);
+        var r3 = db.StringBitPosition(key, true, 1, 3);
+
+        Assert.Equal(1, r1);
+        Assert.Equal(-1, r2);
+        Assert.Equal(9, r3);
+
+        // Async
+
+        r1 = await db.StringBitPositionAsync(key, true);
+        r2 = await db.StringBitPositionAsync(key, true, 10, 10);
+        r3 = await db.StringBitPositionAsync(key, true, 1, 3);
+
+        Assert.Equal(1, r1);
+        Assert.Equal(-1, r2);
+        Assert.Equal(9, r3);
+    }
+
+    [Fact]
+    public async Task BitPositionWithBitUnit()
+    {
+        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+
+        var db = conn.GetDatabase();
+        var key = Me();
+        db.KeyDelete(key, flags: CommandFlags.FireAndForget);
+        db.StringSet(key, "foo", flags: CommandFlags.FireAndForget);
+
+        var r1 = db.StringBitPositionAsync(key, true, 1, 3); // Using default byte
+        var r2 = db.StringBitPositionAsync(key, true, 1, 3, StringIndexType.Bit);
+
+        Assert.Equal(9, await r1);
+        Assert.Equal(1, await r2);
+    }
+
+    [Fact]
     public async Task RangeString()
     {
         using var conn = Create();
@@ -558,27 +641,108 @@ public class Strings : TestBase
     {
         using var conn = Create(require: RedisFeatures.v3_2_0);
 
-        var database = conn.GetDatabase();
+        var db = conn.GetDatabase();
         var key = Me();
         const string value = "hello world";
-        database.HashSet(key, "field", value);
-        var resAsync = database.HashStringLengthAsync(key, "field");
-        var resNonExistingAsync = database.HashStringLengthAsync(key, "non-existing-field");
+        db.HashSet(key, "field", value);
+        var resAsync = db.HashStringLengthAsync(key, "field");
+        var resNonExistingAsync = db.HashStringLengthAsync(key, "non-existing-field");
         Assert.Equal(value.Length, await resAsync);
         Assert.Equal(0, await resNonExistingAsync);
     }
+
 
     [Fact]
     public void HashStringLength()
     {
         using var conn = Create(require: RedisFeatures.v3_2_0);
 
-        var database = conn.GetDatabase();
+        var db = conn.GetDatabase();
         var key = Me();
         const string value = "hello world";
-        database.HashSet(key, "field", value);
-        Assert.Equal(value.Length, database.HashStringLength(key, "field"));
-        Assert.Equal(0, database.HashStringLength(key, "non-existing-field"));
+        db.HashSet(key, "field", value);
+        Assert.Equal(value.Length, db.HashStringLength(key, "field"));
+        Assert.Equal(0, db.HashStringLength(key, "non-existing-field"));
+    }
+
+    [Fact]
+    public void LongestCommonSubsequence()
+    {
+        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+
+        var db = conn.GetDatabase();
+        var key1 = Me() + "1";
+        var key2 = Me() + "2";
+        db.KeyDelete(key1);
+        db.KeyDelete(key2);
+        db.StringSet(key1, "ohmytext");
+        db.StringSet(key2, "mynewtext");
+
+        Assert.Equal("mytext", db.StringLongestCommonSubsequence(key1, key2));
+        Assert.Equal(6, db.StringLongestCommonSubsequenceLength(key1, key2));
+
+        var stringMatchResult = db.StringLongestCommonSubsequenceWithMatches(key1, key2);
+        Assert.Equal(2, stringMatchResult.Matches.Length); // "my" and "text" are the two matches of the result
+        Assert.Equivalent(new LCSMatchResult.LCSMatch(4, 5, length: 4), stringMatchResult.Matches[0]); // the string "text" starts at index 4 in the first string and at index 5 in the second string
+        Assert.Equivalent(new LCSMatchResult.LCSMatch(2, 0, length: 2), stringMatchResult.Matches[1]); // the string "my" starts at index 2 in the first string and at index 0 in the second string
+
+        stringMatchResult = db.StringLongestCommonSubsequenceWithMatches(key1, key2, 5);
+        Assert.Empty(stringMatchResult.Matches); // no matches longer than 5 characters
+        Assert.Equal(6, stringMatchResult.LongestMatchLength);
+
+        // Missing keys
+        db.KeyDelete(key1);
+        Assert.Equal(string.Empty, db.StringLongestCommonSubsequence(key1, key2));
+        db.KeyDelete(key2);
+        Assert.Equal(string.Empty, db.StringLongestCommonSubsequence(key1, key2));
+        stringMatchResult = db.StringLongestCommonSubsequenceWithMatches(key1, key2);
+        Assert.NotNull(stringMatchResult.Matches);
+        Assert.Empty(stringMatchResult.Matches);
+        Assert.Equal(0, stringMatchResult.LongestMatchLength);
+
+        // Default value
+        stringMatchResult = db.StringLongestCommonSubsequenceWithMatches(key1, key2, flags: CommandFlags.FireAndForget);
+        Assert.Equal(stringMatchResult, LCSMatchResult.Null);
+    }
+
+    [Fact]
+    public async Task LongestCommonSubsequenceAsync()
+    {
+        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+
+        var db = conn.GetDatabase();
+        var key1 = Me() + "1";
+        var key2 = Me() + "2";
+        db.KeyDelete(key1);
+        db.KeyDelete(key2);
+        db.StringSet(key1, "ohmytext");
+        db.StringSet(key2, "mynewtext");
+
+        Assert.Equal("mytext", await db.StringLongestCommonSubsequenceAsync(key1, key2));
+        Assert.Equal(6, await db.StringLongestCommonSubsequenceLengthAsync(key1, key2));
+
+        var stringMatchResult = await db.StringLongestCommonSubsequenceWithMatchesAsync(key1, key2);
+        Assert.Equal(2, stringMatchResult.Matches.Length); // "my" and "text" are the two matches of the result
+        Assert.Equivalent(new LCSMatchResult.LCSMatch(4, 5, length: 4), stringMatchResult.Matches[0]); // the string "text" starts at index 4 in the first string and at index 5 in the second string
+        Assert.Equivalent(new LCSMatchResult.LCSMatch(2, 0, length: 2), stringMatchResult.Matches[1]); // the string "my" starts at index 2 in the first string and at index 0 in the second string
+
+        stringMatchResult = await db.StringLongestCommonSubsequenceWithMatchesAsync(key1, key2, 5);
+        Assert.Empty(stringMatchResult.Matches); // no matches longer than 5 characters
+        Assert.Equal(6, stringMatchResult.LongestMatchLength);
+
+        // Missing keys
+        db.KeyDelete(key1);
+        Assert.Equal(string.Empty, await db.StringLongestCommonSubsequenceAsync(key1, key2));
+        db.KeyDelete(key2);
+        Assert.Equal(string.Empty, await db.StringLongestCommonSubsequenceAsync(key1, key2));
+        stringMatchResult = await db.StringLongestCommonSubsequenceWithMatchesAsync(key1, key2);
+        Assert.NotNull(stringMatchResult.Matches);
+        Assert.Empty(stringMatchResult.Matches);
+        Assert.Equal(0, stringMatchResult.LongestMatchLength);
+
+        // Default value
+        stringMatchResult = await db.StringLongestCommonSubsequenceWithMatchesAsync(key1, key2, flags: CommandFlags.FireAndForget);
+        Assert.Equal(stringMatchResult, LCSMatchResult.Null);
     }
 
     private static byte[] Encode(string value) => Encoding.UTF8.GetBytes(value);

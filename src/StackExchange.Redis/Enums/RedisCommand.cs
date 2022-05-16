@@ -88,10 +88,12 @@ internal enum RedisCommand
 
     LASTSAVE,
     LATENCY,
+    LCS,
     LINDEX,
     LINSERT,
     LLEN,
     LMOVE,
+    LMPOP,
     LPOP,
     LPOS,
     LPUSH,
@@ -167,6 +169,7 @@ internal enum RedisCommand
     SMISMEMBER,
     SMOVE,
     SORT,
+    SORT_RO,
     SPOP,
     SRANDMEMBER,
     SREM,
@@ -214,6 +217,7 @@ internal enum RedisCommand
     ZINTERCARD,
     ZINTERSTORE,
     ZLEXCOUNT,
+    ZMPOP,
     ZMSCORE,
     ZPOPMAX,
     ZPOPMIN,
@@ -287,6 +291,7 @@ internal static class RedisCommandExtensions
             case RedisCommand.INCRBYFLOAT:
             case RedisCommand.LINSERT:
             case RedisCommand.LMOVE:
+            case RedisCommand.LMPOP:
             case RedisCommand.LPOP:
             case RedisCommand.LPUSH:
             case RedisCommand.LPUSHX:
@@ -320,6 +325,7 @@ internal static class RedisCommandExtensions
             case RedisCommand.SETRANGE:
             case RedisCommand.SINTERSTORE:
             case RedisCommand.SMOVE:
+            case RedisCommand.SORT:
             case RedisCommand.SPOP:
             case RedisCommand.SREM:
             case RedisCommand.SUNIONSTORE:
@@ -338,6 +344,7 @@ internal static class RedisCommandExtensions
             case RedisCommand.ZDIFFSTORE:
             case RedisCommand.ZINTERSTORE:
             case RedisCommand.ZINCRBY:
+            case RedisCommand.ZMPOP:
             case RedisCommand.ZPOPMAX:
             case RedisCommand.ZPOPMIN:
             case RedisCommand.ZRANGESTORE:
@@ -391,6 +398,7 @@ internal static class RedisCommandExtensions
             case RedisCommand.KEYS:
             case RedisCommand.LASTSAVE:
             case RedisCommand.LATENCY:
+            case RedisCommand.LCS:
             case RedisCommand.LINDEX:
             case RedisCommand.LLEN:
             case RedisCommand.LPOS:
@@ -428,7 +436,7 @@ internal static class RedisCommandExtensions
             case RedisCommand.SLOWLOG:
             case RedisCommand.SMEMBERS:
             case RedisCommand.SMISMEMBER:
-            case RedisCommand.SORT:
+            case RedisCommand.SORT_RO:
             case RedisCommand.SRANDMEMBER:
             case RedisCommand.STRLEN:
             case RedisCommand.SUBSCRIBE:

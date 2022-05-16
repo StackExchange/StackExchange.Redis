@@ -287,6 +287,21 @@ namespace StackExchange.Redis
             return AsGeoPosition(root.GetItems());
         }
 
+        internal SortedSetEntry[]? GetItemsAsSortedSetEntryArray() => this.ToArray((in RawResult item) => AsSortedSetEntry(item.GetItems()));
+
+        private static SortedSetEntry AsSortedSetEntry(in Sequence<RawResult> elements)
+        {
+            if (elements.IsSingleSegment)
+            {
+                var span = elements.FirstSpan;
+                return new SortedSetEntry(span[0].AsRedisValue(), span[1].TryGetDouble(out double val) ? val : double.NaN);
+            }
+            else
+            {
+                return new SortedSetEntry(elements[0].AsRedisValue(), elements[1].TryGetDouble(out double val) ? val : double.NaN);
+            }
+        }
+
         private static GeoPosition AsGeoPosition(in Sequence<RawResult> coords)
         {
             double longitude, latitude;

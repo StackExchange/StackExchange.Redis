@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Net;
 
 namespace StackExchange.Redis
@@ -680,7 +681,8 @@ namespace StackExchange.Redis
         /// <seealso href="https://redis.io/commands/persist"/>
         /// </para>
         /// </remarks>
-        bool KeyExpire(RedisKey key, TimeSpan? expiry, CommandFlags flags = CommandFlags.None);
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
+        bool KeyExpire(RedisKey key, TimeSpan? expiry, CommandFlags flags);
 
         /// <summary>
         /// Set a timeout on <paramref name="key"/>.
@@ -689,14 +691,14 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="key">The key to set the expiration for.</param>
         /// <param name="expiry">The timeout to set.</param>
-        /// <param name="when">Since Redis 7.0.0, you can choose under which condition the expiration will be set using <see cref="ExpireWhen"/>.</param>
+        /// <param name="when">In Redis 7+, we can choose under which condition the expiration will be set using <see cref="ExpireWhen"/>.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns><see langword="true"/> if the timeout was set. <see langword="false"/> if key does not exist or the timeout could not be set.</returns>
         /// <remarks>
         /// <seealso href="https://redis.io/commands/expire"/>,
         /// <seealso href="https://redis.io/commands/pexpire"/>
         /// </remarks>
-        bool KeyExpire(RedisKey key, TimeSpan? expiry, ExpireWhen when, CommandFlags flags = CommandFlags.None);
+        bool KeyExpire(RedisKey key, TimeSpan? expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Set a timeout on <paramref name="key"/>.
@@ -724,7 +726,8 @@ namespace StackExchange.Redis
         /// <seealso href="https://redis.io/commands/persist"/>
         /// </para>
         /// </remarks>
-        bool KeyExpire(RedisKey key, DateTime? expiry, CommandFlags flags = CommandFlags.None);
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
+        bool KeyExpire(RedisKey key, DateTime? expiry, CommandFlags flags);
 
         /// <summary>
         /// Set a timeout on <paramref name="key"/>.
@@ -733,14 +736,14 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="key">The key to set the expiration for.</param>
         /// <param name="expiry">The timeout to set.</param>
-        /// <param name="when">Since Redis 7.0.0, you can choose under which condition the expiration will be set using <see cref="ExpireWhen"/>.</param>
+        /// <param name="when">In Redis 7+, we choose under which condition the expiration will be set using <see cref="ExpireWhen"/>.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns><see langword="true"/> if the timeout was set. <see langword="false"/> if key does not exist or the timeout could not be set.</returns>
         /// <remarks>
         /// <seealso href="https://redis.io/commands/expire"/>,
         /// <seealso href="https://redis.io/commands/pexpire"/>
         /// </remarks>
-        bool KeyExpire(RedisKey key, DateTime? expiry, ExpireWhen when, CommandFlags flags = CommandFlags.None);
+        bool KeyExpire(RedisKey key, DateTime? expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Returns the absolute time at which the given <paramref name="key"/> will expire, if it exists and has an expiration.
@@ -753,6 +756,17 @@ namespace StackExchange.Redis
         /// <seealso href="https://redis.io/commands/pexpiretime"/>
         /// </remarks>
         DateTime? KeyExpireTime(RedisKey key, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Returns the logarithmic access frequency counter of the object stored at <paramref name="key"/>.
+        /// The command is only available when the <c>maxmemory-policy</c> configuration directive is set to
+        /// one of <see href="https://redis.io/docs/manual/eviction/#the-new-lfu-mode">the LFU policies</see>.
+        /// </summary>
+        /// <param name="key">The key to get a frequency count for.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The number of logarithmic access frequency counter, (<see langword="null"/> if the key does not exist).</returns>
+        /// <remarks><seealso href="https://redis.io/commands/object-freq"/></remarks>
+        long? KeyFrequency(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Returns the time since the object stored at the specified key is idle (not requested by read or write operations).
@@ -923,6 +937,17 @@ namespace StackExchange.Redis
         RedisValue[] ListLeftPop(RedisKey key, long count, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Removes and returns at most <paramref name="count"/> elements from the first non-empty list in <paramref name="keys"/>.
+        /// Starts on the left side of the list.
+        /// </summary>
+        /// <param name="keys">The keys to look through for elements to pop.</param>
+        /// <param name="count">The maximum number of elements to pop from the list.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>A span of contiguous elements from the list, or <see cref="ListPopResult.Null"/> if no non-empty lists are found.</returns>
+        /// <remarks><seealso href="https://redis.io/commands/lmpop"/></remarks>
+        ListPopResult ListLeftPop(RedisKey[] keys, long count, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Scans through the list stored at <paramref name="key"/> looking for <paramref name="element"/>, returning the 0-based
         /// index of the first matching element.
         /// </summary>
@@ -1064,6 +1089,17 @@ namespace StackExchange.Redis
         /// <returns>Array of values that were popped, or nil if the key doesn't exist.</returns>
         /// <remarks><seealso href="https://redis.io/commands/rpop"/></remarks>
         RedisValue[] ListRightPop(RedisKey key, long count, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Removes and returns at most <paramref name="count"/> elements from the first non-empty list in <paramref name="keys"/>.
+        /// Starts on the right side of the list.
+        /// </summary>
+        /// <param name="keys">The keys to look through for elements to pop.</param>
+        /// <param name="count">The maximum number of elements to pop from the list.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>A span of contiguous elements from the list, or <see cref="ListPopResult.Null"/> if no non-empty lists are found.</returns>
+        /// <remarks><seealso href="https://redis.io/commands/lmpop"/></remarks>
+        ListPopResult ListRightPop(RedisKey[] keys, long count, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Atomically returns and removes the last element (tail) of the list stored at source, and pushes the element at the first element (head) of the list stored at destination.
@@ -1518,6 +1554,7 @@ namespace StackExchange.Redis
         /// the <c>get</c> parameter (note that <c>#</c> specifies the element itself, when used in <c>get</c>).
         /// Referring to the <a href="https://redis.io/commands/sort">redis SORT documentation </a> for examples is recommended.
         /// When used in hashes, <c>by</c> and <c>get</c> can be used to specify fields using <c>-&gt;</c> notation (again, refer to redis documentation).
+        /// Uses <a href="https://redis.io/commands/sort_ro">SORT_RO</a> when possible.
         /// </summary>
         /// <param name="key">The key of the list, set, or sorted set.</param>
         /// <param name="skip">How many entries to skip on the return.</param>
@@ -1529,6 +1566,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The sorted elements, or the external values if <c>get</c> is specified.</returns>
         /// <remarks><seealso href="https://redis.io/commands/sort"/></remarks>
+        /// <remarks><seealso href="https://redis.io/commands/sort_ro"/></remarks>
         RedisValue[] Sort(RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default, RedisValue[]? get = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2111,6 +2149,18 @@ namespace StackExchange.Redis
         SortedSetEntry[] SortedSetPop(RedisKey key, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Removes and returns up to <paramref name="count"/> entries from the first non-empty sorted set in <paramref name="keys"/>.
+        /// Returns <see cref="SortedSetPopResult.Null"/> if none of the sets exist or contain any elements.
+        /// </summary>
+        /// <param name="keys">The keys to check.</param>
+        /// <param name="count">The maximum number of records to pop out of the sorted set.</param>
+        /// <param name="order">The order to sort by when popping items out of the set.</param>
+        /// <param name="flags">The flags to use for the operation.</param>
+        /// <returns>A contiguous collection of sorted set entries with the key they were popped from, or <see cref="SortedSetPopResult.Null"/> if no non-empty sorted sets are found.</returns>
+        /// <remarks><seealso href="https://redis.io/commands/zmpop"/></remarks>
+        SortedSetPopResult SortedSetPop(RedisKey[] keys, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Allow the consumer to mark a pending message as correctly processed. Returns the number of messages acknowledged.
         /// </summary>
         /// <param name="key">The key of the stream.</param>
@@ -2478,6 +2528,10 @@ namespace StackExchange.Redis
         /// <remarks><seealso href="https://redis.io/commands/append"/></remarks>
         long StringAppend(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None);
 
+        /// <inheritdoc cref="StringBitCount(RedisKey, long, long, StringIndexType, CommandFlags)" />
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
+        long StringBitCount(RedisKey key, long start, long end, CommandFlags flags);
+
         /// <summary>
         /// Count the number of set bits (population counting) in a string.
         /// By default all the bytes contained in the string are examined.
@@ -2487,10 +2541,11 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the string.</param>
         /// <param name="start">The start byte to count at.</param>
         /// <param name="end">The end byte to count at.</param>
+        /// <param name="indexType">In Redis 7+, we can choose if <paramref name="start"/> and <paramref name="end"/> specify a bit index or byte index (defaults to <see cref="StringIndexType.Byte"/>).</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of bits set to 1.</returns>
         /// <remarks><seealso href="https://redis.io/commands/bitcount"/></remarks>
-        long StringBitCount(RedisKey key, long start = 0, long end = -1, CommandFlags flags = CommandFlags.None);
+        long StringBitCount(RedisKey key, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Pulls a single number out of a bitfield of the provided <paramref name="encoding"/> at the given offset. Will execute a BITFIELD_RO if possible.
@@ -2571,6 +2626,10 @@ namespace StackExchange.Redis
         /// <remarks><seealso href="https://redis.io/commands/bitop"/></remarks>
         long StringBitOperation(Bitwise operation, RedisKey destination, RedisKey[] keys, CommandFlags flags = CommandFlags.None);
 
+        /// <inheritdoc cref="StringBitPosition(RedisKey, bool, long, long, StringIndexType, CommandFlags)" />
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
+        long StringBitPosition(RedisKey key, bool bit, long start, long end, CommandFlags flags);
+
         /// <summary>
         /// Return the position of the first bit set to 1 or 0 in a string.
         /// The position is returned thinking at the string as an array of bits from left to right where the first byte most significant bit is at position 0, the second byte most significant bit is at position 8 and so forth.
@@ -2581,13 +2640,14 @@ namespace StackExchange.Redis
         /// <param name="bit">True to check for the first 1 bit, false to check for the first 0 bit.</param>
         /// <param name="start">The position to start looking (defaults to 0).</param>
         /// <param name="end">The position to stop looking (defaults to -1, unlimited).</param>
+        /// <param name="indexType">In Redis 7+, we can choose if <paramref name="start"/> and <paramref name="end"/> specify a bit index or byte index (defaults to <see cref="StringIndexType.Byte"/>).</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>
         /// The command returns the position of the first bit set to 1 or 0 according to the request.
         /// If we look for set bits(the bit argument is 1) and the string is empty or composed of just zero bytes, -1 is returned.
         /// </returns>
         /// <remarks><seealso href="https://redis.io/commands/bitpos"/></remarks>
-        long StringBitPosition(RedisKey key, bool bit, long start = 0, long end = -1, CommandFlags flags = CommandFlags.None);
+        long StringBitPosition(RedisKey key, bool bit, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Decrements the number stored at key by decrement.
@@ -2763,15 +2823,51 @@ namespace StackExchange.Redis
         long StringLength(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Set key to hold the string value. If key already holds a value, it is overwritten, regardless of its type.
+        /// Implements the longest common subsequence algorithm between the values at <paramref name="first"/> and <paramref name="second"/>,
+        /// returning a string containing the common sequence.
+        /// Note that this is different than the longest common string algorithm,
+        /// since matching characters in the string does not need to be contiguous.
         /// </summary>
-        /// <param name="key">The key of the string.</param>
-        /// <param name="value">The value to set.</param>
-        /// <param name="expiry">The expiry to set.</param>
-        /// <param name="when">Which condition to set the value under (defaults to always).</param>
+        /// <param name="first">The key of the first string.</param>
+        /// <param name="second">The key of the second string.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns><see langword="true"/> if the string was set, <see langword="false"/> otherwise.</returns>
-        /// <remarks>https://redis.io/commands/set</remarks>
+        /// <returns>A string (sequence of characters) of the LCS match.</returns>
+        /// <remarks><seealso href="https://redis.io/commands/lcs"/></remarks>
+        string? StringLongestCommonSubsequence(RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Implements the longest common subsequence algorithm between the values at <paramref name="first"/> and <paramref name="second"/>,
+        /// returning the legnth of the common sequence.
+        /// Note that this is different than the longest common string algorithm,
+        /// since matching characters in the string does not need to be contiguous.
+        /// </summary>
+        /// <param name="first">The key of the first string.</param>
+        /// <param name="second">The key of the second string.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The length of the LCS match.</returns>
+        /// <remarks><seealso href="https://redis.io/commands/lcs"/></remarks>
+        long StringLongestCommonSubsequenceLength(RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Implements the longest common subsequence algorithm between the values at <paramref name="first"/> and <paramref name="second"/>,
+        /// returning a list of all common sequences.
+        /// Note that this is different than the longest common string algorithm,
+        /// since matching characters in the string does not need to be contiguous.
+        /// </summary>
+        /// <param name="first">The key of the first string.</param>
+        /// <param name="second">The key of the second string.</param>
+        /// <param name="minLength">Can be used to restrict the list of matches to the ones of a given minimum length.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The result of LCS algorithm, based on the given parameters.</returns>
+        /// <remarks><seealso href="https://redis.io/commands/lcs"/></remarks>
+        LCSMatchResult StringLongestCommonSubsequenceWithMatches(RedisKey first, RedisKey second, long minLength = 0, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="StringSet(RedisKey, RedisValue, TimeSpan?, bool, When, CommandFlags)" />
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
+        bool StringSet(RedisKey key, RedisValue value, TimeSpan? expiry, When when);
+
+        /// <inheritdoc cref="StringSet(RedisKey, RedisValue, TimeSpan?, bool, When, CommandFlags)" />
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         bool StringSet(RedisKey key, RedisValue value, TimeSpan? expiry, When when, CommandFlags flags);
 
         /// <summary>

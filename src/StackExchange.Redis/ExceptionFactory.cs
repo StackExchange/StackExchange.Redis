@@ -154,7 +154,7 @@ namespace StackExchange.Redis
             if (multiplexer.RawConfig.IncludeDetailInExceptions)
             {
                 CopyDataToException(data, ex);
-                sb.Append("; ").Append(PerfCounterHelper.GetThreadPoolAndCPUSummary(multiplexer.IncludePerformanceCountersInExceptions));
+                sb.Append("; ").Append(PerfCounterHelper.GetThreadPoolAndCPUSummary(multiplexer.RawConfig.IncludePerformanceCountersInExceptions));
                 AddExceptionDetail(ex, message, server, commandLabel);
             }
             return ex;
@@ -349,7 +349,7 @@ namespace StackExchange.Redis
             }
             data.Add(Tuple.Create("Busy-Workers", busyWorkerCount.ToString()));
 
-            if (multiplexer.IncludePerformanceCountersInExceptions)
+            if (multiplexer.RawConfig.IncludePerformanceCountersInExceptions)
             {
                 Add(data, sb, "Local-CPU", "Local-CPU", PerfCounterHelper.GetSystemCpuPercent());
             }

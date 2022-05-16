@@ -1,4 +1,7 @@
 ﻿using System;
+using System.Buffers;
+using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
 
 namespace StackExchange.Redis
@@ -44,115 +47,171 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="x">The first <see cref="RedisChannel"/> to compare.</param>
         /// <param name="y">The second <see cref="RedisChannel"/> to compare.</param>
-        public static bool operator !=(RedisKey x, RedisKey y) => !(x == y);
+        public static bool operator !=(RedisKey x, RedisKey y) => !x.EqualsImpl(in y);
 
         /// <summary>
         /// Indicate whether two keys are not equal.
         /// </summary>
         /// <param name="x">The first <see cref="RedisChannel"/> to compare.</param>
         /// <param name="y">The second <see cref="RedisChannel"/> to compare.</param>
-        public static bool operator !=(string x, RedisKey y) => !(x == y);
+        public static bool operator !=(string x, RedisKey y) => !y.EqualsImpl(new RedisKey(x));
 
         /// <summary>
         /// Indicate whether two keys are not equal.
         /// </summary>
         /// <param name="x">The first <see cref="RedisChannel"/> to compare.</param>
         /// <param name="y">The second <see cref="RedisChannel"/> to compare.</param>
-        public static bool operator !=(byte[] x, RedisKey y) => !(x == y);
+        public static bool operator !=(byte[] x, RedisKey y) => !y.EqualsImpl(new RedisKey(null, x));
 
         /// <summary>
         /// Indicate whether two keys are not equal.
         /// </summary>
         /// <param name="x">The first <see cref="RedisChannel"/> to compare.</param>
         /// <param name="y">The second <see cref="RedisChannel"/> to compare.</param>
-        public static bool operator !=(RedisKey x, string y) => !(x == y);
+        public static bool operator !=(RedisKey x, string y) => !x.EqualsImpl(new RedisKey(y));
 
         /// <summary>
         /// Indicate whether two keys are not equal.
         /// </summary>
         /// <param name="x">The first <see cref="RedisChannel"/> to compare.</param>
         /// <param name="y">The second <see cref="RedisChannel"/> to compare.</param>
-        public static bool operator !=(RedisKey x, byte[] y) => !(x == y);
+        public static bool operator !=(RedisKey x, byte[] y) => !x.EqualsImpl(new RedisKey(null, y));
 
         /// <summary>
         /// Indicate whether two keys are equal.
         /// </summary>
         /// <param name="x">The first <see cref="RedisChannel"/> to compare.</param>
         /// <param name="y">The second <see cref="RedisChannel"/> to compare.</param>
-        public static bool operator ==(RedisKey x, RedisKey y) => CompositeEquals(x.KeyPrefix, x.KeyValue, y.KeyPrefix, y.KeyValue);
+        public static bool operator ==(RedisKey x, RedisKey y) => x.EqualsImpl(in y);
 
         /// <summary>
         /// Indicate whether two keys are equal.
         /// </summary>
         /// <param name="x">The first <see cref="RedisChannel"/> to compare.</param>
         /// <param name="y">The second <see cref="RedisChannel"/> to compare.</param>
-        public static bool operator ==(string x, RedisKey y) => CompositeEquals(null, x, y.KeyPrefix, y.KeyValue);
+        public static bool operator ==(string x, RedisKey y) => y.EqualsImpl(new RedisKey(x));
 
         /// <summary>
         /// Indicate whether two keys are equal.
         /// </summary>
         /// <param name="x">The first <see cref="RedisChannel"/> to compare.</param>
         /// <param name="y">The second <see cref="RedisChannel"/> to compare.</param>
-        public static bool operator ==(byte[] x, RedisKey y) => CompositeEquals(null, x, y.KeyPrefix, y.KeyValue);
+        public static bool operator ==(byte[] x, RedisKey y) => y.EqualsImpl(new RedisKey(null, x));
 
         /// <summary>
         /// Indicate whether two keys are equal.
         /// </summary>
         /// <param name="x">The first <see cref="RedisChannel"/> to compare.</param>
         /// <param name="y">The second <see cref="RedisChannel"/> to compare.</param>
-        public static bool operator ==(RedisKey x, string y) => CompositeEquals(x.KeyPrefix, x.KeyValue, null, y);
+        public static bool operator ==(RedisKey x, string y) => x.EqualsImpl(new RedisKey(y));
 
         /// <summary>
         /// Indicate whether two keys are equal.
         /// </summary>
         /// <param name="x">The first <see cref="RedisChannel"/> to compare.</param>
         /// <param name="y">The second <see cref="RedisChannel"/> to compare.</param>
-        public static bool operator ==(RedisKey x, byte[] y) => CompositeEquals(x.KeyPrefix, x.KeyValue, null, y);
+        public static bool operator ==(RedisKey x, byte[] y) => x.EqualsImpl(new RedisKey(null, y));
 
         /// <summary>
         /// See <see cref="object.Equals(object?)"/>.
         /// </summary>
         /// <param name="obj">The <see cref="RedisKey"/> to compare to.</param>
-        public override bool Equals(object? obj)
+        public override bool Equals(object? obj) => obj switch
         {
-            if (obj is RedisKey other)
-            {
-                return CompositeEquals(KeyPrefix, KeyValue, other.KeyPrefix, other.KeyValue);
-            }
-            if (obj is string || obj is byte[])
-            {
-                return CompositeEquals(KeyPrefix, KeyValue, null, obj);
-            }
-            return false;
-        }
+            null => IsNull,
+            RedisKey key => EqualsImpl(in key),
+            string s => EqualsImpl(new RedisKey(s)),
+            byte[] b => EqualsImpl(new RedisKey(null, b)),
+            _ => false,
+        };
 
         /// <summary>
         /// Indicate whether two keys are equal.
         /// </summary>
         /// <param name="other">The <see cref="RedisKey"/> to compare to.</param>
-        public bool Equals(RedisKey other) => CompositeEquals(KeyPrefix, KeyValue, other.KeyPrefix, other.KeyValue);
+        public bool Equals(RedisKey other) => EqualsImpl(in other);
 
-        private static bool CompositeEquals(byte[]? keyPrefix0, object? keyValue0, byte[]? keyPrefix1, object? keyValue1)
+        private bool EqualsImpl(in RedisKey other)
         {
-            if (RedisValue.Equals(keyPrefix0, keyPrefix1))
+            if (IsNull)
             {
-                if (keyValue0 == keyValue1) return true; // ref equal
-                if (keyValue0 == null || keyValue1 == null) return false; // null vs non-null
-
-                if (keyValue0 is string keyString1 && keyValue1 is string keyString2) return keyString1 == keyString2;
-                if (keyValue0 is byte[] keyBytes1 && keyValue1 is byte[] keyBytes2) return RedisValue.Equals(keyBytes1, keyBytes2);
+                return other.IsNull;
+            }
+            else if (other.IsNull)
+            {
+                return false;
             }
 
-            return RedisValue.Equals(ConcatenateBytes(keyPrefix0, keyValue0, null), ConcatenateBytes(keyPrefix1, keyValue1, null));
+            // if there's no prefix, we might be able to do a simple compare
+            if (RedisValue.Equals(KeyPrefix, other.KeyPrefix))
+            {
+                if ((object?)KeyValue == (object?)other.KeyValue) return true; // ref equal
+
+                if (KeyValue is string keyString1 && other.KeyValue is string keyString2) return keyString1 == keyString2;
+                if (KeyValue is byte[] keyBytes1 && other.KeyValue is byte[] keyBytes2) return RedisValue.Equals(keyBytes1, keyBytes2);
+            }
+
+            int len = TotalLength();
+            if (len != other.TotalLength())
+            {
+                return false; // different length; can't be equal
+            }
+            if (len == 0)
+            {
+                return true; // both empty
+            }
+            if (len <= 128)
+            {
+                return CopyCompare(in this, in other, len, stackalloc byte[len * 2]);
+            }
+            else
+            {
+                byte[] arr = ArrayPool<byte>.Shared.Rent(len * 2);
+                var result = CopyCompare(in this, in other, len, arr);
+                ArrayPool<byte>.Shared.Return(arr);
+                return result;
+            }
+
+            static bool CopyCompare(in RedisKey x, in RedisKey y, int length, Span<byte> span)
+            {
+                Span<byte> span1 = span.Slice(0, length), span2 = span.Slice(length, length);
+                var written = x.CopyTo(span1);
+                Debug.Assert(written == length, "length error (1)");
+                written = y.CopyTo(span2);
+                Debug.Assert(written == length, "length error (2)");
+                return span1.SequenceEqual(span2);
+            }
         }
 
         /// <inheritdoc/>
         public override int GetHashCode()
         {
-            int chk0 = KeyPrefix == null ? 0 : RedisValue.GetHashCode(KeyPrefix),
-                chk1 = KeyValue is string ? KeyValue.GetHashCode() : RedisValue.GetHashCode((byte[]?)KeyValue);
+            // note that we need need eaulity-like behavior, regardless of whether the
+            // parts look like bytes or strings, and with/without prefix
 
-            return unchecked((17 * chk0) + chk1);
+            // the simplest way to do this is to use the CopyTo version, which normalizes that
+            if (IsNull) return -1;
+            if (TryGetSimpleBuffer(out var buffer)) return RedisValue.GetHashCode(buffer);
+            var len = TotalLength();
+            if (len == 0) return 0;
+
+            if (len <= 256)
+            {
+                Span<byte> span = stackalloc byte[len];
+                var written = CopyTo(span);
+                Debug.Assert(written == len);
+                return RedisValue.GetHashCode(span);
+            }
+            else
+            {
+                var arr = ArrayPool<byte>.Shared.Rent(len);
+                var span = new Span<byte>(arr, 0, len);
+                var written = CopyTo(span);
+                Debug.Assert(written == len);
+                var result = RedisValue.GetHashCode(span);
+                ArrayPool<byte>.Shared.Return(arr);
+                return result;
+            }
         }
 
         /// <summary>
@@ -194,7 +253,18 @@ namespace StackExchange.Redis
         /// Obtain the <see cref="RedisKey"/> as a <see cref="T:byte[]"/>.
         /// </summary>
         /// <param name="key">The key to get a byte array for.</param>
-        public static implicit operator byte[]? (RedisKey key) => ConcatenateBytes(key.KeyPrefix, key.KeyValue, null);
+        public static implicit operator byte[]? (RedisKey key)
+        {
+            if (key.IsNull) return null;
+            if (key.TryGetSimpleBuffer(out var arr)) return arr;
+
+            var len = key.TotalLength();
+            if (len == 0) return Array.Empty<byte>();
+            arr = new byte[len];
+            var written = key.CopyTo(arr);
+            Debug.Assert(written == len, "length/copyto error");
+            return arr;
+        }
 
         /// <summary>
         /// Obtain the key as a <see cref="string"/>.
@@ -202,27 +272,36 @@ namespace StackExchange.Redis
         /// <param name="key">The key to get a string for.</param>
         public static implicit operator string? (RedisKey key)
         {
-            byte[]? arr;
-            if (key.KeyPrefix == null)
+            if (key.KeyPrefix is null)
             {
-                if (key.KeyValue == null) return null;
+                return key.KeyValue switch
+                {
+                    null => null,
+                    string s => s,
+                    object o => Get((byte[])o, -1),
+                };
+            }
 
-                if (key.KeyValue is string keyString) return keyString;
+            var len = key.TotalLength();
+            var arr = ArrayPool<byte>.Shared.Rent(len);
+            var written = key.CopyTo(arr);
+            Debug.Assert(written == len, "length error");
+            var result = Get(arr, len);
+            ArrayPool<byte>.Shared.Return(arr);
+            return result;
 
-                arr = (byte[])key.KeyValue;
-            }
-            else
+            static string? Get(byte[] arr, int length)
             {
-                arr = (byte[]?)key;
-            }
-            if (arr == null) return null;
-            try
-            {
-                return Encoding.UTF8.GetString(arr);
-            }
-            catch
-            {
-                return BitConverter.ToString(arr);
+                if (length == -1) length = arr.Length;
+                if (length == 0) return "";
+                try
+                {
+                    return Encoding.UTF8.GetString(arr, 0, length);
+                }
+                catch
+                {
+                    return BitConverter.ToString(arr, 0, length);
+                }
             }
         }
 
@@ -297,5 +376,58 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="suffix">The suffix to append.</param>
         public RedisKey Append(RedisKey suffix) => WithPrefix(this, suffix);
+
+        internal bool TryGetSimpleBuffer([NotNullWhen(true)] out byte[]? arr)
+        {
+            arr = KeyValue is null ? Array.Empty<byte>() : KeyValue as byte[];
+            return arr is not null && (KeyPrefix is null || KeyPrefix.Length == 0);
+        }
+
+        internal int TotalLength() =>
+            (KeyPrefix is null ? 0 : KeyPrefix.Length) + KeyValue switch
+            {
+                null => 0,
+                string s => Encoding.UTF8.GetByteCount(s),
+                _ => ((byte[])KeyValue).Length,
+            };
+
+        internal int CopyTo(Span<byte> destination)
+        {
+            int written = 0;
+            if (KeyPrefix is not null && KeyPrefix.Length != 0)
+            {
+                KeyPrefix.CopyTo(destination);
+                written += KeyPrefix.Length;
+                destination = destination.Slice(KeyPrefix.Length);
+            }
+            switch (KeyValue)
+            {
+                case null:
+                    break; // nothing to do
+                case string s:
+                    if (s.Length != 0)
+                    {
+#if NETCOREAPP
+                        written += Encoding.UTF8.GetBytes(s, destination);
+#else
+                        unsafe
+                        {
+                            fixed (byte* bPtr = destination)
+                            fixed (char* cPtr = s)
+                            {
+                                written += Encoding.UTF8.GetBytes(cPtr, s.Length, bPtr, destination.Length);
+                            }
+                        }
+#endif
+                    }
+                    break;
+                default:
+                    var arr = (byte[])KeyValue;
+                    arr.CopyTo(destination);
+                    written += arr.Length;
+                    break;
+            }
+            return written;
+        }
     }
 }
