@@ -1,4 +1,6 @@
-﻿namespace StackExchange.Redis;
+﻿using System;
+
+namespace StackExchange.Redis;
 
 /// <summary>
 /// The result of a LongestCommonSubsequence command with IDX feature.
@@ -6,6 +8,8 @@
 /// </summary>
 public readonly struct LCSMatchResult
 {
+    internal static LCSMatchResult Null { get; } = new LCSMatchResult(Array.Empty<LCSMatch>(), 0);
+
     /// <summary>
     /// The matched positions of all the sub-matched strings.
     /// </summary>

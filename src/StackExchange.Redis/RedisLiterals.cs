@@ -120,8 +120,8 @@ namespace StackExchange.Redis
             TYPE = "TYPE",
             WEIGHTS = "WEIGHTS",
             WITHMATCHLEN = "WITHMATCHLEN",
-            WITHVALUES = "WITHVALUES",
             WITHSCORES = "WITHSCORES",
+            WITHVALUES = "WITHVALUES",
             XOR = "XOR",
             XX = "XX",
 

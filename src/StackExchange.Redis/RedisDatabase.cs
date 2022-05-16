@@ -1470,13 +1470,13 @@ namespace StackExchange.Redis
         public LCSMatchResult StringLongestCommonSubsequenceWithMatches(RedisKey key1, RedisKey key2, long minSubMatchLength = 0, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.LCS, key1, key2, RedisLiterals.IDX, RedisLiterals.MINMATCHLEN, minSubMatchLength, RedisLiterals.WITHMATCHLEN);
-            return ExecuteSync(msg, ResultProcessor.LCSMatchResult);
+            return ExecuteSync(msg, ResultProcessor.LCSMatchResult, defaultValue: LCSMatchResult.Null);
         }
 
         public Task<LCSMatchResult> StringLongestCommonSubsequenceWithMatchesAsync(RedisKey key1, RedisKey key2, long minSubMatchLength = 0, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.LCS, key1, key2, RedisLiterals.IDX, RedisLiterals.MINMATCHLEN, minSubMatchLength, RedisLiterals.WITHMATCHLEN);
-            return ExecuteAsync(msg, ResultProcessor.LCSMatchResult);
+            return ExecuteAsync(msg, ResultProcessor.LCSMatchResult, defaultValue: LCSMatchResult.Null);
         }
 
         public long Publish(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None)
