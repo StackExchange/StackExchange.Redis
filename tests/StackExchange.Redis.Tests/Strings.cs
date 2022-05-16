@@ -651,7 +651,6 @@ public class Strings : TestBase
         Assert.Equal(0, await resNonExistingAsync);
     }
 
-
     [Fact]
     public void HashStringLength()
     {

@@ -12,7 +12,6 @@ public class Bitfield : TestBase
     [Fact]
     public void TestBitfieldHappyPath()
     {
-
         using var conn = Create(require: RedisFeatures.v3_2_0);
         var db = conn.GetDatabase();
         RedisKey key = Me();
@@ -44,7 +43,6 @@ public class Bitfield : TestBase
     [Fact]
     public async Task TestBitfieldHappyPathAsync()
     {
-
         using var conn = Create(require: RedisFeatures.v3_2_0);
         var db = conn.GetDatabase();
         RedisKey key = Me();
