@@ -185,9 +185,20 @@ namespace StackExchange.Redis
         /// <param name="flags">The command flags to use.</param>
         /// <remarks><seealso href="https://redis.io/commands/command-count/"/></remarks>
         long CommandCount(CommandFlags flags = CommandFlags.None);
-        
-        /// <inheritdoc cref="CommandCount(CommandFlags)"/>        
+
+        /// <inheritdoc cref="CommandCount(CommandFlags)"/>
         Task<long> CommandCountAsync(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Returns List of keys from a full Redis command.
+        /// </summary>
+        /// <param name="command">The Command.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <remarks><seealso href="https://redis.io/commands/command-getkeys"/></remarks>
+        RedisValue[] CommandGetkeys(RedisValue[] command, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="CommandGetkeys(RedisValue[], CommandFlags)"/>
+        Task<RedisValue[]> CommandGetkeysAsync(RedisValue[] command, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Return the number of keys in the database.

@@ -12,18 +12,32 @@ public class Databases : TestBase
     [Fact]
     public async Task CommandCount()
     {
-        using var conn = Create(allowAdmin: true);
+        using var conn = Create();
         var server = GetAnyPrimary(conn);
-        var db = conn.GetDatabase();
-
         var count = server.CommandCount();
         Assert.True(count > 100);
 
         count = await server.CommandCountAsync();
-        Assert.True(count > 100);    
+        Assert.True(count > 100);
     }
 
-    [Fact]    
+    [Fact]
+    public async Task CommandGetkeys()
+    {
+        using var conn = Create();
+        var server = GetAnyPrimary(conn);
+
+        RedisValue[] command = { "MSET", "a", "b", "c", "d", "e", "f" };
+
+        RedisValue[] keys = server.CommandGetkeys(command);
+        RedisValue[] expected = {"a","c","e"};
+        Assert.Equal(keys,expected);
+
+        keys = await server.CommandGetkeysAsync(command);
+        Assert.Equal(keys, expected);
+    }
+
+    [Fact]
     public async Task CountKeys()
     {
         var db1Id = TestConfig.GetDedicatedDB();

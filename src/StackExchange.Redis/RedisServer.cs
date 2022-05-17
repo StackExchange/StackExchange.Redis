@@ -216,6 +216,27 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
+        public RedisValue[] CommandGetkeys(RedisValue[] command, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.COMMAND, AddValueToArray(RedisLiterals.GETKEYS, command));
+            return ExecuteSync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
+        }
+
+        public Task<RedisValue[]> CommandGetkeysAsync(RedisValue[] command, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.COMMAND,  AddValueToArray(RedisLiterals.GETKEYS, command));
+            return ExecuteAsync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
+        }
+
+        private RedisValue[] AddValueToArray(RedisValue val, RedisValue[] arr)
+        {
+            var result = new RedisValue[arr.Length + 1];
+            var i = 0;
+            result[i++] = val;
+            foreach(var item in arr) result[i++] = item;
+            return result;
+        }
+
         public long DatabaseSize(int database = -1, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(multiplexer.ApplyDefaultDatabase(database), flags, RedisCommand.DBSIZE);
