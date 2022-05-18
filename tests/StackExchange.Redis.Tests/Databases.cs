@@ -40,7 +40,7 @@ public class Databases : TestBase
     [Fact]
     public async Task CommandList()
     {
-        using var conn = Create();
+        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
         var server = GetAnyPrimary(conn);
 
         RedisValue[] commands = server.CommandList();
