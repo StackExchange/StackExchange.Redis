@@ -41,6 +41,7 @@ namespace StackExchange.Redis
         // unlike primary commands, these do not get altered by the command-map; we may as
         // well compute the bytes once and share them
         public static readonly RedisValue
+            ACLCAT = "ACLCAT",
             ADDR = "ADDR",
             AFTER = "AFTER",
             AGGREGATE = "AGGREGATE",
@@ -64,6 +65,7 @@ namespace StackExchange.Redis
             EX = "EX",
             EXAT = "EXAT",
             EXISTS = "EXISTS",
+            FILTERBY = "FILTERBY",
             FLUSH = "FLUSH",
             FREQ = "FREQ",
             GET = "GET",
@@ -89,6 +91,7 @@ namespace StackExchange.Redis
             MAXLEN = "MAXLEN",
             MIN = "MIN",
             MINMATCHLEN = "MINMATCHLEN",
+            MODULE = "MODULE",
             NODES = "NODES",
             NOSAVE = "NOSAVE",
             NOT = "NOT",
@@ -97,6 +100,7 @@ namespace StackExchange.Redis
             NX = "NX",
             OBJECT = "OBJECT",
             OR = "OR",
+            PATTERN = "PATTERN",
             PAUSE = "PAUSE",
             PERSIST = "PERSIST",
             PING = "PING",

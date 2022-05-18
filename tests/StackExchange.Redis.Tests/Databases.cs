@@ -38,6 +38,33 @@ public class Databases : TestBase
     }
 
     [Fact]
+    public async Task CommandList()
+    {
+        using var conn = Create();
+        var server = GetAnyPrimary(conn);
+
+        RedisValue[] commands = server.CommandList();
+        Assert.True(commands.Length > 100);
+        commands = await server.CommandListAsync();
+        Assert.True(commands.Length > 100);
+
+        commands = server.CommandListFilterbyModule("JSON");
+        Assert.Empty(commands);
+        commands = await server.CommandListFilterbyModuleAsync("JSON");
+        Assert.Empty(commands);
+
+        commands = server.CommandListFilterbyAclcat("admin");
+        Assert.True(commands.Length > 10);
+        commands = await server.CommandListFilterbyAclcatAsync("admin");
+        Assert.True(commands.Length > 10);
+
+        commands = server.CommandListFilterbyPattern("a*");
+        Assert.True(commands.Length > 10);
+        commands = await server.CommandListFilterbyPatternAsync("a*");
+        Assert.True(commands.Length > 10);
+    }
+
+    [Fact]
     public async Task CountKeys()
     {
         var db1Id = TestConfig.GetDedicatedDB();
