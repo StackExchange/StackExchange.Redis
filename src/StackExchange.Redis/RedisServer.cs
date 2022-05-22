@@ -228,52 +228,42 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
         }
 
-        public RedisValue[] CommandList(CommandFlags flags = CommandFlags.None)
+        public RedisValue[] CommandList(RedisValue? moduleName = null, RedisValue? category = null, RedisValue? pattern = null, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.COMMAND, RedisLiterals.LIST);
+            var msg = GetCommandListMessage(moduleName, category, pattern, flags);
             return ExecuteSync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
         }
 
-        public Task<RedisValue[]> CommandListAsync(CommandFlags flags = CommandFlags.None)
+        public Task<RedisValue[]> CommandListAsync(RedisValue? moduleName = null, RedisValue? category = null, RedisValue? pattern = null, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.COMMAND, RedisLiterals.LIST);
+            var msg = GetCommandListMessage(moduleName, category, pattern, flags);
             return ExecuteAsync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
         }
 
-        public RedisValue[] CommandListFilterbyModule(RedisValue moduleName, CommandFlags flags = CommandFlags.None)
+        private Message GetCommandListMessage(RedisValue? moduleName = null, RedisValue? category = null, RedisValue? pattern = null, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.COMMAND, MakeArray(RedisLiterals.LIST, RedisLiterals.FILTERBY, RedisLiterals.MODULE, moduleName));
-            return ExecuteSync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
-        }
+            if (moduleName == null && category == null && pattern == null)
+            {
+                return Message.Create(-1, flags, RedisCommand.COMMAND, RedisLiterals.LIST);
+            }
 
-        public Task<RedisValue[]> CommandListFilterbyModuleAsync(RedisValue moduleName, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags, RedisCommand.COMMAND, MakeArray(RedisLiterals.LIST, RedisLiterals.FILTERBY, RedisLiterals.MODULE, moduleName));
-            return ExecuteAsync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
-        }
+            else if (moduleName != null && category == null && pattern == null)
+            {
+                return Message.Create(-1, flags, RedisCommand.COMMAND, MakeArray(RedisLiterals.LIST, RedisLiterals.FILTERBY, RedisLiterals.MODULE, (RedisValue)moduleName));
+            }
 
-        public RedisValue[] CommandListFilterbyAclcat(RedisValue category, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags, RedisCommand.COMMAND, MakeArray(RedisLiterals.LIST, RedisLiterals.FILTERBY, RedisLiterals.ACLCAT, category));
-            return ExecuteSync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
-        }
+            else if (moduleName == null && category != null && pattern == null)
+            {
+                return Message.Create(-1, flags, RedisCommand.COMMAND, MakeArray(RedisLiterals.LIST, RedisLiterals.FILTERBY, RedisLiterals.ACLCAT, (RedisValue)category));
+            }
 
-        public Task<RedisValue[]> CommandListFilterbyAclcatAsync(RedisValue category, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags, RedisCommand.COMMAND, MakeArray(RedisLiterals.LIST, RedisLiterals.FILTERBY, RedisLiterals.ACLCAT, category));
-            return ExecuteAsync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
-        }
+            else if (moduleName == null && category == null && pattern != null)
+            {
+                return Message.Create(-1, flags, RedisCommand.COMMAND, MakeArray(RedisLiterals.LIST, RedisLiterals.FILTERBY, RedisLiterals.PATTERN, (RedisValue)pattern));
+            }
 
-        public RedisValue[] CommandListFilterbyPattern(RedisValue pattern, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags, RedisCommand.COMMAND, MakeArray(RedisLiterals.LIST, RedisLiterals.FILTERBY, RedisLiterals.PATTERN, pattern));
-            return ExecuteSync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
-        }
-
-        public Task<RedisValue[]> CommandListFilterbyPatternAsync(RedisValue pattern, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags, RedisCommand.COMMAND, MakeArray(RedisLiterals.LIST, RedisLiterals.FILTERBY, RedisLiterals.PATTERN, pattern));
-            return ExecuteAsync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
+            else
+                throw new ArgumentException("More then one filter is not allwed");
         }
 
         private RedisValue[] AddValueToArray(RedisValue val, RedisValue[] arr)

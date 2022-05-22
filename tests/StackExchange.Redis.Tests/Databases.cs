@@ -1,4 +1,5 @@
-﻿using System.Threading.Tasks;
+﻿using System;
+using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -7,7 +8,7 @@ namespace StackExchange.Redis.Tests;
 [Collection(SharedConnectionFixture.Key)]
 public class Databases : TestBase
 {
-    public Databases(ITestOutputHelper output, SharedConnectionFixture fixture) : base (output, fixture) { }
+    public Databases(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
 
     [Fact]
     public async Task CommandCount()
@@ -30,8 +31,8 @@ public class Databases : TestBase
         RedisValue[] command = { "MSET", "a", "b", "c", "d", "e", "f" };
 
         RedisValue[] keys = server.CommandGetkeys(command);
-        RedisValue[] expected = {"a","c","e"};
-        Assert.Equal(keys,expected);
+        RedisValue[] expected = { "a", "c", "e" };
+        Assert.Equal(keys, expected);
 
         keys = await server.CommandGetkeysAsync(command);
         Assert.Equal(keys, expected);
@@ -43,25 +44,28 @@ public class Databases : TestBase
         using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
         var server = GetAnyPrimary(conn);
 
-        RedisValue[] commands = server.CommandList();
+        var commands = server.CommandList();
         Assert.True(commands.Length > 100);
         commands = await server.CommandListAsync();
         Assert.True(commands.Length > 100);
 
-        commands = server.CommandListFilterbyModule("JSON");
+        commands = server.CommandList(moduleName: "JSON");
         Assert.Empty(commands);
-        commands = await server.CommandListFilterbyModuleAsync("JSON");
+        commands = await server.CommandListAsync(moduleName: "JSON");
         Assert.Empty(commands);
 
-        commands = server.CommandListFilterbyAclcat("admin");
+        commands = server.CommandList(category: "admin");
         Assert.True(commands.Length > 10);
-        commands = await server.CommandListFilterbyAclcatAsync("admin");
+        commands = await server.CommandListAsync(category: "admin");
         Assert.True(commands.Length > 10);
 
-        commands = server.CommandListFilterbyPattern("a*");
+        commands = server.CommandList(pattern: "a*");
         Assert.True(commands.Length > 10);
-        commands = await server.CommandListFilterbyPatternAsync("a*");
+        commands = await server.CommandListAsync(pattern: "a*");
         Assert.True(commands.Length > 10);
+
+        Assert.Throws<ArgumentException>(() => server.CommandList(moduleName: "JSON", pattern: "a*"));
+        await Assert.ThrowsAsync<ArgumentException>(() => server.CommandListAsync(moduleName: "JSON", pattern: "a*"));
     }
 
     [Fact]

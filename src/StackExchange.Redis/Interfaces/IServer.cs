@@ -183,7 +183,7 @@ namespace StackExchange.Redis
         /// Returns the number of total commands in this Redis server.
         /// </summary>
         /// <param name="flags">The command flags to use.</param>
-        /// <remarks><seealso href="https://redis.io/commands/command-count/"/></remarks>
+        /// <remarks><seealso href="https://redis.io/commands/command-count"/></remarks>
         long CommandCount(CommandFlags flags = CommandFlags.None);
 
         /// <inheritdoc cref="CommandCount(CommandFlags)"/>
@@ -201,47 +201,17 @@ namespace StackExchange.Redis
         Task<RedisValue[]> CommandGetkeysAsync(RedisValue[] command, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Returns a list of command names.
+        /// Returns a list of command names available on this Redis server. You can select up to one filter from the options.
         /// </summary>
+        /// <param name="moduleName">The command list will filtered by this Module Name.</param>
+        /// <param name="category">The command list will filtered by this category.</param>
+        /// <param name="pattern">The command list will filtered by this pattern.</param>
         /// <param name="flags">The command flags to use.</param>
         /// <remarks><seealso href="https://redis.io/commands/command-list"/></remarks>
-        RedisValue[] CommandList(CommandFlags flags = CommandFlags.None);
+        RedisValue[] CommandList(RedisValue? moduleName = null, RedisValue? category = null, RedisValue? pattern = null, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="CommandList(CommandFlags)"/>
-        Task<RedisValue[]> CommandListAsync(CommandFlags flags = CommandFlags.None);
-
-        /// <summary>
-        /// Returns a list of command names.
-        /// </summary>
-        /// <param name="moduleName">The Module Name.</param>
-        /// <param name="flags">The command flags to use.</param>
-        /// <remarks><seealso href="https://redis.io/commands/command-list"/></remarks>
-        RedisValue[] CommandListFilterbyModule(RedisValue moduleName, CommandFlags flags = CommandFlags.None);
-
-        /// <inheritdoc cref="CommandListFilterbyModule(RedisValue, CommandFlags)"/>
-        Task<RedisValue[]> CommandListFilterbyModuleAsync(RedisValue moduleName, CommandFlags flags = CommandFlags.None);
-
-        /// <summary>
-        /// Returns a list of command names.
-        /// </summary>
-        /// <param name="category">The category.</param>
-        /// <param name="flags">The command flags to use.</param>
-        /// <remarks><seealso href="https://redis.io/commands/command-list"/></remarks>
-        RedisValue[] CommandListFilterbyAclcat(RedisValue category, CommandFlags flags = CommandFlags.None);
-
-        /// <inheritdoc cref="CommandListFilterbyAclcat(RedisValue, CommandFlags)"/>
-        Task<RedisValue[]> CommandListFilterbyAclcatAsync(RedisValue category, CommandFlags flags = CommandFlags.None);
-
-        /// <summary>
-        /// Returns a list of command names.
-        /// </summary>
-        /// <param name="pattern">The pattern.</param>
-        /// <param name="flags">The command flags to use.</param>
-        /// <remarks><seealso href="https://redis.io/commands/command-list"/></remarks>
-        RedisValue[] CommandListFilterbyPattern(RedisValue pattern, CommandFlags flags = CommandFlags.None);
-
-        /// <inheritdoc cref="CommandListFilterbyPattern(RedisValue, CommandFlags)"/>
-        Task<RedisValue[]> CommandListFilterbyPatternAsync(RedisValue pattern, CommandFlags flags = CommandFlags.None);
+        /// <inheritdoc cref="CommandList(RedisValue?, RedisValue?, RedisValue?, CommandFlags)"/>
+        Task<RedisValue[]> CommandListAsync(RedisValue? moduleName = null, RedisValue? category = null, RedisValue? pattern = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Return the number of keys in the database.
