@@ -2,7 +2,7 @@ StackExchange.Redis
 ===================
 
 - [Release Notes](ReleaseNotes)
-- [API Browser (via furget.org)](https://www.fuget.org/packages/StackExchange.Redis/)
+- [API Browser (via fuget.org)](https://www.fuget.org/packages/StackExchange.Redis/)
 
 ## Overview
 
