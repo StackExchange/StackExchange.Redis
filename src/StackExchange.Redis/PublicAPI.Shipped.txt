@@ -982,8 +982,8 @@ StackExchange.Redis.IServer.ConfigSet(StackExchange.Redis.RedisValue setting, St
 StackExchange.Redis.IServer.ConfigSetAsync(StackExchange.Redis.RedisValue setting, StackExchange.Redis.RedisValue value, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task!
 StackExchange.Redis.IServer.CommandCount(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
 StackExchange.Redis.IServer.CommandCountAsync(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
-StackExchange.Redis.IServer.CommandGetkeys(StackExchange.Redis.RedisValue[]! command, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisKey[]!
-StackExchange.Redis.IServer.CommandGetkeysAsync(StackExchange.Redis.RedisValue[]! command, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisKey[]!>!
+StackExchange.Redis.IServer.CommandGetKeys(StackExchange.Redis.RedisValue[]! command, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisKey[]!
+StackExchange.Redis.IServer.CommandGetKeysAsync(StackExchange.Redis.RedisValue[]! command, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisKey[]!>!
 StackExchange.Redis.IServer.CommandList(StackExchange.Redis.RedisValue? moduleName = null, StackExchange.Redis.RedisValue? category = null, StackExchange.Redis.RedisValue? pattern = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> string![]!
 StackExchange.Redis.IServer.CommandListAsync(StackExchange.Redis.RedisValue? moduleName = null, StackExchange.Redis.RedisValue? category = null, StackExchange.Redis.RedisValue? pattern = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<string![]!>!
 StackExchange.Redis.IServer.DatabaseCount.get -> int

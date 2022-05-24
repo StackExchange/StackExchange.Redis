@@ -23,18 +23,18 @@ public class Databases : TestBase
     }
 
     [Fact]
-    public async Task CommandGetkeys()
+    public async Task CommandGetKeys()
     {
         using var conn = Create();
         var server = GetAnyPrimary(conn);
 
         RedisValue[] command = { "MSET", "a", "b", "c", "d", "e", "f" };
 
-        RedisKey[] keys = server.CommandGetkeys(command);
+        RedisKey[] keys = server.CommandGetKeys(command);
         RedisKey[] expected = { "a", "c", "e" };
         Assert.Equal(keys, expected);
 
-        keys = await server.CommandGetkeysAsync(command);
+        keys = await server.CommandGetKeysAsync(command);
         Assert.Equal(keys, expected);
     }
 

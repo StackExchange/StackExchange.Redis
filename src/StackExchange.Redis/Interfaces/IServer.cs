@@ -195,10 +195,10 @@ namespace StackExchange.Redis
         /// <param name="command">The command to get keys from.</param>
         /// <param name="flags">The command flags to use.</param>
         /// <remarks><seealso href="https://redis.io/commands/command-getkeys"/></remarks>
-        RedisKey[] CommandGetkeys(RedisValue[] command, CommandFlags flags = CommandFlags.None);
+        RedisKey[] CommandGetKeys(RedisValue[] command, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="CommandGetkeys(RedisValue[], CommandFlags)"/>
-        Task<RedisKey[]> CommandGetkeysAsync(RedisValue[] command, CommandFlags flags = CommandFlags.None);
+        /// <inheritdoc cref="CommandGetKeys(RedisValue[], CommandFlags)"/>
+        Task<RedisKey[]> CommandGetKeysAsync(RedisValue[] command, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Returns a list of command names available on this Redis server.
