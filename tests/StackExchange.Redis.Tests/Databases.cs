@@ -30,8 +30,8 @@ public class Databases : TestBase
 
         RedisValue[] command = { "MSET", "a", "b", "c", "d", "e", "f" };
 
-        RedisValue[] keys = server.CommandGetkeys(command);
-        RedisValue[] expected = { "a", "c", "e" };
+        RedisKey[] keys = server.CommandGetkeys(command);
+        RedisKey[] expected = { "a", "c", "e" };
         Assert.Equal(keys, expected);
 
         keys = await server.CommandGetkeysAsync(command);

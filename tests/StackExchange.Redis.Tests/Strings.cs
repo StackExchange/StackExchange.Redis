@@ -702,7 +702,7 @@ public class Strings : TestBase
 
         // Default value
         stringMatchResult = db.StringLongestCommonSubsequenceWithMatches(key1, key2, flags: CommandFlags.FireAndForget);
-        Assert.Equal(stringMatchResult, LCSMatchResult.Null);
+        Assert.True(stringMatchResult.IsEmpty);
     }
 
     [Fact]
@@ -742,7 +742,7 @@ public class Strings : TestBase
 
         // Default value
         stringMatchResult = await db.StringLongestCommonSubsequenceWithMatchesAsync(key1, key2, flags: CommandFlags.FireAndForget);
-        Assert.Equal(stringMatchResult, LCSMatchResult.Null);
+        Assert.True(stringMatchResult.IsEmpty);
     }
 
     private static byte[] Encode(string value) => Encoding.UTF8.GetBytes(value);

@@ -92,6 +92,9 @@ namespace StackExchange.Redis
             Int64Array = new Int64ArrayProcessor();
 
         public static readonly ResultProcessor<string?[]>
+            NullableStringArray = new NullableStringArrayProcessor();
+
+        public static readonly ResultProcessor<string[]>
             StringArray = new StringArrayProcessor();
 
         public static readonly ResultProcessor<bool[]>
@@ -1394,7 +1397,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private sealed class StringArrayProcessor : ResultProcessor<string?[]>
+        private sealed class NullableStringArrayProcessor : ResultProcessor<string?[]>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
@@ -1403,6 +1406,21 @@ namespace StackExchange.Redis
                     case ResultType.MultiBulk:
                         var arr = result.GetItemsAsStrings()!;
 
+                        SetResult(message, arr);
+                        return true;
+                }
+                return false;
+            }
+        }
+
+        private sealed class StringArrayProcessor : ResultProcessor<string[]>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                switch (result.Type)
+                {
+                    case ResultType.MultiBulk:
+                        var arr = result.GetItemsAsStringsNotNullable()!;
                         SetResult(message, arr);
                         return true;
                 }
