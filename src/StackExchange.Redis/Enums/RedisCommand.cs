@@ -23,6 +23,7 @@ internal enum RedisCommand
     CLUSTER,
     CONFIG,
     COPY,
+    COMMAND,
 
     DBSIZE,
     DEBUG,
@@ -361,6 +362,7 @@ internal static class RedisCommandExtensions
             case RedisCommand.BITPOS:
             case RedisCommand.CLIENT:
             case RedisCommand.CLUSTER:
+            case RedisCommand.COMMAND:
             case RedisCommand.CONFIG:
             case RedisCommand.DBSIZE:
             case RedisCommand.DEBUG:
