@@ -34,6 +34,8 @@
 - Adds: Support for `BIT | BYTE` to `BITCOUNT` and `BITPOS` with `.StringBitCount()`/`.StringBitCountAsync()` and `.StringBitPosition()`/`.StringBitPositionAsync()` [#2116 by Avital-Fine](https://github.com/StackExchange/StackExchange.Redis/pull/2116))
 - Adds: Support for pub/sub payloads that are unary arrays ([#2118 by Marc Gravell](https://github.com/StackExchange/StackExchange.Redis/pull/2118))
 - Fix: Sentinel timer race during dispose ([#2133 by ewisuri](https://github.com/StackExchange/StackExchange.Redis/pull/2133))
+- Adds: Support for `COMMAND COUNT`, `COMMAND GETKEYS`, and `COMMAND LIST`, with `.CommandCount()`/`.CommandCountAsync()`, `.CommandGetKeys()`/`.CommandGetKeysAsync()`, and `.CommandList()`/`.CommandListAsync()` ([#2143 by shacharPash](https://github.com/StackExchange/StackExchange.Redis/pull/2143))
+
 
 ## 2.5.61
 
