@@ -27,7 +27,7 @@ jobs:
       working-directory: ./tests/RedisConfigs
       run: docker-compose -f docker-compose.yml up -d
     - name: StackExchange.Redis.Tests
-      run: dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj -c Release --logger trx --logger "GitHubActions;report-warnings=false" --results-directory ./test-results/ /p:CI=true
+      run: dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj -c Release --logger trx --logger GitHubActions --results-directory ./test-results/ /p:CI=true
     - uses: dorny/test-reporter@v1
       continue-on-error: true
       if: success() || failure()
@@ -74,7 +74,7 @@ jobs:
         .\redis-server.exe --service-install --service-name "redis-26381" "..\Sentinel\sentinel-26381.conf" --sentinel
         Start-Service redis-*
     - name: StackExchange.Redis.Tests
-      run: dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj -c Release --logger trx --logger "GitHubActions;report-warnings=false" --results-directory ./test-results/ /p:CI=true
+      run: dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj -c Release --logger trx --logger GitHubActions --results-directory ./test-results/ /p:CI=true
     - uses: dorny/test-reporter@v1
       continue-on-error: true
       if: success() || failure()

@@ -10,7 +10,7 @@
     
     <!-- Packages only used in the solution, upgrade at will -->
     <PackageVersion Include="BenchmarkDotNet" Version="0.13.1" />
-    <PackageVersion Include="GitHubActionsTestLogger" Version="1.4.1" />
+    <PackageVersion Include="GitHubActionsTestLogger" Version="2.0.0-alpha" />
     <PackageVersion Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" Version="3.3.3" />
     <PackageVersion Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.2" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.1.0" />
