@@ -29,13 +29,7 @@ namespace StackExchange.Redis
         // Unique identifier used when tracing
         internal readonly byte[] UniqueId = Guid.NewGuid().ToByteArray();
 
-        /// <summary>
-        /// Tracks overall connection multiplexer counts.
-        /// </summary>
-        internal int _connectAttemptCount = 0, _connectCompletedCount = 0, _connectionCloseCount = 0;
-        private long syncTimeouts, fireAndForgets, asyncTimeouts;
         private string? failureMessage, activeConfigCause;
-        private IDisposable? pulse;
 
         private readonly Hashtable servers = new Hashtable();
         private volatile ServerSnapshot _serverSnapshot = ServerSnapshot.Empty;
@@ -50,16 +44,6 @@ namespace StackExchange.Redis
         internal Exception? LastException { get; set; }
 
         ConfigurationOptions IInternalConnectionMultiplexer.RawConfig => RawConfig;
-
-        private int _activeHeartbeatErrors, lastHeartbeatTicks;
-        internal long LastHeartbeatSecondsAgo =>
-            pulse is null
-            ? -1
-            : unchecked(Environment.TickCount - Thread.VolatileRead(ref lastHeartbeatTicks)) / 1000;
-
-        private static int lastGlobalHeartbeatTicks = Environment.TickCount;
-        internal static long LastGlobalHeartbeatSecondsAgo =>
-            unchecked(Environment.TickCount - Thread.VolatileRead(ref lastGlobalHeartbeatTicks)) / 1000;
 
         /// <summary>
         /// Should exceptions include identifiable details? (key names, additional .Data annotations)
@@ -142,6 +126,10 @@ namespace StackExchange.Redis
 
         private ConnectionMultiplexer(ConfigurationOptions configuration, ServerType? serverType = null)
         {
+            // Track multiplexer stats
+            Interlocked.Increment(ref TotalCreatedMultiplexers);
+            CreationDate = DateTime.UtcNow;
+
             RawConfig = configuration ?? throw new ArgumentNullException(nameof(configuration));
             EndPoints = RawConfig.EndPoints.Clone();
             EndPoints.SetDefaultPorts(serverType, ssl: RawConfig.Ssl);
