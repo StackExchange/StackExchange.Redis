@@ -124,6 +124,11 @@ namespace StackExchange.Redis
                 // This can happen in cloud environments often, where user disables abort and has the wrong config
                 initialMessage = $"Connection to Redis never succeeded (attempts: {attempts} - check your config), unable to service operation: ";
             }
+            else if (message is not null && message.IsPrimaryOnly() && multiplexer.IsConnected)
+            {
+                // If we know it's a primary-only command, indicate that in the error message
+                initialMessage = "No connection (requires writable - not eligible for replica) is active/available to service this operation: ";
+            }
             else
             {
                 // Default if we don't have a more useful error message here based on circumstances
@@ -149,7 +154,7 @@ namespace StackExchange.Redis
             if (multiplexer.RawConfig.IncludeDetailInExceptions)
             {
                 CopyDataToException(data, ex);
-                sb.Append("; ").Append(PerfCounterHelper.GetThreadPoolAndCPUSummary(multiplexer.IncludePerformanceCountersInExceptions));
+                sb.Append("; ").Append(PerfCounterHelper.GetThreadPoolAndCPUSummary(multiplexer.RawConfig.IncludePerformanceCountersInExceptions));
                 AddExceptionDetail(ex, message, server, commandLabel);
             }
             return ex;
@@ -344,7 +349,7 @@ namespace StackExchange.Redis
             }
             data.Add(Tuple.Create("Busy-Workers", busyWorkerCount.ToString()));
 
-            if (multiplexer.IncludePerformanceCountersInExceptions)
+            if (multiplexer.RawConfig.IncludePerformanceCountersInExceptions)
             {
                 Add(data, sb, "Local-CPU", "Local-CPU", PerfCounterHelper.GetSystemCpuPercent());
             }

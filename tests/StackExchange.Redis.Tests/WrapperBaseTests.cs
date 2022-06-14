@@ -227,6 +227,14 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void KeyEncodingAsync()
+        {
+            wrapper.KeyEncodingAsync("key", CommandFlags.None);
+            mock.Verify(_ => _.KeyEncodingAsync("prefix:key", CommandFlags.None));
+        }
+
+
+        [Fact]
         public void KeyExistsAsync()
         {
             wrapper.KeyExistsAsync("key", CommandFlags.None);
@@ -247,6 +255,36 @@ namespace StackExchange.Redis.Tests
             DateTime expiry = DateTime.Now;
             wrapper.KeyExpireAsync("key", expiry, CommandFlags.None);
             mock.Verify(_ => _.KeyExpireAsync("prefix:key", expiry, CommandFlags.None));
+        }
+
+        [Fact]
+        public void KeyExpireAsync_3()
+        {
+            TimeSpan expiry = TimeSpan.FromSeconds(123);
+            wrapper.KeyExpireAsync("key", expiry, ExpireWhen.HasNoExpiry, CommandFlags.None);
+            mock.Verify(_ => _.KeyExpireAsync("prefix:key", expiry, ExpireWhen.HasNoExpiry, CommandFlags.None));
+        }
+
+        [Fact]
+        public void KeyExpireAsync_4()
+        {
+            DateTime expiry = DateTime.Now;
+            wrapper.KeyExpireAsync("key", expiry, ExpireWhen.HasNoExpiry, CommandFlags.None);
+            mock.Verify(_ => _.KeyExpireAsync("prefix:key", expiry, ExpireWhen.HasNoExpiry, CommandFlags.None));
+        }
+
+        [Fact]
+        public void KeyExpireTimeAsync()
+        {
+            wrapper.KeyExpireTimeAsync("key", CommandFlags.None);
+            mock.Verify(_ => _.KeyExpireTimeAsync("prefix:key", CommandFlags.None));
+        }
+
+        [Fact]
+        public void KeyFrequencyAsync()
+        {
+            wrapper.KeyFrequencyAsync("key", CommandFlags.None);
+            mock.Verify(_ => _.KeyFrequencyAsync("prefix:key", CommandFlags.None));
         }
 
         [Fact]
@@ -876,6 +914,13 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void SortedSetScoreAsync_Multiple()
+        {
+            wrapper.SortedSetScoresAsync("key", new RedisValue[] { "member1", "member2" }, CommandFlags.None);
+            mock.Verify(_ => _.SortedSetScoresAsync("prefix:key", new RedisValue[] { "member1", "member2" }, CommandFlags.None));
+        }
+
+        [Fact]
         public void StreamAcknowledgeAsync_1()
         {
             wrapper.StreamAcknowledgeAsync("key", "group", "0-0", CommandFlags.None);
@@ -903,6 +948,20 @@ namespace StackExchange.Redis.Tests
             var fields = Array.Empty<NameValueEntry>();
             wrapper.StreamAddAsync("key", fields, "*", 1000, true, CommandFlags.None);
             mock.Verify(_ => _.StreamAddAsync("prefix:key", fields, "*", 1000, true, CommandFlags.None));
+        }
+
+        [Fact]
+        public void StreamAutoClaimAsync()
+        {
+            wrapper.StreamAutoClaimAsync("key", "group", "consumer", 0, "0-0", 100, CommandFlags.None);
+            mock.Verify(_ => _.StreamAutoClaimAsync("prefix:key", "group", "consumer", 0, "0-0", 100, CommandFlags.None));
+        }
+
+        [Fact]
+        public void StreamAutoClaimIdsOnlyAsync()
+        {
+            wrapper.StreamAutoClaimIdsOnlyAsync("key", "group", "consumer", 0, "0-0", 100, CommandFlags.None);
+            mock.Verify(_ => _.StreamAutoClaimIdsOnlyAsync("prefix:key", "group", "consumer", 0, "0-0", 100, CommandFlags.None));
         }
 
         [Fact]
@@ -1058,6 +1117,13 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void StringBitCountAsync_2()
+        {
+            wrapper.StringBitCountAsync("key", 123, 456, StringIndexType.Byte, CommandFlags.None);
+            mock.Verify(_ => _.StringBitCountAsync("prefix:key", 123, 456, StringIndexType.Byte, CommandFlags.None));
+        }
+
+        [Fact]
         public void StringBitOperationAsync_1()
         {
             wrapper.StringBitOperationAsync(Bitwise.Xor, "destination", "first", "second", CommandFlags.None);
@@ -1078,6 +1144,13 @@ namespace StackExchange.Redis.Tests
         {
             wrapper.StringBitPositionAsync("key", true, 123, 456, CommandFlags.None);
             mock.Verify(_ => _.StringBitPositionAsync("prefix:key", true, 123, 456, CommandFlags.None));
+        }
+
+        [Fact]
+        public void StringBitPositionAsync_2()
+        {
+            wrapper.StringBitPositionAsync("key", true, 123, 456, StringIndexType.Byte, CommandFlags.None);
+            mock.Verify(_ => _.StringBitPositionAsync("prefix:key", true, 123, 456, StringIndexType.Byte, CommandFlags.None));
         }
 
         [Fact]
@@ -1192,6 +1265,14 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void StringSetAsync_Compat()
+        {
+            TimeSpan expiry = TimeSpan.FromSeconds(123);
+            wrapper.StringSetAsync("key", "value", expiry, When.Exists);
+            mock.Verify(_ => _.StringSetAsync("prefix:key", "value", expiry, When.Exists));
+        }
+
+        [Fact]
         public void StringSetBitAsync()
         {
             wrapper.StringSetBitAsync("key", 123, true, CommandFlags.None);
@@ -1220,6 +1301,5 @@ namespace StackExchange.Redis.Tests
             wrapper.KeyTouchAsync(keys, CommandFlags.None);
             mock.Verify(_ => _.KeyTouchAsync(It.Is(valid), CommandFlags.None));
         }
-#pragma warning restore RCS1047 // Non-asynchronous method name should not end with 'Async'.
     }
 }

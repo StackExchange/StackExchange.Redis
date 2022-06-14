@@ -3,104 +3,103 @@ using System.IO;
 using System.Text;
 using Xunit.Abstractions;
 
-namespace StackExchange.Redis.Tests.Helpers
+namespace StackExchange.Redis.Tests.Helpers;
+
+public class TextWriterOutputHelper : TextWriter
 {
-    public class TextWriterOutputHelper : TextWriter
+    private StringBuilder Buffer { get; } = new StringBuilder(2048);
+    private StringBuilder? Echo { get; set; }
+    public override Encoding Encoding => Encoding.UTF8;
+    private readonly ITestOutputHelper Output;
+    private readonly bool ToConsole;
+    public TextWriterOutputHelper(ITestOutputHelper outputHelper, bool echoToConsole)
     {
-        private StringBuilder Buffer { get; } = new StringBuilder(2048);
-        private StringBuilder? Echo { get; set; }
-        public override Encoding Encoding => Encoding.UTF8;
-        private readonly ITestOutputHelper Output;
-        private readonly bool ToConsole;
-        public TextWriterOutputHelper(ITestOutputHelper outputHelper, bool echoToConsole)
+        Output = outputHelper;
+        ToConsole = echoToConsole;
+    }
+
+    public void EchoTo(StringBuilder sb) => Echo = sb;
+
+    public void WriteLineNoTime(string? value)
+    {
+        try
         {
-            Output = outputHelper;
-            ToConsole = echoToConsole;
+            base.WriteLine(value);
+        }
+        catch (Exception ex)
+        {
+            Console.Write("Attempted to write: ");
+            Console.WriteLine(value);
+            Console.WriteLine(ex);
+        }
+    }
+
+    public override void WriteLine(string? value)
+    {
+        if (value is null)
+        {
+            return;
         }
 
-        public void EchoTo(StringBuilder sb) => Echo = sb;
-
-        public void WriteLineNoTime(string? value)
+        try
         {
-            try
+            // Prevent double timestamps
+            if (value.Length < "HH:mm:ss.ffff:".Length || value["HH:mm:ss.ffff:".Length - 1] != ':')
             {
-                base.WriteLine(value);
+                base.Write(TestBase.Time());
+                base.Write(": ");
             }
-            catch (Exception ex)
-            {
-                Console.Write("Attempted to write: ");
-                Console.WriteLine(value);
-                Console.WriteLine(ex);
-            }
+            base.WriteLine(value);
         }
-
-        public override void WriteLine(string? value)
+        catch (Exception ex)
         {
-            if (value is null)
-            {
-                return;
-            }
-
-            try
-            {
-                // Prevent double timestamps
-                if (value.Length < "HH:mm:ss.ffff:".Length || value["HH:mm:ss.ffff:".Length - 1] != ':')
-                {
-                    base.Write(TestBase.Time());
-                    base.Write(": ");
-                }
-                base.WriteLine(value);
-            }
-            catch (Exception ex)
-            {
-                Console.Write("Attempted to write: ");
-                Console.WriteLine(value);
-                Console.WriteLine(ex);
-            }
+            Console.Write("Attempted to write: ");
+            Console.WriteLine(value);
+            Console.WriteLine(ex);
         }
+    }
 
-        public override void Write(char value)
+    public override void Write(char value)
+    {
+        if (value == '\n' || value == '\r')
         {
-            if (value == '\n' || value == '\r')
-            {
-                // Ignore empty lines
-                if (Buffer.Length > 0)
-                {
-                    FlushBuffer();
-                }
-            }
-            else
-            {
-                Buffer.Append(value);
-            }
-        }
-
-        protected override void Dispose(bool disposing)
-        {
+            // Ignore empty lines
             if (Buffer.Length > 0)
             {
                 FlushBuffer();
             }
-            base.Dispose(disposing);
         }
-
-        private void FlushBuffer()
+        else
         {
-            var text = Buffer.ToString();
-            try
-            {
-                Output.WriteLine(text);
-            }
-            catch (InvalidOperationException)
-            {
-                // Thrown when writing from a handler after a test has ended - just bail in this case
-            }
-            Echo?.AppendLine(text);
-            if (ToConsole)
-            {
-                Console.WriteLine(text);
-            }
-            Buffer.Clear();
+            Buffer.Append(value);
         }
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (Buffer.Length > 0)
+        {
+            FlushBuffer();
+        }
+        base.Dispose(disposing);
+    }
+
+    private void FlushBuffer()
+    {
+        var text = Buffer.ToString();
+        try
+        {
+            Output.WriteLine(text);
+        }
+        catch (InvalidOperationException)
+        {
+            // Thrown when writing from a handler after a test has ended - just bail in this case
+        }
+        Echo?.AppendLine(text);
+        if (ToConsole)
+        {
+            Console.WriteLine(text);
+        }
+        Buffer.Clear();
     }
 }

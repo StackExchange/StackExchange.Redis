@@ -41,6 +41,10 @@ namespace StackExchange.Redis
         public static readonly ResultProcessor<DateTime>
             DateTime = new DateTimeProcessor();
 
+        public static readonly ResultProcessor<DateTime?>
+            NullableDateTimeFromMilliseconds = new NullableDateTimeProcessor(fromMilliseconds: true),
+            NullableDateTimeFromSeconds = new NullableDateTimeProcessor(fromMilliseconds: false);
+
         public static readonly ResultProcessor<double>
                                             Double = new DoubleProcessor();
         public static readonly ResultProcessor<IGrouping<string, KeyValuePair<string, string>>[]>
@@ -56,6 +60,10 @@ namespace StackExchange.Redis
 
         public static readonly ResultProcessor<double?>
                             NullableDouble = new NullableDoubleProcessor();
+
+        public static readonly ResultProcessor<double?[]>
+                            NullableDoubleArray = new NullableDoubleArrayProcessor();
+
         public static readonly ResultProcessor<long?>
             NullableInt64 = new NullableInt64Processor();
 
@@ -84,6 +92,9 @@ namespace StackExchange.Redis
             Int64Array = new Int64ArrayProcessor();
 
         public static readonly ResultProcessor<string?[]>
+            NullableStringArray = new NullableStringArrayProcessor();
+
+        public static readonly ResultProcessor<string[]>
             StringArray = new StringArrayProcessor();
 
         public static readonly ResultProcessor<bool[]>
@@ -108,11 +119,23 @@ namespace StackExchange.Redis
         public static readonly SortedSetEntryArrayProcessor
             SortedSetWithScores = new SortedSetEntryArrayProcessor();
 
+        public static readonly SortedSetPopResultProcessor
+            SortedSetPopResult = new SortedSetPopResultProcessor();
+
+        public static readonly ListPopResultProcessor
+            ListPopResult = new ListPopResultProcessor();
+
         public static readonly SingleStreamProcessor
             SingleStream = new SingleStreamProcessor();
 
         public static readonly SingleStreamProcessor
             SingleStreamWithNameSkip = new SingleStreamProcessor(skipStreamName: true);
+
+        public static readonly StreamAutoClaimProcessor
+            StreamAutoClaim = new StreamAutoClaimProcessor();
+
+        public static readonly StreamAutoClaimIdsOnlyProcessor
+            StreamAutoClaimIdsOnly = new StreamAutoClaimIdsOnlyProcessor();
 
         public static readonly StreamConsumerInfoProcessor
             StreamConsumerInfo = new StreamConsumerInfoProcessor();
@@ -130,6 +153,9 @@ namespace StackExchange.Redis
             StreamPendingMessages = new StreamPendingMessagesProcessor();
 
         public static ResultProcessor<GeoRadiusResult[]> GeoRadiusArray(GeoRadiusOptions options) => GeoRadiusResultArrayProcessor.Get(options);
+
+        public static readonly ResultProcessor<LCSMatchResult>
+            LCSMatchResult = new LongestCommonSubsequenceProcessor();
 
         public static readonly ResultProcessor<string?>
             String = new StringProcessor(),
@@ -240,7 +266,7 @@ namespace StackExchange.Redis
                                 {
                                     unableToConnectError = true;
                                     err = $"Endpoint {endpoint} serving hashslot {hashSlot} is not reachable at this point of time. Please check connectTimeout value. If it is low, try increasing it to give the ConnectionMultiplexer a chance to recover from the network disconnect. "
-                                        + PerfCounterHelper.GetThreadPoolAndCPUSummary(bridge.Multiplexer.IncludePerformanceCountersInExceptions);
+                                        + PerfCounterHelper.GetThreadPoolAndCPUSummary(bridge.Multiplexer.RawConfig.IncludePerformanceCountersInExceptions);
                                 }
                             }
                         }
@@ -555,6 +581,49 @@ namespace StackExchange.Redis
             protected override SortedSetEntry Parse(in RawResult first, in RawResult second) =>
                 new SortedSetEntry(first.AsRedisValue(), second.TryGetDouble(out double val) ? val : double.NaN);
         }
+
+        internal sealed class SortedSetPopResultProcessor : ResultProcessor<SortedSetPopResult>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                if (result.Type == ResultType.MultiBulk)
+                {
+                    if (result.IsNull)
+                    {
+                        SetResult(message, Redis.SortedSetPopResult.Null);
+                        return true;
+                    }
+
+                    var arr = result.GetItems();
+                    SetResult(message, new SortedSetPopResult(arr[0].AsRedisKey(), arr[1].GetItemsAsSortedSetEntryArray()!));
+                    return true;
+                }
+
+                return false;
+            }
+        }
+
+        internal sealed class ListPopResultProcessor : ResultProcessor<ListPopResult>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                if (result.Type == ResultType.MultiBulk)
+                {
+                    if (result.IsNull)
+                    {
+                        SetResult(message, Redis.ListPopResult.Null);
+                        return true;
+                    }
+
+                    var arr = result.GetItems();
+                    SetResult(message, new ListPopResult(arr[0].AsRedisKey(), arr[1].GetItemsAsValues()!));
+                    return true;
+                }
+
+                return false;
+            }
+        }
+
 
         internal sealed class HashEntryArrayProcessor : ValuePairInterleavedProcessorBase<HashEntry>
         {
@@ -965,6 +1034,34 @@ namespace StackExchange.Redis
             }
         }
 
+        public sealed class NullableDateTimeProcessor : ResultProcessor<DateTime?>
+        {
+            private readonly bool isMilliseconds;
+            public NullableDateTimeProcessor(bool fromMilliseconds) => isMilliseconds = fromMilliseconds;
+
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                switch (result.Type)
+                {
+                    case ResultType.Integer when result.TryGetInt64(out var duration):
+                        DateTime? expiry = duration switch
+                        {
+                            // -1 means no expiry and -2 means key does not exist
+                            < 0 => null,
+                            _ when isMilliseconds => RedisBase.UnixEpoch.AddMilliseconds(duration),
+                            _ => RedisBase.UnixEpoch.AddSeconds(duration)
+                        };
+                        SetResult(message, expiry);
+                        return true;
+
+                    case ResultType.BulkString when result.IsNull:
+                        SetResult(message, null);
+                        return true;
+                }
+                return false;
+            }
+        }
+
         private sealed class DoubleProcessor : ResultProcessor<double>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
@@ -1109,6 +1206,20 @@ namespace StackExchange.Redis
                     }
                 }
                 return base.SetResultCore(connection, message, result);
+            }
+        }
+
+        private sealed class NullableDoubleArrayProcessor : ResultProcessor<double?[]>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                if (result.Type == ResultType.MultiBulk && !result.IsNull)
+                {
+                    var arr = result.GetItemsAsDoubles()!;
+                    SetResult(message, arr);
+                    return true;
+                }
+                return false;
             }
         }
 
@@ -1286,7 +1397,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private sealed class StringArrayProcessor : ResultProcessor<string?[]>
+        private sealed class NullableStringArrayProcessor : ResultProcessor<string?[]>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
@@ -1295,6 +1406,21 @@ namespace StackExchange.Redis
                     case ResultType.MultiBulk:
                         var arr = result.GetItemsAsStrings()!;
 
+                        SetResult(message, arr);
+                        return true;
+                }
+                return false;
+            }
+        }
+
+        private sealed class StringArrayProcessor : ResultProcessor<string[]>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                switch (result.Type)
+                {
+                    case ResultType.MultiBulk:
+                        var arr = result.GetItemsAsStringsNotNullable()!;
                         SetResult(message, arr);
                         return true;
                 }
@@ -1414,6 +1540,55 @@ The coordinates as a two items x,y array (longitude,latitude).
                     position = new GeoPosition(longitude, latitude);
                 }
                 return new GeoRadiusResult(member, distance, hash, position);
+            }
+        }
+
+        /// <summary>
+        /// Parser for the https://redis.io/commands/lcs/ format with the <see cref="RedisLiterals.IDX"/> and <see cref="RedisLiterals.WITHMATCHLEN"/> arguments.
+        /// </summary>
+        /// <remarks>
+        /// Example response:
+        /// 1) "matches"
+        /// 2) 1) 1) 1) (integer) 4
+        ///          2) (integer) 7
+        ///       2) 1) (integer) 5
+        ///          2) (integer) 8
+        ///       3) (integer) 4
+        /// 3) "len"
+        /// 4) (integer) 6
+        /// </remarks>
+        private sealed class LongestCommonSubsequenceProcessor : ResultProcessor<LCSMatchResult>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                switch (result.Type)
+                {
+                    case ResultType.BulkString:
+                    case ResultType.MultiBulk:
+                        SetResult(message, Parse(result));
+                        return true;
+                }
+                return false;
+            }
+
+            private static LCSMatchResult Parse(in RawResult result)
+            {
+                var topItems = result.GetItems();
+                var matches = new LCSMatchResult.LCSMatch[topItems[1].GetItems().Length];
+                int i = 0;
+                var matchesRawArray = topItems[1]; // skip the first element (title "matches")
+                foreach (var match in matchesRawArray.GetItems())
+                {
+                    var matchItems = match.GetItems();
+
+                    matches[i++] = new LCSMatchResult.LCSMatch(
+                        firstStringIndex: (long)matchItems[0].GetItems()[0].AsRedisValue(),
+                        secondStringIndex: (long)matchItems[1].GetItems()[0].AsRedisValue(),
+                        length: (long)matchItems[2].AsRedisValue());
+                }
+                var len = (long)topItems[3].AsRedisValue();
+
+                return new LCSMatchResult(matches, len);
             }
         }
 
@@ -1613,6 +1788,9 @@ The coordinates as a two items x,y array (longitude,latitude).
                 this.skipStreamName = skipStreamName;
             }
 
+            /// <summary>
+            /// Handles <see href="https://redis.io/commands/xread"/>.
+            /// </summary>
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
                 if (result.IsNull)
@@ -1631,9 +1809,6 @@ The coordinates as a two items x,y array (longitude,latitude).
 
                 if (skipStreamName)
                 {
-                    // Skip the first element in the array (i.e., the stream name).
-                    // See https://redis.io/commands/xread.
-
                     // > XREAD COUNT 2 STREAMS mystream 0
                     // 1) 1) "mystream"                     <== Skip the stream name
                     //    2) 1) 1) 1519073278252 - 0        <== Index 1 contains the array of stream entries
@@ -1662,14 +1837,15 @@ The coordinates as a two items x,y array (longitude,latitude).
             }
         }
 
+        /// <summary>
+        /// Handles <see href="https://redis.io/commands/xread"/>.
+        /// </summary>
         internal sealed class MultiStreamProcessor : StreamProcessorBase<RedisStream[]>
         {
             /*
                 The result is similar to the XRANGE result (see SingleStreamProcessor)
                 with the addition of the stream name as the first element of top level
                 Multibulk array.
-
-                See https://redis.io/commands/xread.
 
                 > XREAD COUNT 2 STREAMS mystream writers 0-0 0-0
                 1) 1) "mystream"
@@ -1722,6 +1898,64 @@ The coordinates as a two items x,y array (longitude,latitude).
 
                 SetResult(message, streams);
                 return true;
+            }
+        }
+
+        /// <summary>
+        /// This processor is for <see cref="RedisCommand.XAUTOCLAIM"/> *without* the <see cref="StreamConstants.JustId"/> option.
+        /// </summary>
+        internal sealed class StreamAutoClaimProcessor : StreamProcessorBase<StreamAutoClaimResult>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                // See https://redis.io/commands/xautoclaim for command documentation.
+                // Note that the result should never be null, so intentionally treating it as a failure to parse here
+                if (result.Type == ResultType.MultiBulk && !result.IsNull)
+                {
+                    var items = result.GetItems();
+
+                    // [0] The next start ID.
+                    var nextStartId = items[0].AsRedisValue();
+                    // [1] The array of StreamEntry's.
+                    var entries = ParseRedisStreamEntries(items[1]);
+                    // [2] The array of message IDs deleted from the stream that were in the PEL.
+                    //     This is not available in 6.2 so we need to be defensive when reading this part of the response.
+                    var deletedIds = (items.Length == 3 ? items[2].GetItemsAsValues() : null) ?? Array.Empty<RedisValue>();
+
+                    SetResult(message, new StreamAutoClaimResult(nextStartId, entries, deletedIds));
+                    return true;
+                }
+
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// This processor is for <see cref="RedisCommand.XAUTOCLAIM"/> *with* the <see cref="StreamConstants.JustId"/> option.
+        /// </summary>
+        internal sealed class StreamAutoClaimIdsOnlyProcessor : ResultProcessor<StreamAutoClaimIdsOnlyResult>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                // See https://redis.io/commands/xautoclaim for command documentation.
+                // Note that the result should never be null, so intentionally treating it as a failure to parse here
+                if (result.Type == ResultType.MultiBulk && !result.IsNull)
+                {
+                    var items = result.GetItems();
+
+                    // [0] The next start ID.
+                    var nextStartId = items[0].AsRedisValue();
+                    // [1] The array of claimed message IDs.
+                    var claimedIds = items[1].GetItemsAsValues() ?? Array.Empty<RedisValue>();
+                    // [2] The array of message IDs deleted from the stream that were in the PEL.
+                    //     This is not available in 6.2 so we need to be defensive when reading this part of the response.
+                    var deletedIds = (items.Length == 3 ? items[2].GetItemsAsValues() : null) ?? Array.Empty<RedisValue>();
+
+                    SetResult(message, new StreamAutoClaimIdsOnlyResult(nextStartId, claimedIds, deletedIds));
+                    return true;
+                }
+
+                return false;
             }
         }
 
@@ -2030,10 +2264,11 @@ The coordinates as a two items x,y array (longitude,latitude).
             }
         }
 
+        /// <summary>
+        /// Handles stream responses. For formats, see <see href="https://redis.io/topics/streams-intro"/>.
+        /// </summary>
         internal abstract class StreamProcessorBase<T> : ResultProcessor<T>
         {
-            // For command response formats see https://redis.io/topics/streams-intro.
-
             protected static StreamEntry ParseRedisStreamEntry(in RawResult item)
             {
                 if (item.IsNull || item.Type != ResultType.MultiBulk)

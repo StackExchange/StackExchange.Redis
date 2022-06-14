@@ -1498,10 +1498,10 @@ namespace StackExchange.Redis
                     // invoke the handlers
                     var channel = items[1].AsRedisChannel(ChannelPrefix, RedisChannel.PatternMode.Literal);
                     Trace("MESSAGE: " + channel);
-                    if (!channel.IsNull)
+                    if (!channel.IsNull && TryGetPubSubPayload(items[2], out var payload))
                     {
                         _readStatus = ReadStatus.InvokePubSub;
-                        muxer.OnMessage(channel, channel, items[2].AsRedisValue());
+                        muxer.OnMessage(channel, channel, payload);
                     }
                     return; // AND STOP PROCESSING!
                 }
@@ -1511,11 +1511,11 @@ namespace StackExchange.Redis
 
                     var channel = items[2].AsRedisChannel(ChannelPrefix, RedisChannel.PatternMode.Literal);
                     Trace("PMESSAGE: " + channel);
-                    if (!channel.IsNull)
+                    if (!channel.IsNull && TryGetPubSubPayload(items[3], out var payload))
                     {
                         var sub = items[1].AsRedisChannel(ChannelPrefix, RedisChannel.PatternMode.Pattern);
                         _readStatus = ReadStatus.InvokePubSub;
-                        muxer.OnMessage(sub, channel, items[3].AsRedisValue());
+                        muxer.OnMessage(sub, channel, payload);
                     }
                     return; // AND STOP PROCESSING!
                 }
@@ -1551,6 +1551,27 @@ namespace StackExchange.Redis
             }
             _readStatus = ReadStatus.MatchResultComplete;
             _activeMessage = null;
+
+            static bool TryGetPubSubPayload(in RawResult value, out RedisValue parsed, bool allowArraySingleton = true)
+            {
+                if (value.IsNull)
+                {
+                    parsed = RedisValue.Null;
+                    return true;
+                }
+                switch (value.Type)
+                {
+                    case ResultType.Integer:
+                    case ResultType.SimpleString:
+                    case ResultType.BulkString:
+                        parsed = value.AsRedisValue();
+                        return true;
+                    case ResultType.MultiBulk when allowArraySingleton && value.ItemsCount == 1:
+                        return TryGetPubSubPayload(in value[0], out parsed, allowArraySingleton: false);
+                }
+                parsed = default;
+                return false;
+            }
         }
 
         private volatile Message? _activeMessage;

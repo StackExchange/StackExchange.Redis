@@ -173,7 +173,7 @@ namespace StackExchange.Redis
             StorageType xType = x.Type, yType = y.Type;
 
             if (xType == StorageType.Null) return yType == StorageType.Null;
-            if (xType == StorageType.Null) return false;
+            if (yType == StorageType.Null) return false;
 
             if (xType == yType)
             {
@@ -274,17 +274,16 @@ namespace StackExchange.Redis
             return true;
         }
 
-        internal static unsafe int GetHashCode(ReadOnlyMemory<byte> memory)
+        internal static unsafe int GetHashCode(ReadOnlySpan<byte> span)
         {
             unchecked
             {
-                var span8 = memory.Span;
-                int len = span8.Length;
+                int len = span.Length;
                 if (len == 0) return 0;
 
                 int acc = 728271210;
 
-                var span64 = MemoryMarshal.Cast<byte, long>(span8);
+                var span64 = MemoryMarshal.Cast<byte, long>(span);
                 for (int i = 0; i < span64.Length; i++)
                 {
                     var val = span64[i];
@@ -294,7 +293,7 @@ namespace StackExchange.Redis
                 int spare = len % 8, offset = len - spare;
                 while (spare-- != 0)
                 {
-                    acc = (((acc << 5) + acc) ^ span8[offset++]);
+                    acc = (((acc << 5) + acc) ^ span[offset++]);
                 }
                 return acc;
             }
