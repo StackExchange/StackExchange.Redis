@@ -424,14 +424,6 @@ StackExchange.Redis.GeoUnit.Feet = 3 -> StackExchange.Redis.GeoUnit
 StackExchange.Redis.GeoUnit.Kilometers = 1 -> StackExchange.Redis.GeoUnit
 StackExchange.Redis.GeoUnit.Meters = 0 -> StackExchange.Redis.GeoUnit
 StackExchange.Redis.GeoUnit.Miles = 2 -> StackExchange.Redis.GeoUnit
-StackExchange.Redis.ListPopResult
-StackExchange.Redis.ListPopResult.IsNull.get -> bool
-StackExchange.Redis.ListPopResult.Key.get -> StackExchange.Redis.RedisKey
-StackExchange.Redis.ListPopResult.ListPopResult() -> void
-StackExchange.Redis.ListPopResult.Values.get -> StackExchange.Redis.RedisValue[]!
-StackExchange.Redis.ListSide
-StackExchange.Redis.ListSide.Left = 0 -> StackExchange.Redis.ListSide
-StackExchange.Redis.ListSide.Right = 1 -> StackExchange.Redis.ListSide
 StackExchange.Redis.HashEntry
 StackExchange.Redis.HashEntry.Equals(StackExchange.Redis.HashEntry other) -> bool
 StackExchange.Redis.HashEntry.HashEntry() -> void
@@ -713,6 +705,9 @@ StackExchange.Redis.IDatabase.StringGetWithExpiry(StackExchange.Redis.RedisKey k
 StackExchange.Redis.IDatabase.StringIncrement(StackExchange.Redis.RedisKey key, double value, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> double
 StackExchange.Redis.IDatabase.StringIncrement(StackExchange.Redis.RedisKey key, long value = 1, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
 StackExchange.Redis.IDatabase.StringLength(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
+StackExchange.Redis.IDatabase.StringLongestCommonSubsequence(StackExchange.Redis.RedisKey first, StackExchange.Redis.RedisKey second, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> string?
+StackExchange.Redis.IDatabase.StringLongestCommonSubsequenceLength(StackExchange.Redis.RedisKey first, StackExchange.Redis.RedisKey second, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
+StackExchange.Redis.IDatabase.StringLongestCommonSubsequenceWithMatches(StackExchange.Redis.RedisKey first, StackExchange.Redis.RedisKey second, long minLength = 0, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.LCSMatchResult
 StackExchange.Redis.IDatabase.StringSet(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue value, System.TimeSpan? expiry = null, bool keepTtl = false, StackExchange.Redis.When when = StackExchange.Redis.When.Always, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> bool
 StackExchange.Redis.IDatabase.StringSet(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue value, System.TimeSpan? expiry, StackExchange.Redis.When when) -> bool
 StackExchange.Redis.IDatabase.StringSet(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue value, System.TimeSpan? expiry, StackExchange.Redis.When when, StackExchange.Redis.CommandFlags flags) -> bool
@@ -937,6 +932,9 @@ StackExchange.Redis.IDatabaseAsync.StringGetWithExpiryAsync(StackExchange.Redis.
 StackExchange.Redis.IDatabaseAsync.StringIncrementAsync(StackExchange.Redis.RedisKey key, double value, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<double>!
 StackExchange.Redis.IDatabaseAsync.StringIncrementAsync(StackExchange.Redis.RedisKey key, long value = 1, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
 StackExchange.Redis.IDatabaseAsync.StringLengthAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
+StackExchange.Redis.IDatabaseAsync.StringLongestCommonSubsequenceAsync(StackExchange.Redis.RedisKey first, StackExchange.Redis.RedisKey second, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<string?>!
+StackExchange.Redis.IDatabaseAsync.StringLongestCommonSubsequenceLengthAsync(StackExchange.Redis.RedisKey first, StackExchange.Redis.RedisKey second, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
+StackExchange.Redis.IDatabaseAsync.StringLongestCommonSubsequenceWithMatchesAsync(StackExchange.Redis.RedisKey first, StackExchange.Redis.RedisKey second, long minLength = 0, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.LCSMatchResult>!
 StackExchange.Redis.IDatabaseAsync.StringSetAndGetAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue value, System.TimeSpan? expiry = null, bool keepTtl = false, StackExchange.Redis.When when = StackExchange.Redis.When.Always, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue>!
 StackExchange.Redis.IDatabaseAsync.StringSetAndGetAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue value, System.TimeSpan? expiry, StackExchange.Redis.When when, StackExchange.Redis.CommandFlags flags) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue>!
 StackExchange.Redis.IDatabaseAsync.StringSetAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue value, System.TimeSpan? expiry = null, bool keepTtl = false, StackExchange.Redis.When when = StackExchange.Redis.When.Always, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<bool>!
@@ -990,6 +988,12 @@ StackExchange.Redis.IServer.ConfigRewrite(StackExchange.Redis.CommandFlags flags
 StackExchange.Redis.IServer.ConfigRewriteAsync(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task!
 StackExchange.Redis.IServer.ConfigSet(StackExchange.Redis.RedisValue setting, StackExchange.Redis.RedisValue value, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> void
 StackExchange.Redis.IServer.ConfigSetAsync(StackExchange.Redis.RedisValue setting, StackExchange.Redis.RedisValue value, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task!
+StackExchange.Redis.IServer.CommandCount(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
+StackExchange.Redis.IServer.CommandCountAsync(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
+StackExchange.Redis.IServer.CommandGetKeys(StackExchange.Redis.RedisValue[]! command, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisKey[]!
+StackExchange.Redis.IServer.CommandGetKeysAsync(StackExchange.Redis.RedisValue[]! command, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisKey[]!>!
+StackExchange.Redis.IServer.CommandList(StackExchange.Redis.RedisValue? moduleName = null, StackExchange.Redis.RedisValue? category = null, StackExchange.Redis.RedisValue? pattern = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> string![]!
+StackExchange.Redis.IServer.CommandListAsync(StackExchange.Redis.RedisValue? moduleName = null, StackExchange.Redis.RedisValue? category = null, StackExchange.Redis.RedisValue? pattern = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<string![]!>!
 StackExchange.Redis.IServer.DatabaseCount.get -> int
 StackExchange.Redis.IServer.DatabaseSize(int database = -1, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
 StackExchange.Redis.IServer.DatabaseSizeAsync(int database = -1, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
@@ -1134,6 +1138,24 @@ StackExchange.Redis.LoadedLuaScript.EvaluateAsync(StackExchange.Redis.IDatabaseA
 StackExchange.Redis.LoadedLuaScript.ExecutableScript.get -> string!
 StackExchange.Redis.LoadedLuaScript.Hash.get -> byte[]!
 StackExchange.Redis.LoadedLuaScript.OriginalScript.get -> string!
+StackExchange.Redis.LCSMatchResult
+StackExchange.Redis.LCSMatchResult.IsEmpty.get -> bool
+StackExchange.Redis.LCSMatchResult.LCSMatchResult() -> void
+StackExchange.Redis.LCSMatchResult.LongestMatchLength.get -> long
+StackExchange.Redis.LCSMatchResult.Matches.get -> StackExchange.Redis.LCSMatchResult.LCSMatch[]!
+StackExchange.Redis.LCSMatchResult.LCSMatch
+StackExchange.Redis.LCSMatchResult.LCSMatch.LCSMatch() -> void
+StackExchange.Redis.LCSMatchResult.LCSMatch.FirstStringIndex.get -> long
+StackExchange.Redis.LCSMatchResult.LCSMatch.SecondStringIndex.get -> long
+StackExchange.Redis.LCSMatchResult.LCSMatch.Length.get -> long
+StackExchange.Redis.ListPopResult
+StackExchange.Redis.ListPopResult.IsNull.get -> bool
+StackExchange.Redis.ListPopResult.Key.get -> StackExchange.Redis.RedisKey
+StackExchange.Redis.ListPopResult.ListPopResult() -> void
+StackExchange.Redis.ListPopResult.Values.get -> StackExchange.Redis.RedisValue[]!
+StackExchange.Redis.ListSide
+StackExchange.Redis.ListSide.Left = 0 -> StackExchange.Redis.ListSide
+StackExchange.Redis.ListSide.Right = 1 -> StackExchange.Redis.ListSide
 StackExchange.Redis.LuaScript
 StackExchange.Redis.LuaScript.Evaluate(StackExchange.Redis.IDatabase! db, object? ps = null, StackExchange.Redis.RedisKey? withKeyPrefix = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisResult!
 StackExchange.Redis.LuaScript.EvaluateAsync(StackExchange.Redis.IDatabaseAsync! db, object? ps = null, StackExchange.Redis.RedisKey? withKeyPrefix = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisResult!>!

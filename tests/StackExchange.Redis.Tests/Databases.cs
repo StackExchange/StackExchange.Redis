@@ -1,4 +1,5 @@
-﻿using System.Threading.Tasks;
+﻿using System;
+using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -7,7 +8,65 @@ namespace StackExchange.Redis.Tests;
 [Collection(SharedConnectionFixture.Key)]
 public class Databases : TestBase
 {
-    public Databases(ITestOutputHelper output, SharedConnectionFixture fixture) : base (output, fixture) { }
+    public Databases(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
+
+    [Fact]
+    public async Task CommandCount()
+    {
+        using var conn = Create();
+        var server = GetAnyPrimary(conn);
+        var count = server.CommandCount();
+        Assert.True(count > 100);
+
+        count = await server.CommandCountAsync();
+        Assert.True(count > 100);
+    }
+
+    [Fact]
+    public async Task CommandGetKeys()
+    {
+        using var conn = Create();
+        var server = GetAnyPrimary(conn);
+
+        RedisValue[] command = { "MSET", "a", "b", "c", "d", "e", "f" };
+
+        RedisKey[] keys = server.CommandGetKeys(command);
+        RedisKey[] expected = { "a", "c", "e" };
+        Assert.Equal(keys, expected);
+
+        keys = await server.CommandGetKeysAsync(command);
+        Assert.Equal(keys, expected);
+    }
+
+    [Fact]
+    public async Task CommandList()
+    {
+        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+        var server = GetAnyPrimary(conn);
+
+        var commands = server.CommandList();
+        Assert.True(commands.Length > 100);
+        commands = await server.CommandListAsync();
+        Assert.True(commands.Length > 100);
+
+        commands = server.CommandList(moduleName: "JSON");
+        Assert.Empty(commands);
+        commands = await server.CommandListAsync(moduleName: "JSON");
+        Assert.Empty(commands);
+
+        commands = server.CommandList(category: "admin");
+        Assert.True(commands.Length > 10);
+        commands = await server.CommandListAsync(category: "admin");
+        Assert.True(commands.Length > 10);
+
+        commands = server.CommandList(pattern: "a*");
+        Assert.True(commands.Length > 10);
+        commands = await server.CommandListAsync(pattern: "a*");
+        Assert.True(commands.Length > 10);
+
+        Assert.Throws<ArgumentException>(() => server.CommandList(moduleName: "JSON", pattern: "a*"));
+        await Assert.ThrowsAsync<ArgumentException>(() => server.CommandListAsync(moduleName: "JSON", pattern: "a*"));
+    }
 
     [Fact]
     public async Task CountKeys()

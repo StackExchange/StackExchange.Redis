@@ -204,6 +204,79 @@ namespace StackExchange.Redis
             return task;
         }
 
+        public long CommandCount(CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.COMMAND, RedisLiterals.COUNT);
+            return ExecuteSync(msg, ResultProcessor.Int64);
+        }
+
+        public Task<long> CommandCountAsync(CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.COMMAND, RedisLiterals.COUNT);
+            return ExecuteAsync(msg, ResultProcessor.Int64);
+        }
+
+        public RedisKey[] CommandGetKeys(RedisValue[] command, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.COMMAND, AddValueToArray(RedisLiterals.GETKEYS, command));
+            return ExecuteSync(msg, ResultProcessor.RedisKeyArray, defaultValue: Array.Empty<RedisKey>());
+        }
+
+        public Task<RedisKey[]> CommandGetKeysAsync(RedisValue[] command, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.COMMAND, AddValueToArray(RedisLiterals.GETKEYS, command));
+            return ExecuteAsync(msg, ResultProcessor.RedisKeyArray, defaultValue: Array.Empty<RedisKey>());
+        }
+
+        public string[] CommandList(RedisValue? moduleName = null, RedisValue? category = null, RedisValue? pattern = null, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetCommandListMessage(moduleName, category, pattern, flags);
+            return ExecuteSync(msg, ResultProcessor.StringArray, defaultValue: Array.Empty<string>());
+        }
+
+        public Task<string[]> CommandListAsync(RedisValue? moduleName = null, RedisValue? category = null, RedisValue? pattern = null, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetCommandListMessage(moduleName, category, pattern, flags);
+            return ExecuteAsync(msg, ResultProcessor.StringArray, defaultValue: Array.Empty<string>());
+        }
+
+        private Message GetCommandListMessage(RedisValue? moduleName = null, RedisValue? category = null, RedisValue? pattern = null, CommandFlags flags = CommandFlags.None)
+        {
+            if (moduleName == null && category == null && pattern == null)
+            {
+                return Message.Create(-1, flags, RedisCommand.COMMAND, RedisLiterals.LIST);
+            }
+
+            else if (moduleName != null && category == null && pattern == null)
+            {
+                return Message.Create(-1, flags, RedisCommand.COMMAND, MakeArray(RedisLiterals.LIST, RedisLiterals.FILTERBY, RedisLiterals.MODULE, (RedisValue)moduleName));
+            }
+
+            else if (moduleName == null && category != null && pattern == null)
+            {
+                return Message.Create(-1, flags, RedisCommand.COMMAND, MakeArray(RedisLiterals.LIST, RedisLiterals.FILTERBY, RedisLiterals.ACLCAT, (RedisValue)category));
+            }
+
+            else if (moduleName == null && category == null && pattern != null)
+            {
+                return Message.Create(-1, flags, RedisCommand.COMMAND, MakeArray(RedisLiterals.LIST, RedisLiterals.FILTERBY, RedisLiterals.PATTERN, (RedisValue)pattern));
+            }
+
+            else
+                throw new ArgumentException("More then one filter is not allwed");
+        }
+
+        private RedisValue[] AddValueToArray(RedisValue val, RedisValue[] arr)
+        {
+            var result = new RedisValue[arr.Length + 1];
+            var i = 0;
+            result[i++] = val;
+            foreach (var item in arr) result[i++] = item;
+            return result;
+        }
+
+        private RedisValue[] MakeArray(params RedisValue[] redisValues) { return redisValues; }
+
         public long DatabaseSize(int database = -1, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(multiplexer.ApplyDefaultDatabase(database), flags, RedisCommand.DBSIZE);

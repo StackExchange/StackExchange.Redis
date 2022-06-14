@@ -116,7 +116,7 @@ namespace StackExchange.Redis
             var redisValues = new RedisValue[members.Length];
             for (var i = 0; i < members.Length; i++) redisValues[i] = members[i];
             var msg = Message.Create(Database, flags, RedisCommand.GEOHASH, key, redisValues);
-            return ExecuteSync(msg, ResultProcessor.StringArray, defaultValue: Array.Empty<string?>());
+            return ExecuteSync(msg, ResultProcessor.NullableStringArray, defaultValue: Array.Empty<string?>());
         }
 
         public Task<string?[]> GeoHashAsync(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)
@@ -125,7 +125,7 @@ namespace StackExchange.Redis
             var redisValues = new RedisValue[members.Length];
             for (var i = 0; i < members.Length; i++) redisValues[i] = members[i];
             var msg = Message.Create(Database, flags, RedisCommand.GEOHASH, key, redisValues);
-            return ExecuteAsync(msg, ResultProcessor.StringArray, defaultValue: Array.Empty<string?>());
+            return ExecuteAsync(msg, ResultProcessor.NullableStringArray, defaultValue: Array.Empty<string?>());
         }
 
         public string? GeoHash(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
@@ -829,37 +829,37 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
-        public bool KeyExpire(RedisKey key, TimeSpan? expiry, CommandFlags flags) =>
+        public bool KeyExpire(RedisKey key, TimeSpan? expiry, CommandFlags flags = CommandFlags.None) =>
             KeyExpire(key, expiry, ExpireWhen.Always, flags);
 
-        public bool KeyExpire(RedisKey key, DateTime? expiry, CommandFlags flags) =>
+        public bool KeyExpire(RedisKey key, DateTime? expiry, CommandFlags flags = CommandFlags.None) =>
             KeyExpire(key, expiry, ExpireWhen.Always, flags);
 
-        public bool KeyExpire(RedisKey key, TimeSpan? expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None)
+        public bool KeyExpire(RedisKey key, TimeSpan? expiry, ExpireWhen when, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetExpiryMessage(key, flags, expiry, when, out ServerEndPoint? server);
             return ExecuteSync(msg, ResultProcessor.Boolean, server: server);
         }
 
-        public bool KeyExpire(RedisKey key, DateTime? expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None)
+        public bool KeyExpire(RedisKey key, DateTime? expiry, ExpireWhen when, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetExpiryMessage(key, flags, expiry, when, out ServerEndPoint? server);
             return ExecuteSync(msg, ResultProcessor.Boolean, server: server);
         }
 
-        public Task<bool> KeyExpireAsync(RedisKey key, TimeSpan? expiry, CommandFlags flags) =>
+        public Task<bool> KeyExpireAsync(RedisKey key, TimeSpan? expiry, CommandFlags flags = CommandFlags.None) =>
             KeyExpireAsync(key, expiry, ExpireWhen.Always, flags);
 
-        public Task<bool> KeyExpireAsync(RedisKey key, DateTime? expiry, CommandFlags flags) =>
+        public Task<bool> KeyExpireAsync(RedisKey key, DateTime? expiry, CommandFlags flags = CommandFlags.None) =>
             KeyExpireAsync(key, expiry, ExpireWhen.Always, flags);
 
-        public Task<bool> KeyExpireAsync(RedisKey key, TimeSpan? expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None)
+        public Task<bool> KeyExpireAsync(RedisKey key, TimeSpan? expiry, ExpireWhen when, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetExpiryMessage(key, flags, expiry, when, out ServerEndPoint? server);
             return ExecuteAsync(msg, ResultProcessor.Boolean, server: server);
         }
 
-        public Task<bool> KeyExpireAsync(RedisKey key, DateTime? expire, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None)
+        public Task<bool> KeyExpireAsync(RedisKey key, DateTime? expire, ExpireWhen when, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetExpiryMessage(key, flags, expire, when, out ServerEndPoint? server);
             return ExecuteAsync(msg, ResultProcessor.Boolean, server: server);
@@ -1443,6 +1443,42 @@ namespace StackExchange.Redis
             return StringSetAsync(key, value, expiry, When.NotExists, flags);
         }
 
+        public string? StringLongestCommonSubsequence(RedisKey key1, RedisKey key2, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.LCS, key1, key2);
+            return ExecuteSync(msg, ResultProcessor.String);
+        }
+
+        public Task<string?> StringLongestCommonSubsequenceAsync(RedisKey key1, RedisKey key2, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.LCS, key1, key2);
+            return ExecuteAsync(msg, ResultProcessor.String);
+        }
+
+        public long StringLongestCommonSubsequenceLength(RedisKey key1, RedisKey key2, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.LCS, key1, key2, RedisLiterals.LEN);
+            return ExecuteSync(msg, ResultProcessor.Int64);
+        }
+
+        public Task<long> StringLongestCommonSubsequenceLengthAsync(RedisKey key1, RedisKey key2, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.LCS, key1, key2, RedisLiterals.LEN);
+            return ExecuteAsync(msg, ResultProcessor.Int64);
+        }
+
+        public LCSMatchResult StringLongestCommonSubsequenceWithMatches(RedisKey key1, RedisKey key2, long minSubMatchLength = 0, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.LCS, key1, key2, RedisLiterals.IDX, RedisLiterals.MINMATCHLEN, minSubMatchLength, RedisLiterals.WITHMATCHLEN);
+            return ExecuteSync(msg, ResultProcessor.LCSMatchResult);
+        }
+
+        public Task<LCSMatchResult> StringLongestCommonSubsequenceWithMatchesAsync(RedisKey key1, RedisKey key2, long minSubMatchLength = 0, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.LCS, key1, key2, RedisLiterals.IDX, RedisLiterals.MINMATCHLEN, minSubMatchLength, RedisLiterals.WITHMATCHLEN);
+            return ExecuteAsync(msg, ResultProcessor.LCSMatchResult);
+        }
+
         public long Publish(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None)
         {
             if (channel.IsNullOrEmpty) throw new ArgumentNullException(nameof(channel));
@@ -1473,6 +1509,7 @@ namespace StackExchange.Redis
 
         public RedisResult Execute(string command, params object[] args)
             => Execute(command, args, CommandFlags.None);
+
         public RedisResult Execute(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None)
         {
             var msg = new ExecuteMessage(multiplexer?.CommandMap, Database, flags, command, args);
