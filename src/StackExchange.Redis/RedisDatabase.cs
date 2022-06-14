@@ -3392,16 +3392,15 @@ namespace StackExchange.Redis
             return result;
         }
 
-        private Message GetMultiStreamReadGroupMessage(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, bool noAck, CommandFlags flags)
-        {
-            return new MultiStreamReadGroupCommandMessage(Database,
+        private Message GetMultiStreamReadGroupMessage(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, bool noAck, CommandFlags flags) =>
+            new MultiStreamReadGroupCommandMessage(Database,
                 flags,
                 streamPositions,
                 groupName,
                 consumerName,
                 countPerStream,
                 noAck);
-        }
+
         private sealed class MultiStreamReadGroupCommandMessage : Message // XREADGROUP with multiple stream. Example: XREADGROUP GROUP groupName consumerName COUNT countPerStream STREAMS stream1 stream2 id1 id2
         {
             private readonly StreamPosition[] streamPositions;
@@ -3484,10 +3483,9 @@ namespace StackExchange.Redis
             public override int ArgCount => argCount;
         }
 
-        private Message GetMultiStreamReadMessage(StreamPosition[] streamPositions, int? countPerStream, CommandFlags flags)
-        {
-            return new MultiStreamReadCommandMessage(Database, flags, streamPositions, countPerStream);            
-        }
+        private Message GetMultiStreamReadMessage(StreamPosition[] streamPositions, int? countPerStream, CommandFlags flags) =>
+            new MultiStreamReadCommandMessage(Database, flags, streamPositions, countPerStream);
+
         private sealed class MultiStreamReadCommandMessage : Message // XREAD with multiple stream. Example: XREAD COUNT 2 STREAMS mystream writers 0-0 0-0
         {
             private readonly StreamPosition[] streamPositions;            
@@ -4125,10 +4123,9 @@ namespace StackExchange.Redis
                 values);
         }
 
-        private Message GetStreamReadGroupMessage(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue afterId, int? count, bool noAck, CommandFlags flags)
-        {            
-            return new SingleStreamReadGroupCommandMessage(Database, flags, key, groupName, consumerName, afterId, count, noAck);            
-        }
+        private Message GetStreamReadGroupMessage(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue afterId, int? count, bool noAck, CommandFlags flags) =>
+            new SingleStreamReadGroupCommandMessage(Database, flags, key, groupName, consumerName, afterId, count, noAck);
+
         private sealed class SingleStreamReadGroupCommandMessage : Message.CommandKeyBase // XREADGROUP with single stream. eg XREADGROUP GROUP mygroup Alice COUNT 1 STREAMS mystream >
         {
             private readonly RedisValue groupName;
@@ -4139,7 +4136,8 @@ namespace StackExchange.Redis
             private readonly int argCount;
 
             public SingleStreamReadGroupCommandMessage(int db, CommandFlags flags, RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue afterId, int? count, bool noAck)
-                : base(db, flags, RedisCommand.XREADGROUP, key) {
+                : base(db, flags, RedisCommand.XREADGROUP, key)
+            {
                 if (count.HasValue && count <= 0)
                 {
                     throw new ArgumentOutOfRangeException(nameof(count), "count must be greater than 0.");
@@ -4150,7 +4148,7 @@ namespace StackExchange.Redis
                 afterId.AssertNotNull();
 
                 this.groupName = groupName;
-                this.consumerName = consumerName;                
+                this.consumerName = consumerName;
                 this.afterId = afterId;
                 this.count = count;
                 this.noAck = noAck;
@@ -4182,10 +4180,9 @@ namespace StackExchange.Redis
             public override int ArgCount => argCount;
         }
 
-        private Message GetSingleStreamReadMessage(RedisKey key, RedisValue afterId, int? count, CommandFlags flags)
-        {
-            return new SingleStreamReadCommandMessage(Database, flags, key, afterId, count);
-        }
+        private Message GetSingleStreamReadMessage(RedisKey key, RedisValue afterId, int? count, CommandFlags flags) =>
+            new SingleStreamReadCommandMessage(Database, flags, key, afterId, count);
+
         private sealed class SingleStreamReadCommandMessage : Message.CommandKeyBase // XREAD with a single stream. Example: XREAD COUNT 2 STREAMS mystream 0-0
         {
             private readonly RedisValue afterId;
