@@ -66,6 +66,8 @@ public class OverloadCompat : TestBase
 
         var db = conn.GetDatabase();
         var key = Me();
+        var flags = CommandFlags.None;
+
         db.KeyDelete(key, flags: CommandFlags.FireAndForget);
         db.StringSet(key, "foobar", flags: CommandFlags.FireAndForget);
 
@@ -76,7 +78,6 @@ public class OverloadCompat : TestBase
         db.StringBitCount(key, end: 1);
         db.StringBitCount(key, start: 1, end: 1);
 
-        var flags = CommandFlags.None;
         db.StringBitCount(key, flags: flags);
         db.StringBitCount(key, 0, 0, flags);
         db.StringBitCount(key, 1, flags: flags);
@@ -112,6 +113,8 @@ public class OverloadCompat : TestBase
 
         var db = conn.GetDatabase();
         var key = Me();
+        var flags = CommandFlags.None;
+
         db.KeyDelete(key, flags: CommandFlags.FireAndForget);
         db.StringSet(key, "foo", flags: CommandFlags.FireAndForget);
 
@@ -124,7 +127,6 @@ public class OverloadCompat : TestBase
         db.StringBitPosition(key, bit: true, start: 1, end: 1);
         db.StringBitPosition(key, true, start: 1, end: 1);
 
-        var flags = CommandFlags.None;
         db.StringBitPosition(key, true, flags: flags);
         db.StringBitPosition(key, true, 1, 3, flags);
         db.StringBitPosition(key, true, 1, flags: flags);
@@ -153,6 +155,61 @@ public class OverloadCompat : TestBase
         await db.StringBitPositionAsync(key, bit: true, end: 1, flags: flags);
         await db.StringBitPositionAsync(key, bit: true, start: 1, end: 1, flags: flags);
         await db.StringBitPositionAsync(key, true, start: 1, end: 1, flags: flags);
+    }
+
+    [Fact]
+    public async Task SortedSetAdd()
+    {
+        using var conn = Create();
+        var db = conn.GetDatabase();
+        RedisKey key = Me();
+        RedisValue val = "myval";
+        var score = 1.0d;
+        var values = new SortedSetEntry[]{new SortedSetEntry(val, score)};
+        var when = When.Exists;
+        var flags = CommandFlags.None;
+
+        db.SortedSetAdd(key, val, score);
+        db.SortedSetAdd(key, val, score, when);
+        db.SortedSetAdd(key, val, score, when: when);
+        db.SortedSetAdd(key, val, score, flags);
+        db.SortedSetAdd(key, val, score, flags: flags);
+        db.SortedSetAdd(key, val, score, when, flags);
+        db.SortedSetAdd(key, val, score, when, flags: flags);
+        db.SortedSetAdd(key, val, score, when: when, flags);
+        db.SortedSetAdd(key, val, score, when: when, flags: flags);
+
+        db.SortedSetAdd(key, values);
+        db.SortedSetAdd(key, values, when);
+        db.SortedSetAdd(key, values, when: when);
+        db.SortedSetAdd(key, values, flags);
+        db.SortedSetAdd(key, values, flags: flags);
+        db.SortedSetAdd(key, values, when, flags);
+        db.SortedSetAdd(key, values, when, flags: flags);
+        db.SortedSetAdd(key, values, when: when, flags);
+        db.SortedSetAdd(key, values, when: when, flags: flags);
+
+        // Async
+
+        await db.SortedSetAddAsync(key, val, score);
+        await db.SortedSetAddAsync(key, val, score, when);
+        await db.SortedSetAddAsync(key, val, score, when: when);
+        await db.SortedSetAddAsync(key, val, score, flags);
+        await db.SortedSetAddAsync(key, val, score, flags: flags);
+        await db.SortedSetAddAsync(key, val, score, when, flags);
+        await db.SortedSetAddAsync(key, val, score, when, flags: flags);
+        await db.SortedSetAddAsync(key, val, score, when: when, flags);
+        await db.SortedSetAddAsync(key, val, score, when: when, flags: flags);
+
+        await db.SortedSetAddAsync(key, values);
+        await db.SortedSetAddAsync(key, values, when);
+        await db.SortedSetAddAsync(key, values, when: when);
+        await db.SortedSetAddAsync(key, values, flags);
+        await db.SortedSetAddAsync(key, values, flags: flags);
+        await db.SortedSetAddAsync(key, values, when, flags);
+        await db.SortedSetAddAsync(key, values, when, flags: flags);
+        await db.SortedSetAddAsync(key, values, when: when, flags);
+        await db.SortedSetAddAsync(key, values, when: when, flags: flags);
     }
 
     [Fact]

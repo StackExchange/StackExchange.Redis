@@ -413,12 +413,17 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<long> SortedSetAddAsync(RedisKey key, SortedSetEntry[] values, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetAddAsync(ToInner(key), values, when, flags);
 
+        public Task<long> SortedSetAddAsync(RedisKey key, SortedSetEntry[] values, SortedSetWhen updateWhen = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None) =>
+            Inner.SortedSetAddAsync(ToInner(key), values, updateWhen, flags);
+
         public Task<bool> SortedSetAddAsync(RedisKey key, RedisValue member, double score, CommandFlags flags) =>
             Inner.SortedSetAddAsync(ToInner(key), member, score, flags);
 
         public Task<bool> SortedSetAddAsync(RedisKey key, RedisValue member, double score, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetAddAsync(ToInner(key), member, score, when, flags);
 
+        public Task<bool> SortedSetAddAsync(RedisKey key, RedisValue member, double score, SortedSetWhen updateWhen = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None) =>
+            Inner.SortedSetAddAsync(ToInner(key), member, score, updateWhen, flags);
         public Task<RedisValue[]> SortedSetCombineAsync(SetOperation operation, RedisKey[] keys, double[]? weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetCombineAsync(operation, keys, weights, aggregate, flags);
 
@@ -512,6 +517,12 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public IAsyncEnumerable<SortedSetEntry> SortedSetScanAsync(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags) =>
             Inner.SortedSetScanAsync(ToInner(key), pattern, pageSize, cursor, pageOffset, flags);
+
+        public Task<long> SortedSetUpdateAsync(RedisKey key, SortedSetEntry[] values, SortedSetWhen updateWhen = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None) =>
+            Inner.SortedSetUpdateAsync(ToInner(key), values, updateWhen, flags);
+
+        public Task<bool> SortedSetUpdateAsync(RedisKey key, RedisValue member, double score, SortedSetWhen updateWhen = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None) =>
+            Inner.SortedSetUpdateAsync(ToInner(key), member, score, updateWhen, flags);
 
         public Task<SortedSetEntry?> SortedSetPopAsync(RedisKey key, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetPopAsync(ToInner(key), order, flags);

@@ -786,6 +786,14 @@ public sealed class DatabaseWrapperTests
     }
 
     [Fact]
+    public void SortedSetAdd_3()
+    {
+        SortedSetEntry[] values = Array.Empty<SortedSetEntry>();
+        wrapper.SortedSetAdd("key", values, SortedSetWhen.GreaterThan, CommandFlags.None);
+        mock.Verify(_ => _.SortedSetAdd("prefix:key", values, SortedSetWhen.GreaterThan, CommandFlags.None));
+    }
+
+    [Fact]
     public void SortedSetCombine()
     {
         RedisKey[] keys = new RedisKey[] { "a", "b" };
@@ -985,6 +993,14 @@ public sealed class DatabaseWrapperTests
     {
         wrapper.SortedSetScores("key", new RedisValue[] { "member1", "member2" }, CommandFlags.None);
         mock.Verify(_ => _.SortedSetScores("prefix:key", new RedisValue[] { "member1", "member2" }, CommandFlags.None));
+    }
+
+    [Fact]
+    public void SortedSetUpdate()
+    {
+        SortedSetEntry[] values = Array.Empty<SortedSetEntry>();
+        wrapper.SortedSetUpdate("key", values, SortedSetWhen.GreaterThan, CommandFlags.None);
+        mock.Verify(_ => _.SortedSetUpdate("prefix:key", values, SortedSetWhen.GreaterThan, CommandFlags.None));
     }
 
     [Fact]

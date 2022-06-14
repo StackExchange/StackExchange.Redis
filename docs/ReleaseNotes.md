@@ -31,9 +31,10 @@
 - Adds: Support for `OBJECT FREQ` with `.KeyFrequency()`/`.KeyFrequencyAsync()` ([#2105 by Avital-Fine](https://github.com/StackExchange/StackExchange.Redis/pull/2105))
 - Performance: Avoids allocations when computing cluster hash slots or testing key equality ([#2110 by Marc Gravell](https://github.com/StackExchange/StackExchange.Redis/pull/2110))
 - Adds: Support for `SORT_RO` with `.Sort()`/`.SortAsync()` ([#2111 by slorello89](https://github.com/StackExchange/StackExchange.Redis/pull/2111))
-- Adds: Support for `BIT | BYTE` to `BITCOUNT` and `BITPOS` with `.StringBitCount()`/`.StringBitCountAsync()` and `.StringBitPosition()`/`.StringBitPositionAsync()` [#2116 by Avital-Fine](https://github.com/StackExchange/StackExchange.Redis/pull/2116))
+- Adds: Support for `BIT | BYTE` to `BITCOUNT` and `BITPOS` with `.StringBitCount()`/`.StringBitCountAsync()` and `.StringBitPosition()`/`.StringBitPositionAsync()` ([#2116 by Avital-Fine](https://github.com/StackExchange/StackExchange.Redis/pull/2116))
 - Adds: Support for pub/sub payloads that are unary arrays ([#2118 by Marc Gravell](https://github.com/StackExchange/StackExchange.Redis/pull/2118))
 - Fix: Sentinel timer race during dispose ([#2133 by ewisuri](https://github.com/StackExchange/StackExchange.Redis/pull/2133))
+- Adds: Support for `GT`, `LT`, and `CH` on `ZADD` with `.SortedSetAdd()`/`.SortedSetAddAsync()` and `.SortedSetUpdate()`/`.SortedSetUpdateAsync()` ([#2136 by Avital-Fine](https://github.com/StackExchange/StackExchange.Redis/pull/2136))
 - Adds: Support for `COMMAND COUNT`, `COMMAND GETKEYS`, and `COMMAND LIST`, with `.CommandCount()`/`.CommandCountAsync()`, `.CommandGetKeys()`/`.CommandGetKeysAsync()`, and `.CommandList()`/`.CommandListAsync()` ([#2143 by shacharPash](https://github.com/StackExchange/StackExchange.Redis/pull/2143))
 
 

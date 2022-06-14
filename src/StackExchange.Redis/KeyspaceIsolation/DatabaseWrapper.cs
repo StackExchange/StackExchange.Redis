@@ -399,10 +399,16 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public long SortedSetAdd(RedisKey key, SortedSetEntry[] values, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetAdd(ToInner(key), values, when, flags);
 
+        public long SortedSetAdd(RedisKey key, SortedSetEntry[] values,SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None) =>
+            Inner.SortedSetAdd(ToInner(key), values, when, flags);
+
         public bool SortedSetAdd(RedisKey key, RedisValue member, double score, CommandFlags flags) =>
             Inner.SortedSetAdd(ToInner(key), member, score, flags);
 
         public bool SortedSetAdd(RedisKey key, RedisValue member, double score, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
+            Inner.SortedSetAdd(ToInner(key), member, score, when, flags);
+
+        public bool SortedSetAdd(RedisKey key, RedisValue member, double score, SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetAdd(ToInner(key), member, score, when, flags);
 
         public RedisValue[] SortedSetCombine(SetOperation operation, RedisKey[] keys, double[]? weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None) =>
@@ -495,6 +501,12 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public double?[] SortedSetScores(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetScores(ToInner(key), members, flags);
+
+        public long SortedSetUpdate(RedisKey key, SortedSetEntry[] values,SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None) =>
+            Inner.SortedSetUpdate(ToInner(key), values, when, flags);
+
+        public bool SortedSetUpdate(RedisKey key, RedisValue member, double score, SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None) =>
+            Inner.SortedSetUpdate(ToInner(key), member, score, when, flags);
 
         public SortedSetEntry? SortedSetPop(RedisKey key, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetPop(ToInner(key), order, flags);

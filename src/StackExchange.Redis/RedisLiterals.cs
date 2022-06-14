@@ -55,6 +55,7 @@ namespace StackExchange.Redis
             BYLEX = "BYLEX",
             BYSCORE = "BYSCORE",
             BYTE = "BYTE",
+            CH = "CH",
             CHANNELS = "CHANNELS",
             COPY = "COPY",
             COUNT = "COUNT",

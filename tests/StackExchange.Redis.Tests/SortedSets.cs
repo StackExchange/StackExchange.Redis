@@ -1366,4 +1366,23 @@ public class SortedSets : TestBase
         Assert.Equal((double)1.75, scores[2]);
         Assert.Equal(2, scores[3]);
     }
+
+    [Fact]
+    public async Task SortedSetUpdate()
+    {
+        using var conn = Create(require: RedisFeatures.v3_0_0);
+
+        var db = conn.GetDatabase();
+        var key = Me();
+        var member = "a";
+        var values = new SortedSetEntry[] {new SortedSetEntry(member, 5)};
+        db.KeyDelete(key, CommandFlags.FireAndForget);
+        db.SortedSetAdd(key, member, 2);
+
+        Assert.True(db.SortedSetUpdate(key, member, 1));
+        Assert.Equal(1, db.SortedSetUpdate(key, values));
+
+        Assert.True(await db.SortedSetUpdateAsync(key, member, 1));
+        Assert.Equal(1,await db.SortedSetUpdateAsync(key, values));
+    }
 }
