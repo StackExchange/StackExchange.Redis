@@ -1,6 +1,6 @@
 # Release Notes
 
-## Unreleased
+## 2.6.45
 
 - Adds: [Nullable reference type](https://docs.microsoft.com/en-us/dotnet/csharp/nullable-references) annotations ([#2041 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2041))
   - Adds annotations themselves for nullability to everything in the library
@@ -37,7 +37,6 @@
 - Fix: Sentinel timer race during dispose ([#2133 by ewisuri](https://github.com/StackExchange/StackExchange.Redis/pull/2133))
 - Adds: Support for `GT`, `LT`, and `CH` on `ZADD` with `.SortedSetAdd()`/`.SortedSetAddAsync()` and `.SortedSetUpdate()`/`.SortedSetUpdateAsync()` ([#2136 by Avital-Fine](https://github.com/StackExchange/StackExchange.Redis/pull/2136))
 - Adds: Support for `COMMAND COUNT`, `COMMAND GETKEYS`, and `COMMAND LIST`, with `.CommandCount()`/`.CommandCountAsync()`, `.CommandGetKeys()`/`.CommandGetKeysAsync()`, and `.CommandList()`/`.CommandListAsync()` ([#2143 by shacharPash](https://github.com/StackExchange/StackExchange.Redis/pull/2143))
-
 
 ## 2.5.61
 
