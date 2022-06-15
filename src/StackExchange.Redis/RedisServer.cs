@@ -506,6 +506,18 @@ namespace StackExchange.Redis
             return script.LoadAsync(this, flags);
         }
 
+        public void ScriptKill(CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.SCRIPT, RedisLiterals.KILL);
+            ExecuteSync(msg, ResultProcessor.DemandOK);
+        }
+
+        public Task ScriptKillAsync(CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.SCRIPT, RedisLiterals.KILL);
+            return ExecuteAsync(msg, ResultProcessor.DemandOK);
+        }
+
         public void Shutdown(ShutdownMode shutdownMode = ShutdownMode.Default, CommandFlags flags = CommandFlags.None)
         {
             Message msg = shutdownMode switch

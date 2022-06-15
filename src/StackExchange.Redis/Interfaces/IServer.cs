@@ -448,6 +448,17 @@ namespace StackExchange.Redis
         /// <inheritdoc cref="ScriptLoad(LuaScript, CommandFlags)"/>
         Task<LoadedLuaScript> ScriptLoadAsync(LuaScript script, CommandFlags flags = CommandFlags.None);
 
+         /// <summary>
+        /// Kills the currently executing EVAL script.
+        /// </summary>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>Simple string reply.</returns>
+        /// <remarks><seealso href="https://redis.io/commands/script-kill/"/></remarks>
+        void ScriptKill(CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="ScriptKill(CommandFlags)"/>
+        Task ScriptKillAsync(CommandFlags flags = CommandFlags.None);
+
         /// <summary>
         /// Asks the redis server to shutdown, killing all connections. Please FULLY read the notes on the <c>SHUTDOWN</c> command.
         /// </summary>
