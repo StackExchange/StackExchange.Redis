@@ -452,7 +452,6 @@ namespace StackExchange.Redis
         /// Kills the currently executing EVAL script.
         /// </summary>
         /// <param name="flags">The command flags to use.</param>
-        /// <returns>Simple string reply.</returns>
         /// <remarks><seealso href="https://redis.io/commands/script-kill/"/></remarks>
         void ScriptKill(CommandFlags flags = CommandFlags.None);
 
