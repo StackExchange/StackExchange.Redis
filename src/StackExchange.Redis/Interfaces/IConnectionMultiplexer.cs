@@ -20,7 +20,7 @@ namespace StackExchange.Redis
     /// <summary>
     /// Represents the abstract multiplexer API.
     /// </summary>
-    public interface IConnectionMultiplexer : IDisposable
+    public interface IConnectionMultiplexer : IDisposable, IAsyncDisposable
     {
         /// <summary>
         /// Gets the client-name that will be used on all new connections.

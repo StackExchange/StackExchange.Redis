@@ -2017,6 +2017,21 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
+        /// Release all resources associated with this object.
+        /// </summary>
+        public async ValueTask DisposeAsync()
+        {
+            GC.SuppressFinalize(this);
+            await CloseAsync(!_isDisposed);
+            if (sentinelConnection is not null)
+            {
+                await sentinelConnection.DisposeAsync();
+            }
+            var oldTimer = Interlocked.Exchange(ref sentinelPrimaryReconnectTimer, null);
+            oldTimer?.Dispose();
+        }
+
+        /// <summary>
         /// Close all connections and release all resources associated with this object.
         /// </summary>
         /// <param name="allowCommandsToComplete">Whether to allow all in-queue commands to complete first.</param>

@@ -128,6 +128,8 @@ public class SharedConnectionFixture : IDisposable
 
         public void Dispose() { } // DO NOT call _inner.Dispose();
 
+        public ValueTask DisposeAsync() => default; // DO NOT call _inner.DisposeAsync();
+
         public ServerCounters GetCounters() => _inner.GetCounters();
 
         public IDatabase GetDatabase(int db = -1, object? asyncState = null) => _inner.GetDatabase(db, asyncState);
