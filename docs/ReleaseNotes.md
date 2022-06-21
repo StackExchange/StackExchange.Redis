@@ -2,7 +2,7 @@
 
 ## Pending
 
-- Fix: [#2164](https://github.com/StackExchange/StackExchange.Redis/issues/2164): fix `LuaScript.Prepare` for scripts that don't have parameters ([#2066 by MarcGravell](https://github.com/StackExchange/StackExchange.Redis/pull/2066))
+- Fix: [#2164](https://github.com/StackExchange/StackExchange.Redis/issues/2164): fix `LuaScript.Prepare` for scripts that don't have parameters ([#2166 by MarcGravell](https://github.com/StackExchange/StackExchange.Redis/pull/2166))
 
 ## 2.6.45
 
