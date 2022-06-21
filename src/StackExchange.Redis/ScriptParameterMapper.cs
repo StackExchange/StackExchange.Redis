@@ -26,13 +26,12 @@ namespace StackExchange.Redis
 
         private static readonly Regex ParameterExtractor = new Regex(@"@(?<paramName> ([a-z]|_) ([a-z]|_|\d)*)", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace);
 
-        private static bool TryExtractParameters(string script, [NotNullWhen(true)] out string[]? parameters)
+        private static string[] ExtractParameters(string script)
         {
             var ps = ParameterExtractor.Matches(script);
             if (ps.Count == 0)
             {
-                parameters = null;
-                return false;
+                return Array.Empty<string>();
             }
 
             var ret = new HashSet<string>();
@@ -56,8 +55,7 @@ namespace StackExchange.Redis
                 if (!ret.Contains(n)) ret.Add(n);
             }
 
-            parameters = ret.ToArray();
-            return true;
+            return ret.ToArray();
         }
 
         private static string MakeOrdinalScriptWithoutKeys(string rawScript, string[] args)
@@ -137,12 +135,9 @@ namespace StackExchange.Redis
         /// <param name="script">The script to prepare.</param>
         public static LuaScript PrepareScript(string script)
         {
-            if (TryExtractParameters(script, out var ps))
-            {
-                var ordinalScript = MakeOrdinalScriptWithoutKeys(script, ps);
-                return new LuaScript(script, ordinalScript, ps);
-            }
-            throw new ArgumentException("Count not parse script: " + script);
+            var ps = ExtractParameters(script);
+            var ordinalScript = MakeOrdinalScriptWithoutKeys(script, ps);
+            return new LuaScript(script, ordinalScript, ps);
         }
 
         private static readonly HashSet<Type> ConvertableTypes = new()
