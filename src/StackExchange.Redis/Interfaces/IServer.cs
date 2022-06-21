@@ -231,67 +231,6 @@ namespace StackExchange.Redis
         Task<RedisResult> ExecuteAsync(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Read-only variant of the EVAL command that cannot execute commands that modify data, Execute a Lua script against the server.
-        /// </summary>
-        /// <param name="script">The script to execute.</param>
-        /// <param name="keys">The keys to execute against.</param>
-        /// <param name="values">The values to execute against.</param>
-        /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>A dynamic representation of the script's result.</returns>
-        /// <remarks>
-        /// <seealso href="https://redis.io/commands/eval_ro"/>,
-        /// <seealso href="https://redis.io/commands/evalsha_ro"/>
-        /// </remarks>
-        RedisResult ScriptEvaluateRO(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None);
-
-        /// <inheritdoc cref="ScriptEvaluateRO(string, RedisKey[]?, RedisValue[]?, CommandFlags)"/>
-        RedisResult ScriptEvaluateROAsync(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None);
-
-
-        /// <summary>
-        /// Read-only variant of the EVALSHA command that cannot execute commands that modify data, Execute a Lua script against the server using just the SHA1 hash.
-        /// </summary>
-        /// <param name="hash">The hash of the script to execute.</param>
-        /// <param name="keys">The keys to execute against.</param>
-        /// <param name="values">The values to execute against.</param>
-        /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>A dynamic representation of the script's result.</returns>
-        /// <remarks><seealso href="https://redis.io/commands/evalsha_ro"/></remarks>
-        RedisResult ScriptEvaluateRO(byte[] hash, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None);
-
-        /// <inheritdoc cref="ScriptEvaluateRO(byte[], RedisKey[]?, RedisValue[]?, CommandFlags)"/>
-        RedisResult ScriptEvaluateROAsync(byte[] hash, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None);
-
-        /// <summary>
-        /// Read-only variant of the EVAL command that cannot execute commands that modify data, Execute a lua script against the server, using previously prepared script.
-        /// Named parameters, if any, are provided by the `parameters` object.
-        /// </summary>
-        /// <param name="script">The script to execute.</param>
-        /// <param name="parameters">The parameters to pass to the script.</param>
-        /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>A dynamic representation of the script's result.</returns>
-        /// <remarks><seealso href="https://redis.io/commands/eval_ro"/></remarks>
-        RedisResult ScriptEvaluateRO(LuaScript script, object? parameters = null, CommandFlags flags = CommandFlags.None);
-
-        /// <inheritdoc cref="ScriptEvaluateRO(LuaScript, object?, CommandFlags)"/>
-        RedisResult ScriptEvaluateROAsync(LuaScript script, object? parameters = null, CommandFlags flags = CommandFlags.None);
-
-        /// <summary>
-        /// Read-only variant of the EVALSHA command that cannot execute commands that modify data, Execute a lua script against the server, using previously prepared and loaded script.
-        /// This method sends only the SHA1 hash of the lua script to Redis.
-        /// Named parameters, if any, are provided by the `parameters` object.
-        /// </summary>
-        /// <param name="script">The already-loaded script to execute.</param>
-        /// <param name="parameters">The parameters to pass to the script.</param>
-        /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>A dynamic representation of the script's result.</returns>
-        /// <remarks><seealso href="https://redis.io/commands/eval_ro"/></remarks>
-        RedisResult ScriptEvaluateRO(LoadedLuaScript script, object? parameters = null, CommandFlags flags = CommandFlags.None);
-
-        /// <inheritdoc cref="ScriptEvaluateRO(LoadedLuaScript, object?, CommandFlags)"/>
-        RedisResult ScriptEvaluateROAsync(LoadedLuaScript script, object? parameters = null, CommandFlags flags = CommandFlags.None);
-
-        /// <summary>
         /// Delete all the keys of all databases on the server.
         /// </summary>
         /// <param name="flags">The command flags to use.</param>
