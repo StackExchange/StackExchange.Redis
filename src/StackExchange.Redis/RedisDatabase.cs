@@ -1565,7 +1565,7 @@ namespace StackExchange.Redis
             return script.EvaluateAsync(this, parameters, null, flags);
         }
 
-        public RedisResult ScriptEvaluateRO(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
+        public RedisResult ScriptEvaluateReadOnly(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
         {
             var command = ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA_RO : RedisCommand.EVAL_RO;
             var msg = new ScriptEvalMessage(Database, flags, command, script, keys, values);
@@ -1580,20 +1580,20 @@ namespace StackExchange.Redis
             }
         }
 
-        public RedisResult ScriptEvaluateRO(byte[] hash, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
+        public RedisResult ScriptEvaluateReadOnly(byte[] hash, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
         {
             var msg = new ScriptEvalMessage(Database, flags, RedisCommand.EVALSHA_RO, hash, keys, values);
             return ExecuteSync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
         }
 
-        public Task<RedisResult> ScriptEvaluateROAsync(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
+        public Task<RedisResult> ScriptEvaluateReadOnlyAsync(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
         {
             var command = ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA_RO : RedisCommand.EVAL_RO;
             var msg = new ScriptEvalMessage(Database, flags, command, script, keys, values);
             return ExecuteAsync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
         }
 
-        public Task<RedisResult> ScriptEvaluateROAsync(byte[] hash, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
+        public Task<RedisResult> ScriptEvaluateReadOnlyAsync(byte[] hash, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
         {
             var msg = new ScriptEvalMessage(Database, flags, RedisCommand.EVALSHA_RO, hash, keys, values);
             return ExecuteAsync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);

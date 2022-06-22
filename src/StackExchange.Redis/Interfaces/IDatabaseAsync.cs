@@ -1286,7 +1286,7 @@ namespace StackExchange.Redis
         /// <seealso href="https://redis.io/commands/eval_ro"/>,
         /// <seealso href="https://redis.io/commands/evalsha_ro"/>
         /// </remarks>
-        Task<RedisResult> ScriptEvaluateROAsync(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None);
+        Task<RedisResult> ScriptEvaluateReadOnlyAsync(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Read-only variant of the EVALSHA command that cannot execute commands that modify data, Execute a Lua script against the server using just the SHA1 hash.
@@ -1297,7 +1297,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>A dynamic representation of the script's result.</returns>
         /// <remarks><seealso href="https://redis.io/commands/evalsha_ro"/></remarks>
-        Task<RedisResult> ScriptEvaluateROAsync(byte[] hash, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None);
+        Task<RedisResult> ScriptEvaluateReadOnlyAsync(byte[] hash, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Add the specified member to the set stored at key.
