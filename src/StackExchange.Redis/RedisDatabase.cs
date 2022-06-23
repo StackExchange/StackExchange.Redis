@@ -1538,7 +1538,19 @@ namespace StackExchange.Redis
 
         public RedisResult ScriptEvaluate(LoadedLuaScript script, object? parameters = null, CommandFlags flags = CommandFlags.None)
         {
-            return script.Evaluate(this, parameters, null, flags);
+            LoadedLuaScript.ParameterAndKeyPrefixHolder.ExtractParameters(script, parameters, out var keys, out var args);
+
+            var msg = new ScriptEvalMessage(Database, flags, script.Hash, keys, args);
+
+            try
+            {
+                return ExecuteSync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
+
+            }
+            catch (RedisServerException) when (msg.IsScriptUnavailable)
+            {
+                return ScriptEvaluate(script.ExecutableScript, keys, args, flags);
+            }
         }
 
         public Task<RedisResult> ScriptEvaluateAsync(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
@@ -1558,9 +1570,21 @@ namespace StackExchange.Redis
             return script.EvaluateAsync(this, parameters, null, flags);
         }
 
-        public Task<RedisResult> ScriptEvaluateAsync(LoadedLuaScript script, object? parameters = null, CommandFlags flags = CommandFlags.None)
+        public async Task<RedisResult> ScriptEvaluateAsync(LoadedLuaScript script, object? parameters = null, CommandFlags flags = CommandFlags.None)
         {
-            return script.EvaluateAsync(this, parameters, null, flags);
+            LoadedLuaScript.ParameterAndKeyPrefixHolder.ExtractParameters(script, parameters, out var keys, out var args);
+
+            var msg = new ScriptEvalMessage(Database, flags, script.Hash, keys, args);
+
+            try
+            {
+                return await ExecuteAsync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle).ConfigureAwait(false);
+
+            }
+            catch (RedisServerException) when (msg.IsScriptUnavailable)
+            {
+                return await ScriptEvaluateAsync(script.ExecutableScript, keys, args, flags).ConfigureAwait(false);
+            }
         }
 
         public bool SetAdd(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)

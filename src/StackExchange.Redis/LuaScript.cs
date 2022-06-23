@@ -264,8 +264,9 @@ namespace StackExchange.Redis
         /// <param name="flags">The command flags to use.</param>
         public RedisResult Evaluate(IDatabase db, object? ps = null, RedisKey? withKeyPrefix = null, CommandFlags flags = CommandFlags.None)
         {
-            Original.ExtractParameters(ps, withKeyPrefix, out RedisKey[]? keys, out RedisValue[]? args);
-            return db.ScriptEvaluate(Hash, keys, args, flags);
+            ps = ParameterAndKeyPrefixHolder.PrepareParameters(ps, withKeyPrefix);
+
+            return db.ScriptEvaluate(this, ps, flags);
         }
 
         /// <summary>
@@ -281,8 +282,41 @@ namespace StackExchange.Redis
         /// <param name="flags">The command flags to use.</param>
         public Task<RedisResult> EvaluateAsync(IDatabaseAsync db, object? ps = null, RedisKey? withKeyPrefix = null, CommandFlags flags = CommandFlags.None)
         {
-            Original.ExtractParameters(ps, withKeyPrefix, out RedisKey[]? keys, out RedisValue[]? args);
-            return db.ScriptEvaluateAsync(Hash, keys, args, flags);
+            ps = ParameterAndKeyPrefixHolder.PrepareParameters(ps, withKeyPrefix);
+
+            return db.ScriptEvaluateAsync(this, ps, flags);
+        }
+
+        internal class ParameterAndKeyPrefixHolder
+        {
+            public RedisKey? Prefix { get; set; }
+
+            public object? Parameters { get; set; }
+
+            public static object? PrepareParameters(object? ps, RedisKey? withKeyPrefix)
+            {
+                if (withKeyPrefix is not null)
+                {
+                    return new ParameterAndKeyPrefixHolder()
+                    {
+                        Parameters = ps,
+                        Prefix = withKeyPrefix
+                    };
+                }
+
+                return ps;
+            }
+
+            public static void ExtractParameters(LoadedLuaScript script, object? parameters, out RedisKey[]? keys, out RedisValue[]? args)
+            {
+                if (parameters is ParameterAndKeyPrefixHolder holder)
+                {
+                    script.Original.ExtractParameters(holder.Parameters, holder.Prefix, out keys, out args);
+                    return;
+                }
+
+                script.Original.ExtractParameters(parameters, null, out keys, out args);
+            }
         }
     }
 }
