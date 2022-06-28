@@ -56,11 +56,33 @@ namespace StackExchange.Redis
             return base.ExecuteAsync(msg, proc); // need base to avoid our local wrapping override
         }
 
-        internal override Task<T?> ExecuteAsync<T>(Message? message, ResultProcessor<T>? processor, ServerEndPoint? server = null) where T : default
-            => ExecuteAsync(message, processor!, default, server);
-        internal override Task<T> ExecuteAsync<T>(Message? message, ResultProcessor<T>? processor, T defaultValue, ServerEndPoint? server = null) where T : default
+        internal override Task<T> ExecuteAsync<T>(Message? message, ResultProcessor<T>? processor, T defaultValue, ServerEndPoint? server = null)
         {
             if (message == null) return CompletedTask<T>.FromDefault(defaultValue, asyncState);
+            multiplexer.CheckMessage(message);
+
+            multiplexer.Trace("Wrapping " + message.Command, "Transaction");
+            // prepare the inner command as a task
+            Task<T> task;
+            if (message.IsFireAndForget)
+            {
+                task = CompletedTask<T>.FromDefault(defaultValue, null); // F+F explicitly does not get async-state
+            }
+            else
+            {
+                var source = TaskResultBox<T>.Create(out var tcs, asyncState);
+                message.SetSource(source, processor);
+                task = tcs.Task;
+            }
+
+            QueueMessage(message);
+
+            return task;
+        }
+
+        internal override Task<T?> ExecuteAsync<T>(Message? message, ResultProcessor<T>? processor, ServerEndPoint? server = null) where T : default
+        {
+            if (message == null) return CompletedTask<T>.Default(asyncState);
             multiplexer.CheckMessage(message);
 
             multiplexer.Trace("Wrapping " + message.Command, "Transaction");
@@ -77,6 +99,13 @@ namespace StackExchange.Redis
                 task = tcs.Task;
             }
 
+            QueueMessage(message);
+
+            return task;
+        }
+
+        private void QueueMessage(Message message)
+        {
             // prepare an outer-command that decorates that, but expects QUEUED
             var queued = new QueuedMessage(message);
             var wasQueued = SimpleResultBox<bool>.Create();
@@ -104,7 +133,6 @@ namespace StackExchange.Redis
                         break;
                 }
             }
-            return task!;
         }
 
         internal override T? ExecuteSync<T>(Message? message, ResultProcessor<T>? processor, ServerEndPoint? server = null, T? defaultValue = default) where T : default
