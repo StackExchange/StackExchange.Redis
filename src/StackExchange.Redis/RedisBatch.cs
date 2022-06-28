@@ -62,10 +62,11 @@ namespace StackExchange.Redis
                 }
             }
         }
-
         internal override Task<T?> ExecuteAsync<T>(Message? message, ResultProcessor<T>? processor, ServerEndPoint? server = null) where T : default
+            => ExecuteAsync(message, processor!, default, server);
+        internal override Task<T> ExecuteAsync<T>(Message? message, ResultProcessor<T>? processor, T defaultValue, ServerEndPoint? server = null) where T : default
         {
-            if (message == null) return CompletedTask<T>.Default(asyncState);
+            if (message == null) return CompletedTask<T>.FromDefault(defaultValue, asyncState);
             multiplexer.CheckMessage(message);
 
             // prepare the inner command as a task
@@ -83,7 +84,7 @@ namespace StackExchange.Redis
 
             // store it
             (pending ??= new List<Message>()).Add(message);
-            return task;
+            return task!;
         }
 
         internal override T ExecuteSync<T>(Message? message, ResultProcessor<T>? processor, ServerEndPoint? server = null, T? defaultValue = default) where T : default =>
