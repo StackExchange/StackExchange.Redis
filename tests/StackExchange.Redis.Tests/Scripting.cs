@@ -407,11 +407,12 @@ return timeTaken
         Assert.False(server.ScriptExists(script));
 
         // run once, causes to be cached
-        Assert.True((bool)db.ScriptEvaluate(script));
+        Assert.True(await EvaluateScript());
+
         Assert.True(server.ScriptExists(script));
 
         // can run again
-        Assert.True((bool)db.ScriptEvaluate(script));
+        Assert.True(await EvaluateScript());
 
         // ditch the scripts; should no longer exist
         db.Ping();
@@ -419,21 +420,21 @@ return timeTaken
         Assert.False(server.ScriptExists(script));
         db.Ping();
 
-        if (async)
-        {
-            Assert.True((bool)await db.ScriptEvaluateAsync(script));
-        }
-        else
-        {
-            // just works; magic
-            Assert.True((bool)db.ScriptEvaluate(script));
-        }
+        // just works; magic
+        Assert.True(await EvaluateScript());
 
         // but gets marked as unloaded, so we can use it again...
-        Assert.True((bool)db.ScriptEvaluate(script));
+        Assert.True(await EvaluateScript());
 
         // which will cause it to be cached
         Assert.True(server.ScriptExists(script));
+
+        async Task<bool> EvaluateScript()
+        {
+            return async ?
+            (bool)await db!.ScriptEvaluateAsync(script) :
+            (bool)db!.ScriptEvaluate(script);
+        }
     }
 
     [Fact]
