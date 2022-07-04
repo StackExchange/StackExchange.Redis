@@ -1538,9 +1538,7 @@ namespace StackExchange.Redis
 
         public RedisResult ScriptEvaluate(LoadedLuaScript script, object? parameters = null, CommandFlags flags = CommandFlags.None)
         {
-            LoadedLuaScript.ParameterAndKeyPrefixHolder.ExtractParameters(script, parameters, out var keys, out var args);
-
-            return ScriptEvaluate(script.ExecutableScript, keys, args, flags);
+            return script.Evaluate(this, parameters, withKeyPrefix: null, flags);
         }
 
         public async Task<RedisResult> ScriptEvaluateAsync(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
@@ -1571,9 +1569,7 @@ namespace StackExchange.Redis
 
         public Task<RedisResult> ScriptEvaluateAsync(LoadedLuaScript script, object? parameters = null, CommandFlags flags = CommandFlags.None)
         {
-            LoadedLuaScript.ParameterAndKeyPrefixHolder.ExtractParameters(script, parameters, out var keys, out var args);
-
-            return ScriptEvaluateAsync(script.ExecutableScript, keys, args, flags);
+            return script.EvaluateAsync(this, parameters, withKeyPrefix: null, flags);
         }
 
         public bool SetAdd(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
