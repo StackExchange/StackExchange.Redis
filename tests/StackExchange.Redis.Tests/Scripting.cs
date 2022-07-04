@@ -421,9 +421,7 @@ return timeTaken
 
         if (async)
         {
-            // now: fails the first time
-            var ex = await Assert.ThrowsAsync<RedisServerException>(async () => await db.ScriptEvaluateAsync(script).ForAwait()).ForAwait();
-            Assert.Equal("NOSCRIPT No matching script. Please use EVAL.", ex.Message);
+            Assert.True((bool)await db.ScriptEvaluateAsync(script));
         }
         else
         {
