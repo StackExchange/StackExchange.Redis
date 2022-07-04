@@ -166,7 +166,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// <para>
         /// Loads this LuaScript into the given IServer so it can be run with it's SHA1 hash, instead of
-        /// using the default ASCII hash that's calculated after the script is sent to the server for the first time.
+        /// using the implicit SHA1 hash that's calculated after the script is sent to the server for the first time.
         /// </para>
         /// <para>Note: the FireAndForget command flag cannot be set.</para>
         /// </summary>
@@ -186,7 +186,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// <para>
         /// Loads this LuaScript into the given IServer so it can be run with it's SHA1 hash, instead of
-        /// using the default ASCII hash that's calculated after the script is sent to the server for the first time.
+        /// using the implicit SHA1 hash that's calculated after the script is sent to the server for the first time.
         /// </para>
         /// <para>Note: the FireAndForget command flag cannot be set</para>
         /// </summary>
