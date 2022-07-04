@@ -1540,23 +1540,22 @@ namespace StackExchange.Redis
         {
             LoadedLuaScript.ParameterAndKeyPrefixHolder.ExtractParameters(script, parameters, out var keys, out var args);
 
-            var msg = new ScriptEvalMessage(Database, flags, script.Hash, keys, args);
+            return ScriptEvaluate(script.ExecutableScript, keys, args, flags);
+        }
+
+        public async Task<RedisResult> ScriptEvaluateAsync(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = new ScriptEvalMessage(Database, flags, script, keys, values);
 
             try
             {
-                return ExecuteSync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
-
+                return await ExecuteAsync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
             }
             catch (RedisServerException) when (msg.IsScriptUnavailable)
             {
-                return ScriptEvaluate(script.ExecutableScript, keys, args, flags);
+                // could be a NOSCRIPT; for a sync call, we can re-issue that without problem
+                return await ExecuteAsync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
             }
-        }
-
-        public Task<RedisResult> ScriptEvaluateAsync(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = new ScriptEvalMessage(Database, flags, script, keys, values);
-            return ExecuteAsync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
         }
 
         public Task<RedisResult> ScriptEvaluateAsync(byte[] hash, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
@@ -1570,21 +1569,11 @@ namespace StackExchange.Redis
             return script.EvaluateAsync(this, parameters, null, flags);
         }
 
-        public async Task<RedisResult> ScriptEvaluateAsync(LoadedLuaScript script, object? parameters = null, CommandFlags flags = CommandFlags.None)
+        public Task<RedisResult> ScriptEvaluateAsync(LoadedLuaScript script, object? parameters = null, CommandFlags flags = CommandFlags.None)
         {
             LoadedLuaScript.ParameterAndKeyPrefixHolder.ExtractParameters(script, parameters, out var keys, out var args);
 
-            var msg = new ScriptEvalMessage(Database, flags, script.Hash, keys, args);
-
-            try
-            {
-                return await ExecuteAsync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle).ConfigureAwait(false);
-
-            }
-            catch (RedisServerException) when (msg.IsScriptUnavailable)
-            {
-                return await ScriptEvaluateAsync(script.ExecutableScript, keys, args, flags).ConfigureAwait(false);
-            }
+            return ScriptEvaluateAsync(script.ExecutableScript, keys, args, flags);
         }
 
         public bool SetAdd(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
