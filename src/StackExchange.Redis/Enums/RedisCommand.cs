@@ -264,7 +264,6 @@ internal static class RedisCommandExtensions
             case RedisCommand.BLPOP:
             case RedisCommand.BRPOP:
             case RedisCommand.BRPOPLPUSH:
-            case RedisCommand.COPY:
             case RedisCommand.DECR:
             case RedisCommand.DECRBY:
             case RedisCommand.DEL:
@@ -273,7 +272,6 @@ internal static class RedisCommandExtensions
             case RedisCommand.EXPIRETIME:
             case RedisCommand.FLUSHALL:
             case RedisCommand.FLUSHDB:
-            case RedisCommand.GEOADD:
             case RedisCommand.GEOSEARCHSTORE:
             case RedisCommand.GETDEL:
             case RedisCommand.GETEX:
@@ -323,21 +321,13 @@ internal static class RedisCommandExtensions
             case RedisCommand.SETRANGE:
             case RedisCommand.SINTERSTORE:
             case RedisCommand.SMOVE:
-            case RedisCommand.SORT:
             case RedisCommand.SPOP:
             case RedisCommand.SREM:
             case RedisCommand.SUNIONSTORE:
             case RedisCommand.SWAPDB:
             case RedisCommand.TOUCH:
             case RedisCommand.UNLINK:
-            case RedisCommand.XACK:
-            case RedisCommand.XADD:
             case RedisCommand.XAUTOCLAIM:
-            case RedisCommand.XCLAIM:
-            case RedisCommand.XDEL:
-            case RedisCommand.XGROUP:
-            case RedisCommand.XREADGROUP:
-            case RedisCommand.XTRIM:
             case RedisCommand.ZADD:
             case RedisCommand.ZDIFFSTORE:
             case RedisCommand.ZINTERSTORE:
@@ -364,6 +354,7 @@ internal static class RedisCommandExtensions
             case RedisCommand.CLUSTER:
             case RedisCommand.COMMAND:
             case RedisCommand.CONFIG:
+            case RedisCommand.COPY:
             case RedisCommand.DBSIZE:
             case RedisCommand.DEBUG:
             case RedisCommand.DISCARD:
@@ -373,6 +364,7 @@ internal static class RedisCommandExtensions
             case RedisCommand.EVALSHA:
             case RedisCommand.EXEC:
             case RedisCommand.EXISTS:
+            case RedisCommand.GEOADD:
             case RedisCommand.GEODIST:
             case RedisCommand.GEOHASH:
             case RedisCommand.GEOPOS:
@@ -434,6 +426,7 @@ internal static class RedisCommandExtensions
             case RedisCommand.SLOWLOG:
             case RedisCommand.SMEMBERS:
             case RedisCommand.SMISMEMBER:
+            case RedisCommand.SORT:
             case RedisCommand.SORT_RO:
             case RedisCommand.SRANDMEMBER:
             case RedisCommand.STRLEN:
@@ -447,13 +440,19 @@ internal static class RedisCommandExtensions
             case RedisCommand.UNSUBSCRIBE:
             case RedisCommand.UNWATCH:
             case RedisCommand.WATCH:
-            // Stream commands verified working on replicas
+            case RedisCommand.XACK:
+            case RedisCommand.XADD:
+            case RedisCommand.XCLAIM:
+            case RedisCommand.XDEL:
+            case RedisCommand.XGROUP:
             case RedisCommand.XINFO:
             case RedisCommand.XLEN:
             case RedisCommand.XPENDING:
             case RedisCommand.XRANGE:
             case RedisCommand.XREAD:
+            case RedisCommand.XREADGROUP:
             case RedisCommand.XREVRANGE:
+            case RedisCommand.XTRIM:
             case RedisCommand.ZCARD:
             case RedisCommand.ZCOUNT:
             case RedisCommand.ZDIFF:
