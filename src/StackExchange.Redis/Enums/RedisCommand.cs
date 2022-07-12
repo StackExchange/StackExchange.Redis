@@ -354,7 +354,6 @@ internal static class RedisCommandExtensions
             case RedisCommand.CLUSTER:
             case RedisCommand.COMMAND:
             case RedisCommand.CONFIG:
-            case RedisCommand.COPY:
             case RedisCommand.DBSIZE:
             case RedisCommand.DEBUG:
             case RedisCommand.DISCARD:
@@ -364,7 +363,6 @@ internal static class RedisCommandExtensions
             case RedisCommand.EVALSHA:
             case RedisCommand.EXEC:
             case RedisCommand.EXISTS:
-            case RedisCommand.GEOADD:
             case RedisCommand.GEODIST:
             case RedisCommand.GEOHASH:
             case RedisCommand.GEOPOS:
@@ -426,7 +424,6 @@ internal static class RedisCommandExtensions
             case RedisCommand.SLOWLOG:
             case RedisCommand.SMEMBERS:
             case RedisCommand.SMISMEMBER:
-            case RedisCommand.SORT:
             case RedisCommand.SORT_RO:
             case RedisCommand.SRANDMEMBER:
             case RedisCommand.STRLEN:
@@ -440,19 +437,12 @@ internal static class RedisCommandExtensions
             case RedisCommand.UNSUBSCRIBE:
             case RedisCommand.UNWATCH:
             case RedisCommand.WATCH:
-            case RedisCommand.XACK:
-            case RedisCommand.XADD:
-            case RedisCommand.XCLAIM:
-            case RedisCommand.XDEL:
-            case RedisCommand.XGROUP:
             case RedisCommand.XINFO:
             case RedisCommand.XLEN:
             case RedisCommand.XPENDING:
             case RedisCommand.XRANGE:
             case RedisCommand.XREAD:
-            case RedisCommand.XREADGROUP:
             case RedisCommand.XREVRANGE:
-            case RedisCommand.XTRIM:
             case RedisCommand.ZCARD:
             case RedisCommand.ZCOUNT:
             case RedisCommand.ZDIFF:
@@ -473,6 +463,17 @@ internal static class RedisCommandExtensions
             case RedisCommand.ZSCORE:
             case RedisCommand.ZUNION:
             case RedisCommand.UNKNOWN:
+            // Writable commands, but allowed for the writable-replicas scenario
+            case RedisCommand.COPY:
+            case RedisCommand.GEOADD:
+            case RedisCommand.SORT:
+            case RedisCommand.XACK:
+            case RedisCommand.XADD:
+            case RedisCommand.XCLAIM:
+            case RedisCommand.XDEL:
+            case RedisCommand.XGROUP:
+            case RedisCommand.XREADGROUP:
+            case RedisCommand.XTRIM:
                 return false;
             default:
                 throw new ArgumentOutOfRangeException(nameof(command), $"Every RedisCommand must be defined in Message.IsPrimaryOnly, unknown command '{command}' encountered.");
