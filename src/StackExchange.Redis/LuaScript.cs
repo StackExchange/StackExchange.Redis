@@ -266,7 +266,7 @@ namespace StackExchange.Redis
         {
             Original.ExtractParameters(ps, withKeyPrefix, out RedisKey[]? keys, out RedisValue[]? args);
 
-            return db.ScriptEvaluate(ExecutableScript, keys, args, flags);
+            return db.LoadedScriptEvaluate(this, keys, args, flags);
         }
 
         /// <summary>
@@ -284,7 +284,7 @@ namespace StackExchange.Redis
         {
             Original.ExtractParameters(ps, withKeyPrefix, out RedisKey[]? keys, out RedisValue[]? args);
 
-            return db.ScriptEvaluateAsync(ExecutableScript, keys, args, flags);
+            return db.LoadedScriptEvaluateAsync(this, keys, args, flags);
         }
     }
 }

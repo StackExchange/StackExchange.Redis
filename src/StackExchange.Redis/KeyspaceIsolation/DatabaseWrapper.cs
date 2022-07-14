@@ -333,6 +333,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
             // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
             script.Evaluate(Inner, parameters, Prefix, flags);
 
+        public RedisResult LoadedScriptEvaluate(LoadedLuaScript script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None) =>
+            Inner.LoadedScriptEvaluate(script, keys, values, flags);
+
         public long SetAdd(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None) =>
             Inner.SetAdd(ToInner(key), values, flags);
 
