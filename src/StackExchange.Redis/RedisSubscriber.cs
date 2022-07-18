@@ -307,7 +307,7 @@ namespace StackExchange.Redis
             bool usePing = false;
             if (multiplexer.CommandMap.IsAvailable(RedisCommand.PING))
             {
-                try { usePing = GetFeatures(default, flags, out _).PingOnSubscriber; }
+                try { usePing = GetFeatures(default, flags, out _, RedisCommand.PING).PingOnSubscriber; }
                 catch { }
             }
 
