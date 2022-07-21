@@ -6,12 +6,15 @@ Welcome to documentation for the `StackExchange.Redis` test suite!
 Supported platforms:
 - Windows
 
-...that's it. For now. I'll add Docker files for the instances soon, unless someone's willing to get to it first. The tests (for `netcoreapp`) can run multi-platform.
+...that's it. For now. The tests (for `netcoreapp`) can run multi-platform.
 
 **Note: some tests are not yet green, about 20 are failing (~31 in CI)**. A large set of .NET Core, testing, and CI changes just slammed us, we're getting back in action.
 
 The unit and integration tests here are fairly straightforward. There are 2 primary steps:
 1. Start the servers
+
+This can be done either by installing Docker and running `docker-compose up` in the `tests\RedisConfigs` folder or by running the `start-all` script in the same folder.
+
 2. Run the tests
 
 Tests default to `127.0.0.1` as their server, however you can override any of the test IPs/Hostnames and ports by placing a `TestConfig.json` in the `StackExchange.Redis.Tests\` folder. This file is intentionally in `.gitignore` already, as it's for *your* personal overrides. This is useful for testing local or remote servers, different versions, various ports, etc.
