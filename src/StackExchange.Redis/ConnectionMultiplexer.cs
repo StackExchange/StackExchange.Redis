@@ -2023,9 +2023,9 @@ namespace StackExchange.Redis
         {
             GC.SuppressFinalize(this);
             await CloseAsync(!_isDisposed);
-            if (sentinelConnection is not null)
+            if (sentinelConnection is ConnectionMultiplexer sentinel)
             {
-                await sentinelConnection.DisposeAsync();
+                await (sentinel?.DisposeAsync() ?? default);
             }
             var oldTimer = Interlocked.Exchange(ref sentinelPrimaryReconnectTimer, null);
             oldTimer?.Dispose();
