@@ -2025,7 +2025,7 @@ namespace StackExchange.Redis
             await CloseAsync(!_isDisposed);
             if (sentinelConnection is ConnectionMultiplexer sentinel)
             {
-                await (sentinel?.DisposeAsync() ?? default);
+                await sentinel.DisposeAsync();
             }
             var oldTimer = Interlocked.Exchange(ref sentinelPrimaryReconnectTimer, null);
             oldTimer?.Dispose();
