@@ -308,6 +308,7 @@ StackExchange.Redis.ConnectionMultiplexer.ConfigureAsync(System.IO.TextWriter? l
 StackExchange.Redis.ConnectionMultiplexer.ConnectionFailed -> System.EventHandler<StackExchange.Redis.ConnectionFailedEventArgs!>?
 StackExchange.Redis.ConnectionMultiplexer.ConnectionRestored -> System.EventHandler<StackExchange.Redis.ConnectionFailedEventArgs!>?
 StackExchange.Redis.ConnectionMultiplexer.Dispose() -> void
+StackExchange.Redis.ConnectionMultiplexer.DisposeAsync() -> System.Threading.Tasks.ValueTask
 StackExchange.Redis.ConnectionMultiplexer.ErrorMessage -> System.EventHandler<StackExchange.Redis.RedisErrorEventArgs!>?
 StackExchange.Redis.ConnectionMultiplexer.ExportConfiguration(System.IO.Stream! destination, StackExchange.Redis.ExportOptions options = (StackExchange.Redis.ExportOptions)-1) -> void
 StackExchange.Redis.ConnectionMultiplexer.GetCounters() -> StackExchange.Redis.ServerCounters!
