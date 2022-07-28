@@ -134,14 +134,14 @@ namespace StackExchange.Redis
                     }
                     return default;
                 default:
-                    throw new InvalidCastException("Cannot convert to RedisChannel: " + Type);
+                    throw new InvalidCastException("Cannot convert to RedisChannel: " + ToString());
             }
         }
 
         internal RedisKey AsRedisKey() => Type switch
         {
             ResultType.SimpleString or ResultType.BulkString => (RedisKey)GetBlob(),
-            _ => throw new InvalidCastException("Cannot convert to RedisKey: " + Type),
+            _ => throw new InvalidCastException("Cannot convert to RedisKey: " + ToString()),
         };
 
         internal RedisValue AsRedisValue()
@@ -157,7 +157,7 @@ namespace StackExchange.Redis
                 case ResultType.BulkString:
                     return (RedisValue)GetBlob();
             }
-            throw new InvalidCastException("Cannot convert to RedisValue: " + Type);
+            throw new InvalidCastException("Cannot convert to RedisValue: " + ToString());
         }
 
         internal Lease<byte>? AsLease()
@@ -172,7 +172,7 @@ namespace StackExchange.Redis
                     payload.CopyTo(lease.Span);
                     return lease;
             }
-            throw new InvalidCastException("Cannot convert to Lease: " + Type);
+            throw new InvalidCastException("Cannot convert to Lease: " + ToString());
         }
 
         internal bool IsEqual(in CommandBytes expected)
