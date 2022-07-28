@@ -133,15 +133,17 @@ namespace StackExchange.Redis
                         return new RedisChannel(copy, mode);
                     }
                     return default;
-                default:
+                case ResultType.Error:
                     throw new InvalidCastException("Cannot convert to RedisChannel: " + ToString());
+                default:
+                    throw new InvalidCastException("Cannot convert to RedisChannel: " + Type);
             }
         }
 
         internal RedisKey AsRedisKey() => Type switch
         {
             ResultType.SimpleString or ResultType.BulkString => (RedisKey)GetBlob(),
-            _ => throw new InvalidCastException("Cannot convert to RedisKey: " + ToString()),
+            _ => throw new InvalidCastException("Cannot convert to RedisKey: " + Type),
         };
 
         internal RedisValue AsRedisValue()
@@ -156,8 +158,10 @@ namespace StackExchange.Redis
                 case ResultType.SimpleString:
                 case ResultType.BulkString:
                     return (RedisValue)GetBlob();
+                case ResultType.Error:
+                    throw new InvalidCastException("Cannot convert to RedisValue: " + ToString());
             }
-            throw new InvalidCastException("Cannot convert to RedisValue: " + ToString());
+            throw new InvalidCastException("Cannot convert to RedisValue: " + Type);
         }
 
         internal Lease<byte>? AsLease()
@@ -171,8 +175,10 @@ namespace StackExchange.Redis
                     var lease = Lease<byte>.Create(checked((int)payload.Length), false);
                     payload.CopyTo(lease.Span);
                     return lease;
+                case ResultType.Error:
+                    throw new InvalidCastException("Cannot convert to Lease: " + ToString());
             }
-            throw new InvalidCastException("Cannot convert to Lease: " + ToString());
+            throw new InvalidCastException("Cannot convert to Lease: " + Type);
         }
 
         internal bool IsEqual(in CommandBytes expected)
