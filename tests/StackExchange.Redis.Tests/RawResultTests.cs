@@ -1,4 +1,6 @@
-﻿using System.Buffers;
+﻿using System;
+using System.Buffers;
+using System.Text;
 using Xunit;
 
 namespace StackExchange.Redis.Tests;
@@ -61,5 +63,18 @@ public class RawResultTests
 
         var arr = (byte[]?)value;
         Assert.Null(arr);
+    }
+
+    [Fact]
+    public void ErrorTypeReturnsMessage()
+    {
+        var ascii = "expected error";
+        var buffer = new ReadOnlySequence<byte>(Encoding.ASCII.GetBytes(ascii));
+
+
+        var result = new RawResult(ResultType.Error, buffer, false);
+        var ex = Assert.Throws<InvalidCastException>(() => result.AsRedisValue());
+
+        Assert.Contains(ascii, ex.Message);
     }
 }
