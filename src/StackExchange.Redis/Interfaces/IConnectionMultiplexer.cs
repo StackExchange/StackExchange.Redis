@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Threading.Tasks;
@@ -191,6 +192,11 @@ namespace StackExchange.Redis
         /// <param name="endpoint">The endpoint to get a server for.</param>
         /// <param name="asyncState">The async state to pass to the created <see cref="IServer"/>.</param>
         IServer GetServer(EndPoint endpoint, object? asyncState = null);
+
+        /// <summary>
+        /// Obtain configuration APIs for all servers this multiplexer.
+        /// </summary>
+        IServer[] GetServers();
 
         /// <summary>
         /// Reconfigure the current connections based on the existing configuration.
