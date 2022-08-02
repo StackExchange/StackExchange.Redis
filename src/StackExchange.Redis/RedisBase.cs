@@ -62,9 +62,9 @@ namespace StackExchange.Redis
             return multiplexer.ExecuteSyncImpl<T>(message, processor, server, defaultValue);
         }
 
-        internal virtual RedisFeatures GetFeatures(in RedisKey key, CommandFlags flags, out ServerEndPoint? server)
+        internal virtual RedisFeatures GetFeatures(in RedisKey key, CommandFlags flags, RedisCommand command, out ServerEndPoint? server)
         {
-            server = multiplexer.SelectServer(RedisCommand.PING, flags, key);
+            server = multiplexer.SelectServer(command, flags, key);
             var version = server == null ? multiplexer.RawConfig.DefaultVersion : server.Version;
             return new RedisFeatures(version);
         }
