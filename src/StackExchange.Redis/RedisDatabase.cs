@@ -635,7 +635,7 @@ namespace StackExchange.Redis
 
         public long HyperLogLogLength(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
-            var features = GetFeatures(key, flags, out ServerEndPoint? server, RedisCommand.PFCOUNT);
+            var features = GetFeatures(key, flags, RedisCommand.PFCOUNT, out ServerEndPoint? server);
             var cmd = Message.Create(Database, flags, RedisCommand.PFCOUNT, key);
             // technically a write / primary-only command until 2.8.18
             if (server != null && !features.HyperLogLogCountReplicaSafe) cmd.SetPrimaryOnly();
@@ -649,7 +649,7 @@ namespace StackExchange.Redis
             var cmd = Message.Create(Database, flags, RedisCommand.PFCOUNT, keys);
             if (keys.Length != 0)
             {
-                var features = GetFeatures(keys[0], flags, out server, RedisCommand.PFCOUNT);
+                var features = GetFeatures(keys[0], flags, RedisCommand.PFCOUNT, out server);
                 // technically a write / primary-only command until 2.8.18
                 if (server != null && !features.HyperLogLogCountReplicaSafe) cmd.SetPrimaryOnly();
             }
@@ -658,7 +658,7 @@ namespace StackExchange.Redis
 
         public Task<long> HyperLogLogLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
-            var features = GetFeatures(key, flags, out ServerEndPoint? server, RedisCommand.PFCOUNT);
+            var features = GetFeatures(key, flags, RedisCommand.PFCOUNT, out ServerEndPoint? server);
             var cmd = Message.Create(Database, flags, RedisCommand.PFCOUNT, key);
             // technically a write / primary-only command until 2.8.18
             if (server != null && !features.HyperLogLogCountReplicaSafe) cmd.SetPrimaryOnly();
@@ -672,7 +672,7 @@ namespace StackExchange.Redis
             var cmd = Message.Create(Database, flags, RedisCommand.PFCOUNT, keys);
             if (keys.Length != 0)
             {
-                var features = GetFeatures(keys[0], flags, out server, RedisCommand.PFCOUNT);
+                var features = GetFeatures(keys[0], flags, RedisCommand.PFCOUNT, out server);
                 // technically a write / primary-only command until 2.8.18
                 if (server != null && !features.HyperLogLogCountReplicaSafe) cmd.SetPrimaryOnly();
             }
@@ -773,7 +773,7 @@ namespace StackExchange.Redis
 
         private RedisCommand GetDeleteCommand(RedisKey key, CommandFlags flags, out ServerEndPoint? server)
         {
-            var features = GetFeatures(key, flags, out server, RedisCommand.UNLINK);
+            var features = GetFeatures(key, flags, RedisCommand.UNLINK, out server);
             if (server != null && features.Unlink && multiplexer.CommandMap.IsAvailable(RedisCommand.UNLINK))
             {
                 return RedisCommand.UNLINK;
@@ -1036,7 +1036,7 @@ namespace StackExchange.Redis
 
         public TimeSpan? KeyTimeToLive(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
-            var features = GetFeatures(key, flags, out ServerEndPoint? server, RedisCommand.TTL);
+            var features = GetFeatures(key, flags, RedisCommand.TTL, out ServerEndPoint? server);
             Message msg;
             if (server != null && features.MillisecondExpiry && multiplexer.CommandMap.IsAvailable(RedisCommand.PTTL))
             {
@@ -1049,7 +1049,7 @@ namespace StackExchange.Redis
 
         public Task<TimeSpan?> KeyTimeToLiveAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
-            var features = GetFeatures(key, flags, out ServerEndPoint? server, RedisCommand.TTL);
+            var features = GetFeatures(key, flags, RedisCommand.TTL, out ServerEndPoint? server);
             Message msg;
             if (server != null && features.MillisecondExpiry && multiplexer.CommandMap.IsAvailable(RedisCommand.PTTL))
             {
@@ -3278,7 +3278,7 @@ namespace StackExchange.Redis
             server = null;
             if ((milliseconds % 1000) != 0)
             {
-                var features = GetFeatures(key, flags, out server, RedisCommand.PEXPIRE);
+                var features = GetFeatures(key, flags, RedisCommand.PEXPIRE, out server);
                 if (server is not null && features.MillisecondExpiry && multiplexer.CommandMap.IsAvailable(millisecondsCommand))
                 {
                     return when switch
@@ -3675,7 +3675,7 @@ namespace StackExchange.Redis
         private Message GetSortMessage(RedisKey destination, RedisKey key, long skip, long take, Order order, SortType sortType, RedisValue by, RedisValue[]? get, CommandFlags flags, out ServerEndPoint? server)
         {
             server = null;
-            var command = destination.IsNull && GetFeatures(key, flags, out server, RedisCommand.SORT_RO).ReadOnlySort
+            var command = destination.IsNull && GetFeatures(key, flags, RedisCommand.SORT_RO, out server).ReadOnlySort
                 ? RedisCommand.SORT_RO
                 : RedisCommand.SORT;
 
@@ -4345,7 +4345,7 @@ namespace StackExchange.Redis
             {
                 throw new NotSupportedException("This operation is not possible inside a transaction or batch; please issue separate GetString and KeyTimeToLive requests");
             }
-            var features = GetFeatures(key, flags, out server, RedisCommand.PTTL);
+            var features = GetFeatures(key, flags, RedisCommand.PTTL, out server);
             processor = StringGetWithExpiryProcessor.Default;
             if (server != null && features.MillisecondExpiry && multiplexer.CommandMap.IsAvailable(RedisCommand.PTTL))
             {
@@ -4502,7 +4502,7 @@ namespace StackExchange.Redis
                 throw new ArgumentOutOfRangeException(nameof(pageSize));
             if (!multiplexer.CommandMap.IsAvailable(command)) return null;
 
-            var features = GetFeatures(key, flags, out server, RedisCommand.SCAN);
+            var features = GetFeatures(key, flags, RedisCommand.SCAN, out server);
             if (!features.Scan) return null;
 
             if (CursorUtils.IsNil(pattern)) pattern = (byte[]?)null;
