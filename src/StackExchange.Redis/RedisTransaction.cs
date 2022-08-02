@@ -122,6 +122,8 @@ namespace StackExchange.Redis
                     case RedisCommand.UNKNOWN:
                     case RedisCommand.EVAL:
                     case RedisCommand.EVALSHA:
+                    case RedisCommand.EVAL_RO:
+                    case RedisCommand.EVALSHA_RO:
                         // people can do very naughty things in an EVAL
                         // including change the DB; change it back to what we
                         // think it should be!

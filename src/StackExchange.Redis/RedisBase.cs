@@ -62,6 +62,16 @@ namespace StackExchange.Redis
             return multiplexer.ExecuteSyncImpl<T>(message, processor, server, defaultValue);
         }
 
+        internal RedisFeatures GetFeatures(RedisKey[]? keys, CommandFlags flags, out ServerEndPoint? server)
+        {
+            // we'll assume that all the keys are routed correctly, so: only need 1 key to do this
+            if (keys is null || keys.Length == 0)
+            {
+                server = null;
+                return new RedisFeatures(multiplexer.RawConfig.DefaultVersion);
+            }
+            return GetFeatures(keys[0], flags, out server);
+        }
         internal virtual RedisFeatures GetFeatures(in RedisKey key, CommandFlags flags, out ServerEndPoint? server)
         {
             server = multiplexer.SelectServer(RedisCommand.PING, flags, key);

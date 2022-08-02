@@ -526,7 +526,7 @@ namespace StackExchange.Redis
         internal byte[]? GetScriptHash(string script, RedisCommand command)
         {
             var found = (byte[]?)knownScripts[script];
-            if (found == null && command == RedisCommand.EVALSHA)
+            if (found == null && (command == RedisCommand.EVALSHA || command == RedisCommand.EVALSHA_RO))
             {
                 // The script provided is a hex SHA - store and re-use the ASCii for that
                 found = Encoding.ASCII.GetBytes(script);

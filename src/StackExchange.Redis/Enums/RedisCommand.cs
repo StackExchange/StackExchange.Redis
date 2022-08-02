@@ -35,7 +35,9 @@ internal enum RedisCommand
 
     ECHO,
     EVAL,
+    EVAL_RO,
     EVALSHA,
+    EVALSHA_RO,
     EXEC,
     EXISTS,
     EXPIRE,
@@ -360,7 +362,9 @@ internal static class RedisCommandExtensions
             case RedisCommand.DUMP:
             case RedisCommand.ECHO:
             case RedisCommand.EVAL:
+            case RedisCommand.EVAL_RO:
             case RedisCommand.EVALSHA:
+            case RedisCommand.EVALSHA_RO:
             case RedisCommand.EXEC:
             case RedisCommand.EXISTS:
             case RedisCommand.GEODIST:

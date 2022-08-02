@@ -161,6 +161,7 @@ StackExchange.Redis.CommandFlags.NoScriptCache = 512 -> StackExchange.Redis.Comm
 StackExchange.Redis.CommandFlags.PreferMaster = 0 -> StackExchange.Redis.CommandFlags
 StackExchange.Redis.CommandFlags.PreferReplica = 8 -> StackExchange.Redis.CommandFlags
 StackExchange.Redis.CommandFlags.PreferSlave = 8 -> StackExchange.Redis.CommandFlags
+StackExchange.Redis.CommandFlags.ReadOnly = 1024 -> StackExchange.Redis.CommandFlags
 StackExchange.Redis.CommandMap
 StackExchange.Redis.CommandStatus
 StackExchange.Redis.CommandStatus.Sent = 2 -> StackExchange.Redis.CommandStatus
