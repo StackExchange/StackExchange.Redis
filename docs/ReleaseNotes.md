@@ -4,6 +4,7 @@
 
 - Fix [#2182](https://github.com/StackExchange/StackExchange.Redis/issues/2182): Be more flexible in which commands are "primary only" in order to support users with replicas that are explicitly configured to allow writes ([#2183 by slorello89](https://github.com/StackExchange/StackExchange.Redis/pull/2183))
 - Adds: `IConnectionMultiplexer` now implements `IAsyncDisposable` ([#2161 by kimsey0](https://github.com/StackExchange/StackExchange.Redis/pull/2161))
+- Adds: `IConnectionMultiplexer.GetServers()` to get all `IServer` instances for a multiplexer ([#2203 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2203))
 
 ## 2.6.48
 
