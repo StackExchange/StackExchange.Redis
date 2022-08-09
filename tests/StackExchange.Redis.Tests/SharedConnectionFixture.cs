@@ -146,6 +146,8 @@ public class SharedConnectionFixture : IDisposable
 
         public IServer GetServer(EndPoint endpoint, object? asyncState = null) => _inner.GetServer(endpoint, asyncState);
 
+        public IServer[] GetServers() => _inner.GetServers();
+
         public string GetStatus() => _inner.GetStatus();
 
         public void GetStatus(TextWriter log) => _inner.GetStatus(log);

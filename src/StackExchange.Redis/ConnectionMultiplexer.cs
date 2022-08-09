@@ -1030,6 +1030,20 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
+        /// Obtain configuration APIs for all servers in this multiplexer.
+        /// </summary>
+        public IServer[] GetServers()
+        {
+            var snapshot = GetServerSnapshot();
+            var result = new IServer[snapshot.Length];
+            for (var i = 0; i < snapshot.Length; i++)
+            {
+                result[i] = new RedisServer(this, snapshot[i], null);
+            }
+            return result;
+        }
+
+        /// <summary>
         /// Get the hash-slot associated with a given key, if applicable.
         /// This can be useful for grouping operations.
         /// </summary>

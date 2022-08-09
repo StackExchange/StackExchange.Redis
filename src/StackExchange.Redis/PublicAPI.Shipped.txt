@@ -320,6 +320,7 @@ StackExchange.Redis.ConnectionMultiplexer.GetServer(string! host, int port, obje
 StackExchange.Redis.ConnectionMultiplexer.GetServer(string! hostAndPort, object? asyncState = null) -> StackExchange.Redis.IServer!
 StackExchange.Redis.ConnectionMultiplexer.GetServer(System.Net.EndPoint? endpoint, object? asyncState = null) -> StackExchange.Redis.IServer!
 StackExchange.Redis.ConnectionMultiplexer.GetServer(System.Net.IPAddress! host, int port) -> StackExchange.Redis.IServer!
+StackExchange.Redis.ConnectionMultiplexer.GetServers() -> StackExchange.Redis.IServer![]!
 StackExchange.Redis.ConnectionMultiplexer.GetStatus() -> string!
 StackExchange.Redis.ConnectionMultiplexer.GetStatus(System.IO.TextWriter! log) -> void
 StackExchange.Redis.ConnectionMultiplexer.GetStormLog() -> string?
@@ -460,6 +461,7 @@ StackExchange.Redis.IConnectionMultiplexer.GetServer(string! host, int port, obj
 StackExchange.Redis.IConnectionMultiplexer.GetServer(string! hostAndPort, object? asyncState = null) -> StackExchange.Redis.IServer!
 StackExchange.Redis.IConnectionMultiplexer.GetServer(System.Net.EndPoint! endpoint, object? asyncState = null) -> StackExchange.Redis.IServer!
 StackExchange.Redis.IConnectionMultiplexer.GetServer(System.Net.IPAddress! host, int port) -> StackExchange.Redis.IServer!
+StackExchange.Redis.IConnectionMultiplexer.GetServers() -> StackExchange.Redis.IServer![]!
 StackExchange.Redis.IConnectionMultiplexer.GetStatus() -> string!
 StackExchange.Redis.IConnectionMultiplexer.GetStatus(System.IO.TextWriter! log) -> void
 StackExchange.Redis.IConnectionMultiplexer.GetStormLog() -> string?
