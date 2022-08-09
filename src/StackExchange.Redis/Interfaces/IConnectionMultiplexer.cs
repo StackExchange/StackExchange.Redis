@@ -194,7 +194,7 @@ namespace StackExchange.Redis
         IServer GetServer(EndPoint endpoint, object? asyncState = null);
 
         /// <summary>
-        /// Obtain configuration APIs for all servers this multiplexer.
+        /// Obtain configuration APIs for all servers in this multiplexer.
         /// </summary>
         IServer[] GetServers();
 

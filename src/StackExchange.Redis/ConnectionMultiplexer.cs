@@ -1030,7 +1030,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Obtain configuration APIs for all servers this multiplexer.
+        /// Obtain configuration APIs for all servers in this multiplexer.
         /// </summary>
         public IServer[] GetServers()
         {
