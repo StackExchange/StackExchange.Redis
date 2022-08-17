@@ -6,6 +6,7 @@
 - Adds: `IConnectionMultiplexer` now implements `IAsyncDisposable` ([#2161 by kimsey0](https://github.com/StackExchange/StackExchange.Redis/pull/2161))
 - Adds: `IConnectionMultiplexer.GetServers()` to get all `IServer` instances for a multiplexer ([#2203 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2203))
 - Fix [#2016](https://github.com/StackExchange/StackExchange.Redis/issues/2016): Align server selection with supported commands (e.g. with writable servers) to reduce `Command cannot be issued to a replica` errors ([#2191 by slorello89](https://github.com/StackExchange/StackExchange.Redis/pull/2191))
+- Performance: Optimization around timeout processing to reduce lock contention in the case of many items that haven't yet timed out during a heartbeat ([#2217 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2217))
 
 ## 2.6.48
 
