@@ -1,2 +1,1 @@
-﻿StackExchange.Redis.IDatabase.LoadedScriptEvaluate(StackExchange.Redis.LoadedLuaScript! script, StackExchange.Redis.RedisKey[]? keys = null, StackExchange.Redis.RedisValue[]? values = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisResult!
-StackExchange.Redis.IDatabaseAsync.LoadedScriptEvaluateAsync(StackExchange.Redis.LoadedLuaScript! script, StackExchange.Redis.RedisKey[]? keys = null, StackExchange.Redis.RedisValue[]? values = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisResult!>!
+﻿
