@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Concurrent;
+using System.ComponentModel;
 using System.Threading.Tasks;
 
 namespace StackExchange.Redis
@@ -240,6 +241,8 @@ namespace StackExchange.Redis
         /// <para>The SHA1 hash of ExecutableScript.</para>
         /// <para>This is sent to Redis instead of ExecutableScript during Evaluate and EvaluateAsync calls.</para>
         /// </summary>
+        /// <remarks>Be aware that using hash directly is not resilient to Redis server restarts.</remarks>
+        [EditorBrowsable(EditorBrowsableState.Never)]
         public byte[] Hash { get; }
 
         // internal for testing purposes only
@@ -266,7 +269,7 @@ namespace StackExchange.Redis
         {
             Original.ExtractParameters(ps, withKeyPrefix, out RedisKey[]? keys, out RedisValue[]? args);
 
-            return db.LoadedScriptEvaluate(this, keys, args, flags);
+            return db.ScriptEvaluate(ExecutableScript, keys, args, flags);
         }
 
         /// <summary>
@@ -284,7 +287,7 @@ namespace StackExchange.Redis
         {
             Original.ExtractParameters(ps, withKeyPrefix, out RedisKey[]? keys, out RedisValue[]? args);
 
-            return db.LoadedScriptEvaluateAsync(this, keys, args, flags);
+            return db.ScriptEvaluateAsync(ExecutableScript, keys, args, flags);
         }
     }
 }

@@ -1541,20 +1541,6 @@ namespace StackExchange.Redis
             return script.Evaluate(this, parameters, withKeyPrefix: null, flags);
         }
 
-        public RedisResult LoadedScriptEvaluate(LoadedLuaScript script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = new ScriptEvalMessage(Database, flags, script.Hash, keys, values);
-
-            try
-            {
-                return ExecuteSync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
-            }
-            catch (RedisServerException) when (msg.IsScriptUnavailable)
-            {
-                return ScriptEvaluate(script.ExecutableScript, keys, values, flags);
-            }
-        }
-
         public async Task<RedisResult> ScriptEvaluateAsync(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
         {
             var msg = new ScriptEvalMessage(Database, flags, script, keys, values);
@@ -1584,20 +1570,6 @@ namespace StackExchange.Redis
         public Task<RedisResult> ScriptEvaluateAsync(LoadedLuaScript script, object? parameters = null, CommandFlags flags = CommandFlags.None)
         {
             return script.EvaluateAsync(this, parameters, withKeyPrefix: null, flags);
-        }
-
-        public async Task<RedisResult> LoadedScriptEvaluateAsync(LoadedLuaScript script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = new ScriptEvalMessage(Database, flags, script.Hash, keys, values);
-
-            try
-            {
-                return await ExecuteAsync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle).ConfigureAwait(false);
-            }
-            catch (RedisServerException) when (msg.IsScriptUnavailable)
-            {
-                return await ScriptEvaluateAsync(script.ExecutableScript, keys, values, flags).ConfigureAwait(false);
-            }
         }
 
         public bool SetAdd(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)

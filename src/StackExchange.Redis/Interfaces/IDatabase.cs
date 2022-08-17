@@ -1300,17 +1300,6 @@ namespace StackExchange.Redis
         RedisResult ScriptEvaluate(LoadedLuaScript script, object? parameters = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Execute a Lua script against the server using just the SHA1 hash.
-        /// </summary>
-        /// <param name="script">The loaded script to execute.</param>
-        /// <param name="keys">The keys to execute against.</param>
-        /// <param name="values">The values to execute against.</param>
-        /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>A dynamic representation of the script's result.</returns>
-        [EditorBrowsable(EditorBrowsableState.Never)]
-        RedisResult LoadedScriptEvaluate(LoadedLuaScript script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None);
-
-        /// <summary>
         /// Add the specified member to the set stored at key.
         /// Specified members that are already a member of this set are ignored.
         /// If key does not exist, a new set is created before adding the specified members.
