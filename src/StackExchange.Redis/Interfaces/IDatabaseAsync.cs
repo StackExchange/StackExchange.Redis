@@ -2818,6 +2818,20 @@ namespace StackExchange.Redis
         Task<bool> StringSetAsync(KeyValuePair<RedisKey, RedisValue>[] values, When when = When.Always, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Sets the given keys to their respective values.
+        /// If <see cref="When.NotExists"/> is specified, this will not perform any operation at all even if just a single key already exists.
+        /// </summary>
+        /// <param name="values">The keys and values to set.</param>
+        /// <param name="when">Which condition to set the value under (defaults to always).</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns><see langword="true"/> if the keys were set, <see langword="false"/> otherwise.</returns>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/mset"/>,
+        /// <seealso href="https://redis.io/commands/msetnx"/>
+        /// </remarks>
+        Task<bool> StringSetAsync(ReadOnlyMemory<KeyValuePair<RedisKey, RedisValue>> values, When when = When.Always, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Atomically sets key to value and returns the previous value (if any) stored at <paramref name="key"/>.
         /// </summary>
         /// <param name="key">The key of the string.</param>

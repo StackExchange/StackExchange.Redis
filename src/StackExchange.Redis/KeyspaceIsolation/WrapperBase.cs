@@ -686,6 +686,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<bool> StringSetAsync(KeyValuePair<RedisKey, RedisValue>[] values, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
             Inner.StringSetAsync(ToInner(values), when, flags);
 
+        public Task<bool> StringSetAsync(ReadOnlyMemory<KeyValuePair<RedisKey, RedisValue>> values, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
+            Inner.StringSetAsync(ToInner(values), when, flags);
+
         public Task<bool> StringSetAsync(RedisKey key, RedisValue value, TimeSpan? expiry, When when) =>
             Inner.StringSetAsync(ToInner(key), value, expiry, when);
         public Task<bool> StringSetAsync(RedisKey key, RedisValue value, TimeSpan? expiry, When when, CommandFlags flags) =>
@@ -798,6 +801,25 @@ namespace StackExchange.Redis.KeyspaceIsolation
                 for (int i = 0; i < outer.Length; ++i)
                 {
                     inner[i] = ToInner(outer[i]);
+                }
+
+                return inner;
+            }
+        }
+
+        protected ReadOnlyMemory<KeyValuePair<RedisKey, RedisValue>> ToInner(ReadOnlyMemory<KeyValuePair<RedisKey, RedisValue>> outer)
+        {
+            if (outer.Length == 0)
+            {
+                return outer;
+            }
+            else
+            {
+                KeyValuePair<RedisKey, RedisValue>[] inner = new KeyValuePair<RedisKey, RedisValue>[outer.Length];
+
+                for (int i = 0; i < outer.Length; ++i)
+                {
+                    inner[i] = ToInner(outer.Span[i]);
                 }
 
                 return inner;
