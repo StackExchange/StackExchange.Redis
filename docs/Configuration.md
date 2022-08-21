@@ -170,6 +170,13 @@ The above is equivalent to (in the connection string):
 $INFO=,$SELECT=use
 ```
 
+Redis Server Permissions
+---
+If the user you're connecting to Redis with is limited, it still needs to have certain commands enabled for the StackExchange.Redis to succeed in connecting. The client `AUTH`s, `SUBSCRIBE`s to change events, gets `INFO` about the server configuration, and `ECHO`s for heartbeat. Only the `SUBSCRIBE` is optional (and will reduce functionality appropriately). If you have permissions restricted on the server, you need to allow at least these 4 commands (plus whatever you are using), or disable `SUBSCRIBE` in the `CommandMap` above if now allowing it. For example, a common _very_ minimal configuration would be:
+```bash
+-@all +@pubsub +@read +echo +info
+```
+
 twemproxy
 ---
 
