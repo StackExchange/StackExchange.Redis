@@ -1432,6 +1432,17 @@ namespace StackExchange.Redis
                     {
                         try
                         {
+#if NETCOREAPP3_1_OR_GREATER
+                            var configOptions = config.SslClientAuthenticationOptions?.Invoke(host);
+                            if (configOptions is not null)
+                            {
+                                await ssl.AuthenticateAsClientAsync(configOptions);
+                            }
+                            else
+                            {
+                                ssl.AuthenticateAsClient(host, config.SslProtocols, config.CheckCertificateRevocation);
+                            }
+#endif
                             ssl.AuthenticateAsClient(host, config.SslProtocols, config.CheckCertificateRevocation);
                         }
                         catch (Exception ex)

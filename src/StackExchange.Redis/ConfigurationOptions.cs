@@ -490,6 +490,14 @@ namespace StackExchange.Redis
         /// </remarks>
         public SocketManager? SocketManager { get; set; }
 
+#if NETCOREAPP3_1_OR_GREATER
+        /// <summary>
+        /// A <see cref="SslClientAuthenticationOptions"/> provider for a given host, for custom TLS connection options.
+        /// Note: this overrides *all* other TLS and certificate settings, only for advanced use cases.
+        /// </summary>
+        public Func<string, SslClientAuthenticationOptions>? SslClientAuthenticationOptions { get; set; }
+#endif
+
         /// <summary>
         /// Indicates whether the connection should be encrypted.
         /// </summary>
