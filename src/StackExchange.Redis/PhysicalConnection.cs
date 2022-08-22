@@ -1442,8 +1442,9 @@ namespace StackExchange.Redis
                             {
                                 ssl.AuthenticateAsClient(host, config.SslProtocols, config.CheckCertificateRevocation);
                             }
-#endif
+#else
                             ssl.AuthenticateAsClient(host, config.SslProtocols, config.CheckCertificateRevocation);
+#endif
                         }
                         catch (Exception ex)
                         {
