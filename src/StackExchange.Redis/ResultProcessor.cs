@@ -484,9 +484,14 @@ namespace StackExchange.Redis
 
         internal sealed class ScriptLoadProcessor : ResultProcessor<byte[]>
         {
+            /// <summary>
+            /// Anything hashed with SHA1 has exactly 40 characters. We can use that as a shortcut in the code bellow.
+            /// </summary>
+            private const int Sha1Length = 40;
+
             private static readonly Regex sha1 = new Regex("^[0-9a-f]{40}$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-            internal static bool IsSHA1(string script) => script is not null && sha1.IsMatch(script);
+            internal static bool IsSHA1(string script) => script is not null && script.Length == Sha1Length && sha1.IsMatch(script);
 
             internal const int Sha1HashLength = 20;
             internal static byte[] ParseSHA1(byte[] value)
