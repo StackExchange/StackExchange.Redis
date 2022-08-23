@@ -170,6 +170,27 @@ The above is equivalent to (in the connection string):
 $INFO=,$SELECT=use
 ```
 
+Redis Server Permissions
+---
+If the user you're connecting to Redis with is limited, it still needs to have certain commands enabled for the StackExchange.Redis to succeed in connecting. The client uses:
+- `AUTH` to authenticate
+- `CLIENT` to set the client name
+- `INFO` to understand server topology/settings
+- `ECHO` for heartbeat. 
+- (Optional) `SUBSCRIBE` to observe change events
+- (Optional) `CONFIG` to get/understand settings
+- (Optional) `CLUSTER` to get cluster nodes
+- (Optional) `SENTINEL` only for Sentinel servers
+- (Optional) `GET` to determine tie breakers
+- (Optional) `SET` (_only_ if `INFO` is disabled) to see if we're writable
+ 
+For example, a common _very_ minimal configuration ACL on the server (non-cluster) would be:
+```bash
+-@all +@pubsub +@read +echo +info
+```
+
+Note that if you choose to disable access to the above commands, it needs to be done via the `CommandMap` and not only the ACL on the server (otherwise we'll attempt the command and fail the handshake). Also, if any of the these commands are disabled, some functionality may be diminished or broken.
+
 twemproxy
 ---
 
