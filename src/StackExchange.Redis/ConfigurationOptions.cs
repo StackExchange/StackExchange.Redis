@@ -627,6 +627,9 @@ namespace StackExchange.Redis
             checkCertificateRevocation = checkCertificateRevocation,
             BeforeSocketConnect = BeforeSocketConnect,
             EndPoints = EndPoints.Clone(),
+#if NETCOREAPP3_1_OR_GREATER
+            SslClientAuthenticationOptions = SslClientAuthenticationOptions,
+#endif
         };
 
         /// <summary>
