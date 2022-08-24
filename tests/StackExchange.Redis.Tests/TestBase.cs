@@ -221,11 +221,9 @@ public abstract class TestBase : IDisposable
 
     protected static IServer GetServer(IConnectionMultiplexer muxer)
     {
-        EndPoint[] endpoints = muxer.GetEndPoints();
         IServer? result = null;
-        foreach (var endpoint in endpoints)
+        foreach (var server in muxer.GetServers())
         {
-            var server = muxer.GetServer(endpoint);
             if (server.IsReplica || !server.IsConnected) continue;
             if (result != null) throw new InvalidOperationException("Requires exactly one primary endpoint (found " + server.EndPoint + " and " + result.EndPoint + ")");
             result = server;

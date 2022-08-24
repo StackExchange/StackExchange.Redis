@@ -1566,8 +1566,10 @@ namespace StackExchange.Redis
         /// <param name="get">The key pattern to sort by, if any e.g. ExternalKey_* would return the value of ExternalKey_{listvalue} for each entry.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The sorted elements, or the external values if <c>get</c> is specified.</returns>
-        /// <remarks><seealso href="https://redis.io/commands/sort"/></remarks>
-        /// <remarks><seealso href="https://redis.io/commands/sort_ro"/></remarks>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/sort"/>,
+        /// <seealso href="https://redis.io/commands/sort_ro"/>
+        /// </remarks>
         RedisValue[] Sort(RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default, RedisValue[]? get = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>

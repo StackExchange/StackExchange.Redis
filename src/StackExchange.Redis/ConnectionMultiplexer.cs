@@ -234,7 +234,7 @@ namespace StackExchange.Redis
             log?.WriteLine($"Checking {Format.ToString(srv.EndPoint)} is available...");
             try
             {
-                await srv.PingAsync(flags); // if it isn't happy, we're not happy
+                await srv.PingAsync(flags).ForAwait(); // if it isn't happy, we're not happy
             }
             catch (Exception ex)
             {
@@ -257,7 +257,7 @@ namespace StackExchange.Redis
                     msg = Message.Create(0, flags | CommandFlags.FireAndForget, RedisCommand.SET, tieBreakerKey, newPrimary);
                     try
                     {
-                        await node.WriteDirectAsync(msg, ResultProcessor.DemandOK);
+                        await node.WriteDirectAsync(msg, ResultProcessor.DemandOK).ForAwait();
                     }
                     catch { }
                 }
@@ -267,7 +267,7 @@ namespace StackExchange.Redis
             log?.WriteLine($"Making {Format.ToString(srv.EndPoint)} a primary...");
             try
             {
-                await srv.ReplicaOfAsync(null, flags);
+                await srv.ReplicaOfAsync(null, flags).ForAwait();
             }
             catch (Exception ex)
             {
@@ -282,7 +282,7 @@ namespace StackExchange.Redis
                 msg = Message.Create(0, flags | CommandFlags.FireAndForget, RedisCommand.SET, tieBreakerKey, newPrimary);
                 try
                 {
-                    await server.WriteDirectAsync(msg, ResultProcessor.DemandOK);
+                    await server.WriteDirectAsync(msg, ResultProcessor.DemandOK).ForAwait();
                 }
                 catch { }
             }
@@ -311,13 +311,13 @@ namespace StackExchange.Redis
                         if (!node.IsConnected) continue;
                         log?.WriteLine($"Broadcasting via {Format.ToString(node.EndPoint)}...");
                         msg = Message.Create(-1, flags | CommandFlags.FireAndForget, RedisCommand.PUBLISH, channel, newPrimary);
-                        await node.WriteDirectAsync(msg, ResultProcessor.Int64);
+                        await node.WriteDirectAsync(msg, ResultProcessor.Int64).ForAwait();
                     }
                 }
             }
 
             // Send a message before it happens - because afterwards a new replica may be unresponsive
-            await BroadcastAsync(nodes);
+            await BroadcastAsync(nodes).ForAwait();
 
             if (options.HasFlag(ReplicationChangeOptions.ReplicateToOtherEndpoints))
             {
@@ -327,14 +327,14 @@ namespace StackExchange.Redis
 
                     log?.WriteLine($"Replicating to {Format.ToString(node.EndPoint)}...");
                     msg = RedisServer.CreateReplicaOfMessage(node, server.EndPoint, flags);
-                    await node.WriteDirectAsync(msg, ResultProcessor.DemandOK);
+                    await node.WriteDirectAsync(msg, ResultProcessor.DemandOK).ForAwait();
                 }
             }
 
             // ...and send one after it happens - because the first broadcast may have landed on a secondary client
             // and it can reconfigure before any topology change actually happened. This is most likely to happen
             // in low-latency environments.
-            await BroadcastAsync(nodes);
+            await BroadcastAsync(nodes).ForAwait();
 
             // and reconfigure the muxer
             log?.WriteLine("Reconfiguring all endpoints...");
@@ -344,7 +344,7 @@ namespace StackExchange.Redis
             {
                 Interlocked.Exchange(ref activeConfigCause, null);
             }
-            if (!await ReconfigureAsync(first: false, reconfigureAll: true, log, srv.EndPoint, cause: nameof(MakePrimaryAsync)))
+            if (!await ReconfigureAsync(first: false, reconfigureAll: true, log, srv.EndPoint, cause: nameof(MakePrimaryAsync)).ForAwait())
             {
                 log?.WriteLine("Verifying the configuration was incomplete; please verify");
             }
@@ -1030,6 +1030,20 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
+        /// Obtain configuration APIs for all servers in this multiplexer.
+        /// </summary>
+        public IServer[] GetServers()
+        {
+            var snapshot = GetServerSnapshot();
+            var result = new IServer[snapshot.Length];
+            for (var i = 0; i < snapshot.Length; i++)
+            {
+                result[i] = new RedisServer(this, snapshot[i], null);
+            }
+            return result;
+        }
+
+        /// <summary>
         /// Get the hash-slot associated with a given key, if applicable.
         /// This can be useful for grouping operations.
         /// </summary>
@@ -1083,7 +1097,7 @@ namespace StackExchange.Redis
         public async Task<bool> ConfigureAsync(TextWriter? log = null)
         {
             using var logProxy = LogProxy.TryCreate(log);
-            return await ReconfigureAsync(first: false, reconfigureAll: true, logProxy, null, "configure").ObserveErrors();
+            return await ReconfigureAsync(first: false, reconfigureAll: true, logProxy, null, "configure").ObserveErrors().ForAwait();
         }
 
         internal int SyncConnectTimeout(bool forConnect)
@@ -2012,6 +2026,21 @@ namespace StackExchange.Redis
             GC.SuppressFinalize(this);
             Close(!_isDisposed);
             sentinelConnection?.Dispose();
+            var oldTimer = Interlocked.Exchange(ref sentinelPrimaryReconnectTimer, null);
+            oldTimer?.Dispose();
+        }
+
+        /// <summary>
+        /// Release all resources associated with this object.
+        /// </summary>
+        public async ValueTask DisposeAsync()
+        {
+            GC.SuppressFinalize(this);
+            await CloseAsync(!_isDisposed).ForAwait();
+            if (sentinelConnection is ConnectionMultiplexer sentinel)
+            {
+                await sentinel.DisposeAsync().ForAwait();
+            }
             var oldTimer = Interlocked.Exchange(ref sentinelPrimaryReconnectTimer, null);
             oldTimer?.Dispose();
         }

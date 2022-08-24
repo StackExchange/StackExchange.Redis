@@ -87,7 +87,7 @@ By default Redis Timeout exception(s) includes useful information, which can hel
 |qu | Queue-Awaiting-Write : {int}|There are x operations currently waiting in queue to write to the redis server.| 
 |qs | Queue-Awaiting-Response : {int}|There are x operations currently awaiting replies from redis server.| 
 |aw | Active-Writer: {bool}|| 
-|bw | Backlog-Writer: {enum} | Possible values are     Inactive, Started, CheckingForWork, CheckingForTimeout, RecordingTimeout, WritingMessage, Flushing, MarkingInactive, RecordingWriteFailure, RecordingFault,SettingIdle,Faulted|
+|bw | Backlog-Writer: {enum} | Possible values are     Inactive, Started, CheckingForWork, CheckingForTimeout, RecordingTimeout, WritingMessage, Flushing, MarkingInactive, RecordingWriteFailure, RecordingFault, SettingIdle, SpinningDown, Faulted|
 |rs | Read-State: {enum}|Possible values are NotStarted, Init, RanToCompletion, Faulted, ReadSync, ReadAsync, UpdateWriteTime, ProcessBuffer, MarkProcessed, TryParseResult, MatchResult, PubSubMessage, PubSubPMessage, Reconfigure, InvokePubSub, DequeueResult, ComputeResult, CompletePendingMessage, NA| 
 |ws | Write-State: {enum}| Possible values are Initializing, Idle, Writing, Flushing, Flushed, NA| 
 |in | Inbound-Bytes : {long}|there are x bytes waiting to be read from the input stream from redis| 
