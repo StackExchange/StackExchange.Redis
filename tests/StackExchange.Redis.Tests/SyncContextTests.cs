@@ -77,7 +77,10 @@ namespace StackExchange.Redis.Tests
             using var ctx = new MySyncContext();
             using var conn = Create();
             Assert.Equal(0, ctx.OpCount);
-            Assert.True(await conn.ConfigureAsync(Writer).ConfigureAwait(continueOnCapturedContext));
+            var pending = conn.ConfigureAsync(Writer);
+            Assert.NotEqual(TaskStatus.RanToCompletion, pending.Status);
+            Assert.True(await pending.ConfigureAwait(continueOnCapturedContext));
+            LogNoTime($"Opcount after await: {ctx.OpCount}");
             if (continueOnCapturedContext)
             {
                 Assert.True(ctx.OpCount > 0, $"Opcount: {ctx.OpCount}");
@@ -116,7 +119,10 @@ namespace StackExchange.Redis.Tests
             }
             public int OpCount => Thread.VolatileRead(ref _opCount);
             private int _opCount;
-            private void Incr() => Interlocked.Increment(ref _opCount);
+            private void Incr()
+            {
+                Interlocked.Increment(ref _opCount);
+            }
 
             void IDisposable.Dispose() => SetSynchronizationContext(_previousContext);
 
