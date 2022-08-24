@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
@@ -10,28 +11,30 @@ namespace StackExchange.Redis.Tests
     {
         public SyncContextTests(ITestOutputHelper testOutput) : base(testOutput) { }
 
+        /* Note A (referenced below)
+         *
+         * When sync-context is *enabled*, we don't validate OpCount > 0 - this is because *with the additional checks*,
+         * it can genuinely happen that by the time we actually await it, it has completd - which results in a brittle test.
+         */
         [Theory]
         [InlineData(true)]
         [InlineData(false)]
         public async Task DetectSyncContextUsafe(bool continueOnCapturedContext)
         {
-            using var ctx = new MySyncContext();
+            using var ctx = new MySyncContext(Writer);
             Assert.Equal(0, ctx.OpCount);
             await Task.Delay(100).ConfigureAwait(continueOnCapturedContext);
-            if (continueOnCapturedContext)
-            {
-                Assert.True(ctx.OpCount > 0, $"Opcount: {ctx.OpCount}");
-            }
-            else
+            if (!continueOnCapturedContext) // note: don't enforce > 0 when enabled; for fast scenarios, can genuinely complete without sync-ctx
             {
                 Assert.Equal(0, ctx.OpCount);
             }
+            Assert.True(continueOnCapturedContext == ctx.IsCurrent, nameof(ctx.IsCurrent));
         }
 
         [Fact]
         public void SyncPing()
         {
-            using var ctx = new MySyncContext();
+            using var ctx = new MySyncContext(Writer);
             using var conn = Create();
             Assert.Equal(0, ctx.OpCount);
             var db = conn.GetDatabase();
@@ -44,25 +47,25 @@ namespace StackExchange.Redis.Tests
         [InlineData(false)]
         public async Task AsyncPing(bool continueOnCapturedContext)
         {
-            using var ctx = new MySyncContext();
+            using var ctx = new MySyncContext(Writer);
             using var conn = Create();
             Assert.Equal(0, ctx.OpCount);
             var db = conn.GetDatabase();
+            LogNoTime($"Context before await: {ctx}");
             await db.PingAsync().ConfigureAwait(continueOnCapturedContext);
-            if (continueOnCapturedContext)
-            {
-                Assert.True(ctx.OpCount > 0, $"Opcount: {ctx.OpCount}");
-            }
-            else
+            LogNoTime($"Context after await: {ctx}");
+            Assert.True(continueOnCapturedContext == ctx.IsCurrent, nameof(ctx.IsCurrent));
+            if (!continueOnCapturedContext) // see "Note A"
             {
                 Assert.Equal(0, ctx.OpCount);
             }
+            Assert.True(continueOnCapturedContext == ctx.IsCurrent, nameof(ctx.IsCurrent));
         }
 
         [Fact]
         public void SyncConfigure()
         {
-            using var ctx = new MySyncContext();
+            using var ctx = new MySyncContext(Writer);
             using var conn = Create();
             Assert.Equal(0, ctx.OpCount);
             Assert.True(conn.Configure());
@@ -70,27 +73,28 @@ namespace StackExchange.Redis.Tests
         }
 
         [Theory]
-        [InlineData(true)] // net472: pass; net6.0: fail (expected 0, actual 1)
-        [InlineData(false)] // net472\net6.0: fail (expected 0, actual 1)
+        [InlineData(true)] // fail: Expected: Not RanToCompletion, Actual: RanToCompletion
+        [InlineData(false)] // pass
         public async Task AsyncConfigure(bool continueOnCapturedContext)
         {
-            using var ctx = new MySyncContext();
+            using var ctx = new MySyncContext(Writer);
             using var conn = Create();
-            Assert.Equal(0, ctx.OpCount);
-            var pending = conn.ConfigureAsync(Writer);
-            var originalStatus = pending.Status;
-            Assert.True(await pending.ConfigureAwait(continueOnCapturedContext), "config ran");
-            Assert.NotEqual(TaskStatus.RanToCompletion, originalStatus); // shouldn't have been synchronous
 
-            LogNoTime($"Opcount after await: {ctx.OpCount}");
-            if (continueOnCapturedContext)
-            {
-                Assert.True(ctx.OpCount > 0, $"Opcount: {ctx.OpCount}");
-            }
-            else
+            LogNoTime($"Context initial: {ctx}");
+            await Task.Delay(500);
+            await conn.GetDatabase().PingAsync(); // ensure we're all ready
+            ctx.Reset();
+            LogNoTime($"Context before: {ctx}");
+
+            Assert.Equal(0, ctx.OpCount);
+            Assert.True(await conn.ConfigureAsync(Writer).ConfigureAwait(continueOnCapturedContext), "config ran");
+
+            LogNoTime($"Context after: {ctx}");
+            if (!continueOnCapturedContext) // see "Note A"
             {
                 Assert.Equal(0, ctx.OpCount);
             }
+            Assert.True(continueOnCapturedContext == ctx.IsCurrent, nameof(ctx.IsCurrent));
         }
 
         [Theory]
@@ -98,25 +102,24 @@ namespace StackExchange.Redis.Tests
         [InlineData(false)]
         public async Task ConnectAsync(bool continueOnCapturedContext)
         {
-            using var ctx = new MySyncContext();
+            using var ctx = new MySyncContext(Writer);
             var config = GetConfiguration(); // not ideal, but sufficient
             await ConnectionMultiplexer.ConnectAsync(config, Writer).ConfigureAwait(continueOnCapturedContext);
-            if (continueOnCapturedContext)
-            {
-                Assert.True(ctx.OpCount > 0, $"Opcount: {ctx.OpCount}");
-            }
-            else
+            if (!continueOnCapturedContext) // see "Note A"
             {
                 Assert.Equal(0, ctx.OpCount);
             }
+            Assert.True(continueOnCapturedContext == ctx.IsCurrent, nameof(ctx.IsCurrent));
         }
 
         public sealed class MySyncContext : SynchronizationContext, IDisposable
         {
             private readonly SynchronizationContext? _previousContext;
-            public MySyncContext()
+            private readonly TextWriter? _log;
+            public MySyncContext(TextWriter? log)
             {
                 _previousContext = Current;
+                _log = log;
                 SetSynchronizationContext(this);
             }
             public int OpCount => Thread.VolatileRead(ref _opCount);
@@ -126,18 +129,38 @@ namespace StackExchange.Redis.Tests
                 Interlocked.Increment(ref _opCount);
             }
 
+            public void Reset() => Thread.VolatileWrite(ref _opCount, 0);
+
+            public override string ToString() => $"Sync context ({(IsCurrent ? "active" : "inactive")}): {OpCount}";
+
             void IDisposable.Dispose() => SetSynchronizationContext(_previousContext);
 
             public override void Post(SendOrPostCallback d, object? state)
             {
+                _log?.WriteLine("sync-ctx: Post");
                 Incr();
-                base.Post(d, state);
+                ThreadPool.QueueUserWorkItem(static state =>
+                {
+                    var tuple = (Tuple<MySyncContext, SendOrPostCallback, object?>)state!;
+                    tuple.Item1.Invoke(tuple.Item2, tuple.Item3);
+                }, Tuple.Create<MySyncContext, SendOrPostCallback, object?>(this, d, state));
             }
+
+            private void Invoke(SendOrPostCallback d, object? state)
+            {
+                _log?.WriteLine("sync-ctx: Invoke");
+                if (!IsCurrent) SetSynchronizationContext(this);
+                d(state);
+            }
+
             public override void Send(SendOrPostCallback d, object? state)
             {
+                _log?.WriteLine("sync-ctx: Send");
                 Incr();
-                base.Send(d, state);
+                Invoke(d, state);
             }
+
+            public bool IsCurrent => ReferenceEquals(this, Current);
 
             public override int Wait(IntPtr[] waitHandles, bool waitAll, int millisecondsTimeout)
             {
