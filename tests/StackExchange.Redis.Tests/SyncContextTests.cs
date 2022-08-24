@@ -24,11 +24,23 @@ namespace StackExchange.Redis.Tests
             using var ctx = new MySyncContext(Writer);
             Assert.Equal(0, ctx.OpCount);
             await Task.Delay(100).ConfigureAwait(continueOnCapturedContext);
-            if (!continueOnCapturedContext) // note: don't enforce > 0 when enabled; for fast scenarios, can genuinely complete without sync-ctx
+
+            AssertState(continueOnCapturedContext, ctx);
+        }
+
+        private void AssertState(bool continueOnCapturedContext, MySyncContext ctx)
+        {
+            LogNoTime($"Context in AssertState: {ctx}");
+            if (continueOnCapturedContext)
             {
+                Assert.True(ctx.IsCurrent, nameof(ctx.IsCurrent));
+                // see note A re OpCount
+            }
+            else
+            {
+                // no guarantees on sync-context still being current; depends on sync vs async
                 Assert.Equal(0, ctx.OpCount);
             }
-            Assert.True(continueOnCapturedContext == ctx.IsCurrent, nameof(ctx.IsCurrent));
         }
 
         [Fact]
@@ -53,13 +65,8 @@ namespace StackExchange.Redis.Tests
             var db = conn.GetDatabase();
             LogNoTime($"Context before await: {ctx}");
             await db.PingAsync().ConfigureAwait(continueOnCapturedContext);
-            LogNoTime($"Context after await: {ctx}");
-            Assert.True(continueOnCapturedContext == ctx.IsCurrent, nameof(ctx.IsCurrent));
-            if (!continueOnCapturedContext) // see "Note A"
-            {
-                Assert.Equal(0, ctx.OpCount);
-            }
-            Assert.True(continueOnCapturedContext == ctx.IsCurrent, nameof(ctx.IsCurrent));
+            
+            AssertState(continueOnCapturedContext, ctx);
         }
 
         [Fact]
@@ -89,12 +96,7 @@ namespace StackExchange.Redis.Tests
             Assert.Equal(0, ctx.OpCount);
             Assert.True(await conn.ConfigureAsync(Writer).ConfigureAwait(continueOnCapturedContext), "config ran");
 
-            LogNoTime($"Context after: {ctx}");
-            if (!continueOnCapturedContext) // see "Note A"
-            {
-                Assert.Equal(0, ctx.OpCount);
-            }
-            Assert.True(continueOnCapturedContext == ctx.IsCurrent, nameof(ctx.IsCurrent));
+            AssertState(continueOnCapturedContext, ctx);
         }
 
         [Theory]
@@ -105,11 +107,8 @@ namespace StackExchange.Redis.Tests
             using var ctx = new MySyncContext(Writer);
             var config = GetConfiguration(); // not ideal, but sufficient
             await ConnectionMultiplexer.ConnectAsync(config, Writer).ConfigureAwait(continueOnCapturedContext);
-            if (!continueOnCapturedContext) // see "Note A"
-            {
-                Assert.Equal(0, ctx.OpCount);
-            }
-            Assert.True(continueOnCapturedContext == ctx.IsCurrent, nameof(ctx.IsCurrent));
+
+            AssertState(continueOnCapturedContext, ctx);
         }
 
         public sealed class MySyncContext : SynchronizationContext, IDisposable
