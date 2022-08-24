@@ -7,7 +7,8 @@
 - Adds: `IConnectionMultiplexer.GetServers()` to get all `IServer` instances for a multiplexer ([#2203 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2203))
 - Fix [#2016](https://github.com/StackExchange/StackExchange.Redis/issues/2016): Align server selection with supported commands (e.g. with writable servers) to reduce `Command cannot be issued to a replica` errors ([#2191 by slorello89](https://github.com/StackExchange/StackExchange.Redis/pull/2191))
 - Performance: Optimization around timeout processing to reduce lock contention in the case of many items that haven't yet timed out during a heartbeat ([#2217 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2217))
-- Fix: Resolve sync-context issues (missing `ConfigureAwait(false)`) ([#2229 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2229))
+- Fix [#2223](https://github.com/StackExchange/StackExchange.Redis/issues/2223): Resolve sync-context issues (missing `ConfigureAwait(false)`) ([#2229 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2229))
+- Fix [#1968](https://github.com/StackExchange/StackExchange.Redis/issues/1968): Improved handling of EVAL scripts during server restarts and failovers, detecting and re-sending the script for a retry when needed ([#2170 by martintmk](https://github.com/StackExchange/StackExchange.Redis/pull/2170))
 
 ## 2.6.48
 
