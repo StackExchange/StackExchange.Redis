@@ -64,7 +64,9 @@ namespace StackExchange.Redis.Tests
         {
             using var ctx = new MySyncContext();
             using var conn = Create();
+            Assert.Equal(0, ctx.OpCount);
             Assert.True(conn.Configure());
+            Assert.Equal(0, ctx.OpCount);
         }
 
         [Theory]
