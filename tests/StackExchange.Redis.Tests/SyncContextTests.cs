@@ -78,8 +78,10 @@ namespace StackExchange.Redis.Tests
             using var conn = Create();
             Assert.Equal(0, ctx.OpCount);
             var pending = conn.ConfigureAsync(Writer);
-            Assert.NotEqual(TaskStatus.RanToCompletion, pending.Status);
-            Assert.True(await pending.ConfigureAwait(continueOnCapturedContext));
+            var originalStatus = pending.Status;
+            Assert.True(await pending.ConfigureAwait(continueOnCapturedContext), "config ran");
+            Assert.NotEqual(TaskStatus.RanToCompletion, originalStatus); // shouldn't have been synchronous
+
             LogNoTime($"Opcount after await: {ctx.OpCount}");
             if (continueOnCapturedContext)
             {
