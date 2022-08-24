@@ -92,6 +92,7 @@ public static class TestConfig
 
         public string? SslServer { get; set; }
         public int SslPort { get; set; }
+        public string SslServerAndPort => SslServer + ":" + SslPort.ToString();
 
         public string? RedisLabsSslServer { get; set; }
         public int RedisLabsSslPort { get; set; } = 6379;

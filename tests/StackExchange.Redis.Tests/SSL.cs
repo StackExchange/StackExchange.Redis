@@ -157,6 +157,54 @@ public class SSL : TestBase
         //TestConcurrent(db, key, 30, 50);
     }
 
+#if NETCOREAPP3_1_OR_GREATER
+#pragma warning disable CS0618 // Type or member is obsolete
+    [Theory]
+    [InlineData(SslProtocols.None, true)]
+    [InlineData(SslProtocols.Tls12 | SslProtocols.Tls13, true)]
+    [InlineData(SslProtocols.Ssl2, false)]
+#pragma warning restore CS0618 // Type or member is obsolete
+    public async Task ConnectSslClientAuthenticationOptions(SslProtocols protocols, bool expectSuccess)
+    {
+        Skip.IfNoConfig(nameof(TestConfig.Config.SslServer), TestConfig.Current.SslServer);
+
+        var config = new ConfigurationOptions()
+        {
+            EndPoints = { TestConfig.Current.SslServerAndPort },
+            AllowAdmin = true,
+            SyncTimeout = Debugger.IsAttached ? int.MaxValue : 5000,
+            Ssl = true,
+            SslClientAuthenticationOptions = host => new SslClientAuthenticationOptions()
+            {
+                TargetHost = host,
+                CertificateRevocationCheckMode = X509RevocationMode.NoCheck,
+                EnabledSslProtocols = protocols,
+                RemoteCertificateValidationCallback = (sender, cert, chain, errors) =>
+                {
+                    Log("  Errors: " + errors);
+                    Log("  Cert issued to: " + cert?.Subject);
+                    return true;
+                }
+            }
+        };
+
+        if (expectSuccess)
+        {
+            using var conn = await ConnectionMultiplexer.ConnectAsync(config, Writer);
+
+            var db = conn.GetDatabase();
+            Log("Pinging...");
+            var time = await db.PingAsync().ForAwait();
+            Log($"Ping time: {time}");
+        }
+        else
+        {
+            var ex = await Assert.ThrowsAsync<Exception>(() => ConnectionMultiplexer.ConnectAsync(config, Writer));
+            Log("(Expected) Failure connecting: " + ex.Message);
+        }
+    }
+#endif
+
     [Fact]
     public void RedisLabsSSL()
     {
