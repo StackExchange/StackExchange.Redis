@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 using StackExchange.Redis.KeyspaceIsolation;
 using Xunit;
 using Xunit.Abstractions;
-using static StackExchange.Redis.ResultProcessor;
 
 namespace StackExchange.Redis.Tests;
 
@@ -1029,7 +1028,7 @@ return arr;
     [Theory]
     public void Sha1Detection(string candidate, bool isSha)
     {
-        Assert.Equal(isSha, ScriptLoadProcessor.IsSHA1(candidate));
+        Assert.Equal(isSha, ResultProcessor.ScriptLoadProcessor.IsSHA1(candidate));
     }
 
     private static void TestNullArray(RedisResult? value)

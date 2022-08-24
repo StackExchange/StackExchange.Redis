@@ -1248,10 +1248,13 @@ namespace StackExchange.Redis
         /// <param name="values">The values to execute against.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>A dynamic representation of the script's result.</returns>
-        /// <remarks>Be aware that this method is not resilient to Redis server restarts. Use <see cref="ScriptEvaluateAsync(string, RedisKey[], RedisValue[], CommandFlags)"/> instead.</remarks>
+        /// <remarks>
+        /// Be aware that this method is not resilient to Redis server restarts. Use <see cref="ScriptEvaluateAsync(string, RedisKey[], RedisValue[], CommandFlags)"/> instead.
+        /// <seealso href="https://redis.io/commands/evalsha"/>
+        /// </remarks>
         [EditorBrowsable(EditorBrowsableState.Never)]
         Task<RedisResult> ScriptEvaluateAsync(byte[] hash, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None);
-        
+
         /// <summary>
         /// Execute a lua script against the server, using previously prepared script.
         /// Named parameters, if any, are provided by the `parameters` object.
