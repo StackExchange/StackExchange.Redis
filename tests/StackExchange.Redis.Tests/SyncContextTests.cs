@@ -33,6 +33,7 @@ namespace StackExchange.Redis.Tests
         {
             using var ctx = new MySyncContext();
             using var conn = Create();
+            Assert.Equal(0, ctx.OpCount);
             var db = conn.GetDatabase();
             db.Ping();
             Assert.Equal(0, ctx.OpCount);
@@ -45,6 +46,7 @@ namespace StackExchange.Redis.Tests
         {
             using var ctx = new MySyncContext();
             using var conn = Create();
+            Assert.Equal(0, ctx.OpCount);
             var db = conn.GetDatabase();
             await db.PingAsync().ConfigureAwait(continueOnCapturedContext);
             if (continueOnCapturedContext)
@@ -72,7 +74,26 @@ namespace StackExchange.Redis.Tests
         {
             using var ctx = new MySyncContext();
             using var conn = Create();
+            Assert.Equal(0, ctx.OpCount);
             Assert.True(await conn.ConfigureAsync(Writer).ConfigureAwait(continueOnCapturedContext));
+            if (continueOnCapturedContext)
+            {
+                Assert.True(ctx.OpCount > 0, $"Opcount: {ctx.OpCount}");
+            }
+            else
+            {
+                Assert.Equal(0, ctx.OpCount);
+            }
+        }
+
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public async Task ConnectAsync(bool continueOnCapturedContext)
+        {
+            using var ctx = new MySyncContext();
+            var config = GetConfiguration(); // not ideal, but sufficient
+            await ConnectionMultiplexer.ConnectAsync(config, Writer).ConfigureAwait(continueOnCapturedContext);
             if (continueOnCapturedContext)
             {
                 Assert.True(ctx.OpCount > 0, $"Opcount: {ctx.OpCount}");
