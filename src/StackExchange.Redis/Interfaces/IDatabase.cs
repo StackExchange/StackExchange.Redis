@@ -1272,7 +1272,11 @@ namespace StackExchange.Redis
         /// <param name="values">The values to execute against.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>A dynamic representation of the script's result.</returns>
-        /// <remarks><seealso href="https://redis.io/commands/evalsha"/></remarks>
+        /// <remarks>
+        /// Be aware that this method is not resilient to Redis server restarts. Use <see cref="ScriptEvaluate(string, RedisKey[], RedisValue[], CommandFlags)"/> instead.
+        /// <seealso href="https://redis.io/commands/evalsha"/>
+        /// </remarks>
+        [EditorBrowsable(EditorBrowsableState.Never)]
         RedisResult ScriptEvaluate(byte[] hash, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>

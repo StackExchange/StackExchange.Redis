@@ -1538,13 +1538,22 @@ namespace StackExchange.Redis
 
         public RedisResult ScriptEvaluate(LoadedLuaScript script, object? parameters = null, CommandFlags flags = CommandFlags.None)
         {
-            return script.Evaluate(this, parameters, null, flags);
+            return script.Evaluate(this, parameters, withKeyPrefix: null, flags);
         }
 
-        public Task<RedisResult> ScriptEvaluateAsync(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
+        public async Task<RedisResult> ScriptEvaluateAsync(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
         {
             var msg = new ScriptEvalMessage(Database, flags, script, keys, values);
-            return ExecuteAsync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
+
+            try
+            {
+                return await ExecuteAsync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle).ConfigureAwait(false);
+            }
+            catch (RedisServerException) when (msg.IsScriptUnavailable)
+            {
+                // could be a NOSCRIPT; for a sync call, we can re-issue that without problem
+                return await ExecuteAsync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle).ConfigureAwait(false);
+            }
         }
 
         public Task<RedisResult> ScriptEvaluateAsync(byte[] hash, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
@@ -1560,7 +1569,7 @@ namespace StackExchange.Redis
 
         public Task<RedisResult> ScriptEvaluateAsync(LoadedLuaScript script, object? parameters = null, CommandFlags flags = CommandFlags.None)
         {
-            return script.EvaluateAsync(this, parameters, null, flags);
+            return script.EvaluateAsync(this, parameters, withKeyPrefix: null, flags);
         }
 
         public bool SetAdd(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)

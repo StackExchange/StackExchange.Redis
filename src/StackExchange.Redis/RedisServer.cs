@@ -418,7 +418,7 @@ namespace StackExchange.Redis
         {
             using (var proxy = LogProxy.TryCreate(log))
             {
-                await multiplexer.MakePrimaryAsync(server, options, proxy);
+                await multiplexer.MakePrimaryAsync(server, options, proxy).ForAwait();
             }
         }
 
@@ -793,18 +793,18 @@ namespace StackExchange.Redis
             {
                 try
                 {
-                    await server.WriteDirectAsync(tieBreakerRemoval, ResultProcessor.Boolean);
+                    await server.WriteDirectAsync(tieBreakerRemoval, ResultProcessor.Boolean).ForAwait();
                 }
                 catch { }
             }
 
             var msg = CreateReplicaOfMessage(server, master, flags);
-            await ExecuteAsync(msg, ResultProcessor.DemandOK);
+            await ExecuteAsync(msg, ResultProcessor.DemandOK).ForAwait();
 
             // attempt to broadcast a reconfigure message to anybody listening to this server
             if (GetConfigChangeMessage() is Message configChangeMessage)
             {
-                await server.WriteDirectAsync(configChangeMessage, ResultProcessor.Int64);
+                await server.WriteDirectAsync(configChangeMessage, ResultProcessor.Int64).ForAwait();
             }
         }
 
