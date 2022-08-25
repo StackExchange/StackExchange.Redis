@@ -96,7 +96,7 @@ The `ConfigurationOptions` object has a wide range of properties, all of which a
 | asyncTimeout={int}     | `AsyncTimeout`          | `SyncTimeout`               | Time (ms) to allow for asynchronous operations                                                            |
 | tiebreaker={string}    | `TieBreaker`           | `__Booksleeve_TieBreak`      | Key to use for selecting a server in an ambiguous primary scenario                                         |
 | version={string}       | `DefaultVersion`       | (`3.0` in Azure, else `2.0`) | Redis version level (useful when the server does not make this available)                                 |
-|                        | `CheckCertificateRevocation` | `true`                 | A Boolean value that specifies whether the certificate revocation list is checked during authentication.  |
+
 
 Additional code-only options:
 - ReconnectRetryPolicy (`IReconnectRetryPolicy`) - Default: `ReconnectRetryPolicy = ExponentialRetry(ConnectTimeout / 2);`
