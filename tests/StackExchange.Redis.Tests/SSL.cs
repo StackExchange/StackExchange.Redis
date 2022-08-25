@@ -161,7 +161,8 @@ public class SSL : TestBase
 #pragma warning disable CS0618 // Type or member is obsolete
     [Theory]
     [InlineData(SslProtocols.None, true)]
-    [InlineData(SslProtocols.Tls12 | SslProtocols.Tls13, true)]
+    [InlineData(SslProtocols.Tls12 , true)]
+    [InlineData(SslProtocols.Tls13 , true)]
     [InlineData(SslProtocols.Ssl2, false)]
 #pragma warning restore CS0618 // Type or member is obsolete
     public async Task ConnectSslClientAuthenticationOptions(SslProtocols protocols, bool expectSuccess)
@@ -179,7 +180,7 @@ public class SSL : TestBase
                 TargetHost = host,
                 CertificateRevocationCheckMode = X509RevocationMode.NoCheck,
                 EnabledSslProtocols = protocols,
-                CipherSuitesPolicy = new CipherSuitesPolicy(new [] {TlsCipherSuite.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384}),
+                CipherSuitesPolicy = new CipherSuitesPolicy(new [] {TlsCipherSuite.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384, TlsCipherSuite.TLS_AES_256_GCM_SHA384}),
                 RemoteCertificateValidationCallback = (sender, cert, chain, errors) =>
                 {
                     Log("  Errors: " + errors);
