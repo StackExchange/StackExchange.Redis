@@ -4,8 +4,10 @@ COPY Basic /data/Basic/
 COPY Failover /data/Failover/
 COPY Cluster /data/Cluster/
 COPY Sentinel /data/Sentinel/
+COPY Certs /Certs/
 
 RUN chown -R redis:redis /data
+RUN chown -R redis:redis /Certs
 
 COPY Docker/docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh

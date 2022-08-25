@@ -166,11 +166,11 @@ public class SSL : TestBase
 #pragma warning restore CS0618 // Type or member is obsolete
     public async Task ConnectSslClientAuthenticationOptions(SslProtocols protocols, bool expectSuccess)
     {
-        Skip.IfNoConfig(nameof(TestConfig.Config.SslServer), TestConfig.Current.SslServer);
+        Skip.IfNoConfig(nameof(TestConfig.Config.TlsServer), TestConfig.Current.TlsServer);
 
         var config = new ConfigurationOptions()
         {
-            EndPoints = { TestConfig.Current.SslServerAndPort },
+            EndPoints = { TestConfig.Current.TlsServerAndPort },
             AllowAdmin = true,
             SyncTimeout = Debugger.IsAttached ? int.MaxValue : 5000,
             Ssl = true,
