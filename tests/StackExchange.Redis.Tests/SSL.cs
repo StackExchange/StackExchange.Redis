@@ -179,7 +179,7 @@ public class SSL : TestBase
                 TargetHost = host,
                 CertificateRevocationCheckMode = X509RevocationMode.NoCheck,
                 EnabledSslProtocols = protocols,
-                CipherSuitesPolicy = new CipherSuitesPolicy(new [] {TlsCipherSuite.TLS_RSA_WITH_AES_256_CBC_SHA256}),
+                // CipherSuitesPolicy = new CipherSuitesPolicy(new [] {TlsCipherSuite.TLS_RSA_WITH_AES_256_CBC_SHA256}),
                 RemoteCertificateValidationCallback = (sender, cert, chain, errors) =>
                 {
                     Log("  Errors: " + errors);
