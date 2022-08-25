@@ -939,7 +939,7 @@ namespace StackExchange.Redis
             var connType = bridge.ConnectionType;
             if (connType == ConnectionType.Interactive)
             {
-                await AutoConfigureAsync(connection, log);
+                await AutoConfigureAsync(connection, log).ForAwait();
             }
 
             var tracer = GetTracerMessage(true);

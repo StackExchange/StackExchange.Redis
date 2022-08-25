@@ -44,6 +44,8 @@ public class Profiling : TestBase
         Assert.Equal("fii", s);
 
         var cmds = session.FinishProfiling();
+        var evalCmds = cmds.Where(c => c.Command == "EVAL").ToList();
+        Assert.Equal(2, evalCmds.Count);
         var i = 0;
         foreach (var cmd in cmds)
         {
@@ -51,7 +53,7 @@ public class Profiling : TestBase
         }
 
         var all = string.Join(",", cmds.Select(x => x.Command));
-        Assert.Equal("SET,EVAL,EVALSHA,GET,ECHO", all);
+        Assert.Equal("SET,EVAL,EVAL,GET,ECHO", all);
         Log("Checking for SET");
         var set = cmds.SingleOrDefault(cmd => cmd.Command == "SET");
         Assert.NotNull(set);
@@ -59,28 +61,25 @@ public class Profiling : TestBase
         var get = cmds.SingleOrDefault(cmd => cmd.Command == "GET");
         Assert.NotNull(get);
         Log("Checking for EVAL");
-        var eval = cmds.SingleOrDefault(cmd => cmd.Command == "EVAL");
-        Assert.NotNull(eval);
-        Log("Checking for EVALSHA");
-        var evalSha = cmds.SingleOrDefault(cmd => cmd.Command == "EVALSHA");
-        Assert.NotNull(evalSha);
-        Log("Checking for ECHO");
+        var eval1 = evalCmds[0];
+        Log("Checking for EVAL");
+        var eval2 = evalCmds[1];
         var echo = cmds.SingleOrDefault(cmd => cmd.Command == "ECHO");
         Assert.NotNull(echo);
 
         Assert.Equal(5, cmds.Count());
 
-        Assert.True(set.CommandCreated <= eval.CommandCreated);
-        Assert.True(eval.CommandCreated <= evalSha.CommandCreated);
-        Assert.True(evalSha.CommandCreated <= get.CommandCreated);
+        Assert.True(set.CommandCreated <= eval1.CommandCreated);
+        Assert.True(eval1.CommandCreated <= eval2.CommandCreated);
+        Assert.True(eval2.CommandCreated <= get.CommandCreated);
 
         AssertProfiledCommandValues(set, conn, dbId);
 
         AssertProfiledCommandValues(get, conn, dbId);
 
-        AssertProfiledCommandValues(eval, conn, dbId);
+        AssertProfiledCommandValues(eval1, conn, dbId);
 
-        AssertProfiledCommandValues(evalSha, conn, dbId);
+        AssertProfiledCommandValues(eval2, conn, dbId);
 
         AssertProfiledCommandValues(echo, conn, dbId);
     }

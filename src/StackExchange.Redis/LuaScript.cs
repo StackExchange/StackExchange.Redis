@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Concurrent;
+using System.ComponentModel;
 using System.Threading.Tasks;
 
 namespace StackExchange.Redis
@@ -166,7 +167,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// <para>
         /// Loads this LuaScript into the given IServer so it can be run with it's SHA1 hash, instead of
-        /// passing the full script on each Evaluate or EvaluateAsync call.
+        /// using the implicit SHA1 hash that's calculated after the script is sent to the server for the first time.
         /// </para>
         /// <para>Note: the FireAndForget command flag cannot be set.</para>
         /// </summary>
@@ -186,7 +187,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// <para>
         /// Loads this LuaScript into the given IServer so it can be run with it's SHA1 hash, instead of
-        /// passing the full script on each Evaluate or EvaluateAsync call.
+        /// using the implicit SHA1 hash that's calculated after the script is sent to the server for the first time.
         /// </para>
         /// <para>Note: the FireAndForget command flag cannot be set</para>
         /// </summary>
@@ -240,6 +241,8 @@ namespace StackExchange.Redis
         /// <para>The SHA1 hash of ExecutableScript.</para>
         /// <para>This is sent to Redis instead of ExecutableScript during Evaluate and EvaluateAsync calls.</para>
         /// </summary>
+        /// <remarks>Be aware that using hash directly is not resilient to Redis server restarts.</remarks>
+        [EditorBrowsable(EditorBrowsableState.Never)]
         public byte[] Hash { get; }
 
         // internal for testing purposes only
@@ -265,7 +268,8 @@ namespace StackExchange.Redis
         public RedisResult Evaluate(IDatabase db, object? ps = null, RedisKey? withKeyPrefix = null, CommandFlags flags = CommandFlags.None)
         {
             Original.ExtractParameters(ps, withKeyPrefix, out RedisKey[]? keys, out RedisValue[]? args);
-            return db.ScriptEvaluate(Hash, keys, args, flags);
+
+            return db.ScriptEvaluate(ExecutableScript, keys, args, flags);
         }
 
         /// <summary>
@@ -282,7 +286,8 @@ namespace StackExchange.Redis
         public Task<RedisResult> EvaluateAsync(IDatabaseAsync db, object? ps = null, RedisKey? withKeyPrefix = null, CommandFlags flags = CommandFlags.None)
         {
             Original.ExtractParameters(ps, withKeyPrefix, out RedisKey[]? keys, out RedisValue[]? args);
-            return db.ScriptEvaluateAsync(Hash, keys, args, flags);
+
+            return db.ScriptEvaluateAsync(ExecutableScript, keys, args, flags);
         }
     }
 }

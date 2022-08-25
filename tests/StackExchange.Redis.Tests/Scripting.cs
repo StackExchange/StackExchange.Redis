@@ -407,11 +407,12 @@ return timeTaken
         Assert.False(server.ScriptExists(script));
 
         // run once, causes to be cached
-        Assert.True((bool)db.ScriptEvaluate(script));
+        Assert.True(await EvaluateScript());
+
         Assert.True(server.ScriptExists(script));
 
         // can run again
-        Assert.True((bool)db.ScriptEvaluate(script));
+        Assert.True(await EvaluateScript());
 
         // ditch the scripts; should no longer exist
         db.Ping();
@@ -419,23 +420,21 @@ return timeTaken
         Assert.False(server.ScriptExists(script));
         db.Ping();
 
-        if (async)
-        {
-            // now: fails the first time
-            var ex = await Assert.ThrowsAsync<RedisServerException>(async () => await db.ScriptEvaluateAsync(script).ForAwait()).ForAwait();
-            Assert.Equal("NOSCRIPT No matching script. Please use EVAL.", ex.Message);
-        }
-        else
-        {
-            // just works; magic
-            Assert.True((bool)db.ScriptEvaluate(script));
-        }
+        // just works; magic
+        Assert.True(await EvaluateScript());
 
         // but gets marked as unloaded, so we can use it again...
-        Assert.True((bool)db.ScriptEvaluate(script));
+        Assert.True(await EvaluateScript());
 
         // which will cause it to be cached
         Assert.True(server.ScriptExists(script));
+
+        async Task<bool> EvaluateScript()
+        {
+            return async ?
+            (bool)await db!.ScriptEvaluateAsync(script) :
+            (bool)db!.ScriptEvaluate(script);
+        }
     }
 
     [Fact]
@@ -1016,8 +1015,21 @@ return arr;
 
     [Fact]
     public void RedisResultUnderstandsNullArrayArray() => TestNullArray(RedisResult.NullArray);
+
     [Fact]
     public void RedisResultUnderstandsNullArrayNull() => TestNullArray(null);
+
+    [Theory]
+    [InlineData(null, false)]
+    [InlineData("", false)]
+    [InlineData("829c3804401b0727f70f73d4415e162400cbe57b", true)]
+    [InlineData("$29c3804401b0727f70f73d4415e162400cbe57b", false)]
+    [InlineData("829c3804401b0727f70f73d4415e162400cbe57", false)]
+    [InlineData("829c3804401b0727f70f73d4415e162400cbe57bb", false)]
+    public void Sha1Detection(string candidate, bool isSha)
+    {
+        Assert.Equal(isSha, ResultProcessor.ScriptLoadProcessor.IsSHA1(candidate));
+    }
 
     private static void TestNullArray(RedisResult? value)
     {
