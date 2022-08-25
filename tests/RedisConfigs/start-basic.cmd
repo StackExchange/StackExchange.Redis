@@ -7,4 +7,6 @@ echo   Replica: 6380
 @start "Redis (Replica): 6380" /min ..\3.0.503\redis-server.exe replica-6380.conf
 echo   Secure: 6381
 @start "Redis (Secure): 6381" /min ..\3.0.503\redis-server.exe secure-6381.conf
+echo   Secure: 6381
+@start "Redis (Secure): 6381" /min ..\3.0.503\redis-server.exe tls-ciphers-6384.conf
 popd
