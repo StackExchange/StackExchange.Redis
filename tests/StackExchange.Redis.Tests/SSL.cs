@@ -179,6 +179,7 @@ public class SSL : TestBase
                 TargetHost = host,
                 CertificateRevocationCheckMode = X509RevocationMode.NoCheck,
                 EnabledSslProtocols = protocols,
+                CipherSuitesPolicy = new CipherSuitesPolicy(new [] {TlsCipherSuite.TLS_RSA_WITH_AES_256_CBC_SHA256}),
                 RemoteCertificateValidationCallback = (sender, cert, chain, errors) =>
                 {
                     Log("  Errors: " + errors);
@@ -199,7 +200,7 @@ public class SSL : TestBase
         }
         else
         {
-            var ex = await Assert.ThrowsAsync<Exception>(() => ConnectionMultiplexer.ConnectAsync(config, Writer));
+            var ex = await Assert.ThrowsAsync<RedisConnectionException>(() => ConnectionMultiplexer.ConnectAsync(config, Writer));
             Log("(Expected) Failure connecting: " + ex.Message);
         }
     }

@@ -64,6 +64,7 @@ jobs:
         .\redis-server.exe --service-install --service-name "redis-6379" "..\Basic\primary-6379-3.0.conf"
         .\redis-server.exe --service-install --service-name "redis-6380" "..\Basic\replica-6380.conf"
         .\redis-server.exe --service-install --service-name "redis-6381" "..\Basic\secure-6381.conf"
+        .\redis-server.exe --service-install --service-name "redis-6384" "..\Basic\tls-ciphers-6384.conf"
         .\redis-server.exe --service-install --service-name "redis-6382" "..\Failover\primary-6382.conf"
         .\redis-server.exe --service-install --service-name "redis-6383" "..\Failover\replica-6383.conf"
         .\redis-server.exe --service-install --service-name "redis-7000" "..\Cluster\cluster-7000.conf" --dir "..\Cluster"
