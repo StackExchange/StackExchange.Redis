@@ -3134,6 +3134,12 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.Boolean);
         }
 
+        public bool StringSet(ReadOnlyMemory<KeyValuePair<RedisKey, RedisValue>> values, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetStringSetMessage(values, when, flags);
+            return ExecuteSync(msg, ResultProcessor.Boolean);
+        }
+
         // Backwards compatibility overloads:
         public Task<bool> StringSetAsync(RedisKey key, RedisValue value, TimeSpan? expiry, When when) =>
             StringSetAsync(key, value, expiry, false, when);
@@ -3147,6 +3153,12 @@ namespace StackExchange.Redis
         }
 
         public Task<bool> StringSetAsync(KeyValuePair<RedisKey, RedisValue>[] values, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetStringSetMessage(values, when, flags);
+            return ExecuteAsync(msg, ResultProcessor.Boolean);
+        }
+
+        public Task<bool> StringSetAsync(ReadOnlyMemory<KeyValuePair<RedisKey, RedisValue>> values, When when = When.Always, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStringSetMessage(values, when, flags);
             return ExecuteAsync(msg, ResultProcessor.Boolean);
@@ -4365,13 +4377,13 @@ namespace StackExchange.Redis
             return new StringGetWithExpiryMessage(Database, flags, RedisCommand.TTL, key);
         }
 
-        private Message? GetStringSetMessage(KeyValuePair<RedisKey, RedisValue>[] values, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        private Message? GetStringSetMessage(ReadOnlyMemory<KeyValuePair<RedisKey, RedisValue>> values, When when = When.Always, CommandFlags flags = CommandFlags.None)
         {
-            if (values == null) throw new ArgumentNullException(nameof(values));
+            if (values.Span == null) throw new ArgumentNullException(nameof(values));
             switch (values.Length)
             {
                 case 0: return null;
-                case 1: return GetStringSetMessage(values[0].Key, values[0].Value, null, false, when, flags);
+                case 1: return GetStringSetMessage(values.Span[0].Key, values.Span[0].Value, null, false, when, flags);
                 default:
                     WhenAlwaysOrNotExists(when);
                     int slot = ServerSelectionStrategy.NoSlot, offset = 0;
@@ -4379,9 +4391,9 @@ namespace StackExchange.Redis
                     var serverSelectionStrategy = multiplexer.ServerSelectionStrategy;
                     for (int i = 0; i < values.Length; i++)
                     {
-                        args[offset++] = values[i].Key.AsRedisValue();
-                        args[offset++] = values[i].Value;
-                        slot = serverSelectionStrategy.CombineSlot(slot, values[i].Key);
+                        args[offset++] = values.Span[i].Key.AsRedisValue();
+                        args[offset++] = values.Span[i].Value;
+                        slot = serverSelectionStrategy.CombineSlot(slot, values.Span[i].Key);
                     }
                     return Message.CreateInSlot(Database, slot, flags, when == When.NotExists ? RedisCommand.MSETNX : RedisCommand.MSET, args);
             }
