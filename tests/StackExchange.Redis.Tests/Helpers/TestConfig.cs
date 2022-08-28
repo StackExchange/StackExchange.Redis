@@ -90,12 +90,9 @@ public static class TestConfig
         public int ClusterServerCount { get; set; } = 6;
         public string ClusterServersAndPorts => string.Join(",", Enumerable.Range(ClusterStartPort, ClusterServerCount).Select(port => ClusterServer + ":" + port));
 
-        public string? SslServer { get; set; }
-        public int SslPort { get; set; }
+        public string? SslServer { get; set; } = "127.0.0.1";
+        public int SslPort { get; set; } = 6384;
         public string SslServerAndPort => SslServer + ":" + SslPort.ToString();
-        public string? TlsServer { get; set; } = "127.0.0.1";
-        public int TlsPort { get; set; } = 6384;
-        public string TlsServerAndPort => TlsServer + ":" + TlsPort.ToString();
 
         public string? RedisLabsSslServer { get; set; }
         public int RedisLabsSslPort { get; set; } = 6379;

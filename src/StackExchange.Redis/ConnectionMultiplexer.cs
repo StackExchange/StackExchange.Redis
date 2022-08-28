@@ -557,8 +557,8 @@ namespace StackExchange.Redis
             return true;
         }
 
-        internal bool AuthSuspect { get; private set; }
-        internal void SetAuthSuspect() => AuthSuspect = true;
+        internal Exception? AuthException { get; private set; }
+        internal void SetAuthSuspect(Exception authException) => AuthException = authException;
 
         /// <summary>
         /// Creates a new <see cref="ConnectionMultiplexer"/> instance.

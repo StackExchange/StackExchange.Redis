@@ -227,7 +227,7 @@ namespace StackExchange.Redis
             }
             if (result.IsError)
             {
-                if (result.StartsWith(CommonReplies.NOAUTH)) bridge?.Multiplexer?.SetAuthSuspect();
+                if (result.StartsWith(CommonReplies.NOAUTH)) bridge?.Multiplexer?.SetAuthSuspect(new RedisServerException("NOAUTH Returned - connection has not authenticated"));
 
                 var server = bridge?.ServerEndPoint;
                 bool log = !message.IsInternalCall;
@@ -1112,7 +1112,7 @@ namespace StackExchange.Redis
                     SetResult(message, true);
                     return true;
                 }
-                if(message.Command == RedisCommand.AUTH) connection?.BridgeCouldBeNull?.Multiplexer?.SetAuthSuspect();
+                if(message.Command == RedisCommand.AUTH) connection?.BridgeCouldBeNull?.Multiplexer?.SetAuthSuspect(new RedisException("Unknown AUTH exception"));
                 return false;
             }
         }
