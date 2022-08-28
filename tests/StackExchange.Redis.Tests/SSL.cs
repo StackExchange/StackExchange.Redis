@@ -11,16 +11,17 @@ using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading.Tasks;
-using Castle.Core.Logging;
 using StackExchange.Redis.Tests.Helpers;
 using Xunit;
 using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-public class SSL : TestBase
+public class SSL : TestBase, IClassFixture<SSL.SSLServerFixture>
 {
-    public SSL(ITestOutputHelper output) : base(output) { }
+    private SSLServerFixture Fixture { get; }
+
+    public SSL(ITestOutputHelper output, SSLServerFixture fixture) : base(output) => Fixture = fixture;
 
     [Theory]
     [InlineData(null, true)] // auto-infer port (but specify 6380)
@@ -57,6 +58,8 @@ public class SSL : TestBase
     [InlineData(true, true)]
     public async Task ConnectToSSLServer(bool useSsl, bool specifyHost)
     {
+        Fixture.SkipIfNoServer();
+
         var server = TestConfig.Current.SslServer;
         int? port = TestConfig.Current.SslPort;
         string? password = "";
@@ -186,7 +189,7 @@ public class SSL : TestBase
 #pragma warning restore CS0618 // Type or member is obsolete
     public async Task ConnectSslClientAuthenticationOptions(SslProtocols protocols, bool expectSuccess, params TlsCipherSuite[] tlsCipherSuites)
     {
-        Skip.IfNoConfig(nameof(TestConfig.Config.SslServer), TestConfig.Current.SslServer);
+        Fixture.SkipIfNoServer();
 
         var config = new ConfigurationOptions()
         {
@@ -540,5 +543,26 @@ public class SSL : TestBase
 
         var targetOptions = ConfigurationOptions.Parse(sourceOptions.ToString());
         Assert.Equal(sourceOptions.SslProtocols, targetOptions.SslProtocols);
+    }
+
+    public class SSLServerFixture : IDisposable
+    {
+        public bool ServerRunning { get; }
+
+        public SSLServerFixture()
+        {
+            ServerRunning = TestConfig.IsServerRunning(TestConfig.Current.SslServer, TestConfig.Current.SslPort);
+        }
+
+        public void SkipIfNoServer()
+        {
+            Skip.IfNoConfig(nameof(TestConfig.Config.SslServer), TestConfig.Current.SslServer);
+            if (!ServerRunning)
+            {
+                Skip.Inconclusive($"SSL/TLS Server was not running at {TestConfig.Current.SslServer}:{TestConfig.Current.SslPort}");
+            }
+        }
+
+        public void Dispose() { }
     }
 }

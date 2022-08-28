@@ -3,6 +3,7 @@ using System;
 using Newtonsoft.Json;
 using System.Threading;
 using System.Linq;
+using System.Net.Sockets;
 
 namespace StackExchange.Redis.Tests;
 
@@ -39,6 +40,24 @@ public static class TestConfig
         catch (Exception ex)
         {
             Console.WriteLine("Error Deserializing TestConfig.json: " + ex);
+        }
+    }
+
+    public static bool IsServerRunning(string? host, int port)
+    {
+        if (host.IsNullOrEmpty())
+        {
+            return false;
+        }
+
+        try
+        {
+            using var client = new TcpClient(host, port);
+            return true;
+        }
+        catch (SocketException)
+        {
+            return false;
         }
     }
 
