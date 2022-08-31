@@ -1432,12 +1432,24 @@ namespace StackExchange.Redis
                     {
                         try
                         {
+#if NETCOREAPP3_1_OR_GREATER
+                            var configOptions = config.SslClientAuthenticationOptions?.Invoke(host);
+                            if (configOptions is not null)
+                            {
+                                await ssl.AuthenticateAsClientAsync(configOptions);
+                            }
+                            else
+                            {
+                                ssl.AuthenticateAsClient(host, config.SslProtocols, config.CheckCertificateRevocation);
+                            }
+#else
                             ssl.AuthenticateAsClient(host, config.SslProtocols, config.CheckCertificateRevocation);
+#endif
                         }
                         catch (Exception ex)
                         {
                             Debug.WriteLine(ex.Message);
-                            bridge.Multiplexer?.SetAuthSuspect();
+                            bridge.Multiplexer?.SetAuthSuspect(ex);
                             throw;
                         }
                         log?.WriteLine($"TLS connection established successfully using protocol: {ssl.SslProtocol}");

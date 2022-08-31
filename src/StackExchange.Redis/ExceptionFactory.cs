@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Reflection;
+using System.Security.Authentication;
 using System.Text;
 using System.Threading;
 
@@ -383,17 +385,29 @@ namespace StackExchange.Redis
         internal static Exception UnableToConnect(ConnectionMultiplexer muxer, string? failureMessage = null)
         {
             var sb = new StringBuilder("It was not possible to connect to the redis server(s).");
-            if (muxer != null)
+            Exception? inner = null;
+            if (muxer is not null)
             {
-                if (muxer.AuthSuspect) sb.Append(" There was an authentication failure; check that passwords (or client certificates) are configured correctly.");
-                else if (muxer.RawConfig.AbortOnConnectFail) sb.Append(" Error connecting right now. To allow this multiplexer to continue retrying until it's able to connect, use abortConnect=false in your connection string or AbortOnConnectFail=false; in your code.");
+                if (muxer.AuthException is Exception aex)
+                {
+                    sb.Append(" There was an authentication failure; check that passwords (or client certificates) are configured correctly: (").Append(aex.GetType().Name).Append(") ").Append(aex.Message);
+                    inner = aex;
+                    if (aex is AuthenticationException && aex.InnerException is Exception iaex)
+                    {
+                        sb.Append(" (Inner - ").Append(iaex.GetType().Name).Append(") ").Append(iaex.Message);
+                    }
+                }
+                else if (muxer.RawConfig.AbortOnConnectFail)
+                {
+                    sb.Append(" Error connecting right now. To allow this multiplexer to continue retrying until it's able to connect, use abortConnect=false in your connection string or AbortOnConnectFail=false; in your code.");
+                }
             }
             if (!failureMessage.IsNullOrWhiteSpace())
             {
                 sb.Append(' ').Append(failureMessage.Trim());
             }
 
-            return new RedisConnectionException(ConnectionFailureType.UnableToConnect, sb.ToString());
+            return new RedisConnectionException(ConnectionFailureType.UnableToConnect, sb.ToString(), inner);
         }
 
         internal static Exception BeganProfilingWithDuplicateContext(object forContext)

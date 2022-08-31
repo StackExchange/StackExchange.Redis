@@ -9,6 +9,7 @@ using System.Net.Security;
 using System.Reflection;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
+using System.Text;
 using System.Threading.Tasks;
 using StackExchange.Redis.Tests.Helpers;
 using Xunit;
@@ -16,9 +17,11 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-public class SSL : TestBase
+public class SSL : TestBase, IClassFixture<SSL.SSLServerFixture>
 {
-    public SSL(ITestOutputHelper output) : base(output) { }
+    private SSLServerFixture Fixture { get; }
+
+    public SSL(ITestOutputHelper output, SSLServerFixture fixture) : base(output) => Fixture = fixture;
 
     [Theory]
     [InlineData(null, true)] // auto-infer port (but specify 6380)
@@ -55,6 +58,8 @@ public class SSL : TestBase
     [InlineData(true, true)]
     public async Task ConnectToSSLServer(bool useSsl, bool specifyHost)
     {
+        Fixture.SkipIfNoServer();
+
         var server = TestConfig.Current.SslServer;
         int? port = TestConfig.Current.SslPort;
         string? password = "";
@@ -104,58 +109,137 @@ public class SSL : TestBase
         var clone = ConfigurationOptions.Parse(configString);
         Assert.Equal(configString, clone.ToString());
 
-        using var log = new StringWriter();
-        using var conn = ConnectionMultiplexer.Connect(config, log);
+        var log = new StringBuilder();
+        Writer.EchoTo(log);
 
-        Log("Connect log:");
-        lock (log)
+        if (useSsl)
         {
-            Log(log.ToString());
-        }
-        Log("====");
-        conn.ConnectionFailed += OnConnectionFailed;
-        conn.InternalError += OnInternalError;
-        var db = conn.GetDatabase();
-        await db.PingAsync().ForAwait();
-        using (var file = File.Create("ssl-" + useSsl + "-" + specifyHost + ".zip"))
-        {
-            conn.ExportConfiguration(file);
-        }
-        RedisKey key = "SE.Redis";
+            using var conn = ConnectionMultiplexer.Connect(config, Writer);
 
-        const int AsyncLoop = 2000;
-        // perf; async
-        await db.KeyDeleteAsync(key).ForAwait();
-        var watch = Stopwatch.StartNew();
-        for (int i = 0; i < AsyncLoop; i++)
-        {
-            try
+            Log("Connect log:");
+            lock (log)
             {
-                await db.StringIncrementAsync(key, flags: CommandFlags.FireAndForget).ForAwait();
+                Log(log.ToString());
             }
-            catch (Exception ex)
+            Log("====");
+            conn.ConnectionFailed += OnConnectionFailed;
+            conn.InternalError += OnInternalError;
+            var db = conn.GetDatabase();
+            await db.PingAsync().ForAwait();
+            using (var file = File.Create("ssl-" + useSsl + "-" + specifyHost + ".zip"))
             {
-                Log($"Failure on i={i}: {ex.Message}");
-                throw;
+                conn.ExportConfiguration(file);
             }
-        }
-        // need to do this inside the timer to measure the TTLB
-        long value = (long)await db.StringGetAsync(key).ForAwait();
-        watch.Stop();
-        Assert.Equal(AsyncLoop, value);
-        Log("F&F: {0} INCR, {1:###,##0}ms, {2} ops/s; final value: {3}",
-            AsyncLoop,
-            watch.ElapsedMilliseconds,
-            (long)(AsyncLoop / watch.Elapsed.TotalSeconds),
-            value);
+            RedisKey key = "SE.Redis";
 
-        // perf: sync/multi-threaded
-        // TestConcurrent(db, key, 30, 10);
-        //TestConcurrent(db, key, 30, 20);
-        //TestConcurrent(db, key, 30, 30);
-        //TestConcurrent(db, key, 30, 40);
-        //TestConcurrent(db, key, 30, 50);
+            const int AsyncLoop = 2000;
+            // perf; async
+            await db.KeyDeleteAsync(key).ForAwait();
+            var watch = Stopwatch.StartNew();
+            for (int i = 0; i < AsyncLoop; i++)
+            {
+                try
+                {
+                    await db.StringIncrementAsync(key, flags: CommandFlags.FireAndForget).ForAwait();
+                }
+                catch (Exception ex)
+                {
+                    Log($"Failure on i={i}: {ex.Message}");
+                    throw;
+                }
+            }
+            // need to do this inside the timer to measure the TTLB
+            long value = (long)await db.StringGetAsync(key).ForAwait();
+            watch.Stop();
+            Assert.Equal(AsyncLoop, value);
+            Log("F&F: {0} INCR, {1:###,##0}ms, {2} ops/s; final value: {3}",
+                AsyncLoop,
+                watch.ElapsedMilliseconds,
+                (long)(AsyncLoop / watch.Elapsed.TotalSeconds),
+                value);
+
+            // perf: sync/multi-threaded
+            // TestConcurrent(db, key, 30, 10);
+            //TestConcurrent(db, key, 30, 20);
+            //TestConcurrent(db, key, 30, 30);
+            //TestConcurrent(db, key, 30, 40);
+            //TestConcurrent(db, key, 30, 50);
+        }
+        else
+        {
+            Assert.Throws<RedisConnectionException>(() => ConnectionMultiplexer.Connect(config, Writer));
+        }
     }
+
+#if NETCOREAPP3_1_OR_GREATER
+#pragma warning disable CS0618 // Type or member is obsolete
+    // Docker configured with only TLS_AES_256_GCM_SHA384 for testing
+    [Theory]
+    [InlineData(SslProtocols.None, true, TlsCipherSuite.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384, TlsCipherSuite.TLS_AES_256_GCM_SHA384)]
+    [InlineData(SslProtocols.Tls12 , true, TlsCipherSuite.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384, TlsCipherSuite.TLS_AES_256_GCM_SHA384)]
+    [InlineData(SslProtocols.Tls13 , true, TlsCipherSuite.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384, TlsCipherSuite.TLS_AES_256_GCM_SHA384)]
+    [InlineData(SslProtocols.Tls12, false, TlsCipherSuite.TLS_AES_128_CCM_8_SHA256)]
+    [InlineData(SslProtocols.Tls12, true)]
+    [InlineData(SslProtocols.Tls13, true)]
+    [InlineData(SslProtocols.Ssl2, false)]
+    [InlineData(SslProtocols.Ssl3, false)]
+    [InlineData(SslProtocols.Tls12 | SslProtocols.Tls13, true)]
+    [InlineData(SslProtocols.Ssl3 | SslProtocols.Tls12 | SslProtocols.Tls13, true)]
+    [InlineData(SslProtocols.Ssl2, false, TlsCipherSuite.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384, TlsCipherSuite.TLS_AES_256_GCM_SHA384)]
+#pragma warning restore CS0618 // Type or member is obsolete
+    public async Task ConnectSslClientAuthenticationOptions(SslProtocols protocols, bool expectSuccess, params TlsCipherSuite[] tlsCipherSuites)
+    {
+        Fixture.SkipIfNoServer();
+
+        var config = new ConfigurationOptions()
+        {
+            EndPoints = { TestConfig.Current.SslServerAndPort },
+            AllowAdmin = true,
+            ConnectRetry = 1,
+            SyncTimeout = Debugger.IsAttached ? int.MaxValue : 5000,
+            Ssl = true,
+            SslClientAuthenticationOptions = host => new SslClientAuthenticationOptions()
+            {
+                TargetHost = host,
+                CertificateRevocationCheckMode = X509RevocationMode.NoCheck,
+                EnabledSslProtocols = protocols,
+                CipherSuitesPolicy = tlsCipherSuites?.Length > 0 ? new CipherSuitesPolicy(tlsCipherSuites) : null,
+                RemoteCertificateValidationCallback = (sender, cert, chain, errors) =>
+                {
+                    Log("  Errors: " + errors);
+                    Log("  Cert issued to: " + cert?.Subject);
+                    return true;
+                }
+            }
+        };
+
+        try
+        {
+            if (expectSuccess)
+            {
+                using var conn = await ConnectionMultiplexer.ConnectAsync(config, Writer);
+
+                var db = conn.GetDatabase();
+                Log("Pinging...");
+                var time = await db.PingAsync().ForAwait();
+                Log($"Ping time: {time}");
+            }
+            else
+            {
+                var ex = await Assert.ThrowsAsync<RedisConnectionException>(() => ConnectionMultiplexer.ConnectAsync(config, Writer));
+                Log("(Expected) Failure connecting: " + ex.Message);
+                if (ex.InnerException is PlatformNotSupportedException pnse)
+                {
+                    Skip.Inconclusive("Expected failure, but also test not supported on this platform: " + pnse.Message);
+                }
+            }
+        }
+        catch (RedisException ex) when (ex.InnerException is PlatformNotSupportedException pnse)
+        {
+            Skip.Inconclusive("Test not supported on this platform: " + pnse.Message);
+        }
+    }
+#endif
 
     [Fact]
     public void RedisLabsSSL()
@@ -280,15 +364,15 @@ public class SSL : TestBase
     [Fact]
     public void SSLHostInferredFromEndpoints()
     {
-        var options = new ConfigurationOptions()
+        var options = new ConfigurationOptions
         {
             EndPoints = {
                           { "mycache.rediscache.windows.net", 15000},
                           { "mycache.rediscache.windows.net", 15001 },
                           { "mycache.rediscache.windows.net", 15002 },
-                        }
+                        },
+            Ssl = true,
         };
-        options.Ssl = true;
         Assert.True(options.SslHost == "mycache.rediscache.windows.net");
         options = new ConfigurationOptions()
         {
@@ -459,5 +543,26 @@ public class SSL : TestBase
 
         var targetOptions = ConfigurationOptions.Parse(sourceOptions.ToString());
         Assert.Equal(sourceOptions.SslProtocols, targetOptions.SslProtocols);
+    }
+
+    public class SSLServerFixture : IDisposable
+    {
+        public bool ServerRunning { get; }
+
+        public SSLServerFixture()
+        {
+            ServerRunning = TestConfig.IsServerRunning(TestConfig.Current.SslServer, TestConfig.Current.SslPort);
+        }
+
+        public void SkipIfNoServer()
+        {
+            Skip.IfNoConfig(nameof(TestConfig.Config.SslServer), TestConfig.Current.SslServer);
+            if (!ServerRunning)
+            {
+                Skip.Inconclusive($"SSL/TLS Server was not running at {TestConfig.Current.SslServer}:{TestConfig.Current.SslPort}");
+            }
+        }
+
+        public void Dispose() { }
     }
 }

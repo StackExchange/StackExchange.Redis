@@ -74,6 +74,6 @@ public class Secure : TestBase
             conn.GetDatabase().Ping();
         }).ConfigureAwait(false);
         Log("Exception: " + ex.Message);
-        Assert.StartsWith("It was not possible to connect to the redis server(s). There was an authentication failure; check that passwords (or client certificates) are configured correctly.", ex.Message);
+        Assert.StartsWith("It was not possible to connect to the redis server(s). There was an authentication failure; check that passwords (or client certificates) are configured correctly: (RedisServerException) NOAUTH Returned - connection has not authenticated", ex.Message);
     }
 }

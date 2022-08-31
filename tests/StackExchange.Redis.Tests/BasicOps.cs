@@ -23,7 +23,7 @@ public class BasicOpsTests : TestBase
         Assert.True(duration.TotalMilliseconds > 0);
     }
 
-    [Fact]
+    [Fact(Skip = "This needs some CI love, it's not a scenario we care about too much but noisy atm.")]
     public async Task RapidDispose()
     {
         using var primary = Create();
