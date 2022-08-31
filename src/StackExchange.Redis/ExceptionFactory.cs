@@ -391,7 +391,7 @@ namespace StackExchange.Redis
                 if (muxer.AuthException is Exception aex)
                 {
                     sb.Append(" There was an authentication failure; check that passwords (or client certificates) are configured correctly: (").Append(aex.GetType().Name).Append(") ").Append(aex.Message);
-                    inner = muxer.AuthException;
+                    inner = aex;
                     if (aex is AuthenticationException && aex.InnerException is Exception iaex)
                     {
                         sb.Append(" (Inner - ").Append(iaex.GetType().Name).Append(") ").Append(iaex.Message);
