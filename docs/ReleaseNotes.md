@@ -11,6 +11,7 @@
 - Fix [#1968](https://github.com/StackExchange/StackExchange.Redis/issues/1968): Improved handling of EVAL scripts during server restarts and failovers, detecting and re-sending the script for a retry when needed ([#2170 by martintmk](https://github.com/StackExchange/StackExchange.Redis/pull/2170))
 - Adds: `ConfigurationOptions.SslClientAuthenticationOptions` (`netcoreapp3.1`/`net5.0`+ only) to give more control over SSL/TLS authentication ([#2224 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2224))
 - Fix [#2240](https://github.com/StackExchange/StackExchange.Redis/pull/2241): Improve support for DNS-based IPv6 endpoints ([#2241 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2241))
+- Adds: `ConfigurationOptions.HeartbeatInterval` (**Advanced Setting** - [see docs](https://stackexchange.github.io/StackExchange.Redis/Configuration#configuration-options)) To allow more finite control of the client heartbeat, which encompases how often command timeouts are actually evaluated - still defaults to 1,000 ms ([#2243 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2243))
 
 
 ## 2.6.48
