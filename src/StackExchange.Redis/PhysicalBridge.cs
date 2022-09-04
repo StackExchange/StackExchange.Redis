@@ -20,7 +20,7 @@ namespace StackExchange.Redis
 
         private const int ProfileLogSamples = 10;
 
-        private const double ProfileLogSeconds = (ConnectionMultiplexer.MillisecondsPerHeartbeat * ProfileLogSamples) / 1000.0;
+        private const double ProfileLogSeconds = (1000 /* ms */ * ProfileLogSamples) / 1000.0;
 
         private static readonly Message ReusableAskingCommand = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.ASKING);
 

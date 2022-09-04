@@ -145,6 +145,8 @@ namespace StackExchange.Redis
 
         private string? tieBreaker, sslHost, configChannel;
 
+        private TimeSpan? heartbeatInterval;
+
         private CommandMap? commandMap;
 
         private Version? defaultVersion;
@@ -365,6 +367,24 @@ namespace StackExchange.Redis
         /// Modifying it afterwards will have no effect on already-created multiplexers.
         /// </remarks>
         public EndPointCollection EndPoints { get; init; } = new EndPointCollection();
+
+        /// <summary>
+        /// Controls how often the connection heartbeats. A heartbeat includes:
+        /// - Evaluating if any messages have timed out
+        /// - Evaluating connection status (checking for failures)
+        /// - Sending a server message to keep the connection alive if needed
+        /// </summary>
+        /// <remarks>
+        /// This defaults to 1000 milliseconds and should not be changed for most use cases.
+        /// If for example you want to evaluate whether commands have violated the <see cref="AsyncTimeout"/> at a lower fidelity
+        /// than 1000 milliseconds, you could lower this value.
+        /// Be aware setting this very low incurs additional overhead of evaluating the above more often.
+        /// </remarks>
+        public TimeSpan HeartbeatInterval
+        {
+            get => heartbeatInterval ?? Defaults.HeartbeatInterval;
+            set => heartbeatInterval = value;
+        }
 
         /// <summary>
         /// Use ThreadPriority.AboveNormal for SocketManager reader and writer threads (true by default).

@@ -115,6 +115,15 @@ namespace StackExchange.Redis.Configuration
         public virtual Version DefaultVersion => RedisFeatures.v3_0_0;
 
         /// <summary>
+        /// Controls how often the connection heartbeats. A heartbeat includes:
+        /// - Evaluating if any messages have timed out
+        /// - Evaluating connection status (checking for failures)
+        /// - Sending a server message to keep the connection alive if needed
+        /// </summary>
+        /// <remarks>Be aware setting this very low incurs additional overhead of evaluating the above more often.</remarks>
+        public virtual TimeSpan HeartbeatInterval => TimeSpan.FromSeconds(1);
+
+        /// <summary>
         /// Should exceptions include identifiable details? (key names, additional .Data annotations)
         /// </summary>
         public virtual bool IncludeDetailInExceptions => true;

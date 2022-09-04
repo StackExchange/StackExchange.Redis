@@ -107,6 +107,9 @@ Additional code-only options:
   - Allows modifying a `Socket` before connecting (for advanced scenarios)
 - SslClientAuthenticationOptions (`netcooreapp3.1`/`net5.0` and higher) - Default: `null`
   - Allows specifying exact options for SSL/TLS authentication against a server (e.g. cipher suites, protocols, etc.) - overrides all other SSL configuration options. This is a `Func<string, SslClientAuthenticationOptions>` which receiveces the host (or `SslHost` if set) to get the options for. If `null` is returned from the `Func`, it's the same as this property not being set at all when connecting.
+- HeartbeatInterval - Default: `1000ms`
+  - Allows running the heartbeat more often which important includes timeout evaluation. For example if you have a 50ms command timeout, we're only actually checking it turing the heartbeat (once per second by default), so it's possible 50-1050ms pass _before we notice it timed out_. If you want more fidelity in that check and to observe that a server failed faster, you can lower this to run the heartbeat more often to achieve that. 
+  - **Note: heartbeats are not free and that's why the default is 1 second. There is additional overhead to running this more often simply because it does some work each time it fires.**
 
 Tokens in the configuration string are comma-separated; any without an `=` sign are assumed to be redis server endpoints. Endpoints without an explicit port will use 6379 if ssl is not enabled, and 6380 if ssl is enabled.
 Tokens starting with `$` are taken to represent command maps, for example: `$config=cfg`.
