@@ -12,6 +12,7 @@
 - Adds: `ConfigurationOptions.SslClientAuthenticationOptions` (`netcoreapp3.1`/`net5.0`+ only) to give more control over SSL/TLS authentication ([#2224 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2224))
 - Fix [#2240](https://github.com/StackExchange/StackExchange.Redis/pull/2241): Improve support for DNS-based IPv6 endpoints ([#2241 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2241))
 - Fix [#1879](https://github.com/StackExchange/StackExchange.Redis/issues/1879): Improve exception message when the wrong password is used ([#2246 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2246))
+- Fix [#2233](https://github.com/StackExchange/StackExchange.Redis/issues/2233): Repeated connection to Sentinel servers using the same ConfigurationOptions would fail ([#2242 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2242))
 
 
 ## 2.6.48

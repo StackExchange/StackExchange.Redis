@@ -107,6 +107,10 @@ Additional code-only options:
   - Allows modifying a `Socket` before connecting (for advanced scenarios)
 - SslClientAuthenticationOptions (`netcooreapp3.1`/`net5.0` and higher) - Default: `null`
   - Allows specifying exact options for SSL/TLS authentication against a server (e.g. cipher suites, protocols, etc.) - overrides all other SSL configuration options. This is a `Func<string, SslClientAuthenticationOptions>` which receiveces the host (or `SslHost` if set) to get the options for. If `null` is returned from the `Func`, it's the same as this property not being set at all when connecting.
+- SocketManager - Default: `SocketManager.Shared`: 
+  - The thread pool to use for scheduling work to and from the socket connected to Redis, one of...
+    - `SocketManager.Shared`: Use a shared dedicated thread pool for _all_ multiplexers (defaults to 10 threads) - best balance for most scenarios.
+    - `SocketManager.ThreadPool`: Use the build-in .NET thread pool for scheduling. This can perform better for very small numbers of cores or with large apps on large machines that need to use more than 10 threads (total, across all multiplexers) under load. **Important**: this option isn't the default because it's subject to thread pool growth/starvation and if for example synchronous calls are waiting on a redis command to come back to unblock other threads, stalls/hangs can result. Use with caution, especially if you have sync-over-async work in play.
 
 Tokens in the configuration string are comma-separated; any without an `=` sign are assumed to be redis server endpoints. Endpoints without an explicit port will use 6379 if ssl is not enabled, and 6380 if ssl is enabled.
 Tokens starting with `$` are taken to represent command maps, for example: `$config=cfg`.
