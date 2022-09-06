@@ -50,9 +50,9 @@ public class Secure : TestBase
     [Fact]
     public void Connect()
     {
-        using var server = Create();
+        using var conn = Create();
 
-        server.GetDatabase().Ping();
+        conn.GetDatabase().Ping();
     }
 
     [Theory]
@@ -60,6 +60,9 @@ public class Secure : TestBase
     [InlineData("", "NOAUTH Returned - connection has not authenticated")]
     public async Task ConnectWithWrongPassword(string password, string exepctedMessage)
     {
+        using var checkConn = Create();
+        var checkServer = GetServer(checkConn);
+
         var config = ConfigurationOptions.Parse(GetConfiguration());
         config.Password = password;
         config.ConnectRetry = 0; // we don't want to retry on closed sockets in this case.
@@ -75,6 +78,15 @@ public class Secure : TestBase
         }).ConfigureAwait(false);
         Log("Exception: " + ex.Message);
         Assert.StartsWith("It was not possible to connect to the redis server(s). There was an authentication failure; check that passwords (or client certificates) are configured correctly: (RedisServerException) ", ex.Message);
-        Assert.EndsWith(exepctedMessage, ex.Message);
+
+        // This changed in some version...not sure which. For our purposes, splitting on v3 vs v6+
+        if (checkServer.Version >= RedisFeatures.v6_0_0)
+        {
+            Assert.EndsWith(exepctedMessage, ex.Message);
+        }
+        else
+        {
+            Assert.EndsWith("NOAUTH Returned - connection has not authenticated", ex.Message);
+        }
     }
 }
