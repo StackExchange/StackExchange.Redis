@@ -229,7 +229,7 @@ namespace StackExchange.Redis
             {
                 if (result.StartsWith(CommonReplies.NOAUTH))
                 {
-                    bridge?.Multiplexer?.SetAuthSuspect(new RedisServerException("NOAUTH Returned - connection has not authenticated"));
+                    bridge?.Multiplexer?.SetAuthSuspect(new RedisServerException("NOAUTH Returned - connection has not yet authenticated"));
                 }
                 else if (result.StartsWith(CommonReplies.WRONGPASS))
                 {

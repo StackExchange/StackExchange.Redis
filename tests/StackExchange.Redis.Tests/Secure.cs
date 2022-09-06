@@ -57,7 +57,7 @@ public class Secure : TestBase
 
     [Theory]
     [InlineData("wrong", "WRONGPASS invalid username-password pair or user is disabled.")]
-    [InlineData("", "NOAUTH Returned - connection has not authenticated")]
+    [InlineData("", "NOAUTH Returned - connection has not yet authenticated")]
     public async Task ConnectWithWrongPassword(string password, string exepctedMessage)
     {
         using var checkConn = Create();
@@ -86,7 +86,7 @@ public class Secure : TestBase
         }
         else
         {
-            Assert.EndsWith("NOAUTH Returned - connection has not authenticated", ex.Message);
+            Assert.EndsWith("NOAUTH Returned - connection has not yet authenticated", ex.Message);
         }
     }
 }
