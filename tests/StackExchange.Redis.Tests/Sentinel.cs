@@ -90,12 +90,46 @@ public class Sentinel : SentinelBase
     {
         var options = ServiceOptions.Clone();
         options.EndPoints.Add(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortA);
-        var conn = ConnectionMultiplexer.SentinelConnect(options);
+        using var conn = ConnectionMultiplexer.SentinelConnect(options);
 
         var db = conn.GetDatabase();
         var test = db.Ping();
         Log("ping to sentinel {0}:{1} took {2} ms", TestConfig.Current.SentinelServer,
             TestConfig.Current.SentinelPortA, test.TotalMilliseconds);
+    }
+
+    [Fact]
+    public void SentinelRepeatConnectTest()
+    {
+        var options = ConfigurationOptions.Parse($"{TestConfig.Current.SentinelServer}:{TestConfig.Current.SentinelPortA}");
+        options.ServiceName = ServiceName;
+        options.AllowAdmin = true;
+
+        Log("Service Name: " + options.ServiceName);
+        foreach (var ep in options.EndPoints)
+        {
+            Log("  Endpoint: " + ep);
+        }
+
+        using var conn = ConnectionMultiplexer.Connect(options);
+
+        var db = conn.GetDatabase();
+        var test = db.Ping();
+        Log("ping to 1st sentinel {0}:{1} took {2} ms", TestConfig.Current.SentinelServer,
+            TestConfig.Current.SentinelPortA, test.TotalMilliseconds);
+
+        Log("Service Name: " + options.ServiceName);
+        foreach (var ep in options.EndPoints)
+        {
+            Log("  Endpoint: " + ep);
+        }
+
+        using var conn2 = ConnectionMultiplexer.Connect(options);
+
+        var db2 = conn2.GetDatabase();
+        var test2 = db2.Ping();
+        Log("ping to 2nd sentinel {0}:{1} took {2} ms", TestConfig.Current.SentinelServer,
+            TestConfig.Current.SentinelPortA, test2.TotalMilliseconds);
     }
 
     [Fact]
