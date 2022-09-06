@@ -227,7 +227,14 @@ namespace StackExchange.Redis
             }
             if (result.IsError)
             {
-                if (result.StartsWith(CommonReplies.NOAUTH)) bridge?.Multiplexer?.SetAuthSuspect(new RedisServerException("NOAUTH Returned - connection has not authenticated"));
+                if (result.StartsWith(CommonReplies.NOAUTH))
+                {
+                    bridge?.Multiplexer?.SetAuthSuspect(new RedisServerException("NOAUTH Returned - connection has not yet authenticated"));
+                }
+                else if (result.StartsWith(CommonReplies.WRONGPASS))
+                {
+                    bridge?.Multiplexer?.SetAuthSuspect(new RedisServerException(result.ToString()));
+                }
 
                 var server = bridge?.ServerEndPoint;
                 bool log = !message.IsInternalCall;
