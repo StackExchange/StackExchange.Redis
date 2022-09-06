@@ -556,7 +556,7 @@ namespace StackExchange.Redis
         }
 
         internal Exception? AuthException { get; private set; }
-        internal void SetAuthSuspect(Exception authException) => AuthException = authException;
+        internal void SetAuthSuspect(Exception authException) => AuthException ??= authException;
 
         /// <summary>
         /// Creates a new <see cref="ConnectionMultiplexer"/> instance.
