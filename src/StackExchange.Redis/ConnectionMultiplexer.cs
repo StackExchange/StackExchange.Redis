@@ -22,8 +22,6 @@ namespace StackExchange.Redis
     /// <remarks><seealso href="https://stackexchange.github.io/StackExchange.Redis/PipelinesMultiplexers"/></remarks>
     public sealed partial class ConnectionMultiplexer : IInternalConnectionMultiplexer // implies : IConnectionMultiplexer and : IDisposable
     {
-        internal const int MillisecondsPerHeartbeat = 1000;
-
         // This gets accessed for every received event; let's make sure we can process it "raw"
         internal readonly byte[]? ConfigurationChangedChannel;
         // Unique identifier used when tracing
@@ -812,7 +810,7 @@ namespace StackExchange.Redis
 
         private sealed class TimerToken
         {
-            public TimerToken(ConnectionMultiplexer muxer)
+            private TimerToken(ConnectionMultiplexer muxer)
             {
                 _ref = new WeakReference(muxer);
             }
@@ -840,7 +838,8 @@ namespace StackExchange.Redis
             internal static IDisposable Create(ConnectionMultiplexer connection)
             {
                 var token = new TimerToken(connection);
-                var timer = new Timer(Heartbeat, token, MillisecondsPerHeartbeat, MillisecondsPerHeartbeat);
+                var heartbeatMilliseconds = (int)connection.RawConfig.HeartbeatInterval.TotalMilliseconds;
+                var timer = new Timer(Heartbeat, token, heartbeatMilliseconds, heartbeatMilliseconds);
                 token.SetTimer(timer);
                 return timer;
             }
