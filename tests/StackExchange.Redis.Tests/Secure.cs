@@ -56,9 +56,9 @@ public class Secure : TestBase
     }
 
     [Theory]
-    [InlineData("wrong")]
-    [InlineData("")]
-    public async Task ConnectWithWrongPassword(string password)
+    [InlineData("wrong", "WRONGPASS invalid username-password pair or user is disabled.")]
+    [InlineData("", "NOAUTH Returned - connection has not authenticated")]
+    public async Task ConnectWithWrongPassword(string password, string exepctedMessage)
     {
         var config = ConfigurationOptions.Parse(GetConfiguration());
         config.Password = password;
@@ -74,6 +74,7 @@ public class Secure : TestBase
             conn.GetDatabase().Ping();
         }).ConfigureAwait(false);
         Log("Exception: " + ex.Message);
-        Assert.StartsWith("It was not possible to connect to the redis server(s). There was an authentication failure; check that passwords (or client certificates) are configured correctly: (RedisServerException) NOAUTH Returned - connection has not authenticated", ex.Message);
+        Assert.StartsWith("It was not possible to connect to the redis server(s). There was an authentication failure; check that passwords (or client certificates) are configured correctly: (RedisServerException) ", ex.Message);
+        Assert.EndsWith(exepctedMessage, ex.Message);
     }
 }

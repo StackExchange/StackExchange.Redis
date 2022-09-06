@@ -24,6 +24,7 @@ namespace StackExchange.Redis
             slave_read_only = "slave-read-only",
             timeout = "timeout",
             wildcard = "*",
+            WRONGPASS = "WRONGPASS",
             yes = "yes",
             zero = "0",
 
