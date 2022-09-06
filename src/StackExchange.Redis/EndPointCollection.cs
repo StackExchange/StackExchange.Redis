@@ -228,6 +228,6 @@ namespace StackExchange.Redis
             }
         }
 
-        internal EndPointCollection Clone() => new EndPointCollection(this);
+        internal EndPointCollection Clone() => new EndPointCollection(new List<EndPoint>(Items));
     }
 }
