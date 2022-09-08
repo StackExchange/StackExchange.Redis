@@ -105,7 +105,7 @@ Additional code-only options:
   - Determines how commands will be queued (or not) during a disconnect, for sending when it's available again
 - BeforeSocketConnect - Default: `null`
   - Allows modifying a `Socket` before connecting (for advanced scenarios)
-- SslClientAuthenticationOptions (`netcooreapp3.1`/`net5.0` and higher) - Default: `null`
+- SslClientAuthenticationOptions (`netcoreapp3.1`/`net5.0` and higher) - Default: `null`
   - Allows specifying exact options for SSL/TLS authentication against a server (e.g. cipher suites, protocols, etc.) - overrides all other SSL configuration options. This is a `Func<string, SslClientAuthenticationOptions>` which receives the host (or `SslHost` if set) to get the options for. If `null` is returned from the `Func`, it's the same as this property not being set at all when connecting.
 - SocketManager - Default: `SocketManager.Shared`: 
   - The thread pool to use for scheduling work to and from the socket connected to Redis, one of...
