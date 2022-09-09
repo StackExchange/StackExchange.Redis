@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Runtime.CompilerServices;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -536,6 +537,29 @@ namespace StackExchange.Redis
                 }
             }
             return found;
+        }
+
+        internal void SetScriptHash(string script, RedisCommand command)
+        {
+            if (command != RedisCommand.EVAL)
+            {
+                return;
+            }
+
+            var hash = Sha1(script);
+
+            lock(knownScripts)
+            {
+                knownScripts[script] = Encoding.ASCII.GetBytes(hash);
+            }
+        }
+
+        internal string Sha1(string input)
+        {
+            var sha1 = SHA1.Create();
+            byte[] inputBytes = Encoding.ASCII.GetBytes(input);
+            byte[] outputBytes = sha1.ComputeHash(inputBytes);
+            return BitConverter.ToString(outputBytes).Replace("-", "").ToLower();
         }
 
         internal string? GetStormLog(Message message) => GetBridge(message)?.GetStormLog();

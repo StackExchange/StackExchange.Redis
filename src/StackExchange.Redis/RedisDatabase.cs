@@ -4742,7 +4742,7 @@ namespace StackExchange.Redis
             public override int ArgCount => _args.Count;
         }
 
-        private sealed class ScriptEvalMessage : Message, IMultiMessage
+        private sealed class ScriptEvalMessage : Message
         {
             private readonly RedisKey[] keys;
             private readonly string? script;
@@ -4787,29 +4787,14 @@ namespace StackExchange.Redis
                 return slot;
             }
 
-            public IEnumerable<Message> GetMessages(PhysicalConnection connection)
-            {
-                PhysicalBridge? bridge;
-                if (script != null && (bridge = connection.BridgeCouldBeNull) != null
-                    && bridge.Multiplexer.CommandMap.IsAvailable(RedisCommand.SCRIPT)
-                    && (Flags & CommandFlags.NoScriptCache) == 0)
-                {
-                    // a script was provided (rather than a hash); check it is known and supported
-                    asciiHash = bridge.ServerEndPoint.GetScriptHash(script, command);
-
-                    if (asciiHash == null)
-                    {
-                        var msg = new ScriptLoadMessage(Flags, script);
-                        msg.SetInternalCall();
-                        msg.SetSource(ResultProcessor.ScriptLoad, null);
-                        yield return msg;
-                    }
-                }
-                yield return this;
-            }
-
             protected override void WriteImpl(PhysicalConnection physical)
             {
+                PhysicalBridge? bridge;
+
+                if ((bridge = physical.BridgeCouldBeNull) != null && script != null) {
+                    asciiHash = bridge.ServerEndPoint.GetScriptHash(script, command);
+                }
+
                 if (hexHash != null)
                 {
                     physical.WriteHeader(RedisCommand.EVALSHA, 2 + keys.Length + values.Length);
@@ -4830,6 +4815,15 @@ namespace StackExchange.Redis
                     physical.Write(keys[i]);
                 for (int i = 0; i < values.Length; i++)
                     physical.WriteBulkString(values[i]);
+
+
+                if (asciiHash == null
+                    && script != null
+                    && bridge != null
+                    && (Flags & CommandFlags.NoScriptCache) == 0)
+                {
+                    bridge.ServerEndPoint.SetScriptHash(script, command);
+                }
             }
             public override int ArgCount => 2 + keys.Length + values.Length;
         }
