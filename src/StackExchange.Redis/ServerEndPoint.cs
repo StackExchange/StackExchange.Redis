@@ -546,11 +546,11 @@ namespace StackExchange.Redis
                 return;
             }
 
-            var hash = Sha1(script);
+            var hash = Encoding.ASCII.GetBytes(Sha1(script));
 
             lock(knownScripts)
             {
-                knownScripts[script] = Encoding.ASCII.GetBytes(hash);
+                knownScripts[script] = hash;
             }
         }
 
