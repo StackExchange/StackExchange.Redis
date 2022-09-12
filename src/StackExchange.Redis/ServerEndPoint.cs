@@ -547,7 +547,6 @@ namespace StackExchange.Redis
             }
 
             var hash = GetSHA1(script);
-
             lock(knownScripts)
             {
                 knownScripts[script] = hash;
@@ -901,7 +900,6 @@ namespace StackExchange.Redis
             byte[] outputBytes = sha1.ComputeHash(inputBytes);
             return Encoding.ASCII.GetBytes(BitConverter.ToString(outputBytes).Replace("-", "").ToLower());
         }
-
 
         private PhysicalBridge? CreateBridge(ConnectionType type, LogProxy? log)
         {
