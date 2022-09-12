@@ -546,20 +546,12 @@ namespace StackExchange.Redis
                 return;
             }
 
-            var hash = Encoding.ASCII.GetBytes(Sha1(script));
+            var hash = GetSHA1(script);
 
             lock(knownScripts)
             {
                 knownScripts[script] = hash;
             }
-        }
-
-        internal string Sha1(string input)
-        {
-            var sha1 = SHA1.Create();
-            byte[] inputBytes = Encoding.ASCII.GetBytes(input);
-            byte[] outputBytes = sha1.ComputeHash(inputBytes);
-            return BitConverter.ToString(outputBytes).Replace("-", "").ToLower();
         }
 
         internal string? GetStormLog(Message message) => GetBridge(message)?.GetStormLog();
@@ -901,6 +893,15 @@ namespace StackExchange.Redis
             }
             return default;
         }
+
+        private static byte[] GetSHA1(string input)
+        {
+            var sha1 = SHA1.Create();
+            byte[] inputBytes = Encoding.ASCII.GetBytes(input);
+            byte[] outputBytes = sha1.ComputeHash(inputBytes);
+            return Encoding.ASCII.GetBytes(BitConverter.ToString(outputBytes).Replace("-", "").ToLower());
+        }
+
 
         private PhysicalBridge? CreateBridge(ConnectionType type, LogProxy? log)
         {
