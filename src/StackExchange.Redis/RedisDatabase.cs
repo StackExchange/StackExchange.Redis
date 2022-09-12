@@ -4742,13 +4742,15 @@ namespace StackExchange.Redis
             public override int ArgCount => _args.Count;
         }
 
-        private sealed class ScriptEvalMessage : Message
+        internal sealed class ScriptEvalMessage : Message
         {
             private readonly RedisKey[] keys;
             private readonly string? script;
             private readonly RedisValue[] values;
             private byte[]? asciiHash;
             private readonly byte[]? hexHash;
+
+            public string? Script => script;
 
             public ScriptEvalMessage(int db, CommandFlags flags, string script, RedisKey[]? keys, RedisValue[]? values)
                 : this(db, flags, ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA : RedisCommand.EVAL, script, null, keys, values)
@@ -4815,16 +4817,8 @@ namespace StackExchange.Redis
                     physical.Write(keys[i]);
                 for (int i = 0; i < values.Length; i++)
                     physical.WriteBulkString(values[i]);
-
-
-                if (asciiHash == null
-                    && script != null
-                    && bridge != null
-                    && (Flags & CommandFlags.NoScriptCache) == 0)
-                {
-                    bridge.ServerEndPoint.SetScriptHash(script, command);
-                }
             }
+
             public override int ArgCount => 2 + keys.Length + values.Length;
         }
 
