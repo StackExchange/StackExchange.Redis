@@ -1777,7 +1777,9 @@ The coordinates as a two items x,y array (longitude,latitude).
             {
                 if (RedisResult.TryCreate(connection, result, out var value))
                 {
-                    if (message is RedisDatabase.ScriptEvalMessage el && el.Script != null)
+                    if (result.Type != ResultType.Error
+                        && message is RedisDatabase.ScriptEvalMessage el
+                        && el.Script != null)
                     {
                         connection.BridgeCouldBeNull?.ServerEndPoint?.SetScriptHash(el.Script, el.Command);
                     }
