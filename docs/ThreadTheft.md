@@ -44,7 +44,7 @@ configure ASP.NET with:
 <add key="aspnet:UseTaskFriendlySynchronizationContext" value="false" />
 ```
 
-or
+or if you do NOT add the following line:
 
 ```xml
 <httpRuntime targetFramework="4.5" />
