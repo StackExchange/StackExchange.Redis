@@ -1,7 +1,9 @@
 # Release Notes
 
 ## Unreleased
-- No unreleased changes at this time
+
+- Fix: `MOVED` with `NoRedirect` (and other non-reachable errors) should respect the `IncludeDetailInExceptions` setting
+
 
 ## 2.6.66
 
