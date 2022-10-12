@@ -803,7 +803,16 @@ namespace StackExchange.Redis
                     }
                 }
                 // spin up the connection if this is new
-                if (isNew && activate) server.Activate(ConnectionType.Interactive, log);
+                if (isNew && activate)
+                {
+                    server.Activate(ConnectionType.Interactive, log);
+
+                    if (server.SupportsSubscriptions)
+                    {
+                        // Intentionally not logging the sub connection
+                        server.Activate(ConnectionType.Subscription, null);
+                    }
+                }
             }
             return server;
         }
