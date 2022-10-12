@@ -267,13 +267,27 @@ namespace StackExchange.Redis
                             {
                                 if (isMoved && wasNoRedirect)
                                 {
-                                    err = $"Key has MOVED to Endpoint {endpoint} and hashslot {hashSlot} but CommandFlags.NoRedirect was specified - redirect not followed for {message.CommandAndKey}. ";
+                                    if (bridge.Multiplexer.IncludeDetailInExceptions)
+                                    {
+                                        err = $"Key has MOVED to Endpoint {endpoint} and hashslot {hashSlot} but CommandFlags.NoRedirect was specified - redirect not followed for {message.CommandAndKey}. ";
+                                    }
+                                    else
+                                    {
+                                        err = "Key has MOVED but CommandFlags.NoRedirect was specified - redirect not followed. ";
+                                    }
                                 }
                                 else
                                 {
                                     unableToConnectError = true;
-                                    err = $"Endpoint {endpoint} serving hashslot {hashSlot} is not reachable at this point of time. Please check connectTimeout value. If it is low, try increasing it to give the ConnectionMultiplexer a chance to recover from the network disconnect. "
-                                        + PerfCounterHelper.GetThreadPoolAndCPUSummary(bridge.Multiplexer.RawConfig.IncludePerformanceCountersInExceptions);
+                                    if (bridge.Multiplexer.IncludeDetailInExceptions)
+                                    {
+                                        err = $"Endpoint {endpoint} serving hashslot {hashSlot} is not reachable at this point of time. Please check connectTimeout value. If it is low, try increasing it to give the ConnectionMultiplexer a chance to recover from the network disconnect. "
+                                            + PerfCounterHelper.GetThreadPoolAndCPUSummary(bridge.Multiplexer.RawConfig.IncludePerformanceCountersInExceptions);
+                                    }
+                                    else
+                                    {
+                                        err = "Endpoint is not reachable at this point of time. Please check connectTimeout value. If it is low, try increasing it to give the ConnectionMultiplexer a chance to recover from the network disconnect. ";
+                                    }
                                 }
                             }
                         }
