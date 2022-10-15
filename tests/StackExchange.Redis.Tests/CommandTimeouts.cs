@@ -21,7 +21,7 @@ public class CommandTimeouts : TestBase
         using var conn = ConnectionMultiplexer.Connect(options);
 
         var pauseServer = GetServer(pauseConn);
-        _ = pauseServer.ExecuteAsync("CLIENT", "PAUSE", 2000);
+        var pauseTask = pauseServer.ExecuteAsync("CLIENT", "PAUSE", 2500);
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -30,6 +30,9 @@ public class CommandTimeouts : TestBase
         Log(ex.Message);
         var duration = sw.GetElapsedTime();
         Assert.True(duration < TimeSpan.FromSeconds(2100), $"Duration ({duration.Milliseconds} ms) should be less than 2100ms");
+
+        // Await as to not bias the next test
+        await pauseTask;
     }
 
     [Fact]
@@ -44,7 +47,7 @@ public class CommandTimeouts : TestBase
         using var conn = ConnectionMultiplexer.Connect(options);
 
         var pauseServer = GetServer(pauseConn);
-        _ = pauseServer.ExecuteAsync("CLIENT", "PAUSE", 2000);
+        var pauseTask = pauseServer.ExecuteAsync("CLIENT", "PAUSE", 500);
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -53,5 +56,8 @@ public class CommandTimeouts : TestBase
         Log(ex.Message);
         var duration = sw.GetElapsedTime();
         Assert.True(duration < TimeSpan.FromSeconds(250), $"Duration ({duration.Milliseconds} ms) should be less than 250ms");
+
+        // Await as to not bias the next test
+        await pauseTask;
     }
 }
