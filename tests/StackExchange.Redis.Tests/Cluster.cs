@@ -728,4 +728,20 @@ public class Cluster : TestBase
             }
         }
     }
+
+    [Fact]
+    public void ConnectIncludesSubscriber()
+    {
+        using var conn = Create(keepAlive: 1, connectTimeout: 3000, shared: false);
+
+        var db = conn.GetDatabase();
+        db.Ping();
+        Assert.True(conn.IsConnected);
+
+        foreach (var server in conn.GetServerSnapshot())
+        {
+            Assert.Equal(PhysicalBridge.State.ConnectedEstablished, server.InteractiveConnectionState);
+            Assert.Equal(PhysicalBridge.State.ConnectedEstablished, server.SubscriptionConnectionState);
+        }
+    }
 }

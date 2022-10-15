@@ -806,7 +806,6 @@ namespace StackExchange.Redis
                 if (isNew && activate)
                 {
                     server.Activate(ConnectionType.Interactive, log);
-
                     if (server.SupportsSubscriptions)
                     {
                         // Intentionally not logging the sub connection
@@ -1309,9 +1308,10 @@ namespace StackExchange.Redis
                         // Log current state after await
                         foreach (var server in servers)
                         {
-                            log?.WriteLine($"  {Format.ToString(server.EndPoint)}: Endpoint is {server.ConnectionState}");
+                            log?.WriteLine($"  {Format.ToString(server.EndPoint)}: Endpoint is (Interactive: {server.InteractiveConnectionState}, Subscription: {server.SubscriptionConnectionState})");
                         }
 
+                        log?.WriteLine("Task summary:");
                         EndPointCollection? updatedClusterEndpointCollection = null;
                         for (int i = 0; i < available.Length; i++)
                         {
@@ -1397,7 +1397,7 @@ namespace StackExchange.Redis
                             else
                             {
                                 server.SetUnselectable(UnselectableFlags.DidNotRespond);
-                                log?.WriteLine($"  {Format.ToString(server)}: Did not respond");
+                                log?.WriteLine($"  {Format.ToString(server)}: Did not respond (Task.Status: {task.Status})");
                             }
                         }
 
