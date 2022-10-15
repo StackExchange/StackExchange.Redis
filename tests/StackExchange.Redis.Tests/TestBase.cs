@@ -268,7 +268,7 @@ public abstract class TestBase : IDisposable
     {
         if (Output == null)
         {
-            Assert.True(false, "Failure: Be sure to call the TestBase constuctor like this: BasicOpsTests(ITestOutputHelper output) : base(output) { }");
+            Assert.True(false, "Failure: Be sure to call the TestBase constructor like this: BasicOpsTests(ITestOutputHelper output) : base(output) { }");
         }
 
         // Share a connection if instructed to and we can - many specifics mean no sharing

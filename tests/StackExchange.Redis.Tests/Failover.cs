@@ -295,8 +295,9 @@ public class Failover : TestBase, IAsyncLifetime
                 Log("FAILURE: B has not detected the topology change.");
                 foreach (var server in bConn.GetServerSnapshot().ToArray())
                 {
-                    Log("  Server" + server.EndPoint);
-                    Log("    State: " + server.ConnectionState);
+                    Log("  Server: " + server.EndPoint);
+                    Log("    State (Interactive): " + server.InteractiveConnectionState);
+                    Log("    State (Subscription): " + server.SubscriptionConnectionState);
                     Log("    IsReplica: " + !server.IsReplica);
                     Log("    Type: " + server.ServerType);
                 }

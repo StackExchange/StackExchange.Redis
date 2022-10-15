@@ -157,7 +157,8 @@ namespace StackExchange.Redis
             }
         }
 
-        internal State ConnectionState => interactive?.ConnectionState ?? State.Disconnected;
+        internal State InteractiveConnectionState => interactive?.ConnectionState ?? State.Disconnected;
+        internal State SubscriptionConnectionState => subscription?.ConnectionState ?? State.Disconnected;
 
         public long OperationCount => interactive?.OperationCount ?? 0 + subscription?.OperationCount ?? 0;
 
