@@ -1,5 +1,11 @@
 # Release Notes
 
+Current package versions:
+
+| NuGet Stable | NuGet Pre-release | MyGet |
+| ------------ | ----------------- | ----- |
+| [![StackExchange.Redis](https://img.shields.io/nuget/v/StackExchange.Redis.svg)](https://www.nuget.org/packages/StackExchange.Redis/) | [![StackExchange.Redis](https://img.shields.io/nuget/vpre/StackExchange.Redis.svg)](https://www.nuget.org/packages/StackExchange.Redis/) | [![StackExchange.Redis MyGet](https://img.shields.io/myget/stackoverflow/vpre/StackExchange.Redis.svg)](https://www.myget.org/feed/stackoverflow/package/nuget/StackExchange.Redis) |
+
 ## Unreleased
 
 No pending changes for the next release yet.
