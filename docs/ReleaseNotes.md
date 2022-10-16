@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+No pending changes for the next release yet.
+
+## 2.6.70
+
 - Fix: `MOVED` with `NoRedirect` (and other non-reachable errors) should respect the `IncludeDetailInExceptions` setting ([#2267 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2267))
 - Fix [#2251](https://github.com/StackExchange/StackExchange.Redis/issues/2251) & [#2265](https://github.com/StackExchange/StackExchange.Redis/issues/2265): Cluster endpoint connections weren't proactively connecting subscriptions in all cases and taking the full connection timeout to complete as a result ([#2268 by iteplov](https://github.com/StackExchange/StackExchange.Redis/pull/2268))
 
