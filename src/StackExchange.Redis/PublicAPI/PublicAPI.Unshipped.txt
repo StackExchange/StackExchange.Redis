@@ -1,1 +1,4 @@
-﻿
+﻿StackExchange.Redis.ConfigurationOptions.BeforeAuthenticate.get -> System.Func<System.Net.EndPoint!, StackExchange.Redis.ConnectionType, System.Net.Sockets.Socket!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>?
+StackExchange.Redis.ConfigurationOptions.BeforeAuthenticate.set -> void
+StackExchange.Redis.ConfigurationOptions.Gateway.get -> System.Net.EndPoint?
+StackExchange.Redis.ConfigurationOptions.Gateway.set -> void

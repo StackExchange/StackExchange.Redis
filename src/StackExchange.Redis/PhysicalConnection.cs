@@ -100,7 +100,7 @@ namespace StackExchange.Redis
             }
 
             Trace("Connecting...");
-            _socket = SocketManager.CreateSocket(endpoint);
+            _socket = SocketManager.CreateSocket(bridge.Multiplexer.RawConfig.Gateway ?? endpoint);
             bridge.Multiplexer.RawConfig.BeforeSocketConnect?.Invoke(endpoint, bridge.ConnectionType, _socket);
             bridge.Multiplexer.OnConnecting(endpoint, bridge.ConnectionType);
             log?.WriteLine($"{Format.ToString(endpoint)}: BeginConnectAsync");
@@ -1414,6 +1414,9 @@ namespace StackExchange.Redis
                 // TLS:     [Socket]<==[NetworkStream]<==[SslStream]<==[StreamConnection:IDuplexPipe]
 
                 var config = bridge.Multiplexer.RawConfig;
+
+                var beforeAuth = config.BeforeAuthenticate;
+                if (beforeAuth is not null) await beforeAuth.Invoke(bridge.ServerEndPoint.EndPoint, bridge.ConnectionType, socket, CancellationToken.None);
 
                 if (config.Ssl)
                 {

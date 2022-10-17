@@ -611,4 +611,25 @@ public class Config : TestBase
         var newPass = options.Password = "newPassword";
         Assert.Equal(newPass, conn.RawConfig.Password);
     }
+
+    [Fact]
+    public void HttpTunnel()
+    {
+        var config = ConfigurationOptions.Parse("127.0.0.1:6380,gateway=http:somewhere:22");
+        var ip = Assert.IsType<IPEndPoint>(Assert.Single(config.EndPoints));
+        Assert.Equal(6380, ip.Port);
+        Assert.Equal("127.0.0.1", ip.Address.ToString());
+        var dns = Assert.IsType<DnsEndPoint>(config.Gateway);
+        Assert.Equal(22, dns.Port);
+        Assert.Equal("somewhere", dns.Host);
+        Assert.Null(config.BeforeSocketConnect);
+        Assert.NotNull(config.BeforeAuthenticate);
+        var method = Assert.Single(config.BeforeAuthenticate.GetInvocationList());
+        Assert.Null(method.Target);
+        Assert.Equal("HttpTunnelAsync", method.Method.Name);
+        Assert.Equal(nameof(ConfigurationOptions), method.Method.DeclaringType!.Name);
+
+        var cs = config.ToString();
+        Assert.Equal("127.0.0.1:6380,gateway=http:somewhere:22", cs);
+    }
 }

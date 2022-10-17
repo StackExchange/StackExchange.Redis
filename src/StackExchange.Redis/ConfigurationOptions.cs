@@ -1,6 +1,9 @@
-﻿using System;
+﻿using StackExchange.Redis.Configuration;
+using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Security;
@@ -10,7 +13,6 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using StackExchange.Redis.Configuration;
 
 namespace StackExchange.Redis
 {
@@ -96,7 +98,8 @@ namespace StackExchange.Redis
                 TieBreaker = "tiebreaker",
                 Version = "version",
                 WriteBuffer = "writeBuffer",
-                CheckCertificateRevocation = "checkCertificateRevocation";
+                CheckCertificateRevocation = "checkCertificateRevocation",
+                Gateway = "gateway";
 
             private static readonly Dictionary<string, string> normalizedOptions = new[]
             {
@@ -188,6 +191,13 @@ namespace StackExchange.Redis
         /// For example, a specific local IP endpoint could be bound, linger time altered, etc.
         /// </summary>
         public Action<EndPoint, ConnectionType, Socket>? BeforeSocketConnect { get; set; }
+
+        /// <summary>
+        /// Allows modification of a <see cref="Socket"/> after creation and before TLS (if configured).
+        /// Passed in is the endpoint we're connecting to, which type of connection it is, and the socket itself.
+        /// For example, a specific local IP endpoint could be bound, linger time altered, etc.
+        /// </summary>
+        public Func<EndPoint, ConnectionType, Socket, CancellationToken, Task>? BeforeAuthenticate { get; set; }
 
         internal Func<ConnectionMultiplexer, Action<string>, Task> AfterConnectAsync => Defaults.AfterConnectAsync;
 
@@ -650,6 +660,7 @@ namespace StackExchange.Redis
 #if NETCOREAPP3_1_OR_GREATER
             SslClientAuthenticationOptions = SslClientAuthenticationOptions,
 #endif
+            Gateway = Gateway,
         };
 
         /// <summary>
@@ -729,6 +740,15 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.ConfigCheckSeconds, configCheckSeconds);
             Append(sb, OptionKeys.ResponseTimeout, responseTimeout);
             Append(sb, OptionKeys.DefaultDatabase, DefaultDatabase);
+            if (Gateway is not null)
+            {
+                var value = Format.ToString(Gateway);
+                if (ReferenceEquals(BeforeAuthenticate, s_HttpTunnelAsync)) // if we recognize it: prefix
+                {
+                    value = "http:" + value;
+                }
+                Append(sb, OptionKeys.Gateway, value);
+            }
             commandMap?.AppendDeltas(sb);
             return sb.ToString();
         }
@@ -877,6 +897,18 @@ namespace StackExchange.Redis
                         case OptionKeys.SslProtocols:
                             SslProtocols = OptionKeys.ParseSslProtocols(key, value);
                             break;
+                        case OptionKeys.Gateway:
+                            if (value.StartsWith("http:") && BeforeAuthenticate is null)
+                            {
+                                BeforeAuthenticate = s_HttpTunnelAsync;
+                                value = value.Substring(5);
+                            }
+                            if (!Format.TryParseEndPoint(value, out var ep))
+                            {
+                                throw new ArgumentException("Gateway cannot be parsed: " + value);
+                            }
+                            Gateway = ep;
+                            break;
                         // Deprecated options we ignore...
                         case OptionKeys.HighPrioritySocketThreads:
                         case OptionKeys.PreserveAsyncOrder:
@@ -914,5 +946,45 @@ namespace StackExchange.Redis
             }
             return this;
         }
+
+        private static readonly Func<EndPoint, ConnectionType, Socket, CancellationToken, Task> s_HttpTunnelAsync = HttpTunnelAsync;
+        private static Task HttpTunnelAsync(EndPoint endpoint, ConnectionType connectionType, Socket socket, CancellationToken cancellation)
+        {
+            // TODO: make write+read async
+            // TODO: compare the response more appropriately?
+
+            var encoding = Encoding.ASCII;
+            var ep = Format.ToString(endpoint);
+            const string Prefix = "CONNECT ", Suffix = " HTTP/1.1\n", ExpectedResponse = "HTTP/1.1 200 OK";
+            byte[] chunk = ArrayPool<byte>.Shared.Rent(encoding.GetByteCount(Prefix) + encoding.GetByteCount(ep)  + encoding.GetByteCount(Suffix));
+            var offset = 0;
+            offset += encoding.GetBytes(Prefix, 0, Prefix.Length, chunk, offset);
+            offset += encoding.GetBytes(ep, 0, ep.Length, chunk, offset);
+            offset += encoding.GetBytes(Suffix, 0, Suffix.Length, chunk, offset);
+            socket.Send(chunk, offset, SocketFlags.None);
+            ArrayPool<byte>.Shared.Return(chunk);
+
+            // we expect to see: "HTTP/1.1 200 OK\n"; note our buffer is definitely big enough already
+            int toRead = encoding.GetByteCount(ExpectedResponse), read;
+            offset = 0;
+            while (toRead > 0 && (read = socket.Receive(chunk, offset, toRead, SocketFlags.None)) > 0)
+            {
+                toRead -= read;
+                offset += read;
+            }
+            if (toRead != 0) throw new EndOfStreamException("EOF negotiating HTTP tunnel");
+            // lazy
+            var actualResponse = encoding.GetString(chunk, 0, offset);
+            if (ExpectedResponse != actualResponse)
+            {
+                throw new InvalidOperationException("Unexpected response negotiating HTTP tunnel");
+            }
+            return Task.CompletedTask;
+        }
+
+        /// <summary>Specifies an overriding endpoint that will be used for all connections (typically used with <see cref="BeforeSocketConnect"/> to implement tunnel support).</summary>
+        public EndPoint? Gateway { get; set; }
+
+
     }
 }
