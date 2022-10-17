@@ -962,7 +962,6 @@ namespace StackExchange.Redis
             offset += encoding.GetBytes(ep, 0, ep.Length, chunk, offset);
             offset += encoding.GetBytes(Suffix, 0, Suffix.Length, chunk, offset);
             socket.Send(chunk, offset, SocketFlags.None);
-            ArrayPool<byte>.Shared.Return(chunk);
 
             // we expect to see: "HTTP/1.1 200 OK\n"; note our buffer is definitely big enough already
             int toRead = encoding.GetByteCount(ExpectedResponse), read;
@@ -979,6 +978,7 @@ namespace StackExchange.Redis
             {
                 throw new InvalidOperationException("Unexpected response negotiating HTTP tunnel");
             }
+            ArrayPool<byte>.Shared.Return(chunk);
             return Task.CompletedTask;
         }
 
