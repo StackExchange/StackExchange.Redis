@@ -1416,7 +1416,10 @@ namespace StackExchange.Redis
                 var config = bridge.Multiplexer.RawConfig;
 
                 var beforeAuth = config.BeforeAuthenticate;
-                if (beforeAuth is not null) await beforeAuth.Invoke(bridge.ServerEndPoint.EndPoint, bridge.ConnectionType, socket, CancellationToken.None);
+                if (beforeAuth is not null)
+                {
+                    await beforeAuth.Invoke(bridge.ServerEndPoint.EndPoint, bridge.ConnectionType, socket, CancellationToken.None).ForAwait();
+                }
 
                 if (config.Ssl)
                 {
