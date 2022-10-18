@@ -10,7 +10,7 @@ it is possible that the reader loop has been hijacked; see [Thread Theft](Thread
 
 Are there commands taking a long time to process on the redis-server?
 ---------------
-There can be commands that are taking a long time to process on the redis-server causing the request to timeout. Few examples of long running commands are mget with large number of keys, keys * or poorly written lua script. You can run the SlowLog command to see if there are requests taking longer than expected. More details regarding the command can be found [here](https://redis.io/commands/slowlog).
+There can be commands that are taking a long time to process on the redis-server causing the request to timeout. Few examples of long running commands are mget with large number of keys, keys * or poorly written lua script. You can run [the `SLOWLOG` command](https://redis.io/commands/slowlog) to see if there are requests taking longer than expected. More details regarding the command can be found [here](https://redis.io/commands/slowlog).
 
 Was there a big request preceding several small requests to the Redis that timed out?
 ---------------
