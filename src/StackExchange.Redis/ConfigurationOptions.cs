@@ -956,7 +956,7 @@ namespace StackExchange.Redis
 
             var encoding = Encoding.ASCII;
             var ep = Format.ToString(endpoint);
-            const string Prefix = "CONNECT ", Suffix = " HTTP/1.1\n", ExpectedResponse = "HTTP/1.1 200 OK\n";
+            const string Prefix = "CONNECT ", Suffix = " HTTP/1.1\r\n\r\n", ExpectedResponse = "HTTP/1.1 200 OK\r\n\r\n";
             byte[] chunk = ArrayPool<byte>.Shared.Rent(Math.Max(
                 encoding.GetByteCount(Prefix) + encoding.GetByteCount(ep)  + encoding.GetByteCount(Suffix),
                 encoding.GetByteCount(ExpectedResponse)
