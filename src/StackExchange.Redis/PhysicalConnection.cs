@@ -100,7 +100,8 @@ namespace StackExchange.Redis
             }
 
             Trace("Connecting...");
-            _socket = SocketManager.CreateSocket(bridge.Multiplexer.RawConfig.Gateway ?? endpoint);
+            var connectTo = bridge.Multiplexer.RawConfig.Gateway ?? endpoint;
+            _socket = SocketManager.CreateSocket(connectTo);
             bridge.Multiplexer.RawConfig.BeforeSocketConnect?.Invoke(endpoint, bridge.ConnectionType, _socket);
             bridge.Multiplexer.OnConnecting(endpoint, bridge.ConnectionType);
             log?.WriteLine($"{Format.ToString(endpoint)}: BeginConnectAsync");
@@ -110,7 +111,7 @@ namespace StackExchange.Redis
             {
                 using (var args = new SocketAwaitableEventArgs
                 {
-                    RemoteEndPoint = endpoint,
+                    RemoteEndPoint = connectTo,
                 })
                 {
                     var x = VolatileSocket;

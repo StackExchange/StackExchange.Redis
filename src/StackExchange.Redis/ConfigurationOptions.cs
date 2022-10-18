@@ -661,6 +661,7 @@ namespace StackExchange.Redis
             SslClientAuthenticationOptions = SslClientAuthenticationOptions,
 #endif
             Gateway = Gateway,
+            BeforeAuthenticate = BeforeAuthenticate,
         };
 
         /// <summary>
@@ -956,7 +957,10 @@ namespace StackExchange.Redis
             var encoding = Encoding.ASCII;
             var ep = Format.ToString(endpoint);
             const string Prefix = "CONNECT ", Suffix = " HTTP/1.1\n", ExpectedResponse = "HTTP/1.1 200 OK";
-            byte[] chunk = ArrayPool<byte>.Shared.Rent(encoding.GetByteCount(Prefix) + encoding.GetByteCount(ep)  + encoding.GetByteCount(Suffix));
+            byte[] chunk = ArrayPool<byte>.Shared.Rent(Math.Max(
+                encoding.GetByteCount(Prefix) + encoding.GetByteCount(ep)  + encoding.GetByteCount(Suffix),
+                encoding.GetByteCount(ExpectedResponse)
+            ));
             var offset = 0;
             offset += encoding.GetBytes(Prefix, 0, Prefix.Length, chunk, offset);
             offset += encoding.GetBytes(ep, 0, ep.Length, chunk, offset);
