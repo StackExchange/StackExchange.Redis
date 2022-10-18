@@ -12,7 +12,10 @@ namespace StackExchange.Redis.Tests
         public async Task Connect(string suffix)
         {
             var cs = Environment.GetEnvironmentVariable("HACK_TUNNEL_ENDPOINT");
-            if (string.IsNullOrWhiteSpace(cs)) return; // not testable
+            if (string.IsNullOrWhiteSpace(cs))
+            {
+                Skip.Inconclusive("Need HACK_TUNNEL_ENDPOINT environment variable");
+            }
             var config = ConfigurationOptions.Parse(cs + suffix);
             if (!string.IsNullOrWhiteSpace(suffix))
             {
