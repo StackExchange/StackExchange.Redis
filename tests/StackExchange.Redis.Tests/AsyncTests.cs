@@ -78,6 +78,8 @@ public class AsyncTests : TestBase
         Assert.DoesNotContain("last-in: 0", ex.Message);
         Assert.NotNull(ex.Data["Redis-Last-Result-Bytes"]);
 
+        Assert.Contains("cur-in:", ex.Message);
+
         string status = conn.GetStatus();
         Writer.WriteLine(status);
         Assert.Contains("; async timeouts: 1;", status);
