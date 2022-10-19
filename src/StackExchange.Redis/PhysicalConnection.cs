@@ -52,6 +52,8 @@ namespace StackExchange.Redis
 
         private int lastWriteTickCount, lastReadTickCount, lastBeatTickCount;
 
+        private long bytesLastResult;
+
         internal void GetBytes(out long sent, out long received)
         {
             if (_ioPipe is IMeasuredDuplexPipe sc)
@@ -1283,6 +1285,10 @@ namespace StackExchange.Redis
             /// Bytes in the writer pipe, waiting to be written to the socket.
             /// </summary>
             public long BytesInWritePipe { get; init; }
+            /// <summary>
+            /// Byte size of the last result we processed.
+            /// </summary>
+            public long BytesLastResult { get; init; }
 
             /// <summary>
             /// The inbound pipe reader status.
@@ -1334,6 +1340,7 @@ namespace StackExchange.Redis
                     BytesInWritePipe = counters.BytesWaitingToBeSent,
                     ReadStatus = _readStatus,
                     WriteStatus = _writeStatus,
+                    BytesLastResult = bytesLastResult,
                 };
             }
 
@@ -1356,6 +1363,7 @@ namespace StackExchange.Redis
                 BytesInWritePipe = -1,
                 ReadStatus = _readStatus,
                 WriteStatus = _writeStatus,
+                BytesLastResult = bytesLastResult,
             };
         }
 
@@ -1718,6 +1726,8 @@ namespace StackExchange.Redis
                         Trace(result.ToString());
                         _readStatus = ReadStatus.MatchResult;
                         MatchResult(result);
+                        // Track the last result size *after* processing for the *next* error message
+                        bytesLastResult = result.Payload.Length;
                     }
                     else
                     {
