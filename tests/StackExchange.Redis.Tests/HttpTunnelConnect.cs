@@ -12,7 +12,7 @@ namespace StackExchange.Redis.Tests
         public HttpTunnelConnect(ITestOutputHelper log) => Log = log;
         [Theory]
         [InlineData("")]
-        [InlineData(",gateway=http:127.0.0.1:8080")]
+        [InlineData(",tunnel=http:127.0.0.1:8080")]
         public async Task Connect(string suffix)
         {
             var cs = Environment.GetEnvironmentVariable("HACK_TUNNEL_ENDPOINT");
@@ -23,8 +23,7 @@ namespace StackExchange.Redis.Tests
             var config = ConfigurationOptions.Parse(cs + suffix);
             if (!string.IsNullOrWhiteSpace(suffix))
             {
-                Assert.NotNull(config.Gateway);
-                Assert.NotNull(config.BeforeAuthenticate);
+                Assert.NotNull(config.Tunnel);
             }
             await using var conn = await ConnectionMultiplexer.ConnectAsync(config);
             var db = conn.GetDatabase();

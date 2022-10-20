@@ -1,4 +1,8 @@
-﻿StackExchange.Redis.ConfigurationOptions.BeforeAuthenticate.get -> System.Func<System.Net.EndPoint!, StackExchange.Redis.ConnectionType, System.Net.Sockets.Socket!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>?
-StackExchange.Redis.ConfigurationOptions.BeforeAuthenticate.set -> void
-StackExchange.Redis.ConfigurationOptions.Gateway.get -> System.Net.EndPoint?
-StackExchange.Redis.ConfigurationOptions.Gateway.set -> void
+﻿override abstract StackExchange.Redis.Configuration.Tunnel.ToString() -> string!
+StackExchange.Redis.Configuration.Tunnel
+StackExchange.Redis.Configuration.Tunnel.Tunnel() -> void
+StackExchange.Redis.ConfigurationOptions.Tunnel.get -> StackExchange.Redis.Configuration.Tunnel?
+StackExchange.Redis.ConfigurationOptions.Tunnel.set -> void
+static StackExchange.Redis.Configuration.Tunnel.HttpProxy(System.Net.EndPoint! proxy) -> StackExchange.Redis.Configuration.Tunnel!
+virtual StackExchange.Redis.Configuration.Tunnel.BeforeAuthenticate(System.Net.EndPoint! endpoint, StackExchange.Redis.ConnectionType connectionType, System.Net.Sockets.Socket? socket, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.IO.Stream?>
+virtual StackExchange.Redis.Configuration.Tunnel.GetConnectEndpoint(System.Net.EndPoint! endpoint, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Net.EndPoint?>

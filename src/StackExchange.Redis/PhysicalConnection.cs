@@ -100,16 +100,28 @@ namespace StackExchange.Redis
             }
 
             Trace("Connecting...");
-            var connectTo = bridge.Multiplexer.RawConfig.Gateway ?? endpoint;
-            _socket = SocketManager.CreateSocket(connectTo);
-            bridge.Multiplexer.RawConfig.BeforeSocketConnect?.Invoke(endpoint, bridge.ConnectionType, _socket);
+            var tunnel = bridge.Multiplexer.RawConfig.Tunnel;
+            var connectTo = endpoint;
+            if (tunnel is not null)
+            {
+                connectTo = await tunnel.GetConnectEndpoint(endpoint, CancellationToken.None).ForAwait();
+            }
+            if (connectTo is not null)
+            {
+                _socket = SocketManager.CreateSocket(connectTo);
+            }
+
+            if (_socket is not null)
+            {
+                bridge.Multiplexer.RawConfig.BeforeSocketConnect?.Invoke(endpoint, bridge.ConnectionType, _socket);
+            }
             bridge.Multiplexer.OnConnecting(endpoint, bridge.ConnectionType);
             log?.WriteLine($"{Format.ToString(endpoint)}: BeginConnectAsync");
 
             CancellationTokenSource? timeoutSource = null;
             try
             {
-                using (var args = new SocketAwaitableEventArgs
+                using (var args = connectTo is null ? null : new SocketAwaitableEventArgs
                 {
                     RemoteEndPoint = connectTo,
                 })
@@ -117,15 +129,15 @@ namespace StackExchange.Redis
                     var x = VolatileSocket;
                     if (x == null)
                     {
-                        args.Abort();
+                        args?.Abort();
                     }
-                    else if (x.ConnectAsync(args))
+                    else if (args is not null && x.ConnectAsync(args))
                     {   // asynchronous operation is pending
                         timeoutSource = ConfigureTimeout(args, bridge.Multiplexer.RawConfig.ConnectTimeout);
                     }
                     else
                     {   // completed synchronously
-                        args.Complete();
+                        args?.Complete();
                     }
 
                     // Complete connection
@@ -134,7 +146,10 @@ namespace StackExchange.Redis
                         // If we're told to ignore connect, abort here
                         if (BridgeCouldBeNull?.Multiplexer?.IgnoreConnect ?? false) return;
 
-                        await args; // wait for the connect to complete or fail (will throw)
+                        if (args is not null)
+                        {
+                            await args; // wait for the connect to complete or fail (will throw)
+                        }
                         if (timeoutSource != null)
                         {
                             timeoutSource.Cancel();
@@ -142,7 +157,7 @@ namespace StackExchange.Redis
                         }
 
                         x = VolatileSocket;
-                        if (x == null)
+                        if (x == null && args is not null)
                         {
                             ConnectionMultiplexer.TraceWithoutContext("Socket was already aborted");
                         }
@@ -1399,7 +1414,7 @@ namespace StackExchange.Redis
             return null;
         }
 
-        internal async ValueTask<bool> ConnectedAsync(Socket socket, LogProxy? log, SocketManager manager)
+        internal async ValueTask<bool> ConnectedAsync(Socket? socket, LogProxy? log, SocketManager manager)
         {
             var bridge = BridgeCouldBeNull;
             if (bridge == null) return false;
@@ -1416,10 +1431,11 @@ namespace StackExchange.Redis
 
                 var config = bridge.Multiplexer.RawConfig;
 
-                var beforeAuth = config.BeforeAuthenticate;
-                if (beforeAuth is not null)
+                var tunnel = config.Tunnel;
+                Stream? stream = null;
+                if (tunnel is not null)
                 {
-                    await beforeAuth.Invoke(bridge.ServerEndPoint.EndPoint, bridge.ConnectionType, socket, CancellationToken.None).ForAwait();
+                    stream = await tunnel.BeforeAuthenticate(bridge.ServerEndPoint.EndPoint, bridge.ConnectionType, socket, CancellationToken.None).ForAwait();
                 }
 
                 if (config.Ssl)
@@ -1431,7 +1447,8 @@ namespace StackExchange.Redis
                         host = Format.ToStringHostOnly(bridge.ServerEndPoint.EndPoint);
                     }
 
-                    var ssl = new SslStream(new NetworkStream(socket), false,
+                    stream ??= new NetworkStream(socket ?? throw new InvalidOperationException("No socket or stream available - possibly a tunnel error"));
+                    var ssl = new SslStream(stream, false,
                         config.CertificateValidationCallback ?? GetAmbientIssuerCertificateCallback(),
                         config.CertificateSelectionCallback ?? GetAmbientClientCertificateCallback(),
                         EncryptionPolicy.RequireEncryption);
@@ -1467,7 +1484,12 @@ namespace StackExchange.Redis
                         bridge.Multiplexer.Trace("Encryption failure");
                         return false;
                     }
-                    pipe = StreamConnection.GetDuplex(ssl, manager.SendPipeOptions, manager.ReceivePipeOptions, name: bridge.Name);
+                    stream = ssl;
+                }
+
+                if (stream is not null)
+                {
+                    pipe = StreamConnection.GetDuplex(stream, manager.SendPipeOptions, manager.ReceivePipeOptions, name: bridge.Name);
                 }
                 else
                 {

@@ -99,7 +99,7 @@ namespace StackExchange.Redis
                 Version = "version",
                 WriteBuffer = "writeBuffer",
                 CheckCertificateRevocation = "checkCertificateRevocation",
-                Gateway = "gateway";
+                Tunnel = "tunnel";
 
             private static readonly Dictionary<string, string> normalizedOptions = new[]
             {
@@ -191,13 +191,6 @@ namespace StackExchange.Redis
         /// For example, a specific local IP endpoint could be bound, linger time altered, etc.
         /// </summary>
         public Action<EndPoint, ConnectionType, Socket>? BeforeSocketConnect { get; set; }
-
-        /// <summary>
-        /// Allows modification of a <see cref="Socket"/> after creation and before TLS (if configured).
-        /// Passed in is the endpoint we're connecting to, which type of connection it is, and the socket itself.
-        /// For example, a specific local IP endpoint could be bound, linger time altered, etc.
-        /// </summary>
-        public Func<EndPoint, ConnectionType, Socket, CancellationToken, Task>? BeforeAuthenticate { get; set; }
 
         internal Func<ConnectionMultiplexer, Action<string>, Task> AfterConnectAsync => Defaults.AfterConnectAsync;
 
@@ -660,8 +653,7 @@ namespace StackExchange.Redis
 #if NETCOREAPP3_1_OR_GREATER
             SslClientAuthenticationOptions = SslClientAuthenticationOptions,
 #endif
-            Gateway = Gateway,
-            BeforeAuthenticate = BeforeAuthenticate,
+            Tunnel = Tunnel,
         };
 
         /// <summary>
@@ -741,14 +733,9 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.ConfigCheckSeconds, configCheckSeconds);
             Append(sb, OptionKeys.ResponseTimeout, responseTimeout);
             Append(sb, OptionKeys.DefaultDatabase, DefaultDatabase);
-            if (Gateway is not null)
+            if (Tunnel is { } tunnel)
             {
-                var value = Format.ToString(Gateway);
-                if (ReferenceEquals(BeforeAuthenticate, s_HttpTunnelAsync)) // if we recognize it: prefix
-                {
-                    value = "http:" + value;
-                }
-                Append(sb, OptionKeys.Gateway, value);
+                Append(sb, OptionKeys.Tunnel, tunnel.ToString());
             }
             commandMap?.AppendDeltas(sb);
             return sb.ToString();
@@ -898,17 +885,24 @@ namespace StackExchange.Redis
                         case OptionKeys.SslProtocols:
                             SslProtocols = OptionKeys.ParseSslProtocols(key, value);
                             break;
-                        case OptionKeys.Gateway:
-                            if (value.StartsWith("http:") && BeforeAuthenticate is null)
+                        case OptionKeys.Tunnel:
+                            if (value.IsNullOrWhiteSpace())
                             {
-                                BeforeAuthenticate = s_HttpTunnelAsync;
+                                Tunnel = null;
+                            }
+                            else if (value.StartsWith("http:"))
+                            {
                                 value = value.Substring(5);
+                                if (!Format.TryParseEndPoint(value, out var ep))
+                                {
+                                    throw new ArgumentException("Http tunnel cannot be parsed: " + value);
+                                }
+                                Tunnel = Tunnel.HttpProxy(ep);
                             }
-                            if (!Format.TryParseEndPoint(value, out var ep))
+                            else
                             {
-                                throw new ArgumentException("Gateway cannot be parsed: " + value);
+                                throw new ArgumentException("Tunnel cannot be parsed: " + value);
                             }
-                            Gateway = ep;
                             break;
                         // Deprecated options we ignore...
                         case OptionKeys.HighPrioritySocketThreads:
@@ -948,47 +942,7 @@ namespace StackExchange.Redis
             return this;
         }
 
-        private static readonly Func<EndPoint, ConnectionType, Socket, CancellationToken, Task> s_HttpTunnelAsync = HttpTunnelAsync;
-        private static Task HttpTunnelAsync(EndPoint endpoint, ConnectionType connectionType, Socket socket, CancellationToken cancellation)
-        {
-            // TODO: make write+read async
-            // TODO: compare the response more appropriately?
-
-            var encoding = Encoding.ASCII;
-            var ep = Format.ToString(endpoint);
-            const string Prefix = "CONNECT ", Suffix = " HTTP/1.1\r\n\r\n", ExpectedResponse = "HTTP/1.1 200 OK\r\n\r\n";
-            byte[] chunk = ArrayPool<byte>.Shared.Rent(Math.Max(
-                encoding.GetByteCount(Prefix) + encoding.GetByteCount(ep)  + encoding.GetByteCount(Suffix),
-                encoding.GetByteCount(ExpectedResponse)
-            ));
-            var offset = 0;
-            offset += encoding.GetBytes(Prefix, 0, Prefix.Length, chunk, offset);
-            offset += encoding.GetBytes(ep, 0, ep.Length, chunk, offset);
-            offset += encoding.GetBytes(Suffix, 0, Suffix.Length, chunk, offset);
-            socket.Send(chunk, offset, SocketFlags.None);
-
-            // we expect to see: "HTTP/1.1 200 OK\n"; note our buffer is definitely big enough already
-            int toRead = encoding.GetByteCount(ExpectedResponse), read;
-            offset = 0;
-            while (toRead > 0 && (read = socket.Receive(chunk, offset, toRead, SocketFlags.None)) > 0)
-            {
-                toRead -= read;
-                offset += read;
-            }
-            if (toRead != 0) throw new EndOfStreamException("EOF negotiating HTTP tunnel");
-            // lazy
-            var actualResponse = encoding.GetString(chunk, 0, offset);
-            if (ExpectedResponse != actualResponse)
-            {
-                throw new InvalidOperationException("Unexpected response negotiating HTTP tunnel");
-            }
-            ArrayPool<byte>.Shared.Return(chunk);
-            return Task.CompletedTask;
-        }
-
-        /// <summary>Specifies an overriding endpoint that will be used for all connections (typically used with <see cref="BeforeSocketConnect"/> to implement tunnel support).</summary>
-        public EndPoint? Gateway { get; set; }
-
-
+        /// <summary>Allows custom transport implementations, such as http-tunneling via a proxy.</summary>
+        public Tunnel? Tunnel { get; set; }
     }
 }
