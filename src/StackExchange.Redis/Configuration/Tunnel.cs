@@ -1,5 +1,4 @@
-﻿using Pipelines.Sockets.Unofficial;
-using System;
+﻿using System;
 using System.Buffers;
 using System.IO;
 using System.Net;
@@ -7,6 +6,7 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Pipelines.Sockets.Unofficial;
 
 namespace StackExchange.Redis.Configuration
 {
@@ -40,7 +40,6 @@ namespace StackExchange.Redis.Configuration
         {
             public EndPoint Proxy { get; }
             public HttpProxyTunnel(EndPoint proxy) => Proxy = proxy ?? throw new ArgumentNullException(nameof(proxy));
-
 
             public override ValueTask<EndPoint?> GetSocketConnectEndpointAsync(EndPoint endpoint, CancellationToken cancellationToken) => new(Proxy);
 
@@ -112,6 +111,4 @@ namespace StackExchange.Redis.Configuration
         /// <param name="proxy">The endpoint to use as an HTTP proxy server.</param>
         public static Tunnel HttpProxy(EndPoint proxy) => new HttpProxyTunnel(proxy);
     }
-
-    
 }
