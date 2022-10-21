@@ -16,10 +16,17 @@ namespace StackExchange.Redis.Configuration
     public abstract class Tunnel
     {
         /// <summary>
-        /// Gets the underlying endpoint to use when connecting to a logical endpoint.
+        /// Gets the underlying socket endpoint to use when connecting to a logical endpoint.
         /// </summary>
         /// <remarks><c>null</c> should be returned if a socket is not required for this endpoint.</remarks>
         public virtual ValueTask<EndPoint?> GetSocketConnectEndpointAsync(EndPoint endpoint, CancellationToken cancellationToken) => new(endpoint);
+
+        /// <summary>
+        /// Allows modification of a <see cref="Socket"/> between creation and connection.
+        /// Passed in is the endpoint we're connecting to, which type of connection it is, and the socket itself.
+        /// For example, a specific local IP endpoint could be bound, linger time altered, etc.
+        /// </summary>
+        public virtual ValueTask BeforeSocketConnectAsync(EndPoint endPoint, ConnectionType connectionType, Socket? socket, CancellationToken cancellationToken) => default;
 
         /// <summary>
         /// Invoked on a connected endpoint before server authentication and other handshakes occur, allowing pre-redis handshakes.

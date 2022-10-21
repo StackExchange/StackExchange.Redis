@@ -114,6 +114,10 @@ namespace StackExchange.Redis
             if (_socket is not null)
             {
                 bridge.Multiplexer.RawConfig.BeforeSocketConnect?.Invoke(endpoint, bridge.ConnectionType, _socket);
+                if (tunnel is not null)
+                {   // same functionality as part of a tunnel
+                    await tunnel.BeforeSocketConnectAsync(endpoint, bridge.ConnectionType, _socket, CancellationToken.None).ForAwait();
+                }
             }
             bridge.Multiplexer.OnConnecting(endpoint, bridge.ConnectionType);
             log?.WriteLine($"{Format.ToString(endpoint)}: BeginConnectAsync");
