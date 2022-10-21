@@ -893,7 +893,7 @@ namespace StackExchange.Redis
                                 value = value.Substring(5);
                                 if (!Format.TryParseEndPoint(value, out var ep))
                                 {
-                                    throw new ArgumentException("Http tunnel cannot be parsed: " + value);
+                                    throw new ArgumentException("HTTP tunnel cannot be parsed: " + value);
                                 }
                                 Tunnel = Tunnel.HttpProxy(ep);
                             }
