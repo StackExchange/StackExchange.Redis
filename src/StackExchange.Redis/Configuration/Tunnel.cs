@@ -29,7 +29,8 @@ namespace StackExchange.Redis.Configuration
         public virtual ValueTask BeforeSocketConnectAsync(EndPoint endPoint, ConnectionType connectionType, Socket? socket, CancellationToken cancellationToken) => default;
 
         /// <summary>
-        /// Invoked on a connected endpoint before server authentication and other handshakes occur, allowing pre-redis handshakes.
+        /// Invoked on a connected endpoint before server authentication and other handshakes occur, allowing pre-redis handshakes. By returning a custom <see cref="Stream"/>,
+        /// the entire data flow can be intercepted, providing entire custom transports.
         /// </summary>
         public virtual ValueTask<Stream?> BeforeAuthenticateAsync(EndPoint endpoint, ConnectionType connectionType, Socket? socket, CancellationToken cancellationToken) => default;
         /// <inheritdoc/>
