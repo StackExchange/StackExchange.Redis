@@ -8,7 +8,9 @@ Current package versions:
 
 ## Unreleased
 
-No pending changes for the next release yet.
+<!-- No pending changes for the next release yet. -->
+
+- Adds: general-purpose tunnel support, with HTTP proxy "connect" support included
 
 ## 2.6.70
 
