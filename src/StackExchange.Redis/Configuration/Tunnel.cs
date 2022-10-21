@@ -11,7 +11,7 @@ using Pipelines.Sockets.Unofficial;
 namespace StackExchange.Redis.Configuration
 {
     /// <summary>
-    /// Allows interception of the transport used to communicate with redis.
+    /// Allows interception of the transport used to communicate with Redis.
     /// </summary>
     public abstract class Tunnel
     {

@@ -10,6 +10,7 @@ namespace StackExchange.Redis.Tests
     {
         private ITestOutputHelper Log { get; }
         public HttpTunnelConnect(ITestOutputHelper log) => Log = log;
+
         [Theory]
         [InlineData("")]
         [InlineData(",tunnel=http:127.0.0.1:8080")]

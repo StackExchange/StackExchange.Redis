@@ -731,7 +731,7 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.ConfigCheckSeconds, configCheckSeconds);
             Append(sb, OptionKeys.ResponseTimeout, responseTimeout);
             Append(sb, OptionKeys.DefaultDatabase, DefaultDatabase);
-            if (Tunnel is { } tunnel)
+            if (Tunnel is Tunnel tunnel)
             {
                 Append(sb, OptionKeys.Tunnel, tunnel.ToString());
             }
@@ -940,7 +940,9 @@ namespace StackExchange.Redis
             return this;
         }
 
-        /// <summary>Allows custom transport implementations, such as http-tunneling via a proxy.</summary>
+        /// <summary>
+        /// Allows custom transport implementations, such as http-tunneling via a proxy.
+        /// </summary>
         public Tunnel? Tunnel { get; set; }
     }
 }
