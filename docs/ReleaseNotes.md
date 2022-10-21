@@ -8,9 +8,8 @@ Current package versions:
 
 ## Unreleased
 
-<!-- No pending changes for the next release yet. -->
-
-- Adds: general-purpose tunnel support, with HTTP proxy "connect" support included
+- Adds: `last-in` and `cur-in` (bytes) to timeout exceptions to help identify timeouts that were just-behind another large payload off the wire ([#2276 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2276))
+- Adds: general-purpose tunnel support, with HTTP proxy "connect" support included ([#2274 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2274))
 
 ## 2.6.70
 
