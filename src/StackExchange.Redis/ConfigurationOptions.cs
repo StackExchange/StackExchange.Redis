@@ -96,7 +96,8 @@ namespace StackExchange.Redis
                 TieBreaker = "tiebreaker",
                 Version = "version",
                 WriteBuffer = "writeBuffer",
-                CheckCertificateRevocation = "checkCertificateRevocation";
+                CheckCertificateRevocation = "checkCertificateRevocation",
+                Tunnel = "tunnel";
 
             private static readonly Dictionary<string, string> normalizedOptions = new[]
             {
@@ -650,6 +651,7 @@ namespace StackExchange.Redis
 #if NETCOREAPP3_1_OR_GREATER
             SslClientAuthenticationOptions = SslClientAuthenticationOptions,
 #endif
+            Tunnel = Tunnel,
         };
 
         /// <summary>
@@ -729,6 +731,10 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.ConfigCheckSeconds, configCheckSeconds);
             Append(sb, OptionKeys.ResponseTimeout, responseTimeout);
             Append(sb, OptionKeys.DefaultDatabase, DefaultDatabase);
+            if (Tunnel is Tunnel tunnel)
+            {
+                Append(sb, OptionKeys.Tunnel, tunnel.ToString());
+            }
             commandMap?.AppendDeltas(sb);
             return sb.ToString();
         }
@@ -877,6 +883,25 @@ namespace StackExchange.Redis
                         case OptionKeys.SslProtocols:
                             SslProtocols = OptionKeys.ParseSslProtocols(key, value);
                             break;
+                        case OptionKeys.Tunnel:
+                            if (value.IsNullOrWhiteSpace())
+                            {
+                                Tunnel = null;
+                            }
+                            else if (value.StartsWith("http:"))
+                            {
+                                value = value.Substring(5);
+                                if (!Format.TryParseEndPoint(value, out var ep))
+                                {
+                                    throw new ArgumentException("HTTP tunnel cannot be parsed: " + value);
+                                }
+                                Tunnel = Tunnel.HttpProxy(ep);
+                            }
+                            else
+                            {
+                                throw new ArgumentException("Tunnel cannot be parsed: " + value);
+                            }
+                            break;
                         // Deprecated options we ignore...
                         case OptionKeys.HighPrioritySocketThreads:
                         case OptionKeys.PreserveAsyncOrder:
@@ -914,5 +939,10 @@ namespace StackExchange.Redis
             }
             return this;
         }
+
+        /// <summary>
+        /// Allows custom transport implementations, such as http-tunneling via a proxy.
+        /// </summary>
+        public Tunnel? Tunnel { get; set; }
     }
 }

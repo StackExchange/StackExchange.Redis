@@ -180,6 +180,13 @@ StackExchange.Redis.Configuration.AzureOptionsProvider.AzureOptionsProvider() ->
 StackExchange.Redis.Configuration.DefaultOptionsProvider
 StackExchange.Redis.Configuration.DefaultOptionsProvider.ClientName.get -> string!
 StackExchange.Redis.Configuration.DefaultOptionsProvider.DefaultOptionsProvider() -> void
+StackExchange.Redis.Configuration.Tunnel
+StackExchange.Redis.Configuration.Tunnel.Tunnel() -> void
+override abstract StackExchange.Redis.Configuration.Tunnel.ToString() -> string!
+static StackExchange.Redis.Configuration.Tunnel.HttpProxy(System.Net.EndPoint! proxy) -> StackExchange.Redis.Configuration.Tunnel!
+virtual StackExchange.Redis.Configuration.Tunnel.BeforeAuthenticateAsync(System.Net.EndPoint! endpoint, StackExchange.Redis.ConnectionType connectionType, System.Net.Sockets.Socket? socket, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.IO.Stream?>
+virtual StackExchange.Redis.Configuration.Tunnel.BeforeSocketConnectAsync(System.Net.EndPoint! endPoint, StackExchange.Redis.ConnectionType connectionType, System.Net.Sockets.Socket? socket, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+virtual StackExchange.Redis.Configuration.Tunnel.GetSocketConnectEndpointAsync(System.Net.EndPoint! endpoint, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Net.EndPoint?>
 StackExchange.Redis.ConfigurationOptions
 StackExchange.Redis.ConfigurationOptions.AbortOnConnectFail.get -> bool
 StackExchange.Redis.ConfigurationOptions.AbortOnConnectFail.set -> void
@@ -260,6 +267,8 @@ StackExchange.Redis.ConfigurationOptions.TieBreaker.set -> void
 StackExchange.Redis.ConfigurationOptions.ToString(bool includePassword) -> string!
 StackExchange.Redis.ConfigurationOptions.TrustIssuer(string! issuerCertificatePath) -> void
 StackExchange.Redis.ConfigurationOptions.TrustIssuer(System.Security.Cryptography.X509Certificates.X509Certificate2! issuer) -> void
+StackExchange.Redis.ConfigurationOptions.Tunnel.get -> StackExchange.Redis.Configuration.Tunnel?
+StackExchange.Redis.ConfigurationOptions.Tunnel.set -> void
 StackExchange.Redis.ConfigurationOptions.User.get -> string?
 StackExchange.Redis.ConfigurationOptions.User.set -> void
 StackExchange.Redis.ConfigurationOptions.UseSsl.get -> bool
