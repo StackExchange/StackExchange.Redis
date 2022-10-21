@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Pipelines.Sockets.Unofficial;
+using System;
 using System.Buffers;
 using System.IO;
 using System.Net;
@@ -18,13 +19,12 @@ namespace StackExchange.Redis.Configuration
         /// Gets the underlying endpoint to use when connecting to a logical endpoint.
         /// </summary>
         /// <remarks><c>null</c> should be returned if a socket is not required for this endpoint.</remarks>
-        public virtual ValueTask<EndPoint?> GetConnectEndpoint(EndPoint endpoint, CancellationToken cancellationToken) => new(endpoint);
+        public virtual ValueTask<EndPoint?> GetSocketConnectEndpointAsync(EndPoint endpoint, CancellationToken cancellationToken) => new(endpoint);
 
         /// <summary>
         /// Invoked on a connected endpoint before server authentication and other handshakes occur, allowing pre-redis handshakes.
         /// </summary>
-        public virtual ValueTask<Stream?> BeforeAuthenticate(EndPoint endpoint, ConnectionType connectionType, Socket? socket, CancellationToken cancellationToken) => new(default(Stream));
-
+        public virtual ValueTask<Stream?> BeforeAuthenticateAsync(EndPoint endpoint, ConnectionType connectionType, Socket? socket, CancellationToken cancellationToken) => default;
         /// <inheritdoc/>
         public abstract override string ToString();
 
@@ -34,9 +34,9 @@ namespace StackExchange.Redis.Configuration
             public HttpProxyTunnel(EndPoint proxy) => Proxy = proxy ?? throw new ArgumentNullException(nameof(proxy));
 
 
-            public override ValueTask<EndPoint?> GetConnectEndpoint(EndPoint endpoint, CancellationToken cancellationToken) => new(Proxy);
+            public override ValueTask<EndPoint?> GetSocketConnectEndpointAsync(EndPoint endpoint, CancellationToken cancellationToken) => new(Proxy);
 
-            public override ValueTask<Stream?> BeforeAuthenticate(EndPoint endpoint, ConnectionType connectionType, Socket? socket, CancellationToken cancellationToken)
+            public override async ValueTask<Stream?> BeforeAuthenticateAsync(EndPoint endpoint, ConnectionType connectionType, Socket? socket, CancellationToken cancellationToken)
             {
                 if (socket is not null)
                 {
@@ -55,26 +55,48 @@ namespace StackExchange.Redis.Configuration
                     offset += encoding.GetBytes(Prefix, 0, Prefix.Length, chunk, offset);
                     offset += encoding.GetBytes(ep, 0, ep.Length, chunk, offset);
                     offset += encoding.GetBytes(Suffix, 0, Suffix.Length, chunk, offset);
-                    socket.Send(chunk, offset, SocketFlags.None);
 
-                    // we expect to see: "HTTP/1.1 200 OK\n"; note our buffer is definitely big enough already
-                    int toRead = encoding.GetByteCount(ExpectedResponse), read;
-                    offset = 0;
-                    while (toRead > 0 && (read = socket.Receive(chunk, offset, toRead, SocketFlags.None)) > 0)
+                    static void SafeAbort(object? obj)
                     {
-                        toRead -= read;
-                        offset += read;
+                        try
+                        {
+                            (obj as SocketAwaitableEventArgs)?.Abort(SocketError.TimedOut);
+                        }
+                        catch { } // best effort only
                     }
-                    if (toRead != 0) throw new EndOfStreamException("EOF negotiating HTTP tunnel");
-                    // lazy
-                    var actualResponse = encoding.GetString(chunk, 0, offset);
-                    if (ExpectedResponse != actualResponse)
+
+                    using (var args = new SocketAwaitableEventArgs())
+                    using (cancellationToken.Register(static s => SafeAbort(s), args))
                     {
-                        throw new InvalidOperationException("Unexpected response negotiating HTTP tunnel");
+                        args.SetBuffer(chunk, 0, offset);
+                        if (!socket.SendAsync(args)) args.Complete();
+                        await args;
+
+                        // we expect to see: "HTTP/1.1 200 OK\n"; note our buffer is definitely big enough already
+                        int toRead = encoding.GetByteCount(ExpectedResponse), read;
+                        offset = 0;
+
+                        while (toRead > 0)
+                        {
+                            args.SetBuffer(chunk, offset, toRead);
+                            if (!socket.ReceiveAsync(args)) args.Complete();
+                            read = await args;
+
+                            if (read <= 0) break; // EOF (since we're never doing zero-length reads)
+                            toRead -= read;
+                            offset += read;
+                        }
+                        if (toRead != 0) throw new EndOfStreamException("EOF negotiating HTTP tunnel");
+                        // lazy
+                        var actualResponse = encoding.GetString(chunk, 0, offset);
+                        if (ExpectedResponse != actualResponse)
+                        {
+                            throw new InvalidOperationException("Unexpected response negotiating HTTP tunnel");
+                        }
+                        ArrayPool<byte>.Shared.Return(chunk);
                     }
-                    ArrayPool<byte>.Shared.Return(chunk);
                 }
-                return new(default(Stream));
+                return default; // no need for custom stream wrapper here
             }
 
             public override string ToString() => "http:" + Format.ToString(Proxy);

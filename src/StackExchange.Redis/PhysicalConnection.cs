@@ -104,7 +104,7 @@ namespace StackExchange.Redis
             var connectTo = endpoint;
             if (tunnel is not null)
             {
-                connectTo = await tunnel.GetConnectEndpoint(endpoint, CancellationToken.None).ForAwait();
+                connectTo = await tunnel.GetSocketConnectEndpointAsync(endpoint, CancellationToken.None).ForAwait();
             }
             if (connectTo is not null)
             {
@@ -1435,7 +1435,7 @@ namespace StackExchange.Redis
                 Stream? stream = null;
                 if (tunnel is not null)
                 {
-                    stream = await tunnel.BeforeAuthenticate(bridge.ServerEndPoint.EndPoint, bridge.ConnectionType, socket, CancellationToken.None).ForAwait();
+                    stream = await tunnel.BeforeAuthenticateAsync(bridge.ServerEndPoint.EndPoint, bridge.ConnectionType, socket, CancellationToken.None).ForAwait();
                 }
 
                 if (config.Ssl)
