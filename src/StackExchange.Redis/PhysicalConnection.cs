@@ -52,6 +52,9 @@ namespace StackExchange.Redis
 
         private int lastWriteTickCount, lastReadTickCount, lastBeatTickCount;
 
+        private long bytesLastResult;
+        private long bytesInBuffer;
+
         internal void GetBytes(out long sent, out long received)
         {
             if (_ioPipe is IMeasuredDuplexPipe sc)
@@ -1283,6 +1286,14 @@ namespace StackExchange.Redis
             /// Bytes in the writer pipe, waiting to be written to the socket.
             /// </summary>
             public long BytesInWritePipe { get; init; }
+            /// <summary>
+            /// Byte size of the last result we processed.
+            /// </summary>
+            public long BytesLastResult { get; init; }
+            /// <summary>
+            /// Byte size on the buffer that isn't processed yet.
+            /// </summary>
+            public long BytesInBuffer { get; init; }
 
             /// <summary>
             /// The inbound pipe reader status.
@@ -1334,6 +1345,8 @@ namespace StackExchange.Redis
                     BytesInWritePipe = counters.BytesWaitingToBeSent,
                     ReadStatus = _readStatus,
                     WriteStatus = _writeStatus,
+                    BytesLastResult = bytesLastResult,
+                    BytesInBuffer = bytesInBuffer,
                 };
             }
 
@@ -1356,6 +1369,8 @@ namespace StackExchange.Redis
                 BytesInWritePipe = -1,
                 ReadStatus = _readStatus,
                 WriteStatus = _writeStatus,
+                BytesLastResult = bytesLastResult,
+                BytesInBuffer = bytesInBuffer,
             };
         }
 
@@ -1702,6 +1717,7 @@ namespace StackExchange.Redis
         private int ProcessBuffer(ref ReadOnlySequence<byte> buffer)
         {
             int messageCount = 0;
+            bytesInBuffer = buffer.Length;
 
             while (!buffer.IsEmpty)
             {
@@ -1718,6 +1734,10 @@ namespace StackExchange.Redis
                         Trace(result.ToString());
                         _readStatus = ReadStatus.MatchResult;
                         MatchResult(result);
+
+                        // Track the last result size *after* processing for the *next* error message
+                        bytesInBuffer = buffer.Length;
+                        bytesLastResult = result.Payload.Length;
                     }
                     else
                     {
