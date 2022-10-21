@@ -48,10 +48,6 @@ namespace StackExchange.Redis.Configuration
             {
                 if (socket is not null)
                 {
-
-                    // TODO: make write+read async
-                    // TODO: compare the response more appropriately?
-
                     var encoding = Encoding.ASCII;
                     var ep = Format.ToString(endpoint);
                     const string Prefix = "CONNECT ", Suffix = " HTTP/1.1\r\n\r\n", ExpectedResponse = "HTTP/1.1 200 OK\r\n\r\n";
