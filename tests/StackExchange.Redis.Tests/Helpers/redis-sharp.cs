@@ -9,7 +9,7 @@
 //
 // Copyright 2010 Novell, Inc.
 //
-// Licensed under the same terms of reddis: new BSD license.
+// Licensed under the same terms of Redis: new BSD license.
 //
 #nullable disable
 
