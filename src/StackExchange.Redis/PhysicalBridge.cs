@@ -409,9 +409,16 @@ namespace StackExchange.Redis
             TryConnect(null);
         }
 
-        internal void OnConnectionFailed(PhysicalConnection connection, ConnectionFailureType failureType, Exception innerException)
+        internal void OnConnectionFailed(PhysicalConnection connection, ConnectionFailureType failureType, Exception innerException, bool wasRequested)
         {
-            Multiplexer.RawConfig.Logger?.LogError(innerException, innerException.Message);
+            if (wasRequested)
+            {
+                Multiplexer.RawConfig.Logger?.LogInformation(innerException, innerException.Message);
+            }
+            else
+            {
+                Multiplexer.RawConfig.Logger?.LogError(innerException, innerException.Message);
+            }
             Trace($"OnConnectionFailed: {connection}");
             // If we're configured to, fail all pending backlogged messages
             if (Multiplexer.RawConfig.BacklogPolicy?.AbortPendingOnConnectionFailure == true)

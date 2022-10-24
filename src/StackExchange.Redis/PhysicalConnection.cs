@@ -356,6 +356,15 @@ namespace StackExchange.Redis
             }
         }
 
+        /// <summary>
+        /// Did we ask for the shutdown? If so this leads to informational messages for tracking but not errors.
+        /// </summary>
+        private bool IsRequestedShutdown(PipeShutdownKind kind) => kind switch
+        {
+            PipeShutdownKind.ProtocolExitClient => true,
+            _ => false,
+        };
+
         public void RecordConnectionFailed(
             ConnectionFailureType failureType,
             Exception? innerException = null,
@@ -364,6 +373,7 @@ namespace StackExchange.Redis
             IDuplexPipe? connectingPipe = null
             )
         {
+            bool weAskedForThis = false;
             Exception? outerException = innerException;
             IdentifyFailureType(innerException, ref failureType);
             var bridge = BridgeCouldBeNull;
@@ -410,6 +420,9 @@ namespace StackExchange.Redis
                     var pipe = connectingPipe ?? _ioPipe;
                     if (pipe is SocketConnection sc)
                     {
+                        // If the reason for the shutdown was we asked for the socket to die, don't log it as an error (only informational)
+                        weAskedForThis = IsRequestedShutdown(sc.ShutdownKind);
+
                         exMessage.Append(" (").Append(sc.ShutdownKind);
                         if (sc.SocketError != SocketError.Success)
                         {
@@ -477,7 +490,7 @@ namespace StackExchange.Redis
                         outerException.Data["Redis-" + kv.Item1] = kv.Item2;
                     }
 
-                    bridge?.OnConnectionFailed(this, failureType, outerException);
+                    bridge?.OnConnectionFailed(this, failureType, outerException, wasRequested: weAskedForThis);
                 }
             }
             // cleanup
