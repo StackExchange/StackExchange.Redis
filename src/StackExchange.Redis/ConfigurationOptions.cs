@@ -161,7 +161,7 @@ namespace StackExchange.Redis
 
         private BacklogPolicy? backlogPolicy;
 
-        private ILogger logger;
+        private ILogger? logger;
 
         /// <summary>
         /// A LocalCertificateSelectionCallback delegate responsible for selecting the certificate used for authentication; note
@@ -435,7 +435,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// The <see cref="ILogger"/> to use for connection events.
         /// </summary>
-        public ILogger Logger
+        public ILogger? Logger
         {
             get => logger;
             set => logger = value;

@@ -6,17 +6,17 @@ namespace StackExchange.Redis;
 
 internal sealed class LogProxy : IDisposable
 {
-    public static LogProxy? TryCreate(TextWriter writer, ConfigurationOptions options)
+    public static LogProxy? TryCreate(TextWriter? writer, ConfigurationOptions? options)
         => writer == null && options?.Logger == null
         ? null
         : new LogProxy(writer, options?.Logger);
 
     private TextWriter? _log;
-    private ILogger _logger;
+    private ILogger? _logger;
     internal static Action<string> NullWriter = _ => { };
     public object SyncLock => this;
 
-    private LogProxy(TextWriter log, ILogger logger)
+    private LogProxy(TextWriter? log, ILogger? logger)
     {
         _log = log;
         _logger = logger;
@@ -33,7 +33,7 @@ internal sealed class LogProxy : IDisposable
         }
     }
 
-    public void LogInfo(string message = null)
+    public void LogInfo(string? message = null)
     {
         var msg = $"{DateTime.UtcNow:HH:mm:ss.ffff}: {message}";
         if (_log != null) // note: double-checked
@@ -59,7 +59,7 @@ internal sealed class LogProxy : IDisposable
         _logger?.LogTrace(msg);
     }
 
-    public void LogError(Exception ex, string message)
+    public void LogError(Exception? ex, string message)
     {
         var msg = $"{DateTime.UtcNow:HH:mm:ss.ffff}: {message}";
         if (_log != null) // note: double-checked
@@ -85,7 +85,7 @@ internal sealed class LogProxy : IDisposable
 
     public override string ToString()
     {
-        string s = null;
+        string? s = null;
         if (_log != null)
         {
             lock (SyncLock)
@@ -93,7 +93,7 @@ internal sealed class LogProxy : IDisposable
                 s = _log?.ToString();
             }
         }
-        return s ?? base.ToString();
+        return s ?? base.ToString() ?? string.Empty;
     }
 
     public void Dispose()

@@ -386,7 +386,7 @@ public partial class ConnectionMultiplexer
         {
             if (connection.RawConfig.ServiceName is not string serviceName)
             {
-                logProxy?.WriteLine("Service name not defined.");
+                logProxy?.LogInfo("Service name not defined.");
                 return;
             }
 

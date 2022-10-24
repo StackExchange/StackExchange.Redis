@@ -41,7 +41,7 @@ namespace StackExchange.Redis
 
         private volatile bool _isDisposed;
         internal bool IsDisposed => _isDisposed;
-        private ILogger Logger => RawConfig.Logger;
+        private ILogger? Logger => RawConfig.Logger;
 
         internal CommandMap CommandMap { get; }
         internal EndPointCollection EndPoints { get; }
@@ -1315,7 +1315,7 @@ namespace StackExchange.Redis
                             log?.LogInfo($"  {Format.ToString(server.EndPoint)}: Endpoint is (Interactive: {server.InteractiveConnectionState}, Subscription: {server.SubscriptionConnectionState})");
                         }
 
-                        log?.WriteLine("Task summary:");
+                        log?.LogInfo("Task summary:");
                         EndPointCollection? updatedClusterEndpointCollection = null;
                         for (int i = 0; i < available.Length; i++)
                         {
