@@ -21,6 +21,8 @@ namespace StackExchange.Redis.Configuration
         /// <remarks><c>null</c> should be returned if a socket is not required for this endpoint.</remarks>
         public virtual ValueTask<EndPoint?> GetSocketConnectEndpointAsync(EndPoint endpoint, CancellationToken cancellationToken) => new(endpoint);
 
+        internal virtual bool IsInbuilt => false; // only inbuilt tunnels get added to config strings
+
         /// <summary>
         /// Allows modification of a <see cref="Socket"/> between creation and connection.
         /// Passed in is the endpoint we're connecting to, which type of connection it is, and the socket itself.
@@ -33,8 +35,6 @@ namespace StackExchange.Redis.Configuration
         /// the entire data flow can be intercepted, providing entire custom transports.
         /// </summary>
         public virtual ValueTask<Stream?> BeforeAuthenticateAsync(EndPoint endpoint, ConnectionType connectionType, Socket? socket, CancellationToken cancellationToken) => default;
-        /// <inheritdoc/>
-        public abstract override string ToString();
 
         private sealed class HttpProxyTunnel : Tunnel
         {
@@ -102,6 +102,7 @@ namespace StackExchange.Redis.Configuration
                 return default; // no need for custom stream wrapper here
             }
 
+            internal override bool IsInbuilt => true;
             public override string ToString() => "http:" + Format.ToString(Proxy);
         }
 

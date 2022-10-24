@@ -1,4 +1,5 @@
-﻿using System;
+﻿using StackExchange.Redis.Configuration;
+using System;
 using System.Globalization;
 using System.IO;
 using System.IO.Pipelines;
@@ -613,7 +614,7 @@ public class Config : TestBase
     }
 
     [Fact]
-    public void HttpTunnel()
+    public void HttpTunnelCanRoundtrip()
     {
         var config = ConfigurationOptions.Parse("127.0.0.1:6380,tunnel=http:somewhere:22");
         var ip = Assert.IsType<IPEndPoint>(Assert.Single(config.EndPoints));
@@ -625,5 +626,20 @@ public class Config : TestBase
 
         var cs = config.ToString();
         Assert.Equal("127.0.0.1:6380,tunnel=http:somewhere:22", cs);
+    }
+
+    private class CustomTunnel : Tunnel { }
+
+    [Fact]
+    public void CustomTunnelCanRoundtripMinusTunnel()
+    {
+        // we don't expect to be able to parse custom tunnels, but we should still be able to round-trip
+        // the rest of the config, which means ignoring them *in both directions* (unless first party)
+        var options = ConfigurationOptions.Parse("127.0.0.1,Ssl=true");
+        options.Tunnel = new CustomTunnel();
+        var cs = options.ToString();
+        Assert.Equal("127.0.0.1,ssl=True", cs);
+        options = ConfigurationOptions.Parse(cs);
+        Assert.Null(options.Tunnel);
     }
 }

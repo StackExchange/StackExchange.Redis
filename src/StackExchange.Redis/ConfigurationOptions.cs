@@ -731,7 +731,7 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.ConfigCheckSeconds, configCheckSeconds);
             Append(sb, OptionKeys.ResponseTimeout, responseTimeout);
             Append(sb, OptionKeys.DefaultDatabase, DefaultDatabase);
-            if (Tunnel is Tunnel tunnel)
+            if (Tunnel is { IsInbuilt: true } tunnel)
             {
                 Append(sb, OptionKeys.Tunnel, tunnel.ToString());
             }
