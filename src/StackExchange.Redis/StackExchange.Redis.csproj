@@ -1,5 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
+    <Nullable>enable</Nullable>
     <!-- extend the default lib targets for the main lib; mostly because of "vectors" -->
     <!-- Note: we're NOT building for .NET 6 because the thread pool changes are not wins yet -->
     <TargetFrameworks>net461;netstandard2.0;net472;netcoreapp3.1;net5.0</TargetFrameworks>
@@ -25,10 +26,18 @@
     <PackageReference Include="System.Threading.Channels" Condition="'$(TargetFramework)' == 'net472' or '$(TargetFramework)' == 'net461' or '$(TargetFramework)' == 'netstandard2.0'" />
 
     <!-- net461 needs this for OSPlatform et al -->
-    <PackageReference Include="System.Runtime.InteropServices.RuntimeInformation" Condition="'$(TargetFramework)' == 'net461' "/>
+    <PackageReference Include="System.Runtime.InteropServices.RuntimeInformation" Condition="'$(TargetFramework)' == 'net461' " />
     
     <!-- netfx needs this for ZipArchive -->
-    <PackageReference Include="System.IO.Compression" Condition="'$(TargetFramework)' == 'net472' or '$(TargetFramework)' == 'net461' "/>
+    <PackageReference Include="System.IO.Compression" Condition="'$(TargetFramework)' == 'net472' or '$(TargetFramework)' == 'net461' " />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- APIs for all target frameworks -->
+    <AdditionalFiles Include="PublicAPI/PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI/PublicAPI.Unshipped.txt" />
+    <!-- APIs for netcoreapp3.1+ -->
+    <AdditionalFiles Include="PublicAPI/netcoreapp3.1/PublicAPI.Shipped.txt" Condition="'$(TargetFramework)' == 'netcoreapp3.1' or '$(TargetFramework)' == 'net5.0'" />
   </ItemGroup>
 
   <ItemGroup>

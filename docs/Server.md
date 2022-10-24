@@ -13,7 +13,7 @@ There are multiple ways of running redis on windows:
 
 - [Memurai](https://www.memurai.com/) : a fully supported, well-maintained port of redis for Windows (this is a commercial product, with a free developer version available, and free trials)
   - previous to Memurai, MSOpenTech had a Windows port of linux, but this is no longer maintained and is now very out of date; it is not recommended, but: [here](https://www.nuget.org/packages/redis-64/)
-- WSL/WSL2 : on Windows 10, you can run redis for linux in the Windows Subsystem for Linux; note, however, that WSL may have some significant performance implications, and WSL2 appears as a *different* machine (not the local machine), due to running as a VM
+- WSL/WSL2 : on Windows 10+, you can run redis for linux in the Windows Subsystem for Linux; note, however, that WSL may have some significant performance implications, and WSL2 appears as a *different* machine (not the local machine), due to running as a VM
 
 ## Docker
 

@@ -2,6 +2,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
@@ -20,7 +21,7 @@ namespace StackExchange.Redis
 
         private const int ProfileLogSamples = 10;
 
-        private const double ProfileLogSeconds = (ConnectionMultiplexer.MillisecondsPerHeartbeat * ProfileLogSamples) / 1000.0;
+        private const double ProfileLogSeconds = (1000 /* ms */ * ProfileLogSamples) / 1000.0;
 
         private static readonly Message ReusableAskingCommand = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.ASKING);
 
@@ -50,7 +51,7 @@ namespace StackExchange.Redis
 
         //private volatile int missedHeartbeats;
         private long operationCount, socketCount;
-        private volatile PhysicalConnection physical;
+        private volatile PhysicalConnection? physical;
 
         private long profileLastLog;
         private int profileLogIndex;
@@ -65,7 +66,8 @@ namespace StackExchange.Redis
         private readonly MutexSlim _singleWriterMutex;
 #endif
 
-        internal string PhysicalName => physical?.ToString();
+        internal string? PhysicalName => physical?.ToString();
+
         public PhysicalBridge(ServerEndPoint serverEndPoint, ConnectionType type, int timeoutMilliseconds)
         {
             ServerEndPoint = serverEndPoint;
@@ -88,7 +90,7 @@ namespace StackExchange.Redis
             Disconnected
         }
 
-        public Exception LastException { get; private set; }
+        public Exception? LastException { get; private set; }
 
         public ConnectionType ConnectionType { get; }
 
@@ -337,7 +339,7 @@ namespace StackExchange.Redis
             if (!(physical?.IsIdle() ?? false)) return; // don't pile on if already doing something
 
             var commandMap = Multiplexer.CommandMap;
-            Message msg = null;
+            Message? msg = null;
             var features = ServerEndPoint.GetFeatures();
             switch (ConnectionType)
             {
@@ -365,7 +367,7 @@ namespace StackExchange.Redis
             {
                 msg.SetInternalCall();
                 Multiplexer.Trace("Enqueue: " + msg);
-                Multiplexer.OnInfoMessage($"heartbeat ({physical?.LastWriteSecondsAgo}s >= {ServerEndPoint?.WriteEverySeconds}s, {physical?.GetSentAwaitingResponseCount()} waiting) '{msg.CommandAndKey}' on '{PhysicalName}' (v{features.Version})");
+                Multiplexer.OnInfoMessage($"heartbeat ({physical?.LastWriteSecondsAgo}s >= {ServerEndPoint.WriteEverySeconds}s, {physical?.GetSentAwaitingResponseCount()} waiting) '{msg.CommandAndKey}' on '{PhysicalName}' (v{features.Version})");
                 physical?.UpdateLastWriteTime(); // preemptively
 #pragma warning disable CS0618 // Type or member is obsolete
                 var result = TryWriteSync(msg, ServerEndPoint.IsReplica);
@@ -379,7 +381,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal async Task OnConnectedAsync(PhysicalConnection connection, LogProxy log)
+        internal async Task OnConnectedAsync(PhysicalConnection connection, LogProxy? log)
         {
             Trace("OnConnected");
             if (physical == connection && !isDisposed && ChangeState(State.Connecting, State.ConnectedEstablishing))
@@ -426,7 +428,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal void OnDisconnected(ConnectionFailureType failureType, PhysicalConnection connection, out bool isCurrent, out State oldState)
+        internal void OnDisconnected(ConnectionFailureType failureType, PhysicalConnection? connection, out bool isCurrent, out State oldState)
         {
             Trace($"OnDisconnected: {failureType}");
 
@@ -464,7 +466,7 @@ namespace StackExchange.Redis
 
         private void AbandonPendingBacklog(Exception ex)
         {
-            while (BacklogTryDequeue(out Message next))
+            while (BacklogTryDequeue(out Message? next))
             {
                 Multiplexer?.OnMessageFaulted(next, ex);
                 next.SetExceptionAndComplete(ex, this);
@@ -474,7 +476,7 @@ namespace StackExchange.Redis
         internal void OnFullyEstablished(PhysicalConnection connection, string source)
         {
             Trace("OnFullyEstablished");
-            connection?.SetIdle();
+            connection.SetIdle();
             if (physical == connection && !isDisposed && ChangeState(State.ConnectedEstablishing, State.ConnectedEstablished))
             {
                 reportNextFailure = reconfigureNextFailure = true;
@@ -588,7 +590,7 @@ namespace StackExchange.Redis
                         if (!ifConnectedOnly)
                         {
                             Multiplexer.Trace("Resurrecting " + ToString());
-                            Multiplexer.OnResurrecting(ServerEndPoint?.EndPoint, ConnectionType);
+                            Multiplexer.OnResurrecting(ServerEndPoint.EndPoint, ConnectionType);
                             TryConnect(null);
                         }
                         break;
@@ -646,7 +648,7 @@ namespace StackExchange.Redis
             return true;
         }
 
-        private Message _activeMessage;
+        private Message? _activeMessage;
 
         private WriteResult WriteMessageInsideLock(PhysicalConnection physical, Message message)
         {
@@ -804,7 +806,7 @@ namespace StackExchange.Redis
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private bool BacklogTryDequeue(out Message message)
+        private bool BacklogTryDequeue([NotNullWhen(true)] out Message? message)
         {
             if (_backlog.TryDequeue(out message))
             {
@@ -831,7 +833,7 @@ namespace StackExchange.Redis
                 // to unblock the thread-pool when there could be sync-over-async callers. Note that in reality,
                 // the initial "enough" of the back-log processor is typically sync, which means that the thread
                 // we start is actually useful, despite thinking "but that will just go async and back to the pool"
-                var thread = new Thread(s => ((PhysicalBridge)s).ProcessBacklogAsync().RedisFireAndForget())
+                var thread = new Thread(s => ((PhysicalBridge)s!).ProcessBacklogAsync().RedisFireAndForget())
                 {
                     IsBackground = true,                  // don't keep process alive (also: act like the thread-pool used to)
                     Name = "StackExchange.Redis Backlog", // help anyone looking at thread-dumps
@@ -857,7 +859,7 @@ namespace StackExchange.Redis
             // Because peeking at the backlog, checking message and then dequeuing, is not thread-safe, we do have to use
             // a lock here, for mutual exclusion of backlog DEQUEUERS. Unfortunately.
             // But we reduce contention by only locking if we see something that looks timed out.
-            while (_backlog.TryPeek(out Message message))
+            while (_backlog.TryPeek(out Message? message))
             {
                 // See if the message has pass our async timeout threshold
                 // or has otherwise been completed (e.g. a sync wait timed out) which would have cleared the ResultBox
@@ -1007,7 +1009,7 @@ namespace StackExchange.Redis
                 // If we can't write them, abort and wait for the next heartbeat or activation to try this again.
                 while (IsConnected && physical?.HasOutputPipe == true)
                 {
-                    Message message;
+                    Message? message;
                     _backlogStatus = BacklogStatus.CheckingForWork;
 
                     lock (_backlog)
@@ -1241,7 +1243,7 @@ namespace StackExchange.Redis
             try
             {
                 var result = await flush.ForAwait();
-                physical.SetIdle();
+                physical?.SetIdle();
                 return result;
             }
             catch (Exception ex)
@@ -1287,7 +1289,7 @@ namespace StackExchange.Redis
             return result;
         }
 
-        public PhysicalConnection TryConnect(LogProxy log)
+        public PhysicalConnection? TryConnect(LogProxy? log)
         {
             if (state == (int)State.Disconnected)
             {
@@ -1339,7 +1341,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private void OnInternalError(Exception exception, [CallerMemberName] string origin = null)
+        private void OnInternalError(Exception exception, [CallerMemberName] string? origin = null)
         {
             Multiplexer.OnInternalError(exception, ServerEndPoint.EndPoint, ConnectionType, origin);
         }

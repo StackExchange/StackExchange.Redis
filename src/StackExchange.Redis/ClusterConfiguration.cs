@@ -68,7 +68,7 @@ namespace StackExchange.Redis
         {
             if (string.IsNullOrWhiteSpace(range))
             {
-                value = default(SlotRange);
+                value = default;
                 return false;
             }
             int i = range.IndexOf('-');
@@ -89,7 +89,7 @@ namespace StackExchange.Redis
                     return true;
                 }
             }
-            value = default(SlotRange);
+            value = default;
             return false;
         }
 
@@ -108,7 +108,7 @@ namespace StackExchange.Redis
         /// See <see cref="object.Equals(object)"/>.
         /// </summary>
         /// <param name="obj">The other slot range to compare to.</param>
-        public override bool Equals(object obj) => obj is SlotRange sRange && Equals(sRange);
+        public override bool Equals(object? obj) => obj is SlotRange sRange && Equals(sRange);
 
         /// <summary>
         /// Indicates whether two ranges are equal.
@@ -147,7 +147,7 @@ namespace StackExchange.Redis
             }
         }
 
-        int IComparable.CompareTo(object obj) => obj is SlotRange sRange ? CompareTo(sRange) : -1;
+        int IComparable.CompareTo(object? obj) => obj is SlotRange sRange ? CompareTo(sRange) : -1;
     }
 
     /// <summary>
@@ -165,8 +165,7 @@ namespace StackExchange.Redis
             Origin = origin;
             using (var reader = new StringReader(nodes))
             {
-                string line;
-                while ((line = reader.ReadLine()) != null)
+                while (reader.ReadLine() is string line)
                 {
                     if (string.IsNullOrWhiteSpace(line)) continue;
                     var node = new ClusterNode(this, line, origin);
@@ -225,11 +224,11 @@ namespace StackExchange.Redis
         /// Obtain the node relating to a specified endpoint.
         /// </summary>
         /// <param name="endpoint">The endpoint to get a cluster node from.</param>
-        public ClusterNode this[EndPoint endpoint] => endpoint == null
+        public ClusterNode? this[EndPoint endpoint] => endpoint == null
             ? null
-            : nodeLookup.TryGetValue(endpoint, out ClusterNode result) ? result : null;
+            : nodeLookup.TryGetValue(endpoint, out ClusterNode? result) ? result : null;
 
-        internal ClusterNode this[string nodeId]
+        internal ClusterNode? this[string nodeId]
         {
             get
             {
@@ -246,7 +245,7 @@ namespace StackExchange.Redis
         /// Gets the node that serves the specified slot.
         /// </summary>
         /// <param name="slot">The slot ID to get a node by.</param>
-        public ClusterNode GetBySlot(int slot)
+        public ClusterNode? GetBySlot(int slot)
         {
             foreach(var node in Nodes)
             {
@@ -259,28 +258,22 @@ namespace StackExchange.Redis
         /// Gets the node that serves the specified key's slot.
         /// </summary>
         /// <param name="key">The key to identify a node by.</param>
-        public ClusterNode GetBySlot(RedisKey key) => GetBySlot(serverSelectionStrategy.HashSlot(key));
+        public ClusterNode? GetBySlot(RedisKey key) => GetBySlot(serverSelectionStrategy.HashSlot(key));
     }
 
     /// <summary>
     /// Represents the configuration of a single node in a cluster configuration.
     /// </summary>
+    /// <remarks><seealso href="https://redis.io/commands/cluster-nodes"/></remarks>
     public sealed class ClusterNode :  IEquatable<ClusterNode>, IComparable<ClusterNode>, IComparable
     {
-        private static readonly ClusterNode Dummy = new();
-
         private readonly ClusterConfiguration configuration;
+        private IList<ClusterNode>? children;
+        private ClusterNode? parent;
+        private string? toString;
 
-        private IList<ClusterNode> children;
-
-        private ClusterNode parent;
-
-        private string toString;
-
-        internal ClusterNode() { }
         internal ClusterNode(ClusterConfiguration configuration, string raw, EndPoint origin)
         {
-            // https://redis.io/commands/cluster-nodes
             this.configuration = configuration;
             Raw = raw;
             var parts = raw.Split(StringSplits.Space);
@@ -292,7 +285,10 @@ namespace StackExchange.Redis
             int at = ep.IndexOf('@');
             if (at >= 0) ep = ep.Substring(0, at);
 
-            EndPoint = Format.TryParseEndPoint(ep);
+            if (Format.TryParseEndPoint(ep, out var epResult))
+            {
+                EndPoint = epResult;
+            }
             if (flags.Contains("myself"))
             {
                 IsMyself = true;
@@ -309,7 +305,7 @@ namespace StackExchange.Redis
             IsNoAddr = flags.Contains("noaddr");
             ParentNodeId = string.IsNullOrWhiteSpace(parts[3]) ? null : parts[3];
 
-            List<SlotRange> slots = null;
+            List<SlotRange>? slots = null;
 
             for (int i = 8; i < parts.Length; i++)
             {
@@ -329,9 +325,9 @@ namespace StackExchange.Redis
         {
             get
             {
-                if (children != null) return children;
+                if (children is not null) return children;
 
-                List<ClusterNode> nodes = null;
+                List<ClusterNode>? nodes = null;
                 foreach (var node in configuration.Nodes)
                 {
                     if (node.ParentNodeId == NodeId)
@@ -347,7 +343,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Gets the endpoint of the current node.
         /// </summary>
-        public EndPoint EndPoint { get; }
+        public EndPoint? EndPoint { get; }
 
         /// <summary>
         /// Gets whether this is the node which responded to the CLUSTER NODES request.
@@ -384,21 +380,12 @@ namespace StackExchange.Redis
         /// <summary>
         /// Gets the parent node of the current node.
         /// </summary>
-        public ClusterNode Parent
-        {
-            get
-            {
-                if (parent != null) return parent == Dummy ? null : parent;
-                ClusterNode found = configuration[ParentNodeId];
-                parent = found ?? Dummy;
-                return found;
-            }
-        }
+        public ClusterNode? Parent => (parent is not null) ? parent = configuration[ParentNodeId!] : null;
 
         /// <summary>
         /// Gets the unique node-id of the parent of the current node.
         /// </summary>
-        public string ParentNodeId { get; }
+        public string? ParentNodeId { get; }
 
         /// <summary>
         /// The configuration as reported by the server.
@@ -415,7 +402,7 @@ namespace StackExchange.Redis
         /// whether the current instance precedes, follows, or occurs in the same position in the sort order as the other object.
         /// </summary>
         /// <param name="other">The <see cref="ClusterNode"/> to compare to.</param>
-        public int CompareTo(ClusterNode other)
+        public int CompareTo(ClusterNode? other)
         {
             if (other == null) return -1;
 
@@ -433,18 +420,13 @@ namespace StackExchange.Redis
         /// See <see cref="object.Equals(object)"/>.
         /// </summary>
         /// <param name="obj">The <see cref="ClusterNode"/> to compare to.</param>
-        public override bool Equals(object obj) => Equals(obj as ClusterNode);
+        public override bool Equals(object? obj) => Equals(obj as ClusterNode);
 
         /// <summary>
         /// Indicates whether two <see cref="ClusterNode"/> instances are equivalent.
         /// </summary>
         /// <param name="other">The <see cref="ClusterNode"/> to compare to.</param>
-        public bool Equals(ClusterNode other)
-        {
-            if (other == null) return false;
-
-            return ToString() == other.ToString(); // lazy, but effective - plus only computes once
-        }
+        public bool Equals(ClusterNode? other) => other is ClusterNode node && ToString() == node.ToString();
 
         /// <inheritdoc/>
         public override int GetHashCode() => ToString().GetHashCode();
@@ -454,13 +436,12 @@ namespace StackExchange.Redis
         /// </summary>
         public override string ToString()
         {
-            if (toString != null) return toString;
+            if (toString is not null) return toString;
             var sb = new StringBuilder().Append(NodeId).Append(" at ").Append(EndPoint);
             if (IsReplica)
             {
                 sb.Append(", replica of ").Append(ParentNodeId);
-                var parent = Parent;
-                if (parent != null) sb.Append(" at ").Append(parent.EndPoint);
+                if (Parent is ClusterNode parent) sb.Append(" at ").Append(parent.EndPoint);
             }
             var childCount = Children.Count;
             switch(childCount)
@@ -490,6 +471,6 @@ namespace StackExchange.Redis
             return false;
         }
 
-        int IComparable.CompareTo(object obj) => CompareTo(obj as ClusterNode);
+        int IComparable.CompareTo(object? obj) => CompareTo(obj as ClusterNode);
     }
 }

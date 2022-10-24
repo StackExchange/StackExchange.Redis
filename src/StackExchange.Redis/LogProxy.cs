@@ -6,12 +6,12 @@ namespace StackExchange.Redis;
 
 internal sealed class LogProxy : IDisposable
 {
-    public static LogProxy TryCreate(TextWriter writer, ConfigurationOptions options)
+    public static LogProxy? TryCreate(TextWriter writer, ConfigurationOptions options)
         => writer == null && options?.Logger == null
         ? null
         : new LogProxy(writer, options?.Logger);
 
-    private TextWriter _log;
+    private TextWriter? _log;
     private ILogger _logger;
     internal static Action<string> NullWriter = _ => { };
     public object SyncLock => this;
@@ -24,7 +24,7 @@ internal sealed class LogProxy : IDisposable
 
     public void WriteLine()
     {
-        if (_log != null) // note: double-checked
+        if (_log is not null) // note: double-checked
         {
             lock (SyncLock)
             {

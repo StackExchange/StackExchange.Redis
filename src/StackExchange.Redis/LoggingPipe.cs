@@ -54,7 +54,7 @@ namespace StackExchange.Redis
 
                 while(true)
                 {
-                    var result = await from.ReadAsync();
+                    var result = await from.ReadAsync().ForAwait();
                     var buffer = result.Buffer;
                     if (result.IsCompleted && buffer.IsEmpty) break;
 

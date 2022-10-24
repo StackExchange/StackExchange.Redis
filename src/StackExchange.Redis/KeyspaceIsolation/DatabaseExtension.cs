@@ -61,7 +61,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
                 database = wrapper.Inner;
             }
 
-            return new DatabaseWrapper(database, keyPrefix.AsPrefix());
+            return new DatabaseWrapper(database, keyPrefix.AsPrefix()!);
         }
     }
 }

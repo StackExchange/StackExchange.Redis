@@ -6,11 +6,11 @@
     <AssemblyOriginatorKeyFile>$(MSBuildThisFileDirectory)StackExchange.Redis.snk</AssemblyOriginatorKeyFile>
     <PackageId>$(AssemblyName)</PackageId>
     <Features>strict</Features>
-    <Authors>Stack Exchange, Inc.; marc.gravell</Authors>
+    <Authors>Stack Exchange, Inc.; Marc Gravell; Nick Craver</Authors>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <CodeAnalysisRuleset>$(MSBuildThisFileDirectory)Shared.ruleset</CodeAnalysisRuleset>
     <MSBuildWarningsAsMessages>NETSDK1069</MSBuildWarningsAsMessages>
-    <NoWarn>NU5105</NoWarn>
+    <NoWarn>NU5105;NU1507</NoWarn>
     <PackageReleaseNotes>https://stackexchange.github.io/StackExchange.Redis/ReleaseNotes</PackageReleaseNotes>
     <PackageProjectUrl>https://github.com/StackExchange/StackExchange.Redis/</PackageProjectUrl>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>

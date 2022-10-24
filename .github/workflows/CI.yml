@@ -13,6 +13,9 @@ jobs:
   main:
     name: StackExchange.Redis (Ubuntu)
     runs-on: ubuntu-latest
+    env:
+      DOTNET_SYSTEM_CONSOLE_ALLOW_ANSI_COLOR_REDIRECTION: "1" # Enable color output, even though the console output is redirected in Actions
+      TERM: xterm # Enable color output in GitHub Actions
     steps:
     - name: Checkout code
       uses: actions/checkout@v1
@@ -27,7 +30,7 @@ jobs:
       working-directory: ./tests/RedisConfigs
       run: docker-compose -f docker-compose.yml up -d
     - name: StackExchange.Redis.Tests
-      run: dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj -c Release --logger trx --results-directory ./test-results/ /p:CI=true
+      run: dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj -c Release --logger trx --logger GitHubActions --results-directory ./test-results/ /p:CI=true
     - uses: dorny/test-reporter@v1
       continue-on-error: true
       if: success() || failure()
@@ -43,6 +46,8 @@ jobs:
     runs-on: windows-2022
     env:
       NUGET_CERT_REVOCATION_MODE: offline # Disabling signing because of massive perf hit, see https://github.com/NuGet/Home/issues/11548
+      DOTNET_SYSTEM_CONSOLE_ALLOW_ANSI_COLOR_REDIRECTION: "1" # Note this doesn't work yet for Windows - see https://github.com/dotnet/runtime/issues/68340
+      TERM: xterm
     steps:
     - name: Checkout code
       uses: actions/checkout@v1
@@ -56,7 +61,7 @@ jobs:
     - name: Start Redis Services (v3.0.503)
       working-directory: .\tests\RedisConfigs\3.0.503
       run: |
-        .\redis-server.exe --service-install --service-name "redis-6379" "..\Basic\primary-6379.conf"
+        .\redis-server.exe --service-install --service-name "redis-6379" "..\Basic\primary-6379-3.0.conf"
         .\redis-server.exe --service-install --service-name "redis-6380" "..\Basic\replica-6380.conf"
         .\redis-server.exe --service-install --service-name "redis-6381" "..\Basic\secure-6381.conf"
         .\redis-server.exe --service-install --service-name "redis-6382" "..\Failover\primary-6382.conf"
@@ -74,7 +79,7 @@ jobs:
         .\redis-server.exe --service-install --service-name "redis-26381" "..\Sentinel\sentinel-26381.conf" --sentinel
         Start-Service redis-*
     - name: StackExchange.Redis.Tests
-      run: dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj -c Release --logger trx --results-directory ./test-results/ /p:CI=true
+      run: dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj -c Release --logger trx --logger GitHubActions --results-directory ./test-results/ /p:CI=true
     - uses: dorny/test-reporter@v1
       continue-on-error: true
       if: success() || failure()

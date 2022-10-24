@@ -14,7 +14,7 @@ namespace StackExchange.Redis
         public readonly LogProxy log;
         private readonly Message tail;
 
-        public static Message Create(LogProxy log, Message tail)
+        public static Message Create(LogProxy? log, Message tail)
         {
             return log == null ? tail : new LoggingMessage(log, tail);
         }
@@ -37,7 +37,7 @@ namespace StackExchange.Redis
             try
             {
                 var bridge = physical.BridgeCouldBeNull;
-                log?.LogTrace($"{bridge.Name}: Writing: {tail.CommandAndKey}");
+                log?.LogTrace($"{bridge?.Name}: Writing: {tail.CommandAndKey}");
             }
             catch { }
             tail.WriteTo(physical);
@@ -75,12 +75,12 @@ namespace StackExchange.Redis
                                                        | CommandFlags.FireAndForget
                                                        | CommandFlags.NoRedirect
                                                        | CommandFlags.NoScriptCache;
-        private IResultBox resultBox;
+        private IResultBox? resultBox;
 
-        private ResultProcessor resultProcessor;
+        private ResultProcessor? resultProcessor;
 
         // All for profiling purposes
-        private ProfiledCommand performance;
+        private ProfiledCommand? performance;
         internal DateTime CreatedDateTime;
         internal long CreatedTimestamp;
 
@@ -106,7 +106,7 @@ namespace StackExchange.Redis
                 }
             }
 
-            bool primaryOnly = IsPrimaryOnly(command);
+            bool primaryOnly = command.IsPrimaryOnly();
             Db = db;
             this.command = command;
             Flags = flags & UserSelectableFlags;
@@ -204,7 +204,7 @@ namespace StackExchange.Redis
         public bool IsFireAndForget => (Flags & CommandFlags.FireAndForget) != 0;
         public bool IsInternalCall => (Flags & InternalCallFlag) != 0;
 
-        public IResultBox ResultBox => resultBox;
+        public IResultBox? ResultBox => resultBox;
 
         public abstract int ArgCount { get; } // note: over-estimate if necessary
 
@@ -281,6 +281,9 @@ namespace StackExchange.Redis
         public static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisKey key, in RedisValue value0, in RedisValue value1, in RedisValue value2, in RedisValue value3, in RedisValue value4) =>
             new CommandKeyValueValueValueValueValueMessage(db, flags, command, key, value0, value1, value2, value3, value4);
 
+        public static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisKey key, in RedisValue value0, in RedisValue value1, in RedisValue value2, in RedisValue value3, in RedisValue value4, in RedisValue value5, in RedisValue value6) =>
+            new CommandKeyValueValueValueValueValueValueValueMessage(db, flags, command, key, value0, value1, value2, value3, value4, value5, value6);
+
         public static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisValue value0, in RedisValue value1) =>
             new CommandValueValueMessage(db, flags, command, value0, value1);
 
@@ -320,89 +323,6 @@ namespace StackExchange.Redis
 
         public static Message CreateInSlot(int db, int slot, CommandFlags flags, RedisCommand command, RedisValue[] values) =>
             new CommandSlotValuesMessage(db, slot, flags, command, values);
-
-        public static bool IsPrimaryOnly(RedisCommand command)
-        {
-            switch (command)
-            {
-                case RedisCommand.APPEND:
-                case RedisCommand.BITOP:
-                case RedisCommand.BLPOP:
-                case RedisCommand.BRPOP:
-                case RedisCommand.BRPOPLPUSH:
-                case RedisCommand.DECR:
-                case RedisCommand.DECRBY:
-                case RedisCommand.DEL:
-                case RedisCommand.EXPIRE:
-                case RedisCommand.EXPIREAT:
-                case RedisCommand.FLUSHALL:
-                case RedisCommand.FLUSHDB:
-                case RedisCommand.GETDEL:
-                case RedisCommand.GETEX:
-                case RedisCommand.GETSET:
-                case RedisCommand.HDEL:
-                case RedisCommand.HINCRBY:
-                case RedisCommand.HINCRBYFLOAT:
-                case RedisCommand.HMSET:
-                case RedisCommand.HSET:
-                case RedisCommand.HSETNX:
-                case RedisCommand.INCR:
-                case RedisCommand.INCRBY:
-                case RedisCommand.INCRBYFLOAT:
-                case RedisCommand.LINSERT:
-                case RedisCommand.LPOP:
-                case RedisCommand.LPUSH:
-                case RedisCommand.LPUSHX:
-                case RedisCommand.LREM:
-                case RedisCommand.LSET:
-                case RedisCommand.LTRIM:
-                case RedisCommand.MIGRATE:
-                case RedisCommand.MOVE:
-                case RedisCommand.MSET:
-                case RedisCommand.MSETNX:
-                case RedisCommand.PERSIST:
-                case RedisCommand.PEXPIRE:
-                case RedisCommand.PEXPIREAT:
-                case RedisCommand.PFADD:
-                case RedisCommand.PFMERGE:
-                case RedisCommand.PSETEX:
-                case RedisCommand.RENAME:
-                case RedisCommand.RENAMENX:
-                case RedisCommand.RESTORE:
-                case RedisCommand.RPOP:
-                case RedisCommand.RPOPLPUSH:
-                case RedisCommand.RPUSH:
-                case RedisCommand.RPUSHX:
-                case RedisCommand.SADD:
-                case RedisCommand.SDIFFSTORE:
-                case RedisCommand.SET:
-                case RedisCommand.SETBIT:
-                case RedisCommand.SETEX:
-                case RedisCommand.SETNX:
-                case RedisCommand.SETRANGE:
-                case RedisCommand.SINTERSTORE:
-                case RedisCommand.SMOVE:
-                case RedisCommand.SPOP:
-                case RedisCommand.SREM:
-                case RedisCommand.SUNIONSTORE:
-                case RedisCommand.SWAPDB:
-                case RedisCommand.TOUCH:
-                case RedisCommand.UNLINK:
-                case RedisCommand.ZADD:
-                case RedisCommand.ZINTERSTORE:
-                case RedisCommand.ZINCRBY:
-                case RedisCommand.ZPOPMAX:
-                case RedisCommand.ZPOPMIN:
-                case RedisCommand.ZREM:
-                case RedisCommand.ZREMRANGEBYLEX:
-                case RedisCommand.ZREMRANGEBYRANK:
-                case RedisCommand.ZREMRANGEBYSCORE:
-                case RedisCommand.ZUNIONSTORE:
-                    return true;
-                default:
-                    return false;
-            }
-        }
 
         /// <summary>Gets whether this is primary-only.</summary>
         /// <remarks>
@@ -506,6 +426,27 @@ namespace StackExchange.Redis
             };
         }
 
+        internal static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisKey key0, in RedisKey key1, RedisValue[] values)
+        {
+#if NET6_0_OR_GREATER
+            ArgumentNullException.ThrowIfNull(values);
+#else
+            if (values == null) throw new ArgumentNullException(nameof(values));
+#endif
+            return values.Length switch
+            {
+                0 => new CommandKeyKeyMessage(db, flags, command, key0, key1),
+                1 => new CommandKeyKeyValueMessage(db, flags, command, key0, key1, values[0]),
+                2 => new CommandKeyKeyValueValueMessage(db, flags, command, key0, key1, values[0], values[1]),
+                3 => new CommandKeyKeyValueValueValueMessage(db, flags, command, key0, key1, values[0], values[1], values[2]),
+                4 => new CommandKeyKeyValueValueValueValueMessage(db, flags, command, key0, key1, values[0], values[1], values[2], values[3]),
+                5 => new CommandKeyKeyValueValueValueValueValueMessage(db, flags, command, key0, key1, values[0], values[1], values[2], values[3], values[4]),
+                6 => new CommandKeyKeyValueValueValueValueValueValueMessage(db, flags, command, key0, key1, values[0], values[1], values[2], values[3],values[4],values[5]),
+                7 => new CommandKeyKeyValueValueValueValueValueValueValueMessage(db, flags, command, key0, key1, values[0], values[1], values[2], values[3], values[4], values[5], values[6]),
+                _ => new CommandKeyKeyValuesMessage(db, flags, command, key0, key1, values),
+            };
+        }
+
         internal static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisKey key0, RedisValue[] values, in RedisKey key1)
         {
 #if NET6_0_OR_GREATER
@@ -532,6 +473,7 @@ namespace StackExchange.Redis
                 case RedisCommand.BGSAVE:
                 case RedisCommand.CLIENT:
                 case RedisCommand.CLUSTER:
+                case RedisCommand.COMMAND:
                 case RedisCommand.CONFIG:
                 case RedisCommand.DISCARD:
                 case RedisCommand.ECHO:
@@ -599,13 +541,13 @@ namespace StackExchange.Redis
             }
         }
 
-        internal void Fail(ConnectionFailureType failure, Exception innerException, string annotation, ConnectionMultiplexer muxer)
+        internal void Fail(ConnectionFailureType failure, Exception? innerException, string? annotation, ConnectionMultiplexer? muxer)
         {
             PhysicalConnection.IdentifyFailureType(innerException, ref failure);
             resultProcessor?.ConnectionFail(this, failure, innerException, annotation, muxer);
         }
 
-        internal virtual void SetExceptionAndComplete(Exception exception, PhysicalBridge bridge)
+        internal virtual void SetExceptionAndComplete(Exception exception, PhysicalBridge? bridge)
         {
             resultBox?.SetException(exception);
             Complete();
@@ -621,7 +563,7 @@ namespace StackExchange.Redis
             return false;
         }
 
-        internal void SetEnqueued(PhysicalConnection connection)
+        internal void SetEnqueued(PhysicalConnection? connection)
         {
             SetWriteTime();
             performance?.SetEnqueued(connection?.BridgeCouldBeNull?.ConnectionType);
@@ -636,7 +578,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal void TryGetHeadMessages(out Message now, out Message next)
+        internal void TryGetHeadMessages(out Message? now, out Message? next)
         {
             now = next = null;
             _enqueuedTo?.GetHeadMessages(out now, out next);
@@ -667,7 +609,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private PhysicalConnection _enqueuedTo;
+        private PhysicalConnection? _enqueuedTo;
         private long _queuedStampReceived, _queuedStampSent;
 
         internal void SetRequestSent()
@@ -725,7 +667,7 @@ namespace StackExchange.Redis
         /// <remarks>
         /// Note order here is reversed to prevent overload resolution errors.
         /// </remarks>
-        internal void SetSource(ResultProcessor resultProcessor, IResultBox resultBox)
+        internal void SetSource(ResultProcessor? resultProcessor, IResultBox? resultBox)
         {
             this.resultBox = resultBox;
             this.resultProcessor = resultProcessor;
@@ -737,7 +679,7 @@ namespace StackExchange.Redis
         /// <remarks>
         /// Note order here is reversed to prevent overload resolution errors.
         /// </remarks>
-        internal void SetSource<T>(IResultBox<T> resultBox, ResultProcessor<T> resultProcessor)
+        internal void SetSource<T>(IResultBox<T> resultBox, ResultProcessor<T>? resultProcessor)
         {
             this.resultBox = resultBox;
             this.resultProcessor = resultProcessor;
@@ -783,7 +725,7 @@ namespace StackExchange.Redis
                 Key = key;
             }
 
-            public override string CommandAndKey => Command + " " + (string)Key;
+            public override string CommandAndKey => Command + " " + (string?)Key;
 
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) => serverSelectionStrategy.HashSlot(Key);
         }
@@ -1062,6 +1004,32 @@ namespace StackExchange.Redis
             public override int ArgCount => values.Length + 1;
         }
 
+        private sealed class CommandKeyKeyValuesMessage : CommandKeyBase
+        {
+            private readonly RedisKey key1;
+            private readonly RedisValue[] values;
+            public CommandKeyKeyValuesMessage(int db, CommandFlags flags, RedisCommand command, in RedisKey key, in RedisKey key1, RedisValue[] values) : base(db, flags, command, key)
+            {
+                for (int i = 0; i < values.Length; i++)
+                {
+                    values[i].AssertNotNull();
+                }
+
+                key1.AssertNotNull();
+                this.key1 = key1;
+                this.values = values;
+            }
+
+            protected override void WriteImpl(PhysicalConnection physical)
+            {
+                physical.WriteHeader(Command, values.Length + 2);
+                physical.Write(Key);
+                physical.Write(key1);
+                for (int i = 0; i < values.Length; i++) physical.WriteBulkString(values[i]);
+            }
+            public override int ArgCount => values.Length + 1;
+        }
+
         private sealed class CommandKeyValueValueMessage : CommandKeyBase
         {
             private readonly RedisValue value0, value1;
@@ -1162,6 +1130,43 @@ namespace StackExchange.Redis
                 physical.WriteBulkString(value4);
             }
             public override int ArgCount => 6;
+        }
+
+        private sealed class CommandKeyValueValueValueValueValueValueValueMessage : CommandKeyBase
+        {
+            private readonly RedisValue value0, value1, value2, value3, value4, value5, value6;
+
+            public CommandKeyValueValueValueValueValueValueValueMessage(int db, CommandFlags flags, RedisCommand command, in RedisKey key, in RedisValue value0, in RedisValue value1, in RedisValue value2, in RedisValue value3, in RedisValue value4, in RedisValue value5, in RedisValue value6) : base(db, flags, command, key)
+            {
+                value0.AssertNotNull();
+                value1.AssertNotNull();
+                value2.AssertNotNull();
+                value3.AssertNotNull();
+                value4.AssertNotNull();
+                value5.AssertNotNull();
+                value6.AssertNotNull();
+                this.value0 = value0;
+                this.value1 = value1;
+                this.value2 = value2;
+                this.value3 = value3;
+                this.value4 = value4;
+                this.value5 = value5;
+                this.value6 = value6;
+            }
+
+            protected override void WriteImpl(PhysicalConnection physical)
+            {
+                physical.WriteHeader(Command, ArgCount);
+                physical.Write(Key);
+                physical.WriteBulkString(value0);
+                physical.WriteBulkString(value1);
+                physical.WriteBulkString(value2);
+                physical.WriteBulkString(value3);
+                physical.WriteBulkString(value4);
+                physical.WriteBulkString(value5);
+                physical.WriteBulkString(value6);
+            }
+            public override int ArgCount => 8;
         }
 
         private sealed class CommandKeyKeyValueValueMessage : CommandKeyBase
@@ -1447,7 +1452,7 @@ namespace StackExchange.Redis
             public override void AppendStormLog(StringBuilder sb)
             {
                 base.AppendStormLog(sb);
-                sb.Append(" (").Append((string)value).Append(')');
+                sb.Append(" (").Append((string?)value).Append(')');
             }
 
             protected override void WriteImpl(PhysicalConnection physical)

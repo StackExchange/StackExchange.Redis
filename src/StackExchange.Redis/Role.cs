@@ -5,9 +5,11 @@ namespace StackExchange.Redis
     /// <summary>
     /// Result of the ROLE command. Values depend on the role: master, replica, or sentinel.
     /// </summary>
-    /// <remarks>https://redis.io/commands/role</remarks>
+    /// <remarks><seealso href="https://redis.io/commands/role"/></remarks>
     public abstract class Role
     {
+        internal static Unknown Null { get; } = new Unknown("");
+
         /// <summary>
         /// One of "master", "slave" (aka replica), or "sentinel".
         /// </summary>
@@ -21,7 +23,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Result of the ROLE command for a primary node.
         /// </summary>
-        /// <remarks>https://redis.io/commands/role#master-output</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/role#master-output"/></remarks>
         public sealed class Master : Role
         {
             /// <summary>
@@ -62,7 +64,7 @@ namespace StackExchange.Redis
                 }
             }
 
-            internal Master(long offset, ICollection<Replica> replicas) : base(RedisLiterals.master)
+            internal Master(long offset, ICollection<Replica> replicas) : base(RedisLiterals.master!)
             {
                 ReplicationOffset = offset;
                 Replicas = replicas;
@@ -72,7 +74,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Result of the ROLE command for a replica node.
         /// </summary>
-        /// <remarks>https://redis.io/commands/role#output-of-the-command-on-replicas</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/role#output-of-the-command-on-replicas"/></remarks>
         public sealed class Replica : Role
         {
             /// <summary>
@@ -107,15 +109,15 @@ namespace StackExchange.Redis
         /// <summary>
         /// Result of the ROLE command for a sentinel node.
         /// </summary>
-        /// <remarks>https://redis.io/commands/role#sentinel-output</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/role#sentinel-output"/></remarks>
         public sealed class Sentinel : Role
         {
             /// <summary>
             /// Primary names monitored by this sentinel node.
             /// </summary>
-            public ICollection<string> MonitoredMasters { get; }
+            public ICollection<string?> MonitoredMasters { get; }
 
-            internal Sentinel(ICollection<string> primaries) : base(RedisLiterals.sentinel)
+            internal Sentinel(ICollection<string?> primaries) : base(RedisLiterals.sentinel!)
             {
                 MonitoredMasters = primaries;
             }

@@ -17,11 +17,11 @@ namespace StackExchange.Redis
     {
         internal static readonly RedisValue[] EmptyArray = Array.Empty<RedisValue>();
 
-        private readonly object _objectOrSentinel;
+        private readonly object? _objectOrSentinel;
         private readonly ReadOnlyMemory<byte> _memory;
         private readonly long _overlappedBits64;
 
-        private RedisValue(long overlappedValue64, ReadOnlyMemory<byte> memory, object objectOrSentinel)
+        private RedisValue(long overlappedValue64, ReadOnlyMemory<byte> memory, object? objectOrSentinel)
         {
             _overlappedBits64 = overlappedValue64;
             _memory = memory;
@@ -42,19 +42,19 @@ namespace StackExchange.Redis
         public RedisValue(string value) : this(0, default, value) { }
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Roslynator", "RCS1085:Use auto-implemented property.", Justification = "Intentional field ref")]
-        internal object DirectObject => _objectOrSentinel;
+        internal object? DirectObject => _objectOrSentinel;
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Roslynator", "RCS1085:Use auto-implemented property.", Justification = "Intentional field ref")]
         internal long DirectOverlappedBits64 => _overlappedBits64;
 
-        private readonly static object Sentinel_SignedInteger = new();
-        private readonly static object Sentinel_UnsignedInteger = new();
-        private readonly static object Sentinel_Raw = new();
-        private readonly static object Sentinel_Double = new();
+        private static readonly object Sentinel_SignedInteger = new();
+        private static readonly object Sentinel_UnsignedInteger = new();
+        private static readonly object Sentinel_Raw = new();
+        private static readonly object Sentinel_Double = new();
 
         /// <summary>
         /// Obtain this value as an object - to be used alongside Unbox
         /// </summary>
-        public object Box()
+        public object? Box()
         {
             var obj = _objectOrSentinel;
             if (obj is null || obj is string || obj is byte[]) return obj;
@@ -84,7 +84,7 @@ namespace StackExchange.Redis
         /// Parse this object as a value - to be used alongside Box.
         /// </summary>
         /// <param name="value">The value to unbox.</param>
-        public static RedisValue Unbox(object value)
+        public static RedisValue Unbox(object? value)
         {
             var val = TryParse(value, out var valid);
             if (!valid) throw new ArgumentException("Could not parse value", nameof(value));
@@ -97,9 +97,9 @@ namespace StackExchange.Redis
         public static RedisValue EmptyString { get; } = new RedisValue(0, default, Sentinel_Raw);
 
         // note: it is *really important* that this s_EmptyString assignment happens *after* the EmptyString initializer above!
-        static readonly object s_DoubleNAN = double.NaN, s_DoublePosInf = double.PositiveInfinity, s_DoubleNegInf = double.NegativeInfinity,
+        private static readonly object s_DoubleNAN = double.NaN, s_DoublePosInf = double.PositiveInfinity, s_DoubleNegInf = double.NegativeInfinity,
             s_EmptyString = RedisValue.EmptyString;
-        static readonly object[] s_CommonInt32 = Enumerable.Range(-1, 22).Select(i => (object)i).ToArray(); // [-1,20] = 22 values
+        private static readonly object[] s_CommonInt32 = Enumerable.Range(-1, 22).Select(i => (object)i).ToArray(); // [-1,20] = 22 values
 
         /// <summary>
         /// A null value.
@@ -173,7 +173,7 @@ namespace StackExchange.Redis
             StorageType xType = x.Type, yType = y.Type;
 
             if (xType == StorageType.Null) return yType == StorageType.Null;
-            if (xType == StorageType.Null) return false;
+            if (yType == StorageType.Null) return false;
 
             if (xType == yType)
             {
@@ -185,7 +185,7 @@ namespace StackExchange.Redis
                     case StorageType.UInt64: // as long as xType == yType, only need to check the bits
                         return x._overlappedBits64 == y._overlappedBits64;
                     case StorageType.String:
-                        return (string)x._objectOrSentinel == (string)y._objectOrSentinel;
+                        return (string?)x._objectOrSentinel == (string?)y._objectOrSentinel;
                     case StorageType.Raw:
                         return x._memory.Span.SequenceEqual(y._memory.Span);
                 }
@@ -209,14 +209,14 @@ namespace StackExchange.Redis
             }
 
             // otherwise, compare as strings
-            return (string)x == (string)y;
+            return (string?)x == (string?)y;
         }
 
         /// <summary>
         /// See <see cref="object.Equals(object)"/>.
         /// </summary>
         /// <param name="obj">The other <see cref="RedisValue"/> to compare.</param>
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
             if (obj == null) return IsNull;
             if (obj is RedisValue typed) return Equals(typed);
@@ -240,19 +240,19 @@ namespace StackExchange.Redis
                 StorageType.Null => -1,
                 StorageType.Double => x.OverlappedValueDouble.GetHashCode(),
                 StorageType.Int64 or StorageType.UInt64 => x._overlappedBits64.GetHashCode(),
-                StorageType.Raw => ((string)x).GetHashCode(),// to match equality
-                _ => x._objectOrSentinel.GetHashCode(),
+                StorageType.Raw => ((string)x!).GetHashCode(),// to match equality
+                _ => x._objectOrSentinel!.GetHashCode(),
             };
         }
 
         /// <summary>
         /// Returns a string representation of the value.
         /// </summary>
-        public override string ToString() => (string)this;
+        public override string ToString() => (string?)this ?? string.Empty;
 
-        internal static unsafe bool Equals(byte[] x, byte[] y)
+        internal static unsafe bool Equals(byte[]? x, byte[]? y)
         {
-            if ((object)x == (object)y) return true; // ref equals
+            if ((object?)x == (object?)y) return true; // ref equals
             if (x == null || y == null) return false;
             int len = x.Length;
             if (len != y.Length) return false;
@@ -274,17 +274,16 @@ namespace StackExchange.Redis
             return true;
         }
 
-        internal static unsafe int GetHashCode(ReadOnlyMemory<byte> memory)
+        internal static unsafe int GetHashCode(ReadOnlySpan<byte> span)
         {
             unchecked
             {
-                var span8 = memory.Span;
-                int len = span8.Length;
+                int len = span.Length;
                 if (len == 0) return 0;
 
                 int acc = 728271210;
 
-                var span64 = MemoryMarshal.Cast<byte, long>(span8);
+                var span64 = MemoryMarshal.Cast<byte, long>(span);
                 for (int i = 0; i < span64.Length; i++)
                 {
                     var val = span64[i];
@@ -294,7 +293,7 @@ namespace StackExchange.Redis
                 int spare = len % 8, offset = len - spare;
                 while (spare-- != 0)
                 {
-                    acc = (((acc << 5) + acc) ^ span8[offset++]);
+                    acc = (((acc << 5) + acc) ^ span[offset++]);
                 }
                 return acc;
             }
@@ -333,7 +332,7 @@ namespace StackExchange.Redis
         {
             StorageType.Null => 0,
             StorageType.Raw => _memory.Length,
-            StorageType.String => Encoding.UTF8.GetByteCount((string)_objectOrSentinel),
+            StorageType.String => Encoding.UTF8.GetByteCount((string)_objectOrSentinel!),
             _ => throw new InvalidOperationException("Unable to compute length of type: " + Type),
         };
 
@@ -365,7 +364,7 @@ namespace StackExchange.Redis
                         case StorageType.UInt64:
                             return x.OverlappedValueUInt64.CompareTo(y.OverlappedValueUInt64);
                         case StorageType.String:
-                            return string.CompareOrdinal((string)x._objectOrSentinel, (string)y._objectOrSentinel);
+                            return string.CompareOrdinal((string)x._objectOrSentinel!, (string)y._objectOrSentinel!);
                         case StorageType.Raw:
                             return x._memory.Span.SequenceCompareTo(y._memory.Span);
                     }
@@ -388,7 +387,7 @@ namespace StackExchange.Redis
                 }
 
                 // otherwise, compare as strings
-                return string.CompareOrdinal((string)x, (string)y);
+                return string.CompareOrdinal((string?)x, (string?)y);
             }
             catch (Exception ex)
             {
@@ -398,7 +397,7 @@ namespace StackExchange.Redis
             return 0;
         }
 
-        int IComparable.CompareTo(object obj)
+        int IComparable.CompareTo(object? obj)
         {
             if (obj == null) return CompareTo(Null);
 
@@ -408,7 +407,7 @@ namespace StackExchange.Redis
             return CompareTo(val);
         }
 
-        internal static RedisValue TryParse(object obj, out bool valid)
+        internal static RedisValue TryParse(object? obj, out bool valid)
         {
             valid = true;
             switch (obj)
@@ -531,7 +530,7 @@ namespace StackExchange.Redis
         /// Creates a new <see cref="RedisValue"/> from an <see cref="string"/>.
         /// </summary>
         /// <param name="value">The <see cref="string"/> to convert to a <see cref="RedisValue"/>.</param>
-        public static implicit operator RedisValue(string value)
+        public static implicit operator RedisValue(string? value)
         {
             if (value == null) return Null;
             if (value.Length == 0) return EmptyString;
@@ -542,7 +541,7 @@ namespace StackExchange.Redis
         /// Creates a new <see cref="RedisValue"/> from an <see cref="T:byte[]"/>.
         /// </summary>
         /// <param name="value">The <see cref="T:byte[]"/> to convert to a <see cref="RedisValue"/>.</param>
-        public static implicit operator RedisValue(byte[] value)
+        public static implicit operator RedisValue(byte[]? value)
         {
             if (value == null) return Null;
             if (value.Length == 0) return EmptyString;
@@ -754,7 +753,7 @@ namespace StackExchange.Redis
         /// Converts a <see cref="RedisValue"/> to a <see cref="string"/>.
         /// </summary>
         /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
-        public static implicit operator string(RedisValue value)
+        public static implicit operator string? (RedisValue value)
         {
             switch (value.Type)
             {
@@ -762,7 +761,7 @@ namespace StackExchange.Redis
                 case StorageType.Double: return Format.ToString(value.OverlappedValueDouble);
                 case StorageType.Int64: return Format.ToString(value.OverlappedValueInt64);
                 case StorageType.UInt64: return Format.ToString(value.OverlappedValueUInt64);
-                case StorageType.String: return (string)value._objectOrSentinel;
+                case StorageType.String: return (string)value._objectOrSentinel!;
                 case StorageType.Raw:
                     var span = value._memory.Span;
                     if (span.IsEmpty) return "";
@@ -808,7 +807,7 @@ namespace StackExchange.Redis
         /// Converts a <see cref="RedisValue"/> to a <see cref="T:byte[]"/>.
         /// </summary>
         /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
-        public static implicit operator byte[] (RedisValue value)
+        public static implicit operator byte[]? (RedisValue value)
         {
             switch (value.Type)
             {
@@ -840,7 +839,7 @@ namespace StackExchange.Redis
                     return arr;
             }
             // fallback: stringify and encode
-            return Encoding.UTF8.GetBytes((string)value);
+            return Encoding.UTF8.GetBytes((string)value!);
         }
 
         /// <summary>
@@ -848,27 +847,27 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
         public static implicit operator ReadOnlyMemory<byte>(RedisValue value)
-            => value.Type == StorageType.Raw ? value._memory : (byte[])value;
+            => value.Type == StorageType.Raw ? value._memory : (byte[]?)value;
 
         TypeCode IConvertible.GetTypeCode() => TypeCode.Object;
 
-        bool IConvertible.ToBoolean(IFormatProvider provider) => (bool)this;
-        byte IConvertible.ToByte(IFormatProvider provider) => (byte)(uint)this;
-        char IConvertible.ToChar(IFormatProvider provider) => (char)(uint)this;
-        DateTime IConvertible.ToDateTime(IFormatProvider provider) => DateTime.Parse((string)this, provider);
-        decimal IConvertible.ToDecimal(IFormatProvider provider) => (decimal)this;
-        double IConvertible.ToDouble(IFormatProvider provider) => (double)this;
-        short IConvertible.ToInt16(IFormatProvider provider) => (short)this;
-        int IConvertible.ToInt32(IFormatProvider provider) => (int)this;
-        long IConvertible.ToInt64(IFormatProvider provider) => (long)this;
-        sbyte IConvertible.ToSByte(IFormatProvider provider) => (sbyte)this;
-        float IConvertible.ToSingle(IFormatProvider provider) => (float)this;
-        string IConvertible.ToString(IFormatProvider provider) => (string)this;
+        bool IConvertible.ToBoolean(IFormatProvider? provider) => (bool)this;
+        byte IConvertible.ToByte(IFormatProvider? provider) => (byte)(uint)this;
+        char IConvertible.ToChar(IFormatProvider? provider) => (char)(uint)this;
+        DateTime IConvertible.ToDateTime(IFormatProvider? provider) => DateTime.Parse(((string?)this)!, provider);
+        decimal IConvertible.ToDecimal(IFormatProvider? provider) => (decimal)this;
+        double IConvertible.ToDouble(IFormatProvider? provider) => (double)this;
+        short IConvertible.ToInt16(IFormatProvider? provider) => (short)this;
+        int IConvertible.ToInt32(IFormatProvider? provider) => (int)this;
+        long IConvertible.ToInt64(IFormatProvider? provider) => (long)this;
+        sbyte IConvertible.ToSByte(IFormatProvider? provider) => (sbyte)this;
+        float IConvertible.ToSingle(IFormatProvider? provider) => (float)this;
+        string IConvertible.ToString(IFormatProvider? provider) => ((string?)this)!;
 
-        object IConvertible.ToType(Type conversionType, IFormatProvider provider)
+        object IConvertible.ToType(Type conversionType, IFormatProvider? provider)
         {
             if (conversionType == null) throw new ArgumentNullException(nameof(conversionType));
-            if (conversionType == typeof(byte[])) return (byte[])this;
+            if (conversionType == typeof(byte[])) return ((byte[]?)this)!;
             if (conversionType == typeof(ReadOnlyMemory<byte>)) return (ReadOnlyMemory<byte>)this;
             if (conversionType == typeof(RedisValue)) return this;
             return System.Type.GetTypeCode(conversionType) switch
@@ -876,7 +875,7 @@ namespace StackExchange.Redis
                 TypeCode.Boolean => (bool)this,
                 TypeCode.Byte => checked((byte)(uint)this),
                 TypeCode.Char => checked((char)(uint)this),
-                TypeCode.DateTime => DateTime.Parse((string)this, provider),
+                TypeCode.DateTime => DateTime.Parse(((string?)this)!, provider),
                 TypeCode.Decimal => (decimal)this,
                 TypeCode.Double => (double)this,
                 TypeCode.Int16 => (short)this,
@@ -884,7 +883,7 @@ namespace StackExchange.Redis
                 TypeCode.Int64 => (long)this,
                 TypeCode.SByte => (sbyte)this,
                 TypeCode.Single => (float)this,
-                TypeCode.String => (string)this,
+                TypeCode.String => ((string?)this)!,
                 TypeCode.UInt16 => checked((ushort)(uint)this),
                 TypeCode.UInt32 => (uint)this,
                 TypeCode.UInt64 => (ulong)this,
@@ -893,9 +892,9 @@ namespace StackExchange.Redis
             };
         }
 
-        ushort IConvertible.ToUInt16(IFormatProvider provider) => checked((ushort)(uint)this);
-        uint IConvertible.ToUInt32(IFormatProvider provider) => (uint)this;
-        ulong IConvertible.ToUInt64(IFormatProvider provider) => (ulong)this;
+        ushort IConvertible.ToUInt16(IFormatProvider? provider) => checked((ushort)(uint)this);
+        uint IConvertible.ToUInt32(IFormatProvider? provider) => (uint)this;
+        ulong IConvertible.ToUInt64(IFormatProvider? provider) => (ulong)this;
 
         /// <summary>
         /// Attempt to reduce to canonical terms ahead of time; parses integers, floats, etc
@@ -912,7 +911,7 @@ namespace StackExchange.Redis
             switch (Type)
             {
                 case StorageType.String:
-                    string s = (string)_objectOrSentinel;
+                    string s = (string)_objectOrSentinel!;
                     if (Format.CouldBeInteger(s))
                     {
                         if (Format.TryParseInt64(s, out i64)) return i64;
@@ -955,7 +954,7 @@ namespace StackExchange.Redis
                     val = default;
                     return false;
                 case StorageType.String:
-                    return Format.TryParseInt64((string)_objectOrSentinel, out val);
+                    return Format.TryParseInt64((string)_objectOrSentinel!, out val);
                 case StorageType.Raw:
                     return Format.TryParseInt64(_memory.Span, out val);
                 case StorageType.Double:
@@ -1008,7 +1007,7 @@ namespace StackExchange.Redis
                     val = OverlappedValueDouble;
                     return true;
                 case StorageType.String:
-                    return Format.TryParseDouble((string)_objectOrSentinel, out val);
+                    return Format.TryParseDouble((string)_objectOrSentinel!, out val);
                 case StorageType.Raw:
                     return TryParseDouble(_memory.Span, out val);
                 case StorageType.Null:
@@ -1040,7 +1039,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private static readonly FieldInfo
+        private static readonly FieldInfo?
             s_origin = typeof(MemoryStream).GetField("_origin", BindingFlags.NonPublic | BindingFlags.Instance),
             s_buffer = typeof(MemoryStream).GetField("_buffer", BindingFlags.NonPublic | BindingFlags.Instance);
 
@@ -1050,8 +1049,8 @@ namespace StackExchange.Redis
             {
                 try
                 {
-                    int offset = (int)s_origin.GetValue(ms);
-                    byte[] arr = (byte[])s_buffer.GetValue(ms);
+                    int offset = (int)s_origin.GetValue(ms)!;
+                    byte[] arr = (byte[])s_buffer.GetValue(ms)!;
                     buffer = new ArraySegment<byte>(arr, offset, checked((int)ms.Length));
                     return true;
                 }
@@ -1078,8 +1077,8 @@ namespace StackExchange.Redis
                 switch (thisType)
                 {
                     case StorageType.String:
-                        var sThis = ((string)_objectOrSentinel);
-                        var sOther = ((string)value._objectOrSentinel);
+                        var sThis = ((string)_objectOrSentinel!);
+                        var sOther = ((string)value._objectOrSentinel!);
                         return sThis.StartsWith(sOther, StringComparison.Ordinal);
                     case StorageType.Raw:
                         rawThis = _memory;
@@ -1087,7 +1086,7 @@ namespace StackExchange.Redis
                         return rawThis.Span.StartsWith(rawOther.Span);
                 }
             }
-            byte[] arr0 = null, arr1 = null;
+            byte[]? arr0 = null, arr1 = null;
             try
             {
                 rawThis = AsMemory(out arr0);
@@ -1102,7 +1101,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private ReadOnlyMemory<byte> AsMemory(out byte[] leased)
+        private ReadOnlyMemory<byte> AsMemory(out byte[]? leased)
         {
             switch (Type)
             {
@@ -1110,7 +1109,7 @@ namespace StackExchange.Redis
                     leased = null;
                     return _memory;
                 case StorageType.String:
-                    string s = (string)_objectOrSentinel;
+                    string s = (string)_objectOrSentinel!;
                     HaveString:
                     if (s.Length == 0)
                     {

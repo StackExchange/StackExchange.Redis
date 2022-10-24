@@ -2,58 +2,55 @@
 using Xunit;
 using Xunit.Abstractions;
 
-namespace StackExchange.Redis.Tests.Issues
+namespace StackExchange.Redis.Tests.Issues;
+
+public class DefaultDatabase : TestBase
 {
-    public class DefaultDatabase : TestBase
+    public DefaultDatabase(ITestOutputHelper output) : base(output) { }
+
+    [Fact]
+    public void UnspecifiedDbId_ReturnsNull()
     {
-        public DefaultDatabase(ITestOutputHelper output) : base (output) { }
+        var config = ConfigurationOptions.Parse("localhost");
+        Assert.Null(config.DefaultDatabase);
+    }
 
-        [Fact]
-		public void UnspecifiedDbId_ReturnsNull()
-		{
-			var config = ConfigurationOptions.Parse("localhost");
-			Assert.Null(config.DefaultDatabase);
-		}
+    [Fact]
+    public void SpecifiedDbId_ReturnsExpected()
+    {
+        var config = ConfigurationOptions.Parse("localhost,defaultDatabase=3");
+        Assert.Equal(3, config.DefaultDatabase);
+    }
 
-		[Fact]
-		public void SpecifiedDbId_ReturnsExpected()
-		{
-			var config = ConfigurationOptions.Parse("localhost,defaultDatabase=3");
-			Assert.Equal(3, config.DefaultDatabase);
-		}
-
-        [Fact]
-        public void ConfigurationOptions_UnspecifiedDefaultDb()
+    [Fact]
+    public void ConfigurationOptions_UnspecifiedDefaultDb()
+    {
+        var log = new StringWriter();
+        try
         {
-            var log = new StringWriter();
-            try
-            {
-                using (var conn = ConnectionMultiplexer.Connect(TestConfig.Current.PrimaryServerAndPort, log)) {
-                    var db = conn.GetDatabase();
-                    Assert.Equal(0, db.Database);
-                }
-            }
-            finally
-            {
-                Log(log.ToString());
-            }
+            using var conn = ConnectionMultiplexer.Connect(TestConfig.Current.PrimaryServerAndPort, log);
+            var db = conn.GetDatabase();
+            Assert.Equal(0, db.Database);
         }
-
-        [Fact]
-        public void ConfigurationOptions_SpecifiedDefaultDb()
+        finally
         {
-            var log = new StringWriter();
-            try
-            {
-                using (var conn = ConnectionMultiplexer.Connect($"{TestConfig.Current.PrimaryServerAndPort},defaultDatabase=3", log)) {
-                    var db = conn.GetDatabase();
-                    Assert.Equal(3, db.Database);
-                }
-            }
-            finally
-            {
-                Log(log.ToString());
-            }
+            Log(log.ToString());
         }
-	}
+    }
+
+    [Fact]
+    public void ConfigurationOptions_SpecifiedDefaultDb()
+    {
+        var log = new StringWriter();
+        try
+        {
+            using var conn = ConnectionMultiplexer.Connect($"{TestConfig.Current.PrimaryServerAndPort},defaultDatabase=3", log);
+            var db = conn.GetDatabase();
+            Assert.Equal(3, db.Database);
+        }
+        finally
+        {
+            Log(log.ToString());
+        }
+    }
 }

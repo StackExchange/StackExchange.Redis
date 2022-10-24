@@ -32,7 +32,7 @@
         /// <summary>
         /// Whether a server type can have only a single primary, meaning an election if multiple are found.
         /// </summary>
-        public static bool HasSinglePrimary(this ServerType type) => type switch
+        internal static bool HasSinglePrimary(this ServerType type) => type switch
         {
             ServerType.Envoyproxy => false,
             _ => true
@@ -41,7 +41,7 @@
         /// <summary>
         /// Whether a server type supports <see cref="ServerEndPoint.AutoConfigureAsync(PhysicalConnection, LogProxy)"/>.
         /// </summary>
-        public static bool SupportsAutoConfigure(this ServerType type) => type switch
+        internal static bool SupportsAutoConfigure(this ServerType type) => type switch
         {
             ServerType.Twemproxy => false,
             ServerType.Envoyproxy => false,

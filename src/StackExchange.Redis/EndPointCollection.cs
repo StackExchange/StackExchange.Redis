@@ -34,13 +34,13 @@ namespace StackExchange.Redis
         /// Format an <see cref="EndPoint"/>.
         /// </summary>
         /// <param name="endpoint">The endpoint to get a string representation for.</param>
-        public static string ToString(EndPoint endpoint) => Format.ToString(endpoint);
+        public static string ToString(EndPoint? endpoint) => Format.ToString(endpoint);
 
         /// <summary>
         /// Attempt to parse a string into an <see cref="EndPoint"/>.
         /// </summary>
         /// <param name="endpoint">The endpoint string to parse.</param>
-        public static EndPoint TryParse(string endpoint) => Format.TryParseEndPoint(endpoint);
+        public static EndPoint? TryParse(string endpoint) => Format.TryParseEndPoint(endpoint, out var result) ? result : null;
 
         /// <summary>
         /// Adds a new endpoint to the list.
@@ -48,8 +48,7 @@ namespace StackExchange.Redis
         /// <param name="hostAndPort">The host:port string to add an endpoint for to the collection.</param>
         public void Add(string hostAndPort)
         {
-            var endpoint = Format.TryParseEndPoint(hostAndPort);
-            if (endpoint == null)
+            if (!Format.TryParseEndPoint(hostAndPort, out var endpoint))
             {
                 throw new ArgumentException($"Could not parse host and port from '{hostAndPort}'", nameof(hostAndPort));
             }
@@ -190,7 +189,7 @@ namespace StackExchange.Redis
             return false;
         }
 
-        internal async Task ResolveEndPointsAsync(ConnectionMultiplexer multiplexer, LogProxy log)
+        internal async Task ResolveEndPointsAsync(ConnectionMultiplexer multiplexer, LogProxy? log)
         {
             var cache = new Dictionary<string, IPAddress>(StringComparer.OrdinalIgnoreCase);
             for (int i = 0; i < Count; i++)
@@ -203,7 +202,7 @@ namespace StackExchange.Redis
                         {
                             this[i] = new IPEndPoint(IPAddress.Loopback, dns.Port);
                         }
-                        else if (cache.TryGetValue(dns.Host, out IPAddress ip))
+                        else if (cache.TryGetValue(dns.Host, out IPAddress? ip))
                         { // use cache
                             this[i] = new IPEndPoint(ip, dns.Port);
                         }
@@ -229,6 +228,6 @@ namespace StackExchange.Redis
             }
         }
 
-        internal EndPointCollection Clone() => new EndPointCollection(this);
+        internal EndPointCollection Clone() => new EndPointCollection(new List<EndPoint>(Items));
     }
 }
