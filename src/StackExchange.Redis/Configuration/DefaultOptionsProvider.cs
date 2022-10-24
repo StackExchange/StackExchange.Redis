@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Net;
 using System.Reflection;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace StackExchange.Redis.Configuration
 {
@@ -140,6 +141,11 @@ namespace StackExchange.Redis.Configuration
         /// Specifies the time interval at which connections should be pinged to ensure validity.
         /// </summary>
         public virtual TimeSpan KeepAliveInterval => TimeSpan.FromSeconds(60);
+
+        /// <summary>
+        /// The <see cref="ILogger"/> to use for connection events.
+        /// </summary>
+        public virtual ILogger? Logger => null;
 
         /// <summary>
         /// Type of proxy to use (if any); for example <see cref="Proxy.Twemproxy"/>.

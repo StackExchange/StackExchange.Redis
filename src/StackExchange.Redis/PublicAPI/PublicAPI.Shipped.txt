@@ -1777,6 +1777,7 @@ virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.IncludeDetailIn
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.IncludePerformanceCountersInExceptions.get -> bool
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.IsMatch(System.Net.EndPoint! endpoint) -> bool
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.KeepAliveInterval.get -> System.TimeSpan
+virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.Logger.get -> Microsoft.Extensions.Logging.ILogger?
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.Proxy.get -> StackExchange.Redis.Proxy
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.ReconnectRetryPolicy.get -> StackExchange.Redis.IReconnectRetryPolicy?
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.ResolveDns.get -> bool

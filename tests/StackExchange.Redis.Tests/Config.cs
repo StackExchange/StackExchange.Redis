@@ -9,6 +9,7 @@ using System.Security.Authentication;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -562,6 +563,7 @@ public class Config : TestBase
     public async Task MutableOptions()
     {
         var options = ConfigurationOptions.Parse(TestConfig.Current.PrimaryServerAndPort + ",name=Details");
+        options.Logger = NullLogger.Instance;
         var originalConfigChannel = options.ConfigurationChannel = "originalConfig";
         var originalUser = options.User = "originalUser";
         var originalPassword = options.Password = "originalPassword";
@@ -610,6 +612,7 @@ public class Config : TestBase
         Assert.Equal(originalPassword, conn.RawConfig.Password);
         var newPass = options.Password = "newPassword";
         Assert.Equal(newPass, conn.RawConfig.Password);
+        Assert.Equal(options.Logger, conn.RawConfig.Logger);
     }
 
     [Fact]

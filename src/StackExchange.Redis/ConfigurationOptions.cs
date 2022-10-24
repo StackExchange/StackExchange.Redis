@@ -437,7 +437,7 @@ namespace StackExchange.Redis
         /// </summary>
         public ILogger? Logger
         {
-            get => logger;
+            get => logger ?? Defaults.Logger;
             set => logger = value;
         }
 
@@ -660,6 +660,7 @@ namespace StackExchange.Redis
             checkCertificateRevocation = checkCertificateRevocation,
             BeforeSocketConnect = BeforeSocketConnect,
             EndPoints = EndPoints.Clone(),
+            Logger = Logger,
 #if NETCOREAPP3_1_OR_GREATER
             SslClientAuthenticationOptions = SslClientAuthenticationOptions,
 #endif
