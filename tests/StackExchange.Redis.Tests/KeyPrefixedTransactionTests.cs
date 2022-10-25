@@ -7,126 +7,126 @@ using Xunit;
 namespace StackExchange.Redis.Tests;
 
 [Collection(nameof(MoqDependentCollection))]
-public sealed class TransactionWrapperTests
+public sealed class KeyPrefixedTransactionTests
 {
     private readonly Mock<ITransaction> mock;
-    private readonly TransactionWrapper wrapper;
+    private readonly KeyPrefixedTransaction prefixed;
 
-    public TransactionWrapperTests()
+    public KeyPrefixedTransactionTests()
     {
         mock = new Mock<ITransaction>();
-        wrapper = new TransactionWrapper(mock.Object, Encoding.UTF8.GetBytes("prefix:"));
+        prefixed = new KeyPrefixedTransaction(mock.Object, Encoding.UTF8.GetBytes("prefix:"));
     }
 
     [Fact]
     public void AddCondition_HashEqual()
     {
-        wrapper.AddCondition(Condition.HashEqual("key", "field", "value"));
+        prefixed.AddCondition(Condition.HashEqual("key", "field", "value"));
         mock.Verify(_ => _.AddCondition(It.Is<Condition>(value => "prefix:key Hash > field == value" == value.ToString())));
     }
 
     [Fact]
     public void AddCondition_HashNotEqual()
     {
-        wrapper.AddCondition(Condition.HashNotEqual("key", "field", "value"));
+        prefixed.AddCondition(Condition.HashNotEqual("key", "field", "value"));
         mock.Verify(_ => _.AddCondition(It.Is<Condition>(value => "prefix:key Hash > field != value" == value.ToString())));
     }
 
     [Fact]
     public void AddCondition_HashExists()
     {
-        wrapper.AddCondition(Condition.HashExists("key", "field"));
+        prefixed.AddCondition(Condition.HashExists("key", "field"));
         mock.Verify(_ => _.AddCondition(It.Is<Condition>(value => "prefix:key Hash > field exists" == value.ToString())));
     }
 
     [Fact]
     public void AddCondition_HashNotExists()
     {
-        wrapper.AddCondition(Condition.HashNotExists("key", "field"));
+        prefixed.AddCondition(Condition.HashNotExists("key", "field"));
         mock.Verify(_ => _.AddCondition(It.Is<Condition>(value => "prefix:key Hash > field does not exists" == value.ToString())));
     }
 
     [Fact]
     public void AddCondition_KeyExists()
     {
-        wrapper.AddCondition(Condition.KeyExists("key"));
+        prefixed.AddCondition(Condition.KeyExists("key"));
         mock.Verify(_ => _.AddCondition(It.Is<Condition>(value => "prefix:key exists" == value.ToString())));
     }
 
     [Fact]
     public void AddCondition_KeyNotExists()
     {
-        wrapper.AddCondition(Condition.KeyNotExists("key"));
+        prefixed.AddCondition(Condition.KeyNotExists("key"));
         mock.Verify(_ => _.AddCondition(It.Is<Condition>(value => "prefix:key does not exists" == value.ToString())));
     }
 
     [Fact]
     public void AddCondition_StringEqual()
     {
-        wrapper.AddCondition(Condition.StringEqual("key", "value"));
+        prefixed.AddCondition(Condition.StringEqual("key", "value"));
         mock.Verify(_ => _.AddCondition(It.Is<Condition>(value => "prefix:key == value" == value.ToString())));
     }
 
     [Fact]
     public void AddCondition_StringNotEqual()
     {
-        wrapper.AddCondition(Condition.StringNotEqual("key", "value"));
+        prefixed.AddCondition(Condition.StringNotEqual("key", "value"));
         mock.Verify(_ => _.AddCondition(It.Is<Condition>(value => "prefix:key != value" == value.ToString())));
     }
 
     [Fact]
     public void AddCondition_SortedSetEqual()
     {
-        wrapper.AddCondition(Condition.SortedSetEqual("key", "member", "score"));
+        prefixed.AddCondition(Condition.SortedSetEqual("key", "member", "score"));
         mock.Verify(_ => _.AddCondition(It.Is<Condition>(value => "prefix:key SortedSet > member == score" == value.ToString())));
     }
 
     [Fact]
     public void AddCondition_SortedSetNotEqual()
     {
-        wrapper.AddCondition(Condition.SortedSetNotEqual("key", "member", "score"));
+        prefixed.AddCondition(Condition.SortedSetNotEqual("key", "member", "score"));
         mock.Verify(_ => _.AddCondition(It.Is<Condition>(value => "prefix:key SortedSet > member != score" == value.ToString())));
     }
 
     [Fact]
     public void AddCondition_SortedSetScoreExists()
     {
-        wrapper.AddCondition(Condition.SortedSetScoreExists("key", "score"));
+        prefixed.AddCondition(Condition.SortedSetScoreExists("key", "score"));
         mock.Verify(_ => _.AddCondition(It.Is<Condition>(value => "prefix:key not contains 0 members with score: score" == value.ToString())));
     }
 
     [Fact]
     public void AddCondition_SortedSetScoreNotExists()
     {
-        wrapper.AddCondition(Condition.SortedSetScoreNotExists("key", "score"));
+        prefixed.AddCondition(Condition.SortedSetScoreNotExists("key", "score"));
         mock.Verify(_ => _.AddCondition(It.Is<Condition>(value => "prefix:key contains 0 members with score: score" == value.ToString())));
     }
 
     [Fact]
     public void AddCondition_SortedSetScoreCountExists()
     {
-        wrapper.AddCondition(Condition.SortedSetScoreExists("key", "score", "count"));
+        prefixed.AddCondition(Condition.SortedSetScoreExists("key", "score", "count"));
         mock.Verify(_ => _.AddCondition(It.Is<Condition>(value => "prefix:key contains count members with score: score" == value.ToString())));
     }
 
     [Fact]
     public void AddCondition_SortedSetScoreCountNotExists()
     {
-        wrapper.AddCondition(Condition.SortedSetScoreNotExists("key", "score", "count"));
+        prefixed.AddCondition(Condition.SortedSetScoreNotExists("key", "score", "count"));
         mock.Verify(_ => _.AddCondition(It.Is<Condition>(value => "prefix:key not contains count members with score: score" == value.ToString())));
     }
 
     [Fact]
     public async Task ExecuteAsync()
     {
-        await wrapper.ExecuteAsync(CommandFlags.None);
+        await prefixed.ExecuteAsync(CommandFlags.None);
         mock.Verify(_ => _.ExecuteAsync(CommandFlags.None), Times.Once());
     }
 
     [Fact]
     public void Execute()
     {
-        wrapper.Execute(CommandFlags.None);
+        prefixed.Execute(CommandFlags.None);
         mock.Verify(_ => _.Execute(CommandFlags.None), Times.Once());
     }
 }

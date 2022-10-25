@@ -54,14 +54,14 @@ namespace StackExchange.Redis.KeyspaceIsolation
                 return database; // fine - you can keep using the original, then
             }
 
-            if (database is DatabaseWrapper wrapper)
+            if (database is KeyPrefixedDatabase prefixed)
             {
                 // combine the key in advance to minimize indirection
-                keyPrefix = wrapper.ToInner(keyPrefix);
-                database = wrapper.Inner;
+                keyPrefix = prefixed.ToInner(keyPrefix);
+                database = prefixed.Inner;
             }
 
-            return new DatabaseWrapper(database, keyPrefix.AsPrefix()!);
+            return new KeyPrefixedDatabase(database, keyPrefix.AsPrefix()!);
         }
     }
 }
