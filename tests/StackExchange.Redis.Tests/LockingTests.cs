@@ -34,7 +34,7 @@ public class LockingTests : TestBase
         int errorCount = 0;
         int bgErrorCount = 0;
         var evt = new ManualResetEvent(false);
-        var key = Me();
+        var key = Me() + testMode;
         using (var conn1 = Create(testMode))
         using (var conn2 = Create(testMode))
         {
@@ -111,21 +111,21 @@ public class LockingTests : TestBase
     };
 
     [Theory, MemberData(nameof(TestModes))]
-    public async Task TakeLockAndExtend(TestMode mode)
+    public async Task TakeLockAndExtend(TestMode testMode)
     {
-        using var conn = Create(mode);
+        using var conn = Create(testMode);
 
         RedisValue right = Guid.NewGuid().ToString(),
             wrong = Guid.NewGuid().ToString();
 
-        int DB = mode == TestMode.Twemproxy ? 0 : 7;
-        RedisKey Key = Me();
+        int DB = testMode == TestMode.Twemproxy ? 0 : 7;
+        RedisKey Key = Me() + testMode;
 
         var db = conn.GetDatabase(DB);
 
         db.KeyDelete(Key, CommandFlags.FireAndForget);
 
-        bool withTran = mode == TestMode.MultiExec;
+        bool withTran = testMode == TestMode.MultiExec;
         var t1 = db.LockTakeAsync(Key, right, TimeSpan.FromSeconds(20));
         var t1b = db.LockTakeAsync(Key, wrong, TimeSpan.FromSeconds(10));
         var t2 = db.LockQueryAsync(Key);
@@ -175,7 +175,7 @@ public class LockingTests : TestBase
 
         const int LOOP = 50;
         var db = conn.GetDatabase();
-        var key = Me();
+        var key = Me() + testMode;
         for (int i = 0; i < LOOP; i++)
         {
             _ = db.KeyDeleteAsync(key);
@@ -197,7 +197,7 @@ public class LockingTests : TestBase
         using var conn = Create(testMode);
 
         var db = conn.GetDatabase();
-        var key = Me();
+        var key = Me() + testMode;
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.StringSet(key, "old-value", TimeSpan.FromSeconds(20), flags: CommandFlags.FireAndForget);
         var taken = db.LockTakeAsync(key, "new-value", TimeSpan.FromSeconds(10));
