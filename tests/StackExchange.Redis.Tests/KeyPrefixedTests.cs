@@ -11,42 +11,42 @@ using System.Threading.Tasks;
 namespace StackExchange.Redis.Tests
 {
     [Collection(nameof(MoqDependentCollection))]
-    public sealed class WrapperBaseTests
+    public sealed class KeyPrefixedTests
     {
         private readonly Mock<IDatabaseAsync> mock;
-        private readonly WrapperBase<IDatabaseAsync> wrapper;
+        private readonly KeyPrefixed<IDatabaseAsync> prefixed;
 
-        public WrapperBaseTests()
+        public KeyPrefixedTests()
         {
             mock = new Mock<IDatabaseAsync>();
-            wrapper = new WrapperBase<IDatabaseAsync>(mock.Object, Encoding.UTF8.GetBytes("prefix:"));
+            prefixed = new KeyPrefixed<IDatabaseAsync>(mock.Object, Encoding.UTF8.GetBytes("prefix:"));
         }
 
         [Fact]
         public async Task DebugObjectAsync()
         {
-            await wrapper.DebugObjectAsync("key", CommandFlags.None);
+            await prefixed.DebugObjectAsync("key", CommandFlags.None);
             mock.Verify(_ => _.DebugObjectAsync("prefix:key", CommandFlags.None));
         }
 
         [Fact]
         public void HashDecrementAsync_1()
         {
-            wrapper.HashDecrementAsync("key", "hashField", 123, CommandFlags.None);
+            prefixed.HashDecrementAsync("key", "hashField", 123, CommandFlags.None);
             mock.Verify(_ => _.HashDecrementAsync("prefix:key", "hashField", 123, CommandFlags.None));
         }
 
         [Fact]
         public void HashDecrementAsync_2()
         {
-            wrapper.HashDecrementAsync("key", "hashField", 1.23, CommandFlags.None);
+            prefixed.HashDecrementAsync("key", "hashField", 1.23, CommandFlags.None);
             mock.Verify(_ => _.HashDecrementAsync("prefix:key", "hashField", 1.23, CommandFlags.None));
         }
 
         [Fact]
         public void HashDeleteAsync_1()
         {
-            wrapper.HashDeleteAsync("key", "hashField", CommandFlags.None);
+            prefixed.HashDeleteAsync("key", "hashField", CommandFlags.None);
             mock.Verify(_ => _.HashDeleteAsync("prefix:key", "hashField", CommandFlags.None));
         }
 
@@ -54,28 +54,28 @@ namespace StackExchange.Redis.Tests
         public void HashDeleteAsync_2()
         {
             RedisValue[] hashFields = Array.Empty<RedisValue>();
-            wrapper.HashDeleteAsync("key", hashFields, CommandFlags.None);
+            prefixed.HashDeleteAsync("key", hashFields, CommandFlags.None);
             mock.Verify(_ => _.HashDeleteAsync("prefix:key", hashFields, CommandFlags.None));
         }
 
         [Fact]
         public void HashExistsAsync()
         {
-            wrapper.HashExistsAsync("key", "hashField", CommandFlags.None);
+            prefixed.HashExistsAsync("key", "hashField", CommandFlags.None);
             mock.Verify(_ => _.HashExistsAsync("prefix:key", "hashField", CommandFlags.None));
         }
 
         [Fact]
         public void HashGetAllAsync()
         {
-            wrapper.HashGetAllAsync("key", CommandFlags.None);
+            prefixed.HashGetAllAsync("key", CommandFlags.None);
             mock.Verify(_ => _.HashGetAllAsync("prefix:key", CommandFlags.None));
         }
 
         [Fact]
         public void HashGetAsync_1()
         {
-            wrapper.HashGetAsync("key", "hashField", CommandFlags.None);
+            prefixed.HashGetAsync("key", "hashField", CommandFlags.None);
             mock.Verify(_ => _.HashGetAsync("prefix:key", "hashField", CommandFlags.None));
         }
 
@@ -83,35 +83,35 @@ namespace StackExchange.Redis.Tests
         public void HashGetAsync_2()
         {
             RedisValue[] hashFields = Array.Empty<RedisValue>();
-            wrapper.HashGetAsync("key", hashFields, CommandFlags.None);
+            prefixed.HashGetAsync("key", hashFields, CommandFlags.None);
             mock.Verify(_ => _.HashGetAsync("prefix:key", hashFields, CommandFlags.None));
         }
 
         [Fact]
         public void HashIncrementAsync_1()
         {
-            wrapper.HashIncrementAsync("key", "hashField", 123, CommandFlags.None);
+            prefixed.HashIncrementAsync("key", "hashField", 123, CommandFlags.None);
             mock.Verify(_ => _.HashIncrementAsync("prefix:key", "hashField", 123, CommandFlags.None));
         }
 
         [Fact]
         public void HashIncrementAsync_2()
         {
-            wrapper.HashIncrementAsync("key", "hashField", 1.23, CommandFlags.None);
+            prefixed.HashIncrementAsync("key", "hashField", 1.23, CommandFlags.None);
             mock.Verify(_ => _.HashIncrementAsync("prefix:key", "hashField", 1.23, CommandFlags.None));
         }
 
         [Fact]
         public void HashKeysAsync()
         {
-            wrapper.HashKeysAsync("key", CommandFlags.None);
+            prefixed.HashKeysAsync("key", CommandFlags.None);
             mock.Verify(_ => _.HashKeysAsync("prefix:key", CommandFlags.None));
         }
 
         [Fact]
         public void HashLengthAsync()
         {
-            wrapper.HashLengthAsync("key", CommandFlags.None);
+            prefixed.HashLengthAsync("key", CommandFlags.None);
             mock.Verify(_ => _.HashLengthAsync("prefix:key", CommandFlags.None));
         }
 
@@ -119,35 +119,35 @@ namespace StackExchange.Redis.Tests
         public void HashSetAsync_1()
         {
             HashEntry[] hashFields = Array.Empty<HashEntry>();
-            wrapper.HashSetAsync("key", hashFields, CommandFlags.None);
+            prefixed.HashSetAsync("key", hashFields, CommandFlags.None);
             mock.Verify(_ => _.HashSetAsync("prefix:key", hashFields, CommandFlags.None));
         }
 
         [Fact]
         public void HashSetAsync_2()
         {
-            wrapper.HashSetAsync("key", "hashField", "value", When.Exists, CommandFlags.None);
+            prefixed.HashSetAsync("key", "hashField", "value", When.Exists, CommandFlags.None);
             mock.Verify(_ => _.HashSetAsync("prefix:key", "hashField", "value", When.Exists, CommandFlags.None));
         }
 
         [Fact]
         public void HashStringLengthAsync()
         {
-            wrapper.HashStringLengthAsync("key","field", CommandFlags.None);
+            prefixed.HashStringLengthAsync("key","field", CommandFlags.None);
             mock.Verify(_ => _.HashStringLengthAsync("prefix:key", "field", CommandFlags.None));
         }
 
         [Fact]
         public void HashValuesAsync()
         {
-            wrapper.HashValuesAsync("key", CommandFlags.None);
+            prefixed.HashValuesAsync("key", CommandFlags.None);
             mock.Verify(_ => _.HashValuesAsync("prefix:key", CommandFlags.None));
         }
 
         [Fact]
         public void HyperLogLogAddAsync_1()
         {
-            wrapper.HyperLogLogAddAsync("key", "value", CommandFlags.None);
+            prefixed.HyperLogLogAddAsync("key", "value", CommandFlags.None);
             mock.Verify(_ => _.HyperLogLogAddAsync("prefix:key", "value", CommandFlags.None));
         }
 
@@ -155,21 +155,21 @@ namespace StackExchange.Redis.Tests
         public void HyperLogLogAddAsync_2()
         {
             var values = Array.Empty<RedisValue>();
-            wrapper.HyperLogLogAddAsync("key", values, CommandFlags.None);
+            prefixed.HyperLogLogAddAsync("key", values, CommandFlags.None);
             mock.Verify(_ => _.HyperLogLogAddAsync("prefix:key", values, CommandFlags.None));
         }
 
         [Fact]
         public void HyperLogLogLengthAsync()
         {
-            wrapper.HyperLogLogLengthAsync("key", CommandFlags.None);
+            prefixed.HyperLogLogLengthAsync("key", CommandFlags.None);
             mock.Verify(_ => _.HyperLogLogLengthAsync("prefix:key", CommandFlags.None));
         }
 
         [Fact]
         public void HyperLogLogMergeAsync_1()
         {
-            wrapper.HyperLogLogMergeAsync("destination", "first", "second", CommandFlags.None);
+            prefixed.HyperLogLogMergeAsync("destination", "first", "second", CommandFlags.None);
             mock.Verify(_ => _.HyperLogLogMergeAsync("prefix:destination", "prefix:first", "prefix:second", CommandFlags.None));
         }
 
@@ -178,35 +178,35 @@ namespace StackExchange.Redis.Tests
         {
             RedisKey[] keys = new RedisKey[] { "a", "b" };
             Expression<Func<RedisKey[], bool>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "prefix:b";
-            wrapper.HyperLogLogMergeAsync("destination", keys, CommandFlags.None);
+            prefixed.HyperLogLogMergeAsync("destination", keys, CommandFlags.None);
             mock.Verify(_ => _.HyperLogLogMergeAsync("prefix:destination", It.Is(valid), CommandFlags.None));
         }
 
         [Fact]
         public void IdentifyEndpointAsync()
         {
-            wrapper.IdentifyEndpointAsync("key", CommandFlags.None);
+            prefixed.IdentifyEndpointAsync("key", CommandFlags.None);
             mock.Verify(_ => _.IdentifyEndpointAsync("prefix:key", CommandFlags.None));
         }
 
         [Fact]
         public void IsConnected()
         {
-            wrapper.IsConnected("key", CommandFlags.None);
+            prefixed.IsConnected("key", CommandFlags.None);
             mock.Verify(_ => _.IsConnected("prefix:key", CommandFlags.None));
         }
 
         [Fact]
         public void KeyCopyAsync()
         {
-            wrapper.KeyCopyAsync("key", "destination", flags: CommandFlags.None);
+            prefixed.KeyCopyAsync("key", "destination", flags: CommandFlags.None);
             mock.Verify(_ => _.KeyCopyAsync("prefix:key", "prefix:destination", -1, false, CommandFlags.None));
         }
 
         [Fact]
         public void KeyDeleteAsync_1()
         {
-            wrapper.KeyDeleteAsync("key", CommandFlags.None);
+            prefixed.KeyDeleteAsync("key", CommandFlags.None);
             mock.Verify(_ => _.KeyDeleteAsync("prefix:key", CommandFlags.None));
         }
 
@@ -215,29 +215,28 @@ namespace StackExchange.Redis.Tests
         {
             RedisKey[] keys = new RedisKey[] { "a", "b" };
             Expression<Func<RedisKey[], bool>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "prefix:b";
-            wrapper.KeyDeleteAsync(keys, CommandFlags.None);
+            prefixed.KeyDeleteAsync(keys, CommandFlags.None);
             mock.Verify(_ => _.KeyDeleteAsync(It.Is(valid), CommandFlags.None));
         }
 
         [Fact]
         public void KeyDumpAsync()
         {
-            wrapper.KeyDumpAsync("key", CommandFlags.None);
+            prefixed.KeyDumpAsync("key", CommandFlags.None);
             mock.Verify(_ => _.KeyDumpAsync("prefix:key", CommandFlags.None));
         }
 
         [Fact]
         public void KeyEncodingAsync()
         {
-            wrapper.KeyEncodingAsync("key", CommandFlags.None);
+            prefixed.KeyEncodingAsync("key", CommandFlags.None);
             mock.Verify(_ => _.KeyEncodingAsync("prefix:key", CommandFlags.None));
         }
-
 
         [Fact]
         public void KeyExistsAsync()
         {
-            wrapper.KeyExistsAsync("key", CommandFlags.None);
+            prefixed.KeyExistsAsync("key", CommandFlags.None);
             mock.Verify(_ => _.KeyExistsAsync("prefix:key", CommandFlags.None));
         }
 
@@ -245,7 +244,7 @@ namespace StackExchange.Redis.Tests
         public void KeyExpireAsync_1()
         {
             TimeSpan expiry = TimeSpan.FromSeconds(123);
-            wrapper.KeyExpireAsync("key", expiry, CommandFlags.None);
+            prefixed.KeyExpireAsync("key", expiry, CommandFlags.None);
             mock.Verify(_ => _.KeyExpireAsync("prefix:key", expiry, CommandFlags.None));
         }
 
@@ -253,7 +252,7 @@ namespace StackExchange.Redis.Tests
         public void KeyExpireAsync_2()
         {
             DateTime expiry = DateTime.Now;
-            wrapper.KeyExpireAsync("key", expiry, CommandFlags.None);
+            prefixed.KeyExpireAsync("key", expiry, CommandFlags.None);
             mock.Verify(_ => _.KeyExpireAsync("prefix:key", expiry, CommandFlags.None));
         }
 
@@ -261,7 +260,7 @@ namespace StackExchange.Redis.Tests
         public void KeyExpireAsync_3()
         {
             TimeSpan expiry = TimeSpan.FromSeconds(123);
-            wrapper.KeyExpireAsync("key", expiry, ExpireWhen.HasNoExpiry, CommandFlags.None);
+            prefixed.KeyExpireAsync("key", expiry, ExpireWhen.HasNoExpiry, CommandFlags.None);
             mock.Verify(_ => _.KeyExpireAsync("prefix:key", expiry, ExpireWhen.HasNoExpiry, CommandFlags.None));
         }
 
@@ -269,21 +268,21 @@ namespace StackExchange.Redis.Tests
         public void KeyExpireAsync_4()
         {
             DateTime expiry = DateTime.Now;
-            wrapper.KeyExpireAsync("key", expiry, ExpireWhen.HasNoExpiry, CommandFlags.None);
+            prefixed.KeyExpireAsync("key", expiry, ExpireWhen.HasNoExpiry, CommandFlags.None);
             mock.Verify(_ => _.KeyExpireAsync("prefix:key", expiry, ExpireWhen.HasNoExpiry, CommandFlags.None));
         }
 
         [Fact]
         public void KeyExpireTimeAsync()
         {
-            wrapper.KeyExpireTimeAsync("key", CommandFlags.None);
+            prefixed.KeyExpireTimeAsync("key", CommandFlags.None);
             mock.Verify(_ => _.KeyExpireTimeAsync("prefix:key", CommandFlags.None));
         }
 
         [Fact]
         public void KeyFrequencyAsync()
         {
-            wrapper.KeyFrequencyAsync("key", CommandFlags.None);
+            prefixed.KeyFrequencyAsync("key", CommandFlags.None);
             mock.Verify(_ => _.KeyFrequencyAsync("prefix:key", CommandFlags.None));
         }
 
@@ -291,41 +290,41 @@ namespace StackExchange.Redis.Tests
         public void KeyMigrateAsync()
         {
             EndPoint toServer = new IPEndPoint(IPAddress.Loopback, 123);
-            wrapper.KeyMigrateAsync("key", toServer, 123, 456, MigrateOptions.Copy, CommandFlags.None);
+            prefixed.KeyMigrateAsync("key", toServer, 123, 456, MigrateOptions.Copy, CommandFlags.None);
             mock.Verify(_ => _.KeyMigrateAsync("prefix:key", toServer, 123, 456, MigrateOptions.Copy, CommandFlags.None));
         }
 
         [Fact]
         public void KeyMoveAsync()
         {
-            wrapper.KeyMoveAsync("key", 123, CommandFlags.None);
+            prefixed.KeyMoveAsync("key", 123, CommandFlags.None);
             mock.Verify(_ => _.KeyMoveAsync("prefix:key", 123, CommandFlags.None));
         }
 
         [Fact]
         public void KeyPersistAsync()
         {
-            wrapper.KeyPersistAsync("key", CommandFlags.None);
+            prefixed.KeyPersistAsync("key", CommandFlags.None);
             mock.Verify(_ => _.KeyPersistAsync("prefix:key", CommandFlags.None));
         }
 
         [Fact]
         public Task KeyRandomAsync()
         {
-            return Assert.ThrowsAsync<NotSupportedException>(() => wrapper.KeyRandomAsync());
+            return Assert.ThrowsAsync<NotSupportedException>(() => prefixed.KeyRandomAsync());
         }
 
         [Fact]
         public void KeyRefCountAsync()
         {
-            wrapper.KeyRefCountAsync("key", CommandFlags.None);
+            prefixed.KeyRefCountAsync("key", CommandFlags.None);
             mock.Verify(_ => _.KeyRefCountAsync("prefix:key", CommandFlags.None));
         }
 
         [Fact]
         public void KeyRenameAsync()
         {
-            wrapper.KeyRenameAsync("key", "newKey", When.Exists, CommandFlags.None);
+            prefixed.KeyRenameAsync("key", "newKey", When.Exists, CommandFlags.None);
             mock.Verify(_ => _.KeyRenameAsync("prefix:key", "prefix:newKey", When.Exists, CommandFlags.None));
         }
 
@@ -334,63 +333,63 @@ namespace StackExchange.Redis.Tests
         {
             byte[] value = Array.Empty<byte>();
             TimeSpan expiry = TimeSpan.FromSeconds(123);
-            wrapper.KeyRestoreAsync("key", value, expiry, CommandFlags.None);
+            prefixed.KeyRestoreAsync("key", value, expiry, CommandFlags.None);
             mock.Verify(_ => _.KeyRestoreAsync("prefix:key", value, expiry, CommandFlags.None));
         }
 
         [Fact]
         public void KeyTimeToLiveAsync()
         {
-            wrapper.KeyTimeToLiveAsync("key", CommandFlags.None);
+            prefixed.KeyTimeToLiveAsync("key", CommandFlags.None);
             mock.Verify(_ => _.KeyTimeToLiveAsync("prefix:key", CommandFlags.None));
         }
 
         [Fact]
         public void KeyTypeAsync()
         {
-            wrapper.KeyTypeAsync("key", CommandFlags.None);
+            prefixed.KeyTypeAsync("key", CommandFlags.None);
             mock.Verify(_ => _.KeyTypeAsync("prefix:key", CommandFlags.None));
         }
 
         [Fact]
         public void ListGetByIndexAsync()
         {
-            wrapper.ListGetByIndexAsync("key", 123, CommandFlags.None);
+            prefixed.ListGetByIndexAsync("key", 123, CommandFlags.None);
             mock.Verify(_ => _.ListGetByIndexAsync("prefix:key", 123, CommandFlags.None));
         }
 
         [Fact]
         public void ListInsertAfterAsync()
         {
-            wrapper.ListInsertAfterAsync("key", "pivot", "value", CommandFlags.None);
+            prefixed.ListInsertAfterAsync("key", "pivot", "value", CommandFlags.None);
             mock.Verify(_ => _.ListInsertAfterAsync("prefix:key", "pivot", "value", CommandFlags.None));
         }
 
         [Fact]
         public void ListInsertBeforeAsync()
         {
-            wrapper.ListInsertBeforeAsync("key", "pivot", "value", CommandFlags.None);
+            prefixed.ListInsertBeforeAsync("key", "pivot", "value", CommandFlags.None);
             mock.Verify(_ => _.ListInsertBeforeAsync("prefix:key", "pivot", "value", CommandFlags.None));
         }
 
         [Fact]
         public void ListLeftPopAsync()
         {
-            wrapper.ListLeftPopAsync("key", CommandFlags.None);
+            prefixed.ListLeftPopAsync("key", CommandFlags.None);
             mock.Verify(_ => _.ListLeftPopAsync("prefix:key", CommandFlags.None));
         }
 
         [Fact]
         public void ListLeftPopAsync_1()
         {
-            wrapper.ListLeftPopAsync("key", 123, CommandFlags.None);
+            prefixed.ListLeftPopAsync("key", 123, CommandFlags.None);
             mock.Verify(_ => _.ListLeftPopAsync("prefix:key", 123, CommandFlags.None));
         }
 
         [Fact]
         public void ListLeftPushAsync_1()
         {
-            wrapper.ListLeftPushAsync("key", "value", When.Exists, CommandFlags.None);
+            prefixed.ListLeftPushAsync("key", "value", When.Exists, CommandFlags.None);
             mock.Verify(_ => _.ListLeftPushAsync("prefix:key", "value", When.Exists, CommandFlags.None));
         }
 
@@ -398,7 +397,7 @@ namespace StackExchange.Redis.Tests
         public void ListLeftPushAsync_2()
         {
             RedisValue[] values = Array.Empty<RedisValue>();
-            wrapper.ListLeftPushAsync("key", values, CommandFlags.None);
+            prefixed.ListLeftPushAsync("key", values, CommandFlags.None);
             mock.Verify(_ => _.ListLeftPushAsync("prefix:key", values, CommandFlags.None));
         }
 
@@ -406,63 +405,63 @@ namespace StackExchange.Redis.Tests
         public void ListLeftPushAsync_3()
         {
             RedisValue[] values = new RedisValue[] { "value1", "value2" };
-            wrapper.ListLeftPushAsync("key", values, When.Exists, CommandFlags.None);
+            prefixed.ListLeftPushAsync("key", values, When.Exists, CommandFlags.None);
             mock.Verify(_ => _.ListLeftPushAsync("prefix:key", values, When.Exists, CommandFlags.None));
         }
 
         [Fact]
         public void ListLengthAsync()
         {
-            wrapper.ListLengthAsync("key", CommandFlags.None);
+            prefixed.ListLengthAsync("key", CommandFlags.None);
             mock.Verify(_ => _.ListLengthAsync("prefix:key", CommandFlags.None));
         }
 
         [Fact]
         public void ListMoveAsync()
         {
-            wrapper.ListMoveAsync("key", "destination", ListSide.Left, ListSide.Right, CommandFlags.None);
+            prefixed.ListMoveAsync("key", "destination", ListSide.Left, ListSide.Right, CommandFlags.None);
             mock.Verify(_ => _.ListMoveAsync("prefix:key", "prefix:destination", ListSide.Left, ListSide.Right, CommandFlags.None));
         }
 
         [Fact]
         public void ListRangeAsync()
         {
-            wrapper.ListRangeAsync("key", 123, 456, CommandFlags.None);
+            prefixed.ListRangeAsync("key", 123, 456, CommandFlags.None);
             mock.Verify(_ => _.ListRangeAsync("prefix:key", 123, 456, CommandFlags.None));
         }
 
         [Fact]
         public void ListRemoveAsync()
         {
-            wrapper.ListRemoveAsync("key", "value", 123, CommandFlags.None);
+            prefixed.ListRemoveAsync("key", "value", 123, CommandFlags.None);
             mock.Verify(_ => _.ListRemoveAsync("prefix:key", "value", 123, CommandFlags.None));
         }
 
         [Fact]
         public void ListRightPopAsync()
         {
-            wrapper.ListRightPopAsync("key", CommandFlags.None);
+            prefixed.ListRightPopAsync("key", CommandFlags.None);
             mock.Verify(_ => _.ListRightPopAsync("prefix:key", CommandFlags.None));
         }
 
         [Fact]
         public void ListRightPopAsync_1()
         {
-            wrapper.ListRightPopAsync("key", 123, CommandFlags.None);
+            prefixed.ListRightPopAsync("key", 123, CommandFlags.None);
             mock.Verify(_ => _.ListRightPopAsync("prefix:key", 123, CommandFlags.None));
         }
 
         [Fact]
         public void ListRightPopLeftPushAsync()
         {
-            wrapper.ListRightPopLeftPushAsync("source", "destination", CommandFlags.None);
+            prefixed.ListRightPopLeftPushAsync("source", "destination", CommandFlags.None);
             mock.Verify(_ => _.ListRightPopLeftPushAsync("prefix:source", "prefix:destination", CommandFlags.None));
         }
 
         [Fact]
         public void ListRightPushAsync_1()
         {
-            wrapper.ListRightPushAsync("key", "value", When.Exists, CommandFlags.None);
+            prefixed.ListRightPushAsync("key", "value", When.Exists, CommandFlags.None);
             mock.Verify(_ => _.ListRightPushAsync("prefix:key", "value", When.Exists, CommandFlags.None));
         }
 
@@ -470,7 +469,7 @@ namespace StackExchange.Redis.Tests
         public void ListRightPushAsync_2()
         {
             RedisValue[] values = Array.Empty<RedisValue>();
-            wrapper.ListRightPushAsync("key", values, CommandFlags.None);
+            prefixed.ListRightPushAsync("key", values, CommandFlags.None);
             mock.Verify(_ => _.ListRightPushAsync("prefix:key", values, CommandFlags.None));
         }
 
@@ -478,21 +477,21 @@ namespace StackExchange.Redis.Tests
         public void ListRightPushAsync_3()
         {
             RedisValue[] values = new RedisValue[] { "value1", "value2" };
-            wrapper.ListRightPushAsync("key", values, When.Exists, CommandFlags.None);
+            prefixed.ListRightPushAsync("key", values, When.Exists, CommandFlags.None);
             mock.Verify(_ => _.ListRightPushAsync("prefix:key", values, When.Exists, CommandFlags.None));
         }
 
         [Fact]
         public void ListSetByIndexAsync()
         {
-            wrapper.ListSetByIndexAsync("key", 123, "value", CommandFlags.None);
+            prefixed.ListSetByIndexAsync("key", 123, "value", CommandFlags.None);
             mock.Verify(_ => _.ListSetByIndexAsync("prefix:key", 123, "value", CommandFlags.None));
         }
 
         [Fact]
         public void ListTrimAsync()
         {
-            wrapper.ListTrimAsync("key", 123, 456, CommandFlags.None);
+            prefixed.ListTrimAsync("key", 123, 456, CommandFlags.None);
             mock.Verify(_ => _.ListTrimAsync("prefix:key", 123, 456, CommandFlags.None));
         }
 
@@ -500,21 +499,21 @@ namespace StackExchange.Redis.Tests
         public void LockExtendAsync()
         {
             TimeSpan expiry = TimeSpan.FromSeconds(123);
-            wrapper.LockExtendAsync("key", "value", expiry, CommandFlags.None);
+            prefixed.LockExtendAsync("key", "value", expiry, CommandFlags.None);
             mock.Verify(_ => _.LockExtendAsync("prefix:key", "value", expiry, CommandFlags.None));
         }
 
         [Fact]
         public void LockQueryAsync()
         {
-            wrapper.LockQueryAsync("key", CommandFlags.None);
+            prefixed.LockQueryAsync("key", CommandFlags.None);
             mock.Verify(_ => _.LockQueryAsync("prefix:key", CommandFlags.None));
         }
 
         [Fact]
         public void LockReleaseAsync()
         {
-            wrapper.LockReleaseAsync("key", "value", CommandFlags.None);
+            prefixed.LockReleaseAsync("key", "value", CommandFlags.None);
             mock.Verify(_ => _.LockReleaseAsync("prefix:key", "value", CommandFlags.None));
         }
 
@@ -522,14 +521,14 @@ namespace StackExchange.Redis.Tests
         public void LockTakeAsync()
         {
             TimeSpan expiry = TimeSpan.FromSeconds(123);
-            wrapper.LockTakeAsync("key", "value", expiry, CommandFlags.None);
+            prefixed.LockTakeAsync("key", "value", expiry, CommandFlags.None);
             mock.Verify(_ => _.LockTakeAsync("prefix:key", "value", expiry, CommandFlags.None));
         }
 
         [Fact]
         public void PublishAsync()
         {
-            wrapper.PublishAsync("channel", "message", CommandFlags.None);
+            prefixed.PublishAsync("channel", "message", CommandFlags.None);
             mock.Verify(_ => _.PublishAsync("prefix:channel", "message", CommandFlags.None));
         }
 
@@ -540,7 +539,7 @@ namespace StackExchange.Redis.Tests
             RedisValue[] values = Array.Empty<RedisValue>();
             RedisKey[] keys = new RedisKey[] { "a", "b" };
             Expression<Func<RedisKey[], bool>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "prefix:b";
-            wrapper.ScriptEvaluateAsync(hash, keys, values, CommandFlags.None);
+            prefixed.ScriptEvaluateAsync(hash, keys, values, CommandFlags.None);
             mock.Verify(_ => _.ScriptEvaluateAsync(hash, It.Is(valid), values, CommandFlags.None));
         }
 
@@ -550,14 +549,14 @@ namespace StackExchange.Redis.Tests
             RedisValue[] values = Array.Empty<RedisValue>();
             RedisKey[] keys = new RedisKey[] { "a", "b" };
             Expression<Func<RedisKey[], bool>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "prefix:b";
-            wrapper.ScriptEvaluateAsync("script", keys, values, CommandFlags.None);
+            prefixed.ScriptEvaluateAsync("script", keys, values, CommandFlags.None);
             mock.Verify(_ => _.ScriptEvaluateAsync("script", It.Is(valid), values, CommandFlags.None));
         }
 
         [Fact]
         public void SetAddAsync_1()
         {
-            wrapper.SetAddAsync("key", "value", CommandFlags.None);
+            prefixed.SetAddAsync("key", "value", CommandFlags.None);
             mock.Verify(_ => _.SetAddAsync("prefix:key", "value", CommandFlags.None));
         }
 
@@ -565,14 +564,14 @@ namespace StackExchange.Redis.Tests
         public void SetAddAsync_2()
         {
             RedisValue[] values = Array.Empty<RedisValue>();
-            wrapper.SetAddAsync("key", values, CommandFlags.None);
+            prefixed.SetAddAsync("key", values, CommandFlags.None);
             mock.Verify(_ => _.SetAddAsync("prefix:key", values, CommandFlags.None));
         }
 
         [Fact]
         public void SetCombineAndStoreAsync_1()
         {
-            wrapper.SetCombineAndStoreAsync(SetOperation.Intersect, "destination", "first", "second", CommandFlags.None);
+            prefixed.SetCombineAndStoreAsync(SetOperation.Intersect, "destination", "first", "second", CommandFlags.None);
             mock.Verify(_ => _.SetCombineAndStoreAsync(SetOperation.Intersect, "prefix:destination", "prefix:first", "prefix:second", CommandFlags.None));
         }
 
@@ -581,14 +580,14 @@ namespace StackExchange.Redis.Tests
         {
             RedisKey[] keys = new RedisKey[] { "a", "b" };
             Expression<Func<RedisKey[], bool>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "prefix:b";
-            wrapper.SetCombineAndStoreAsync(SetOperation.Intersect, "destination", keys, CommandFlags.None);
+            prefixed.SetCombineAndStoreAsync(SetOperation.Intersect, "destination", keys, CommandFlags.None);
             mock.Verify(_ => _.SetCombineAndStoreAsync(SetOperation.Intersect, "prefix:destination", It.Is(valid), CommandFlags.None));
         }
 
         [Fact]
         public void SetCombineAsync_1()
         {
-            wrapper.SetCombineAsync(SetOperation.Intersect, "first", "second", CommandFlags.None);
+            prefixed.SetCombineAsync(SetOperation.Intersect, "first", "second", CommandFlags.None);
             mock.Verify(_ => _.SetCombineAsync(SetOperation.Intersect, "prefix:first", "prefix:second", CommandFlags.None));
         }
 
@@ -597,14 +596,14 @@ namespace StackExchange.Redis.Tests
         {
             RedisKey[] keys = new RedisKey[] { "a", "b" };
             Expression<Func<RedisKey[], bool>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "prefix:b";
-            wrapper.SetCombineAsync(SetOperation.Intersect, keys, CommandFlags.None);
+            prefixed.SetCombineAsync(SetOperation.Intersect, keys, CommandFlags.None);
             mock.Verify(_ => _.SetCombineAsync(SetOperation.Intersect, It.Is(valid), CommandFlags.None));
         }
 
         [Fact]
         public void SetContainsAsync()
         {
-            wrapper.SetContainsAsync("key", "value", CommandFlags.None);
+            prefixed.SetContainsAsync("key", "value", CommandFlags.None);
             mock.Verify(_ => _.SetContainsAsync("prefix:key", "value", CommandFlags.None));
         }
 
@@ -612,7 +611,7 @@ namespace StackExchange.Redis.Tests
         public void SetContainsAsync_2()
         {
             RedisValue[] values = new RedisValue[] { "value1", "value2" };
-            wrapper.SetContainsAsync("key", values, CommandFlags.None);
+            prefixed.SetContainsAsync("key", values, CommandFlags.None);
             mock.Verify(_ => _.SetContainsAsync("prefix:key", values, CommandFlags.None));
         }
 
@@ -620,66 +619,66 @@ namespace StackExchange.Redis.Tests
         public void SetIntersectionLengthAsync()
         {
             var keys = new RedisKey[] { "key1", "key2" };
-            wrapper.SetIntersectionLengthAsync(keys);
+            prefixed.SetIntersectionLengthAsync(keys);
             mock.Verify(_ => _.SetIntersectionLengthAsync(keys, 0, CommandFlags.None));
         }
 
         [Fact]
         public void SetLengthAsync()
         {
-            wrapper.SetLengthAsync("key", CommandFlags.None);
+            prefixed.SetLengthAsync("key", CommandFlags.None);
             mock.Verify(_ => _.SetLengthAsync("prefix:key", CommandFlags.None));
         }
 
         [Fact]
         public void SetMembersAsync()
         {
-            wrapper.SetMembersAsync("key", CommandFlags.None);
+            prefixed.SetMembersAsync("key", CommandFlags.None);
             mock.Verify(_ => _.SetMembersAsync("prefix:key", CommandFlags.None));
         }
 
         [Fact]
         public void SetMoveAsync()
         {
-            wrapper.SetMoveAsync("source", "destination", "value", CommandFlags.None);
+            prefixed.SetMoveAsync("source", "destination", "value", CommandFlags.None);
             mock.Verify(_ => _.SetMoveAsync("prefix:source", "prefix:destination", "value", CommandFlags.None));
         }
 
         [Fact]
         public void SetPopAsync_1()
         {
-            wrapper.SetPopAsync("key", CommandFlags.None);
+            prefixed.SetPopAsync("key", CommandFlags.None);
             mock.Verify(_ => _.SetPopAsync("prefix:key", CommandFlags.None));
 
-            wrapper.SetPopAsync("key", 5, CommandFlags.None);
+            prefixed.SetPopAsync("key", 5, CommandFlags.None);
             mock.Verify(_ => _.SetPopAsync("prefix:key", 5, CommandFlags.None));
         }
 
         [Fact]
         public void SetPopAsync_2()
         {
-            wrapper.SetPopAsync("key", 5, CommandFlags.None);
+            prefixed.SetPopAsync("key", 5, CommandFlags.None);
             mock.Verify(_ => _.SetPopAsync("prefix:key", 5, CommandFlags.None));
         }
 
         [Fact]
         public void SetRandomMemberAsync()
         {
-            wrapper.SetRandomMemberAsync("key", CommandFlags.None);
+            prefixed.SetRandomMemberAsync("key", CommandFlags.None);
             mock.Verify(_ => _.SetRandomMemberAsync("prefix:key", CommandFlags.None));
         }
 
         [Fact]
         public void SetRandomMembersAsync()
         {
-            wrapper.SetRandomMembersAsync("key", 123, CommandFlags.None);
+            prefixed.SetRandomMembersAsync("key", 123, CommandFlags.None);
             mock.Verify(_ => _.SetRandomMembersAsync("prefix:key", 123, CommandFlags.None));
         }
 
         [Fact]
         public void SetRemoveAsync_1()
         {
-            wrapper.SetRemoveAsync("key", "value", CommandFlags.None);
+            prefixed.SetRemoveAsync("key", "value", CommandFlags.None);
             mock.Verify(_ => _.SetRemoveAsync("prefix:key", "value", CommandFlags.None));
         }
 
@@ -687,7 +686,7 @@ namespace StackExchange.Redis.Tests
         public void SetRemoveAsync_2()
         {
             RedisValue[] values = Array.Empty<RedisValue>();
-            wrapper.SetRemoveAsync("key", values, CommandFlags.None);
+            prefixed.SetRemoveAsync("key", values, CommandFlags.None);
             mock.Verify(_ => _.SetRemoveAsync("prefix:key", values, CommandFlags.None));
         }
 
@@ -697,8 +696,8 @@ namespace StackExchange.Redis.Tests
             RedisValue[] get = new RedisValue[] { "a", "#" };
             Expression<Func<RedisValue[], bool>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "#";
 
-            wrapper.SortAndStoreAsync("destination", "key", 123, 456, Order.Descending, SortType.Alphabetic, "nosort", get, CommandFlags.None);
-            wrapper.SortAndStoreAsync("destination", "key", 123, 456, Order.Descending, SortType.Alphabetic, "by", get, CommandFlags.None);
+            prefixed.SortAndStoreAsync("destination", "key", 123, 456, Order.Descending, SortType.Alphabetic, "nosort", get, CommandFlags.None);
+            prefixed.SortAndStoreAsync("destination", "key", 123, 456, Order.Descending, SortType.Alphabetic, "by", get, CommandFlags.None);
 
             mock.Verify(_ => _.SortAndStoreAsync("prefix:destination", "prefix:key", 123, 456, Order.Descending, SortType.Alphabetic, "nosort", It.Is(valid), CommandFlags.None));
             mock.Verify(_ => _.SortAndStoreAsync("prefix:destination", "prefix:key", 123, 456, Order.Descending, SortType.Alphabetic, "prefix:by", It.Is(valid), CommandFlags.None));
@@ -710,8 +709,8 @@ namespace StackExchange.Redis.Tests
             RedisValue[] get = new RedisValue[] { "a", "#" };
             Expression<Func<RedisValue[], bool>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "#";
 
-            wrapper.SortAsync("key", 123, 456, Order.Descending, SortType.Alphabetic, "nosort", get, CommandFlags.None);
-            wrapper.SortAsync("key", 123, 456, Order.Descending, SortType.Alphabetic, "by", get, CommandFlags.None);
+            prefixed.SortAsync("key", 123, 456, Order.Descending, SortType.Alphabetic, "nosort", get, CommandFlags.None);
+            prefixed.SortAsync("key", 123, 456, Order.Descending, SortType.Alphabetic, "by", get, CommandFlags.None);
 
             mock.Verify(_ => _.SortAsync("prefix:key", 123, 456, Order.Descending, SortType.Alphabetic, "nosort", It.Is(valid), CommandFlags.None));
             mock.Verify(_ => _.SortAsync("prefix:key", 123, 456, Order.Descending, SortType.Alphabetic, "prefix:by", It.Is(valid), CommandFlags.None));
@@ -720,7 +719,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void SortedSetAddAsync_1()
         {
-            wrapper.SortedSetAddAsync("key", "member", 1.23, When.Exists, CommandFlags.None);
+            prefixed.SortedSetAddAsync("key", "member", 1.23, When.Exists, CommandFlags.None);
             mock.Verify(_ => _.SortedSetAddAsync("prefix:key", "member", 1.23, When.Exists, CommandFlags.None));
         }
 
@@ -728,7 +727,7 @@ namespace StackExchange.Redis.Tests
         public void SortedSetAddAsync_2()
         {
             SortedSetEntry[] values = Array.Empty<SortedSetEntry>();
-            wrapper.SortedSetAddAsync("key", values, When.Exists, CommandFlags.None);
+            prefixed.SortedSetAddAsync("key", values, When.Exists, CommandFlags.None);
             mock.Verify(_ => _.SortedSetAddAsync("prefix:key", values, When.Exists, CommandFlags.None));
         }
 
@@ -736,7 +735,7 @@ namespace StackExchange.Redis.Tests
         public void SortedSetAddAsync_3()
         {
             SortedSetEntry[] values = Array.Empty<SortedSetEntry>();
-            wrapper.SortedSetAddAsync("key", values, SortedSetWhen.GreaterThan, CommandFlags.None);
+            prefixed.SortedSetAddAsync("key", values, SortedSetWhen.GreaterThan, CommandFlags.None);
             mock.Verify(_ => _.SortedSetAddAsync("prefix:key", values, SortedSetWhen.GreaterThan, CommandFlags.None));
         }
 
@@ -744,7 +743,7 @@ namespace StackExchange.Redis.Tests
         public void SortedSetCombineAsync()
         {
             RedisKey[] keys = new RedisKey[] { "a", "b" };
-            wrapper.SortedSetCombineAsync(SetOperation.Intersect, keys);
+            prefixed.SortedSetCombineAsync(SetOperation.Intersect, keys);
             mock.Verify(_ => _.SortedSetCombineAsync(SetOperation.Intersect, keys, null, Aggregate.Sum, CommandFlags.None));
         }
 
@@ -752,14 +751,14 @@ namespace StackExchange.Redis.Tests
         public void SortedSetCombineWithScoresAsync()
         {
             RedisKey[] keys = new RedisKey[] { "a", "b" };
-            wrapper.SortedSetCombineWithScoresAsync(SetOperation.Intersect, keys);
+            prefixed.SortedSetCombineWithScoresAsync(SetOperation.Intersect, keys);
             mock.Verify(_ => _.SortedSetCombineWithScoresAsync(SetOperation.Intersect, keys, null, Aggregate.Sum, CommandFlags.None));
         }
 
         [Fact]
         public void SortedSetCombineAndStoreAsync_1()
         {
-            wrapper.SortedSetCombineAndStoreAsync(SetOperation.Intersect, "destination", "first", "second", Aggregate.Max, CommandFlags.None);
+            prefixed.SortedSetCombineAndStoreAsync(SetOperation.Intersect, "destination", "first", "second", Aggregate.Max, CommandFlags.None);
             mock.Verify(_ => _.SortedSetCombineAndStoreAsync(SetOperation.Intersect, "prefix:destination", "prefix:first", "prefix:second", Aggregate.Max, CommandFlags.None));
         }
 
@@ -768,21 +767,21 @@ namespace StackExchange.Redis.Tests
         {
             RedisKey[] keys = new RedisKey[] { "a", "b" };
             Expression<Func<RedisKey[], bool>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "prefix:b";
-            wrapper.SetCombineAndStoreAsync(SetOperation.Intersect, "destination", keys, CommandFlags.None);
+            prefixed.SetCombineAndStoreAsync(SetOperation.Intersect, "destination", keys, CommandFlags.None);
             mock.Verify(_ => _.SetCombineAndStoreAsync(SetOperation.Intersect, "prefix:destination", It.Is(valid), CommandFlags.None));
         }
 
         [Fact]
         public void SortedSetDecrementAsync()
         {
-            wrapper.SortedSetDecrementAsync("key", "member", 1.23, CommandFlags.None);
+            prefixed.SortedSetDecrementAsync("key", "member", 1.23, CommandFlags.None);
             mock.Verify(_ => _.SortedSetDecrementAsync("prefix:key", "member", 1.23, CommandFlags.None));
         }
 
         [Fact]
         public void SortedSetIncrementAsync()
         {
-            wrapper.SortedSetIncrementAsync("key", "member", 1.23, CommandFlags.None);
+            prefixed.SortedSetIncrementAsync("key", "member", 1.23, CommandFlags.None);
             mock.Verify(_ => _.SortedSetIncrementAsync("prefix:key", "member", 1.23, CommandFlags.None));
         }
 
@@ -790,98 +789,98 @@ namespace StackExchange.Redis.Tests
         public void SortedSetIntersectionLengthAsync()
         {
             RedisKey[] keys = new RedisKey[] { "a", "b" };
-            wrapper.SortedSetIntersectionLengthAsync(keys, 1, CommandFlags.None);
+            prefixed.SortedSetIntersectionLengthAsync(keys, 1, CommandFlags.None);
             mock.Verify(_ => _.SortedSetIntersectionLengthAsync(keys, 1, CommandFlags.None));
         }
 
         [Fact]
         public void SortedSetLengthAsync()
         {
-            wrapper.SortedSetLengthAsync("key", 1.23, 1.23, Exclude.Start, CommandFlags.None);
+            prefixed.SortedSetLengthAsync("key", 1.23, 1.23, Exclude.Start, CommandFlags.None);
             mock.Verify(_ => _.SortedSetLengthAsync("prefix:key", 1.23, 1.23, Exclude.Start, CommandFlags.None));
         }
 
         [Fact]
         public void SortedSetLengthByValueAsync()
         {
-            wrapper.SortedSetLengthByValueAsync("key", "min", "max", Exclude.Start, CommandFlags.None);
+            prefixed.SortedSetLengthByValueAsync("key", "min", "max", Exclude.Start, CommandFlags.None);
             mock.Verify(_ => _.SortedSetLengthByValueAsync("prefix:key", "min", "max", Exclude.Start, CommandFlags.None));
         }
 
         [Fact]
         public void SortedSetRandomMemberAsync()
         {
-            wrapper.SortedSetRandomMemberAsync("key", CommandFlags.None);
+            prefixed.SortedSetRandomMemberAsync("key", CommandFlags.None);
             mock.Verify(_ => _.SortedSetRandomMemberAsync("prefix:key", CommandFlags.None));
         }
 
         [Fact]
         public void SortedSetRandomMembersAsync()
         {
-            wrapper.SortedSetRandomMembersAsync("key", 2, CommandFlags.None);
+            prefixed.SortedSetRandomMembersAsync("key", 2, CommandFlags.None);
             mock.Verify(_ => _.SortedSetRandomMembersAsync("prefix:key", 2, CommandFlags.None));
         }
 
         [Fact]
         public void SortedSetRandomMemberWithScoresAsync()
         {
-            wrapper.SortedSetRandomMembersWithScoresAsync("key", 2, CommandFlags.None);
+            prefixed.SortedSetRandomMembersWithScoresAsync("key", 2, CommandFlags.None);
             mock.Verify(_ => _.SortedSetRandomMembersWithScoresAsync("prefix:key", 2, CommandFlags.None));
         }
 
         [Fact]
         public void SortedSetRangeByRankAsync()
         {
-            wrapper.SortedSetRangeByRankAsync("key", 123, 456, Order.Descending, CommandFlags.None);
+            prefixed.SortedSetRangeByRankAsync("key", 123, 456, Order.Descending, CommandFlags.None);
             mock.Verify(_ => _.SortedSetRangeByRankAsync("prefix:key", 123, 456, Order.Descending, CommandFlags.None));
         }
 
         [Fact]
         public void SortedSetRangeByRankWithScoresAsync()
         {
-            wrapper.SortedSetRangeByRankWithScoresAsync("key", 123, 456, Order.Descending, CommandFlags.None);
+            prefixed.SortedSetRangeByRankWithScoresAsync("key", 123, 456, Order.Descending, CommandFlags.None);
             mock.Verify(_ => _.SortedSetRangeByRankWithScoresAsync("prefix:key", 123, 456, Order.Descending, CommandFlags.None));
         }
 
         [Fact]
         public void SortedSetRangeByScoreAsync()
         {
-            wrapper.SortedSetRangeByScoreAsync("key", 1.23, 1.23, Exclude.Start, Order.Descending, 123, 456, CommandFlags.None);
+            prefixed.SortedSetRangeByScoreAsync("key", 1.23, 1.23, Exclude.Start, Order.Descending, 123, 456, CommandFlags.None);
             mock.Verify(_ => _.SortedSetRangeByScoreAsync("prefix:key", 1.23, 1.23, Exclude.Start, Order.Descending, 123, 456, CommandFlags.None));
         }
 
         [Fact]
         public void SortedSetRangeByScoreWithScoresAsync()
         {
-            wrapper.SortedSetRangeByScoreWithScoresAsync("key", 1.23, 1.23, Exclude.Start, Order.Descending, 123, 456, CommandFlags.None);
+            prefixed.SortedSetRangeByScoreWithScoresAsync("key", 1.23, 1.23, Exclude.Start, Order.Descending, 123, 456, CommandFlags.None);
             mock.Verify(_ => _.SortedSetRangeByScoreWithScoresAsync("prefix:key", 1.23, 1.23, Exclude.Start, Order.Descending, 123, 456, CommandFlags.None));
         }
 
         [Fact]
         public void SortedSetRangeByValueAsync()
         {
-            wrapper.SortedSetRangeByValueAsync("key", "min", "max", Exclude.Start, 123, 456, CommandFlags.None);
+            prefixed.SortedSetRangeByValueAsync("key", "min", "max", Exclude.Start, 123, 456, CommandFlags.None);
             mock.Verify(_ => _.SortedSetRangeByValueAsync("prefix:key", "min", "max", Exclude.Start, Order.Ascending, 123, 456, CommandFlags.None));
         }
 
         [Fact]
         public void SortedSetRangeByValueDescAsync()
         {
-            wrapper.SortedSetRangeByValueAsync("key", "min", "max", Exclude.Start, Order.Descending, 123, 456, CommandFlags.None);
+            prefixed.SortedSetRangeByValueAsync("key", "min", "max", Exclude.Start, Order.Descending, 123, 456, CommandFlags.None);
             mock.Verify(_ => _.SortedSetRangeByValueAsync("prefix:key", "min", "max", Exclude.Start, Order.Descending, 123, 456, CommandFlags.None));
         }
 
         [Fact]
         public void SortedSetRankAsync()
         {
-            wrapper.SortedSetRankAsync("key", "member", Order.Descending, CommandFlags.None);
+            prefixed.SortedSetRankAsync("key", "member", Order.Descending, CommandFlags.None);
             mock.Verify(_ => _.SortedSetRankAsync("prefix:key", "member", Order.Descending, CommandFlags.None));
         }
 
         [Fact]
         public void SortedSetRemoveAsync_1()
         {
-            wrapper.SortedSetRemoveAsync("key", "member", CommandFlags.None);
+            prefixed.SortedSetRemoveAsync("key", "member", CommandFlags.None);
             mock.Verify(_ => _.SortedSetRemoveAsync("prefix:key", "member", CommandFlags.None));
         }
 
@@ -889,42 +888,42 @@ namespace StackExchange.Redis.Tests
         public void SortedSetRemoveAsync_2()
         {
             RedisValue[] members = Array.Empty<RedisValue>();
-            wrapper.SortedSetRemoveAsync("key", members, CommandFlags.None);
+            prefixed.SortedSetRemoveAsync("key", members, CommandFlags.None);
             mock.Verify(_ => _.SortedSetRemoveAsync("prefix:key", members, CommandFlags.None));
         }
 
         [Fact]
         public void SortedSetRemoveRangeByRankAsync()
         {
-            wrapper.SortedSetRemoveRangeByRankAsync("key", 123, 456, CommandFlags.None);
+            prefixed.SortedSetRemoveRangeByRankAsync("key", 123, 456, CommandFlags.None);
             mock.Verify(_ => _.SortedSetRemoveRangeByRankAsync("prefix:key", 123, 456, CommandFlags.None));
         }
 
         [Fact]
         public void SortedSetRemoveRangeByScoreAsync()
         {
-            wrapper.SortedSetRemoveRangeByScoreAsync("key", 1.23, 1.23, Exclude.Start, CommandFlags.None);
+            prefixed.SortedSetRemoveRangeByScoreAsync("key", 1.23, 1.23, Exclude.Start, CommandFlags.None);
             mock.Verify(_ => _.SortedSetRemoveRangeByScoreAsync("prefix:key", 1.23, 1.23, Exclude.Start, CommandFlags.None));
         }
 
         [Fact]
         public void SortedSetRemoveRangeByValueAsync()
         {
-            wrapper.SortedSetRemoveRangeByValueAsync("key", "min", "max", Exclude.Start, CommandFlags.None);
+            prefixed.SortedSetRemoveRangeByValueAsync("key", "min", "max", Exclude.Start, CommandFlags.None);
             mock.Verify(_ => _.SortedSetRemoveRangeByValueAsync("prefix:key", "min", "max", Exclude.Start, CommandFlags.None));
         }
 
         [Fact]
         public void SortedSetScoreAsync()
         {
-            wrapper.SortedSetScoreAsync("key", "member", CommandFlags.None);
+            prefixed.SortedSetScoreAsync("key", "member", CommandFlags.None);
             mock.Verify(_ => _.SortedSetScoreAsync("prefix:key", "member", CommandFlags.None));
         }
 
         [Fact]
         public void SortedSetScoreAsync_Multiple()
         {
-            wrapper.SortedSetScoresAsync("key", new RedisValue[] { "member1", "member2" }, CommandFlags.None);
+            prefixed.SortedSetScoresAsync("key", new RedisValue[] { "member1", "member2" }, CommandFlags.None);
             mock.Verify(_ => _.SortedSetScoresAsync("prefix:key", new RedisValue[] { "member1", "member2" }, CommandFlags.None));
         }
 
@@ -932,14 +931,14 @@ namespace StackExchange.Redis.Tests
         public void SortedSetUpdateAsync()
         {
             SortedSetEntry[] values = Array.Empty<SortedSetEntry>();
-            wrapper.SortedSetUpdateAsync("key", values, SortedSetWhen.GreaterThan, CommandFlags.None);
+            prefixed.SortedSetUpdateAsync("key", values, SortedSetWhen.GreaterThan, CommandFlags.None);
             mock.Verify(_ => _.SortedSetUpdateAsync("prefix:key", values, SortedSetWhen.GreaterThan, CommandFlags.None));
         }
 
         [Fact]
         public void StreamAcknowledgeAsync_1()
         {
-            wrapper.StreamAcknowledgeAsync("key", "group", "0-0", CommandFlags.None);
+            prefixed.StreamAcknowledgeAsync("key", "group", "0-0", CommandFlags.None);
             mock.Verify(_ => _.StreamAcknowledgeAsync("prefix:key", "group", "0-0", CommandFlags.None));
         }
 
@@ -947,14 +946,14 @@ namespace StackExchange.Redis.Tests
         public void StreamAcknowledgeAsync_2()
         {
             var messageIds = new RedisValue[] { "0-0", "0-1", "0-2" };
-            wrapper.StreamAcknowledgeAsync("key", "group", messageIds, CommandFlags.None);
+            prefixed.StreamAcknowledgeAsync("key", "group", messageIds, CommandFlags.None);
             mock.Verify(_ => _.StreamAcknowledgeAsync("prefix:key", "group", messageIds, CommandFlags.None));
         }
 
         [Fact]
         public void StreamAddAsync_1()
         {
-            wrapper.StreamAddAsync("key", "field1", "value1", "*", 1000, true, CommandFlags.None);
+            prefixed.StreamAddAsync("key", "field1", "value1", "*", 1000, true, CommandFlags.None);
             mock.Verify(_ => _.StreamAddAsync("prefix:key", "field1", "value1", "*", 1000, true, CommandFlags.None));
         }
 
@@ -962,21 +961,21 @@ namespace StackExchange.Redis.Tests
         public void StreamAddAsync_2()
         {
             var fields = Array.Empty<NameValueEntry>();
-            wrapper.StreamAddAsync("key", fields, "*", 1000, true, CommandFlags.None);
+            prefixed.StreamAddAsync("key", fields, "*", 1000, true, CommandFlags.None);
             mock.Verify(_ => _.StreamAddAsync("prefix:key", fields, "*", 1000, true, CommandFlags.None));
         }
 
         [Fact]
         public void StreamAutoClaimAsync()
         {
-            wrapper.StreamAutoClaimAsync("key", "group", "consumer", 0, "0-0", 100, CommandFlags.None);
+            prefixed.StreamAutoClaimAsync("key", "group", "consumer", 0, "0-0", 100, CommandFlags.None);
             mock.Verify(_ => _.StreamAutoClaimAsync("prefix:key", "group", "consumer", 0, "0-0", 100, CommandFlags.None));
         }
 
         [Fact]
         public void StreamAutoClaimIdsOnlyAsync()
         {
-            wrapper.StreamAutoClaimIdsOnlyAsync("key", "group", "consumer", 0, "0-0", 100, CommandFlags.None);
+            prefixed.StreamAutoClaimIdsOnlyAsync("key", "group", "consumer", 0, "0-0", 100, CommandFlags.None);
             mock.Verify(_ => _.StreamAutoClaimIdsOnlyAsync("prefix:key", "group", "consumer", 0, "0-0", 100, CommandFlags.None));
         }
 
@@ -984,7 +983,7 @@ namespace StackExchange.Redis.Tests
         public void StreamClaimMessagesAsync()
         {
             var messageIds = Array.Empty<RedisValue>();
-            wrapper.StreamClaimAsync("key", "group", "consumer", 1000, messageIds, CommandFlags.None);
+            prefixed.StreamClaimAsync("key", "group", "consumer", 1000, messageIds, CommandFlags.None);
             mock.Verify(_ => _.StreamClaimAsync("prefix:key", "group", "consumer", 1000, messageIds, CommandFlags.None));
         }
 
@@ -992,49 +991,49 @@ namespace StackExchange.Redis.Tests
         public void StreamClaimMessagesReturningIdsAsync()
         {
             var messageIds = Array.Empty<RedisValue>();
-            wrapper.StreamClaimIdsOnlyAsync("key", "group", "consumer", 1000, messageIds, CommandFlags.None);
+            prefixed.StreamClaimIdsOnlyAsync("key", "group", "consumer", 1000, messageIds, CommandFlags.None);
             mock.Verify(_ => _.StreamClaimIdsOnlyAsync("prefix:key", "group", "consumer", 1000, messageIds, CommandFlags.None));
         }
 
         [Fact]
         public void StreamConsumerInfoGetAsync()
         {
-            wrapper.StreamConsumerInfoAsync("key", "group", CommandFlags.None);
+            prefixed.StreamConsumerInfoAsync("key", "group", CommandFlags.None);
             mock.Verify(_ => _.StreamConsumerInfoAsync("prefix:key", "group", CommandFlags.None));
         }
 
         [Fact]
         public void StreamConsumerGroupSetPositionAsync()
         {
-            wrapper.StreamConsumerGroupSetPositionAsync("key", "group", StreamPosition.Beginning, CommandFlags.None);
+            prefixed.StreamConsumerGroupSetPositionAsync("key", "group", StreamPosition.Beginning, CommandFlags.None);
             mock.Verify(_ => _.StreamConsumerGroupSetPositionAsync("prefix:key", "group", StreamPosition.Beginning, CommandFlags.None));
         }
 
         [Fact]
         public void StreamCreateConsumerGroupAsync()
         {
-            wrapper.StreamCreateConsumerGroupAsync("key", "group", "0-0", false, CommandFlags.None);
+            prefixed.StreamCreateConsumerGroupAsync("key", "group", "0-0", false, CommandFlags.None);
             mock.Verify(_ => _.StreamCreateConsumerGroupAsync("prefix:key", "group", "0-0", false, CommandFlags.None));
         }
 
         [Fact]
         public void StreamGroupInfoGetAsync()
         {
-            wrapper.StreamGroupInfoAsync("key", CommandFlags.None);
+            prefixed.StreamGroupInfoAsync("key", CommandFlags.None);
             mock.Verify(_ => _.StreamGroupInfoAsync("prefix:key", CommandFlags.None));
         }
 
         [Fact]
         public void StreamInfoGetAsync()
         {
-            wrapper.StreamInfoAsync("key", CommandFlags.None);
+            prefixed.StreamInfoAsync("key", CommandFlags.None);
             mock.Verify(_ => _.StreamInfoAsync("prefix:key", CommandFlags.None));
         }
 
         [Fact]
         public void StreamLengthAsync()
         {
-            wrapper.StreamLengthAsync("key", CommandFlags.None);
+            prefixed.StreamLengthAsync("key", CommandFlags.None);
             mock.Verify(_ => _.StreamLengthAsync("prefix:key", CommandFlags.None));
         }
 
@@ -1042,42 +1041,42 @@ namespace StackExchange.Redis.Tests
         public void StreamMessagesDeleteAsync()
         {
             var messageIds = Array.Empty<RedisValue>();
-            wrapper.StreamDeleteAsync("key", messageIds, CommandFlags.None);
+            prefixed.StreamDeleteAsync("key", messageIds, CommandFlags.None);
             mock.Verify(_ => _.StreamDeleteAsync("prefix:key", messageIds, CommandFlags.None));
         }
 
         [Fact]
         public void StreamDeleteConsumerAsync()
         {
-            wrapper.StreamDeleteConsumerAsync("key", "group", "consumer", CommandFlags.None);
+            prefixed.StreamDeleteConsumerAsync("key", "group", "consumer", CommandFlags.None);
             mock.Verify(_ => _.StreamDeleteConsumerAsync("prefix:key", "group", "consumer", CommandFlags.None));
         }
 
         [Fact]
         public void StreamDeleteConsumerGroupAsync()
         {
-            wrapper.StreamDeleteConsumerGroupAsync("key", "group", CommandFlags.None);
+            prefixed.StreamDeleteConsumerGroupAsync("key", "group", CommandFlags.None);
             mock.Verify(_ => _.StreamDeleteConsumerGroupAsync("prefix:key", "group", CommandFlags.None));
         }
 
         [Fact]
         public void StreamPendingInfoGetAsync()
         {
-            wrapper.StreamPendingAsync("key", "group", CommandFlags.None);
+            prefixed.StreamPendingAsync("key", "group", CommandFlags.None);
             mock.Verify(_ => _.StreamPendingAsync("prefix:key", "group", CommandFlags.None));
         }
 
         [Fact]
         public void StreamPendingMessageInfoGetAsync()
         {
-            wrapper.StreamPendingMessagesAsync("key", "group", 10, RedisValue.Null, "-", "+", CommandFlags.None);
+            prefixed.StreamPendingMessagesAsync("key", "group", 10, RedisValue.Null, "-", "+", CommandFlags.None);
             mock.Verify(_ => _.StreamPendingMessagesAsync("prefix:key", "group", 10, RedisValue.Null, "-", "+", CommandFlags.None));
         }
 
         [Fact]
         public void StreamRangeAsync()
         {
-            wrapper.StreamRangeAsync("key", "-", "+", null, Order.Ascending, CommandFlags.None);
+            prefixed.StreamRangeAsync("key", "-", "+", null, Order.Ascending, CommandFlags.None);
             mock.Verify(_ => _.StreamRangeAsync("prefix:key", "-", "+", null, Order.Ascending, CommandFlags.None));
         }
 
@@ -1085,21 +1084,21 @@ namespace StackExchange.Redis.Tests
         public void StreamReadAsync_1()
         {
             var streamPositions = Array.Empty<StreamPosition>();
-            wrapper.StreamReadAsync(streamPositions, null, CommandFlags.None);
+            prefixed.StreamReadAsync(streamPositions, null, CommandFlags.None);
             mock.Verify(_ => _.StreamReadAsync(streamPositions, null, CommandFlags.None));
         }
 
         [Fact]
         public void StreamReadAsync_2()
         {
-            wrapper.StreamReadAsync("key", "0-0", null, CommandFlags.None);
+            prefixed.StreamReadAsync("key", "0-0", null, CommandFlags.None);
             mock.Verify(_ => _.StreamReadAsync("prefix:key", "0-0", null, CommandFlags.None));
         }
 
         [Fact]
         public void StreamReadGroupAsync_1()
         {
-            wrapper.StreamReadGroupAsync("key", "group", "consumer", StreamPosition.Beginning, 10, false, CommandFlags.None);
+            prefixed.StreamReadGroupAsync("key", "group", "consumer", StreamPosition.Beginning, 10, false, CommandFlags.None);
             mock.Verify(_ => _.StreamReadGroupAsync("prefix:key", "group", "consumer", StreamPosition.Beginning, 10, false, CommandFlags.None));
         }
 
@@ -1107,42 +1106,42 @@ namespace StackExchange.Redis.Tests
         public void StreamStreamReadGroupAsync_2()
         {
             var streamPositions = Array.Empty<StreamPosition>();
-            wrapper.StreamReadGroupAsync(streamPositions, "group", "consumer", 10, false, CommandFlags.None);
+            prefixed.StreamReadGroupAsync(streamPositions, "group", "consumer", 10, false, CommandFlags.None);
             mock.Verify(_ => _.StreamReadGroupAsync(streamPositions, "group", "consumer", 10, false, CommandFlags.None));
         }
 
         [Fact]
         public void StreamTrimAsync()
         {
-            wrapper.StreamTrimAsync("key", 1000, true, CommandFlags.None);
+            prefixed.StreamTrimAsync("key", 1000, true, CommandFlags.None);
             mock.Verify(_ => _.StreamTrimAsync("prefix:key", 1000, true, CommandFlags.None));
         }
 
         [Fact]
         public void StringAppendAsync()
         {
-            wrapper.StringAppendAsync("key", "value", CommandFlags.None);
+            prefixed.StringAppendAsync("key", "value", CommandFlags.None);
             mock.Verify(_ => _.StringAppendAsync("prefix:key", "value", CommandFlags.None));
         }
 
         [Fact]
         public void StringBitCountAsync()
         {
-            wrapper.StringBitCountAsync("key", 123, 456, CommandFlags.None);
+            prefixed.StringBitCountAsync("key", 123, 456, CommandFlags.None);
             mock.Verify(_ => _.StringBitCountAsync("prefix:key", 123, 456, CommandFlags.None));
         }
 
         [Fact]
         public void StringBitCountAsync_2()
         {
-            wrapper.StringBitCountAsync("key", 123, 456, StringIndexType.Byte, CommandFlags.None);
+            prefixed.StringBitCountAsync("key", 123, 456, StringIndexType.Byte, CommandFlags.None);
             mock.Verify(_ => _.StringBitCountAsync("prefix:key", 123, 456, StringIndexType.Byte, CommandFlags.None));
         }
 
         [Fact]
         public void StringBitOperationAsync_1()
         {
-            wrapper.StringBitOperationAsync(Bitwise.Xor, "destination", "first", "second", CommandFlags.None);
+            prefixed.StringBitOperationAsync(Bitwise.Xor, "destination", "first", "second", CommandFlags.None);
             mock.Verify(_ => _.StringBitOperationAsync(Bitwise.Xor, "prefix:destination", "prefix:first", "prefix:second", CommandFlags.None));
         }
 
@@ -1151,42 +1150,42 @@ namespace StackExchange.Redis.Tests
         {
             RedisKey[] keys = new RedisKey[] { "a", "b" };
             Expression<Func<RedisKey[], bool>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "prefix:b";
-            wrapper.StringBitOperationAsync(Bitwise.Xor, "destination", keys, CommandFlags.None);
+            prefixed.StringBitOperationAsync(Bitwise.Xor, "destination", keys, CommandFlags.None);
             mock.Verify(_ => _.StringBitOperationAsync(Bitwise.Xor, "prefix:destination", It.Is(valid), CommandFlags.None));
         }
 
         [Fact]
         public void StringBitPositionAsync()
         {
-            wrapper.StringBitPositionAsync("key", true, 123, 456, CommandFlags.None);
+            prefixed.StringBitPositionAsync("key", true, 123, 456, CommandFlags.None);
             mock.Verify(_ => _.StringBitPositionAsync("prefix:key", true, 123, 456, CommandFlags.None));
         }
 
         [Fact]
         public void StringBitPositionAsync_2()
         {
-            wrapper.StringBitPositionAsync("key", true, 123, 456, StringIndexType.Byte, CommandFlags.None);
+            prefixed.StringBitPositionAsync("key", true, 123, 456, StringIndexType.Byte, CommandFlags.None);
             mock.Verify(_ => _.StringBitPositionAsync("prefix:key", true, 123, 456, StringIndexType.Byte, CommandFlags.None));
         }
 
         [Fact]
         public void StringDecrementAsync_1()
         {
-            wrapper.StringDecrementAsync("key", 123, CommandFlags.None);
+            prefixed.StringDecrementAsync("key", 123, CommandFlags.None);
             mock.Verify(_ => _.StringDecrementAsync("prefix:key", 123, CommandFlags.None));
         }
 
         [Fact]
         public void StringDecrementAsync_2()
         {
-            wrapper.StringDecrementAsync("key", 1.23, CommandFlags.None);
+            prefixed.StringDecrementAsync("key", 1.23, CommandFlags.None);
             mock.Verify(_ => _.StringDecrementAsync("prefix:key", 1.23, CommandFlags.None));
         }
 
         [Fact]
         public void StringGetAsync_1()
         {
-            wrapper.StringGetAsync("key", CommandFlags.None);
+            prefixed.StringGetAsync("key", CommandFlags.None);
             mock.Verify(_ => _.StringGetAsync("prefix:key", CommandFlags.None));
         }
 
@@ -1195,63 +1194,63 @@ namespace StackExchange.Redis.Tests
         {
             RedisKey[] keys = new RedisKey[] { "a", "b" };
             Expression<Func<RedisKey[], bool>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "prefix:b";
-            wrapper.StringGetAsync(keys, CommandFlags.None);
+            prefixed.StringGetAsync(keys, CommandFlags.None);
             mock.Verify(_ => _.StringGetAsync(It.Is(valid), CommandFlags.None));
         }
 
         [Fact]
         public void StringGetBitAsync()
         {
-            wrapper.StringGetBitAsync("key", 123, CommandFlags.None);
+            prefixed.StringGetBitAsync("key", 123, CommandFlags.None);
             mock.Verify(_ => _.StringGetBitAsync("prefix:key", 123, CommandFlags.None));
         }
 
         [Fact]
         public void StringGetRangeAsync()
         {
-            wrapper.StringGetRangeAsync("key", 123, 456, CommandFlags.None);
+            prefixed.StringGetRangeAsync("key", 123, 456, CommandFlags.None);
             mock.Verify(_ => _.StringGetRangeAsync("prefix:key", 123, 456, CommandFlags.None));
         }
 
         [Fact]
         public void StringGetSetAsync()
         {
-            wrapper.StringGetSetAsync("key", "value", CommandFlags.None);
+            prefixed.StringGetSetAsync("key", "value", CommandFlags.None);
             mock.Verify(_ => _.StringGetSetAsync("prefix:key", "value", CommandFlags.None));
         }
 
         [Fact]
         public void StringGetDeleteAsync()
         {
-            wrapper.StringGetDeleteAsync("key", CommandFlags.None);
+            prefixed.StringGetDeleteAsync("key", CommandFlags.None);
             mock.Verify(_ => _.StringGetDeleteAsync("prefix:key", CommandFlags.None));
         }
 
         [Fact]
         public void StringGetWithExpiryAsync()
         {
-            wrapper.StringGetWithExpiryAsync("key", CommandFlags.None);
+            prefixed.StringGetWithExpiryAsync("key", CommandFlags.None);
             mock.Verify(_ => _.StringGetWithExpiryAsync("prefix:key", CommandFlags.None));
         }
 
         [Fact]
         public void StringIncrementAsync_1()
         {
-            wrapper.StringIncrementAsync("key", 123, CommandFlags.None);
+            prefixed.StringIncrementAsync("key", 123, CommandFlags.None);
             mock.Verify(_ => _.StringIncrementAsync("prefix:key", 123, CommandFlags.None));
         }
 
         [Fact]
         public void StringIncrementAsync_2()
         {
-            wrapper.StringIncrementAsync("key", 1.23, CommandFlags.None);
+            prefixed.StringIncrementAsync("key", 1.23, CommandFlags.None);
             mock.Verify(_ => _.StringIncrementAsync("prefix:key", 1.23, CommandFlags.None));
         }
 
         [Fact]
         public void StringLengthAsync()
         {
-            wrapper.StringLengthAsync("key", CommandFlags.None);
+            prefixed.StringLengthAsync("key", CommandFlags.None);
             mock.Verify(_ => _.StringLengthAsync("prefix:key", CommandFlags.None));
         }
 
@@ -1259,7 +1258,7 @@ namespace StackExchange.Redis.Tests
         public void StringSetAsync_1()
         {
             TimeSpan expiry = TimeSpan.FromSeconds(123);
-            wrapper.StringSetAsync("key", "value", expiry, When.Exists, CommandFlags.None);
+            prefixed.StringSetAsync("key", "value", expiry, When.Exists, CommandFlags.None);
             mock.Verify(_ => _.StringSetAsync("prefix:key", "value", expiry, When.Exists, CommandFlags.None));
         }
 
@@ -1267,7 +1266,7 @@ namespace StackExchange.Redis.Tests
         public void StringSetAsync_2()
         {
             TimeSpan? expiry = null;
-            wrapper.StringSetAsync("key", "value", expiry, true, When.Exists, CommandFlags.None);
+            prefixed.StringSetAsync("key", "value", expiry, true, When.Exists, CommandFlags.None);
             mock.Verify(_ => _.StringSetAsync("prefix:key", "value", expiry, true, When.Exists, CommandFlags.None));
         }
 
@@ -1276,7 +1275,7 @@ namespace StackExchange.Redis.Tests
         {
             KeyValuePair<RedisKey, RedisValue>[] values = new KeyValuePair<RedisKey, RedisValue>[] { new KeyValuePair<RedisKey, RedisValue>("a", "x"), new KeyValuePair<RedisKey, RedisValue>("b", "y") };
             Expression<Func<KeyValuePair<RedisKey, RedisValue>[], bool>> valid = _ => _.Length == 2 && _[0].Key == "prefix:a" && _[0].Value == "x" && _[1].Key == "prefix:b" && _[1].Value == "y";
-            wrapper.StringSetAsync(values, When.Exists, CommandFlags.None);
+            prefixed.StringSetAsync(values, When.Exists, CommandFlags.None);
             mock.Verify(_ => _.StringSetAsync(It.Is(valid), When.Exists, CommandFlags.None));
         }
 
@@ -1284,28 +1283,28 @@ namespace StackExchange.Redis.Tests
         public void StringSetAsync_Compat()
         {
             TimeSpan expiry = TimeSpan.FromSeconds(123);
-            wrapper.StringSetAsync("key", "value", expiry, When.Exists);
+            prefixed.StringSetAsync("key", "value", expiry, When.Exists);
             mock.Verify(_ => _.StringSetAsync("prefix:key", "value", expiry, When.Exists));
         }
 
         [Fact]
         public void StringSetBitAsync()
         {
-            wrapper.StringSetBitAsync("key", 123, true, CommandFlags.None);
+            prefixed.StringSetBitAsync("key", 123, true, CommandFlags.None);
             mock.Verify(_ => _.StringSetBitAsync("prefix:key", 123, true, CommandFlags.None));
         }
 
         [Fact]
         public void StringSetRangeAsync()
         {
-            wrapper.StringSetRangeAsync("key", 123, "value", CommandFlags.None);
+            prefixed.StringSetRangeAsync("key", 123, "value", CommandFlags.None);
             mock.Verify(_ => _.StringSetRangeAsync("prefix:key", 123, "value", CommandFlags.None));
         }
 
         [Fact]
         public void KeyTouchAsync_1()
         {
-            wrapper.KeyTouchAsync("key", CommandFlags.None);
+            prefixed.KeyTouchAsync("key", CommandFlags.None);
             mock.Verify(_ => _.KeyTouchAsync("prefix:key", CommandFlags.None));
         }
 
@@ -1314,7 +1313,7 @@ namespace StackExchange.Redis.Tests
         {
             RedisKey[] keys = new RedisKey[] { "a", "b" };
             Expression<Func<RedisKey[], bool>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "prefix:b";
-            wrapper.KeyTouchAsync(keys, CommandFlags.None);
+            prefixed.KeyTouchAsync(keys, CommandFlags.None);
             mock.Verify(_ => _.KeyTouchAsync(It.Is(valid), CommandFlags.None));
         }
     }

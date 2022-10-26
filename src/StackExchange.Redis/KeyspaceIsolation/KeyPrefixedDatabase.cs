@@ -4,17 +4,17 @@ using System.Net;
 
 namespace StackExchange.Redis.KeyspaceIsolation
 {
-    internal sealed class DatabaseWrapper : WrapperBase<IDatabase>, IDatabase
+    internal sealed class KeyPrefixedDatabase : KeyPrefixed<IDatabase>, IDatabase
     {
-        public DatabaseWrapper(IDatabase inner, byte[] prefix) : base(inner, prefix)
+        public KeyPrefixedDatabase(IDatabase inner, byte[] prefix) : base(inner, prefix)
         {
         }
 
         public IBatch CreateBatch(object? asyncState = null) =>
-            new BatchWrapper(Inner.CreateBatch(asyncState), Prefix);
+            new KeyPrefixedBatch(Inner.CreateBatch(asyncState), Prefix);
 
         public ITransaction CreateTransaction(object? asyncState = null) =>
-            new TransactionWrapper(Inner.CreateTransaction(asyncState), Prefix);
+            new KeyPrefixedTransaction(Inner.CreateTransaction(asyncState), Prefix);
 
         public int Database => Inner.Database;
 

@@ -187,19 +187,25 @@ public class ConfigTests : TestBase
     [Fact]
     public async Task TestManaulHeartbeat()
     {
-        using var conn = Create(keepAlive: 2);
+        var options = ConfigurationOptions.Parse(GetConfiguration());
+        options.HeartbeatInterval = TimeSpan.FromMilliseconds(100);
+        using var conn = await ConnectionMultiplexer.ConnectAsync(options);
+
+        foreach (var ep in conn.GetServerSnapshot().ToArray())
+        {
+            ep.WriteEverySeconds = 1;
+        }
 
         var db = conn.GetDatabase();
         db.Ping();
 
         var before = conn.OperationCount;
 
-        Log("sleeping to test heartbeat...");
-        await Task.Delay(5000).ForAwait();
-
+        Log("Sleeping to test heartbeat...");
+        await UntilConditionAsync(TimeSpan.FromSeconds(5), () => conn.OperationCount > before + 1).ForAwait();
         var after = conn.OperationCount;
 
-        Assert.True(after >= before + 2, $"after: {after}, before: {before}");
+        Assert.True(after >= before + 1, $"after: {after}, before: {before}");
     }
 
     [Theory]
