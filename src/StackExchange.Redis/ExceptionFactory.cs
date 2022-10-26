@@ -156,7 +156,7 @@ namespace StackExchange.Redis
             if (multiplexer.RawConfig.IncludeDetailInExceptions)
             {
                 CopyDataToException(data, ex);
-                sb.Append("; ").Append(PerfCounterHelper.GetThreadPoolAndCPUSummary(multiplexer.RawConfig.IncludePerformanceCountersInExceptions));
+                sb.Append("; ").Append(PerfCounterHelper.GetThreadPoolAndCPUSummary());
                 AddExceptionDetail(ex, message, server, commandLabel);
             }
             return ex;
@@ -352,11 +352,6 @@ namespace StackExchange.Redis
                 Add(data, sb, "ThreadPool-Items", "POOL", workItems);
             }
             data.Add(Tuple.Create("Busy-Workers", busyWorkerCount.ToString()));
-
-            if (multiplexer.RawConfig.IncludePerformanceCountersInExceptions)
-            {
-                Add(data, sb, "Local-CPU", "Local-CPU", PerfCounterHelper.GetSystemCpuPercent());
-            }
 
             Add(data, sb, "Version", "v", Utils.GetLibVersion());
         }
