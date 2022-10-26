@@ -2,9 +2,9 @@
 
 namespace StackExchange.Redis.KeyspaceIsolation
 {
-    internal sealed class TransactionWrapper : WrapperBase<ITransaction>, ITransaction
+    internal sealed class KeyPrefixedTransaction : KeyPrefixed<ITransaction>, ITransaction
     {
-        public TransactionWrapper(ITransaction inner, byte[] prefix) : base(inner, prefix) { }
+        public KeyPrefixedTransaction(ITransaction inner, byte[] prefix) : base(inner, prefix) { }
 
         public ConditionResult AddCondition(Condition condition) => Inner.AddCondition(condition.MapKeys(GetMapFunction()));
 

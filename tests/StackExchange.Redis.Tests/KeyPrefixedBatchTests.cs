@@ -6,21 +6,21 @@ using Xunit;
 namespace StackExchange.Redis.Tests;
 
 [Collection(nameof(MoqDependentCollection))]
-public sealed class BatchWrapperTests
+public sealed class KeyPrefixedBatchTests
 {
     private readonly Mock<IBatch> mock;
-    private readonly BatchWrapper wrapper;
+    private readonly KeyPrefixedBatch prefixed;
 
-    public BatchWrapperTests()
+    public KeyPrefixedBatchTests()
     {
         mock = new Mock<IBatch>();
-        wrapper = new BatchWrapper(mock.Object, Encoding.UTF8.GetBytes("prefix:"));
+        prefixed = new KeyPrefixedBatch(mock.Object, Encoding.UTF8.GetBytes("prefix:"));
     }
 
     [Fact]
     public void Execute()
     {
-        wrapper.Execute();
+        prefixed.Execute();
         mock.Verify(_ => _.Execute(), Times.Once());
     }
 }

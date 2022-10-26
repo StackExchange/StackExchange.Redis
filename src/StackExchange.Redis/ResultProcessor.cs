@@ -282,7 +282,7 @@ namespace StackExchange.Redis
                                     if (bridge.Multiplexer.IncludeDetailInExceptions)
                                     {
                                         err = $"Endpoint {endpoint} serving hashslot {hashSlot} is not reachable at this point of time. Please check connectTimeout value. If it is low, try increasing it to give the ConnectionMultiplexer a chance to recover from the network disconnect. "
-                                            + PerfCounterHelper.GetThreadPoolAndCPUSummary(bridge.Multiplexer.RawConfig.IncludePerformanceCountersInExceptions);
+                                            + PerfCounterHelper.GetThreadPoolAndCPUSummary();
                                     }
                                     else
                                     {
