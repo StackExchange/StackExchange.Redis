@@ -47,7 +47,7 @@ public class CommandTimeoutTests : TestBase
         using var conn = ConnectionMultiplexer.Connect(options);
 
         var pauseServer = GetServer(pauseConn);
-        var pauseTask = pauseServer.ExecuteAsync("CLIENT", "PAUSE", 500);
+        var pauseTask = pauseServer.ExecuteAsync("CLIENT", "PAUSE", 2000);
 
         var key = Me();
         var db = conn.GetDatabase();
