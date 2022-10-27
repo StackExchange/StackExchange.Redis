@@ -1568,10 +1568,7 @@ namespace StackExchange.Redis
                 foreach (EndPoint endpoint in clusterEndpoints)
                 {
                     serverEndpoint = GetServerEndPoint(endpoint);
-                    if (serverEndpoint != null)
-                    {
-                        serverEndpoint.UpdateNodeRelations(clusterConfig);
-                    }
+                    serverEndpoint?.UpdateNodeRelations(clusterConfig);
                 }
                 return clusterEndpoints;
             }
