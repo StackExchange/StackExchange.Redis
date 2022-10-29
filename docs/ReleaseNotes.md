@@ -11,6 +11,7 @@ Current package versions:
 - Adds: `last-in` and `cur-in` (bytes) to timeout exceptions to help identify timeouts that were just-behind another large payload off the wire ([#2276 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2276))
 - Adds: general-purpose tunnel support, with HTTP proxy "connect" support included ([#2274 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2274))
 - Removes: Package dependency (`System.Diagnostics.PerformanceCounter`) ([#2285 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2285))
+- Adds: `.WithChannelPrefix()` to `ISubscriber` for key-preifixing channels like the existing `.WithKeyPreifx()` on `IDatabase` ([#896 by pecanw](https://github.com/StackExchange/StackExchange.Redis/pull/896))
 
 ## 2.6.70
 

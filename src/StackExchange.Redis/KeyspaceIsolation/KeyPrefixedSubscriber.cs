@@ -18,23 +18,15 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public IConnectionMultiplexer Multiplexer => Inner.Multiplexer;
 
-        public bool TryWait(Task task) => Inner.TryWait(task);
-
-        public void Wait(Task task) => Inner.Wait(task);
-
-        public T Wait<T>(Task<T> task) => Inner.Wait(task);
-
-        public void WaitAll(params Task[] tasks) => Inner.WaitAll(tasks);
-
-        public TimeSpan Ping(CommandFlags flags = CommandFlags.None) => Inner.Ping(flags);
-
-        public Task<TimeSpan> PingAsync(CommandFlags flags = CommandFlags.None) => Inner.PingAsync(flags);
-
         public EndPoint? IdentifyEndpoint(RedisChannel channel, CommandFlags flags = CommandFlags.None) => Inner.IdentifyEndpoint(ToInner(channel), flags);
 
         public Task<EndPoint?> IdentifyEndpointAsync(RedisChannel channel, CommandFlags flags = CommandFlags.None) => Inner.IdentifyEndpointAsync(ToInner(channel), flags);
 
         public bool IsConnected(RedisChannel channel = default(RedisChannel)) => Inner.IsConnected(ToInner(channel));
+
+        public TimeSpan Ping(CommandFlags flags = CommandFlags.None) => Inner.Ping(flags);
+
+        public Task<TimeSpan> PingAsync(CommandFlags flags = CommandFlags.None) => Inner.PingAsync(flags);
 
         public long Publish(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None) => Inner.Publish(ToInner(channel), message, flags);
 
@@ -54,27 +46,37 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public EndPoint? SubscribedEndpoint(RedisChannel channel) => Inner.SubscribedEndpoint(ToInner(channel));
 
+        public bool TryWait(Task task) => Inner.TryWait(task);
+
         public void Unsubscribe(RedisChannel channel, Action<RedisChannel, RedisValue>? handler = null, CommandFlags flags = CommandFlags.None) =>
             Inner.Unsubscribe(ToInner(channel), ToInner(handler), flags);
 
         public void UnsubscribeAll(CommandFlags flags = CommandFlags.None)
         {
             if (Prefix.IsNullOrEmpty)
+            {
                 Inner.UnsubscribeAll(flags);
+            }
             else
+            {
                 Inner.Unsubscribe(new RedisChannel(Prefix + "*", RedisChannel.PatternMode.Pattern), null, flags);
+            }
         }
 
-        public Task UnsubscribeAllAsync(CommandFlags flags = CommandFlags.None)
-        {
-            if (Prefix.IsNullOrEmpty)
-                return Inner.UnsubscribeAllAsync(flags);
-            else
-                return Inner.UnsubscribeAsync(new RedisChannel(Prefix + "*", RedisChannel.PatternMode.Pattern), null, flags);
-        }
+        public Task UnsubscribeAllAsync(CommandFlags flags = CommandFlags.None) => Prefix.IsNullOrEmpty
+                ? Inner.UnsubscribeAllAsync(flags)
+                : Inner.UnsubscribeAsync(new RedisChannel(Prefix + "*", RedisChannel.PatternMode.Pattern), null, flags);
 
         public Task UnsubscribeAsync(RedisChannel channel, Action<RedisChannel, RedisValue>? handler = null, CommandFlags flags = CommandFlags.None) =>
             Inner.UnsubscribeAsync(ToInner(channel), ToInner(handler), flags);
+
+        public void Wait(Task task) => Inner.Wait(task);
+
+        public T Wait<T>(Task<T> task) => Inner.Wait(task);
+
+        public void WaitAll(params Task[] tasks) => Inner.WaitAll(tasks);
+
+        protected Action<RedisChannel, RedisValue> ToInner(Action<RedisChannel, RedisValue>? handler) => (channel, value) => handler?.Invoke(ToOuter(channel), value);
 
         public RedisChannel ToInner(RedisChannel outer)
         {
@@ -93,8 +95,6 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
             return new RedisChannel(innerArr, patternMode);
         }
-
-        protected Action<RedisChannel, RedisValue> ToInner(Action<RedisChannel, RedisValue>? handler) => (channel, value) => handler?.Invoke(ToOuter(channel), value);
 
         public RedisChannel ToOuter(RedisChannel inner)
         {
