@@ -1,134 +1,217 @@
-﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 15
-VisualStudioVersion = 15.0.26823.1
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31808.319
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{3AD17044-6BFF-4750-9AC2-2CA466375F2A}"
 	ProjectSection(SolutionItems) = preProject
 		.editorconfig = .editorconfig
 		appveyor.yml = appveyor.yml
-		Directory.build.props = Directory.build.props
+		build.cmd = build.cmd
+		Build.csproj = Build.csproj
+		build.ps1 = build.ps1
+		Directory.Build.props = Directory.Build.props
+		Directory.Build.targets = Directory.Build.targets
+		Directory.Packages.props = Directory.Packages.props
+		global.json = global.json
 		NuGet.Config = NuGet.Config
+		README.md = README.md
+		docs\ReleaseNotes.md = docs\ReleaseNotes.md
+		Shared.ruleset = Shared.ruleset
+		version.json = version.json
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "RedisConfigs", "RedisConfigs", "{96E891CD-2ED7-4293-A7AB-4C6F5D8D2B05}"
 	ProjectSection(SolutionItems) = preProject
-		RedisConfigs\cli-master.cmd = RedisConfigs\cli-master.cmd
-		RedisConfigs\cli-secure.cmd = RedisConfigs\cli-secure.cmd
-		RedisConfigs\cli-slave.cmd = RedisConfigs\cli-slave.cmd
-		RedisConfigs\start-all.cmd = RedisConfigs\start-all.cmd
-		RedisConfigs\start-basic.cmd = RedisConfigs\start-basic.cmd
-		RedisConfigs\start-cluster.cmd = RedisConfigs\start-cluster.cmd
-		RedisConfigs\start-sentinel.cmd = RedisConfigs\start-sentinel.cmd
+		tests\RedisConfigs\cli-master.cmd = tests\RedisConfigs\cli-master.cmd
+		tests\RedisConfigs\cli-secure.cmd = tests\RedisConfigs\cli-secure.cmd
+		tests\RedisConfigs\cli-slave.cmd = tests\RedisConfigs\cli-slave.cmd
+		tests\RedisConfigs\docker-compose.yml = tests\RedisConfigs\docker-compose.yml
+		tests\RedisConfigs\Dockerfile = tests\RedisConfigs\Dockerfile
+		tests\RedisConfigs\start-all.cmd = tests\RedisConfigs\start-all.cmd
+		tests\RedisConfigs\start-all.sh = tests\RedisConfigs\start-all.sh
+		tests\RedisConfigs\start-basic.cmd = tests\RedisConfigs\start-basic.cmd
+		tests\RedisConfigs\start-basic.sh = tests\RedisConfigs\start-basic.sh
+		tests\RedisConfigs\start-cluster.cmd = tests\RedisConfigs\start-cluster.cmd
+		tests\RedisConfigs\start-sentinel.cmd = tests\RedisConfigs\start-sentinel.cmd
+		tests\RedisConfigs\wsl2.md = tests\RedisConfigs\wsl2.md
 	EndProjectSection
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "StackExchange.Redis", "StackExchange.Redis\StackExchange.Redis.csproj", "{EF84877F-59BE-41BE-9013-E765AF0BB72E}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "StackExchange.Redis", "src\StackExchange.Redis\StackExchange.Redis.csproj", "{EF84877F-59BE-41BE-9013-E765AF0BB72E}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "StackExchange.Redis.StrongName", "StackExchange.Redis.StrongName\StackExchange.Redis.StrongName.csproj", "{46754D2A-AC16-4686-B113-3DB08ACF4269}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "StackExchange.Redis.Tests", "tests\StackExchange.Redis.Tests\StackExchange.Redis.Tests.csproj", "{3B8BD8F1-8BFC-4D8C-B4DA-25FFAF3D1DBE}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "StackExchange.Redis.Tests", "StackExchange.Redis.Tests\StackExchange.Redis.Tests.csproj", "{3B8BD8F1-8BFC-4D8C-B4DA-25FFAF3D1DBE}"
-EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BasicTest", "BasicTest\BasicTest.csproj", "{939FA5F7-16AA-4847-812B-6EBC3748A86D}"
-EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NRediSearch", "NRediSearch\NRediSearch.csproj", "{71455B07-E628-4F3A-9FFF-9EC63071F78E}"
-EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NRediSearch.Test", "NRediSearch.Test\NRediSearch.Test.csproj", "{94D233F5-2400-4542-98B9-BA72005C57DC}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BasicTest", "tests\BasicTest\BasicTest.csproj", "{939FA5F7-16AA-4847-812B-6EBC3748A86D}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Sentinel", "Sentinel", "{36255A0A-89EC-43C8-A642-F4C1ACAEF5BC}"
 	ProjectSection(SolutionItems) = preProject
-		RedisConfigs\Sentinel\redis-7010.conf = RedisConfigs\Sentinel\redis-7010.conf
-		RedisConfigs\Sentinel\redis-7011.conf = RedisConfigs\Sentinel\redis-7011.conf
-		RedisConfigs\Sentinel\sentinel-26379.conf = RedisConfigs\Sentinel\sentinel-26379.conf
-		RedisConfigs\Sentinel\sentinel-26380.conf = RedisConfigs\Sentinel\sentinel-26380.conf
+		tests\RedisConfigs\Sentinel\redis-7010.conf = tests\RedisConfigs\Sentinel\redis-7010.conf
+		tests\RedisConfigs\Sentinel\redis-7011.conf = tests\RedisConfigs\Sentinel\redis-7011.conf
+		tests\RedisConfigs\Sentinel\sentinel-26379.conf = tests\RedisConfigs\Sentinel\sentinel-26379.conf
+		tests\RedisConfigs\Sentinel\sentinel-26380.conf = tests\RedisConfigs\Sentinel\sentinel-26380.conf
+		tests\RedisConfigs\Sentinel\sentinel-26381.conf = tests\RedisConfigs\Sentinel\sentinel-26381.conf
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Cluster", "Cluster", "{A3B4B972-5BD2-4D90-981F-7E51E350E628}"
 	ProjectSection(SolutionItems) = preProject
-		RedisConfigs\Cluster\cluster-7000.conf = RedisConfigs\Cluster\cluster-7000.conf
-		RedisConfigs\Cluster\cluster-7001.conf = RedisConfigs\Cluster\cluster-7001.conf
-		RedisConfigs\Cluster\cluster-7002.conf = RedisConfigs\Cluster\cluster-7002.conf
-		RedisConfigs\Cluster\cluster-7003.conf = RedisConfigs\Cluster\cluster-7003.conf
-		RedisConfigs\Cluster\cluster-7004.conf = RedisConfigs\Cluster\cluster-7004.conf
-		RedisConfigs\Cluster\cluster-7005.conf = RedisConfigs\Cluster\cluster-7005.conf
-		RedisConfigs\Cluster\nodes-7000.conf = RedisConfigs\Cluster\nodes-7000.conf
-		RedisConfigs\Cluster\nodes-7001.conf = RedisConfigs\Cluster\nodes-7001.conf
-		RedisConfigs\Cluster\nodes-7002.conf = RedisConfigs\Cluster\nodes-7002.conf
-		RedisConfigs\Cluster\nodes-7003.conf = RedisConfigs\Cluster\nodes-7003.conf
-		RedisConfigs\Cluster\nodes-7004.conf = RedisConfigs\Cluster\nodes-7004.conf
-		RedisConfigs\Cluster\nodes-7005.conf = RedisConfigs\Cluster\nodes-7005.conf
+		tests\RedisConfigs\Cluster\cluster-7000.conf = tests\RedisConfigs\Cluster\cluster-7000.conf
+		tests\RedisConfigs\Cluster\cluster-7001.conf = tests\RedisConfigs\Cluster\cluster-7001.conf
+		tests\RedisConfigs\Cluster\cluster-7002.conf = tests\RedisConfigs\Cluster\cluster-7002.conf
+		tests\RedisConfigs\Cluster\cluster-7003.conf = tests\RedisConfigs\Cluster\cluster-7003.conf
+		tests\RedisConfigs\Cluster\cluster-7004.conf = tests\RedisConfigs\Cluster\cluster-7004.conf
+		tests\RedisConfigs\Cluster\cluster-7005.conf = tests\RedisConfigs\Cluster\cluster-7005.conf
+		tests\RedisConfigs\Cluster\nodes-7000.conf = tests\RedisConfigs\Cluster\nodes-7000.conf
+		tests\RedisConfigs\Cluster\nodes-7001.conf = tests\RedisConfigs\Cluster\nodes-7001.conf
+		tests\RedisConfigs\Cluster\nodes-7002.conf = tests\RedisConfigs\Cluster\nodes-7002.conf
+		tests\RedisConfigs\Cluster\nodes-7003.conf = tests\RedisConfigs\Cluster\nodes-7003.conf
+		tests\RedisConfigs\Cluster\nodes-7004.conf = tests\RedisConfigs\Cluster\nodes-7004.conf
+		tests\RedisConfigs\Cluster\nodes-7005.conf = tests\RedisConfigs\Cluster\nodes-7005.conf
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Basic", "Basic", "{38BDEEED-7BEB-4B1F-9CE0-256D63F9C502}"
 	ProjectSection(SolutionItems) = preProject
-		RedisConfigs\Basic\master-6379.conf = RedisConfigs\Basic\master-6379.conf
-		RedisConfigs\Basic\secure-6381.conf = RedisConfigs\Basic\secure-6381.conf
-		RedisConfigs\Basic\slave-6380.conf = RedisConfigs\Basic\slave-6380.conf
+		tests\RedisConfigs\Basic\primary-6379.conf = tests\RedisConfigs\Basic\primary-6379.conf
+		tests\RedisConfigs\Basic\replica-6380.conf = tests\RedisConfigs\Basic\replica-6380.conf
+		tests\RedisConfigs\Basic\secure-6381.conf = tests\RedisConfigs\Basic\secure-6381.conf
+		tests\RedisConfigs\Basic\tls-ciphers-6384.conf = tests\RedisConfigs\Basic\tls-ciphers-6384.conf
 	EndProjectSection
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BasicTestBaseline", "tests\BasicTestBaseline\BasicTestBaseline.csproj", "{8FDB623D-779B-4A84-BC6B-75106E41D8A4}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TestConsole", "toys\TestConsole\TestConsole.csproj", "{651FDB97-9DE3-4BD9-9A05-827AF8F1A94A}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Failover", "Failover", "{D082703F-1652-4C35-840D-7D377F6B9979}"
+	ProjectSection(SolutionItems) = preProject
+		tests\RedisConfigs\Failover\primary-6382.conf = tests\RedisConfigs\Failover\primary-6382.conf
+		tests\RedisConfigs\Failover\replica-6383.conf = tests\RedisConfigs\Failover\replica-6383.conf
+	EndProjectSection
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "StackExchange.Redis.Server", "toys\StackExchange.Redis.Server\StackExchange.Redis.Server.csproj", "{8375813E-FBAF-4DA3-A2C7-E4645B39B931}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "KestrelRedisServer", "toys\KestrelRedisServer\KestrelRedisServer.csproj", "{3DA1EEED-E9FE-43D9-B293-E000CFCCD91A}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{73A5C363-CA1F-44C4-9A9B-EF791A76BA6A}"
+	ProjectSection(SolutionItems) = preProject
+		tests\.editorconfig = tests\.editorconfig
+		tests\Directory.Build.props = tests\Directory.Build.props
+		tests\Directory.Build.targets = tests\Directory.Build.targets
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{00CA0876-DA9F-44E8-B0DC-A88716BF347A}"
+	ProjectSection(SolutionItems) = preProject
+		src\Directory.Build.props = src\Directory.Build.props
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "toys", "toys", "{E25031D3-5C64-430D-B86F-697B66816FD8}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{153A10E4-E668-41AD-9E0F-6785CE7EED66}"
+	ProjectSection(SolutionItems) = preProject
+		docs\Basics.md = docs\Basics.md
+		docs\Configuration.md = docs\Configuration.md
+		docs\Events.md = docs\Events.md
+		docs\ExecSync.md = docs\ExecSync.md
+		docs\index.md = docs\index.md
+		docs\KeysScan.md = docs\KeysScan.md
+		docs\KeysValues.md = docs\KeysValues.md
+		docs\PipelinesMultiplexers.md = docs\PipelinesMultiplexers.md
+		docs\Profiling.md = docs\Profiling.md
+		docs\Profiling_v1.md = docs\Profiling_v1.md
+		docs\Profiling_v2.md = docs\Profiling_v2.md
+		docs\PubSubOrder.md = docs\PubSubOrder.md
+		docs\ReleaseNotes.md = docs\ReleaseNotes.md
+		docs\Scripting.md = docs\Scripting.md
+		docs\Server.md = docs\Server.md
+		docs\Testing.md = docs\Testing.md
+		docs\ThreadTheft.md = docs\ThreadTheft.md
+		docs\Timeouts.md = docs\Timeouts.md
+		docs\Transactions.md = docs\Transactions.md
+	EndProjectSection
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TestConsoleBaseline", "toys\TestConsoleBaseline\TestConsoleBaseline.csproj", "{D58114AE-4998-4647-AFCA-9353D20495AE}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = ".github", ".github\.github.csproj", "{8FB98E7D-DAE2-4465-BD9A-104000E0A2D4}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Docker", "Docker", "{A9F81DA3-DA82-423E-A5DD-B11C37548E06}"
+	ProjectSection(SolutionItems) = preProject
+		tests\RedisConfigs\Docker\docker-entrypoint.sh = tests\RedisConfigs\Docker\docker-entrypoint.sh
+		tests\RedisConfigs\Docker\supervisord.conf = tests\RedisConfigs\Docker\supervisord.conf
+	EndProjectSection
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ConsoleTest", "tests\ConsoleTest\ConsoleTest.csproj", "{A0F89B8B-32A3-4C28-8F1B-ADE343F16137}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ConsoleTestBaseline", "tests\ConsoleTestBaseline\ConsoleTestBaseline.csproj", "{69A0ACF2-DF1F-4F49-B554-F732DCA938A3}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
-		Log Output|Any CPU = Log Output|Any CPU
 		Release|Any CPU = Release|Any CPU
-		Verbose|Any CPU = Verbose|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{EF84877F-59BE-41BE-9013-E765AF0BB72E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{EF84877F-59BE-41BE-9013-E765AF0BB72E}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{EF84877F-59BE-41BE-9013-E765AF0BB72E}.Log Output|Any CPU.ActiveCfg = Release|Any CPU
-		{EF84877F-59BE-41BE-9013-E765AF0BB72E}.Log Output|Any CPU.Build.0 = Release|Any CPU
 		{EF84877F-59BE-41BE-9013-E765AF0BB72E}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{EF84877F-59BE-41BE-9013-E765AF0BB72E}.Release|Any CPU.Build.0 = Release|Any CPU
-		{EF84877F-59BE-41BE-9013-E765AF0BB72E}.Verbose|Any CPU.ActiveCfg = Release|Any CPU
-		{EF84877F-59BE-41BE-9013-E765AF0BB72E}.Verbose|Any CPU.Build.0 = Release|Any CPU
-		{46754D2A-AC16-4686-B113-3DB08ACF4269}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{46754D2A-AC16-4686-B113-3DB08ACF4269}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{46754D2A-AC16-4686-B113-3DB08ACF4269}.Log Output|Any CPU.ActiveCfg = Release|Any CPU
-		{46754D2A-AC16-4686-B113-3DB08ACF4269}.Log Output|Any CPU.Build.0 = Release|Any CPU
-		{46754D2A-AC16-4686-B113-3DB08ACF4269}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{46754D2A-AC16-4686-B113-3DB08ACF4269}.Release|Any CPU.Build.0 = Release|Any CPU
-		{46754D2A-AC16-4686-B113-3DB08ACF4269}.Verbose|Any CPU.ActiveCfg = Release|Any CPU
-		{46754D2A-AC16-4686-B113-3DB08ACF4269}.Verbose|Any CPU.Build.0 = Release|Any CPU
 		{3B8BD8F1-8BFC-4D8C-B4DA-25FFAF3D1DBE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{3B8BD8F1-8BFC-4D8C-B4DA-25FFAF3D1DBE}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{3B8BD8F1-8BFC-4D8C-B4DA-25FFAF3D1DBE}.Log Output|Any CPU.ActiveCfg = Release|Any CPU
-		{3B8BD8F1-8BFC-4D8C-B4DA-25FFAF3D1DBE}.Log Output|Any CPU.Build.0 = Release|Any CPU
 		{3B8BD8F1-8BFC-4D8C-B4DA-25FFAF3D1DBE}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{3B8BD8F1-8BFC-4D8C-B4DA-25FFAF3D1DBE}.Release|Any CPU.Build.0 = Release|Any CPU
-		{3B8BD8F1-8BFC-4D8C-B4DA-25FFAF3D1DBE}.Verbose|Any CPU.ActiveCfg = Release|Any CPU
-		{3B8BD8F1-8BFC-4D8C-B4DA-25FFAF3D1DBE}.Verbose|Any CPU.Build.0 = Release|Any CPU
 		{939FA5F7-16AA-4847-812B-6EBC3748A86D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{939FA5F7-16AA-4847-812B-6EBC3748A86D}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{939FA5F7-16AA-4847-812B-6EBC3748A86D}.Log Output|Any CPU.ActiveCfg = Debug|Any CPU
-		{939FA5F7-16AA-4847-812B-6EBC3748A86D}.Log Output|Any CPU.Build.0 = Debug|Any CPU
 		{939FA5F7-16AA-4847-812B-6EBC3748A86D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{939FA5F7-16AA-4847-812B-6EBC3748A86D}.Release|Any CPU.Build.0 = Release|Any CPU
-		{939FA5F7-16AA-4847-812B-6EBC3748A86D}.Verbose|Any CPU.ActiveCfg = Debug|Any CPU
-		{939FA5F7-16AA-4847-812B-6EBC3748A86D}.Verbose|Any CPU.Build.0 = Debug|Any CPU
-		{71455B07-E628-4F3A-9FFF-9EC63071F78E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{71455B07-E628-4F3A-9FFF-9EC63071F78E}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{71455B07-E628-4F3A-9FFF-9EC63071F78E}.Log Output|Any CPU.ActiveCfg = Release|Any CPU
-		{71455B07-E628-4F3A-9FFF-9EC63071F78E}.Log Output|Any CPU.Build.0 = Release|Any CPU
-		{71455B07-E628-4F3A-9FFF-9EC63071F78E}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{71455B07-E628-4F3A-9FFF-9EC63071F78E}.Release|Any CPU.Build.0 = Release|Any CPU
-		{71455B07-E628-4F3A-9FFF-9EC63071F78E}.Verbose|Any CPU.ActiveCfg = Release|Any CPU
-		{71455B07-E628-4F3A-9FFF-9EC63071F78E}.Verbose|Any CPU.Build.0 = Release|Any CPU
-		{94D233F5-2400-4542-98B9-BA72005C57DC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{94D233F5-2400-4542-98B9-BA72005C57DC}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{94D233F5-2400-4542-98B9-BA72005C57DC}.Log Output|Any CPU.ActiveCfg = Debug|Any CPU
-		{94D233F5-2400-4542-98B9-BA72005C57DC}.Log Output|Any CPU.Build.0 = Debug|Any CPU
-		{94D233F5-2400-4542-98B9-BA72005C57DC}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{94D233F5-2400-4542-98B9-BA72005C57DC}.Release|Any CPU.Build.0 = Release|Any CPU
-		{94D233F5-2400-4542-98B9-BA72005C57DC}.Verbose|Any CPU.ActiveCfg = Debug|Any CPU
-		{94D233F5-2400-4542-98B9-BA72005C57DC}.Verbose|Any CPU.Build.0 = Debug|Any CPU
+		{8FDB623D-779B-4A84-BC6B-75106E41D8A4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8FDB623D-779B-4A84-BC6B-75106E41D8A4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8FDB623D-779B-4A84-BC6B-75106E41D8A4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8FDB623D-779B-4A84-BC6B-75106E41D8A4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{651FDB97-9DE3-4BD9-9A05-827AF8F1A94A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{651FDB97-9DE3-4BD9-9A05-827AF8F1A94A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{651FDB97-9DE3-4BD9-9A05-827AF8F1A94A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{651FDB97-9DE3-4BD9-9A05-827AF8F1A94A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8375813E-FBAF-4DA3-A2C7-E4645B39B931}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8375813E-FBAF-4DA3-A2C7-E4645B39B931}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8375813E-FBAF-4DA3-A2C7-E4645B39B931}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8375813E-FBAF-4DA3-A2C7-E4645B39B931}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3DA1EEED-E9FE-43D9-B293-E000CFCCD91A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3DA1EEED-E9FE-43D9-B293-E000CFCCD91A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3DA1EEED-E9FE-43D9-B293-E000CFCCD91A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3DA1EEED-E9FE-43D9-B293-E000CFCCD91A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D58114AE-4998-4647-AFCA-9353D20495AE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D58114AE-4998-4647-AFCA-9353D20495AE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D58114AE-4998-4647-AFCA-9353D20495AE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D58114AE-4998-4647-AFCA-9353D20495AE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8FB98E7D-DAE2-4465-BD9A-104000E0A2D4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8FB98E7D-DAE2-4465-BD9A-104000E0A2D4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8FB98E7D-DAE2-4465-BD9A-104000E0A2D4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8FB98E7D-DAE2-4465-BD9A-104000E0A2D4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A0F89B8B-32A3-4C28-8F1B-ADE343F16137}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A0F89B8B-32A3-4C28-8F1B-ADE343F16137}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A0F89B8B-32A3-4C28-8F1B-ADE343F16137}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A0F89B8B-32A3-4C28-8F1B-ADE343F16137}.Release|Any CPU.Build.0 = Release|Any CPU
+		{69A0ACF2-DF1F-4F49-B554-F732DCA938A3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{69A0ACF2-DF1F-4F49-B554-F732DCA938A3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{69A0ACF2-DF1F-4F49-B554-F732DCA938A3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{69A0ACF2-DF1F-4F49-B554-F732DCA938A3}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
+		{96E891CD-2ED7-4293-A7AB-4C6F5D8D2B05} = {73A5C363-CA1F-44C4-9A9B-EF791A76BA6A}
+		{EF84877F-59BE-41BE-9013-E765AF0BB72E} = {00CA0876-DA9F-44E8-B0DC-A88716BF347A}
+		{3B8BD8F1-8BFC-4D8C-B4DA-25FFAF3D1DBE} = {73A5C363-CA1F-44C4-9A9B-EF791A76BA6A}
+		{939FA5F7-16AA-4847-812B-6EBC3748A86D} = {73A5C363-CA1F-44C4-9A9B-EF791A76BA6A}
 		{36255A0A-89EC-43C8-A642-F4C1ACAEF5BC} = {96E891CD-2ED7-4293-A7AB-4C6F5D8D2B05}
 		{A3B4B972-5BD2-4D90-981F-7E51E350E628} = {96E891CD-2ED7-4293-A7AB-4C6F5D8D2B05}
 		{38BDEEED-7BEB-4B1F-9CE0-256D63F9C502} = {96E891CD-2ED7-4293-A7AB-4C6F5D8D2B05}
+		{8FDB623D-779B-4A84-BC6B-75106E41D8A4} = {73A5C363-CA1F-44C4-9A9B-EF791A76BA6A}
+		{651FDB97-9DE3-4BD9-9A05-827AF8F1A94A} = {E25031D3-5C64-430D-B86F-697B66816FD8}
+		{D082703F-1652-4C35-840D-7D377F6B9979} = {96E891CD-2ED7-4293-A7AB-4C6F5D8D2B05}
+		{8375813E-FBAF-4DA3-A2C7-E4645B39B931} = {E25031D3-5C64-430D-B86F-697B66816FD8}
+		{3DA1EEED-E9FE-43D9-B293-E000CFCCD91A} = {E25031D3-5C64-430D-B86F-697B66816FD8}
+		{153A10E4-E668-41AD-9E0F-6785CE7EED66} = {3AD17044-6BFF-4750-9AC2-2CA466375F2A}
+		{D58114AE-4998-4647-AFCA-9353D20495AE} = {E25031D3-5C64-430D-B86F-697B66816FD8}
+		{A9F81DA3-DA82-423E-A5DD-B11C37548E06} = {96E891CD-2ED7-4293-A7AB-4C6F5D8D2B05}
+		{A0F89B8B-32A3-4C28-8F1B-ADE343F16137} = {73A5C363-CA1F-44C4-9A9B-EF791A76BA6A}
+		{69A0ACF2-DF1F-4F49-B554-F732DCA938A3} = {73A5C363-CA1F-44C4-9A9B-EF791A76BA6A}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {193AA352-6748-47C1-A5FC-C9AA6B5F000B}

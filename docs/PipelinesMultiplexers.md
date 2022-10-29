@@ -3,7 +3,7 @@
 
 Latency sucks. Modern computers can churn data at an alarming rate, and high speed networking (often with multiple parallel links between important servers) provides enormous bandwidth, but... that damned latency means that computers spend an awful lot of time *waiting for data* and that is one of the several reasons that continuation-based programming is becoming increasingly popular. Let's consider some regular procedural code:
 
-```C#
+```csharp
 string a = db.StringGet("a");
 string b = db.StringGet("b");
 ```
@@ -42,7 +42,7 @@ Because of this, many redis clients allow you to make use of *pipelining*; this 
 
 For example, to pipeline the two gets using procedural (blocking) code, we could use:
 
-```C#
+```csharp
 var aPending = db.StringGetAsync("a");
 var bPending = db.StringGetAsync("b");
 var a = db.Wait(aPending);
@@ -56,7 +56,7 @@ Fire and Forget
 
 A special-case of pipelining is when we expressly don't care about the response from a particular operation, which allows our code to continue immediately while the enqueued operation proceeds in the background. Often, this means that we can put concurrent work on the connection from a single caller. This is achieved using the `flags` parameter:
 
-```C#
+```csharp
 // sliding expiration
 db.KeyExpire(key, TimeSpan.FromMinutes(5), flags: CommandFlags.FireAndForget);
 var value = (string)db.StringGet(key);
@@ -69,9 +69,9 @@ Multiplexing
 
 Pipelining is all well and good, but often any single block of code only wants a single value (or maybe wants to perform a few operations, but which depend on each-other). This means that we still have the problem that we spend most of our time waiting for data to transfer between client and server.  Now consider a busy application, perhaps a web-server. Such applications are generally inherently concurrent, so if you have 20 parallel application requests all requiring data, you might think of spinning up 20 connections, or you could synchronize access to a single connection (which would mean the last caller would need to wait for the latency of all the other 19 before it even got started). Or as a compromise, perhaps a pool of 5 connections which are leased - no matter how you are doing it, there is going to be a lot of waiting. **StackExchange.Redis does not do this**; instead, it does a *lot* of work for you to make effective use of all this idle time by *multiplexing* a single connection. When used concurrently by different callers, it **automatically pipelines the separate requests**, so regardless of whether the requests use blocking or asynchronous access, the work is all pipelined. So we could have 10 or 20 of our "get a and b" scenario from earlier (from different application requests), and they would all get onto the connection as soon as possible. Essentially, it fills the `waiting` time with work from other callers.
 
-For this reason, the only redis features that StackExchange.Redis does not offer (and *will not ever offer*) are the "blocking pops" ([BLPOP](http://redis.io/commands/blpop), [BRPOP](http://redis.io/commands/brpop) and [BRPOPLPUSH](http://redis.io/commands/brpoplpush)) - because this would allow a single caller to stall the entire multiplexer, blocking all other callers. The only other time that StackExchange.Redis needs to hold work is when verifying pre-conditions for a transaction, which is why StackExchange.Redis encapsulates such conditions into internally managed `Condition` instances. [Read more about transactions here](Transactions). If you feel you want "blocking pops", then I strongly suggest you consider pub/sub instead:
+For this reason, the only redis features that StackExchange.Redis does not offer (and *will not ever offer*) are the "blocking pops" ([BLPOP](https://redis.io/commands/blpop), [BRPOP](https://redis.io/commands/brpop) and [BRPOPLPUSH](https://redis.io/commands/brpoplpush)) - because this would allow a single caller to stall the entire multiplexer, blocking all other callers. The only other time that StackExchange.Redis needs to hold work is when verifying pre-conditions for a transaction, which is why StackExchange.Redis encapsulates such conditions into internally managed `Condition` instances. [Read more about transactions here](Transactions). If you feel you want "blocking pops", then I strongly suggest you consider pub/sub instead:
 
-```C#
+```csharp
 sub.Subscribe(channel, delegate {
     string work = db.ListRightPop(key);
     if (work != null) Process(work);
@@ -96,7 +96,7 @@ Concurrency
 
 It should be noted that the pipeline / multiplexer / future-value approach also plays very nicely with continuation-based asynchronous code; for example you could write:
 
-```C#
+```csharp
 string value = await db.StringGetAsync(key);
 if (value == null) {
     value = await ComputeValueFromDatabase(...);
@@ -105,6 +105,6 @@ if (value == null) {
 return value;
 ```
 
-  [1]: http://msdn.microsoft.com/en-us/library/dd460717(v=vs.110).aspx
-  [2]: http://msdn.microsoft.com/en-us/library/system.threading.tasks.task(v=vs.110).aspx
-  [3]: http://msdn.microsoft.com/en-us/library/dd321424(v=vs.110).aspx
+  [1]: https://docs.microsoft.com/en-us/dotnet/standard/parallel-programming/task-parallel-library-tpl
+  [2]: https://docs.microsoft.com/en-us/dotnet/api/system.threading.tasks.task
+  [3]: https://docs.microsoft.com/en-us/dotnet/api/system.threading.tasks.task-1

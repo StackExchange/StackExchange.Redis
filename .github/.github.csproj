@@ -1,0 +1,5 @@
+﻿<Project Sdk="Microsoft.Build.NoTargets/3.3.0">
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+  </PropertyGroup>
+</Project>

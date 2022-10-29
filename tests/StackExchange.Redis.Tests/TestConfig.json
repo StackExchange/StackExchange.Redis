@@ -1,0 +1,6 @@
+﻿{
+  //"LogToConsole": false,
+  //"PrimaryServer": "[::1]",
+  //"ReplicaServer": "[::1]",
+  //"SecureServer": "[::1]"
+}

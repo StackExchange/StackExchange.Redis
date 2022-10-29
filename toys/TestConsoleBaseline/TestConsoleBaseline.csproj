@@ -1,0 +1,19 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFrameworks>net50;net461;net462;net47;net472</TargetFrameworks>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Computername)'=='OCHO' or '$(Computername)'=='SKINK'">
+    <LocalReference>true</LocalReference>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\TestConsole\Program.cs" Link="Program.cs" />
+  </ItemGroup>
+  
+  <ItemGroup>
+    <PackageReference Include="StackExchange.Redis" />
+  </ItemGroup>
+</Project>

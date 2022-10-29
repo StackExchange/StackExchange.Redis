@@ -1,0 +1,17 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<RuleSet Name="Rules for StackOverflow" Description="Code analysis rules for the StackOverflow solution." ToolsVersion="15.0">
+  <IncludeAll Action="Warning" />
+  <Rules AnalyzerId="Microsoft.CodeAnalysis.CSharp.Features" RuleNamespace="Microsoft.CodeAnalysis.CSharp.Features">
+    <Rule Id="IDE0045" Action="None" />
+    <Rule Id="IDE0046" Action="None" />
+  </Rules>
+  <Rules AnalyzerId="Roslynator.CSharp.Analyzers" RuleNamespace="Roslynator.CSharp.Analyzers">
+    <Rule Id="RCS1047" Action="None" />
+    <Rule Id="RCS1057" Action="None" />
+    <Rule Id="RCS1130" Action="None" />
+    <Rule Id="RCS1146" Action="None" />
+    <Rule Id="RCS1154" Action="None" />
+    <Rule Id="RCS1180" Action="None" />
+    <Rule Id="RCS1191" Action="None" />
+  </Rules>
+</RuleSet>

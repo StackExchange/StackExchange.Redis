@@ -1,7 +1,7 @@
 ﻿Transactions in Redis
 =====================
 
-Transactions in Redis are not like transactions in, say a SQL database. The [full documentation is here](http://redis.io/topics/transactions),
+Transactions in Redis are not like transactions in, say a SQL database. The [full documentation is here](https://redis.io/topics/transactions),
 but to paraphrase:
 
 A transaction in redis consists of a block of commands placed between `MULTI` and `EXEC` (or `DISCARD` for rollback). Once a `MULTI`
@@ -11,7 +11,7 @@ all applied in a single unit (i.e. without other connections getting time betwee
 a `EXEC`, everything is thrown away. Because the commands inside the transaction are queued, you can't make decisions *inside*
 the transaction. For example, in a SQL database you might do the following (pseudo-code - illustrative only):
 
-```C#
+```csharp
 // assign a new unique id only if they don't already
 // have one, in a transaction to ensure no thread-races
 var newId = CreateNewUniqueID(); // optimistic
@@ -41,14 +41,14 @@ you *can* do is: `WATCH` a key, check data from that key in the normal way, then
 If, when you check the data, you discover that you don't actually need the transaction, you can use `UNWATCH` to
 forget all the watched keys. Note that watched keys are also reset during `EXEC` and `DISCARD`. So *at the Redis layer*, this is conceptually:
 
-```
+```lua
 WATCH {custKey}
 HEXISTS {custKey} "UniqueId"
-(check the reply, then either:)
+-- (check the reply, then either:)
 MULTI
 HSET {custKey} "UniqueId" {newId}
 EXEC
-(or, if we find there was already an unique-id:)
+-- (or, if we find there was already an unique-id:)
 UNWATCH
 ```
 
@@ -66,7 +66,7 @@ basically pre-canned tests involving `WATCH`, some kind of test, and a check on 
 pass, the `MULTI`/`EXEC` is issued; otherwise `UNWATCH` is issued. This is all done in a way that prevents the commands being
 mixed together with other callers. So our example becomes:
 
-```C#
+```csharp
 var newId = CreateNewId();
 var tran = db.CreateTransaction();
 tran.AddCondition(Condition.HashNotExists(custKey, "UniqueID"));
@@ -88,7 +88,7 @@ Inbuilt operations via `When`
 It should also be noted that many common scenarios (in particular: key/hash existence, like in the above) have been anticipated by Redis, and single-operation
 atomic commands exist. These are accessed via the `When` parameter - so our previous example can *also* be written as:
 
-```C#
+```csharp
 var newId = CreateNewId();
 bool wasSet = db.HashSet(custKey, "UniqueID", newId, When.NotExists);
 ```
@@ -98,19 +98,19 @@ bool wasSet = db.HashSet(custKey, "UniqueID", newId, When.NotExists);
 Lua
 ---
 
-You should also keep in mind that Redis 2.6 and above [support Lua scripting](http://redis.io/commands/EVAL), a versatile tool for performing multiple operations as a single atomic unit at the server.
+You should also keep in mind that Redis 2.6 and above [support Lua scripting](https://redis.io/commands/EVAL), a versatile tool for performing multiple operations as a single atomic unit at the server.
 Since no other connections are serviced during a Lua script it behaves much like a transaction, but without the complexity of `MULTI` / `EXEC` etc.  This also avoids issues such as bandwidth and latency
 between the caller and the server, but the trade-off is that it monopolises the server for the duration of the script.
 
 At the Redis layer (and assuming `HSETNX` did not exist) this could be implemented as:
 
-```
+```lua
 EVAL "if redis.call('hexists', KEYS[1], 'UniqueId') then return redis.call('hset', KEYS[1], 'UniqueId', ARGV[1]) else return 0 end" 1 {custKey} {newId}
 ```
 
 This can be used in StackExchange.Redis via:
 
-```C#
+```csharp
 var wasSet = (bool) db.ScriptEvaluate(@"if redis.call('hexists', KEYS[1], 'UniqueId') then return redis.call('hset', KEYS[1], 'UniqueId', ARGV[1]) else return 0 end",
         new RedisKey[] { custKey }, new RedisValue[] { newId });
 ```

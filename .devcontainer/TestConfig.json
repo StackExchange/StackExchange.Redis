@@ -1,0 +1,11 @@
+{
+    "MasterServer": "redis",
+    "ReplicaServer": "redis",
+    "SecureServer": "redis",
+    "FailoverMasterServer": "redis",
+    "FailoverReplicaServer": "redis",
+    "IPv4Server": "redis",
+    "RemoteServer": "redis",
+    "SentinelServer": "redis",
+    "ClusterServer": "redis"
+}
