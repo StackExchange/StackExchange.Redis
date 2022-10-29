@@ -9,7 +9,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
     {
         /// <summary>
         ///     Creates a new <see cref="ISubscriber"/> instance that provides an isolated channel namespace
-        ///     of the specified underyling subscriber instance.
+        ///     of the specified underlying subscriber instance.
         /// </summary>
         /// <param name="subscriber">
         ///     The underlying subscriber instance that the returned instance shall use.
@@ -34,14 +34,14 @@ namespace StackExchange.Redis.KeyspaceIsolation
                 throw new ArgumentNullException(nameof(channelPrefix));
             }
 
-            if (subscriber is SubscriberWrapper wrapper)
+            if (subscriber is KeyPrefixedSubscriber wrapper)
             {
                 // combine the channel prefix in advance to minimize indirection
                 channelPrefix = wrapper.ToInner(channelPrefix);
                 subscriber = wrapper.Inner;
             }
 
-            return new SubscriberWrapper(subscriber, channelPrefix);
+            return new KeyPrefixedSubscriber(subscriber, channelPrefix!);
         }
     }
 }

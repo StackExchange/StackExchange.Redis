@@ -35,14 +35,14 @@ namespace StackExchange.Redis.Tests
                 const string channelName = "test-channel";
                 s1.Subscribe(channelName, (channel, value) =>
                 {
-                    c1.Add(channel);
-                    l1.Add(value);
+                    c1.Add(channel!);
+                    l1.Add(value!);
                 });
-                s12.Subscribe(channelName, (channel, value) => l12.Add(value));
-                s2.Subscribe(channelName, (channel, value) => l2.Add(value));
-                s.Subscribe(channelName, (channel, value) => l.Add(value));
-                s.Subscribe("*" + channelName, (channel, value) => lAll.Add(value));
-                s.Subscribe(prefix1 + channelName, (channel, value) => lT1.Add(value));
+                s12.Subscribe(channelName, (_channel, value) => l12.Add(value!));
+                s2.Subscribe(channelName, (_channel, value) => l2.Add(value!));
+                s.Subscribe(channelName, (_channel, value) => l.Add(value!));
+                s.Subscribe("*" + channelName, (_channel, value) => lAll.Add(value!));
+                s.Subscribe(prefix1 + channelName, (_channel, value) => lT1.Add(value!));
 
                 s1.Publish(channelName, "value1");
                 s.Publish(channelName, "value");
@@ -55,7 +55,7 @@ namespace StackExchange.Redis.Tests
 
                 Assert.Single(l12);
                 Assert.Equal("value1",l12[0]);
-            
+
                 Assert.Empty(l2);
 
                 Assert.Single(l);

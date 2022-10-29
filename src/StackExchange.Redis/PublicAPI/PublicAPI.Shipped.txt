@@ -1126,6 +1126,7 @@ StackExchange.Redis.ITransaction.AddCondition(StackExchange.Redis.Condition! con
 StackExchange.Redis.ITransaction.Execute(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> bool
 StackExchange.Redis.ITransaction.ExecuteAsync(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<bool>!
 StackExchange.Redis.KeyspaceIsolation.DatabaseExtensions
+StackExchange.Redis.KeyspaceIsolation.SubscriberExtensions
 StackExchange.Redis.LatencyHistoryEntry
 StackExchange.Redis.LatencyHistoryEntry.DurationMilliseconds.get -> int
 StackExchange.Redis.LatencyHistoryEntry.LatencyHistoryEntry() -> void
@@ -1629,6 +1630,7 @@ static StackExchange.Redis.HashEntry.implicit operator System.Collections.Generi
 static StackExchange.Redis.HashEntry.operator !=(StackExchange.Redis.HashEntry x, StackExchange.Redis.HashEntry y) -> bool
 static StackExchange.Redis.HashEntry.operator ==(StackExchange.Redis.HashEntry x, StackExchange.Redis.HashEntry y) -> bool
 static StackExchange.Redis.KeyspaceIsolation.DatabaseExtensions.WithKeyPrefix(this StackExchange.Redis.IDatabase! database, StackExchange.Redis.RedisKey keyPrefix) -> StackExchange.Redis.IDatabase!
+static StackExchange.Redis.KeyspaceIsolation.SubscriberExtensions.WithChannelPrefix(this StackExchange.Redis.ISubscriber! subscriber, StackExchange.Redis.RedisChannel channelPrefix) -> StackExchange.Redis.ISubscriber!
 static StackExchange.Redis.Lease<T>.Create(int length, bool clear = true) -> StackExchange.Redis.Lease<T>!
 static StackExchange.Redis.Lease<T>.Empty.get -> StackExchange.Redis.Lease<T>!
 static StackExchange.Redis.ListPopResult.Null.get -> StackExchange.Redis.ListPopResult
