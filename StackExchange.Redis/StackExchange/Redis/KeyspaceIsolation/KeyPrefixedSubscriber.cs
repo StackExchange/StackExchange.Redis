@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 
 namespace StackExchange.Redis.KeyspaceIsolation
 {
-    internal class SubscriberWrapper : ISubscriber
+    internal class KeyPrefixedSubscriber : ISubscriber
     {
         public ISubscriber Inner { get; }
 
