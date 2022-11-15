@@ -302,6 +302,7 @@ namespace StackExchange.Redis
 
             NodeId = parts[0];
             IsFail = flags.Contains("fail");
+            IsPossiblyFail = flags.Contains("fail?");
             IsReplica = flags.Contains("slave") || flags.Contains("replica");
             IsNoAddr = flags.Contains("noaddr");
             ParentNodeId = string.IsNullOrWhiteSpace(parts[3]) ? null : parts[3];
@@ -350,6 +351,12 @@ namespace StackExchange.Redis
         /// Gets whether this node is in a failed state.
         /// </summary>
         public bool IsFail { get; }
+
+        /// <summary>
+        /// Gets whether this node is possibly in a failed state.
+        /// Possibly here means the node we're getting status from can't communicate with it, but doesn't doesn't mean it's down for sure.
+        /// </summary>
+        public bool IsPossiblyFail { get; }
 
         /// <summary>
         /// Gets whether this is the node which responded to the CLUSTER NODES request.
