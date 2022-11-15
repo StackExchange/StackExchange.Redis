@@ -414,7 +414,7 @@ public class ConfigTests : TestBase
             await Task.Delay(8000).ForAwait();
 
             var after = innerConn.OperationCount;
-            Assert.True(after >= before + 2, $"after: {after}, before: {before}");
+            Assert.True(after >= before + 1, $"after: {after}, before: {before}");
         }
         finally
         {
