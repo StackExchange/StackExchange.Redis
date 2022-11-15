@@ -10,7 +10,7 @@ public class CommandTimeoutTests : TestBase
 {
     public CommandTimeoutTests(ITestOutputHelper output) : base (output) { }
 
-    [Fact]
+    [FactLongRunning]
     public async Task DefaultHeartbeatTimeout()
     {
         var options = ConfigurationOptions.Parse(TestConfig.Current.PrimaryServerAndPort);
