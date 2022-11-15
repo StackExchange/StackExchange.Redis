@@ -49,6 +49,10 @@ namespace StackExchange.Redis
 
         ConfigurationOptions IInternalConnectionMultiplexer.RawConfig => RawConfig;
 
+        private int lastReconfigiureTicks = Environment.TickCount;
+        internal long LastReconfigureSecondsAgo =>
+            unchecked(Environment.TickCount - Thread.VolatileRead(ref lastReconfigiureTicks)) / 1000;
+
         private int _activeHeartbeatErrors, lastHeartbeatTicks;
         internal long LastHeartbeatSecondsAgo =>
             pulse is null
@@ -366,8 +370,19 @@ namespace StackExchange.Redis
             }
         }
 
-        internal bool TryResend(int hashSlot, Message message, EndPoint endpoint, bool isMoved) =>
-            ServerSelectionStrategy.TryResend(hashSlot, message, endpoint, isMoved);
+        internal bool TryResend(int hashSlot, Message message, EndPoint endpoint, bool isMoved)
+        {
+            // If we're being told to re-send something because the hash slot moved, that means our topology is out of date
+            // ...and we should re-evaluate what's what.
+            // Allow for a 5-second back-off so we don't hammer this in a loop though
+            if (isMoved && LastReconfigureSecondsAgo > 5)
+            {
+                // Async kickoff a reconfigure
+                ReconfigureIfNeeded(endpoint, false, "MOVED encountered");
+            }
+
+            return ServerSelectionStrategy.TryResend(hashSlot, message, endpoint, isMoved);
+        }
 
         /// <summary>
         /// Wait for a given asynchronous operation to complete (or timeout).
@@ -1214,6 +1229,7 @@ namespace StackExchange.Redis
                 }
                 Trace("Starting reconfiguration...");
                 Trace(blame != null, "Blaming: " + Format.ToString(blame));
+                Interlocked.Exchange(ref lastReconfigiureTicks, Environment.TickCount);
 
                 log?.WriteLine(RawConfig.ToString(includePassword: false));
                 log?.WriteLine();
@@ -1552,10 +1568,7 @@ namespace StackExchange.Redis
                 foreach (EndPoint endpoint in clusterEndpoints)
                 {
                     serverEndpoint = GetServerEndPoint(endpoint);
-                    if (serverEndpoint != null)
-                    {
-                        serverEndpoint.UpdateNodeRelations(clusterConfig);
-                    }
+                    serverEndpoint?.UpdateNodeRelations(clusterConfig);
                 }
                 return clusterEndpoints;
             }

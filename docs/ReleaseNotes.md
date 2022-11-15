@@ -8,7 +8,7 @@ Current package versions:
 
 ## Unreleased
 
-No pending changes for the next release yet.
+- Fix [#1520](https://github.com/StackExchange/StackExchange.Redis/issues/1520) & [#1660](https://github.com/StackExchange/StackExchange.Redis/issues/1660): When `MOVED` is encountered from a cluster, a reconfigure will happen proactively to react to cluster changes ASAP ([#2286 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2286))
 
 
 ## 2.6.80
