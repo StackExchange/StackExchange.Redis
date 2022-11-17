@@ -354,7 +354,7 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// Gets whether this node is possibly in a failed state.
-        /// Possibly here means the node we're getting status from can't communicate with it, but doesn't doesn't mean it's down for sure.
+        /// Possibly here means the node we're getting status from can't communicate with it, but doesn't mean it's down for sure.
         /// </summary>
         public bool IsPossiblyFail { get; }
 
