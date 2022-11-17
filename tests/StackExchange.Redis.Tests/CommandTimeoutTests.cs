@@ -10,7 +10,7 @@ public class CommandTimeoutTests : TestBase
 {
     public CommandTimeoutTests(ITestOutputHelper output) : base (output) { }
 
-    [Fact]
+    [FactLongRunning]
     public async Task DefaultHeartbeatTimeout()
     {
         var options = ConfigurationOptions.Parse(TestConfig.Current.PrimaryServerAndPort);
@@ -21,7 +21,7 @@ public class CommandTimeoutTests : TestBase
         using var conn = ConnectionMultiplexer.Connect(options);
 
         var pauseServer = GetServer(pauseConn);
-        var pauseTask = pauseServer.ExecuteAsync("CLIENT", "PAUSE", 2500);
+        var pauseTask = pauseServer.ExecuteAsync("CLIENT", "PAUSE", 5000);
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -29,7 +29,7 @@ public class CommandTimeoutTests : TestBase
         var ex = await Assert.ThrowsAsync<RedisTimeoutException>(async () => await db.StringGetAsync(key));
         Log(ex.Message);
         var duration = sw.GetElapsedTime();
-        Assert.True(duration < TimeSpan.FromSeconds(2100), $"Duration ({duration.Milliseconds} ms) should be less than 2100ms");
+        Assert.True(duration < TimeSpan.FromSeconds(4000), $"Duration ({duration.Milliseconds} ms) should be less than 4000ms");
 
         // Await as to not bias the next test
         await pauseTask;

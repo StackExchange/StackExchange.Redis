@@ -140,8 +140,10 @@ StackExchange.Redis.ClusterNode.CompareTo(StackExchange.Redis.ClusterNode? other
 StackExchange.Redis.ClusterNode.EndPoint.get -> System.Net.EndPoint?
 StackExchange.Redis.ClusterNode.Equals(StackExchange.Redis.ClusterNode? other) -> bool
 StackExchange.Redis.ClusterNode.IsConnected.get -> bool
+StackExchange.Redis.ClusterNode.IsFail.get -> bool
 StackExchange.Redis.ClusterNode.IsMyself.get -> bool
 StackExchange.Redis.ClusterNode.IsNoAddr.get -> bool
+StackExchange.Redis.ClusterNode.IsPossiblyFail.get -> bool
 StackExchange.Redis.ClusterNode.IsReplica.get -> bool
 StackExchange.Redis.ClusterNode.IsSlave.get -> bool
 StackExchange.Redis.ClusterNode.NodeId.get -> string!
