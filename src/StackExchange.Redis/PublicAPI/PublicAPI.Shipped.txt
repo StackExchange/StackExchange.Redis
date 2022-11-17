@@ -492,6 +492,7 @@ StackExchange.Redis.IConnectionMultiplexer.PublishReconfigure(StackExchange.Redi
 StackExchange.Redis.IConnectionMultiplexer.PublishReconfigureAsync(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
 StackExchange.Redis.IConnectionMultiplexer.RegisterProfiler(System.Func<StackExchange.Redis.Profiling.ProfilingSession!>! profilingSessionProvider) -> void
 StackExchange.Redis.IConnectionMultiplexer.ResetStormLog() -> void
+StackExchange.Redis.IConnectionMultiplexer.ServerMaintenanceEvent -> System.EventHandler<StackExchange.Redis.Maintenance.ServerMaintenanceEvent!>!
 StackExchange.Redis.IConnectionMultiplexer.StormLogThreshold.get -> int
 StackExchange.Redis.IConnectionMultiplexer.StormLogThreshold.set -> void
 StackExchange.Redis.IConnectionMultiplexer.TimeoutMilliseconds.get -> int
