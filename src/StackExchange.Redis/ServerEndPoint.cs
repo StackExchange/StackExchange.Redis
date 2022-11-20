@@ -37,8 +37,6 @@ namespace StackExchange.Redis
         private volatile UnselectableFlags unselectableReasons;
         private Version version;
 
-        public DateTime? LastConnectTime { get; private set; }
-
         internal void ResetNonConnected()
         {
             interactive?.ResetNonConnected();
@@ -126,11 +124,7 @@ namespace StackExchange.Redis
             {
                 log?.WriteLine($"{Format.ToString(this)}: OnConnectedAsync init (State={interactive?.ConnectionState})");
                 var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
-                _ = tcs.Task.ContinueWith(t =>
-                {
-                    LastConnectTime ??= DateTime.UtcNow;
-                    log?.WriteLine($"{Format.ToString(this)}: OnConnectedAsync completed ({t.Result})");
-                });
+                _ = tcs.Task.ContinueWith(t => log?.WriteLine($"{Format.ToString(this)}: OnConnectedAsync completed ({t.Result})"));
                 lock (_pendingConnectionMonitors)
                 {
                     _pendingConnectionMonitors.Add(tcs);
@@ -616,7 +610,6 @@ namespace StackExchange.Redis
             {
                 Multiplexer.UpdateSubscriptions();
             }
-            LastConnectTime = default;
         }
 
         internal Task OnEstablishingAsync(PhysicalConnection connection, LogProxy? log)
