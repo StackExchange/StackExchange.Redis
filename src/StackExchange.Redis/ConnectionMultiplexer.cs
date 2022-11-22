@@ -31,6 +31,7 @@ namespace StackExchange.Redis
         /// Tracks overall connection multiplexer counts.
         /// </summary>
         internal int _connectAttemptCount = 0, _connectCompletedCount = 0, _connectionCloseCount = 0;
+        internal long syncOps, asyncOps;
         private long syncTimeouts, fireAndForgets, asyncTimeouts;
         private string? failureMessage, activeConfigCause;
         private IDisposable? pulse;
@@ -1867,6 +1868,8 @@ namespace StackExchange.Redis
                 return defaultValue;
             }
 
+            Interlocked.Increment(ref syncOps);
+
             if (message.IsFireAndForget)
             {
 #pragma warning disable CS0618 // Type or member is obsolete
@@ -1929,6 +1932,8 @@ namespace StackExchange.Redis
                 return CompletedTask<T>.FromDefault(defaultValue, state);
             }
 
+            Interlocked.Increment(ref asyncOps);
+
             TaskCompletionSource<T>? tcs = null;
             IResultBox<T>? source = null;
             if (!message.IsFireAndForget)
@@ -1977,6 +1982,8 @@ namespace StackExchange.Redis
             {
                 return CompletedTask<T?>.Default(state);
             }
+
+            Interlocked.Increment(ref asyncOps);
 
             TaskCompletionSource<T?>? tcs = null;
             IResultBox<T?>? source = null;

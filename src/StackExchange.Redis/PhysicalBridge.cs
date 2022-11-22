@@ -66,6 +66,7 @@ namespace StackExchange.Redis
 #endif
 
         internal string? PhysicalName => physical?.ToString();
+        public DateTime? ConnectedAt { get; private set; }
 
         public PhysicalBridge(ServerEndPoint serverEndPoint, ConnectionType type, int timeoutMilliseconds)
         {
@@ -265,6 +266,10 @@ namespace StackExchange.Redis
             /// </summary>
             public int MessagesSinceLastHeartbeat { get; init; }
             /// <summary>
+            /// The time this connection was connected at, if it's connected currently.
+            /// </summary>
+            public DateTime? ConnectedAt { get; init; }
+            /// <summary>
             /// Whether the pipe writer is currently active.
             /// </summary>
             public bool IsWriterActive { get; init; }
@@ -298,12 +303,13 @@ namespace StackExchange.Redis
             public static BridgeStatus Zero { get; } = new() { Connection = PhysicalConnection.ConnectionStatus.Zero };
 
             public override string ToString() =>
-                $"MessagesSinceLastHeartbeat: {MessagesSinceLastHeartbeat}, Writer: {(IsWriterActive ? "Active" : "Inactive")}, BacklogStatus: {BacklogStatus}, BacklogMessagesPending: (Queue: {BacklogMessagesPending}, Counter: {BacklogMessagesPendingCounter}), TotalBacklogMessagesQueued: {TotalBacklogMessagesQueued}, Connection: ({Connection})";
+                $"MessagesSinceLastHeartbeat: {MessagesSinceLastHeartbeat}, ConnectedAt: {ConnectedAt?.ToString("u") ?? "n/a"}, Writer: {(IsWriterActive ? "Active" : "Inactive")}, BacklogStatus: {BacklogStatus}, BacklogMessagesPending: (Queue: {BacklogMessagesPending}, Counter: {BacklogMessagesPendingCounter}), TotalBacklogMessagesQueued: {TotalBacklogMessagesQueued}, Connection: ({Connection})";
         }
 
         internal BridgeStatus GetStatus() => new()
         {
             MessagesSinceLastHeartbeat = (int)(Interlocked.Read(ref operationCount) - Interlocked.Read(ref profileLastLog)),
+            ConnectedAt = ConnectedAt,
 #if NETCOREAPP
             IsWriterActive = _singleWriterMutex.CurrentCount == 0,
 #else
@@ -385,6 +391,7 @@ namespace StackExchange.Redis
             Trace("OnConnected");
             if (physical == connection && !isDisposed && ChangeState(State.Connecting, State.ConnectedEstablishing))
             {
+                ConnectedAt ??= DateTime.UtcNow;
                 await ServerEndPoint.OnEstablishingAsync(connection, log).ForAwait();
                 log?.WriteLine($"{Format.ToString(ServerEndPoint)}: OnEstablishingAsync complete");
             }
@@ -431,6 +438,7 @@ namespace StackExchange.Redis
             Trace($"OnDisconnected: {failureType}");
 
             oldState = default(State); // only defined when isCurrent = true
+            ConnectedAt = default;
             if (isCurrent = (physical == connection))
             {
                 Trace("Bridge noting disconnect from active connection" + (isDisposed ? " (disposed)" : ""));

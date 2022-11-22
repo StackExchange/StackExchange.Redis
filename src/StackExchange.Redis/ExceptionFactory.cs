@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Reflection;
 using System.Security.Authentication;
 using System.Text;
 using System.Threading;
@@ -323,6 +322,9 @@ namespace StackExchange.Redis
                 Add(data, sb, "Last-Result-Bytes", "last-in", bs.Connection.BytesLastResult.ToString());
                 Add(data, sb, "Inbound-Buffer-Bytes", "cur-in", bs.Connection.BytesInBuffer.ToString());
 
+                Add(data, sb, "Sync-Ops", "sync-ops", multiplexer.syncOps.ToString());
+                Add(data, sb, "Async-Ops", "async-ops", multiplexer.asyncOps.ToString());
+
                 if (multiplexer.StormLogThreshold >= 0 && bs.Connection.MessagesSentAwaitingResponse >= multiplexer.StormLogThreshold && Interlocked.CompareExchange(ref multiplexer.haveStormLog, 1, 0) == 0)
                 {
                     var log = server.GetStormLog(message);
@@ -330,6 +332,7 @@ namespace StackExchange.Redis
                     else Interlocked.Exchange(ref multiplexer.stormLogSnapshot, log);
                 }
                 Add(data, sb, "Server-Endpoint", "serverEndpoint", (server.EndPoint.ToString() ?? "Unknown").Replace("Unspecified/", ""));
+                Add(data, sb, "Server-Connected-Seconds", "conn-sec", bs.ConnectedAt is DateTime dt ? (DateTime.UtcNow - dt).TotalSeconds.ToString("0.##") : "n/a");
             }
             Add(data, sb, "Multiplexer-Connects", "mc", $"{multiplexer._connectAttemptCount}/{multiplexer._connectCompletedCount}/{multiplexer._connectionCloseCount}");
             Add(data, sb, "Manager", "mgr", multiplexer.SocketManager?.GetState());

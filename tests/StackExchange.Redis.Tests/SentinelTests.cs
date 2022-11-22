@@ -451,8 +451,12 @@ public class SentinelTests : SentinelBase
     public async Task ReadOnlyConnectionReplicasTest()
     {
         var replicas = SentinelServerA.SentinelGetReplicaAddresses(ServiceName);
-        var config = new ConfigurationOptions();
+        if (replicas.Length == 0)
+        {
+            Skip.Inconclusive("Sentinel race: 0 replicas to test against.");
+        }
 
+        var config = new ConfigurationOptions();
         foreach (var replica in replicas)
         {
             config.EndPoints.Add(replica);
