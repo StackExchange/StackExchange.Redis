@@ -1040,6 +1040,20 @@ return arr;
     [Fact]
     public void RedisResultUnderstandsNullValue() => TestNullValue(RedisResult.Create(RedisValue.Null, ResultType.None));
 
+    [Fact]
+    public void TestEvalReadonly()
+    {
+        using var conn = GetScriptConn();
+        var db = conn.GetDatabase();
+
+        string script = "return KEYS[1]";
+        RedisKey[] keys = new RedisKey[1] { "key1" };
+        RedisValue[] values = new RedisValue[1] { "first" };
+
+        var result = db.ScriptEvaluateReadOnly(script, keys, values);
+        Assert.Equal("key1", result.ToString());
+    }
+
     private static void TestNullValue(RedisResult? value)
     {
         Assert.True(value == null || value.IsNull);
