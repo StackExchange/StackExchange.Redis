@@ -121,7 +121,8 @@ namespace StackExchange.Redis
                     case RedisCommand.UNKNOWN:
                     case RedisCommand.EVAL:
                     case RedisCommand.EVALSHA:
-                        if (multiplexer.CommandMap.IsAvailable(RedisCommand.SELECT))
+                        var server = multiplexer.SelectServer(message);
+                        if (server != null && server.SupportsDatabases)
                         {
                             // people can do very naughty things in an EVAL
                             // including change the DB; change it back to what we
