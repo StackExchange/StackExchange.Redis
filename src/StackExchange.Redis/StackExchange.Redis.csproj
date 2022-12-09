@@ -3,7 +3,7 @@
     <Nullable>enable</Nullable>
     <!-- extend the default lib targets for the main lib; mostly because of "vectors" -->
     <!-- Note: we're NOT building for .NET 6 because the thread pool changes are not wins yet -->
-    <TargetFrameworks>net461;netstandard2.0;net472;netcoreapp3.1;net5.0</TargetFrameworks>
+    <TargetFrameworks>net462;netstandard2.0;net472;netcoreapp3.1;net6.0</TargetFrameworks>
     <Description>High performance Redis client, incorporating both synchronous and asynchronous usage.</Description>
     <AssemblyName>StackExchange.Redis</AssemblyName>
     <AssemblyTitle>StackExchange.Redis</AssemblyTitle>
@@ -11,8 +11,8 @@
     <PackageTags>Async;Redis;Cache;PubSub;Messaging</PackageTags>
     <SignAssembly>true</SignAssembly>
     <PublicSign Condition=" '$(OS)' != 'Windows_NT' ">true</PublicSign>
-    <DefineConstants Condition="'$(TargetFramework)' != 'net461'">$(DefineConstants);VECTOR_SAFE</DefineConstants>
-    <DefineConstants Condition="'$(TargetFramework)' != 'net461' and '$(TargetFramework)' != 'net472' and '$(TargetFramework)' != 'netstandard2.0'">$(DefineConstants);UNIX_SOCKET</DefineConstants>
+    <DefineConstants Condition="'$(TargetFramework)' != 'net462'">$(DefineConstants);VECTOR_SAFE</DefineConstants>
+    <DefineConstants Condition="'$(TargetFramework)' != 'net462' and '$(TargetFramework)' != 'net472' and '$(TargetFramework)' != 'netstandard2.0'">$(DefineConstants);UNIX_SOCKET</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>
@@ -20,14 +20,14 @@
     <PackageReference Include="Pipelines.Sockets.Unofficial" />
 
     <!-- built into .NET core now -->
-    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Condition="'$(TargetFramework)' == 'net472' or '$(TargetFramework)' == 'net461' or '$(TargetFramework)' == 'netstandard2.0'" />
-    <PackageReference Include="System.Threading.Channels" Condition="'$(TargetFramework)' == 'net472' or '$(TargetFramework)' == 'net461' or '$(TargetFramework)' == 'netstandard2.0'" />
+    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Condition="'$(TargetFramework)' == 'net472' or '$(TargetFramework)' == 'net462' or '$(TargetFramework)' == 'netstandard2.0'" />
+    <PackageReference Include="System.Threading.Channels" Condition="'$(TargetFramework)' == 'net472' or '$(TargetFramework)' == 'net462' or '$(TargetFramework)' == 'netstandard2.0'" />
 
-    <!-- net461 needs this for OSPlatform et al -->
-    <PackageReference Include="System.Runtime.InteropServices.RuntimeInformation" Condition="'$(TargetFramework)' == 'net461' " />
+    <!-- net462 needs this for OSPlatform et al -->
+    <PackageReference Include="System.Runtime.InteropServices.RuntimeInformation" Condition="'$(TargetFramework)' == 'net462' " />
     
     <!-- netfx needs this for ZipArchive -->
-    <PackageReference Include="System.IO.Compression" Condition="'$(TargetFramework)' == 'net472' or '$(TargetFramework)' == 'net461' " />
+    <PackageReference Include="System.IO.Compression" Condition="'$(TargetFramework)' == 'net472' or '$(TargetFramework)' == 'net462' " />
   </ItemGroup>
 
   <ItemGroup>
@@ -35,7 +35,7 @@
     <AdditionalFiles Include="PublicAPI/PublicAPI.Shipped.txt" />
     <AdditionalFiles Include="PublicAPI/PublicAPI.Unshipped.txt" />
     <!-- APIs for netcoreapp3.1+ -->
-    <AdditionalFiles Include="PublicAPI/netcoreapp3.1/PublicAPI.Shipped.txt" Condition="'$(TargetFramework)' == 'netcoreapp3.1' or '$(TargetFramework)' == 'net5.0'" />
+    <AdditionalFiles Include="PublicAPI/netcoreapp3.1/PublicAPI.Shipped.txt" Condition="'$(TargetFramework)' == 'netcoreapp3.1' or '$(TargetFramework)' == 'net6.0'" />
   </ItemGroup>
 
   <ItemGroup>

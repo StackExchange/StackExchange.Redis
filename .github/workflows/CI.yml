@@ -4,10 +4,10 @@ on:
   pull_request:
   push:
     branches:
-    - main
+      - main
     paths:
-    - '*'
-    - '!/docs/*' # Don't run workflow when files are only in the /docs directory
+      - "*"
+      - "!/docs/*" # Don't run workflow when files are only in the /docs directory
 
 jobs:
   main:
@@ -17,29 +17,29 @@ jobs:
       DOTNET_SYSTEM_CONSOLE_ALLOW_ANSI_COLOR_REDIRECTION: "1" # Enable color output, even though the console output is redirected in Actions
       TERM: xterm # Enable color output in GitHub Actions
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v1
-    - name: Install .NET SDK
-      uses: actions/setup-dotnet@v1
-      with:
-        dotnet-version: | 
-          6.0.x
-    - name: .NET Build
-      run: dotnet build Build.csproj -c Release /p:CI=true
-    - name: Start Redis Services (docker-compose)
-      working-directory: ./tests/RedisConfigs
-      run: docker-compose -f docker-compose.yml up -d
-    - name: StackExchange.Redis.Tests
-      run: dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj -c Release --logger trx --logger GitHubActions --results-directory ./test-results/ /p:CI=true
-    - uses: dorny/test-reporter@v1
-      continue-on-error: true
-      if: success() || failure()
-      with:
-        name: Test Results - Ubuntu
-        path: 'test-results/*.trx'
-        reporter: dotnet-trx
-    - name: .NET Lib Pack
-      run: dotnet pack src/StackExchange.Redis/StackExchange.Redis.csproj --no-build -c Release /p:Packing=true /p:PackageOutputPath=%CD%\.nupkgs /p:CI=true
+      - name: Checkout code
+        uses: actions/checkout@v1
+      - name: Install .NET SDK
+        uses: actions/setup-dotnet@v1
+        with:
+          dotnet-version: |
+          7.0.x
+      - name: .NET Build
+        run: dotnet build Build.csproj -c Release /p:CI=true
+      - name: Start Redis Services (docker-compose)
+        working-directory: ./tests/RedisConfigs
+        run: docker-compose -f docker-compose.yml up -d
+      - name: StackExchange.Redis.Tests
+        run: dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj -c Release --logger trx --logger GitHubActions --results-directory ./test-results/ /p:CI=true
+      - uses: dorny/test-reporter@v1
+        continue-on-error: true
+        if: success() || failure()
+        with:
+          name: Test Results - Ubuntu
+          path: "test-results/*.trx"
+          reporter: dotnet-trx
+      - name: .NET Lib Pack
+        run: dotnet pack src/StackExchange.Redis/StackExchange.Redis.csproj --no-build -c Release /p:Packing=true /p:PackageOutputPath=%CD%\.nupkgs /p:CI=true
 
   windows:
     name: StackExchange.Redis (Windows Server 2022)
@@ -49,41 +49,41 @@ jobs:
       DOTNET_SYSTEM_CONSOLE_ALLOW_ANSI_COLOR_REDIRECTION: "1" # Note this doesn't work yet for Windows - see https://github.com/dotnet/runtime/issues/68340
       TERM: xterm
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v1
-    # - name: Install .NET SDK
-    #   uses: actions/setup-dotnet@v1
-    #   with:
-    #     dotnet-version: | 
-    #       6.0.x
-    - name: .NET Build
-      run: dotnet build Build.csproj -c Release /p:CI=true
-    - name: Start Redis Services (v3.0.503)
-      working-directory: .\tests\RedisConfigs\3.0.503
-      run: |
-        .\redis-server.exe --service-install --service-name "redis-6379" "..\Basic\primary-6379-3.0.conf"
-        .\redis-server.exe --service-install --service-name "redis-6380" "..\Basic\replica-6380.conf"
-        .\redis-server.exe --service-install --service-name "redis-6381" "..\Basic\secure-6381.conf"
-        .\redis-server.exe --service-install --service-name "redis-6382" "..\Failover\primary-6382.conf"
-        .\redis-server.exe --service-install --service-name "redis-6383" "..\Failover\replica-6383.conf"
-        .\redis-server.exe --service-install --service-name "redis-7000" "..\Cluster\cluster-7000.conf" --dir "..\Cluster"
-        .\redis-server.exe --service-install --service-name "redis-7001" "..\Cluster\cluster-7001.conf" --dir "..\Cluster"
-        .\redis-server.exe --service-install --service-name "redis-7002" "..\Cluster\cluster-7002.conf" --dir "..\Cluster"
-        .\redis-server.exe --service-install --service-name "redis-7003" "..\Cluster\cluster-7003.conf" --dir "..\Cluster"
-        .\redis-server.exe --service-install --service-name "redis-7004" "..\Cluster\cluster-7004.conf" --dir "..\Cluster"
-        .\redis-server.exe --service-install --service-name "redis-7005" "..\Cluster\cluster-7005.conf" --dir "..\Cluster"
-        .\redis-server.exe --service-install --service-name "redis-7010" "..\Sentinel\redis-7010.conf"
-        .\redis-server.exe --service-install --service-name "redis-7011" "..\Sentinel\redis-7011.conf"
-        .\redis-server.exe --service-install --service-name "redis-26379" "..\Sentinel\sentinel-26379.conf" --sentinel
-        .\redis-server.exe --service-install --service-name "redis-26380" "..\Sentinel\sentinel-26380.conf" --sentinel
-        .\redis-server.exe --service-install --service-name "redis-26381" "..\Sentinel\sentinel-26381.conf" --sentinel
-        Start-Service redis-*
-    - name: StackExchange.Redis.Tests
-      run: dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj -c Release --logger trx --logger GitHubActions --results-directory ./test-results/ /p:CI=true
-    - uses: dorny/test-reporter@v1
-      continue-on-error: true
-      if: success() || failure()
-      with:
-        name: Tests Results - Windows Server 2022
-        path: 'test-results/*.trx'
-        reporter: dotnet-trx
+      - name: Checkout code
+        uses: actions/checkout@v1
+      - name: Install .NET SDK
+        uses: actions/setup-dotnet@v1
+        with:
+          dotnet-version: |
+            7.0.x
+      - name: .NET Build
+        run: dotnet build Build.csproj -c Release /p:CI=true
+      - name: Start Redis Services (v3.0.503)
+        working-directory: .\tests\RedisConfigs\3.0.503
+        run: |
+          .\redis-server.exe --service-install --service-name "redis-6379" "..\Basic\primary-6379-3.0.conf"
+          .\redis-server.exe --service-install --service-name "redis-6380" "..\Basic\replica-6380.conf"
+          .\redis-server.exe --service-install --service-name "redis-6381" "..\Basic\secure-6381.conf"
+          .\redis-server.exe --service-install --service-name "redis-6382" "..\Failover\primary-6382.conf"
+          .\redis-server.exe --service-install --service-name "redis-6383" "..\Failover\replica-6383.conf"
+          .\redis-server.exe --service-install --service-name "redis-7000" "..\Cluster\cluster-7000.conf" --dir "..\Cluster"
+          .\redis-server.exe --service-install --service-name "redis-7001" "..\Cluster\cluster-7001.conf" --dir "..\Cluster"
+          .\redis-server.exe --service-install --service-name "redis-7002" "..\Cluster\cluster-7002.conf" --dir "..\Cluster"
+          .\redis-server.exe --service-install --service-name "redis-7003" "..\Cluster\cluster-7003.conf" --dir "..\Cluster"
+          .\redis-server.exe --service-install --service-name "redis-7004" "..\Cluster\cluster-7004.conf" --dir "..\Cluster"
+          .\redis-server.exe --service-install --service-name "redis-7005" "..\Cluster\cluster-7005.conf" --dir "..\Cluster"
+          .\redis-server.exe --service-install --service-name "redis-7010" "..\Sentinel\redis-7010.conf"
+          .\redis-server.exe --service-install --service-name "redis-7011" "..\Sentinel\redis-7011.conf"
+          .\redis-server.exe --service-install --service-name "redis-26379" "..\Sentinel\sentinel-26379.conf" --sentinel
+          .\redis-server.exe --service-install --service-name "redis-26380" "..\Sentinel\sentinel-26380.conf" --sentinel
+          .\redis-server.exe --service-install --service-name "redis-26381" "..\Sentinel\sentinel-26381.conf" --sentinel
+          Start-Service redis-*
+      - name: StackExchange.Redis.Tests
+        run: dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj -c Release --logger trx --logger GitHubActions --results-directory ./test-results/ /p:CI=true
+      - uses: dorny/test-reporter@v1
+        continue-on-error: true
+        if: success() || failure()
+        with:
+          name: Tests Results - Windows Server 2022
+          path: "test-results/*.trx"
+          reporter: dotnet-trx
