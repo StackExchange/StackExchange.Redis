@@ -1,62 +1,62 @@
 image:
-- Visual Studio 2019
+  - Visual Studio 2019
 
 init:
   - git config --global core.autocrlf input
 
 install:
-- cmd: >-
-    choco install dotnet-sdk --version 6.0.101
+  - cmd: >-
+      choco install dotnet-sdk --version 7.0.101
 
-    cd tests\RedisConfigs\3.0.503
+      cd tests\RedisConfigs\3.0.503
 
-    redis-server.exe --service-install --service-name "redis-6379" "..\Basic\primary-6379-3.0.conf"
+      redis-server.exe --service-install --service-name "redis-6379" "..\Basic\primary-6379-3.0.conf"
 
-    redis-server.exe --service-install --service-name "redis-6380" "..\Basic\replica-6380.conf"
+      redis-server.exe --service-install --service-name "redis-6380" "..\Basic\replica-6380.conf"
 
-    redis-server.exe --service-install --service-name "redis-6381" "..\Basic\secure-6381.conf"
+      redis-server.exe --service-install --service-name "redis-6381" "..\Basic\secure-6381.conf"
 
-    redis-server.exe --service-install --service-name "redis-6382" "..\Failover\primary-6382.conf"
+      redis-server.exe --service-install --service-name "redis-6382" "..\Failover\primary-6382.conf"
 
-    redis-server.exe --service-install --service-name "redis-6383" "..\Failover\replica-6383.conf"
+      redis-server.exe --service-install --service-name "redis-6383" "..\Failover\replica-6383.conf"
 
-    redis-server.exe --service-install --service-name "redis-7000" "..\Cluster\cluster-7000.conf" --dir "..\Cluster"
+      redis-server.exe --service-install --service-name "redis-7000" "..\Cluster\cluster-7000.conf" --dir "..\Cluster"
 
-    redis-server.exe --service-install --service-name "redis-7001" "..\Cluster\cluster-7001.conf" --dir "..\Cluster"
+      redis-server.exe --service-install --service-name "redis-7001" "..\Cluster\cluster-7001.conf" --dir "..\Cluster"
 
-    redis-server.exe --service-install --service-name "redis-7002" "..\Cluster\cluster-7002.conf" --dir "..\Cluster"
+      redis-server.exe --service-install --service-name "redis-7002" "..\Cluster\cluster-7002.conf" --dir "..\Cluster"
 
-    redis-server.exe --service-install --service-name "redis-7003" "..\Cluster\cluster-7003.conf" --dir "..\Cluster"
+      redis-server.exe --service-install --service-name "redis-7003" "..\Cluster\cluster-7003.conf" --dir "..\Cluster"
 
-    redis-server.exe --service-install --service-name "redis-7004" "..\Cluster\cluster-7004.conf" --dir "..\Cluster"
+      redis-server.exe --service-install --service-name "redis-7004" "..\Cluster\cluster-7004.conf" --dir "..\Cluster"
 
-    redis-server.exe --service-install --service-name "redis-7005" "..\Cluster\cluster-7005.conf" --dir "..\Cluster"
+      redis-server.exe --service-install --service-name "redis-7005" "..\Cluster\cluster-7005.conf" --dir "..\Cluster"
 
-    redis-server.exe --service-install --service-name "redis-7010" "..\Sentinel\redis-7010.conf"
+      redis-server.exe --service-install --service-name "redis-7010" "..\Sentinel\redis-7010.conf"
 
-    redis-server.exe --service-install --service-name "redis-7011" "..\Sentinel\redis-7011.conf"
+      redis-server.exe --service-install --service-name "redis-7011" "..\Sentinel\redis-7011.conf"
 
-    redis-server.exe --service-install --service-name "redis-26379" "..\Sentinel\sentinel-26379.conf" --sentinel
+      redis-server.exe --service-install --service-name "redis-26379" "..\Sentinel\sentinel-26379.conf" --sentinel
 
-    redis-server.exe --service-install --service-name "redis-26380" "..\Sentinel\sentinel-26380.conf" --sentinel
-    
-    redis-server.exe --service-install --service-name "redis-26381" "..\Sentinel\sentinel-26381.conf" --sentinel
+      redis-server.exe --service-install --service-name "redis-26380" "..\Sentinel\sentinel-26380.conf" --sentinel
 
-    cd ..\..\..
-- ps: >-
-    if (Get-Command "Start-Service" -errorAction SilentlyContinue) {
-      Start-Service redis-*
-    }
+      redis-server.exe --service-install --service-name "redis-26381" "..\Sentinel\sentinel-26381.conf" --sentinel
+
+      cd ..\..\..
+  - ps: >-
+      if (Get-Command "Start-Service" -errorAction SilentlyContinue) {
+        Start-Service redis-*
+      }
 
 branches:
   only:
     - main
-    
+
 skip_branch_with_pr: true
 skip_tags: true
 skip_commits:
   files:
-    - '**/*.md'
+    - "**/*.md"
     - docs/*
 
 environment:
@@ -67,17 +67,17 @@ nuget:
   disable_publish_on_pr: true
 
 build_script:
-- ps: .\build.ps1 -PullRequestNumber "$env:APPVEYOR_PULL_REQUEST_NUMBER" -CreatePackages ($env:OS -eq "Windows_NT")
+  - ps: .\build.ps1 -PullRequestNumber "$env:APPVEYOR_PULL_REQUEST_NUMBER" -CreatePackages ($env:OS -eq "Windows_NT")
 
 test: off
 artifacts:
-- path: .\.nupkgs\*.nupkg
+  - path: .\.nupkgs\*.nupkg
 
 deploy:
-- provider: NuGet
-  server: https://www.myget.org/F/stackoverflow/api/v2
-  on:
-    branch: main
-  api_key:
-    secure: P/UHxq2DEs0GI1SoDXDesHjRVsSVgdywz5vmsnhFQQY5aJgO3kP+QfhwfhXz19Rw
-  symbol_server: https://www.myget.org/F/stackoverflow/symbols/api/v2/package
+  - provider: NuGet
+    server: https://www.myget.org/F/stackoverflow/api/v2
+    on:
+      branch: main
+    api_key:
+      secure: P/UHxq2DEs0GI1SoDXDesHjRVsSVgdywz5vmsnhFQQY5aJgO3kP+QfhwfhXz19Rw
+    symbol_server: https://www.myget.org/F/stackoverflow/symbols/api/v2/package
