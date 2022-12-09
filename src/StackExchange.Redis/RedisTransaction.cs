@@ -116,14 +116,13 @@ namespace StackExchange.Redis
             lock (SyncLock)
             {
                 (_pending ??= new List<QueuedMessage>()).Add(queued);
-
-                if(multiplexer.CommandMap.IsAvailable(RedisCommand.SELECT))
+                switch (message.Command)
                 {
-                    switch (message.Command)
-                    {
-                        case RedisCommand.UNKNOWN:
-                        case RedisCommand.EVAL:
-                        case RedisCommand.EVALSHA:
+                    case RedisCommand.UNKNOWN:
+                    case RedisCommand.EVAL:
+                    case RedisCommand.EVALSHA:
+                        if (multiplexer.CommandMap.IsAvailable(RedisCommand.SELECT))
+                        {
                             // people can do very naughty things in an EVAL
                             // including change the DB; change it back to what we
                             // think it should be!
@@ -132,8 +131,9 @@ namespace StackExchange.Redis
                             wasQueued = SimpleResultBox<bool>.Create();
                             queued.SetSource(wasQueued, QueuedProcessor.Default);
                             _pending.Add(queued);
-                            break;
-                    }
+                        }
+
+                        break;
                 }
             }
         }
