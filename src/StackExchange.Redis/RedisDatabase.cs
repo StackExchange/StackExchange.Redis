@@ -1546,7 +1546,16 @@ namespace StackExchange.Redis
         {
             var command = ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA : RedisCommand.EVAL;
             var msg = new ScriptEvalMessage(Database, flags, command, script, keys, values);
-            return await ExecuteAsync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
+
+            try
+            {
+                return await ExecuteAsync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle).ConfigureAwait(false);
+            }
+            catch (RedisServerException) when (msg.IsScriptUnavailable)
+            {
+                // could be a NOSCRIPT; for a sync call, we can re-issue that without problem
+                return await ExecuteAsync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle).ConfigureAwait(false);
+            }
         }
 
         public Task<RedisResult> ScriptEvaluateAsync(byte[] hash, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
