@@ -1,6 +1,54 @@
 # Release Notes
 
+Current package versions:
+
+| NuGet Stable | NuGet Pre-release | MyGet |
+| ------------ | ----------------- | ----- |
+| [![StackExchange.Redis](https://img.shields.io/nuget/v/StackExchange.Redis.svg)](https://www.nuget.org/packages/StackExchange.Redis/) | [![StackExchange.Redis](https://img.shields.io/nuget/vpre/StackExchange.Redis.svg)](https://www.nuget.org/packages/StackExchange.Redis/) | [![StackExchange.Redis MyGet](https://img.shields.io/myget/stackoverflow/vpre/StackExchange.Redis.svg)](https://www.myget.org/feed/stackoverflow/package/nuget/StackExchange.Redis) |
+
 ## Unreleased
+
+- Fix [#1520](https://github.com/StackExchange/StackExchange.Redis/issues/1520) & [#1660](https://github.com/StackExchange/StackExchange.Redis/issues/1660): When `MOVED` is encountered from a cluster, a reconfigure will happen proactively to react to cluster changes ASAP ([#2286 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2286))
+- Fix [#2249](https://github.com/StackExchange/StackExchange.Redis/issues/2249): Properly handle a `fail` state (new `ClusterNode.IsFail` property) for `CLUSTER NODES` and expose `fail?` as a property (`IsPossiblyFail`) as well ([#2288 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2288))
+- Adds: `IConnectionMultiplexer.ServerMaintenanceEvent` (was on `ConnectionMultiplexer` but not the interface) ([#2306 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2306))
+- Adds: To timeout messages, additional debug information: `Sync-Ops` (synchronous operations), `Async-Ops` (asynchronous operations), and `Server-Connected-Seconds` (how long the connection in question has been connected, or `"n/a"`) ([#2300 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2300))
+
+
+## 2.6.80
+
+- Adds: `last-in` and `cur-in` (bytes) to timeout exceptions to help identify timeouts that were just-behind another large payload off the wire ([#2276 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2276))
+- Adds: general-purpose tunnel support, with HTTP proxy "connect" support included ([#2274 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2274))
+- Removes: Package dependency (`System.Diagnostics.PerformanceCounter`) ([#2285 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2285))
+
+
+## 2.6.70
+
+- Fix: `MOVED` with `NoRedirect` (and other non-reachable errors) should respect the `IncludeDetailInExceptions` setting ([#2267 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2267))
+- Fix [#2251](https://github.com/StackExchange/StackExchange.Redis/issues/2251) & [#2265](https://github.com/StackExchange/StackExchange.Redis/issues/2265): Cluster endpoint connections weren't proactively connecting subscriptions in all cases and taking the full connection timeout to complete as a result ([#2268 by iteplov](https://github.com/StackExchange/StackExchange.Redis/pull/2268))
+
+
+## 2.6.66
+
+- Fix [#2182](https://github.com/StackExchange/StackExchange.Redis/issues/2182): Be more flexible in which commands are "primary only" in order to support users with replicas that are explicitly configured to allow writes ([#2183 by slorello89](https://github.com/StackExchange/StackExchange.Redis/pull/2183))
+- Adds: `IConnectionMultiplexer` now implements `IAsyncDisposable` ([#2161 by kimsey0](https://github.com/StackExchange/StackExchange.Redis/pull/2161))
+- Adds: `IConnectionMultiplexer.GetServers()` to get all `IServer` instances for a multiplexer ([#2203 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2203))
+- Fix [#2016](https://github.com/StackExchange/StackExchange.Redis/issues/2016): Align server selection with supported commands (e.g. with writable servers) to reduce `Command cannot be issued to a replica` errors ([#2191 by slorello89](https://github.com/StackExchange/StackExchange.Redis/pull/2191))
+- Performance: Optimization around timeout processing to reduce lock contention in the case of many items that haven't yet timed out during a heartbeat ([#2217 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2217))
+- Fix [#2223](https://github.com/StackExchange/StackExchange.Redis/issues/2223): Resolve sync-context issues (missing `ConfigureAwait(false)`) ([#2229 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2229))
+- Fix [#1968](https://github.com/StackExchange/StackExchange.Redis/issues/1968): Improved handling of EVAL scripts during server restarts and failovers, detecting and re-sending the script for a retry when needed ([#2170 by martintmk](https://github.com/StackExchange/StackExchange.Redis/pull/2170))
+- Adds: `ConfigurationOptions.SslClientAuthenticationOptions` (`netcoreapp3.1`/`net5.0`+ only) to give more control over SSL/TLS authentication ([#2224 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2224))
+- Fix [#2240](https://github.com/StackExchange/StackExchange.Redis/pull/2241): Improve support for DNS-based IPv6 endpoints ([#2241 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2241))
+- Adds: `ConfigurationOptions.HeartbeatInterval` (**Advanced Setting** - [see docs](https://stackexchange.github.io/StackExchange.Redis/Configuration#configuration-options)) To allow more finite control of the client heartbeat, which encompases how often command timeouts are actually evaluated - still defaults to 1,000 ms ([#2243 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2243))
+- Fix [#1879](https://github.com/StackExchange/StackExchange.Redis/issues/1879): Improve exception message when the wrong password is used ([#2246 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2246))
+- Fix [#2233](https://github.com/StackExchange/StackExchange.Redis/issues/2233): Repeated connection to Sentinel servers using the same ConfigurationOptions would fail ([#2242 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2242))
+
+
+## 2.6.48
+
+- URGENT Fix: [#2167](https://github.com/StackExchange/StackExchange.Redis/issues/2167), [#2176](https://github.com/StackExchange/StackExchange.Redis/issues/2176): fix error in batch/transaction handling that can result in out-of-order instructions ([#2177 by MarcGravell](https://github.com/StackExchange/StackExchange.Redis/pull/2177))
+- Fix: [#2164](https://github.com/StackExchange/StackExchange.Redis/issues/2164): fix `LuaScript.Prepare` for scripts that don't have parameters ([#2166 by MarcGravell](https://github.com/StackExchange/StackExchange.Redis/pull/2166))
+
+## 2.6.45
 
 - Adds: [Nullable reference type](https://docs.microsoft.com/en-us/dotnet/csharp/nullable-references) annotations ([#2041 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2041))
   - Adds annotations themselves for nullability to everything in the library
@@ -27,13 +75,16 @@
 - Adds: Support for `ZMPOP` with `.SortedSetPop()`/`.SortedSetPopAsync()` ([#2094 by slorello89](https://github.com/StackExchange/StackExchange.Redis/pull/2094))
 - Adds: Support for `XAUTOCLAIM` with `.StreamAutoClaim()`/.`StreamAutoClaimAsync()` and `.StreamAutoClaimIdsOnly()`/.`StreamAutoClaimIdsOnlyAsync()` ([#2095 by ttingen](https://github.com/StackExchange/StackExchange.Redis/pull/2095))
 - Fix [#2071](https://github.com/StackExchange/StackExchange.Redis/issues/2071): Add `.StringSet()`/`.StringSetAsync()` overloads for source compat broken for 1 case in 2.5.61 ([#2098 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2098))
+- Fix [#2086](https://github.com/StackExchange/StackExchange.Redis/issues/2086): Correct HashSlot calculations for `XREAD` and `XREADGROUP` commands ([#2093 by nielsderdaele](https://github.com/StackExchange/StackExchange.Redis/pull/2093))
 - Adds: Support for `LCS` with `.StringLongestCommonSubsequence()`/`.StringLongestCommonSubsequence()`, `.StringLongestCommonSubsequenceLength()`/`.StringLongestCommonSubsequenceLengthAsync()`, and `.StringLongestCommonSubsequenceWithMatches()`/`.StringLongestCommonSubsequenceWithMatchesAsync()` ([#2104 by Avital-Fine](https://github.com/StackExchange/StackExchange.Redis/pull/2104))
 - Adds: Support for `OBJECT FREQ` with `.KeyFrequency()`/`.KeyFrequencyAsync()` ([#2105 by Avital-Fine](https://github.com/StackExchange/StackExchange.Redis/pull/2105))
 - Performance: Avoids allocations when computing cluster hash slots or testing key equality ([#2110 by Marc Gravell](https://github.com/StackExchange/StackExchange.Redis/pull/2110))
 - Adds: Support for `SORT_RO` with `.Sort()`/`.SortAsync()` ([#2111 by slorello89](https://github.com/StackExchange/StackExchange.Redis/pull/2111))
-- Adds: Support for `BIT | BYTE` to `BITCOUNT` and `BITPOS` with `.StringBitCount()`/`.StringBitCountAsync()` and `.StringBitPosition()`/`.StringBitPositionAsync()` [#2116 by Avital-Fine](https://github.com/StackExchange/StackExchange.Redis/pull/2116))
+- Adds: Support for `BIT | BYTE` to `BITCOUNT` and `BITPOS` with `.StringBitCount()`/`.StringBitCountAsync()` and `.StringBitPosition()`/`.StringBitPositionAsync()` ([#2116 by Avital-Fine](https://github.com/StackExchange/StackExchange.Redis/pull/2116))
 - Adds: Support for pub/sub payloads that are unary arrays ([#2118 by Marc Gravell](https://github.com/StackExchange/StackExchange.Redis/pull/2118))
 - Fix: Sentinel timer race during dispose ([#2133 by ewisuri](https://github.com/StackExchange/StackExchange.Redis/pull/2133))
+- Adds: Support for `GT`, `LT`, and `CH` on `ZADD` with `.SortedSetAdd()`/`.SortedSetAddAsync()` and `.SortedSetUpdate()`/`.SortedSetUpdateAsync()` ([#2136 by Avital-Fine](https://github.com/StackExchange/StackExchange.Redis/pull/2136))
+- Adds: Support for `COMMAND COUNT`, `COMMAND GETKEYS`, and `COMMAND LIST`, with `.CommandCount()`/`.CommandCountAsync()`, `.CommandGetKeys()`/`.CommandGetKeysAsync()`, and `.CommandList()`/`.CommandListAsync()` ([#2143 by shacharPash](https://github.com/StackExchange/StackExchange.Redis/pull/2143))
 
 ## 2.5.61
 

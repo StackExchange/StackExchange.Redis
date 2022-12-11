@@ -473,6 +473,7 @@ namespace StackExchange.Redis
                 case RedisCommand.BGSAVE:
                 case RedisCommand.CLIENT:
                 case RedisCommand.CLUSTER:
+                case RedisCommand.COMMAND:
                 case RedisCommand.CONFIG:
                 case RedisCommand.DISCARD:
                 case RedisCommand.ECHO:

@@ -24,6 +24,7 @@ namespace StackExchange.Redis
             slave_read_only = "slave-read-only",
             timeout = "timeout",
             wildcard = "*",
+            WRONGPASS = "WRONGPASS",
             yes = "yes",
             zero = "0",
 
@@ -41,6 +42,7 @@ namespace StackExchange.Redis
         // unlike primary commands, these do not get altered by the command-map; we may as
         // well compute the bytes once and share them
         public static readonly RedisValue
+            ACLCAT = "ACLCAT",
             ADDR = "ADDR",
             AFTER = "AFTER",
             AGGREGATE = "AGGREGATE",
@@ -54,6 +56,7 @@ namespace StackExchange.Redis
             BYLEX = "BYLEX",
             BYSCORE = "BYSCORE",
             BYTE = "BYTE",
+            CH = "CH",
             CHANNELS = "CHANNELS",
             COPY = "COPY",
             COUNT = "COUNT",
@@ -64,9 +67,11 @@ namespace StackExchange.Redis
             EX = "EX",
             EXAT = "EXAT",
             EXISTS = "EXISTS",
+            FILTERBY = "FILTERBY",
             FLUSH = "FLUSH",
             FREQ = "FREQ",
             GET = "GET",
+            GETKEYS = "GETKEYS",
             GETNAME = "GETNAME",
             GT = "GT",
             HISTORY = "HISTORY",
@@ -88,6 +93,7 @@ namespace StackExchange.Redis
             MAXLEN = "MAXLEN",
             MIN = "MIN",
             MINMATCHLEN = "MINMATCHLEN",
+            MODULE = "MODULE",
             NODES = "NODES",
             NOSAVE = "NOSAVE",
             NOT = "NOT",
@@ -96,6 +102,7 @@ namespace StackExchange.Redis
             NX = "NX",
             OBJECT = "OBJECT",
             OR = "OR",
+            PATTERN = "PATTERN",
             PAUSE = "PAUSE",
             PERSIST = "PERSIST",
             PING = "PING",

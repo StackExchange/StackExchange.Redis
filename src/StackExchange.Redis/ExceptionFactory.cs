@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Security.Authentication;
 using System.Text;
 using System.Threading;
 
@@ -154,7 +155,7 @@ namespace StackExchange.Redis
             if (multiplexer.RawConfig.IncludeDetailInExceptions)
             {
                 CopyDataToException(data, ex);
-                sb.Append("; ").Append(PerfCounterHelper.GetThreadPoolAndCPUSummary(multiplexer.RawConfig.IncludePerformanceCountersInExceptions));
+                sb.Append("; ").Append(PerfCounterHelper.GetThreadPoolAndCPUSummary());
                 AddExceptionDetail(ex, message, server, commandLabel);
             }
             return ex;
@@ -318,6 +319,11 @@ namespace StackExchange.Redis
                 if (bs.Connection.BytesAvailableOnSocket >= 0) Add(data, sb, "Inbound-Bytes", "in", bs.Connection.BytesAvailableOnSocket.ToString());
                 if (bs.Connection.BytesInReadPipe >= 0) Add(data, sb, "Inbound-Pipe-Bytes", "in-pipe", bs.Connection.BytesInReadPipe.ToString());
                 if (bs.Connection.BytesInWritePipe >= 0) Add(data, sb, "Outbound-Pipe-Bytes", "out-pipe", bs.Connection.BytesInWritePipe.ToString());
+                Add(data, sb, "Last-Result-Bytes", "last-in", bs.Connection.BytesLastResult.ToString());
+                Add(data, sb, "Inbound-Buffer-Bytes", "cur-in", bs.Connection.BytesInBuffer.ToString());
+
+                Add(data, sb, "Sync-Ops", "sync-ops", multiplexer.syncOps.ToString());
+                Add(data, sb, "Async-Ops", "async-ops", multiplexer.asyncOps.ToString());
 
                 if (multiplexer.StormLogThreshold >= 0 && bs.Connection.MessagesSentAwaitingResponse >= multiplexer.StormLogThreshold && Interlocked.CompareExchange(ref multiplexer.haveStormLog, 1, 0) == 0)
                 {
@@ -326,6 +332,7 @@ namespace StackExchange.Redis
                     else Interlocked.Exchange(ref multiplexer.stormLogSnapshot, log);
                 }
                 Add(data, sb, "Server-Endpoint", "serverEndpoint", (server.EndPoint.ToString() ?? "Unknown").Replace("Unspecified/", ""));
+                Add(data, sb, "Server-Connected-Seconds", "conn-sec", bs.ConnectedAt is DateTime dt ? (DateTime.UtcNow - dt).TotalSeconds.ToString("0.##") : "n/a");
             }
             Add(data, sb, "Multiplexer-Connects", "mc", $"{multiplexer._connectAttemptCount}/{multiplexer._connectCompletedCount}/{multiplexer._connectionCloseCount}");
             Add(data, sb, "Manager", "mgr", multiplexer.SocketManager?.GetState());
@@ -348,11 +355,6 @@ namespace StackExchange.Redis
                 Add(data, sb, "ThreadPool-Items", "POOL", workItems);
             }
             data.Add(Tuple.Create("Busy-Workers", busyWorkerCount.ToString()));
-
-            if (multiplexer.RawConfig.IncludePerformanceCountersInExceptions)
-            {
-                Add(data, sb, "Local-CPU", "Local-CPU", PerfCounterHelper.GetSystemCpuPercent());
-            }
 
             Add(data, sb, "Version", "v", Utils.GetLibVersion());
         }
@@ -383,17 +385,29 @@ namespace StackExchange.Redis
         internal static Exception UnableToConnect(ConnectionMultiplexer muxer, string? failureMessage = null)
         {
             var sb = new StringBuilder("It was not possible to connect to the redis server(s).");
-            if (muxer != null)
+            Exception? inner = null;
+            if (muxer is not null)
             {
-                if (muxer.AuthSuspect) sb.Append(" There was an authentication failure; check that passwords (or client certificates) are configured correctly.");
-                else if (muxer.RawConfig.AbortOnConnectFail) sb.Append(" Error connecting right now. To allow this multiplexer to continue retrying until it's able to connect, use abortConnect=false in your connection string or AbortOnConnectFail=false; in your code.");
+                if (muxer.AuthException is Exception aex)
+                {
+                    sb.Append(" There was an authentication failure; check that passwords (or client certificates) are configured correctly: (").Append(aex.GetType().Name).Append(") ").Append(aex.Message);
+                    inner = aex;
+                    if (aex is AuthenticationException && aex.InnerException is Exception iaex)
+                    {
+                        sb.Append(" (Inner - ").Append(iaex.GetType().Name).Append(") ").Append(iaex.Message);
+                    }
+                }
+                else if (muxer.RawConfig.AbortOnConnectFail)
+                {
+                    sb.Append(" Error connecting right now. To allow this multiplexer to continue retrying until it's able to connect, use abortConnect=false in your connection string or AbortOnConnectFail=false; in your code.");
+                }
             }
             if (!failureMessage.IsNullOrWhiteSpace())
             {
                 sb.Append(' ').Append(failureMessage.Trim());
             }
 
-            return new RedisConnectionException(ConnectionFailureType.UnableToConnect, sb.ToString());
+            return new RedisConnectionException(ConnectionFailureType.UnableToConnect, sb.ToString(), inner);
         }
 
         internal static Exception BeganProfilingWithDuplicateContext(object forContext)

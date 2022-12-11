@@ -3,6 +3,7 @@ using System;
 using Newtonsoft.Json;
 using System.Threading;
 using System.Linq;
+using System.Net.Sockets;
 
 namespace StackExchange.Redis.Tests;
 
@@ -39,6 +40,24 @@ public static class TestConfig
         catch (Exception ex)
         {
             Console.WriteLine("Error Deserializing TestConfig.json: " + ex);
+        }
+    }
+
+    public static bool IsServerRunning(string? host, int port)
+    {
+        if (host.IsNullOrEmpty())
+        {
+            return false;
+        }
+
+        try
+        {
+            using var client = new TcpClient(host, port);
+            return true;
+        }
+        catch (SocketException)
+        {
+            return false;
         }
     }
 
@@ -90,8 +109,9 @@ public static class TestConfig
         public int ClusterServerCount { get; set; } = 6;
         public string ClusterServersAndPorts => string.Join(",", Enumerable.Range(ClusterStartPort, ClusterServerCount).Select(port => ClusterServer + ":" + port));
 
-        public string? SslServer { get; set; }
-        public int SslPort { get; set; }
+        public string? SslServer { get; set; } = "127.0.0.1";
+        public int SslPort { get; set; } = 6384;
+        public string SslServerAndPort => SslServer + ":" + SslPort.ToString();
 
         public string? RedisLabsSslServer { get; set; }
         public int RedisLabsSslPort { get; set; } = 6379;

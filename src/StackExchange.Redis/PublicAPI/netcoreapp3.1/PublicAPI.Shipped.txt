@@ -1,0 +1,2 @@
+﻿StackExchange.Redis.ConfigurationOptions.SslClientAuthenticationOptions.get -> System.Func<string!, System.Net.Security.SslClientAuthenticationOptions!>?
+StackExchange.Redis.ConfigurationOptions.SslClientAuthenticationOptions.set -> void

@@ -76,11 +76,11 @@ The `ConfigurationOptions` object has a wide range of properties, all of which a
 | abortConnect={bool}    | `AbortOnConnectFail`   | `true` (`false` on Azure)    | If true, `Connect` will not create a connection while no servers are available                            |
 | allowAdmin={bool}      | `AllowAdmin`           | `false`                      | Enables a range of commands that are considered risky                                                     |
 | channelPrefix={string} | `ChannelPrefix`        | `null`                       | Optional channel prefix for all pub/sub operations                                                        |
-| checkCertificateRevocation={bool} | `CheckCertificateRevocation`        | `true`                       | A Boolean value that specifies whether the certificate revocation list is checked during authentication.                                                        |
+| checkCertificateRevocation={bool} | `CheckCertificateRevocation` | `true`      | A Boolean value that specifies whether the certificate revocation list is checked during authentication.  |
 | connectRetry={int}     | `ConnectRetry`         | `3`                          | The number of times to repeat connect attempts during initial `Connect`                                   |
 | connectTimeout={int}   | `ConnectTimeout`       | `5000`                       | Timeout (ms) for connect operations                                                                       |
 | configChannel={string} | `ConfigurationChannel` | `__Booksleeve_MasterChanged` | Broadcast channel name for communicating configuration changes                                            |
-| configCheckSeconds={int} | `ConfigCheckSeconds`  | `60`                         | Time (seconds) to check configuration. This serves as a keep-alive for interactive sockets, if it is supported.     |
+| configCheckSeconds={int} | `ConfigCheckSeconds` | `60`                         | Time (seconds) to check configuration. This serves as a keep-alive for interactive sockets, if it is supported.     |
 | defaultDatabase={int}  | `DefaultDatabase`      | `null`                       | Default database index, from `0` to `databases - 1`                                                       |
 | keepAlive={int}        | `KeepAlive`            | `-1`                         | Time (seconds) at which to send a message to help keep sockets alive (60 sec default)                     |
 | name={string}          | `ClientName`           | `null`                       | Identification for the connection within redis                                                            |
@@ -88,15 +88,15 @@ The `ConfigurationOptions` object has a wide range of properties, all of which a
 | user={string}          | `User`                 | `null`                       | User for the redis server (for use with ACLs on redis 6 and above)                                        |
 | proxy={proxy type}     | `Proxy`                | `Proxy.None`                 | Type of proxy in use (if any); for example "twemproxy/envoyproxy"                                         |
 | resolveDns={bool}      | `ResolveDns`           | `false`                      | Specifies that DNS resolution should be explicit and eager, rather than implicit                          |
-| serviceName={string}   | `ServiceName`          | `null`                       | Used for connecting to a sentinel primary service                                                          |
+| serviceName={string}   | `ServiceName`          | `null`                       | Used for connecting to a sentinel primary service                                                         |
 | ssl={bool}             | `Ssl`                  | `false`                      | Specifies that SSL encryption should be used                                                              |
 | sslHost={string}       | `SslHost`              | `null`                       | Enforces a particular SSL host identity on the server's certificate                                       |
 | sslProtocols={enum}    | `SslProtocols`         | `null`                       | Ssl/Tls versions supported when using an encrypted connection.  Use '\|' to provide multiple values.      |
 | syncTimeout={int}      | `SyncTimeout`          | `5000`                       | Time (ms) to allow for synchronous operations                                                             |
-| asyncTimeout={int}     | `AsyncTimeout`          | `SyncTimeout`               | Time (ms) to allow for asynchronous operations                                                            |
-| tiebreaker={string}    | `TieBreaker`           | `__Booksleeve_TieBreak`      | Key to use for selecting a server in an ambiguous primary scenario                                         |
-| version={string}       | `DefaultVersion`       | (`3.0` in Azure, else `2.0`) | Redis version level (useful when the server does not make this available)                                 |
-|                        | `CheckCertificateRevocation` | `true`                 | A Boolean value that specifies whether the certificate revocation list is checked during authentication.  |
+| asyncTimeout={int}     | `AsyncTimeout`         | `SyncTimeout`                | Time (ms) to allow for asynchronous operations                                                            |
+| tiebreaker={string}    | `TieBreaker`           | `__Booksleeve_TieBreak`      | Key to use for selecting a server in an ambiguous primary scenario                                        |
+| version={string}       | `DefaultVersion`       | (`4.0` in Azure, else `2.0`) | Redis version level (useful when the server does not make this available)                                 |
+| tunnel={string}        | `Tunnel`               | `null`                       | Tunnel for connections (use `http:{proxy url}` for "connect"-based proxy server)
 
 Additional code-only options:
 - ReconnectRetryPolicy (`IReconnectRetryPolicy`) - Default: `ReconnectRetryPolicy = ExponentialRetry(ConnectTimeout / 2);`
@@ -105,6 +105,15 @@ Additional code-only options:
   - Determines how commands will be queued (or not) during a disconnect, for sending when it's available again
 - BeforeSocketConnect - Default: `null`
   - Allows modifying a `Socket` before connecting (for advanced scenarios)
+- SslClientAuthenticationOptions (`netcoreapp3.1`/`net5.0` and higher) - Default: `null`
+  - Allows specifying exact options for SSL/TLS authentication against a server (e.g. cipher suites, protocols, etc.) - overrides all other SSL configuration options. This is a `Func<string, SslClientAuthenticationOptions>` which receives the host (or `SslHost` if set) to get the options for. If `null` is returned from the `Func`, it's the same as this property not being set at all when connecting.
+- SocketManager - Default: `SocketManager.Shared`: 
+  - The thread pool to use for scheduling work to and from the socket connected to Redis, one of...
+    - `SocketManager.Shared`: Use a shared dedicated thread pool for _all_ multiplexers (defaults to 10 threads) - best balance for most scenarios.
+    - `SocketManager.ThreadPool`: Use the build-in .NET thread pool for scheduling. This can perform better for very small numbers of cores or with large apps on large machines that need to use more than 10 threads (total, across all multiplexers) under load. **Important**: this option isn't the default because it's subject to thread pool growth/starvation and if for example synchronous calls are waiting on a redis command to come back to unblock other threads, stalls/hangs can result. Use with caution, especially if you have sync-over-async work in play.
+- HeartbeatInterval - Default: `1000ms`
+  - Allows running the heartbeat more often which importantly includes timeout evaluation for async commands. For example if you have a 50ms async command timeout, we're only actually checking it during the heartbeat (once per second by default), so it's possible 50-1050ms pass _before we notice it timed out_. If you want more fidelity in that check and to observe that a server failed faster, you can lower this to run the heartbeat more often to achieve that. 
+  - **Note: heartbeats are not free and that's why the default is 1 second. There is additional overhead to running this more often simply because it does some work each time it fires.**
 
 Tokens in the configuration string are comma-separated; any without an `=` sign are assumed to be redis server endpoints. Endpoints without an explicit port will use 6379 if ssl is not enabled, and 6380 if ssl is enabled.
 Tokens starting with `$` are taken to represent command maps, for example: `$config=cfg`.
@@ -169,6 +178,27 @@ The above is equivalent to (in the connection string):
 ```config
 $INFO=,$SELECT=use
 ```
+
+Redis Server Permissions
+---
+If the user you're connecting to Redis with is limited, it still needs to have certain commands enabled for the StackExchange.Redis to succeed in connecting. The client uses:
+- `AUTH` to authenticate
+- `CLIENT` to set the client name
+- `INFO` to understand server topology/settings
+- `ECHO` for heartbeat. 
+- (Optional) `SUBSCRIBE` to observe change events
+- (Optional) `CONFIG` to get/understand settings
+- (Optional) `CLUSTER` to get cluster nodes
+- (Optional) `SENTINEL` only for Sentinel servers
+- (Optional) `GET` to determine tie breakers
+- (Optional) `SET` (_only_ if `INFO` is disabled) to see if we're writable
+ 
+For example, a common _very_ minimal configuration ACL on the server (non-cluster) would be:
+```bash
+-@all +@pubsub +@read +echo +info
+```
+
+Note that if you choose to disable access to the above commands, it needs to be done via the `CommandMap` and not only the ACL on the server (otherwise we'll attempt the command and fail the handshake). Also, if any of the these commands are disabled, some functionality may be diminished or broken.
 
 twemproxy
 ---

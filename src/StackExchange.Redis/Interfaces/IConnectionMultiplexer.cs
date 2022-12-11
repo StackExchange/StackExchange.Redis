@@ -1,7 +1,9 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Threading.Tasks;
+using StackExchange.Redis.Maintenance;
 using StackExchange.Redis.Profiling;
 
 namespace StackExchange.Redis
@@ -20,7 +22,7 @@ namespace StackExchange.Redis
     /// <summary>
     /// Represents the abstract multiplexer API.
     /// </summary>
-    public interface IConnectionMultiplexer : IDisposable
+    public interface IConnectionMultiplexer : IDisposable, IAsyncDisposable
     {
         /// <summary>
         /// Gets the client-name that will be used on all new connections.
@@ -115,6 +117,11 @@ namespace StackExchange.Redis
         event EventHandler<EndPointEventArgs> ConfigurationChangedBroadcast;
 
         /// <summary>
+        /// Raised when server indicates a maintenance event is going to happen.
+        /// </summary>
+        event EventHandler<ServerMaintenanceEvent> ServerMaintenanceEvent;
+
+        /// <summary>
         /// Gets all endpoints defined on the multiplexer.
         /// </summary>
         /// <param name="configuredOnly">Whether to return only the explicitly configured endpoints.</param>
@@ -191,6 +198,11 @@ namespace StackExchange.Redis
         /// <param name="endpoint">The endpoint to get a server for.</param>
         /// <param name="asyncState">The async state to pass to the created <see cref="IServer"/>.</param>
         IServer GetServer(EndPoint endpoint, object? asyncState = null);
+
+        /// <summary>
+        /// Obtain configuration APIs for all servers in this multiplexer.
+        /// </summary>
+        IServer[] GetServers();
 
         /// <summary>
         /// Reconfigure the current connections based on the existing configuration.

@@ -173,7 +173,7 @@ namespace StackExchange.Redis
             StorageType xType = x.Type, yType = y.Type;
 
             if (xType == StorageType.Null) return yType == StorageType.Null;
-            if (xType == StorageType.Null) return false;
+            if (yType == StorageType.Null) return false;
 
             if (xType == yType)
             {

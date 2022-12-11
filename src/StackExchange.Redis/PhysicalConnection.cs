@@ -52,6 +52,9 @@ namespace StackExchange.Redis
 
         private int lastWriteTickCount, lastReadTickCount, lastBeatTickCount;
 
+        private long bytesLastResult;
+        private long bytesInBuffer;
+
         internal void GetBytes(out long sent, out long received)
         {
             if (_ioPipe is IMeasuredDuplexPipe sc)
@@ -100,31 +103,48 @@ namespace StackExchange.Redis
             }
 
             Trace("Connecting...");
-            _socket = SocketManager.CreateSocket(endpoint);
-            bridge.Multiplexer.RawConfig.BeforeSocketConnect?.Invoke(endpoint, bridge.ConnectionType, _socket);
+            var tunnel = bridge.Multiplexer.RawConfig.Tunnel;
+            var connectTo = endpoint;
+            if (tunnel is not null)
+            {
+                connectTo = await tunnel.GetSocketConnectEndpointAsync(endpoint, CancellationToken.None).ForAwait();
+            }
+            if (connectTo is not null)
+            {
+                _socket = SocketManager.CreateSocket(connectTo);
+            }
+
+            if (_socket is not null)
+            {
+                bridge.Multiplexer.RawConfig.BeforeSocketConnect?.Invoke(endpoint, bridge.ConnectionType, _socket);
+                if (tunnel is not null)
+                {   // same functionality as part of a tunnel
+                    await tunnel.BeforeSocketConnectAsync(endpoint, bridge.ConnectionType, _socket, CancellationToken.None).ForAwait();
+                }
+            }
             bridge.Multiplexer.OnConnecting(endpoint, bridge.ConnectionType);
             log?.WriteLine($"{Format.ToString(endpoint)}: BeginConnectAsync");
 
             CancellationTokenSource? timeoutSource = null;
             try
             {
-                using (var args = new SocketAwaitableEventArgs
+                using (var args = connectTo is null ? null : new SocketAwaitableEventArgs
                 {
-                    RemoteEndPoint = endpoint,
+                    RemoteEndPoint = connectTo,
                 })
                 {
                     var x = VolatileSocket;
                     if (x == null)
                     {
-                        args.Abort();
+                        args?.Abort();
                     }
-                    else if (x.ConnectAsync(args))
+                    else if (args is not null && x.ConnectAsync(args))
                     {   // asynchronous operation is pending
                         timeoutSource = ConfigureTimeout(args, bridge.Multiplexer.RawConfig.ConnectTimeout);
                     }
                     else
                     {   // completed synchronously
-                        args.Complete();
+                        args?.Complete();
                     }
 
                     // Complete connection
@@ -133,7 +153,10 @@ namespace StackExchange.Redis
                         // If we're told to ignore connect, abort here
                         if (BridgeCouldBeNull?.Multiplexer?.IgnoreConnect ?? false) return;
 
-                        await args; // wait for the connect to complete or fail (will throw)
+                        if (args is not null)
+                        {
+                            await args; // wait for the connect to complete or fail (will throw)
+                        }
                         if (timeoutSource != null)
                         {
                             timeoutSource.Cancel();
@@ -141,7 +164,7 @@ namespace StackExchange.Redis
                         }
 
                         x = VolatileSocket;
-                        if (x == null)
+                        if (x == null && args is not null)
                         {
                             ConnectionMultiplexer.TraceWithoutContext("Socket was already aborted");
                         }
@@ -665,15 +688,24 @@ namespace StackExchange.Redis
                     {
                         // We only handle async timeouts here, synchronous timeouts are handled upstream.
                         // Those sync timeouts happen in ConnectionMultiplexer.ExecuteSyncImpl() via Monitor.Wait.
-                        if (msg.ResultBoxIsAsync && msg.HasTimedOut(now, timeout, out var elapsed))
+                        if (msg.HasTimedOut(now, timeout, out var elapsed))
                         {
-                            bool haveDeltas = msg.TryGetPhysicalState(out _, out _, out long sentDelta, out var receivedDelta) && sentDelta >= 0 && receivedDelta >= 0;
-                            var timeoutEx = ExceptionFactory.Timeout(multiplexer, haveDeltas
-                                ? $"Timeout awaiting response (outbound={sentDelta >> 10}KiB, inbound={receivedDelta >> 10}KiB, {elapsed}ms elapsed, timeout is {timeout}ms)"
-                                : $"Timeout awaiting response ({elapsed}ms elapsed, timeout is {timeout}ms)", msg, server);
-                            multiplexer.OnMessageFaulted(msg, timeoutEx);
-                            msg.SetExceptionAndComplete(timeoutEx, bridge); // tell the message that it is doomed
-                            multiplexer.OnAsyncTimeout();
+                            if (msg.ResultBoxIsAsync)
+                            {
+                                bool haveDeltas = msg.TryGetPhysicalState(out _, out _, out long sentDelta, out var receivedDelta) && sentDelta >= 0 && receivedDelta >= 0;
+                                var timeoutEx = ExceptionFactory.Timeout(multiplexer, haveDeltas
+                                    ? $"Timeout awaiting response (outbound={sentDelta >> 10}KiB, inbound={receivedDelta >> 10}KiB, {elapsed}ms elapsed, timeout is {timeout}ms)"
+                                    : $"Timeout awaiting response ({elapsed}ms elapsed, timeout is {timeout}ms)", msg, server);
+                                multiplexer.OnMessageFaulted(msg, timeoutEx);
+                                msg.SetExceptionAndComplete(timeoutEx, bridge); // tell the message that it is doomed
+                                multiplexer.OnAsyncTimeout();
+                            }
+                        }
+                        else
+                        {
+                            // This is a head-of-line queue, which means the first thing we hit that *hasn't* timed out means no more will timeout
+                            // and we can stop looping and release the lock early.
+                            break;
                         }
                         // Note: it is important that we **do not** remove the message unless we're tearing down the socket; that
                         // would disrupt the chain for MatchResult; we just preemptively abort the message from the caller's
@@ -1274,6 +1306,14 @@ namespace StackExchange.Redis
             /// Bytes in the writer pipe, waiting to be written to the socket.
             /// </summary>
             public long BytesInWritePipe { get; init; }
+            /// <summary>
+            /// Byte size of the last result we processed.
+            /// </summary>
+            public long BytesLastResult { get; init; }
+            /// <summary>
+            /// Byte size on the buffer that isn't processed yet.
+            /// </summary>
+            public long BytesInBuffer { get; init; }
 
             /// <summary>
             /// The inbound pipe reader status.
@@ -1325,6 +1365,8 @@ namespace StackExchange.Redis
                     BytesInWritePipe = counters.BytesWaitingToBeSent,
                     ReadStatus = _readStatus,
                     WriteStatus = _writeStatus,
+                    BytesLastResult = bytesLastResult,
+                    BytesInBuffer = bytesInBuffer,
                 };
             }
 
@@ -1347,6 +1389,8 @@ namespace StackExchange.Redis
                 BytesInWritePipe = -1,
                 ReadStatus = _readStatus,
                 WriteStatus = _writeStatus,
+                BytesLastResult = bytesLastResult,
+                BytesInBuffer = bytesInBuffer,
             };
         }
 
@@ -1389,7 +1433,7 @@ namespace StackExchange.Redis
             return null;
         }
 
-        internal async ValueTask<bool> ConnectedAsync(Socket socket, LogProxy? log, SocketManager manager)
+        internal async ValueTask<bool> ConnectedAsync(Socket? socket, LogProxy? log, SocketManager manager)
         {
             var bridge = BridgeCouldBeNull;
             if (bridge == null) return false;
@@ -1406,6 +1450,13 @@ namespace StackExchange.Redis
 
                 var config = bridge.Multiplexer.RawConfig;
 
+                var tunnel = config.Tunnel;
+                Stream? stream = null;
+                if (tunnel is not null)
+                {
+                    stream = await tunnel.BeforeAuthenticateAsync(bridge.ServerEndPoint.EndPoint, bridge.ConnectionType, socket, CancellationToken.None).ForAwait();
+                }
+
                 if (config.Ssl)
                 {
                     log?.WriteLine("Configuring TLS");
@@ -1415,7 +1466,8 @@ namespace StackExchange.Redis
                         host = Format.ToStringHostOnly(bridge.ServerEndPoint.EndPoint);
                     }
 
-                    var ssl = new SslStream(new NetworkStream(socket), false,
+                    stream ??= new NetworkStream(socket ?? throw new InvalidOperationException("No socket or stream available - possibly a tunnel error"));
+                    var ssl = new SslStream(stream, false,
                         config.CertificateValidationCallback ?? GetAmbientIssuerCertificateCallback(),
                         config.CertificateSelectionCallback ?? GetAmbientClientCertificateCallback(),
                         EncryptionPolicy.RequireEncryption);
@@ -1423,12 +1475,24 @@ namespace StackExchange.Redis
                     {
                         try
                         {
+#if NETCOREAPP3_1_OR_GREATER
+                            var configOptions = config.SslClientAuthenticationOptions?.Invoke(host);
+                            if (configOptions is not null)
+                            {
+                                await ssl.AuthenticateAsClientAsync(configOptions);
+                            }
+                            else
+                            {
+                                ssl.AuthenticateAsClient(host, config.SslProtocols, config.CheckCertificateRevocation);
+                            }
+#else
                             ssl.AuthenticateAsClient(host, config.SslProtocols, config.CheckCertificateRevocation);
+#endif
                         }
                         catch (Exception ex)
                         {
                             Debug.WriteLine(ex.Message);
-                            bridge.Multiplexer?.SetAuthSuspect();
+                            bridge.Multiplexer?.SetAuthSuspect(ex);
                             throw;
                         }
                         log?.WriteLine($"TLS connection established successfully using protocol: {ssl.SslProtocol}");
@@ -1439,7 +1503,12 @@ namespace StackExchange.Redis
                         bridge.Multiplexer.Trace("Encryption failure");
                         return false;
                     }
-                    pipe = StreamConnection.GetDuplex(ssl, manager.SendPipeOptions, manager.ReceivePipeOptions, name: bridge.Name);
+                    stream = ssl;
+                }
+
+                if (stream is not null)
+                {
+                    pipe = StreamConnection.GetDuplex(stream, manager.SendPipeOptions, manager.ReceivePipeOptions, name: bridge.Name);
                 }
                 else
                 {
@@ -1681,6 +1750,7 @@ namespace StackExchange.Redis
         private int ProcessBuffer(ref ReadOnlySequence<byte> buffer)
         {
             int messageCount = 0;
+            bytesInBuffer = buffer.Length;
 
             while (!buffer.IsEmpty)
             {
@@ -1697,6 +1767,10 @@ namespace StackExchange.Redis
                         Trace(result.ToString());
                         _readStatus = ReadStatus.MatchResult;
                         MatchResult(result);
+
+                        // Track the last result size *after* processing for the *next* error message
+                        bytesInBuffer = buffer.Length;
+                        bytesLastResult = result.Payload.Length;
                     }
                     else
                     {

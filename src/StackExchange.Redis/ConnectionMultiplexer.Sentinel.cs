@@ -181,6 +181,7 @@ public partial class ConnectionMultiplexer
 
         bool success = false;
         ConnectionMultiplexer? connection = null;
+        EndPointCollection? endpoints = null;
 
         var sw = ValueStopwatch.StartNew();
         do
@@ -206,27 +207,29 @@ public partial class ConnectionMultiplexer
                 replicaEndPoints = GetReplicasForService(serviceName);
             }
 
+            endpoints = config.EndPoints.Clone();
+
             // Replace the primary endpoint, if we found another one
             // If not, assume the last state is the best we have and minimize the race
-            if (config.EndPoints.Count == 1)
+            if (endpoints.Count == 1)
             {
-                config.EndPoints[0] = newPrimaryEndPoint;
+                endpoints[0] = newPrimaryEndPoint;
             }
             else
             {
-                config.EndPoints.Clear();
-                config.EndPoints.TryAdd(newPrimaryEndPoint);
+                endpoints.Clear();
+                endpoints.TryAdd(newPrimaryEndPoint);
             }
 
             if (replicaEndPoints is not null)
             {
                 foreach (var replicaEndPoint in replicaEndPoints)
                 {
-                    config.EndPoints.TryAdd(replicaEndPoint);
+                    endpoints.TryAdd(replicaEndPoint);
                 }
             }
 
-            connection = ConnectImpl(config, log);
+            connection = ConnectImpl(config, log, endpoints: endpoints);
 
             // verify role is primary according to:
             // https://redis.io/topics/sentinel-clients
@@ -257,7 +260,7 @@ public partial class ConnectionMultiplexer
         }
 
         // Perform the initial switchover
-        SwitchPrimary(EndPoints[0], connection, log);
+        SwitchPrimary(endpoints[0], connection, log);
 
         return connection;
     }

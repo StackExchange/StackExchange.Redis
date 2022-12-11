@@ -22,8 +22,6 @@ namespace StackExchange.Redis
     /// <remarks><seealso href="https://stackexchange.github.io/StackExchange.Redis/PipelinesMultiplexers"/></remarks>
     public sealed partial class ConnectionMultiplexer : IInternalConnectionMultiplexer // implies : IConnectionMultiplexer and : IDisposable
     {
-        internal const int MillisecondsPerHeartbeat = 1000;
-
         // This gets accessed for every received event; let's make sure we can process it "raw"
         internal readonly byte[]? ConfigurationChangedChannel;
         // Unique identifier used when tracing
@@ -33,6 +31,7 @@ namespace StackExchange.Redis
         /// Tracks overall connection multiplexer counts.
         /// </summary>
         internal int _connectAttemptCount = 0, _connectCompletedCount = 0, _connectionCloseCount = 0;
+        internal long syncOps, asyncOps;
         private long syncTimeouts, fireAndForgets, asyncTimeouts;
         private string? failureMessage, activeConfigCause;
         private IDisposable? pulse;
@@ -50,6 +49,10 @@ namespace StackExchange.Redis
         internal Exception? LastException { get; set; }
 
         ConfigurationOptions IInternalConnectionMultiplexer.RawConfig => RawConfig;
+
+        private int lastReconfigiureTicks = Environment.TickCount;
+        internal long LastReconfigureSecondsAgo =>
+            unchecked(Environment.TickCount - Thread.VolatileRead(ref lastReconfigiureTicks)) / 1000;
 
         private int _activeHeartbeatErrors, lastHeartbeatTicks;
         internal long LastHeartbeatSecondsAgo =>
@@ -140,10 +143,10 @@ namespace StackExchange.Redis
             SetAutodetectFeatureFlags();
         }
 
-        private ConnectionMultiplexer(ConfigurationOptions configuration, ServerType? serverType = null)
+        private ConnectionMultiplexer(ConfigurationOptions configuration, ServerType? serverType = null, EndPointCollection? endpoints = null)
         {
             RawConfig = configuration ?? throw new ArgumentNullException(nameof(configuration));
-            EndPoints = RawConfig.EndPoints.Clone();
+            EndPoints = endpoints ?? RawConfig.EndPoints.Clone();
             EndPoints.SetDefaultPorts(serverType, ssl: RawConfig.Ssl);
 
             var map = CommandMap = configuration.GetCommandMap(serverType);
@@ -169,9 +172,9 @@ namespace StackExchange.Redis
             lastHeartbeatTicks = Environment.TickCount;
         }
 
-        private static ConnectionMultiplexer CreateMultiplexer(ConfigurationOptions configuration, LogProxy? log, ServerType? serverType, out EventHandler<ConnectionFailedEventArgs>? connectHandler)
+        private static ConnectionMultiplexer CreateMultiplexer(ConfigurationOptions configuration, LogProxy? log, ServerType? serverType, out EventHandler<ConnectionFailedEventArgs>? connectHandler, EndPointCollection? endpoints = null)
         {
-            var muxer = new ConnectionMultiplexer(configuration, serverType);
+            var muxer = new ConnectionMultiplexer(configuration, serverType, endpoints);
             connectHandler = null;
             if (log is not null)
             {
@@ -234,7 +237,7 @@ namespace StackExchange.Redis
             log?.WriteLine($"Checking {Format.ToString(srv.EndPoint)} is available...");
             try
             {
-                await srv.PingAsync(flags); // if it isn't happy, we're not happy
+                await srv.PingAsync(flags).ForAwait(); // if it isn't happy, we're not happy
             }
             catch (Exception ex)
             {
@@ -257,7 +260,7 @@ namespace StackExchange.Redis
                     msg = Message.Create(0, flags | CommandFlags.FireAndForget, RedisCommand.SET, tieBreakerKey, newPrimary);
                     try
                     {
-                        await node.WriteDirectAsync(msg, ResultProcessor.DemandOK);
+                        await node.WriteDirectAsync(msg, ResultProcessor.DemandOK).ForAwait();
                     }
                     catch { }
                 }
@@ -267,7 +270,7 @@ namespace StackExchange.Redis
             log?.WriteLine($"Making {Format.ToString(srv.EndPoint)} a primary...");
             try
             {
-                await srv.ReplicaOfAsync(null, flags);
+                await srv.ReplicaOfAsync(null, flags).ForAwait();
             }
             catch (Exception ex)
             {
@@ -282,7 +285,7 @@ namespace StackExchange.Redis
                 msg = Message.Create(0, flags | CommandFlags.FireAndForget, RedisCommand.SET, tieBreakerKey, newPrimary);
                 try
                 {
-                    await server.WriteDirectAsync(msg, ResultProcessor.DemandOK);
+                    await server.WriteDirectAsync(msg, ResultProcessor.DemandOK).ForAwait();
                 }
                 catch { }
             }
@@ -311,13 +314,13 @@ namespace StackExchange.Redis
                         if (!node.IsConnected) continue;
                         log?.WriteLine($"Broadcasting via {Format.ToString(node.EndPoint)}...");
                         msg = Message.Create(-1, flags | CommandFlags.FireAndForget, RedisCommand.PUBLISH, channel, newPrimary);
-                        await node.WriteDirectAsync(msg, ResultProcessor.Int64);
+                        await node.WriteDirectAsync(msg, ResultProcessor.Int64).ForAwait();
                     }
                 }
             }
 
             // Send a message before it happens - because afterwards a new replica may be unresponsive
-            await BroadcastAsync(nodes);
+            await BroadcastAsync(nodes).ForAwait();
 
             if (options.HasFlag(ReplicationChangeOptions.ReplicateToOtherEndpoints))
             {
@@ -327,14 +330,14 @@ namespace StackExchange.Redis
 
                     log?.WriteLine($"Replicating to {Format.ToString(node.EndPoint)}...");
                     msg = RedisServer.CreateReplicaOfMessage(node, server.EndPoint, flags);
-                    await node.WriteDirectAsync(msg, ResultProcessor.DemandOK);
+                    await node.WriteDirectAsync(msg, ResultProcessor.DemandOK).ForAwait();
                 }
             }
 
             // ...and send one after it happens - because the first broadcast may have landed on a secondary client
             // and it can reconfigure before any topology change actually happened. This is most likely to happen
             // in low-latency environments.
-            await BroadcastAsync(nodes);
+            await BroadcastAsync(nodes).ForAwait();
 
             // and reconfigure the muxer
             log?.WriteLine("Reconfiguring all endpoints...");
@@ -344,7 +347,7 @@ namespace StackExchange.Redis
             {
                 Interlocked.Exchange(ref activeConfigCause, null);
             }
-            if (!await ReconfigureAsync(first: false, reconfigureAll: true, log, srv.EndPoint, cause: nameof(MakePrimaryAsync)))
+            if (!await ReconfigureAsync(first: false, reconfigureAll: true, log, srv.EndPoint, cause: nameof(MakePrimaryAsync)).ForAwait())
             {
                 log?.WriteLine("Verifying the configuration was incomplete; please verify");
             }
@@ -368,8 +371,19 @@ namespace StackExchange.Redis
             }
         }
 
-        internal bool TryResend(int hashSlot, Message message, EndPoint endpoint, bool isMoved) =>
-            ServerSelectionStrategy.TryResend(hashSlot, message, endpoint, isMoved);
+        internal bool TryResend(int hashSlot, Message message, EndPoint endpoint, bool isMoved)
+        {
+            // If we're being told to re-send something because the hash slot moved, that means our topology is out of date
+            // ...and we should re-evaluate what's what.
+            // Allow for a 5-second back-off so we don't hammer this in a loop though
+            if (isMoved && LastReconfigureSecondsAgo > 5)
+            {
+                // Async kickoff a reconfigure
+                ReconfigureIfNeeded(endpoint, false, "MOVED encountered");
+            }
+
+            return ServerSelectionStrategy.TryResend(hashSlot, message, endpoint, isMoved);
+        }
 
         /// <summary>
         /// Wait for a given asynchronous operation to complete (or timeout).
@@ -557,8 +571,8 @@ namespace StackExchange.Redis
             return true;
         }
 
-        internal bool AuthSuspect { get; private set; }
-        internal void SetAuthSuspect() => AuthSuspect = true;
+        internal Exception? AuthException { get; private set; }
+        internal void SetAuthSuspect(Exception authException) => AuthException ??= authException;
 
         /// <summary>
         /// Creates a new <see cref="ConnectionMultiplexer"/> instance.
@@ -679,7 +693,7 @@ namespace StackExchange.Redis
                 : ConnectImpl(configuration, log);
         }
 
-        private static ConnectionMultiplexer ConnectImpl(ConfigurationOptions configuration, TextWriter? log, ServerType? serverType = null)
+        private static ConnectionMultiplexer ConnectImpl(ConfigurationOptions configuration, TextWriter? log, ServerType? serverType = null, EndPointCollection? endpoints = null)
         {
             IDisposable? killMe = null;
             EventHandler<ConnectionFailedEventArgs>? connectHandler = null;
@@ -690,7 +704,7 @@ namespace StackExchange.Redis
                 var sw = ValueStopwatch.StartNew();
                 logProxy?.WriteLine($"Connecting (sync) on {RuntimeInformation.FrameworkDescription} (StackExchange.Redis: v{Utils.GetLibVersion()})");
 
-                muxer = CreateMultiplexer(configuration, logProxy, serverType, out connectHandler);
+                muxer = CreateMultiplexer(configuration, logProxy, serverType, out connectHandler, endpoints);
                 killMe = muxer;
                 Interlocked.Increment(ref muxer._connectAttemptCount);
                 // note that task has timeouts internally, so it might take *just over* the regular timeout
@@ -805,14 +819,22 @@ namespace StackExchange.Redis
                     }
                 }
                 // spin up the connection if this is new
-                if (isNew && activate) server.Activate(ConnectionType.Interactive, log);
+                if (isNew && activate)
+                {
+                    server.Activate(ConnectionType.Interactive, log);
+                    if (server.SupportsSubscriptions)
+                    {
+                        // Intentionally not logging the sub connection
+                        server.Activate(ConnectionType.Subscription, null);
+                    }
+                }
             }
             return server;
         }
 
         private sealed class TimerToken
         {
-            public TimerToken(ConnectionMultiplexer muxer)
+            private TimerToken(ConnectionMultiplexer muxer)
             {
                 _ref = new WeakReference(muxer);
             }
@@ -840,7 +862,8 @@ namespace StackExchange.Redis
             internal static IDisposable Create(ConnectionMultiplexer connection)
             {
                 var token = new TimerToken(connection);
-                var timer = new Timer(Heartbeat, token, MillisecondsPerHeartbeat, MillisecondsPerHeartbeat);
+                var heartbeatMilliseconds = (int)connection.RawConfig.HeartbeatInterval.TotalMilliseconds;
+                var timer = new Timer(Heartbeat, token, heartbeatMilliseconds, heartbeatMilliseconds);
                 token.SetTimer(timer);
                 return timer;
             }
@@ -1030,6 +1053,20 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
+        /// Obtain configuration APIs for all servers in this multiplexer.
+        /// </summary>
+        public IServer[] GetServers()
+        {
+            var snapshot = GetServerSnapshot();
+            var result = new IServer[snapshot.Length];
+            for (var i = 0; i < snapshot.Length; i++)
+            {
+                result[i] = new RedisServer(this, snapshot[i], null);
+            }
+            return result;
+        }
+
+        /// <summary>
         /// Get the hash-slot associated with a given key, if applicable.
         /// This can be useful for grouping operations.
         /// </summary>
@@ -1083,7 +1120,7 @@ namespace StackExchange.Redis
         public async Task<bool> ConfigureAsync(TextWriter? log = null)
         {
             using var logProxy = LogProxy.TryCreate(log);
-            return await ReconfigureAsync(first: false, reconfigureAll: true, logProxy, null, "configure").ObserveErrors();
+            return await ReconfigureAsync(first: false, reconfigureAll: true, logProxy, null, "configure").ObserveErrors().ForAwait();
         }
 
         internal int SyncConnectTimeout(bool forConnect)
@@ -1193,6 +1230,7 @@ namespace StackExchange.Redis
                 }
                 Trace("Starting reconfiguration...");
                 Trace(blame != null, "Blaming: " + Format.ToString(blame));
+                Interlocked.Exchange(ref lastReconfigiureTicks, Environment.TickCount);
 
                 log?.WriteLine(RawConfig.ToString(includePassword: false));
                 log?.WriteLine();
@@ -1287,9 +1325,10 @@ namespace StackExchange.Redis
                         // Log current state after await
                         foreach (var server in servers)
                         {
-                            log?.WriteLine($"  {Format.ToString(server.EndPoint)}: Endpoint is {server.ConnectionState}");
+                            log?.WriteLine($"  {Format.ToString(server.EndPoint)}: Endpoint is (Interactive: {server.InteractiveConnectionState}, Subscription: {server.SubscriptionConnectionState})");
                         }
 
+                        log?.WriteLine("Task summary:");
                         EndPointCollection? updatedClusterEndpointCollection = null;
                         for (int i = 0; i < available.Length; i++)
                         {
@@ -1375,7 +1414,7 @@ namespace StackExchange.Redis
                             else
                             {
                                 server.SetUnselectable(UnselectableFlags.DidNotRespond);
-                                log?.WriteLine($"  {Format.ToString(server)}: Did not respond");
+                                log?.WriteLine($"  {Format.ToString(server)}: Did not respond (Task.Status: {task.Status})");
                             }
                         }
 
@@ -1530,10 +1569,7 @@ namespace StackExchange.Redis
                 foreach (EndPoint endpoint in clusterEndpoints)
                 {
                     serverEndpoint = GetServerEndPoint(endpoint);
-                    if (serverEndpoint != null)
-                    {
-                        serverEndpoint.UpdateNodeRelations(clusterConfig);
-                    }
+                    serverEndpoint?.UpdateNodeRelations(clusterConfig);
                 }
                 return clusterEndpoints;
             }
@@ -1832,6 +1868,8 @@ namespace StackExchange.Redis
                 return defaultValue;
             }
 
+            Interlocked.Increment(ref syncOps);
+
             if (message.IsFireAndForget)
             {
 #pragma warning disable CS0618 // Type or member is obsolete
@@ -1894,6 +1932,8 @@ namespace StackExchange.Redis
                 return CompletedTask<T>.FromDefault(defaultValue, state);
             }
 
+            Interlocked.Increment(ref asyncOps);
+
             TaskCompletionSource<T>? tcs = null;
             IResultBox<T>? source = null;
             if (!message.IsFireAndForget)
@@ -1942,6 +1982,8 @@ namespace StackExchange.Redis
             {
                 return CompletedTask<T?>.Default(state);
             }
+
+            Interlocked.Increment(ref asyncOps);
 
             TaskCompletionSource<T?>? tcs = null;
             IResultBox<T?>? source = null;
@@ -2012,6 +2054,21 @@ namespace StackExchange.Redis
             GC.SuppressFinalize(this);
             Close(!_isDisposed);
             sentinelConnection?.Dispose();
+            var oldTimer = Interlocked.Exchange(ref sentinelPrimaryReconnectTimer, null);
+            oldTimer?.Dispose();
+        }
+
+        /// <summary>
+        /// Release all resources associated with this object.
+        /// </summary>
+        public async ValueTask DisposeAsync()
+        {
+            GC.SuppressFinalize(this);
+            await CloseAsync(!_isDisposed).ForAwait();
+            if (sentinelConnection is ConnectionMultiplexer sentinel)
+            {
+                await sentinel.DisposeAsync().ForAwait();
+            }
             var oldTimer = Interlocked.Exchange(ref sentinelPrimaryReconnectTimer, null);
             oldTimer?.Dispose();
         }

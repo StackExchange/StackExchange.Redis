@@ -1272,7 +1272,11 @@ namespace StackExchange.Redis
         /// <param name="values">The values to execute against.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>A dynamic representation of the script's result.</returns>
-        /// <remarks><seealso href="https://redis.io/commands/evalsha"/></remarks>
+        /// <remarks>
+        /// Be aware that this method is not resilient to Redis server restarts. Use <see cref="ScriptEvaluate(string, RedisKey[], RedisValue[], CommandFlags)"/> instead.
+        /// <seealso href="https://redis.io/commands/evalsha"/>
+        /// </remarks>
+        [EditorBrowsable(EditorBrowsableState.Never)]
         RedisResult ScriptEvaluate(byte[] hash, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1590,8 +1594,10 @@ namespace StackExchange.Redis
         /// <param name="get">The key pattern to sort by, if any e.g. ExternalKey_* would return the value of ExternalKey_{listvalue} for each entry.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The sorted elements, or the external values if <c>get</c> is specified.</returns>
-        /// <remarks><seealso href="https://redis.io/commands/sort"/></remarks>
-        /// <remarks><seealso href="https://redis.io/commands/sort_ro"/></remarks>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/sort"/>,
+        /// <seealso href="https://redis.io/commands/sort_ro"/>
+        /// </remarks>
         RedisValue[] Sort(RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default, RedisValue[]? get = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1615,18 +1621,14 @@ namespace StackExchange.Redis
         /// <remarks><seealso href="https://redis.io/commands/sort"/></remarks>
         long SortAndStore(RedisKey destination, RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default, RedisValue[]? get = null, CommandFlags flags = CommandFlags.None);
 
-        /// <summary>
-        /// Adds the specified member with the specified score to the sorted set stored at key.
-        /// If the specified member is already a member of the sorted set, the score is updated and the element reinserted at the right position to ensure the correct ordering.
-        /// </summary>
-        /// <param name="key">The key of the sorted set.</param>
-        /// <param name="member">The member to add to the sorted set.</param>
-        /// <param name="score">The score for the member to add to the sorted set.</param>
-        /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns><see langword="true"/> if the value was added. <see langword="false"/> if it already existed (the score is still updated).</returns>
-        /// <remarks><seealso href="https://redis.io/commands/zadd"/></remarks>
+        /// <inheritdoc cref="SortedSetAdd(RedisKey, RedisValue, double, SortedSetWhen, CommandFlags)" />
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         bool SortedSetAdd(RedisKey key, RedisValue member, double score, CommandFlags flags);
 
+        /// <inheritdoc cref="SortedSetAdd(RedisKey, RedisValue, double, SortedSetWhen, CommandFlags)" />
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
+        bool SortedSetAdd(RedisKey key, RedisValue member, double score, When when, CommandFlags flags= CommandFlags.None);
+
         /// <summary>
         /// Adds the specified member with the specified score to the sorted set stored at key.
         /// If the specified member is already a member of the sorted set, the score is updated and the element reinserted at the right position to ensure the correct ordering.
@@ -1638,18 +1640,15 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns><see langword="true"/> if the value was added. <see langword="false"/> if it already existed (the score is still updated).</returns>
         /// <remarks><seealso href="https://redis.io/commands/zadd"/></remarks>
-        bool SortedSetAdd(RedisKey key, RedisValue member, double score, When when = When.Always, CommandFlags flags = CommandFlags.None);
+        bool SortedSetAdd(RedisKey key, RedisValue member, double score, SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None);
 
-        /// <summary>
-        /// Adds all the specified members with the specified scores to the sorted set stored at key.
-        /// If a specified member is already a member of the sorted set, the score is updated and the element reinserted at the right position to ensure the correct ordering.
-        /// </summary>
-        /// <param name="key">The key of the sorted set.</param>
-        /// <param name="values">The members and values to add to the sorted set.</param>
-        /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The number of elements added to the sorted sets, not including elements already existing for which the score was updated.</returns>
-        /// <remarks><seealso href="https://redis.io/commands/zadd"/></remarks>
+        /// <inheritdoc cref="SortedSetAdd(RedisKey, SortedSetEntry[], SortedSetWhen, CommandFlags)" />
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         long SortedSetAdd(RedisKey key, SortedSetEntry[] values, CommandFlags flags);
+
+        /// <inheritdoc cref="SortedSetAdd(RedisKey, SortedSetEntry[], SortedSetWhen, CommandFlags)" />
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
+        long SortedSetAdd(RedisKey key, SortedSetEntry[] values, When when, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Adds all the specified members with the specified scores to the sorted set stored at key.
@@ -1661,7 +1660,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of elements added to the sorted sets, not including elements already existing for which the score was updated.</returns>
         /// <remarks><seealso href="https://redis.io/commands/zadd"/></remarks>
-        long SortedSetAdd(RedisKey key, SortedSetEntry[] values, When when = When.Always, CommandFlags flags = CommandFlags.None);
+        long SortedSetAdd(RedisKey key, SortedSetEntry[] values, SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Computes a set operation for multiple sorted sets (optionally using per-set <paramref name="weights"/>),
@@ -2184,6 +2183,29 @@ namespace StackExchange.Redis
         /// <returns>A contiguous collection of sorted set entries with the key they were popped from, or <see cref="SortedSetPopResult.Null"/> if no non-empty sorted sets are found.</returns>
         /// <remarks><seealso href="https://redis.io/commands/zmpop"/></remarks>
         SortedSetPopResult SortedSetPop(RedisKey[] keys, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Same as <see cref="SortedSetAdd(RedisKey, SortedSetEntry[], SortedSetWhen, CommandFlags)" /> but return the number of the elements changed.
+        /// </summary>
+        /// <param name="key">The key of the sorted set.</param>
+        /// <param name="member">The member to add/update to the sorted set.</param>
+        /// <param name="score">The score for the member to add/update to the sorted set.</param>
+        /// <param name="when">What conditions to add the element under (defaults to always).</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The number of elements changed.</returns>
+        /// <remarks><seealso href="https://redis.io/commands/zadd"/></remarks>
+        bool SortedSetUpdate(RedisKey key, RedisValue member, double score, SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Same as <see cref="SortedSetAdd(RedisKey, SortedSetEntry[], SortedSetWhen, CommandFlags)" /> but return the number of the elements changed.
+        /// </summary>
+        /// <param name="key">The key of the sorted set.</param>
+        /// <param name="values">The members and values to add/update to the sorted set.</param>
+        /// <param name="when">What conditions to add the element under (defaults to always).</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The number of elements changed.</returns>
+        /// <remarks><seealso href="https://redis.io/commands/zadd"/></remarks>
+        long SortedSetUpdate(RedisKey key, SortedSetEntry[] values, SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Allow the consumer to mark a pending message as correctly processed. Returns the number of messages acknowledged.

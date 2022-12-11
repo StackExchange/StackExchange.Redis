@@ -96,7 +96,8 @@ namespace StackExchange.Redis
                 TieBreaker = "tiebreaker",
                 Version = "version",
                 WriteBuffer = "writeBuffer",
-                CheckCertificateRevocation = "checkCertificateRevocation";
+                CheckCertificateRevocation = "checkCertificateRevocation",
+                Tunnel = "tunnel";
 
             private static readonly Dictionary<string, string> normalizedOptions = new[]
             {
@@ -144,6 +145,8 @@ namespace StackExchange.Redis
                       includeDetailInExceptions, includePerformanceCountersInExceptions;
 
         private string? tieBreaker, sslHost, configChannel;
+
+        private TimeSpan? heartbeatInterval;
 
         private CommandMap? commandMap;
 
@@ -367,6 +370,24 @@ namespace StackExchange.Redis
         public EndPointCollection EndPoints { get; init; } = new EndPointCollection();
 
         /// <summary>
+        /// Controls how often the connection heartbeats. A heartbeat includes:
+        /// - Evaluating if any messages have timed out
+        /// - Evaluating connection status (checking for failures)
+        /// - Sending a server message to keep the connection alive if needed
+        /// </summary>
+        /// <remarks>
+        /// This defaults to 1000 milliseconds and should not be changed for most use cases.
+        /// If for example you want to evaluate whether commands have violated the <see cref="AsyncTimeout"/> at a lower fidelity
+        /// than 1000 milliseconds, you could lower this value.
+        /// Be aware setting this very low incurs additional overhead of evaluating the above more often.
+        /// </remarks>
+        public TimeSpan HeartbeatInterval
+        {
+            get => heartbeatInterval ?? Defaults.HeartbeatInterval;
+            set => heartbeatInterval = value;
+        }
+
+        /// <summary>
         /// Use ThreadPriority.AboveNormal for SocketManager reader and writer threads (true by default).
         /// If <see langword="false"/>, <see cref="ThreadPriority.Normal"/> will be used.
         /// </summary>
@@ -489,6 +510,14 @@ namespace StackExchange.Redis
         /// Modifying it afterwards will have no effect on already-created multiplexers.
         /// </remarks>
         public SocketManager? SocketManager { get; set; }
+
+#if NETCOREAPP3_1_OR_GREATER
+        /// <summary>
+        /// A <see cref="SslClientAuthenticationOptions"/> provider for a given host, for custom TLS connection options.
+        /// Note: this overrides *all* other TLS and certificate settings, only for advanced use cases.
+        /// </summary>
+        public Func<string, SslClientAuthenticationOptions>? SslClientAuthenticationOptions { get; set; }
+#endif
 
         /// <summary>
         /// Indicates whether the connection should be encrypted.
@@ -619,6 +648,10 @@ namespace StackExchange.Redis
             checkCertificateRevocation = checkCertificateRevocation,
             BeforeSocketConnect = BeforeSocketConnect,
             EndPoints = EndPoints.Clone(),
+#if NETCOREAPP3_1_OR_GREATER
+            SslClientAuthenticationOptions = SslClientAuthenticationOptions,
+#endif
+            Tunnel = Tunnel,
         };
 
         /// <summary>
@@ -698,6 +731,10 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.ConfigCheckSeconds, configCheckSeconds);
             Append(sb, OptionKeys.ResponseTimeout, responseTimeout);
             Append(sb, OptionKeys.DefaultDatabase, DefaultDatabase);
+            if (Tunnel is { IsInbuilt: true } tunnel)
+            {
+                Append(sb, OptionKeys.Tunnel, tunnel.ToString());
+            }
             commandMap?.AppendDeltas(sb);
             return sb.ToString();
         }
@@ -846,6 +883,25 @@ namespace StackExchange.Redis
                         case OptionKeys.SslProtocols:
                             SslProtocols = OptionKeys.ParseSslProtocols(key, value);
                             break;
+                        case OptionKeys.Tunnel:
+                            if (value.IsNullOrWhiteSpace())
+                            {
+                                Tunnel = null;
+                            }
+                            else if (value.StartsWith("http:"))
+                            {
+                                value = value.Substring(5);
+                                if (!Format.TryParseEndPoint(value, out var ep))
+                                {
+                                    throw new ArgumentException("HTTP tunnel cannot be parsed: " + value);
+                                }
+                                Tunnel = Tunnel.HttpProxy(ep);
+                            }
+                            else
+                            {
+                                throw new ArgumentException("Tunnel cannot be parsed: " + value);
+                            }
+                            break;
                         // Deprecated options we ignore...
                         case OptionKeys.HighPrioritySocketThreads:
                         case OptionKeys.PreserveAsyncOrder:
@@ -883,5 +939,10 @@ namespace StackExchange.Redis
             }
             return this;
         }
+
+        /// <summary>
+        /// Allows custom transport implementations, such as http-tunneling via a proxy.
+        /// </summary>
+        public Tunnel? Tunnel { get; set; }
     }
 }

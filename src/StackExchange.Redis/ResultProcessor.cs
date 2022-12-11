@@ -92,6 +92,9 @@ namespace StackExchange.Redis
             Int64Array = new Int64ArrayProcessor();
 
         public static readonly ResultProcessor<string?[]>
+            NullableStringArray = new NullableStringArrayProcessor();
+
+        public static readonly ResultProcessor<string[]>
             StringArray = new StringArrayProcessor();
 
         public static readonly ResultProcessor<bool[]>
@@ -224,7 +227,14 @@ namespace StackExchange.Redis
             }
             if (result.IsError)
             {
-                if (result.StartsWith(CommonReplies.NOAUTH)) bridge?.Multiplexer?.SetAuthSuspect();
+                if (result.StartsWith(CommonReplies.NOAUTH))
+                {
+                    bridge?.Multiplexer?.SetAuthSuspect(new RedisServerException("NOAUTH Returned - connection has not yet authenticated"));
+                }
+                else if (result.StartsWith(CommonReplies.WRONGPASS))
+                {
+                    bridge?.Multiplexer?.SetAuthSuspect(new RedisServerException(result.ToString()));
+                }
 
                 var server = bridge?.ServerEndPoint;
                 bool log = !message.IsInternalCall;
@@ -257,13 +267,27 @@ namespace StackExchange.Redis
                             {
                                 if (isMoved && wasNoRedirect)
                                 {
-                                    err = $"Key has MOVED to Endpoint {endpoint} and hashslot {hashSlot} but CommandFlags.NoRedirect was specified - redirect not followed for {message.CommandAndKey}. ";
+                                    if (bridge.Multiplexer.IncludeDetailInExceptions)
+                                    {
+                                        err = $"Key has MOVED to Endpoint {endpoint} and hashslot {hashSlot} but CommandFlags.NoRedirect was specified - redirect not followed for {message.CommandAndKey}. ";
+                                    }
+                                    else
+                                    {
+                                        err = "Key has MOVED but CommandFlags.NoRedirect was specified - redirect not followed. ";
+                                    }
                                 }
                                 else
                                 {
                                     unableToConnectError = true;
-                                    err = $"Endpoint {endpoint} serving hashslot {hashSlot} is not reachable at this point of time. Please check connectTimeout value. If it is low, try increasing it to give the ConnectionMultiplexer a chance to recover from the network disconnect. "
-                                        + PerfCounterHelper.GetThreadPoolAndCPUSummary(bridge.Multiplexer.RawConfig.IncludePerformanceCountersInExceptions);
+                                    if (bridge.Multiplexer.IncludeDetailInExceptions)
+                                    {
+                                        err = $"Endpoint {endpoint} serving hashslot {hashSlot} is not reachable at this point of time. Please check connectTimeout value. If it is low, try increasing it to give the ConnectionMultiplexer a chance to recover from the network disconnect. "
+                                            + PerfCounterHelper.GetThreadPoolAndCPUSummary();
+                                    }
+                                    else
+                                    {
+                                        err = "Endpoint is not reachable at this point of time. Please check connectTimeout value. If it is low, try increasing it to give the ConnectionMultiplexer a chance to recover from the network disconnect. ";
+                                    }
                                 }
                             }
                         }
@@ -481,9 +505,14 @@ namespace StackExchange.Redis
 
         internal sealed class ScriptLoadProcessor : ResultProcessor<byte[]>
         {
+            /// <summary>
+            /// Anything hashed with SHA1 has exactly 40 characters. We can use that as a shortcut in the code bellow.
+            /// </summary>
+            private const int SHA1Length = 40;
+
             private static readonly Regex sha1 = new Regex("^[0-9a-f]{40}$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-            internal static bool IsSHA1(string script) => script is not null && sha1.IsMatch(script);
+            internal static bool IsSHA1(string script) => script is not null && script.Length == SHA1Length && sha1.IsMatch(script);
 
             internal const int Sha1HashLength = 20;
             internal static byte[] ParseSHA1(byte[] value)
@@ -1104,7 +1133,7 @@ namespace StackExchange.Redis
                     SetResult(message, true);
                     return true;
                 }
-                if(message.Command == RedisCommand.AUTH) connection?.BridgeCouldBeNull?.Multiplexer?.SetAuthSuspect();
+                if(message.Command == RedisCommand.AUTH) connection?.BridgeCouldBeNull?.Multiplexer?.SetAuthSuspect(new RedisException("Unknown AUTH exception"));
                 return false;
             }
         }
@@ -1394,7 +1423,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private sealed class StringArrayProcessor : ResultProcessor<string?[]>
+        private sealed class NullableStringArrayProcessor : ResultProcessor<string?[]>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
@@ -1403,6 +1432,21 @@ namespace StackExchange.Redis
                     case ResultType.MultiBulk:
                         var arr = result.GetItemsAsStrings()!;
 
+                        SetResult(message, arr);
+                        return true;
+                }
+                return false;
+            }
+        }
+
+        private sealed class StringArrayProcessor : ResultProcessor<string[]>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                switch (result.Type)
+                {
+                    case ResultType.MultiBulk:
+                        var arr = result.GetItemsAsStringsNotNullable()!;
                         SetResult(message, arr);
                         return true;
                 }

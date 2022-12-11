@@ -11,6 +11,11 @@ public readonly struct LCSMatchResult
     internal static LCSMatchResult Null { get; } = new LCSMatchResult(Array.Empty<LCSMatch>(), 0);
 
     /// <summary>
+    /// Whether this match result contains any matches.
+    /// </summary>
+    public bool IsEmpty => LongestMatchLength == 0 && (Matches is null || Matches.Length == 0);
+
+    /// <summary>
     /// The matched positions of all the sub-matched strings.
     /// </summary>
     public LCSMatch[] Matches { get; }

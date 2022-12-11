@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Net;
 using System.Runtime;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -221,11 +220,9 @@ public abstract class TestBase : IDisposable
 
     protected static IServer GetServer(IConnectionMultiplexer muxer)
     {
-        EndPoint[] endpoints = muxer.GetEndPoints();
         IServer? result = null;
-        foreach (var endpoint in endpoints)
+        foreach (var server in muxer.GetServers())
         {
-            var server = muxer.GetServer(endpoint);
             if (server.IsReplica || !server.IsConnected) continue;
             if (result != null) throw new InvalidOperationException("Requires exactly one primary endpoint (found " + server.EndPoint + " and " + result.EndPoint + ")");
             result = server;
@@ -270,7 +267,7 @@ public abstract class TestBase : IDisposable
     {
         if (Output == null)
         {
-            Assert.True(false, "Failure: Be sure to call the TestBase constuctor like this: BasicOpsTests(ITestOutputHelper output) : base(output) { }");
+            Assert.True(false, "Failure: Be sure to call the TestBase constructor like this: BasicOpsTests(ITestOutputHelper output) : base(output) { }");
         }
 
         // Share a connection if instructed to and we can - many specifics mean no sharing

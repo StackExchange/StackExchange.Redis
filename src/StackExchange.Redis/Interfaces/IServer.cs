@@ -180,6 +180,41 @@ namespace StackExchange.Redis
         Task ConfigSetAsync(RedisValue setting, RedisValue value, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Returns the number of total commands available in this Redis server.
+        /// </summary>
+        /// <param name="flags">The command flags to use.</param>
+        /// <remarks><seealso href="https://redis.io/commands/command-count"/></remarks>
+        long CommandCount(CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="CommandCount(CommandFlags)"/>
+        Task<long> CommandCountAsync(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Returns list of keys from a full Redis command.
+        /// </summary>
+        /// <param name="command">The command to get keys from.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <remarks><seealso href="https://redis.io/commands/command-getkeys"/></remarks>
+        RedisKey[] CommandGetKeys(RedisValue[] command, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="CommandGetKeys(RedisValue[], CommandFlags)"/>
+        Task<RedisKey[]> CommandGetKeysAsync(RedisValue[] command, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Returns a list of command names available on this Redis server.
+        /// Only one of the filter options is usable at a time.
+        /// </summary>
+        /// <param name="moduleName">The module name to filter the command list by.</param>
+        /// <param name="category">The category to filter the command list by.</param>
+        /// <param name="pattern">The pattern to filter the command list by.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <remarks><seealso href="https://redis.io/commands/command-list"/></remarks>
+        string[] CommandList(RedisValue? moduleName = null, RedisValue? category = null, RedisValue? pattern = null, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="CommandList(RedisValue?, RedisValue?, RedisValue?, CommandFlags)"/>
+        Task<string[]> CommandListAsync(RedisValue? moduleName = null, RedisValue? category = null, RedisValue? pattern = null, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Return the number of keys in the database.
         /// </summary>
         /// <param name="database">The database ID.</param>

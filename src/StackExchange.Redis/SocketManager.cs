@@ -214,13 +214,11 @@ namespace StackExchange.Redis
         internal static Socket CreateSocket(EndPoint endpoint)
         {
             var addressFamily = endpoint.AddressFamily;
-            if (addressFamily == AddressFamily.Unspecified && endpoint is DnsEndPoint)
-            {   // default DNS to ipv4 if not specified explicitly
-                addressFamily = AddressFamily.InterNetwork;
-            }
-
             var protocolType = addressFamily == AddressFamily.Unix ? ProtocolType.Unspecified : ProtocolType.Tcp;
-            var socket = new Socket(addressFamily, SocketType.Stream, protocolType);
+
+            var socket = addressFamily == AddressFamily.Unspecified
+                ? new Socket(SocketType.Stream, protocolType)
+                : new Socket(addressFamily, SocketType.Stream, protocolType);
             SocketConnection.SetRecommendedClientOptions(socket);
             //socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.Linger, false);
             return socket;
