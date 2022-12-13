@@ -8,6 +8,11 @@ Current package versions:
 
 ## Unreleased
 
+No pending changes for the next release yet.
+
+
+## 2.6.86
+
 - Fix [#1520](https://github.com/StackExchange/StackExchange.Redis/issues/1520) & [#1660](https://github.com/StackExchange/StackExchange.Redis/issues/1660): When `MOVED` is encountered from a cluster, a reconfigure will happen proactively to react to cluster changes ASAP ([#2286 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2286))
 - Fix [#2249](https://github.com/StackExchange/StackExchange.Redis/issues/2249): Properly handle a `fail` state (new `ClusterNode.IsFail` property) for `CLUSTER NODES` and expose `fail?` as a property (`IsPossiblyFail`) as well ([#2288 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2288))
 - Adds: `IConnectionMultiplexer.ServerMaintenanceEvent` (was on `ConnectionMultiplexer` but not the interface) ([#2306 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2306))
