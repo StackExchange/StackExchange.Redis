@@ -576,6 +576,7 @@ namespace StackExchange.Redis
                                 else
                                 {
                                     OnDisconnected(ConnectionFailureType.SocketFailure, tmp, out bool ignore, out State oldState);
+                                    using (tmp) { } // dispose etc
                                 }
                             }
                             else if (writeEverySeconds <= 0 && tmp.IsIdle()
@@ -613,9 +614,6 @@ namespace StackExchange.Redis
                 if (runThisTime) Interlocked.Exchange(ref beating, 0);
             }
         }
-
-        internal void RemovePhysical(PhysicalConnection connection) =>
-            Interlocked.CompareExchange(ref physical, null, connection);
 
         [Conditional("VERBOSE")]
         internal void Trace(string message) => Multiplexer.Trace(message, ToString());
