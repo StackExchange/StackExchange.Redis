@@ -1,4 +1,6 @@
-﻿using System;
+﻿using Pipelines.Sockets.Unofficial;
+using StackExchange.Redis.Profiling;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
@@ -10,8 +12,6 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Pipelines.Sockets.Unofficial;
-using StackExchange.Redis.Profiling;
 
 namespace StackExchange.Redis
 {
@@ -245,7 +245,7 @@ namespace StackExchange.Redis
                 throw;
             }
 
-            var nodes = GetServerSnapshot().ToArray(); // Have to array because async/await
+            var nodes = _serverSnapshot; // same as GetServerSnapshot(), but doesn't force span
             RedisValue newPrimary = Format.ToString(server.EndPoint);
 
             // try and write this everywhere; don't worry if some folks reject our advances
@@ -302,7 +302,7 @@ namespace StackExchange.Redis
             // We want everyone possible to pick it up.
             // We broadcast before *and after* the change to remote members, so that they don't go without detecting a change happened.
             // This eliminates the race of pub/sub *then* re-slaving happening, since a method both precedes and follows.
-            async Task BroadcastAsync(ServerEndPoint[] serverNodes)
+            async Task BroadcastAsync(ServerSnapshot serverNodes)
             {
                 if (options.HasFlag(ReplicationChangeOptions.Broadcast)
                     && ConfigurationChangedChannel != null
@@ -746,9 +746,9 @@ namespace StackExchange.Redis
             }
         }
 
-        ReadOnlySpan<ServerEndPoint> IInternalConnectionMultiplexer.GetServerSnapshot() => GetServerSnapshot();
-        internal ReadOnlySpan<ServerEndPoint> GetServerSnapshot() => _serverSnapshot.Span;
-        private sealed class ServerSnapshot
+        ReadOnlySpan<ServerEndPoint> IInternalConnectionMultiplexer.GetServerSnapshot() => _serverSnapshot.AsSpan();
+        internal ReadOnlySpan<ServerEndPoint> GetServerSnapshot() => _serverSnapshot.AsSpan();
+        internal sealed class ServerSnapshot : IEnumerable<ServerEndPoint>
         {
             public static ServerSnapshot Empty { get; } = new ServerSnapshot(Array.Empty<ServerEndPoint>(), 0);
             private ServerSnapshot(ServerEndPoint[] arr, int count)
@@ -758,7 +758,9 @@ namespace StackExchange.Redis
             }
             private readonly ServerEndPoint[] _arr;
             private readonly int _count;
-            public ReadOnlySpan<ServerEndPoint> Span => new ReadOnlySpan<ServerEndPoint>(_arr, 0, _count);
+            public ReadOnlySpan<ServerEndPoint> AsSpan() => new ReadOnlySpan<ServerEndPoint>(_arr, 0, _count);
+            public ReadOnlyMemory<ServerEndPoint> AsMemory() => new ReadOnlyMemory<ServerEndPoint>(_arr, 0, _count);
+            public ArraySegment<ServerEndPoint> AsArraySegment() => new ArraySegment<ServerEndPoint>(_arr, 0, _count);
 
             internal ServerSnapshot Add(ServerEndPoint value)
             {
@@ -794,6 +796,46 @@ namespace StackExchange.Redis
                     arr[i] = _arr[i].EndPoint;
                 }
                 return arr;
+            }
+
+            public Enumerator GetEnumerator() => new Enumerator(_arr, 0);
+            IEnumerator<ServerEndPoint> IEnumerable<ServerEndPoint>.GetEnumerator() => throw new NotImplementedException();
+            IEnumerator IEnumerable.GetEnumerator() => throw new NotImplementedException();
+
+            public struct Enumerator : IEnumerator<ServerEndPoint>
+            {
+                private readonly ServerEndPoint[] _endpoints;
+                private readonly int _count;
+                private int _index;
+
+                public ServerEndPoint Current { get; private set; }
+
+                object IEnumerator.Current => Current;
+
+                public bool MoveNext()
+                {
+                    if (_index < _count && ++_index < _count)
+                    {
+                        Current = _endpoints[_index];
+                        return true;
+                    }
+                    Current = default!;
+                    return false;
+                }
+                void IDisposable.Dispose() { }
+                void IEnumerator.Reset()
+                {
+                    _index = -1;
+                    Current = default!;
+                }
+
+                public Enumerator(ServerEndPoint[] endpoints, int count)
+                {
+                    _index = -1;
+                    _endpoints = endpoints;
+                    _count = count;
+                    Current = default!;
+                }
             }
         }
 
