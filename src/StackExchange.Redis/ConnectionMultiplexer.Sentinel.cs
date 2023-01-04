@@ -350,7 +350,7 @@ public partial class ConnectionMultiplexer
 
     internal EndPoint? GetConfiguredPrimaryForService(string serviceName) =>
         _serverSnapshot // same as GetServerSnapshot, but without forcing span
-            .Where(s => s.ServerType == ServerType.Sentinel)
+            .Where(static s => s.ServerType == ServerType.Sentinel)
             .AsParallel()
             .Select(s =>
             {
@@ -361,7 +361,7 @@ public partial class ConnectionMultiplexer
 
     internal EndPoint[]? GetReplicasForService(string serviceName) =>
         _serverSnapshot // same as GetServerSnapshot, but without forcing span
-            .Where(s => s.ServerType == ServerType.Sentinel)
+            .Where(static s => s.ServerType == ServerType.Sentinel)
             .AsParallel()
             .Select(s =>
             {
@@ -424,7 +424,7 @@ public partial class ConnectionMultiplexer
     internal void UpdateSentinelAddressList(string serviceName)
     {
         var firstCompleteRequest = _serverSnapshot // same as GetServerSnapshot, but without forcing span
-                                    .Where(s => s.ServerType == ServerType.Sentinel)
+                                    .Where(static s => s.ServerType == ServerType.Sentinel)
                                     .AsParallel()
                                     .Select(s =>
                                     {
