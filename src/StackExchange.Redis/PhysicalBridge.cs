@@ -542,11 +542,16 @@ namespace StackExchange.Redis
                             // abort and reconnect
                             var snapshot = physical;
                             OnDisconnected(ConnectionFailureType.UnableToConnect, snapshot, out bool isCurrent, out State oldState);
-                            using (snapshot) { } // dispose etc
+                            snapshot?.Dispose(); // Cleanup the existing connection/socket if any, otherwise it will wait reading indefinitely
                             TryConnect(null);
                         }
                         break;
                     case (int)State.ConnectedEstablishing:
+                        // (Fall through) Happens when we successfully connected via TCP, but no Redis handshake completion yet.
+                        // This can happen brief (usual) or when the server never answers (rare). When we're in this state,
+                        // a socket is open and reader likely listening indefinitely for incoming data on an async background task.
+                        // We need to time that out and cleanup the PhysicalConnection if needed, otherwise that reader and socket will remain open
+                        // for the lifetime of the application due to being orphaned, yet still referenced by the active task doing the pipe read.
                     case (int)State.ConnectedEstablished:
                         var tmp = physical;
                         if (tmp != null)
@@ -576,7 +581,7 @@ namespace StackExchange.Redis
                                 else
                                 {
                                     OnDisconnected(ConnectionFailureType.SocketFailure, tmp, out bool ignore, out State oldState);
-                                    using (tmp) { } // dispose etc
+                                    tmp.Dispose(); // Cleanup the existing connection/socket if any, otherwise it will wait reading indefinitely
                                 }
                             }
                             else if (writeEverySeconds <= 0 && tmp.IsIdle()
