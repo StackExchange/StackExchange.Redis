@@ -8,7 +8,7 @@ Current package versions:
 
 ## Unreleased
 
-No pending changes for the next release yet.
+- Internal: revisit endpoint-snapshot implementation
 
 
 ## 2.6.86
