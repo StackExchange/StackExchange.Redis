@@ -36,17 +36,26 @@ public class ServerSnapshotTests
         Assert.Empty(snapshot.Where(static _ => true));
         Assert.Empty(Enumerable.Where(snapshot, static _ => false));
         Assert.Empty(snapshot.Where(static _ => false));
+
+        Assert.Empty(snapshot.Where(CommandFlags.DemandMaster));
+        Assert.Empty(snapshot.Where(CommandFlags.DemandReplica));
+        Assert.Empty(snapshot.Where(CommandFlags.None));
+        Assert.Empty(snapshot.Where(CommandFlags.FireAndForget | CommandFlags.NoRedirect | CommandFlags.NoScriptCache));
     }
 
     [Theory]
-    [InlineData(1)]
-    [InlineData(5)]
-    public void NonEmptyBehaviour(int count)
+    [InlineData(1, 0)]
+    [InlineData(1, 1)]
+    [InlineData(5, 0)]
+    [InlineData(5, 3)]
+    [InlineData(5, 5)]
+    public void NonEmptyBehaviour(int count, int replicaCount)
     {
         var snapshot = ServerSnapshot.Empty;
         for (int i = 0; i < count; i++)
         {
             var dummy = (ServerEndPoint)FormatterServices.GetSafeUninitializedObject(typeof(ServerEndPoint));
+            dummy.IsReplica = i < replicaCount;
             snapshot = snapshot.Add(dummy);
         }
 
@@ -54,10 +63,12 @@ public class ServerSnapshotTests
         Assert.Equal(count, ManualCount(snapshot));
         Assert.Equal(count, ManualCount(snapshot, static _ => true));
         Assert.Equal(0, ManualCount(snapshot, static _ => false));
+        Assert.Equal(replicaCount, ManualCount(snapshot, static s => s.IsReplica));
 
         Assert.Equal(count, Enumerable.Count(snapshot));
         Assert.Equal(count, Enumerable.Count(snapshot, static _ => true));
         Assert.Equal(0, Enumerable.Count(snapshot, static _ => false));
+        Assert.Equal(replicaCount, Enumerable.Count(snapshot, static s => s.IsReplica));
 
         Assert.True(Enumerable.Any(snapshot));
         Assert.True(snapshot.Any());
@@ -72,6 +83,11 @@ public class ServerSnapshotTests
         Assert.NotEmpty(snapshot.Where(static _ => true));
         Assert.Empty(Enumerable.Where(snapshot, static _ => false));
         Assert.Empty(snapshot.Where(static _ => false));
+
+        Assert.Equal(snapshot.Count - replicaCount, snapshot.Where(CommandFlags.DemandMaster).Count());
+        Assert.Equal(replicaCount, snapshot.Where(CommandFlags.DemandReplica).Count());
+        Assert.Equal(snapshot.Count, snapshot.Where(CommandFlags.None).Count());
+        Assert.Equal(snapshot.Count, snapshot.Where(CommandFlags.FireAndForget | CommandFlags.NoRedirect | CommandFlags.NoScriptCache).Count());
     }
 
     private static int ManualCount(ServerSnapshot snapshot, Func<ServerEndPoint, bool>? predicate = null)

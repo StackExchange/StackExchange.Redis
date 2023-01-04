@@ -839,16 +839,29 @@ namespace StackExchange.Redis
                 return false;
             }
 
+
+            public ServerSnapshotFiltered Where(CommandFlags flags)
+            {
+                var effectiveFlags = flags & (CommandFlags.DemandMaster | CommandFlags.DemandReplica);
+                return (effectiveFlags) switch
+                {
+                    CommandFlags.DemandMaster => Where(static s => !s.IsReplica),
+                    CommandFlags.DemandReplica => Where(static s => s.IsReplica),
+                    _ => Where(null!),
+                    // note we don't need to consider "both", since the composition of the flags-enum precludes that
+                };
+            }
+
             public ServerSnapshotFiltered Where(Func<ServerEndPoint, bool> predicate)
                 => new ServerSnapshotFiltered(_endpoints, _count, predicate);
 
             public readonly struct ServerSnapshotFiltered : IEnumerable<ServerEndPoint>
             {
                 private readonly ServerEndPoint[] _endpoints;
-                private readonly Func<ServerEndPoint, bool> _predicate;
+                private readonly Func<ServerEndPoint, bool>? _predicate;
                 private readonly int _count;
 
-                public ServerSnapshotFiltered(ServerEndPoint[] endpoints, int count, Func<ServerEndPoint, bool> predicate)
+                public ServerSnapshotFiltered(ServerEndPoint[] endpoints, int count, Func<ServerEndPoint, bool>? predicate)
                 {
                     _endpoints = endpoints;
                     _count = count;
