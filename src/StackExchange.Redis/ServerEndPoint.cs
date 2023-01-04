@@ -968,10 +968,11 @@ namespace StackExchange.Redis
         {
             if (!EqualityComparer<T>.Default.Equals(field, value))
             {
-                Multiplexer.Trace(caller + " changed from " + field + " to " + value, "Configuration");
+                // multiplexer might be null here in some test scenarios; just roll with it...
+                Multiplexer?.Trace(caller + " changed from " + field + " to " + value, "Configuration");
                 field = value;
                 ClearMemoized();
-                Multiplexer.ReconfigureIfNeeded(EndPoint, false, caller!);
+                Multiplexer?.ReconfigureIfNeeded(EndPoint, false, caller!);
             }
         }
 

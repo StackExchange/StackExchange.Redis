@@ -113,30 +113,12 @@ namespace StackExchange.Redis
         /// <summary>
         /// Indicates whether any servers are connected.
         /// </summary>
-        public bool IsConnected
-        {
-            get
-            {
-                var tmp = GetServerSnapshot();
-                for (int i = 0; i < tmp.Length; i++)
-                    if (tmp[i].IsConnected) return true;
-                return false;
-            }
-        }
+        public bool IsConnected => _serverSnapshot.Any(static s => s.IsConnected);
 
         /// <summary>
         /// Indicates whether any servers are currently trying to connect.
         /// </summary>
-        public bool IsConnecting
-        {
-            get
-            {
-                var tmp = GetServerSnapshot();
-                for (int i = 0; i < tmp.Length; i++)
-                    if (tmp[i].IsConnecting) return true;
-                return false;
-            }
-        }
+        public bool IsConnecting => _serverSnapshot.Any(static s => s.IsConnecting);
 
         static ConnectionMultiplexer()
         {
@@ -245,7 +227,7 @@ namespace StackExchange.Redis
                 throw;
             }
 
-            var nodes = GetServerSnapshot().ToArray(); // Have to array because async/await
+            var nodes = _serverSnapshot; // same as GetServerSnapshot(), but doesn't force span
             RedisValue newPrimary = Format.ToString(server.EndPoint);
 
             // try and write this everywhere; don't worry if some folks reject our advances
@@ -302,7 +284,7 @@ namespace StackExchange.Redis
             // We want everyone possible to pick it up.
             // We broadcast before *and after* the change to remote members, so that they don't go without detecting a change happened.
             // This eliminates the race of pub/sub *then* re-slaving happening, since a method both precedes and follows.
-            async Task BroadcastAsync(ServerEndPoint[] serverNodes)
+            async Task BroadcastAsync(ServerSnapshot serverNodes)
             {
                 if (options.HasFlag(ReplicationChangeOptions.Broadcast)
                     && ConfigurationChangedChannel != null
@@ -746,19 +728,20 @@ namespace StackExchange.Redis
             }
         }
 
-        ReadOnlySpan<ServerEndPoint> IInternalConnectionMultiplexer.GetServerSnapshot() => GetServerSnapshot();
-        internal ReadOnlySpan<ServerEndPoint> GetServerSnapshot() => _serverSnapshot.Span;
-        private sealed class ServerSnapshot
+        ReadOnlySpan<ServerEndPoint> IInternalConnectionMultiplexer.GetServerSnapshot() => _serverSnapshot.AsSpan();
+        internal ReadOnlySpan<ServerEndPoint> GetServerSnapshot() => _serverSnapshot.AsSpan();
+        internal sealed class ServerSnapshot : IEnumerable<ServerEndPoint>
         {
             public static ServerSnapshot Empty { get; } = new ServerSnapshot(Array.Empty<ServerEndPoint>(), 0);
-            private ServerSnapshot(ServerEndPoint[] arr, int count)
+            private ServerSnapshot(ServerEndPoint[] endpoints, int count)
             {
-                _arr = arr;
+                _endpoints = endpoints;
                 _count = count;
             }
-            private readonly ServerEndPoint[] _arr;
+            private readonly ServerEndPoint[] _endpoints;
             private readonly int _count;
-            public ReadOnlySpan<ServerEndPoint> Span => new ReadOnlySpan<ServerEndPoint>(_arr, 0, _count);
+            public ReadOnlySpan<ServerEndPoint> AsSpan() => new ReadOnlySpan<ServerEndPoint>(_endpoints, 0, _count);
+            public ReadOnlyMemory<ServerEndPoint> AsMemory() => new ReadOnlyMemory<ServerEndPoint>(_endpoints, 0, _count);
 
             internal ServerSnapshot Add(ServerEndPoint value)
             {
@@ -767,21 +750,21 @@ namespace StackExchange.Redis
                     return this;
                 }
 
-                ServerEndPoint[] arr;
-                if (_arr.Length > _count)
+                ServerEndPoint[] nextEndpoints;
+                if (_endpoints.Length > _count)
                 {
-                    arr = _arr;
+                    nextEndpoints = _endpoints;
                 }
                 else
                 {
                     // no more room; need a new array
-                    int newLen = _arr.Length << 1;
+                    int newLen = _endpoints.Length << 1;
                     if (newLen == 0) newLen = 4;
-                    arr = new ServerEndPoint[newLen];
-                    _arr.CopyTo(arr, 0);
+                    nextEndpoints = new ServerEndPoint[newLen];
+                    _endpoints.CopyTo(nextEndpoints, 0);
                 }
-                arr[_count] = value;
-                return new ServerSnapshot(arr, _count + 1);
+                nextEndpoints[_count] = value;
+                return new ServerSnapshot(nextEndpoints, _count + 1);
             }
 
             internal EndPoint[] GetEndPoints()
@@ -791,9 +774,103 @@ namespace StackExchange.Redis
                 var arr = new EndPoint[_count];
                 for (int i = 0; i < _count; i++)
                 {
-                    arr[i] = _arr[i].EndPoint;
+                    arr[i] = _endpoints[i].EndPoint;
                 }
                 return arr;
+            }
+
+            public Enumerator GetEnumerator() => new(_endpoints, _count);
+            IEnumerator<ServerEndPoint> IEnumerable<ServerEndPoint>.GetEnumerator() => GetEnumerator();
+            IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+
+            public struct Enumerator : IEnumerator<ServerEndPoint>
+            {
+                private readonly ServerEndPoint[] _endpoints;
+                private readonly Func<ServerEndPoint, bool>? _predicate;
+                private readonly int _count;
+                private int _index;
+
+                public ServerEndPoint Current { get; private set; }
+
+                object IEnumerator.Current => Current;
+
+                public bool MoveNext()
+                {
+                    while (_index < _count && ++_index < _count)
+                    {
+                        Current = _endpoints[_index];
+                        if (_predicate is null || _predicate(Current))
+                        {
+                            return true;
+                        }
+                    }
+                    Current = default!;
+                    return false;
+                }
+                void IDisposable.Dispose() { }
+                void IEnumerator.Reset()
+                {
+                    _index = -1;
+                    Current = default!;
+                }
+
+                public Enumerator(ServerEndPoint[] endpoints, int count, Func<ServerEndPoint, bool>? predicate = null)
+                {
+                    _index = -1;
+                    _endpoints = endpoints;
+                    _count = count;
+                    _predicate = predicate;
+                    Current = default!;
+                }
+            }
+
+            public int Count => _count;
+
+            public bool Any(Func<ServerEndPoint, bool>? predicate = null)
+            {
+                if (_count > 0)
+                {
+                    if (predicate is null) return true;
+                    foreach (var item in AsSpan()) // span for bounds elision
+                    {
+                        if (predicate(item)) return true;
+                    }
+                }
+                return false;
+            }
+
+
+            public ServerSnapshotFiltered Where(CommandFlags flags)
+            {
+                var effectiveFlags = flags & (CommandFlags.DemandMaster | CommandFlags.DemandReplica);
+                return (effectiveFlags) switch
+                {
+                    CommandFlags.DemandMaster => Where(static s => !s.IsReplica),
+                    CommandFlags.DemandReplica => Where(static s => s.IsReplica),
+                    _ => Where(null!),
+                    // note we don't need to consider "both", since the composition of the flags-enum precludes that
+                };
+            }
+
+            public ServerSnapshotFiltered Where(Func<ServerEndPoint, bool> predicate)
+                => new ServerSnapshotFiltered(_endpoints, _count, predicate);
+
+            public readonly struct ServerSnapshotFiltered : IEnumerable<ServerEndPoint>
+            {
+                private readonly ServerEndPoint[] _endpoints;
+                private readonly Func<ServerEndPoint, bool>? _predicate;
+                private readonly int _count;
+
+                public ServerSnapshotFiltered(ServerEndPoint[] endpoints, int count, Func<ServerEndPoint, bool>? predicate)
+                {
+                    _endpoints = endpoints;
+                    _count = count;
+                    _predicate = predicate;
+                }
+
+                public Enumerator GetEnumerator() => new(_endpoints, _count, _predicate);
+                IEnumerator<ServerEndPoint> IEnumerable<ServerEndPoint>.GetEnumerator() => GetEnumerator();
+                IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
             }
         }
 
