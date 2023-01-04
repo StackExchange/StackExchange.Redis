@@ -1,6 +1,4 @@
-﻿using Pipelines.Sockets.Unofficial;
-using StackExchange.Redis.Profiling;
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
@@ -12,6 +10,8 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Pipelines.Sockets.Unofficial;
+using StackExchange.Redis.Profiling;
 
 namespace StackExchange.Redis
 {
