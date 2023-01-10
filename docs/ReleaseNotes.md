@@ -8,6 +8,10 @@ Current package versions:
 
 ## Unreleased
 
+No pending changes for the next release yet.
+
+## 2.6.90
+
 - Adds: Support for `EVAL_RO` and `EVALSHA_RO` via `IDatabase.ScriptEvaluateReadOnly`/`IDatabase.ScriptEvaluateReadOnlyAsync` ([#2168 by shacharPash](https://github.com/StackExchange/StackExchange.Redis/pull/2168))
 - Fix [#1458](https://github.com/StackExchange/StackExchange.Redis/issues/1458): Fixes a leak condition when a connection completes on the TCP phase but not the Redis handshake ([#2238 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2238))
 - Internal: ServerSnapshot: Improve API and allow filtering with custom struct enumerator ([#2337 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2337))
