@@ -1,6 +1,8 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Net;
+using System.Threading.Tasks;
 
 namespace StackExchange.Redis.KeyspaceIsolation
 {
@@ -321,9 +323,30 @@ namespace StackExchange.Redis.KeyspaceIsolation
             // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
             Inner.ScriptEvaluate(hash, ToInner(keys), values, flags);
 
-        public RedisResult ScriptEvaluate(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None) =>
-            // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
-            Inner.ScriptEvaluate(script, ToInner(keys), values, flags);
+        public RedisResult ScriptEvaluate(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
+        {   // note we may end up using the memory overloads to enable better pooling etc usage
+            if (keys is null || keys.Length == 0) return Inner.ScriptEvaluate(script, keys, values, flags);
+            if (keys.Length == 1) return Inner.ScriptEvaluate(script, ToInner(keys[0]), values, flags);
+            if ((flags & CommandFlags.FireAndForget) != 0) return Inner.ScriptEvaluate(script, ToInnerCopy(keys), values, flags);
+
+            var result = Inner.ScriptEvaluate(script, ToInnerLease(keys, out var lease), values, flags);
+            ArrayPool<RedisKey>.Shared.Return(lease); // happy to only recycle on success
+            return result;
+        }
+
+    public RedisResult ScriptEvaluate(string script, RedisKey key, ReadOnlyMemory<RedisValue> values = default, CommandFlags flags = CommandFlags.None) =>
+            Inner.ScriptEvaluate(script, ToInner(key), values, flags);
+
+        public RedisResult ScriptEvaluate(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values = default, CommandFlags flags = CommandFlags.None)
+        {
+            if (keys.Length == 0) return Inner.ScriptEvaluate(script, keys, values, flags);
+            if (keys.Length == 1) return Inner.ScriptEvaluate(script, ToInner(keys.Span[0]), values, flags);
+            if ((flags & CommandFlags.FireAndForget) != 0) return Inner.ScriptEvaluate(script, ToInnerCopy(keys), values, flags);
+
+            var result = Inner.ScriptEvaluate(script, ToInnerLease(keys, out var lease), values, flags);
+            ArrayPool<RedisKey>.Shared.Return(lease); // happy to only recycle on success
+            return result;
+        }
 
         public RedisResult ScriptEvaluate(LuaScript script, object? parameters = null, CommandFlags flags = CommandFlags.None) =>
             // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
@@ -337,9 +360,30 @@ namespace StackExchange.Redis.KeyspaceIsolation
             // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
             Inner.ScriptEvaluateReadOnly(hash, ToInner(keys), values, flags);
 
-        public RedisResult ScriptEvaluateReadOnly(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None) =>
-            // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
-            Inner.ScriptEvaluateReadOnly(script, ToInner(keys), values, flags);
+        public RedisResult ScriptEvaluateReadOnly(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
+        {   // note we may end up using the memory overloads to enable better pooling etc usage
+            if (keys is null || keys.Length == 0) return Inner.ScriptEvaluateReadOnly(script, keys, values, flags);
+            if (keys.Length == 1) return Inner.ScriptEvaluateReadOnly(script, ToInner(keys[0]), values, flags);
+            if ((flags & CommandFlags.FireAndForget) != 0) return Inner.ScriptEvaluateReadOnly(script, ToInnerCopy(keys), values, flags);
+
+            var result = Inner.ScriptEvaluateReadOnly(script, ToInnerLease(keys, out var lease), values, flags);
+            ArrayPool<RedisKey>.Shared.Return(lease); // happy to only recycle on success
+            return result;
+        }
+
+    public RedisResult ScriptEvaluateReadOnly(string script, RedisKey key, ReadOnlyMemory<RedisValue> values = default, CommandFlags flags = CommandFlags.None) =>
+            Inner.ScriptEvaluateReadOnly(script, ToInner(key), values, flags);
+
+        public RedisResult ScriptEvaluateReadOnly(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values = default, CommandFlags flags = CommandFlags.None)
+        {
+            if (keys.Length == 0) return Inner.ScriptEvaluateReadOnly(script, keys, values, flags);
+            if (keys.Length == 1) return Inner.ScriptEvaluateReadOnly(script, ToInner(keys.Span[0]), values, flags);
+            if ((flags & CommandFlags.FireAndForget) != 0) return Inner.ScriptEvaluateReadOnly(script, ToInnerCopy(keys), values, flags);
+
+            var result = Inner.ScriptEvaluateReadOnly(script, ToInnerLease(keys, out var lease), values, flags);
+            ArrayPool<RedisKey>.Shared.Return(lease); // happy to only recycle on success
+            return result;
+        }
 
         public long SetAdd(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None) =>
             Inner.SetAdd(ToInner(key), values, flags);
