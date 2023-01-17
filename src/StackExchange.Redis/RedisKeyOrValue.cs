@@ -14,17 +14,26 @@ public readonly struct RedisKeyOrValue : IEquatable<RedisKeyOrValue>, IEquatable
         Key,
         Value,
     }
+
     private readonly Mode _mode;
     private readonly object? _objectOrSentinel;
     private readonly ReadOnlyMemory<byte> _memory;
     private readonly long _overlappedBits64;
 
-    private RedisKeyOrValue(Mode mode, long overlappedBits64, ReadOnlyMemory<byte> memory, object? objectOrSentinel) : this()
+    private RedisKeyOrValue(in RedisKey key)
     {
-        _mode = mode;
-        _overlappedBits64 = overlappedBits64;
-        _memory = memory;
-        _objectOrSentinel = objectOrSentinel;
+        _mode = Mode.Key;
+        _overlappedBits64 = 0;
+        _memory = key.KeyPrefix;
+        _objectOrSentinel = key.KeyValue;
+    }
+
+    private RedisKeyOrValue(in RedisValue value)
+    {
+        _mode = Mode.Value;
+        _overlappedBits64 = value.DirectOverlappedBits64;
+        _memory = value.DirectMemory;
+        _objectOrSentinel = value.DirectObject;
     }
 
     /// <inheritdoc/>
@@ -46,33 +55,34 @@ public readonly struct RedisKeyOrValue : IEquatable<RedisKeyOrValue>, IEquatable
     };
 
     /// <inheritdoc/>
-    public override string ToString()
-        => _mode switch
-        {
-            Mode.Key => AsKey().ToString(),
-            Mode.Value => AsValue().ToString(),
-            _ => _mode.ToString(),
-        };
+    public override string ToString() => _mode switch
+    {
+        Mode.Key => AsKey().ToString(),
+        Mode.Value => AsValue().ToString(),
+        _ => _mode.ToString(),
+    };
 
     /// <summary>Create a new instance representing a key</summary>
-    public static RedisKeyOrValue Key(RedisKey key)
-        => new RedisKeyOrValue(Mode.Key, 0, key.KeyPrefix, key.KeyValue);
+    public static RedisKeyOrValue Key(RedisKey key) => new RedisKeyOrValue(in key);
 
     /// <summary>Create a new instance representing a value</summary>
-    public static RedisKeyOrValue Value(RedisValue value)
-        => new RedisKeyOrValue(Mode.Value, value.DirectOverlappedBits64, value.DirectMemory, value.DirectObject);
+    public static RedisKeyOrValue Value(RedisValue value) => new RedisKeyOrValue(in value);
 
     /// <summary>Create a new instance representing a key</summary>
-    public static implicit operator RedisKeyOrValue(RedisKey key) => Key(key);
+    public static implicit operator RedisKeyOrValue(RedisKey key) => new RedisKeyOrValue(in key);
+
     /// <summary>Create a new instance representing a value</summary>
-    public static implicit operator RedisKeyOrValue(RedisValue value) => Value(value);
+    public static implicit operator RedisKeyOrValue(RedisValue value) => new RedisKeyOrValue(in value);
+
     /// <summary>Obtains the underlying payload as a key</summary>
     public static explicit operator RedisKey(RedisKeyOrValue value) => value.AsKey();
+
     /// <summary>Obtains the underlying payload as a value</summary>
     public static explicit operator RedisValue(RedisKeyOrValue value) => value.AsValue();
 
     /// <summary>Indicates whether this instance represents a key</summary>
     public bool IsKey => _mode == Mode.Key;
+
     /// <summary>Indicates whether this instance represents a value</summary>
     public bool IsValue => _mode == Mode.Value;
 
@@ -108,8 +118,10 @@ public readonly struct RedisKeyOrValue : IEquatable<RedisKeyOrValue>, IEquatable
         Mode.Value => other._mode == Mode.Value && AsValue().Equals(other.AsValue()),
         _ => other._mode == _mode,
     };
+
     /// <inheritdoc/>
     public bool Equals(RedisKey other) => _mode == Mode.Key && AsKey().Equals(other);
+
     /// <inheritdoc/>
     public bool Equals(RedisValue other) => _mode == Mode.Value && AsValue().Equals(other);
 }
