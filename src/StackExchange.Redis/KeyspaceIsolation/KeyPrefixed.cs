@@ -807,10 +807,10 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public void WaitAll(params Task[] tasks) =>
             Inner.WaitAll(tasks);
 
-        protected internal RedisKey ToInner(RedisKey outer) =>
+        protected internal RedisKey ToInner(in RedisKey outer) =>
             RedisKey.WithPrefix(Prefix, outer);
 
-        protected RedisKey ToInnerOrDefault(RedisKey outer) =>
+        protected RedisKey ToInnerOrDefault(in RedisKey outer) =>
             (outer == default(RedisKey)) ? outer : ToInner(outer);
 
         [return: NotNullIfNotNull("args")]

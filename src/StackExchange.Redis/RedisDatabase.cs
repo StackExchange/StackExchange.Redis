@@ -4909,7 +4909,7 @@ namespace StackExchange.Redis
 
             protected override int KeyCount => 1;
 
-            public ScriptEvalSingleKeyMessage(int db, CommandFlags flags, RedisCommand command, string script, RedisKey key, ReadOnlyMemory<RedisValue> values)
+            public ScriptEvalSingleKeyMessage(int db, CommandFlags flags, RedisCommand command, string script, in RedisKey key, ReadOnlyMemory<RedisValue> values)
                : base(db, flags, command, script, values)
             {
                 key.AssertNotNull();
