@@ -42,6 +42,9 @@ namespace StackExchange.Redis
         internal byte[]? KeyPrefix { get; }
         internal object? KeyValue { get; }
 
+        /// <summary>Gets an empty chunk of keys as a "memory"</summary>
+        public static ReadOnlyMemory<RedisKey> EmptyKeys => default;
+
         /// <summary>
         /// Indicate whether two keys are not equal.
         /// </summary>

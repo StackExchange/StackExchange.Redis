@@ -18,6 +18,7 @@ StackExchange.Redis.RedisKeyOrValue.Equals(StackExchange.Redis.RedisValue other)
 StackExchange.Redis.RedisKeyOrValue.IsKey.get -> bool
 StackExchange.Redis.RedisKeyOrValue.IsValue.get -> bool
 StackExchange.Redis.RedisKeyOrValue.RedisKeyOrValue() -> void
+static StackExchange.Redis.RedisKey.EmptyKeys.get -> System.ReadOnlyMemory<StackExchange.Redis.RedisKey>
 static StackExchange.Redis.RedisKeyOrValue.explicit operator StackExchange.Redis.RedisKey(StackExchange.Redis.RedisKeyOrValue value) -> StackExchange.Redis.RedisKey
 static StackExchange.Redis.RedisKeyOrValue.explicit operator StackExchange.Redis.RedisValue(StackExchange.Redis.RedisKeyOrValue value) -> StackExchange.Redis.RedisValue
 static StackExchange.Redis.RedisKeyOrValue.implicit operator StackExchange.Redis.RedisKeyOrValue(StackExchange.Redis.RedisKey key) -> StackExchange.Redis.RedisKeyOrValue
