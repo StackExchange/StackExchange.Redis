@@ -920,6 +920,8 @@ namespace StackExchange.Redis.KeyspaceIsolation
         private Func<RedisKey, RedisKey>? mapFunction;
         protected Func<RedisKey, RedisKey> GetMapFunction() =>
             // create as a delegate when first required, then re-use
-            mapFunction ??= new Func<RedisKey, RedisKey>(ToInner);
+            mapFunction ??= CreateMapFunction(); // avoid inlining this because of capture scopes etc
+
+        private Func<RedisKey, RedisKey> CreateMapFunction() => key => ToInner(key);
     }
 }
