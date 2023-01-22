@@ -8,7 +8,7 @@ Current package versions:
 
 ## Unreleased
 
-No pending changes for the next release yet.
+- Fix [#2350](https://github.com/StackExchange/StackExchange.Redis/issues/2350): Properly parse lua script paramters in all cultures ([#2351 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2351))
 
 ## 2.6.90
 
