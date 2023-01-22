@@ -1113,6 +1113,29 @@ return arr;
         Assert.Equal("bar", result.ToString());
     }
 
+    [Fact, TestCulture("en-US")]
+    public void LuaScriptEnglishParameters() => LuaScriptParameterShared();
+
+    [Fact, TestCulture("tr-TR")]
+    public void LuaScriptTurkishParameters() => LuaScriptParameterShared();
+
+    private void LuaScriptParameterShared()
+    {
+        const string Script = "redis.call('set', @key, @testIId)";
+        var prepared = LuaScript.Prepare(Script);
+        var key = Me();
+        var p = new { key = (RedisKey)key, testIId = "hello" };
+
+        prepared.ExtractParameters(p, null, out RedisKey[]? keys, out RedisValue[]? args);
+        Assert.NotNull(keys);
+        Assert.Single(keys);
+        Assert.Equal(key, keys[0]);
+        Assert.NotNull(args);
+        Assert.Equal(2, args.Length);
+        Assert.Equal(key, args[0]);
+        Assert.Equal("hello", args[1]);
+    }
+
     private static void TestNullValue(RedisResult? value)
     {
         Assert.True(value == null || value.IsNull);
