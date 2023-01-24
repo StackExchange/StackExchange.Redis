@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit.Abstractions;
@@ -182,5 +184,50 @@ internal static class XUnitExtensions
             summary.Skipped += bus.DynamicallySkippedTestCount;
         }
         return summary;
+    }
+}
+
+/// <summary>
+/// Supports changing culture for the duration of a single test.
+/// <see cref="Thread.CurrentThread" /> and <see cref="CultureInfo.CurrentCulture" /> with another culture.
+/// </summary>
+/// <remarks>
+/// Based on: https://bartwullems.blogspot.com/2022/03/xunit-change-culture-during-your-test.html
+/// </remarks>
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, AllowMultiple = false, Inherited = true)]
+public class TestCultureAttribute : BeforeAfterTestAttribute
+{
+    private readonly CultureInfo culture;
+    private CultureInfo? originalCulture;
+
+    /// <summary>
+    /// Replaces the culture and UI culture of the current thread with <paramref name="culture" />.
+    /// </summary>
+    /// <param name="culture">The name of the culture.</param>
+    public TestCultureAttribute(string culture) => this.culture = new CultureInfo(culture, false);
+
+    /// <summary>
+    /// Stores the current <see cref="Thread.CurrentPrincipal" /> and <see cref="CultureInfo.CurrentCulture" />
+    /// and replaces them with the new cultures defined in the constructor.
+    /// </summary>
+    /// <param name="methodUnderTest">The method under test</param>
+    public override void Before(MethodInfo methodUnderTest)
+    {
+        originalCulture = Thread.CurrentThread.CurrentCulture;
+        Thread.CurrentThread.CurrentCulture = culture;
+        CultureInfo.CurrentCulture.ClearCachedData();
+    }
+
+    /// <summary>
+    /// Restores the original <see cref="CultureInfo.CurrentCulture" /> to <see cref="Thread.CurrentPrincipal" />.
+    /// </summary>
+    /// <param name="methodUnderTest">The method under test</param>
+    public override void After(MethodInfo methodUnderTest)
+    {
+        if (originalCulture is not null)
+        {
+            Thread.CurrentThread.CurrentCulture = originalCulture;
+            CultureInfo.CurrentCulture.ClearCachedData();
+        }
     }
 }
