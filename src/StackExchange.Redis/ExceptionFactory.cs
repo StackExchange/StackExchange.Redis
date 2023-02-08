@@ -386,10 +386,12 @@ namespace StackExchange.Redis
         {
             var sb = new StringBuilder("It was not possible to connect to the redis server(s).");
             Exception? inner = null;
+            var failureType = ConnectionFailureType.UnableToConnect;
             if (muxer is not null)
             {
                 if (muxer.AuthException is Exception aex)
                 {
+                    failureType = ConnectionFailureType.AuthenticationFailure;
                     sb.Append(" There was an authentication failure; check that passwords (or client certificates) are configured correctly: (").Append(aex.GetType().Name).Append(") ").Append(aex.Message);
                     inner = aex;
                     if (aex is AuthenticationException && aex.InnerException is Exception iaex)
@@ -407,7 +409,7 @@ namespace StackExchange.Redis
                 sb.Append(' ').Append(failureMessage.Trim());
             }
 
-            return new RedisConnectionException(ConnectionFailureType.UnableToConnect, sb.ToString(), inner);
+            return new RedisConnectionException(failureType, sb.ToString(), inner);
         }
 
         internal static Exception BeganProfilingWithDuplicateContext(object forContext)
