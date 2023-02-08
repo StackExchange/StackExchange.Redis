@@ -76,7 +76,8 @@ public class SecureTests : TestBase
 
             conn.GetDatabase().Ping();
         }).ConfigureAwait(false);
-        Log("Exception: " + ex.Message);
+        Log($"Exception ({ex.FailureType}): {ex.Message}");
+        Assert.Equal(ConnectionFailureType.AuthenticationFailure, ex.FailureType);
         Assert.StartsWith("It was not possible to connect to the redis server(s). There was an authentication failure; check that passwords (or client certificates) are configured correctly: (RedisServerException) ", ex.Message);
 
         // This changed in some version...not sure which. For our purposes, splitting on v3 vs v6+
