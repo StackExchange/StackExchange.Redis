@@ -1,6 +1,7 @@
-﻿using System;
+﻿using Pipelines.Sockets.Unofficial;
+using Pipelines.Sockets.Unofficial.Arenas;
+using System;
 using System.Buffers;
-using System.Buffers.Text;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -15,8 +16,6 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Pipelines.Sockets.Unofficial;
-using Pipelines.Sockets.Unofficial.Arenas;
 
 namespace StackExchange.Redis
 {
@@ -449,7 +448,7 @@ namespace StackExchange.Redis
                             add("Outstanding-Responses", "outstanding", GetSentAwaitingResponseCount().ToString());
                             add("Last-Read", "last-read", (unchecked(now - lastRead) / 1000) + "s ago");
                             add("Last-Write", "last-write", (unchecked(now - lastWrite) / 1000) + "s ago");
-                            if(unansweredWriteTime != 0) add("Unanswered-Write", "unanswered-write", (unchecked(now - unansweredWriteTime) / 1000) + "s ago");
+                            if (unansweredWriteTime != 0) add("Unanswered-Write", "unanswered-write", (unchecked(now - unansweredWriteTime) / 1000) + "s ago");
                             add("Keep-Alive", "keep-alive", bridge.ServerEndPoint?.WriteEverySeconds + "s");
                             add("Previous-Physical-State", "state", oldState.ToString());
                             add("Manager", "mgr", bridge.Multiplexer.SocketManager?.GetState());
@@ -777,8 +776,7 @@ namespace StackExchange.Redis
 
         internal void WriteHeader(RedisCommand command, int arguments, CommandBytes commandBytes = default)
         {
-            var bridge = BridgeCouldBeNull;
-            if (bridge == null) throw new ObjectDisposedException(ToString());
+            var bridge = BridgeCouldBeNull ?? throw new ObjectDisposedException(ToString());
 
             if (command == RedisCommand.UNKNOWN)
             {
@@ -801,7 +799,7 @@ namespace StackExchange.Redis
             // *{argCount}\r\n      = 3 + MaxInt32TextLen
             // ${cmd-len}\r\n       = 3 + MaxInt32TextLen
             // {cmd}\r\n            = 2 + commandBytes.Length
-            var span = _ioPipe!.Output.GetSpan(commandBytes.Length + 8 + MaxInt32TextLen + MaxInt32TextLen);
+            var span = _ioPipe!.Output.GetSpan(commandBytes.Length + 8 + Format.MaxInt32TextLen + Format.MaxInt32TextLen);
             span[0] = (byte)'*';
 
             int offset = WriteRaw(span, arguments + 1, offset: 1);
@@ -817,15 +815,11 @@ namespace StackExchange.Redis
         internal static void WriteMultiBulkHeader(PipeWriter output, long count)
         {
             // *{count}\r\n         = 3 + MaxInt32TextLen
-            var span = output.GetSpan(3 + MaxInt32TextLen);
+            var span = output.GetSpan(3 + Format.MaxInt32TextLen);
             span[0] = (byte)'*';
             int offset = WriteRaw(span, count, offset: 1);
             output.Advance(offset);
         }
-
-        internal const int
-            MaxInt32TextLen = 11, // -2,147,483,648 (not including the commas)
-            MaxInt64TextLen = 20; // -9,223,372,036,854,775,808 (not including the commas)
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static int WriteCrlf(Span<byte> span, int offset)
@@ -906,25 +900,16 @@ namespace StackExchange.Redis
             {
                 // we're going to write it, but *to the wrong place*
                 var availableChunk = span.Slice(offset);
-                if (!Utf8Formatter.TryFormat(value, availableChunk, out int formattedLength))
-                {
-                    throw new InvalidOperationException("TryFormat failed");
-                }
+                var formattedLength = Format.FormatInt64(value, availableChunk);
                 if (withLengthPrefix)
                 {
                     // now we know how large the prefix is: write the prefix, then write the value
-                    if (!Utf8Formatter.TryFormat(formattedLength, availableChunk, out int prefixLength))
-                    {
-                        throw new InvalidOperationException("TryFormat failed");
-                    }
+                    var prefixLength = Format.FormatInt32(formattedLength, availableChunk);
                     offset += prefixLength;
                     offset = WriteCrlf(span, offset);
 
                     availableChunk = span.Slice(offset);
-                    if (!Utf8Formatter.TryFormat(value, availableChunk, out int finalLength))
-                    {
-                        throw new InvalidOperationException("TryFormat failed");
-                    }
+                    var finalLength = Format.FormatInt64(value, availableChunk);
                     offset += finalLength;
                     Debug.Assert(finalLength == formattedLength);
                 }
@@ -1035,7 +1020,7 @@ namespace StackExchange.Redis
             }
             else if (value.Length <= MaxQuickSpanSize)
             {
-                var span = writer.GetSpan(5 + MaxInt32TextLen + value.Length);
+                var span = writer.GetSpan(5 + Format.MaxInt32TextLen + value.Length);
                 span[0] = (byte)'$';
                 int bytes = AppendToSpan(span, value, 1);
                 writer.Advance(bytes);
@@ -1043,7 +1028,7 @@ namespace StackExchange.Redis
             else
             {
                 // too big to guarantee can do in a single span
-                var span = writer.GetSpan(3 + MaxInt32TextLen);
+                var span = writer.GetSpan(3 + Format.MaxInt32TextLen);
                 span[0] = (byte)'$';
                 int bytes = WriteRaw(span, value.Length, offset: 1);
                 writer.Advance(bytes);
@@ -1136,7 +1121,7 @@ namespace StackExchange.Redis
                 }
                 else
                 {
-                    var span = writer.GetSpan(3 + MaxInt32TextLen);
+                    var span = writer.GetSpan(3 + Format.MaxInt32TextLen);
                     span[0] = (byte)'$';
                     int bytes = WriteRaw(span, totalLength, offset: 1);
                     writer.Advance(bytes);
@@ -1228,7 +1213,7 @@ namespace StackExchange.Redis
             }
             else
             {
-                var span = writer.GetSpan(3 + MaxInt32TextLen); // note even with 2 max-len, we're still in same text range
+                var span = writer.GetSpan(3 + Format.MaxInt32TextLen); // note even with 2 max-len, we're still in same text range
                 span[0] = (byte)'$';
                 int bytes = WriteRaw(span, prefix.LongLength + value.LongLength, offset: 1);
                 writer.Advance(bytes);
@@ -1249,7 +1234,7 @@ namespace StackExchange.Redis
 
             // ${asc-len}\r\n           = 3 + MaxInt32TextLen
             // {asc}\r\n                = MaxInt64TextLen + 2
-            var span = writer.GetSpan(5 + MaxInt32TextLen + MaxInt64TextLen);
+            var span = writer.GetSpan(5 + Format.MaxInt32TextLen + Format.MaxInt64TextLen);
 
             span[0] = (byte)'$';
             var bytes = WriteRaw(span, value, withLengthPrefix: true, offset: 1);
@@ -1263,11 +1248,10 @@ namespace StackExchange.Redis
 
             // ${asc-len}\r\n           = 3 + MaxInt32TextLen
             // {asc}\r\n                = MaxInt64TextLen + 2
-            var span = writer.GetSpan(5 + MaxInt32TextLen + MaxInt64TextLen);
+            var span = writer.GetSpan(5 + Format.MaxInt32TextLen + Format.MaxInt64TextLen);
 
-            Span<byte> valueSpan = stackalloc byte[MaxInt64TextLen];
-            if (!Utf8Formatter.TryFormat(value, valueSpan, out var len))
-                throw new InvalidOperationException("TryFormat failed");
+            Span<byte> valueSpan = stackalloc byte[Format.MaxInt64TextLen];
+            var len = Format.FormatUInt64(value, valueSpan);
             span[0] = (byte)'$';
             int offset = WriteRaw(span, len, withLengthPrefix: false, offset: 1);
             valueSpan.Slice(0, len).CopyTo(span.Slice(offset));
@@ -1280,7 +1264,7 @@ namespace StackExchange.Redis
             //note: client should never write integer; only server does this
 
             // :{asc}\r\n                = MaxInt64TextLen + 3
-            var span = writer.GetSpan(3 + MaxInt64TextLen);
+            var span = writer.GetSpan(3 + Format.MaxInt64TextLen);
 
             span[0] = (byte)':';
             var bytes = WriteRaw(span, value, withLengthPrefix: false, offset: 1);
