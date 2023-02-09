@@ -376,28 +376,17 @@ namespace StackExchange.Redis
             {
                 if (double.IsPositiveInfinity(value))
                 {
-                    if (!"+inf"u8.TryCopyTo(destination))
-                    {
-                        ThrowFormatFailed();
-                    }
-                    return 4;
+                    if (!"+inf"u8.TryCopyTo(destination)) ThrowFormatFailed();
                 }
-                if (double.IsNegativeInfinity(value))
+                else
                 {
-                    if (!"-inf"u8.TryCopyTo(destination))
-                    {
-                        ThrowFormatFailed();
-                    }
-                    return 4;
+                    if (!"-inf"u8.TryCopyTo(destination)) ThrowFormatFailed();
                 }
+                return 4;
             }
-            if (!Utf8Formatter.TryFormat(value, destination, out var len))
-                ThrowFormatFailed();
             var s = value.ToString("G17", NumberFormatInfo.InvariantInfo); // this looks inefficient, but is how Utf8Formatter works too, just: more direct
-            if (s.Length > destination.Length)
-            {
-                ThrowFormatFailed();
-            }
+            if (s.Length > destination.Length) ThrowFormatFailed();
+
             var chars = s.AsSpan();
             for (int i = 0; i < chars.Length; i++)
             {
