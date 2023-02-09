@@ -888,7 +888,7 @@ namespace StackExchange.Redis
             return bridge;
         }
 
-        private async Task HandshakeAsync(PhysicalConnection connection, LogProxy? log)
+        private async Task HandshakeAsync(PhysicalConnection connection, LogProxy? log) // TODO: add HELLO 2/3 for RESP 2/3
         {
             log?.WriteLine($"{Format.ToString(this)}: Server handshake");
             if (connection == null)
