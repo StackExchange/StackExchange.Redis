@@ -174,7 +174,7 @@ namespace StackExchange.Redis
 
         internal static bool CouldBeInteger(string s)
         {
-            if (string.IsNullOrEmpty(s) || s.Length > PhysicalConnection.MaxInt64TextLen) return false;
+            if (string.IsNullOrEmpty(s) || s.Length > Format.MaxInt64TextLen) return false;
             bool isSigned = s[0] == '-';
             for (int i = isSigned ? 1 : 0; i < s.Length; i++)
             {
@@ -185,7 +185,7 @@ namespace StackExchange.Redis
         }
         internal static bool CouldBeInteger(ReadOnlySpan<byte> s)
         {
-            if (s.IsEmpty | s.Length > PhysicalConnection.MaxInt64TextLen) return false;
+            if (s.IsEmpty | s.Length > Format.MaxInt64TextLen) return false;
             bool isSigned = s[0] == '-';
             for (int i = isSigned ? 1 : 0; i < s.Length; i++)
             {
@@ -354,6 +354,89 @@ namespace StackExchange.Redis
             {
                 return Encoding.UTF8.GetString(ptr, span.Length);
             }
+        }
+
+        [DoesNotReturn]
+        private static void ThrowFormatFailed() => throw new InvalidOperationException("TryFormat failed");
+
+        internal const int
+            MaxInt32TextLen = 11, // -2,147,483,648 (not including the commas)
+            MaxInt64TextLen = 20; // -9,223,372,036,854,775,808 (not including the commas)
+
+        internal static int MeasureDouble(double value)
+        {
+            if (double.IsInfinity(value)) return 4; // +inf / -inf
+            var s = value.ToString("G17", NumberFormatInfo.InvariantInfo); // this looks inefficient, but is how Utf8Formatter works too, just: more direct
+            return s.Length;
+        }
+
+        internal static int FormatDouble(double value, Span<byte> destination)
+        {
+            if (double.IsInfinity(value))
+            {
+                if (double.IsPositiveInfinity(value))
+                {
+                    if (!"+inf"u8.TryCopyTo(destination))
+                    {
+                        ThrowFormatFailed();
+                    }
+                    return 4;
+                }
+                if (double.IsNegativeInfinity(value))
+                {
+                    if (!"-inf"u8.TryCopyTo(destination))
+                    {
+                        ThrowFormatFailed();
+                    }
+                    return 4;
+                }
+            }
+            if (!Utf8Formatter.TryFormat(value, destination, out var len))
+                ThrowFormatFailed();
+            var s = value.ToString("G17", NumberFormatInfo.InvariantInfo); // this looks inefficient, but is how Utf8Formatter works too, just: more direct
+            if (s.Length > destination.Length)
+            {
+                ThrowFormatFailed();
+            }
+            var chars = s.AsSpan();
+            for (int i = 0; i < chars.Length; i++)
+            {
+                destination[i] = (byte)chars[i];
+            }
+            return chars.Length;
+        }
+
+        internal static int MeasureInt64(long value)
+        {
+            Span<byte> valueSpan = stackalloc byte[MaxInt64TextLen];
+            return FormatInt64(value, valueSpan);
+        }
+
+        internal static int FormatInt64(long value, Span<byte> destination)
+        {
+            if (!Utf8Formatter.TryFormat(value, destination, out var len))
+                ThrowFormatFailed();
+            return len;
+        }
+
+        internal static int MeasureUInt64(ulong value)
+        {
+            Span<byte> valueSpan = stackalloc byte[MaxInt64TextLen];
+            return FormatUInt64(value, valueSpan);
+        }
+
+        internal static int FormatUInt64(ulong value, Span<byte> destination)
+        {
+            if (!Utf8Formatter.TryFormat(value, destination, out var len))
+                ThrowFormatFailed();
+            return len;
+        }
+
+        internal static int FormatInt32(int value, Span<byte> destination)
+        {
+            if (!Utf8Formatter.TryFormat(value, destination, out var len))
+                ThrowFormatFailed();
+            return len;
         }
     }
 }
