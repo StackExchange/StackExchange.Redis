@@ -1959,6 +1959,7 @@ namespace StackExchange.Redis
             {
                 var source = SimpleResultBox<T>.Get();
 
+                bool timeout = false;
                 lock (source)
                 {
 #pragma warning disable CS0618 // Type or member is obsolete
@@ -1976,10 +1977,15 @@ namespace StackExchange.Redis
                     else
                     {
                         Trace("Timeout performing " + message);
-                        Interlocked.Increment(ref syncTimeouts);
-                        throw ExceptionFactory.Timeout(this, null, message, server);
-                        // Very important not to return "source" to the pool here
+                        timeout = true;
                     }
+                }
+
+                if (timeout) // note we throw *outside* of the main lock to avoid deadlock scenarios (#2376)
+                {
+                    Interlocked.Increment(ref syncTimeouts);
+                    // Very important not to return "source" to the pool here
+                    throw ExceptionFactory.Timeout(this, null, message, server);
                 }
                 // Snapshot these so that we can recycle the box
                 var val = source.GetResult(out var ex, canRecycle: true); // now that we aren't locking it...
