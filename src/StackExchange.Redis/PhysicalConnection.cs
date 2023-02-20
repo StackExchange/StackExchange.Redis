@@ -4,6 +4,7 @@ using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.IO.Pipelines;
 using System.Linq;
@@ -396,9 +397,8 @@ namespace StackExchange.Redis
                     lock (_writtenAwaitingResponse)
                     {
                         // find oldest message awaiting a response
-                        if (_writtenAwaitingResponse.Count != 0)
+                        if (_writtenAwaitingResponse.TryPeek(out var next))
                         {
-                            var next = _writtenAwaitingResponse.Peek();
                             unansweredWriteTime = next.GetWriteTime();
                         }
                     }
@@ -478,34 +478,42 @@ namespace StackExchange.Redis
                     bridge?.OnConnectionFailed(this, failureType, outerException);
                 }
             }
-            // cleanup
+            // clean up (note: avoid holding the lock when we complete things, even if this means taking
+            // the lock multiple times; this is fine here - we shouldn't be fighting anyone, and we're already toast)
             lock (_writtenAwaitingResponse)
             {
                 bridge?.Trace(_writtenAwaitingResponse.Count != 0, "Failing outstanding messages: " + _writtenAwaitingResponse.Count);
-                while (_writtenAwaitingResponse.Count != 0)
-                {
-                    var next = _writtenAwaitingResponse.Dequeue();
+            }
 
-                    if (next.Command == RedisCommand.QUIT && next.TrySetResult(true))
+            while (TryDequeueLocked(_writtenAwaitingResponse, out var next))
+            {
+                if (next.Command == RedisCommand.QUIT && next.TrySetResult(true))
+                {
+                    // fine, death of a socket is close enough
+                    next.Complete();
+                }
+                else
+                {
+                    var ex = innerException is RedisException ? innerException : outerException;
+                    if (bridge != null)
                     {
-                        // fine, death of a socket is close enough
-                        next.Complete();
+                        bridge.Trace("Failing: " + next);
+                        bridge.Multiplexer?.OnMessageFaulted(next, ex, origin);
                     }
-                    else
-                    {
-                        var ex = innerException is RedisException ? innerException : outerException;
-                        if (bridge != null)
-                        {
-                            bridge.Trace("Failing: " + next);
-                            bridge.Multiplexer?.OnMessageFaulted(next, ex, origin);
-                        }
-                        next.SetExceptionAndComplete(ex!, bridge);
-                    }
+                    next.SetExceptionAndComplete(ex!, bridge);
                 }
             }
 
             // burn the socket
             Shutdown();
+
+            static bool TryDequeueLocked(Queue<Message> queue, [NotNullWhen(true)] out Message? message)
+            {
+                lock (queue)
+                {
+                    return queue.TryDequeue(out message);
+                }
+            }
         }
 
         internal bool IsIdle() => _writeStatus == WriteStatus.Idle;
@@ -1580,18 +1588,10 @@ namespace StackExchange.Redis
             _readStatus = ReadStatus.DequeueResult;
             lock (_writtenAwaitingResponse)
             {
-#if NET5_0_OR_GREATER
                 if (!_writtenAwaitingResponse.TryDequeue(out msg))
                 {
                     throw new InvalidOperationException("Received response with no message waiting: " + result.ToString());
                 }
-#else
-                if (_writtenAwaitingResponse.Count == 0)
-                {
-                    throw new InvalidOperationException("Received response with no message waiting: " + result.ToString());
-                }
-                msg = _writtenAwaitingResponse.Dequeue();
-#endif
             }
             _activeMessage = msg;
 
@@ -1632,9 +1632,23 @@ namespace StackExchange.Redis
         internal void GetHeadMessages(out Message? now, out Message? next)
         {
             now = _activeMessage;
-            lock(_writtenAwaitingResponse)
+            bool haveLock = false;
+            try
             {
-                next = _writtenAwaitingResponse.Count == 0 ? null : _writtenAwaitingResponse.Peek();
+                // careful locking here; a: don't try too hard (this is error info only), b: avoid deadlock (see #2376)
+                Monitor.TryEnter(_writtenAwaitingResponse, 10, ref haveLock);
+                if (haveLock)
+                {
+                    _writtenAwaitingResponse.TryPeek(out next);
+                }
+                else
+                {
+                    next = null;
+                }
+            }
+            finally
+            {
+                if (haveLock) Monitor.Exit(_writtenAwaitingResponse);
             }
         }
 
