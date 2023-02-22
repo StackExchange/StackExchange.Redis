@@ -1209,15 +1209,15 @@ namespace StackExchange.Redis
         public bool ConfigureEndPoints(string endpoints, TextWriter? log = null)
         {
             var newEndpoints = new EndPointCollection();
-            endpoints.Split(',').ToList().ForEach(endpoints => {
-                if (!string.IsNullOrWhiteSpace())
+            endpoints.Split(',').ToList().ForEach(endpoint => {
+                if (!string.IsNullOrWhiteSpace(endpoint))
                 {
                     return;
                 }
                 newEndpoints.TryAdd(endpoint);
             });
 
-            if (newEndpoints.Equals(Endpoints))
+            if (newEndpoints.Equals(EndPoints))
             {
                 return true;
             }
@@ -1226,11 +1226,11 @@ namespace StackExchange.Redis
             var obsoleteEndpoints = EndPoints.ToList().Except(newEndpoints).ToList();
             foreach (var oldEndpoint in obsoleteEndpoints)
             {
-                ((ServerEndpoint?)servers[oldEndpoint])?.SetUnselectable(UnselectableFlags.DidNotRespond);
+                ((ServerEndPoint?)servers[oldEndpoint])?.SetUnselectable(UnselectableFlags.DidNotRespond);
             }
 
             // Reconfigure with new connections
-            EndPoints = new EndPointCollection(endpoints);
+            EndPoints = new EndPointCollection(newEndpoints);
 
             if (!Configure(log))
             {
@@ -1254,15 +1254,15 @@ namespace StackExchange.Redis
         public async Task<bool> ConfigureEndPointsAsync(string endpoints, TextWriter? log = null)
         {
             var newEndpoints = new EndPointCollection();
-            endpoints.Split(',').ToList().ForEach(endpoints => {
-                if (!string.IsNullOrWhiteSpace())
+            endpoints.Split(',').ToList().ForEach(endpoint => {
+                if (!string.IsNullOrWhiteSpace(endpoint))
                 {
                     return;
                 }
                 newEndpoints.TryAdd(endpoint);
             });
 
-            if (newEndpoints.Equals(Endpoints))
+            if (newEndpoints.Equals(EndPoints))
             {
                 return true;
             }
@@ -1271,11 +1271,11 @@ namespace StackExchange.Redis
             var obsoleteEndpoints = EndPoints.ToList().Except(newEndpoints).ToList();
             foreach (var oldEndpoint in obsoleteEndpoints)
             {
-                ((ServerEndpoint?)servers[oldEndpoint])?.SetUnselectable(UnselectableFlags.DidNotRespond);
+                ((ServerEndPoint?)servers[oldEndpoint])?.SetUnselectable(UnselectableFlags.DidNotRespond);
             }
 
             // Reconfigure with new connections
-            EndPoints = new EndPointCollection(endpoints);
+            EndPoints = new EndPointCollection(newEndpoints);
 
             if (!await ConfigureAsync(log))
             {
