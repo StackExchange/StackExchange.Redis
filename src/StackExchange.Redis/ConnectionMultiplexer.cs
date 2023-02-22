@@ -43,7 +43,7 @@ namespace StackExchange.Redis
         internal bool IsDisposed => _isDisposed;
 
         internal CommandMap CommandMap { get; }
-        internal EndPointCollection EndPoints { get; }
+        internal EndPointCollection EndPoints { get; set; }
         internal ConfigurationOptions RawConfig { get; }
         internal ServerSelectionStrategy ServerSelectionStrategy { get; }
         internal Exception? LastException { get; set; }
@@ -1198,6 +1198,97 @@ namespace StackExchange.Redis
         {
             using var logProxy = LogProxy.TryCreate(log);
             return await ReconfigureAsync(first: false, reconfigureAll: true, logProxy, null, "configure").ObserveErrors().ForAwait();
+        }
+
+
+        /// <summary>
+        /// Reconfigure the connections based on a new endpoint string
+        /// </summary>
+        /// <param name="endpoints">Comma delimited string of new endpoints to configure with</param>
+        /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
+        public bool ConfigureEndPoints(string endpoints, TextWriter? log = null)
+        {
+            var newEndpoints = new EndPointCollection();
+            endpoints.Split(',').ToList().ForEach(endpoints => {
+                if (!string.IsNullOrWhiteSpace())
+                {
+                    return;
+                }
+                newEndpoints.TryAdd(endpoint);
+            });
+
+            if (newEndpoints.Equals(Endpoints))
+            {
+                return true;
+            }
+
+            // Mark obsolete connections as unselectable
+            var obsoleteEndpoints = EndPoints.ToList().Except(newEndpoints).ToList();
+            foreach (var oldEndpoint in obsoleteEndpoints)
+            {
+                ((ServerEndpoint?)servers[oldEndpoint])?.SetUnselectable(UnselectableFlags.DidNotRespond);
+            }
+
+            // Reconfigure with new connections
+            EndPoints = new EndPointCollection(endpoints);
+
+            if (!Configure(log))
+            {
+                return false;
+            }
+
+            // Reset the slot balance for proxies
+            if (RawConfig.Proxy != Proxy.None)
+            {
+                ServerSelectionStrategy.ResetMap();
+            }
+
+            return true;
+        }
+
+         /// <summary>
+        /// Reconfigure the connections based on a new endpoint string
+        /// </summary>
+        /// <param name="endpoints">Comma delimited string of new endpoints to configure with</param>
+        /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
+        public async Task<bool> ConfigureEndPointsAsync(string endpoints, TextWriter? log = null)
+        {
+            var newEndpoints = new EndPointCollection();
+            endpoints.Split(',').ToList().ForEach(endpoints => {
+                if (!string.IsNullOrWhiteSpace())
+                {
+                    return;
+                }
+                newEndpoints.TryAdd(endpoint);
+            });
+
+            if (newEndpoints.Equals(Endpoints))
+            {
+                return true;
+            }
+
+            // Mark obsolete connections as unselectable
+            var obsoleteEndpoints = EndPoints.ToList().Except(newEndpoints).ToList();
+            foreach (var oldEndpoint in obsoleteEndpoints)
+            {
+                ((ServerEndpoint?)servers[oldEndpoint])?.SetUnselectable(UnselectableFlags.DidNotRespond);
+            }
+
+            // Reconfigure with new connections
+            EndPoints = new EndPointCollection(endpoints);
+
+            if (!await ConfigureAsync(log))
+            {
+                return false;
+            }
+
+            // Reset the slot balance for proxies
+            if (RawConfig.Proxy != Proxy.None)
+            {
+                ServerSelectionStrategy.ResetMap();
+            }
+
+            return true;
         }
 
         internal int SyncConnectTimeout(bool forConnect)
