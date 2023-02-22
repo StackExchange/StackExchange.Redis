@@ -219,16 +219,16 @@ namespace StackExchange.Redis
         /// <summary>
         /// Reconfigure the connections based on a new endpoint string
         /// </summary>
-        /// <param name="endpoints">Comma delimited string of new endpoints to configure with</param>
+        /// <param name="endpoints">Set of new endpoints to configure with</param>
         /// <param name="log">The log to write output to.</param>
-        Task<bool> ConfigureEndPoints(string endpoints, TextWriter? log = null);
+        Task<bool> ConfigureEndPointsAsync(string endpoints, TextWriter? log = null);
 
         /// <summary>
         /// Reconfigure the connections based on a new endpoint string
         /// </summary>
-        /// <param name="endpoints">Set of new endpoints to configure with</param>
+        /// <param name="endpoints">Comma delimited string of new endpoints to configure with</param>
         /// <param name="log">The log to write output to.</param>
-        Task<bool> ConfigureEndPointsAsync(string endpoints, TextWriter? log = null);
+        bool ConfigureEndPoints(string endpoints, TextWriter? log = null);
 
         /// <summary>
         /// Provides a text overview of the status of all connections.
