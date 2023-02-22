@@ -1212,7 +1212,7 @@ namespace StackExchange.Redis
             endpoints.Split(',').ToList().ForEach(endpoint => {
                 if (!string.IsNullOrWhiteSpace(endpoint)) return;
                 var parsedEndpoint = EndPointCollection.TryParse(endpoint);
-                if (!parsedEndpoint) return;
+                if (parsedEndpoint == null) return;
                 newEndpoints.TryAdd(parsedEndpoint);
             });
 
@@ -1256,7 +1256,7 @@ namespace StackExchange.Redis
             endpoints.Split(',').ToList().ForEach(endpoint => {
                 if (!string.IsNullOrWhiteSpace(endpoint)) return;
                 var parsedEndpoint = EndPointCollection.TryParse(endpoint);
-                if (!parsedEndpoint) return;
+                if (parsedEndpoint == null) return;
                 newEndpoints.TryAdd(parsedEndpoint);
             });
 
