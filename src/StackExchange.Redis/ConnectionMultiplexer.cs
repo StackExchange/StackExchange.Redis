@@ -1214,7 +1214,7 @@ namespace StackExchange.Redis
                 {
                     return;
                 }
-                newEndpoints.TryAdd(endpoint);
+                newEndpoints.TryAdd(EndPointCollection.TryParse(endpoint));
             });
 
             if (newEndpoints.Equals(EndPoints))
@@ -1259,7 +1259,7 @@ namespace StackExchange.Redis
                 {
                     return;
                 }
-                newEndpoints.TryAdd(endpoint);
+                newEndpoints.TryAdd(EndPointCollection.TryParse(endpoint));
             });
 
             if (newEndpoints.Equals(EndPoints))
