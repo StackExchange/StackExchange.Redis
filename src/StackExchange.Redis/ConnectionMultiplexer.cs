@@ -1210,11 +1210,10 @@ namespace StackExchange.Redis
         {
             var newEndpoints = new EndPointCollection();
             endpoints.Split(',').ToList().ForEach(endpoint => {
-                if (!string.IsNullOrWhiteSpace(endpoint))
-                {
-                    return;
-                }
-                newEndpoints.TryAdd(EndPointCollection.TryParse(endpoint));
+                if (!string.IsNullOrWhiteSpace(endpoint)) return;
+                var parsedEndpoint = EndPointCollection.TryParse(endpoint);
+                if (!parsedEndpoint) return;
+                newEndpoints.TryAdd(parsedEndpoint);
             });
 
             if (newEndpoints.Equals(EndPoints))
@@ -1255,11 +1254,10 @@ namespace StackExchange.Redis
         {
             var newEndpoints = new EndPointCollection();
             endpoints.Split(',').ToList().ForEach(endpoint => {
-                if (!string.IsNullOrWhiteSpace(endpoint))
-                {
-                    return;
-                }
-                newEndpoints.TryAdd(EndPointCollection.TryParse(endpoint));
+                if (!string.IsNullOrWhiteSpace(endpoint)) return;
+                var parsedEndpoint = EndPointCollection.TryParse(endpoint);
+                if (!parsedEndpoint) return;
+                newEndpoints.TryAdd(parsedEndpoint);
             });
 
             if (newEndpoints.Equals(EndPoints))
