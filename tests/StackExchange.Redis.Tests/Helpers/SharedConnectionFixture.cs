@@ -133,6 +133,10 @@ public class SharedConnectionFixture : IDisposable
 
         public Task<bool> ConfigureAsync(TextWriter? log = null) => _inner.ConfigureAsync(log);
 
+        public bool ConfigureEndPoints(string endpoints, TextWriter? log = null) => _inner.ConfigureEndPoints(endpoints, log);
+
+        public Task<bool> ConfigureEndPointsAsync(string endpoints, TextWriter? log = null) => _inner.ConfigureEndPointsAsync(endpoints, log);
+
         public void Dispose() { } // DO NOT call _inner.Dispose();
 
         public ValueTask DisposeAsync() => default; // DO NOT call _inner.DisposeAsync();

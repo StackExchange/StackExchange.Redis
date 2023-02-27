@@ -264,6 +264,11 @@ namespace StackExchange.Redis
             }
         }
 
+        internal void ResetMap()
+        {
+            map = new ServerEndPoint[RedisClusterSlotCount];
+        }
+
         private static unsafe int IndexOf(byte* ptr, byte value, int start, int end)
         {
             for (int offset = start; offset < end; offset++)

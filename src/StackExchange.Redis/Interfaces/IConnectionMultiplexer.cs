@@ -217,6 +217,20 @@ namespace StackExchange.Redis
         bool Configure(TextWriter? log = null);
 
         /// <summary>
+        /// Reconfigure the connections based on a new endpoint string
+        /// </summary>
+        /// <param name="endpoints">Set of new endpoints to configure with</param>
+        /// <param name="log">The log to write output to.</param>
+        Task<bool> ConfigureEndPointsAsync(string endpoints, TextWriter? log = null);
+
+        /// <summary>
+        /// Reconfigure the connections based on a new endpoint string
+        /// </summary>
+        /// <param name="endpoints">Comma delimited string of new endpoints to configure with</param>
+        /// <param name="log">The log to write output to.</param>
+        bool ConfigureEndPoints(string endpoints, TextWriter? log = null);
+
+        /// <summary>
         /// Provides a text overview of the status of all connections.
         /// </summary>
         string GetStatus();

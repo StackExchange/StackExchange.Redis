@@ -317,6 +317,8 @@ StackExchange.Redis.ConnectionMultiplexer.ConfigurationChanged -> System.EventHa
 StackExchange.Redis.ConnectionMultiplexer.ConfigurationChangedBroadcast -> System.EventHandler<StackExchange.Redis.EndPointEventArgs!>?
 StackExchange.Redis.ConnectionMultiplexer.Configure(System.IO.TextWriter? log = null) -> bool
 StackExchange.Redis.ConnectionMultiplexer.ConfigureAsync(System.IO.TextWriter? log = null) -> System.Threading.Tasks.Task<bool>!
+StackExchange.Redis.ConnectionMultiplexer.ConfigureEndPoints(string! endpoints, System.IO.TextWriter? log = null) -> bool
+StackExchange.Redis.ConnectionMultiplexer.ConfigureEndPointsAsync(string! endpoints, System.IO.TextWriter? log = null) -> System.Threading.Tasks.Task<bool>!
 StackExchange.Redis.ConnectionMultiplexer.ConnectionFailed -> System.EventHandler<StackExchange.Redis.ConnectionFailedEventArgs!>?
 StackExchange.Redis.ConnectionMultiplexer.ConnectionRestored -> System.EventHandler<StackExchange.Redis.ConnectionFailedEventArgs!>?
 StackExchange.Redis.ConnectionMultiplexer.Dispose() -> void
@@ -461,6 +463,8 @@ StackExchange.Redis.IConnectionMultiplexer.ConfigurationChanged -> System.EventH
 StackExchange.Redis.IConnectionMultiplexer.ConfigurationChangedBroadcast -> System.EventHandler<StackExchange.Redis.EndPointEventArgs!>!
 StackExchange.Redis.IConnectionMultiplexer.Configure(System.IO.TextWriter? log = null) -> bool
 StackExchange.Redis.IConnectionMultiplexer.ConfigureAsync(System.IO.TextWriter? log = null) -> System.Threading.Tasks.Task<bool>!
+StackExchange.Redis.IConnectionMultiplexer.ConfigureEndPoints(string! endpoints, System.IO.TextWriter? log = null) -> bool
+StackExchange.Redis.IConnectionMultiplexer.ConfigureEndPointsAsync(string! endpoints, System.IO.TextWriter? log = null) -> System.Threading.Tasks.Task<bool>!
 StackExchange.Redis.IConnectionMultiplexer.ConnectionFailed -> System.EventHandler<StackExchange.Redis.ConnectionFailedEventArgs!>!
 StackExchange.Redis.IConnectionMultiplexer.ConnectionRestored -> System.EventHandler<StackExchange.Redis.ConnectionFailedEventArgs!>!
 StackExchange.Redis.IConnectionMultiplexer.ErrorMessage -> System.EventHandler<StackExchange.Redis.RedisErrorEventArgs!>!
