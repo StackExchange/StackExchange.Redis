@@ -7,7 +7,7 @@ init:
 install:
 - cmd: >-
     choco install dotnet-sdk --version 6.0.406 --force
-    choco install dotnet-sdk --version 7.0.201 --force
+    choco install dotnet-sdk --version 7.0.200 --force
 
     cd tests\RedisConfigs\3.0.503
 
