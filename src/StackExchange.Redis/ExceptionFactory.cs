@@ -333,6 +333,7 @@ namespace StackExchange.Redis
                 }
                 Add(data, sb, "Server-Endpoint", "serverEndpoint", (server.EndPoint.ToString() ?? "Unknown").Replace("Unspecified/", ""));
                 Add(data, sb, "Server-Connected-Seconds", "conn-sec", bs.ConnectedAt is DateTime dt ? (DateTime.UtcNow - dt).TotalSeconds.ToString("0.##") : "n/a");
+                Add(data, sb, "Abort-On-Connect", "aoc", multiplexer.RawConfig.AbortOnConnectFail ? "1" : "0'");
             }
             Add(data, sb, "Multiplexer-Connects", "mc", $"{multiplexer._connectAttemptCount}/{multiplexer._connectCompletedCount}/{multiplexer._connectionCloseCount}");
             Add(data, sb, "Manager", "mgr", multiplexer.SocketManager?.GetState());
