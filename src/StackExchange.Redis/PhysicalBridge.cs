@@ -869,14 +869,14 @@ namespace StackExchange.Redis
             while (_backlog.TryPeek(out Message? message))
             {
                 // See if the message has pass our async timeout threshold
-                // or has otherwise been completed (e.g. a sync wait timed out) which would have cleared the ResultBox
-                if (!message.HasTimedOut(now, timeout, out var _) || message.ResultBox == null) break; // not a timeout - we can stop looking
+                // Note: All timed out messages must be dequeued, even when no completion is needed, to be able to dequeue and complete other timed out messages.
+                if (!message.HasTimedOut(now, timeout, out var _)) break; // not a timeout - we can stop looking
                 lock (_backlog)
                 {
                     // Peek again since we didn't have lock before...
                     // and rerun the exact same checks as above, note that it may be a different message now
                     if (!_backlog.TryPeek(out message)) break;
-                    if (!message.HasTimedOut(now, timeout, out var _) && message.ResultBox != null) break;
+                    if (!message.HasTimedOut(now, timeout, out var _)) break;
 
                     if (!BacklogTryDequeue(out var message2) || (message != message2)) // consume it for real
                     {
@@ -884,10 +884,15 @@ namespace StackExchange.Redis
                     }
                 }
 
-                // Tell the message it has failed
-                // Note: Attempting to *avoid* reentrancy/deadlock issues by not holding the lock while completing messages.
-                var ex = Multiplexer.GetException(WriteResult.TimeoutBeforeWrite, message, ServerEndPoint);
-                message.SetExceptionAndComplete(ex, this);
+                // We only handle async timeouts here, synchronous timeouts are handled upstream.
+                // Those sync timeouts happen in ConnectionMultiplexer.ExecuteSyncImpl() via Monitor.Wait.
+                if (message.ResultBoxIsAsync)
+                {
+                    // Tell the message it has failed
+                    // Note: Attempting to *avoid* reentrancy/deadlock issues by not holding the lock while completing messages.
+                    var ex = Multiplexer.GetException(WriteResult.TimeoutBeforeWrite, message, ServerEndPoint);
+                    message.SetExceptionAndComplete(ex, this);
+                }
             }
         }
 
