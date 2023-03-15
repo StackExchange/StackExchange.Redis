@@ -8,7 +8,7 @@ Current package versions:
 
 ## Unreleased
 
-- Fix [#2400](https://github.com/StackExchange/StackExchange.Redis/issues/2400): Expose `ChannelMessageQueue` as `IAsyncEnumerable<ChannelMessage>` ([#???? by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/????))
+- Fix [#2400](https://github.com/StackExchange/StackExchange.Redis/issues/2400): Expose `ChannelMessageQueue` as `IAsyncEnumerable<ChannelMessage>` ([#2402 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2402))
 
 ## 2.6.96
 
