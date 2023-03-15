@@ -309,6 +309,40 @@ public class PubSubTests : TestBase
     }
 
     [Fact]
+    public async Task SubscribeAsyncEnumerable()
+    {
+        using var conn = Create(syncTimeout: 20000, shared: false, log: Writer);
+
+        var sub = conn.GetSubscriber();
+        RedisChannel channel = Me();
+
+        const int TO_SEND = 5;
+        var gotall = new TaskCompletionSource<int>();
+
+        var source = await sub.SubscribeAsync(channel);
+        var op = Task.Run(async () => {
+            int count = 0;
+            await foreach (var item in source)
+            {
+                count++;
+                if (count == TO_SEND) gotall.TrySetResult(count);
+            }
+            return count;
+        });
+
+        for (int i = 0; i < TO_SEND; i++)
+        {
+            await sub.PublishAsync(channel, i);
+        }
+        await gotall.Task.WithTimeout(5000);
+
+        // check the enumerator exits cleanly
+        sub.Unsubscribe(channel);
+        var count = await op.WithTimeout(1000);
+        Assert.Equal(5, count);
+    }
+
+    [Fact]
     public async Task PubSubGetAllAnyOrder()
     {
         using var sonn = Create(syncTimeout: 20000, shared: false, log: Writer);
