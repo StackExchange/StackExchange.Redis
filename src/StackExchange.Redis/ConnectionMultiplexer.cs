@@ -1202,12 +1202,18 @@ namespace StackExchange.Redis
 
 
         /// <summary>
-        /// Reconfigure the connections based on a new endpoint string
+        /// Reconfigure the connections based on a new endpoint string. For refreshing proxy connections.
         /// </summary>
         /// <param name="endpoints">Comma delimited string of new endpoints to configure with</param>
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
         public bool ConfigureEndPoints(string endpoints, TextWriter? log = null)
         {
+            // Reset the slot balance for proxies
+            if (RawConfig.Proxy == Proxy.None)
+            {
+                return true;
+            }
+
             var newEndpoints = new EndPointCollection();
             endpoints.Split(',').ToList().ForEach(endpoint => {
                 if (!string.IsNullOrWhiteSpace(endpoint)) return;
@@ -1236,22 +1242,23 @@ namespace StackExchange.Redis
                 return false;
             }
 
-            // Reset the slot balance for proxies
-            if (RawConfig.Proxy != Proxy.None)
-            {
-                ServerSelectionStrategy.ResetMap();
-            }
+            ServerSelectionStrategy.ResetMap();
 
             return true;
         }
 
          /// <summary>
-        /// Reconfigure the connections based on a new endpoint string
+        /// Reconfigure the connections based on a new endpoint string. For refreshing proxy connections.
         /// </summary>
         /// <param name="endpoints">Comma delimited string of new endpoints to configure with</param>
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
         public async Task<bool> ConfigureEndPointsAsync(string endpoints, TextWriter? log = null)
         {
+            if (RawConfig.Proxy == Proxy.None)
+            {
+                return true;
+            }
+
             var newEndpoints = new EndPointCollection();
             endpoints.Split(',').ToList().ForEach(endpoint => {
                 if (!string.IsNullOrWhiteSpace(endpoint)) return;
@@ -1281,10 +1288,7 @@ namespace StackExchange.Redis
             }
 
             // Reset the slot balance for proxies
-            if (RawConfig.Proxy != Proxy.None)
-            {
-                ServerSelectionStrategy.ResetMap();
-            }
+            ServerSelectionStrategy.ResetMap();
 
             return true;
         }
