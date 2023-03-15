@@ -79,6 +79,7 @@ StackExchange.Redis.ChannelMessage.SubscriptionChannel.get -> StackExchange.Redi
 StackExchange.Redis.ChannelMessageQueue
 StackExchange.Redis.ChannelMessageQueue.Channel.get -> StackExchange.Redis.RedisChannel
 StackExchange.Redis.ChannelMessageQueue.Completion.get -> System.Threading.Tasks.Task!
+StackExchange.Redis.ChannelMessageQueue.GetAsyncEnumerator(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Collections.Generic.IAsyncEnumerator<StackExchange.Redis.ChannelMessage>!
 StackExchange.Redis.ChannelMessageQueue.OnMessage(System.Action<StackExchange.Redis.ChannelMessage>! handler) -> void
 StackExchange.Redis.ChannelMessageQueue.OnMessage(System.Func<StackExchange.Redis.ChannelMessage, System.Threading.Tasks.Task!>! handler) -> void
 StackExchange.Redis.ChannelMessageQueue.ReadAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<StackExchange.Redis.ChannelMessage>
