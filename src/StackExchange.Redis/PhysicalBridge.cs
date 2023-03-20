@@ -114,6 +114,7 @@ namespace StackExchange.Redis
         public void Dispose()
         {
             isDisposed = true;
+            _backlogAutoReset?.Set();
             _backlogAutoReset?.Dispose();
             using (var tmp = physical)
             {
@@ -809,6 +810,7 @@ namespace StackExchange.Redis
         private void BacklogEnqueue(Message message)
         {
             _backlog.Enqueue(message);
+            message.SetBacklogged();
             Interlocked.Increment(ref _backlogTotalEnqueued);
         }
 
@@ -868,15 +870,15 @@ namespace StackExchange.Redis
             // But we reduce contention by only locking if we see something that looks timed out.
             while (_backlog.TryPeek(out Message? message))
             {
-                // See if the message has pass our async timeout threshold
+                // See if the message has passed our async timeout threshold
                 // or has otherwise been completed (e.g. a sync wait timed out) which would have cleared the ResultBox
-                if (!message.HasTimedOut(now, timeout, out var _) || message.ResultBox == null) break; // not a timeout - we can stop looking
+                if (!message.HasTimedOut(now, timeout, out var _)) break; // not a timeout - we can stop looking
                 lock (_backlog)
                 {
                     // Peek again since we didn't have lock before...
                     // and rerun the exact same checks as above, note that it may be a different message now
                     if (!_backlog.TryPeek(out message)) break;
-                    if (!message.HasTimedOut(now, timeout, out var _) && message.ResultBox != null) break;
+                    if (!message.HasTimedOut(now, timeout, out var _)) break;
 
                     if (!BacklogTryDequeue(out var message2) || (message != message2)) // consume it for real
                     {
@@ -886,7 +888,7 @@ namespace StackExchange.Redis
 
                 // Tell the message it has failed
                 // Note: Attempting to *avoid* reentrancy/deadlock issues by not holding the lock while completing messages.
-                var ex = Multiplexer.GetException(WriteResult.TimeoutBeforeWrite, message, ServerEndPoint);
+                var ex = Multiplexer.GetException(WriteResult.TimeoutBeforeWrite, message, ServerEndPoint, this);
                 message.SetExceptionAndComplete(ex, this);
             }
         }
@@ -909,6 +911,7 @@ namespace StackExchange.Redis
             RecordingFault,
             SettingIdle,
             Faulted,
+            NotifyingDisposed,
         }
 
         private volatile BacklogStatus _backlogStatus;
@@ -921,7 +924,7 @@ namespace StackExchange.Redis
             _backlogStatus = BacklogStatus.Starting;
             try
             {
-                while (true)
+                while (!isDisposed)
                 {
                     if (!_backlog.IsEmpty)
                     {
@@ -941,8 +944,34 @@ namespace StackExchange.Redis
                         break;
                     }
                 }
+                // If we're being disposed but have items in the backlog, we need to complete them or async messages can linger forever.
+                if (isDisposed && BacklogHasItems)
+                {
+                    _backlogStatus = BacklogStatus.NotifyingDisposed;
+                    // Because peeking at the backlog, checking message and then dequeuing, is not thread-safe, we do have to use
+                    // a lock here, for mutual exclusion of backlog DEQUEUERS. Unfortunately.
+                    // But we reduce contention by only locking if we see something that looks timed out.
+                    while (BacklogHasItems)
+                    {
+                        Message? message = null;
+                        lock (_backlog)
+                        {
+                            if (!BacklogTryDequeue(out message))
+                            {
+                                break;
+                            }
+                        }
+                        
+                        var ex = ExceptionFactory.Timeout(Multiplexer, "The message was in the backlog when connection was disposed", message, ServerEndPoint, WriteResult.TimeoutBeforeWrite, this);
+                        message.SetExceptionAndComplete(ex, this);
+                    }
+                }
             }
-            catch
+            catch (ObjectDisposedException) when (!BacklogHasItems)
+            {
+                // We're being torn down and we have no backlog to process - all good.
+            }
+            catch (Exception ex)
             {
                 _backlogStatus = BacklogStatus.Faulted;
             }

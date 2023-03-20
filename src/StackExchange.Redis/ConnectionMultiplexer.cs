@@ -1909,11 +1909,11 @@ namespace StackExchange.Redis
         /// </summary>
         public override string ToString() => string.IsNullOrWhiteSpace(ClientName) ? GetType().Name : ClientName;
 
-        internal Exception GetException(WriteResult result, Message message, ServerEndPoint? server) => result switch
+        internal Exception GetException(WriteResult result, Message message, ServerEndPoint? server, PhysicalBridge? bridge = null) => result switch
         {
             WriteResult.Success => throw new ArgumentOutOfRangeException(nameof(result), "Be sure to check result isn't successful before calling GetException."),
             WriteResult.NoConnectionAvailable => ExceptionFactory.NoConnectionAvailable(this, message, server),
-            WriteResult.TimeoutBeforeWrite => ExceptionFactory.Timeout(this, "The timeout was reached before the message could be written to the output buffer, and it was not sent", message, server, result),
+            WriteResult.TimeoutBeforeWrite => ExceptionFactory.Timeout(this, null, message, server, result, bridge),
             _ => ExceptionFactory.ConnectionFailure(RawConfig.IncludeDetailInExceptions, ConnectionFailureType.ProtocolFailure, "An unknown error occurred when writing the message", server),
         };
 
@@ -1960,10 +1960,11 @@ namespace StackExchange.Redis
                 var source = SimpleResultBox<T>.Get();
 
                 bool timeout = false;
+                WriteResult result;
                 lock (source)
                 {
 #pragma warning disable CS0618 // Type or member is obsolete
-                    var result = TryPushMessageToBridgeSync(message, processor, source, ref server);
+                    result = TryPushMessageToBridgeSync(message, processor, source, ref server);
 #pragma warning restore CS0618
                     if (result != WriteResult.Success)
                     {
@@ -1985,7 +1986,8 @@ namespace StackExchange.Redis
                 {
                     Interlocked.Increment(ref syncTimeouts);
                     // Very important not to return "source" to the pool here
-                    throw ExceptionFactory.Timeout(this, null, message, server);
+                    // Also note we return "success" when queueing a messages to the backlog, so we need to manually fake it back here when timing out in the backlog
+                    throw ExceptionFactory.Timeout(this, null, message, server, message.IsBacklogged ? WriteResult.TimeoutBeforeWrite : result, server?.GetBridge(message.Command, create: false));
                 }
                 // Snapshot these so that we can recycle the box
                 var val = source.GetResult(out var ex, canRecycle: true); // now that we aren't locking it...
