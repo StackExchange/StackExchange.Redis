@@ -114,17 +114,27 @@ namespace StackExchange.Redis
         public void Dispose()
         {
             isDisposed = true;
-            _backlogAutoReset?.Set();
-            _backlogAutoReset?.Dispose();
+            // If there's anything in the backlog and we're being torn down - exfil it immediately (e.g. so all awaitables complete)
+            AbandonPendingBacklog(new ObjectDisposedException("Connection is being disposed"));
+            try
+            {
+                _backlogAutoReset?.Set();
+                _backlogAutoReset?.Dispose();
+            }
+            catch { }
             using (var tmp = physical)
             {
                 physical = null;
             }
             GC.SuppressFinalize(this);
         }
+
         ~PhysicalBridge()
         {
             isDisposed = true; // make damn sure we don't true to resurrect
+
+            // If there's anything in the backlog and we're being torn down - exfil it immediately (e.g. so all awaitables complete)
+            AbandonPendingBacklog(new ObjectDisposedException("Connection is being finalized"));
 
             // shouldn't *really* touch managed objects
             // in a finalizer, but we need to kill that socket,
@@ -971,7 +981,7 @@ namespace StackExchange.Redis
             {
                 // We're being torn down and we have no backlog to process - all good.
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 _backlogStatus = BacklogStatus.Faulted;
             }
