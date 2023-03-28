@@ -1129,7 +1129,7 @@ namespace StackExchange.Redis
 
         public bool HasPendingCallerFacingItems()
         {
-            if (!_backlog.IsEmpty)
+            if (BacklogHasItems)
             {
                 foreach (var item in _backlog) // non-consuming, thread-safe, etc
                 {
