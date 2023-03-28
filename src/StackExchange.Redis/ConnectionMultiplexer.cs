@@ -931,8 +931,6 @@ namespace StackExchange.Redis
 
             private static readonly TimerCallback Heartbeat = state =>
             {
-                WeakReference<string> a = null!;
-                GC.KeepAlive(a);
                 var token = (TimerToken)state!;
                 if (token._weakRef.TryGetTarget(out var muxer))
                 {
