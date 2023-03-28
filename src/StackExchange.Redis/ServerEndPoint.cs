@@ -994,7 +994,7 @@ namespace StackExchange.Redis
         internal bool HasPendingCallerFacingItems()
         {
             // check whichever bridges exist
-            if (interactive is { } tmp && tmp.HasPendingCallerFacingItems()) return true;
+            if (interactive?.HasPendingCallerFacingItems() == true) return true;
             return subscription?.HasPendingCallerFacingItems() ?? false;
         }
     }
