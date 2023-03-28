@@ -561,7 +561,6 @@ namespace StackExchange.Redis
 
         internal void EnqueueInsideWriteLock(Message next)
         {
-            bool wasEmpty;
             var multiplexer = BridgeCouldBeNull?.Multiplexer;
             if (multiplexer is null)
             {
@@ -571,6 +570,8 @@ namespace StackExchange.Redis
                 next.Cancel();
                 next.Complete();
             }
+
+            bool wasEmpty;
             lock (_writtenAwaitingResponse)
             {
                 wasEmpty = _writtenAwaitingResponse.Count == 0;
