@@ -1,6 +1,1 @@
-﻿StackExchange.Redis.ClientInfo.LibraryName.get -> string?
-StackExchange.Redis.ClientInfo.LibraryVersion.get -> string?
-StackExchange.Redis.ClientInfo.ProtocolVersion.get -> string?
-StackExchange.Redis.ConfigurationOptions.SetClientLibrary.get -> bool
-StackExchange.Redis.ConfigurationOptions.SetClientLibrary.set -> void
-virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.SetClientLibrary.get -> bool
+﻿
