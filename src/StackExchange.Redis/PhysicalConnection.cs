@@ -561,9 +561,29 @@ namespace StackExchange.Redis
 
         internal void EnqueueInsideWriteLock(Message next)
         {
+            bool wasEmpty;
+            var multiplexer = BridgeCouldBeNull?.Multiplexer;
+            if (multiplexer is null)
+            {
+                // multiplexer already collected? then we're almost certainly doomed;
+                // we can still process it to avoid making things worse/more complex,
+                // but: we can't reliably assume this works, so: shout now!
+                next.Cancel();
+                next.Complete();
+            }
             lock (_writtenAwaitingResponse)
             {
+                wasEmpty = _writtenAwaitingResponse.Count == 0;
                 _writtenAwaitingResponse.Enqueue(next);
+            }
+            if (wasEmpty)
+            {
+                // it is important to do this *after* adding, so that we can't
+                // get into a thread-race where the heartbeat checks too fast;
+                // the fact that we're accessing Multiplexer down here means that
+                // we're rooting it ourselves via the stack, so we don't need
+                // to worry about it being collected until at least after this
+                multiplexer?.Root();
             }
         }
 
@@ -1974,6 +1994,21 @@ namespace StackExchange.Redis
                 iter.GetNext() = new RawResult(line.Type, token, false);
             }
             return new RawResult(block, false);
+        }
+
+        internal bool HasPendingCallerFacingItems()
+        {
+            lock (_writtenAwaitingResponse)
+            {
+                if (_writtenAwaitingResponse.Count != 0)
+                {
+                    foreach (var item in _writtenAwaitingResponse)
+                    {
+                        if (!item.IsInternalCall) return true;
+                    }
+                }
+            }
+            return false;
         }
     }
 }
