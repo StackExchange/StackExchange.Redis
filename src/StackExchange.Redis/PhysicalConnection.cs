@@ -2016,8 +2016,8 @@ namespace StackExchange.Redis
                 }
                 else
                 {
-                    // don't content; *presume* that something is demanded; we
-                    // can check again next heartbeat
+                    // don't contend the lock; *presume* that something
+                    // qualifies; we can check again next heartbeat
                     return true;
                 }
             }
