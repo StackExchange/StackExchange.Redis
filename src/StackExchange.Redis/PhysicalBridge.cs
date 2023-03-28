@@ -820,9 +820,11 @@ namespace StackExchange.Redis
         private void BacklogEnqueue(Message message)
         {
             bool wasEmpty = _backlog.IsEmpty;
+            // important that this *precedes* enqueue, to play well with HasPendingCallerFacingItems
+            Interlocked.Increment(ref _backlogCurrentEnqueued);
+            Interlocked.Increment(ref _backlogTotalEnqueued);
             _backlog.Enqueue(message);
             message.SetBacklogged();
-            Interlocked.Increment(ref _backlogTotalEnqueued);
 
             if (wasEmpty)
             {
@@ -1127,7 +1129,7 @@ namespace StackExchange.Redis
 
         public bool HasPendingCallerFacingItems()
         {
-            if (_backlog.Count != 0)
+            if (Volatile.Read(ref _backlogCurrentEnqueued) != 0)
             {
                 foreach (var item in _backlog) // non-consuming, thread-safe, etc
                 {
