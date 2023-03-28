@@ -1998,17 +1998,32 @@ namespace StackExchange.Redis
 
         internal bool HasPendingCallerFacingItems()
         {
-            lock (_writtenAwaitingResponse)
+            bool lockTaken = false;
+            try
             {
-                if (_writtenAwaitingResponse.Count != 0)
+                Monitor.TryEnter(_writtenAwaitingResponse, 0, ref lockTaken);
+                if (lockTaken)
                 {
-                    foreach (var item in _writtenAwaitingResponse)
+                    if (_writtenAwaitingResponse.Count != 0)
                     {
-                        if (!item.IsInternalCall) return true;
+                        foreach (var item in _writtenAwaitingResponse)
+                        {
+                            if (!item.IsInternalCall) return true;
+                        }
                     }
+                    return false;
+                }
+                else
+                {
+                    // don't content; *presume* that something is demanded; we
+                    // can check again next heartbeat
+                    return true;
                 }
             }
-            return false;
+            finally
+            {
+                if (lockTaken) Monitor.Exit(_writtenAwaitingResponse);
+            }
         }
     }
 }
