@@ -221,7 +221,7 @@ namespace StackExchange.Redis
             if (string.IsNullOrEmpty(baseErrorMessage) && result == WriteResult.TimeoutBeforeWrite)
             {
                 baseErrorMessage = message.IsBacklogged
-                    ? "The message timed out in the backlog attemtping to send because no connection became available"
+                    ? "The message timed out in the backlog attempting to send because no connection became available"
                     : "The timeout was reached before the message could be written to the output buffer, and it was not sent";
             }
 
