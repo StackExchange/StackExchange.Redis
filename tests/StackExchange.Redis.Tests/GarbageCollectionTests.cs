@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
@@ -51,5 +52,44 @@ public class GarbageCollectionTests : TestBase
 //            int after = ConnectionMultiplexer.CollectedWithoutDispose;
 //            Assert.Equal(before + 1, after);
 //#endif
+    }
+
+    [Fact]
+    public async Task MuxerIsNotCollectedWhenHasBacklog()
+    {
+        // Run on a separate thread to ensure no references to the connection from the main thread
+        var startGC = new TaskCompletionSource<bool>();
+        var testTask = Task.Run(async () =>
+        {
+            using var conn = await ConnectionMultiplexer.ConnectAsync(new ConfigurationOptions()
+            {
+                BacklogPolicy = BacklogPolicy.Default,
+                ConnectTimeout = 50,
+                SyncTimeout = 1000,
+                AllowAdmin = true,
+                EndPoints = { GetConfiguration() },
+            }, Writer);
+            var db = conn.GetDatabase();
+            await db.PingAsync();
+
+            // Disconnect and don't allow re-connection
+            conn.AllowConnect = false;
+            var server = conn.GetServerSnapshot()[0];
+            server.SimulateConnectionFailure(SimulatedFailureType.All);
+            Assert.False(conn.IsConnected);
+
+            var pingTask = Assert.ThrowsAsync<RedisConnectionException>(() => db.PingAsync());
+            startGC.SetResult(true);
+            await pingTask;
+        }).WithTimeout(5000);
+
+        // Use sync wait and sleep to ensure a more timely GC
+        Task.WaitAny(startGC.Task, testTask);
+        while (!testTask.IsCompleted)
+        {
+            ForceGC();
+            Thread.Sleep(200);
+        }
+        await testTask;
     }
 }
