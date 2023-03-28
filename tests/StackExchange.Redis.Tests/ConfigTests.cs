@@ -648,4 +648,18 @@ public class ConfigTests : TestBase
         options = ConfigurationOptions.Parse(cs);
         Assert.Null(options.Tunnel);
     }
+
+    [Theory]
+    [InlineData("server:6379", true)]
+    [InlineData("server:6379,setlib=True", true)]
+    [InlineData("server:6379,setlib=False", false)]
+    public void DefaultConfigOptionsForSetLib(string configurationString, bool setlib)
+    {
+        var options = ConfigurationOptions.Parse(configurationString);
+        Assert.Equal(setlib, options.SetClientLibrary);
+        Assert.Equal(configurationString, options.ToString());
+        options = options.Clone();
+        Assert.Equal(setlib, options.SetClientLibrary);
+        Assert.Equal(configurationString, options.ToString());
+    }
 }
