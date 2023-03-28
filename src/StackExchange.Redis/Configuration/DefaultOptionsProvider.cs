@@ -198,6 +198,11 @@ namespace StackExchange.Redis.Configuration
         protected static string ComputerName => Environment.MachineName ?? Environment.GetEnvironmentVariable("ComputerName") ?? "Unknown";
 
         /// <summary>
+        /// Whether to identify the client by library name/version when possible
+        /// </summary>
+        public virtual bool SetClientLibrary => true;
+
+        /// <summary>
         /// Tries to get the RoleInstance Id if Microsoft.WindowsAzure.ServiceRuntime is loaded.
         /// In case of any failure, swallows the exception and returns null.
         /// </summary>

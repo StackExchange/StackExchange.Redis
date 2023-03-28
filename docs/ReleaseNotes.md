@@ -9,6 +9,7 @@ Current package versions:
 ## Unreleased
 
 - Fix [#2400](https://github.com/StackExchange/StackExchange.Redis/issues/2400): Expose `ChannelMessageQueue` as `IAsyncEnumerable<ChannelMessage>` ([#2402 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2402))
+- Add: support for `CLIENT SETINFO` (lib name/version) during handshake; opt-out is via `ConfigurationOptions`; also support read of `resp`, `lib-ver` and `lib-name` via `CLIENT LIST`
 
 ## 2.6.96
 
