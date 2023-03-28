@@ -186,13 +186,15 @@ namespace StackExchange.Redis
         public string? ProtocolVersion { get; private set; }
 
         /// <summary>
-        /// Client library version. Added in Redis 8.0
+        /// Client library name. Added in Redis 7.2
         /// </summary>
+        /// <remarks><seealso href="https://redis.io/commands/client-setinfo"/></remarks>
         public string? LibraryName { get; private set; }
 
         /// <summary>
-        /// Client library version. Added in Redis 8.0
+        /// Client library version. Added in Redis 7.2
         /// </summary>
+        /// <remarks><seealso href="https://redis.io/commands/client-setinfo"/></remarks>
         public string? LibraryVersion { get; private set; }
 
         internal static bool TryParse(string? input, [NotNullWhen(true)] out ClientInfo[]? clientList)
