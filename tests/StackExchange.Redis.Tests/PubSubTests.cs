@@ -791,8 +791,10 @@ public class PubSubTests : TestBase
         Log("Failing connection");
         // Fail all connections
         server.SimulateConnectionFailure(SimulatedFailureType.All);
-        // Trigger failure (RedisTimeoutException because of backlog behavior)
-        Assert.Throws<RedisTimeoutException>(() => sub.Ping());
+        // Trigger failure (RedisTimeoutException or RedisConnectionException because
+        // of backlog behavior)
+        var ex = Assert.ThrowsAny<Exception>(() => sub.Ping());
+        Assert.True(ex is RedisTimeoutException or RedisConnectionException);
         Assert.False(sub.IsConnected(channel));
 
         // Now reconnect...

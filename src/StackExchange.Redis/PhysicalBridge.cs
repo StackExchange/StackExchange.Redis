@@ -173,7 +173,7 @@ namespace StackExchange.Redis
 
             // Anything else goes in the bin - we're just not ready for you yet
             message.Cancel();
-            Multiplexer?.OnMessageFaulted(message, null);
+            Multiplexer.OnMessageFaulted(message, null);
             message.Complete();
             return WriteResult.NoConnectionAvailable;
         }
@@ -181,7 +181,7 @@ namespace StackExchange.Redis
         private WriteResult FailDueToNoConnection(Message message)
         {
             message.Cancel();
-            Multiplexer?.OnMessageFaulted(message, null);
+            Multiplexer.OnMessageFaulted(message, null);
             message.Complete();
             return WriteResult.NoConnectionAvailable;
         }
@@ -485,7 +485,7 @@ namespace StackExchange.Redis
         {
             while (BacklogTryDequeue(out Message? next))
             {
-                Multiplexer?.OnMessageFaulted(next, ex);
+                Multiplexer.OnMessageFaulted(next, ex);
                 next.SetExceptionAndComplete(ex, this);
             }
         }
@@ -674,7 +674,7 @@ namespace StackExchange.Redis
             var existingMessage = Interlocked.CompareExchange(ref _activeMessage, message, null);
             if (existingMessage != null)
             {
-                Multiplexer?.OnInfoMessage($"Reentrant call to WriteMessageTakingWriteLock for {message.CommandAndKey}, {existingMessage.CommandAndKey} is still active");
+                Multiplexer.OnInfoMessage($"Reentrant call to WriteMessageTakingWriteLock for {message.CommandAndKey}, {existingMessage.CommandAndKey} is still active");
                 return WriteResult.NoConnectionAvailable;
             }
 
@@ -819,9 +819,22 @@ namespace StackExchange.Redis
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void BacklogEnqueue(Message message)
         {
+            bool wasEmpty = _backlog.IsEmpty;
+            // important that this *precedes* enqueue, to play well with HasPendingCallerFacingItems
+            Interlocked.Increment(ref _backlogCurrentEnqueued);
+            Interlocked.Increment(ref _backlogTotalEnqueued);
             _backlog.Enqueue(message);
             message.SetBacklogged();
-            Interlocked.Increment(ref _backlogTotalEnqueued);
+
+            if (wasEmpty)
+            {
+                // it is important to do this *after* adding, so that we can't
+                // get into a thread-race where the heartbeat checks too fast;
+                // the fact that we're accessing Multiplexer down here means that
+                // we're rooting it ourselves via the stack, so we don't need
+                // to worry about it being collected until at least after this
+                Multiplexer.Root();
+            }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -1114,10 +1127,22 @@ namespace StackExchange.Redis
             }
         }
 
+        public bool HasPendingCallerFacingItems()
+        {
+            if (BacklogHasItems)
+            {
+                foreach (var item in _backlog) // non-consuming, thread-safe, etc
+                {
+                    if (!item.IsInternalCall) return true;
+                }
+            }
+            return physical?.HasPendingCallerFacingItems() ?? false;
+        }
+
         private WriteResult TimedOutBeforeWrite(Message message)
         {
             message.Cancel();
-            Multiplexer?.OnMessageFaulted(message, null);
+            Multiplexer.OnMessageFaulted(message, null);
             message.Complete();
             return WriteResult.TimeoutBeforeWrite;
         }

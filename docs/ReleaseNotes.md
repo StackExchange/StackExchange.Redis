@@ -8,7 +8,7 @@ Current package versions:
 
 ## Unreleased
 
-No pending changes.
+- Fix [#2392](https://github.com/StackExchange/StackExchange.Redis/issues/2392): critical (but rare) GC bug that can lead to async tasks never completing if the multiplexer is not held by the consumer ([#2413 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2413))
 
 ## 2.6.96
 
