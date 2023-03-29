@@ -97,7 +97,8 @@ namespace StackExchange.Redis
                 Version = "version",
                 WriteBuffer = "writeBuffer",
                 CheckCertificateRevocation = "checkCertificateRevocation",
-                Tunnel = "tunnel";
+                Tunnel = "tunnel",
+                SetClientLibrary = "setlib";
 
             private static readonly Dictionary<string, string> normalizedOptions = new[]
             {
@@ -142,7 +143,7 @@ namespace StackExchange.Redis
         private DefaultOptionsProvider? defaultOptions;
 
         private bool? allowAdmin, abortOnConnectFail, resolveDns, ssl, checkCertificateRevocation,
-                      includeDetailInExceptions, includePerformanceCountersInExceptions;
+                      includeDetailInExceptions, includePerformanceCountersInExceptions, setClientLibrary;
 
         private string? tieBreaker, sslHost, configChannel;
 
@@ -229,6 +230,15 @@ namespace StackExchange.Redis
         {
             get => Ssl;
             set => Ssl = value;
+        }
+
+        /// <summary>
+        /// Gets or sets whether the library should identify itself by library-name/version when possible
+        /// </summary>
+        public bool SetClientLibrary
+        {
+            get => setClientLibrary ?? Defaults.SetClientLibrary;
+            set => setClientLibrary = value;
         }
 
         /// <summary>
@@ -652,6 +662,7 @@ namespace StackExchange.Redis
             SslClientAuthenticationOptions = SslClientAuthenticationOptions,
 #endif
             Tunnel = Tunnel,
+            setClientLibrary = setClientLibrary,
         };
 
         /// <summary>
@@ -731,6 +742,7 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.ConfigCheckSeconds, configCheckSeconds);
             Append(sb, OptionKeys.ResponseTimeout, responseTimeout);
             Append(sb, OptionKeys.DefaultDatabase, DefaultDatabase);
+            Append(sb, OptionKeys.SetClientLibrary, setClientLibrary);
             if (Tunnel is { IsInbuilt: true } tunnel)
             {
                 Append(sb, OptionKeys.Tunnel, tunnel.ToString());
@@ -768,7 +780,7 @@ namespace StackExchange.Redis
         {
             ClientName = ServiceName = User = Password = tieBreaker = sslHost = configChannel = null;
             keepAlive = syncTimeout = asyncTimeout = connectTimeout = connectRetry = configCheckSeconds = DefaultDatabase = null;
-            allowAdmin = abortOnConnectFail = resolveDns = ssl = null;
+            allowAdmin = abortOnConnectFail = resolveDns = ssl = setClientLibrary = null;
             SslProtocols = null;
             defaultVersion = null;
             EndPoints.Clear();
@@ -778,6 +790,7 @@ namespace StackExchange.Redis
             CertificateValidation = null;
             ChannelPrefix = default;
             SocketManager = null;
+            Tunnel = null;
         }
 
         object ICloneable.Clone() => Clone();
@@ -882,6 +895,9 @@ namespace StackExchange.Redis
                             break;
                         case OptionKeys.SslProtocols:
                             SslProtocols = OptionKeys.ParseSslProtocols(key, value);
+                            break;
+                        case OptionKeys.SetClientLibrary:
+                            SetClientLibrary = OptionKeys.ParseBoolean(key, value);
                             break;
                         case OptionKeys.Tunnel:
                             if (value.IsNullOrWhiteSpace())

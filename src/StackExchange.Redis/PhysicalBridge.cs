@@ -893,8 +893,8 @@ namespace StackExchange.Redis
             // But we reduce contention by only locking if we see something that looks timed out.
             while (_backlog.TryPeek(out Message? message))
             {
-                // See if the message has passed our async timeout threshold
-                // or has otherwise been completed (e.g. a sync wait timed out) which would have cleared the ResultBox
+                // See if the message has pass our async timeout threshold
+                // Note: All timed out messages must be dequeued, even when no completion is needed, to be able to dequeue and complete other timed out messages.
                 if (!message.HasTimedOut(now, timeout, out var _)) break; // not a timeout - we can stop looking
                 lock (_backlog)
                 {
@@ -909,10 +909,15 @@ namespace StackExchange.Redis
                     }
                 }
 
-                // Tell the message it has failed
-                // Note: Attempting to *avoid* reentrancy/deadlock issues by not holding the lock while completing messages.
-                var ex = Multiplexer.GetException(WriteResult.TimeoutBeforeWrite, message, ServerEndPoint, this);
-                message.SetExceptionAndComplete(ex, this);
+                // We only handle async timeouts here, synchronous timeouts are handled upstream.
+                // Those sync timeouts happen in ConnectionMultiplexer.ExecuteSyncImpl() via Monitor.Wait.
+                if (message.ResultBoxIsAsync)
+                {
+                    // Tell the message it has failed
+                    // Note: Attempting to *avoid* reentrancy/deadlock issues by not holding the lock while completing messages.
+                    var ex = Multiplexer.GetException(WriteResult.TimeoutBeforeWrite, message, ServerEndPoint);
+                    message.SetExceptionAndComplete(ex, this);
+                }
             }
         }
 
