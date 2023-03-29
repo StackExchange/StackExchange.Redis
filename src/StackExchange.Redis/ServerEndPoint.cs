@@ -929,6 +929,26 @@ namespace StackExchange.Redis
                         await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
                     }
                 }
+                if (Multiplexer.RawConfig.SetClientLibrary)
+                {
+                    // note that this is a relatively new feature, but usually we won't know the
+                    // server version, so we will use this speculatively and hope for the best
+                    log?.WriteLine($"{Format.ToString(this)}: Setting client lib/ver");
+
+                    msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.CLIENT,
+                        RedisLiterals.SETINFO, RedisLiterals.lib_name, RedisLiterals.SE_Redis);
+                    msg.SetInternalCall();
+                    await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
+
+                    var version = Utils.GetLibVersion();
+                    if (!string.IsNullOrWhiteSpace(version))
+                    {
+                        msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.CLIENT,
+                            RedisLiterals.SETINFO, RedisLiterals.lib_ver, version);
+                        msg.SetInternalCall();
+                        await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
+                    }
+                }
             }
 
             var bridge = connection.BridgeCouldBeNull;
