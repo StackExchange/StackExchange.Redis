@@ -263,7 +263,7 @@ namespace StackExchange.Redis
             }
 
             else
-                throw new ArgumentException("More then one filter is not allwed");
+                throw new ArgumentException("More then one filter is not allowed");
         }
 
         private RedisValue[] AddValueToArray(RedisValue val, RedisValue[] arr)

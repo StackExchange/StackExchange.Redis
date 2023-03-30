@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Buffers;
 using System.Buffers.Text;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -107,8 +108,11 @@ namespace StackExchange.Redis
         public static RedisValue Null { get; } = new RedisValue(0, default, null);
 
         /// <summary>
-        /// Indicates whether the value is a primitive integer (signed or unsigned).
+        /// Indicates whether the **underlying** value is a primitive integer (signed or unsigned); this is **not**
+        /// the same as whether the value can be *treated* as an integer - see <seealso cref="TryParse(out int)"/>
+        /// and <seealso cref="TryParse(out long)"/>, which is usually the more appropriate test.
         /// </summary>
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Advanced)] // hide it, because this *probably* isn't what callers need
         public bool IsInteger => _objectOrSentinel == Sentinel_SignedInteger || _objectOrSentinel == Sentinel_UnsignedInteger;
 
         /// <summary>
@@ -698,28 +702,28 @@ namespace StackExchange.Redis
         /// Converts the <see cref="RedisValue"/> to a <see cref="T:Nullable{double}"/>.
         /// </summary>
         /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
-        public static explicit operator double? (RedisValue value)
+        public static explicit operator double?(RedisValue value)
             => value.IsNull ? (double?)null : (double)value;
 
         /// <summary>
         /// Converts the <see cref="RedisValue"/> to a <see cref="T:Nullable{float}"/>.
         /// </summary>
         /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
-        public static explicit operator float? (RedisValue value)
+        public static explicit operator float?(RedisValue value)
             => value.IsNull ? (float?)null : (float)value;
 
         /// <summary>
         /// Converts the <see cref="RedisValue"/> to a <see cref="T:Nullable{decimal}"/>.
         /// </summary>
         /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
-        public static explicit operator decimal? (RedisValue value)
+        public static explicit operator decimal?(RedisValue value)
             => value.IsNull ? (decimal?)null : (decimal)value;
 
         /// <summary>
         /// Converts the <see cref="RedisValue"/> to a <see cref="T:Nullable{long}"/>.
         /// </summary>
         /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
-        public static explicit operator long? (RedisValue value)
+        public static explicit operator long?(RedisValue value)
             => value.IsNull ? (long?)null : (long)value;
 
         /// <summary>
@@ -727,14 +731,14 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
         [CLSCompliant(false)]
-        public static explicit operator ulong? (RedisValue value)
+        public static explicit operator ulong?(RedisValue value)
             => value.IsNull ? (ulong?)null : (ulong)value;
 
         /// <summary>
         /// Converts the <see cref="RedisValue"/> to a <see cref="T:Nullable{int}"/>.
         /// </summary>
         /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
-        public static explicit operator int? (RedisValue value)
+        public static explicit operator int?(RedisValue value)
             => value.IsNull ? (int?)null : (int)value;
 
         /// <summary>
@@ -742,21 +746,21 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
         [CLSCompliant(false)]
-        public static explicit operator uint? (RedisValue value)
+        public static explicit operator uint?(RedisValue value)
             => value.IsNull ? (uint?)null : (uint)value;
 
         /// <summary>
         /// Converts the <see cref="RedisValue"/> to a <see cref="T:Nullable{bool}"/>.
         /// </summary>
         /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
-        public static explicit operator bool? (RedisValue value)
+        public static explicit operator bool?(RedisValue value)
             => value.IsNull ? (bool?)null : (bool)value;
 
         /// <summary>
         /// Converts a <see cref="RedisValue"/> to a <see cref="string"/>.
         /// </summary>
         /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
-        public static implicit operator string? (RedisValue value)
+        public static implicit operator string?(RedisValue value)
         {
             switch (value.Type)
             {
@@ -810,7 +814,7 @@ namespace StackExchange.Redis
         /// Converts a <see cref="RedisValue"/> to a <see cref="T:byte[]"/>.
         /// </summary>
         /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
-        public static implicit operator byte[]? (RedisValue value)
+        public static implicit operator byte[]?(RedisValue value)
         {
             switch (value.Type)
             {
@@ -1112,7 +1116,7 @@ namespace StackExchange.Redis
                     return _memory;
                 case StorageType.String:
                     string s = (string)_objectOrSentinel!;
-                    HaveString:
+HaveString:
                     if (s.Length == 0)
                     {
                         leased = null;
