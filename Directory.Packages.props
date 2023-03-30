@@ -19,7 +19,7 @@
     <PackageVersion Include="Nerdbank.GitVersioning" Version="3.4.255" />
     <PackageVersion Include="Newtonsoft.Json" Version="13.0.1" />
     <PackageVersion Include="NSubstitute" Version="4.3.0" />
-    <PackageVersion Include="StackExchange.Redis" Version="2.5.43" />
+    <PackageVersion Include="StackExchange.Redis" Version="2.6.96" />
     <!-- For binding redirect testing, main package gets this transitively -->
     <PackageVersion Include="System.IO.Pipelines" Version="5.0.1" />
     <PackageVersion Include="System.Runtime.Caching" Version="5.0.0" />
