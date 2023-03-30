@@ -769,7 +769,7 @@ namespace StackExchange.Redis
 
             var source = TaskResultBox<T?>.Create(out var tcs, null);
             message.SetSource(processor, source);
-            if (bridge == null) bridge = GetBridge(message);
+            bridge ??= GetBridge(message);
 
             WriteResult result;
             if (bridge == null)
@@ -1009,6 +1009,13 @@ namespace StackExchange.Redis
         {
             interactive?.SimulateConnectionFailure(failureType);
             subscription?.SimulateConnectionFailure(failureType);
+        }
+
+        internal bool HasPendingCallerFacingItems()
+        {
+            // check whichever bridges exist
+            if (interactive?.HasPendingCallerFacingItems() == true) return true;
+            return subscription?.HasPendingCallerFacingItems() ?? false;
         }
     }
 }

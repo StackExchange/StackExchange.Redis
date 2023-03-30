@@ -34,7 +34,7 @@ namespace StackExchange.Redis
         internal long syncOps, asyncOps;
         private long syncTimeouts, fireAndForgets, asyncTimeouts;
         private string? failureMessage, activeConfigCause;
-        private IDisposable? pulse;
+        private TimerToken? pulse;
 
         private readonly Hashtable servers = new Hashtable();
         private volatile ServerSnapshot _serverSnapshot = ServerSnapshot.Empty;
@@ -874,7 +874,7 @@ namespace StackExchange.Redis
             }
         }
 
-        [return: NotNullIfNotNull("endpoint")]
+        [return: NotNullIfNotNull(nameof(endpoint))]
         internal ServerEndPoint? GetServerEndPoint(EndPoint? endpoint, LogProxy? log = null, bool activate = true)
         {
             if (endpoint == null) return null;
@@ -909,40 +909,130 @@ namespace StackExchange.Redis
             return server;
         }
 
-        private sealed class TimerToken
+        internal void Root() => pulse?.Root(this);
+
+        // note that this also acts (conditionally) as the GC root for the multiplexer
+        // when there are in-flight messages; the timer can then acts as the heartbeat
+        // to make sure that everything *eventually* completes
+        private sealed class TimerToken : IDisposable
         {
             private TimerToken(ConnectionMultiplexer muxer)
             {
-                _ref = new WeakReference(muxer);
+                _weakRef = new(muxer);
             }
             private Timer? _timer;
             public void SetTimer(Timer timer) => _timer = timer;
-            private readonly WeakReference _ref;
+
+            private readonly WeakReference<ConnectionMultiplexer> _weakRef;
+
+            private object StrongRefSyncLock => _weakRef; // private and readonly? it'll do
+            private ConnectionMultiplexer? _strongRef;
+            private int _strongRefToken;
 
             private static readonly TimerCallback Heartbeat = state =>
             {
                 var token = (TimerToken)state!;
-                var muxer = (ConnectionMultiplexer?)(token._ref?.Target);
-                if (muxer != null)
+                if (token._weakRef.TryGetTarget(out var muxer))
                 {
                     muxer.OnHeartbeat();
                 }
                 else
                 {
                     // the muxer got disposed from out of us; kill the timer
-                    var tmp = token._timer;
-                    token._timer = null;
-                    if (tmp != null) try { tmp.Dispose(); } catch { }
+                    token.Dispose();
                 }
             };
 
-            internal static IDisposable Create(ConnectionMultiplexer connection)
+            internal static TimerToken Create(ConnectionMultiplexer connection)
             {
                 var token = new TimerToken(connection);
                 var heartbeatMilliseconds = (int)connection.RawConfig.HeartbeatInterval.TotalMilliseconds;
                 var timer = new Timer(Heartbeat, token, heartbeatMilliseconds, heartbeatMilliseconds);
                 token.SetTimer(timer);
-                return timer;
+                return token;
+            }
+
+            public void Dispose()
+            {
+                var tmp = _timer;
+                _timer = null;
+                if (tmp is not null) try { tmp.Dispose(); } catch { }
+
+                _strongRef = null; // note that this shouldn't be relevant since we've unrooted the TimerToken
+            }
+
+
+            // explanation of rooting model:
+            //
+            // the timer has a reference to the TimerToken; this *always* has a weak-ref,
+            // and *may* sometimes have a strong-ref; this is so that if a consumer
+            // drops a multiplexer, it can be garbage collected, i.e. the heartbeat timer
+            // doesn't keep the entire thing alive forever; instead, if the heartbeat detects
+            // the weak-ref has been collected, it can cancel the timer and *itself* go away;
+            // however: this leaves a problem where there is *in flight work* when the consumer
+            // drops the multiplexer; in particular, if that happens when disconnected, there
+            // could be consumer-visible pending TCS items *in the backlog queue*; we don't want
+            // to leave those incomplete, as that fails the contractual expectations of async/await;
+            // instead we need to root ourselves. The natural place to do this is by rooting the
+            // multiplexer, allowing the heartbeat to keep poking things, so that the usual
+            // message-processing and timeout rules apply. This is why we *sometimes* also keep
+            // a strong-ref to the same multiplexer.
+            //
+            // The TimerToken is rooted by the timer callback; this then roots the multiplexer,
+            // which keeps our bridges and connections in scope - until we're sure we're done
+            // with them.
+            //
+            // 1) any bridge or connection will trigger rooting by calling Root when
+            // they change from "empty" to "non-empty" i.e. whenever there
+            // in-flight items; this always changes the token; this includes both the
+            // backlog and awaiting-reply queues.
+            //
+            // 2) the heartbeat is responsible for unrooting, after processing timeouts
+            // etc; first it checks whether it is needed (IsRooted), which also gives
+            // it the current token.
+            //
+            // 3) if so, the heartbeat will (outside of the lock) query all sources to
+            // see if they still have outstanding work; if everyone reports negatively,
+            // then the heartbeat calls UnRoot passing in the old token; if this still
+            // matches (i.e. no new work came in while we were looking away), then the
+            // strong reference is removed; note that "has outstanding work" ignores
+            // internal-call messages; we are only interested in consumer-facing items
+            // (but we need to check this *here* rather than when adding, as otherwise
+            // the definition of "is empty, should root" becomes more complicated, which
+            // impacts the write path, rather than the heartbeat path.
+            //
+            // This means that the multiplexer (via the timer) lasts as long as there are
+            // outstanding messages; if the consumer has dropped the multiplexer, then
+            // there will be no new incoming messages, and after timeouts: everything
+            // should drop.
+
+            public void Root(ConnectionMultiplexer multiplexer)
+            {
+                lock (StrongRefSyncLock)
+                {
+                    _strongRef = multiplexer;
+                    _strongRefToken++;
+                }
+            }
+
+            public bool IsRooted(out int token)
+            {
+                lock (StrongRefSyncLock)
+                {
+                    token = _strongRefToken;
+                    return _strongRef is not null;
+                }
+            }
+
+            public void UnRoot(int token)
+            {
+                lock (StrongRefSyncLock)
+                {
+                    if (token == _strongRefToken)
+                    {
+                        _strongRef = null;
+                    }
+                }
             }
         }
 
@@ -956,8 +1046,21 @@ namespace StackExchange.Redis
                 Trace("heartbeat");
 
                 var tmp = GetServerSnapshot();
+                int token = 0;
+                bool isRooted = pulse?.IsRooted(out token) ?? false, hasPendingCallerFacingItems = false;
+
                 for (int i = 0; i < tmp.Length; i++)
+                {
                     tmp[i].OnHeartbeat();
+                    if (isRooted && !hasPendingCallerFacingItems)
+                    {
+                        hasPendingCallerFacingItems = tmp[i].HasPendingCallerFacingItems();
+                    }
+                }
+                if (isRooted && !hasPendingCallerFacingItems)
+                {   // release the GC root on the heartbeat *if* the token still matches
+                    pulse?.UnRoot(token);
+                }
             }
             catch (Exception ex)
             {
@@ -1909,11 +2012,11 @@ namespace StackExchange.Redis
         /// </summary>
         public override string ToString() => string.IsNullOrWhiteSpace(ClientName) ? GetType().Name : ClientName;
 
-        internal Exception GetException(WriteResult result, Message message, ServerEndPoint? server) => result switch
+        internal Exception GetException(WriteResult result, Message message, ServerEndPoint? server, PhysicalBridge? bridge = null) => result switch
         {
             WriteResult.Success => throw new ArgumentOutOfRangeException(nameof(result), "Be sure to check result isn't successful before calling GetException."),
             WriteResult.NoConnectionAvailable => ExceptionFactory.NoConnectionAvailable(this, message, server),
-            WriteResult.TimeoutBeforeWrite => ExceptionFactory.Timeout(this, "The timeout was reached before the message could be written to the output buffer, and it was not sent", message, server, result),
+            WriteResult.TimeoutBeforeWrite => ExceptionFactory.Timeout(this, null, message, server, result, bridge),
             _ => ExceptionFactory.ConnectionFailure(RawConfig.IncludeDetailInExceptions, ConnectionFailureType.ProtocolFailure, "An unknown error occurred when writing the message", server),
         };
 
@@ -1935,7 +2038,7 @@ namespace StackExchange.Redis
             }
         }
 
-        [return: NotNullIfNotNull("defaultValue")]
+        [return: NotNullIfNotNull(nameof(defaultValue))]
         internal T? ExecuteSyncImpl<T>(Message message, ResultProcessor<T>? processor, ServerEndPoint? server, T? defaultValue = default)
         {
             if (_isDisposed) throw new ObjectDisposedException(ToString());
@@ -1960,10 +2063,11 @@ namespace StackExchange.Redis
                 var source = SimpleResultBox<T>.Get();
 
                 bool timeout = false;
+                WriteResult result;
                 lock (source)
                 {
 #pragma warning disable CS0618 // Type or member is obsolete
-                    var result = TryPushMessageToBridgeSync(message, processor, source, ref server);
+                    result = TryPushMessageToBridgeSync(message, processor, source, ref server);
 #pragma warning restore CS0618
                     if (result != WriteResult.Success)
                     {
@@ -1985,7 +2089,8 @@ namespace StackExchange.Redis
                 {
                     Interlocked.Increment(ref syncTimeouts);
                     // Very important not to return "source" to the pool here
-                    throw ExceptionFactory.Timeout(this, null, message, server);
+                    // Also note we return "success" when queueing a messages to the backlog, so we need to manually fake it back here when timing out in the backlog
+                    throw ExceptionFactory.Timeout(this, null, message, server, message.IsBacklogged ? WriteResult.TimeoutBeforeWrite : result, server?.GetBridge(message.Command, create: false));
                 }
                 // Snapshot these so that we can recycle the box
                 var val = source.GetResult(out var ex, canRecycle: true); // now that we aren't locking it...
@@ -2047,7 +2152,7 @@ namespace StackExchange.Redis
 
         internal Task<T?> ExecuteAsyncImpl<T>(Message? message, ResultProcessor<T>? processor, object? state, ServerEndPoint? server)
         {
-            [return: NotNullIfNotNull("tcs")]
+            [return: NotNullIfNotNull(nameof(tcs))]
             static async Task<T?> ExecuteAsyncImpl_Awaited(ConnectionMultiplexer @this, ValueTask<WriteResult> write, TaskCompletionSource<T?>? tcs, Message message, ServerEndPoint? server)
             {
                 var result = await write.ForAwait();

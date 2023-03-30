@@ -114,16 +114,27 @@ namespace StackExchange.Redis
         public void Dispose()
         {
             isDisposed = true;
-            _backlogAutoReset?.Dispose();
+            // If there's anything in the backlog and we're being torn down - exfil it immediately (e.g. so all awaitables complete)
+            AbandonPendingBacklog(new ObjectDisposedException("Connection is being disposed"));
+            try
+            {
+                _backlogAutoReset?.Set();
+                _backlogAutoReset?.Dispose();
+            }
+            catch { }
             using (var tmp = physical)
             {
                 physical = null;
             }
             GC.SuppressFinalize(this);
         }
+
         ~PhysicalBridge()
         {
             isDisposed = true; // make damn sure we don't true to resurrect
+
+            // If there's anything in the backlog and we're being torn down - exfil it immediately (e.g. so all awaitables complete)
+            AbandonPendingBacklog(new ObjectDisposedException("Connection is being finalized"));
 
             // shouldn't *really* touch managed objects
             // in a finalizer, but we need to kill that socket,
@@ -162,7 +173,7 @@ namespace StackExchange.Redis
 
             // Anything else goes in the bin - we're just not ready for you yet
             message.Cancel();
-            Multiplexer?.OnMessageFaulted(message, null);
+            Multiplexer.OnMessageFaulted(message, null);
             message.Complete();
             return WriteResult.NoConnectionAvailable;
         }
@@ -170,7 +181,7 @@ namespace StackExchange.Redis
         private WriteResult FailDueToNoConnection(Message message)
         {
             message.Cancel();
-            Multiplexer?.OnMessageFaulted(message, null);
+            Multiplexer.OnMessageFaulted(message, null);
             message.Complete();
             return WriteResult.NoConnectionAvailable;
         }
@@ -474,7 +485,7 @@ namespace StackExchange.Redis
         {
             while (BacklogTryDequeue(out Message? next))
             {
-                Multiplexer?.OnMessageFaulted(next, ex);
+                Multiplexer.OnMessageFaulted(next, ex);
                 next.SetExceptionAndComplete(ex, this);
             }
         }
@@ -663,7 +674,7 @@ namespace StackExchange.Redis
             var existingMessage = Interlocked.CompareExchange(ref _activeMessage, message, null);
             if (existingMessage != null)
             {
-                Multiplexer?.OnInfoMessage($"Reentrant call to WriteMessageTakingWriteLock for {message.CommandAndKey}, {existingMessage.CommandAndKey} is still active");
+                Multiplexer.OnInfoMessage($"Reentrant call to WriteMessageTakingWriteLock for {message.CommandAndKey}, {existingMessage.CommandAndKey} is still active");
                 return WriteResult.NoConnectionAvailable;
             }
 
@@ -808,8 +819,22 @@ namespace StackExchange.Redis
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void BacklogEnqueue(Message message)
         {
-            _backlog.Enqueue(message);
+            bool wasEmpty = _backlog.IsEmpty;
+            // important that this *precedes* enqueue, to play well with HasPendingCallerFacingItems
+            Interlocked.Increment(ref _backlogCurrentEnqueued);
             Interlocked.Increment(ref _backlogTotalEnqueued);
+            _backlog.Enqueue(message);
+            message.SetBacklogged();
+
+            if (wasEmpty)
+            {
+                // it is important to do this *after* adding, so that we can't
+                // get into a thread-race where the heartbeat checks too fast;
+                // the fact that we're accessing Multiplexer down here means that
+                // we're rooting it ourselves via the stack, so we don't need
+                // to worry about it being collected until at least after this
+                Multiplexer.Root();
+            }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -890,7 +915,7 @@ namespace StackExchange.Redis
                 {
                     // Tell the message it has failed
                     // Note: Attempting to *avoid* reentrancy/deadlock issues by not holding the lock while completing messages.
-                    var ex = Multiplexer.GetException(WriteResult.TimeoutBeforeWrite, message, ServerEndPoint);
+                    var ex = Multiplexer.GetException(WriteResult.TimeoutBeforeWrite, message, ServerEndPoint, this);
                     message.SetExceptionAndComplete(ex, this);
                 }
             }
@@ -914,6 +939,7 @@ namespace StackExchange.Redis
             RecordingFault,
             SettingIdle,
             Faulted,
+            NotifyingDisposed,
         }
 
         private volatile BacklogStatus _backlogStatus;
@@ -926,7 +952,7 @@ namespace StackExchange.Redis
             _backlogStatus = BacklogStatus.Starting;
             try
             {
-                while (true)
+                while (!isDisposed)
                 {
                     if (!_backlog.IsEmpty)
                     {
@@ -946,8 +972,34 @@ namespace StackExchange.Redis
                         break;
                     }
                 }
+                // If we're being disposed but have items in the backlog, we need to complete them or async messages can linger forever.
+                if (isDisposed && BacklogHasItems)
+                {
+                    _backlogStatus = BacklogStatus.NotifyingDisposed;
+                    // Because peeking at the backlog, checking message and then dequeuing, is not thread-safe, we do have to use
+                    // a lock here, for mutual exclusion of backlog DEQUEUERS. Unfortunately.
+                    // But we reduce contention by only locking if we see something that looks timed out.
+                    while (BacklogHasItems)
+                    {
+                        Message? message = null;
+                        lock (_backlog)
+                        {
+                            if (!BacklogTryDequeue(out message))
+                            {
+                                break;
+                            }
+                        }
+                        
+                        var ex = ExceptionFactory.Timeout(Multiplexer, "The message was in the backlog when connection was disposed", message, ServerEndPoint, WriteResult.TimeoutBeforeWrite, this);
+                        message.SetExceptionAndComplete(ex, this);
+                    }
+                }
             }
-            catch
+            catch (ObjectDisposedException) when (!BacklogHasItems)
+            {
+                // We're being torn down and we have no backlog to process - all good.
+            }
+            catch (Exception)
             {
                 _backlogStatus = BacklogStatus.Faulted;
             }
@@ -1080,10 +1132,22 @@ namespace StackExchange.Redis
             }
         }
 
+        public bool HasPendingCallerFacingItems()
+        {
+            if (BacklogHasItems)
+            {
+                foreach (var item in _backlog) // non-consuming, thread-safe, etc
+                {
+                    if (!item.IsInternalCall) return true;
+                }
+            }
+            return physical?.HasPendingCallerFacingItems() ?? false;
+        }
+
         private WriteResult TimedOutBeforeWrite(Message message)
         {
             message.Cancel();
-            Multiplexer?.OnMessageFaulted(message, null);
+            Multiplexer.OnMessageFaulted(message, null);
             message.Complete();
             return WriteResult.TimeoutBeforeWrite;
         }

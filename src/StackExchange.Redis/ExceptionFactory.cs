@@ -212,13 +212,32 @@ namespace StackExchange.Redis
             }
         }
 
-        internal static Exception Timeout(ConnectionMultiplexer multiplexer, string? baseErrorMessage, Message message, ServerEndPoint? server, WriteResult? result = null)
+        internal static Exception Timeout(ConnectionMultiplexer multiplexer, string? baseErrorMessage, Message message, ServerEndPoint? server, WriteResult? result = null, PhysicalBridge? bridge = null)
         {
             List<Tuple<string, string>> data = new List<Tuple<string, string>> { Tuple.Create("Message", message.CommandAndKey) };
             var sb = new StringBuilder();
+
+            // We timeout writing messages in quite different ways sync/async - so centralize messaging here.
+            if (string.IsNullOrEmpty(baseErrorMessage) && result == WriteResult.TimeoutBeforeWrite)
+            {
+                baseErrorMessage = message.IsBacklogged
+                    ? "The message timed out in the backlog attempting to send because no connection became available"
+                    : "The timeout was reached before the message could be written to the output buffer, and it was not sent";
+            }
+
+            var lastConnectionException = bridge?.LastException as RedisConnectionException;
+            var logConnectionException = message.IsBacklogged && lastConnectionException is not null;
+
             if (!string.IsNullOrEmpty(baseErrorMessage))
             {
                 sb.Append(baseErrorMessage);
+
+                // If we're in the situation where we've never connected
+                if (logConnectionException && lastConnectionException is not null)
+                {
+                    sb.Append(" - Last Connection Exception: ").Append(lastConnectionException.Message);
+                }
+
                 if (message != null)
                 {
                     sb.Append(", command=").Append(message.Command); // no key here, note
@@ -252,17 +271,23 @@ namespace StackExchange.Redis
                 }
                 catch { }
             }
-
             AddCommonDetail(data, sb, message, multiplexer, server);
 
-            sb.Append(" (Please take a look at this article for some common client-side issues that can cause timeouts: ");
-            sb.Append(TimeoutHelpLink);
-            sb.Append(')');
+            sb.Append(" (Please take a look at this article for some common client-side issues that can cause timeouts: ")
+              .Append(TimeoutHelpLink)
+              .Append(')');
 
-            var ex = new RedisTimeoutException(sb.ToString(), message?.Status ?? CommandStatus.Unknown)
-            {
-                HelpLink = TimeoutHelpLink
-            };
+            // If we're from a backlog timeout scenario, we log a more intuitive connection exception for the timeout...because the timeout was a symptom
+            // and we have a more direct cause: we had no connection to send it on.
+            Exception ex = logConnectionException && lastConnectionException is not null
+                ? new RedisConnectionException(lastConnectionException.FailureType, sb.ToString(), lastConnectionException, message?.Status ?? CommandStatus.Unknown)
+                {
+                    HelpLink = TimeoutHelpLink
+                }
+                : new RedisTimeoutException(sb.ToString(), message?.Status ?? CommandStatus.Unknown)
+                {
+                    HelpLink = TimeoutHelpLink
+                };
             CopyDataToException(data, ex);
 
             if (multiplexer.RawConfig.IncludeDetailInExceptions) AddExceptionDetail(ex, message, server, null);
@@ -333,6 +358,7 @@ namespace StackExchange.Redis
                 }
                 Add(data, sb, "Server-Endpoint", "serverEndpoint", (server.EndPoint.ToString() ?? "Unknown").Replace("Unspecified/", ""));
                 Add(data, sb, "Server-Connected-Seconds", "conn-sec", bs.ConnectedAt is DateTime dt ? (DateTime.UtcNow - dt).TotalSeconds.ToString("0.##") : "n/a");
+                Add(data, sb, "Abort-On-Connect", "aoc", multiplexer.RawConfig.AbortOnConnectFail ? "1" : "0");
             }
             Add(data, sb, "Multiplexer-Connects", "mc", $"{multiplexer._connectAttemptCount}/{multiplexer._connectCompletedCount}/{multiplexer._connectionCloseCount}");
             Add(data, sb, "Manager", "mgr", multiplexer.SocketManager?.GetState());

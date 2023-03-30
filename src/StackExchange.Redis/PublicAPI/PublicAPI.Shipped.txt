@@ -172,6 +172,7 @@ StackExchange.Redis.CommandStatus
 StackExchange.Redis.CommandStatus.Sent = 2 -> StackExchange.Redis.CommandStatus
 StackExchange.Redis.CommandStatus.Unknown = 0 -> StackExchange.Redis.CommandStatus
 StackExchange.Redis.CommandStatus.WaitingToBeSent = 1 -> StackExchange.Redis.CommandStatus
+StackExchange.Redis.CommandStatus.WaitingInBacklog = 3 -> StackExchange.Redis.CommandStatus
 StackExchange.Redis.CommandTrace
 StackExchange.Redis.CommandTrace.Arguments.get -> StackExchange.Redis.RedisValue[]!
 StackExchange.Redis.CommandTrace.Duration.get -> System.TimeSpan

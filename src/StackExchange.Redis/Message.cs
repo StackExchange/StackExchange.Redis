@@ -609,6 +609,11 @@ namespace StackExchange.Redis
             }
         }
 
+        internal bool IsBacklogged => Status == CommandStatus.WaitingInBacklog;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal void SetBacklogged() => Status = CommandStatus.WaitingInBacklog;
+
         private PhysicalConnection? _enqueuedTo;
         private long _queuedStampReceived, _queuedStampSent;
 

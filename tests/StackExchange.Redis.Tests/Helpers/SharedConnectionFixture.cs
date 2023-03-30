@@ -232,10 +232,10 @@ public class SharedConnectionFixture : IDisposable
             foreach (var ep in _actualConnection.GetServerSnapshot())
             {
                 var interactive = ep.GetBridge(ConnectionType.Interactive);
-                TestBase.Log(output, $"  {Format.ToString(interactive)}: " + interactive?.GetStatus());
+                TestBase.Log(output, $"  {Format.ToString(interactive)}: {interactive?.GetStatus()}");
 
                 var subscription = ep.GetBridge(ConnectionType.Subscription);
-                TestBase.Log(output, $"  {Format.ToString(subscription)}: " + subscription?.GetStatus());
+                TestBase.Log(output, $"  {Format.ToString(subscription)}: {subscription?.GetStatus()}");
             }
         }
     }
