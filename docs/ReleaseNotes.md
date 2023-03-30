@@ -11,6 +11,7 @@ Current package versions:
 - Fix [#2392](https://github.com/StackExchange/StackExchange.Redis/issues/2392): Dequeue *all* timed out messages from the backlog when not connected (including Fire+Forget) ([#2397 by kornelpal](https://github.com/StackExchange/StackExchange.Redis/pull/2397))
 - Fix [#2400](https://github.com/StackExchange/StackExchange.Redis/issues/2400): Expose `ChannelMessageQueue` as `IAsyncEnumerable<ChannelMessage>` ([#2402 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2402))
 - Add: support for `CLIENT SETINFO` (lib name/version) during handshake; opt-out is via `ConfigurationOptions`; also support read of `resp`, `lib-ver` and `lib-name` via `CLIENT LIST` ([#2414 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2414))
+- Documentation: clarify the meaning of `RedisValue.IsInteger` re [#2418](https://github.com/StackExchange/StackExchange.Redis/issues/2418) ([#2420 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2420))
 
 ## 2.6.96
 
