@@ -8,7 +8,7 @@ Current package versions:
 
 ## Unreleased
 
-No pending unreleased changes.
+- Fix [#2426](https://github.com/StackExchange/StackExchange.Redis/issues/2426): Don't restrict multi-slot operations on Envoy proxy; let the proxy decide ([#2428 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2428))
 
 ## 2.6.104
 
