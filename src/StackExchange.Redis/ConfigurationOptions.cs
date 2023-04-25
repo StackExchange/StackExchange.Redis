@@ -145,7 +145,7 @@ namespace StackExchange.Redis
         private bool? allowAdmin, abortOnConnectFail, resolveDns, ssl, checkCertificateRevocation,
                       includeDetailInExceptions, includePerformanceCountersInExceptions, setClientLibrary;
 
-        private string? tieBreaker, sslHost, configChannel;
+        private string? tieBreaker, sslHost, configChannel, user, password;
 
         private TimeSpan? heartbeatInterval;
 
@@ -442,12 +442,20 @@ namespace StackExchange.Redis
         /// <summary>
         /// The user to use to authenticate with the server.
         /// </summary>
-        public string? User { get; set; }
+        public string? User
+        {
+            get => user ?? Defaults.User;
+            set => user = value;
+        }
 
         /// <summary>
         /// The password to use to authenticate with the server.
         /// </summary>
-        public string? Password { get; set; }
+        public string? Password
+        {
+            get => password ?? Defaults.Password;
+            set => password = value;
+        }
 
         /// <summary>
         /// Specifies whether asynchronous operations should be invoked in a way that guarantees their original delivery order.
@@ -634,8 +642,8 @@ namespace StackExchange.Redis
             allowAdmin = allowAdmin,
             defaultVersion = defaultVersion,
             connectTimeout = connectTimeout,
-            User = User,
-            Password = Password,
+            user = user,
+            password = password,
             tieBreaker = tieBreaker,
             ssl = ssl,
             sslHost = sslHost,
@@ -726,8 +734,8 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.AllowAdmin, allowAdmin);
             Append(sb, OptionKeys.Version, defaultVersion);
             Append(sb, OptionKeys.ConnectTimeout, connectTimeout);
-            Append(sb, OptionKeys.User, User);
-            Append(sb, OptionKeys.Password, (includePassword || string.IsNullOrEmpty(Password)) ? Password : "*****");
+            Append(sb, OptionKeys.User, user);
+            Append(sb, OptionKeys.Password, (includePassword || string.IsNullOrEmpty(password)) ? password : "*****");
             Append(sb, OptionKeys.TieBreaker, tieBreaker);
             Append(sb, OptionKeys.Ssl, ssl);
             Append(sb, OptionKeys.SslProtocols, SslProtocols?.ToString().Replace(',', '|'));
@@ -778,7 +786,7 @@ namespace StackExchange.Redis
 
         private void Clear()
         {
-            ClientName = ServiceName = User = Password = tieBreaker = sslHost = configChannel = null;
+            ClientName = ServiceName = user = password = tieBreaker = sslHost = configChannel = null;
             keepAlive = syncTimeout = asyncTimeout = connectTimeout = connectRetry = configCheckSeconds = DefaultDatabase = null;
             allowAdmin = abortOnConnectFail = resolveDns = ssl = setClientLibrary = null;
             SslProtocols = null;
@@ -873,10 +881,10 @@ namespace StackExchange.Redis
                             DefaultVersion = OptionKeys.ParseVersion(key, value);
                             break;
                         case OptionKeys.User:
-                            User = value;
+                            user = value;
                             break;
                         case OptionKeys.Password:
-                            Password = value;
+                            password = value;
                             break;
                         case OptionKeys.TieBreaker:
                             TieBreaker = value;

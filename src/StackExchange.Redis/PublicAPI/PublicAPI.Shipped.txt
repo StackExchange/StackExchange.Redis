@@ -1788,9 +1788,11 @@ virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.IncludeDetailIn
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.IncludePerformanceCountersInExceptions.get -> bool
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.IsMatch(System.Net.EndPoint! endpoint) -> bool
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.KeepAliveInterval.get -> System.TimeSpan
+virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.Password.get -> string?
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.Proxy.get -> StackExchange.Redis.Proxy
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.ReconnectRetryPolicy.get -> StackExchange.Redis.IReconnectRetryPolicy?
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.ResolveDns.get -> bool
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.SetClientLibrary.get -> bool
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.SyncTimeout.get -> System.TimeSpan
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.TieBreaker.get -> string!
+virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.User.get -> string?
