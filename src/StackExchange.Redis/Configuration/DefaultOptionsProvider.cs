@@ -173,7 +173,7 @@ namespace StackExchange.Redis.Configuration
         public virtual TimeSpan ConfigCheckInterval => TimeSpan.FromMinutes(1);
 
         /// <summary>
-        /// The user to use to authenticate with the server.
+        /// The username to use to authenticate with the server.
         /// </summary>
         public virtual string? User => null;
 

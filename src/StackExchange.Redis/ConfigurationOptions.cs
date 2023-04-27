@@ -440,7 +440,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// The user to use to authenticate with the server.
+        /// The username to use to authenticate with the server.
         /// </summary>
         public string? User
         {
