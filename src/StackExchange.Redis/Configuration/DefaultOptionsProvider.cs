@@ -172,6 +172,16 @@ namespace StackExchange.Redis.Configuration
         /// </summary>
         public virtual TimeSpan ConfigCheckInterval => TimeSpan.FromMinutes(1);
 
+        /// <summary>
+        /// The username to use to authenticate with the server.
+        /// </summary>
+        public virtual string? User => null;
+
+        /// <summary>
+        /// The password to use to authenticate with the server.
+        /// </summary>
+        public virtual string? Password => null;
+
         // We memoize this to reduce cost on re-access
         private string? defaultClientName;
         /// <summary>

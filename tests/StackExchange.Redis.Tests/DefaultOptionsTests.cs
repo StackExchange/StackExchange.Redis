@@ -36,6 +36,8 @@ public class DefaultOptionsTests : TestBase
         public override bool ResolveDns => true;
         public override TimeSpan SyncTimeout => TimeSpan.FromSeconds(126);
         public override string TieBreaker => "TestTiebreaker";
+        public override string? User => "TestUser";
+        public override string? Password => "TestPassword";
     }
 
     public class TestRetryPolicy : IReconnectRetryPolicy
@@ -99,6 +101,8 @@ public class DefaultOptionsTests : TestBase
         Assert.True(options.ResolveDns);
         Assert.Equal(TimeSpan.FromSeconds(126), TimeSpan.FromMilliseconds(options.SyncTimeout));
         Assert.Equal("TestTiebreaker", options.TieBreaker);
+        Assert.Equal("TestUser", options.User);
+        Assert.Equal("TestPassword", options.Password);
     }
 
     public class TestAfterConnectOptionsProvider : DefaultOptionsProvider
