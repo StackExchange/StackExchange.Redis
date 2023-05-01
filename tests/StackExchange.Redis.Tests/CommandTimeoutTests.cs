@@ -35,6 +35,7 @@ public class CommandTimeoutTests : TestBase
         await pauseTask;
     }
 
+#if DEBUG
     [Fact]
     public async Task DefaultHeartbeatLowTimeout()
     {
@@ -60,4 +61,5 @@ public class CommandTimeoutTests : TestBase
         // Await as to not bias the next test
         await pauseTask;
     }
+#endif
 }

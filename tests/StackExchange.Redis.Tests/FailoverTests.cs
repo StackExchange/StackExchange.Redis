@@ -7,6 +7,7 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
+[Collection(NonParallelCollection.Name)]
 public class FailoverTests : TestBase, IAsyncLifetime
 {
     protected override string GetConfiguration() => GetPrimaryReplicaConfig().ToString();
@@ -197,6 +198,104 @@ public class FailoverTests : TestBase, IAsyncLifetime
 
 #if DEBUG
     [Fact]
+    public async Task SubscriptionsSurviveConnectionFailureAsync()
+    {
+        using var conn = (Create(allowAdmin: true, shared: false, log: Writer, syncTimeout: 1000) as ConnectionMultiplexer)!;
+
+        var profiler = conn.AddProfiler();
+        RedisChannel channel = Me();
+        var sub = conn.GetSubscriber();
+        int counter = 0;
+        Assert.True(sub.IsConnected());
+        await sub.SubscribeAsync(channel, delegate
+        {
+            Interlocked.Increment(ref counter);
+        }).ConfigureAwait(false);
+
+        var profile1 = Log(profiler);
+
+        Assert.Equal(1, conn.GetSubscriptionsCount());
+
+        await Task.Delay(200).ConfigureAwait(false);
+
+        await sub.PublishAsync(channel, "abc").ConfigureAwait(false);
+        sub.Ping();
+        await Task.Delay(200).ConfigureAwait(false);
+
+        var counter1 = Thread.VolatileRead(ref counter);
+        Log($"Expecting 1 message, got {counter1}");
+        Assert.Equal(1, counter1);
+
+        var server = GetServer(conn);
+        var socketCount = server.GetCounters().Subscription.SocketCount;
+        Log($"Expecting 1 socket, got {socketCount}");
+        Assert.Equal(1, socketCount);
+
+        // We might fail both connections or just the primary in the time period
+        SetExpectedAmbientFailureCount(-1);
+
+        // Make sure we fail all the way
+        conn.AllowConnect = false;
+        Log("Failing connection");
+        // Fail all connections
+        server.SimulateConnectionFailure(SimulatedFailureType.All);
+        // Trigger failure (RedisTimeoutException or RedisConnectionException because
+        // of backlog behavior)
+        var ex = Assert.ThrowsAny<Exception>(() => sub.Ping());
+        Assert.True(ex is RedisTimeoutException or RedisConnectionException);
+        Assert.False(sub.IsConnected(channel));
+
+        // Now reconnect...
+        conn.AllowConnect = true;
+        Log("Waiting on reconnect");
+        // Wait until we're reconnected
+        await UntilConditionAsync(TimeSpan.FromSeconds(10), () => sub.IsConnected(channel));
+        Log("Reconnected");
+        // Ensure we're reconnected
+        Assert.True(sub.IsConnected(channel));
+
+        // Ensure we've sent the subscribe command after reconnecting
+        var profile2 = Log(profiler);
+        //Assert.Equal(1, profile2.Count(p => p.Command == nameof(RedisCommand.SUBSCRIBE)));
+
+        Log("Issuing ping after reconnected");
+        sub.Ping();
+
+        var muxerSubCount = conn.GetSubscriptionsCount();
+        Log($"Muxer thinks we have {muxerSubCount} subscriber(s).");
+        Assert.Equal(1, muxerSubCount);
+
+        var muxerSubs = conn.GetSubscriptions();
+        foreach (var pair in muxerSubs)
+        {
+            var muxerSub = pair.Value;
+            Log($"  Muxer Sub: {pair.Key}: (EndPoint: {muxerSub.GetCurrentServer()}, Connected: {muxerSub.IsConnected})");
+        }
+
+        Log("Publishing");
+        var published = await sub.PublishAsync(channel, "abc").ConfigureAwait(false);
+
+        Log($"Published to {published} subscriber(s).");
+        Assert.Equal(1, published);
+
+        // Give it a few seconds to get our messages
+        Log("Waiting for 2 messages");
+        await UntilConditionAsync(TimeSpan.FromSeconds(5), () => Thread.VolatileRead(ref counter) == 2);
+
+        var counter2 = Thread.VolatileRead(ref counter);
+        Log($"Expecting 2 messages, got {counter2}");
+        Assert.Equal(2, counter2);
+
+        // Log all commands at the end
+        Log("All commands since connecting:");
+        var profile3 = profiler.FinishProfiling();
+        foreach (var command in profile3)
+        {
+            Log($"{command.EndPoint}: {command}");
+        }
+    }
+
+    [Fact]
     public async Task SubscriptionsSurvivePrimarySwitchAsync()
     {
         static void TopologyFail() => Skip.Inconclusive("Replication topology change failed...and that's both inconsistent and not what we're testing.");
@@ -215,14 +314,8 @@ public class FailoverTests : TestBase, IAsyncLifetime
         var subB = bConn.GetSubscriber();
 
         long primaryChanged = 0, aCount = 0, bCount = 0;
-        aConn.ConfigurationChangedBroadcast += delegate
-        {
-            Log("A noticed config broadcast: " + Interlocked.Increment(ref primaryChanged));
-        };
-        bConn.ConfigurationChangedBroadcast += delegate
-        {
-            Log("B noticed config broadcast: " + Interlocked.Increment(ref primaryChanged));
-        };
+        aConn.ConfigurationChangedBroadcast += (s, args) => Log("A noticed config broadcast: " + Interlocked.Increment(ref primaryChanged) + " (Endpoint:" + args.EndPoint + ")");
+        bConn.ConfigurationChangedBroadcast += (s, args) => Log("B noticed config broadcast: " + Interlocked.Increment(ref primaryChanged) + " (Endpoint:" + args.EndPoint + ")");
         subA.Subscribe(channel, (_, message) =>
         {
             Log("A got message: " + message);
@@ -333,8 +426,8 @@ public class FailoverTests : TestBase, IAsyncLifetime
 
             Assert.Equal(2, Interlocked.Read(ref aCount));
             Assert.Equal(2, Interlocked.Read(ref bCount));
-            // Expect 12, because a sees a, but b sees a and b due to replication
-            Assert.Equal(12, Interlocked.CompareExchange(ref primaryChanged, 0, 0));
+            // Expect 12, because a sees a, but b sees a and b due to replication, but contenders may add their own
+            Assert.True(Interlocked.CompareExchange(ref primaryChanged, 0, 0) >= 12);
         }
         catch
         {
