@@ -49,10 +49,10 @@ namespace StackExchange.Redis.Configuration
                 {
                     var encoding = Encoding.ASCII;
                     var ep = Format.ToString(endpoint);
-                    const string Prefix = "CONNECT ", Suffix = " HTTP/1.1\r\n\r\n", ExpectedResponse = "HTTP/1.1 200 OK\r\n\r\n";
+                    const string Prefix = "CONNECT ", Suffix = " HTTP/1.1\r\n\r\n", ExpectedResponse1 = "HTTP/1.1 200 OK\r\n\r\n", ExpectedResponse2 = "HTTP/1.1 200 Connection established\r\n\r\n";
                     byte[] chunk = ArrayPool<byte>.Shared.Rent(Math.Max(
                         encoding.GetByteCount(Prefix) + encoding.GetByteCount(ep) + encoding.GetByteCount(Suffix),
-                        encoding.GetByteCount(ExpectedResponse)
+                        Math.Max(encoding.GetByteCount(ExpectedResponse1), encoding.GetByteCount(ExpectedResponse2))
                     ));
                     var offset = 0;
                     offset += encoding.GetBytes(Prefix, 0, Prefix.Length, chunk, offset);
@@ -76,10 +76,11 @@ namespace StackExchange.Redis.Configuration
                         await args;
 
                         // we expect to see: "HTTP/1.1 200 OK\n"; note our buffer is definitely big enough already
-                        int toRead = encoding.GetByteCount(ExpectedResponse), read;
+                        int toRead = Math.Max(encoding.GetByteCount(ExpectedResponse1), encoding.GetByteCount(ExpectedResponse2)), read;
                         offset = 0;
 
-                        while (toRead > 0)
+                        var actualResponse = "";
+                        while (toRead > 0 && !actualResponse.EndsWith("\r\n\r\n"))
                         {
                             args.SetBuffer(chunk, offset, toRead);
                             if (!socket.ReceiveAsync(args)) args.Complete();
@@ -88,11 +89,12 @@ namespace StackExchange.Redis.Configuration
                             if (read <= 0) break; // EOF (since we're never doing zero-length reads)
                             toRead -= read;
                             offset += read;
+
+                            actualResponse = encoding.GetString(chunk, 0, offset);
                         }
-                        if (toRead != 0) throw new EndOfStreamException("EOF negotiating HTTP tunnel");
+                        if (toRead != 0 && !actualResponse.EndsWith("\r\n\r\n")) throw new EndOfStreamException("EOF negotiating HTTP tunnel");
                         // lazy
-                        var actualResponse = encoding.GetString(chunk, 0, offset);
-                        if (ExpectedResponse != actualResponse)
+                        if (ExpectedResponse1 != actualResponse && ExpectedResponse2 != actualResponse)
                         {
                             throw new InvalidOperationException("Unexpected response negotiating HTTP tunnel");
                         }
