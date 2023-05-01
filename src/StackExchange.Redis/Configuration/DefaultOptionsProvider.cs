@@ -172,6 +172,16 @@ namespace StackExchange.Redis.Configuration
         /// </summary>
         public virtual TimeSpan ConfigCheckInterval => TimeSpan.FromMinutes(1);
 
+        /// <summary>
+        /// The username to use to authenticate with the server.
+        /// </summary>
+        public virtual string? User => null;
+
+        /// <summary>
+        /// The password to use to authenticate with the server.
+        /// </summary>
+        public virtual string? Password => null;
+
         // We memoize this to reduce cost on re-access
         private string? defaultClientName;
         /// <summary>
@@ -215,31 +225,21 @@ namespace StackExchange.Redis.Configuration
             string? roleInstanceId;
             try
             {
-                Assembly? asm = null;
-                foreach (var asmb in AppDomain.CurrentDomain.GetAssemblies())
-                {
-                    if (asmb.GetName()?.Name?.Equals("Microsoft.WindowsAzure.ServiceRuntime") == true)
-                    {
-                        asm = asmb;
-                        break;
-                    }
-                }
-                if (asm == null)
-                    return null;
-
-                var type = asm.GetType("Microsoft.WindowsAzure.ServiceRuntime.RoleEnvironment");
+                var roleEnvironmentType = Type.GetType("Microsoft.WindowsAzure.ServiceRuntime.RoleEnvironment, Microsoft.WindowsAzure.ServiceRuntime", throwOnError: false);
 
                 // https://msdn.microsoft.com/en-us/library/microsoft.windowsazure.serviceruntime.roleenvironment.isavailable.aspx
-                if (type?.GetProperty("IsAvailable") is not PropertyInfo isAvailableProp
+                if (roleEnvironmentType?.GetProperty("IsAvailable") is not PropertyInfo isAvailableProp
                     || isAvailableProp.GetValue(null, null) is not bool isAvailableVal
                     || !isAvailableVal)
                 {
                     return null;
                 }
 
-                var currentRoleInstanceProp = type.GetProperty("CurrentRoleInstance");
+                var currentRoleInstanceProp = roleEnvironmentType.GetProperty("CurrentRoleInstance");
                 var currentRoleInstanceId = currentRoleInstanceProp?.GetValue(null, null);
-                roleInstanceId = currentRoleInstanceId?.GetType().GetProperty("Id")?.GetValue(currentRoleInstanceId, null)?.ToString();
+
+                var roleInstanceType = Type.GetType("Microsoft.WindowsAzure.ServiceRuntime.RoleInstance, Microsoft.WindowsAzure.ServiceRuntime", throwOnError: false);
+                roleInstanceId = roleInstanceType?.GetProperty("Id")?.GetValue(currentRoleInstanceId, null)?.ToString();
 
                 if (roleInstanceId.IsNullOrEmpty())
                 {
