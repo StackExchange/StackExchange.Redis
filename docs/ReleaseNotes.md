@@ -13,6 +13,7 @@ Current package versions:
 - Fix [#2449](https://github.com/StackExchange/StackExchange.Redis/issues/2449): Resolve AOT trim warnings in `TryGetAzureRoleInstanceIdNoThrow` ([#2451 by eerhardt](https://github.com/StackExchange/StackExchange.Redis/pull/2451))
 - Adds: Support for `HTTP/1.1 200 Connection established` in HTTP Tunnel ([#2448 by flobernd](https://github.com/StackExchange/StackExchange.Redis/pull/2448))
 - Adds: Timeout duration to backlog timeout error messages ([#2452 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2452))
+- Adds: `DefaultOptionsProvider.LibraryName` for specifying lib-name passed to `CLIENT SETINFO` in Redis 7.2+ ([#2453 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2453))
 
 ## 2.6.104
 
