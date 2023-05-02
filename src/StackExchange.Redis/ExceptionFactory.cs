@@ -235,6 +235,7 @@ namespace StackExchange.Redis
                 // If we're in the situation where we've never connected
                 if (logConnectionException && lastConnectionException is not null)
                 {
+                    sb.Append(" (").Append(Format.ToString(multiplexer.TimeoutMilliseconds)).Append("ms)");
                     sb.Append(" - Last Connection Exception: ").Append(lastConnectionException.Message);
                 }
 
