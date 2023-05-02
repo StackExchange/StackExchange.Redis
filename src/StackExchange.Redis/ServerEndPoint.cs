@@ -936,7 +936,7 @@ namespace StackExchange.Redis
                     log?.WriteLine($"{Format.ToString(this)}: Setting client lib/ver");
 
                     var libName = Multiplexer.RawConfig.Defaults.LibraryName;
-                    if (!string.IsNullOrEmpty(libName))
+                    if (!string.IsNullOrWhiteSpace(libName))
                     {
                         msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.CLIENT,
                             RedisLiterals.SETINFO, RedisLiterals.lib_name, libName);
