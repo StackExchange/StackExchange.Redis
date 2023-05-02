@@ -935,10 +935,14 @@ namespace StackExchange.Redis
                     // server version, so we will use this speculatively and hope for the best
                     log?.WriteLine($"{Format.ToString(this)}: Setting client lib/ver");
 
-                    msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.CLIENT,
-                        RedisLiterals.SETINFO, RedisLiterals.lib_name, RedisLiterals.SE_Redis);
-                    msg.SetInternalCall();
-                    await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
+                    var libName = Multiplexer.RawConfig.Defaults.LibraryName;
+                    if (!string.IsNullOrEmpty(libName))
+                    {
+                        msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.CLIENT,
+                            RedisLiterals.SETINFO, RedisLiterals.lib_name, libName);
+                        msg.SetInternalCall();
+                        await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
+                    }
 
                     var version = Utils.GetLibVersion();
                     if (!string.IsNullOrWhiteSpace(version))

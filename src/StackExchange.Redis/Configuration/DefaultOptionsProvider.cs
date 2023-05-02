@@ -198,6 +198,12 @@ namespace StackExchange.Redis.Configuration
              ?? "StackExchange.Redis") + "(SE.Redis-v" + LibraryVersion + ")";
 
         /// <summary>
+        /// Gets the library name to use for CLIENT SETINFO lib-name calls to Redis during handshake.
+        /// Defaults to "SE.Redis".
+        /// </summary>
+        public virtual string LibraryName => "SE.Redis";
+
+        /// <summary>
         /// String version of the StackExchange.Redis library, for use in any options.
         /// </summary>
         protected static string LibraryVersion => Utils.GetLibVersion();
