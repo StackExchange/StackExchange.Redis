@@ -107,7 +107,7 @@ public class ScriptingTests : TestBase
         db.StringSet(key + "foo", "bar", flags: CommandFlags.FireAndForget);
         var result = (long)db.ScriptEvaluate(@"
 redis.call('psetex', KEYS[1], 60000, 'timing')
-for i = 1,5000 do
+for i = 1,500000 do
     redis.call('set', 'ignore','abc')
 end
 local timeTaken = 60000 - redis.call('pttl', KEYS[1])
