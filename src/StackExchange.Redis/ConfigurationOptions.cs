@@ -912,18 +912,24 @@ namespace StackExchange.Redis
                             {
                                 Tunnel = null;
                             }
-                            else if (value.StartsWith("http:"))
+                            else
                             {
-                                value = value.Substring(5);
-                                if (!Format.TryParseEndPoint(value, out var ep))
+                                // For backwards compatibility with `http:address_with_port`.
+                                if (value.StartsWith("http:") && !value.StartsWith("http://"))
+                                {
+                                    value = value.Insert(5, "//");
+                                }
+
+                                var uri = new Uri(value, UriKind.Absolute);
+                                if (uri.Scheme != "http")
+                                {
+                                    throw new ArgumentException("Tunnel cannot be parsed: " + value);
+                                }
+                                if (!Format.TryParseEndPoint($"{uri.Host}:{uri.Port}", out var ep))
                                 {
                                     throw new ArgumentException("HTTP tunnel cannot be parsed: " + value);
                                 }
                                 Tunnel = Tunnel.HttpProxy(ep);
-                            }
-                            else
-                            {
-                                throw new ArgumentException("Tunnel cannot be parsed: " + value);
                             }
                             break;
                         // Deprecated options we ignore...

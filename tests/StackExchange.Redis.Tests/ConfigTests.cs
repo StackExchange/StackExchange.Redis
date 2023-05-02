@@ -619,19 +619,21 @@ public class ConfigTests : TestBase
         Assert.Equal(newPass, conn.RawConfig.Password);
     }
 
-    [Fact]
-    public void HttpTunnelCanRoundtrip()
+    [Theory]
+    [InlineData("http://somewhere:22", "http:somewhere:22")]
+    [InlineData("http:somewhere:22", "http:somewhere:22")]
+    public void HttpTunnelCanRoundtrip(string input, string expected)
     {
-        var config = ConfigurationOptions.Parse("127.0.0.1:6380,tunnel=http:somewhere:22");
+        var config = ConfigurationOptions.Parse($"127.0.0.1:6380,tunnel={input}");
         var ip = Assert.IsType<IPEndPoint>(Assert.Single(config.EndPoints));
         Assert.Equal(6380, ip.Port);
         Assert.Equal("127.0.0.1", ip.Address.ToString());
 
         Assert.NotNull(config.Tunnel);
-        Assert.Equal("http:somewhere:22", config.Tunnel.ToString());
+        Assert.Equal(expected, config.Tunnel.ToString());
 
         var cs = config.ToString();
-        Assert.Equal("127.0.0.1:6380,tunnel=http:somewhere:22", cs);
+        Assert.Equal($"127.0.0.1:6380,tunnel={expected}", cs);
     }
 
     private class CustomTunnel : Tunnel { }
