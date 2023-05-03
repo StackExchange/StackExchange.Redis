@@ -8,6 +8,10 @@ Current package versions:
 
 ## Unreleased
 
+No pending unreleased changes.
+
+## 2.6.111
+
 - Fix [#2426](https://github.com/StackExchange/StackExchange.Redis/issues/2426): Don't restrict multi-slot operations on Envoy proxy; let the proxy decide ([#2428 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2428))
 - Add: Support for `User`/`Password` in `DefaultOptionsProvider` to support token rotation scenarios ([#2445 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2445))
 - Fix [#2449](https://github.com/StackExchange/StackExchange.Redis/issues/2449): Resolve AOT trim warnings in `TryGetAzureRoleInstanceIdNoThrow` ([#2451 by eerhardt](https://github.com/StackExchange/StackExchange.Redis/pull/2451))
