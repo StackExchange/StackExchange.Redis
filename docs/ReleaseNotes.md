@@ -8,7 +8,8 @@ Current package versions:
 
 ## Unreleased
 
-No pending unreleased changes.
+- Fix [#2449](https://github.com/StackExchange/StackExchange.Redis/issues/2449): Update `Pipelines.Sockets.Unofficial` to `v2.2.8` to support native AOT ([#2456 by eerhardt](https://github.com/StackExchange/StackExchange.Redis/pull/2456))
+
 
 ## 2.6.111
 
