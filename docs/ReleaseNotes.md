@@ -10,7 +10,6 @@ Current package versions:
 
 - Fix [#2449](https://github.com/StackExchange/StackExchange.Redis/issues/2449): Update `Pipelines.Sockets.Unofficial` to `v2.2.8` to support native AOT ([#2456 by eerhardt](https://github.com/StackExchange/StackExchange.Redis/pull/2456))
 
-
 ## 2.6.111
 
 - Fix [#2426](https://github.com/StackExchange/StackExchange.Redis/issues/2426): Don't restrict multi-slot operations on Envoy proxy; let the proxy decide ([#2428 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2428))
