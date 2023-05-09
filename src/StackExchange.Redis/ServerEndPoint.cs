@@ -933,7 +933,7 @@ namespace StackExchange.Redis
                 {
                     // note that this is a relatively new feature, but usually we won't know the
                     // server version, so we will use this speculatively and hope for the best
-                    log?.WriteLine($"{Format.ToString(this)}: Setting client lib/ver");
+                    log?.LogInfo($"{Format.ToString(this)}: Setting client lib/ver");
 
                     var libName = Multiplexer.RawConfig.Defaults.LibraryName;
                     if (!string.IsNullOrWhiteSpace(libName))
