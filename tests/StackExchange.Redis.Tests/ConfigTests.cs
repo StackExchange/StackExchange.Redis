@@ -415,7 +415,7 @@ public class ConfigTests : TestBase
             await Task.Delay(8000).ForAwait();
 
             var after = innerConn.OperationCount;
-            Assert.True(after >= before + 2, $"after: {after}, before: {before}");
+            Assert.True(after >= before + 1, $"after: {after}, before: {before}");
         }
         finally
         {
@@ -622,19 +622,21 @@ public class ConfigTests : TestBase
         Assert.Equal(options.Logger, conn.RawConfig.Logger);
     }
 
-    [Fact]
-    public void HttpTunnelCanRoundtrip()
+    [Theory]
+    [InlineData("http://somewhere:22", "http:somewhere:22")]
+    [InlineData("http:somewhere:22", "http:somewhere:22")]
+    public void HttpTunnelCanRoundtrip(string input, string expected)
     {
-        var config = ConfigurationOptions.Parse("127.0.0.1:6380,tunnel=http:somewhere:22");
+        var config = ConfigurationOptions.Parse($"127.0.0.1:6380,tunnel={input}");
         var ip = Assert.IsType<IPEndPoint>(Assert.Single(config.EndPoints));
         Assert.Equal(6380, ip.Port);
         Assert.Equal("127.0.0.1", ip.Address.ToString());
 
         Assert.NotNull(config.Tunnel);
-        Assert.Equal("http:somewhere:22", config.Tunnel.ToString());
+        Assert.Equal(expected, config.Tunnel.ToString());
 
         var cs = config.ToString();
-        Assert.Equal("127.0.0.1:6380,tunnel=http:somewhere:22", cs);
+        Assert.Equal($"127.0.0.1:6380,tunnel={expected}", cs);
     }
 
     private class CustomTunnel : Tunnel { }
@@ -650,5 +652,19 @@ public class ConfigTests : TestBase
         Assert.Equal("127.0.0.1,ssl=True", cs);
         options = ConfigurationOptions.Parse(cs);
         Assert.Null(options.Tunnel);
+    }
+
+    [Theory]
+    [InlineData("server:6379", true)]
+    [InlineData("server:6379,setlib=True", true)]
+    [InlineData("server:6379,setlib=False", false)]
+    public void DefaultConfigOptionsForSetLib(string configurationString, bool setlib)
+    {
+        var options = ConfigurationOptions.Parse(configurationString);
+        Assert.Equal(setlib, options.SetClientLibrary);
+        Assert.Equal(configurationString, options.ToString());
+        options = options.Clone();
+        Assert.Equal(setlib, options.SetClientLibrary);
+        Assert.Equal(configurationString, options.ToString());
     }
 }

@@ -1,4 +1,5 @@
-﻿using System.Runtime.CompilerServices;
+﻿using System;
+using System.Runtime.CompilerServices;
 using System.Text;
 using Xunit;
 
@@ -277,5 +278,53 @@ public class RedisValueEquivalency
         Assert.Equal(123.1, d);
 
         Assert.False(((RedisValue)"abc").TryParse(out double _));
+    }
+
+    [Fact]
+    public void RedisValueLengthString()
+    {
+        RedisValue value = "abc";
+        Assert.Equal(RedisValue.StorageType.String, value.Type);
+        Assert.Equal(3, value.Length());
+    }
+
+    [Fact]
+    public void RedisValueLengthDouble()
+    {
+        RedisValue value = Math.PI;
+        Assert.Equal(RedisValue.StorageType.Double, value.Type);
+        Assert.Equal(18, value.Length());
+    }
+
+    [Fact]
+    public void RedisValueLengthInt64()
+    {
+        RedisValue value = 123;
+        Assert.Equal(RedisValue.StorageType.Int64, value.Type);
+        Assert.Equal(3, value.Length());
+    }
+
+    [Fact]
+    public void RedisValueLengthUInt64()
+    {
+        RedisValue value = ulong.MaxValue - 5;
+        Assert.Equal(RedisValue.StorageType.UInt64, value.Type);
+        Assert.Equal(20, value.Length());
+    }
+
+    [Fact]
+    public void RedisValueLengthRaw()
+    {
+        RedisValue value = new byte[] { 0, 1, 2 };
+        Assert.Equal(RedisValue.StorageType.Raw, value.Type);
+        Assert.Equal(3, value.Length());
+    }
+
+    [Fact]
+    public void RedisValueLengthNull()
+    {
+        RedisValue value = RedisValue.Null;
+        Assert.Equal(RedisValue.StorageType.Null, value.Type);
+        Assert.Equal(0, value.Length());
     }
 }

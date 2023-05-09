@@ -1493,20 +1493,6 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
-        public RedisResult ScriptEvaluate(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = new ScriptEvalMessage(Database, flags, script, keys, values);
-            try
-            {
-                return ExecuteSync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
-            }
-            catch (RedisServerException) when (msg.IsScriptUnavailable)
-            {
-                // could be a NOSCRIPT; for a sync call, we can re-issue that without problem
-                return ExecuteSync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
-            }
-        }
-
         public RedisResult Execute(string command, params object[] args)
             => Execute(command, args, CommandFlags.None);
 
@@ -1525,9 +1511,24 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
         }
 
+        public RedisResult ScriptEvaluate(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
+        {
+            var command = ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA : RedisCommand.EVAL;
+            var msg = new ScriptEvalMessage(Database, flags, command, script, keys, values);
+            try
+            {
+                return ExecuteSync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
+            }
+            catch (RedisServerException) when (msg.IsScriptUnavailable)
+            {
+                // could be a NOSCRIPT; for a sync call, we can re-issue that without problem
+                return ExecuteSync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
+            }
+        }
+
         public RedisResult ScriptEvaluate(byte[] hash, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
         {
-            var msg = new ScriptEvalMessage(Database, flags, hash, keys, values);
+            var msg = new ScriptEvalMessage(Database, flags, RedisCommand.EVALSHA, hash, keys, values);
             return ExecuteSync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
         }
 
@@ -1543,7 +1544,8 @@ namespace StackExchange.Redis
 
         public async Task<RedisResult> ScriptEvaluateAsync(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
         {
-            var msg = new ScriptEvalMessage(Database, flags, script, keys, values);
+            var command = ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA : RedisCommand.EVAL;
+            var msg = new ScriptEvalMessage(Database, flags, command, script, keys, values);
 
             try
             {
@@ -1558,7 +1560,7 @@ namespace StackExchange.Redis
 
         public Task<RedisResult> ScriptEvaluateAsync(byte[] hash, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
         {
-            var msg = new ScriptEvalMessage(Database, flags, hash, keys, values);
+            var msg = new ScriptEvalMessage(Database, flags, RedisCommand.EVALSHA, hash, keys, values);
             return ExecuteAsync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
         }
 
@@ -1570,6 +1572,40 @@ namespace StackExchange.Redis
         public Task<RedisResult> ScriptEvaluateAsync(LoadedLuaScript script, object? parameters = null, CommandFlags flags = CommandFlags.None)
         {
             return script.EvaluateAsync(this, parameters, withKeyPrefix: null, flags);
+        }
+
+        public RedisResult ScriptEvaluateReadOnly(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
+        {
+            var command = ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA_RO : RedisCommand.EVAL_RO;
+            var msg = new ScriptEvalMessage(Database, flags, command, script, keys, values);
+            try
+            {
+                return ExecuteSync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
+            }
+            catch (RedisServerException) when (msg.IsScriptUnavailable)
+            {
+                // could be a NOSCRIPT; for a sync call, we can re-issue that without problem
+                return ExecuteSync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
+            }
+        }
+
+        public RedisResult ScriptEvaluateReadOnly(byte[] hash, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = new ScriptEvalMessage(Database, flags, RedisCommand.EVALSHA_RO, hash, keys, values);
+            return ExecuteSync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
+        }
+
+        public Task<RedisResult> ScriptEvaluateReadOnlyAsync(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
+        {
+            var command = ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA_RO : RedisCommand.EVAL_RO;
+            var msg = new ScriptEvalMessage(Database, flags, command, script, keys, values);
+            return ExecuteAsync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
+        }
+
+        public Task<RedisResult> ScriptEvaluateReadOnlyAsync(byte[] hash, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = new ScriptEvalMessage(Database, flags, RedisCommand.EVALSHA_RO, hash, keys, values);
+            return ExecuteAsync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
         }
 
         public bool SetAdd(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
@@ -3438,7 +3474,7 @@ namespace StackExchange.Redis
         {
             private readonly StreamPosition[] streamPositions;
             private readonly RedisValue groupName;
-            private readonly RedisValue consumerName;            
+            private readonly RedisValue consumerName;
             private readonly int? countPerStream;
             private readonly bool noAck;
             private readonly int argCount;
@@ -3456,11 +3492,11 @@ namespace StackExchange.Redis
                 if (countPerStream.HasValue && countPerStream <= 0)
                 {
                     throw new ArgumentOutOfRangeException(nameof(countPerStream), "countPerStream must be greater than 0.");
-                }                
+                }
 
                 groupName.AssertNotNull();
                 consumerName.AssertNotNull();
-                
+
                 this.streamPositions = streamPositions;
                 this.groupName = groupName;
                 this.consumerName = consumerName;
@@ -3471,7 +3507,7 @@ namespace StackExchange.Redis
                     + (streamPositions.Length * 2)          // Enough room for the stream keys and associated IDs.
                     + (countPerStream.HasValue ? 2 : 0)     // Room for "COUNT num" or 0 if countPerStream is null.
                     + (noAck ? 1 : 0);                      // Allow for the NOACK subcommand.
-                 
+
             }
 
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
@@ -3505,13 +3541,13 @@ namespace StackExchange.Redis
                 physical.WriteBulkString(StreamConstants.Streams);
                 for (int i = 0; i < streamPositions.Length; i++)
                 {
-                    physical.Write(streamPositions[i].Key);                    
+                    physical.Write(streamPositions[i].Key);
                 }
                 for (int i = 0; i < streamPositions.Length; i++)
                 {
                     physical.WriteBulkString(StreamPosition.Resolve(streamPositions[i].Position, RedisCommand.XREADGROUP));
-                }                
-            }            
+                }
+            }
 
             public override int ArgCount => argCount;
         }
@@ -3521,8 +3557,8 @@ namespace StackExchange.Redis
 
         private sealed class MultiStreamReadCommandMessage : Message // XREAD with multiple stream. Example: XREAD COUNT 2 STREAMS mystream writers 0-0 0-0
         {
-            private readonly StreamPosition[] streamPositions;            
-            private readonly int? countPerStream;            
+            private readonly StreamPosition[] streamPositions;
+            private readonly int? countPerStream;
             private readonly int argCount;
 
             public MultiStreamReadCommandMessage(int db, CommandFlags flags, StreamPosition[] streamPositions, int? countPerStream)
@@ -3538,10 +3574,10 @@ namespace StackExchange.Redis
                 if (countPerStream.HasValue && countPerStream <= 0)
                 {
                     throw new ArgumentOutOfRangeException(nameof(countPerStream), "countPerStream must be greater than 0.");
-                }               
+                }
 
-                this.streamPositions = streamPositions;                
-                this.countPerStream = countPerStream;                
+                this.streamPositions = streamPositions;
+                this.countPerStream = countPerStream;
 
                 argCount = 1                             // Streams keyword.
                     + (countPerStream.HasValue ? 2 : 0)  // Room for "COUNT num" or 0 if countPerStream is null.
@@ -3566,7 +3602,7 @@ namespace StackExchange.Redis
                 {
                     physical.WriteBulkString(StreamConstants.Count);
                     physical.WriteBulkString(countPerStream.Value);
-                }                
+                }
 
                 physical.WriteBulkString(StreamConstants.Streams);
                 for (int i = 0; i < streamPositions.Length; i++)
@@ -4181,7 +4217,7 @@ namespace StackExchange.Redis
         private sealed class SingleStreamReadGroupCommandMessage : Message.CommandKeyBase // XREADGROUP with single stream. eg XREADGROUP GROUP mygroup Alice COUNT 1 STREAMS mystream >
         {
             private readonly RedisValue groupName;
-            private readonly RedisValue consumerName;            
+            private readonly RedisValue consumerName;
             private readonly RedisValue afterId;
             private readonly int? count;
             private readonly bool noAck;
@@ -4216,7 +4252,7 @@ namespace StackExchange.Redis
                 if (count.HasValue)
                 {
                     physical.WriteBulkString(StreamConstants.Count);
-                    physical.WriteBulkString(count.Value);                    
+                    physical.WriteBulkString(count.Value);
                 }
 
                 if (noAck)
@@ -4238,7 +4274,7 @@ namespace StackExchange.Redis
         private sealed class SingleStreamReadCommandMessage : Message.CommandKeyBase // XREAD with a single stream. Example: XREAD COUNT 2 STREAMS mystream 0-0
         {
             private readonly RedisValue afterId;
-            private readonly int? count;            
+            private readonly int? count;
             private readonly int argCount;
 
             public SingleStreamReadCommandMessage(int db, CommandFlags flags, RedisKey key, RedisValue afterId, int? count)
@@ -4264,7 +4300,7 @@ namespace StackExchange.Redis
                 {
                     physical.WriteBulkString(StreamConstants.Count);
                     physical.WriteBulkString(count.Value);
-                }                
+                }
 
                 physical.WriteBulkString(StreamConstants.Streams);
                 physical.Write(Key);
@@ -4750,14 +4786,14 @@ namespace StackExchange.Redis
             private byte[]? asciiHash;
             private readonly byte[]? hexHash;
 
-            public ScriptEvalMessage(int db, CommandFlags flags, string script, RedisKey[]? keys, RedisValue[]? values)
-                : this(db, flags, ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA : RedisCommand.EVAL, script, null, keys, values)
+            public ScriptEvalMessage(int db, CommandFlags flags, RedisCommand command, string script, RedisKey[]? keys, RedisValue[]? values)
+                : this(db, flags, command, script, null, keys, values)
             {
                 if (script == null) throw new ArgumentNullException(nameof(script));
             }
 
-            public ScriptEvalMessage(int db, CommandFlags flags, byte[] hash, RedisKey[]? keys, RedisValue[]? values)
-                : this(db, flags, RedisCommand.EVALSHA, null, hash, keys, values)
+            public ScriptEvalMessage(int db, CommandFlags flags, RedisCommand command, byte[] hash, RedisKey[]? keys, RedisValue[]? values)
+                : this(db, flags, command, null, hash, keys, values)
             {
                 if (hash == null) throw new ArgumentNullException(nameof(hash));
                 if (hash.Length != ResultProcessor.ScriptLoadProcessor.Sha1HashLength) throw new ArgumentOutOfRangeException(nameof(hash), "Invalid hash length");

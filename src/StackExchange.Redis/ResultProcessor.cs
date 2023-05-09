@@ -267,7 +267,7 @@ namespace StackExchange.Redis
                             {
                                 if (isMoved && wasNoRedirect)
                                 {
-                                    if (bridge.Multiplexer.IncludeDetailInExceptions)
+                                    if (bridge.Multiplexer.RawConfig.IncludeDetailInExceptions)
                                     {
                                         err = $"Key has MOVED to Endpoint {endpoint} and hashslot {hashSlot} but CommandFlags.NoRedirect was specified - redirect not followed for {message.CommandAndKey}. ";
                                     }
@@ -279,7 +279,7 @@ namespace StackExchange.Redis
                                 else
                                 {
                                     unableToConnectError = true;
-                                    if (bridge.Multiplexer.IncludeDetailInExceptions)
+                                    if (bridge.Multiplexer.RawConfig.IncludeDetailInExceptions)
                                     {
                                         err = $"Endpoint {endpoint} serving hashslot {hashSlot} is not reachable at this point of time. Please check connectTimeout value. If it is low, try increasing it to give the ConnectionMultiplexer a chance to recover from the network disconnect. "
                                             + PerfCounterHelper.GetThreadPoolAndCPUSummary();

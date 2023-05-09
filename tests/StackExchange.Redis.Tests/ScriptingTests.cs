@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using StackExchange.Redis.KeyspaceIsolation;
@@ -1051,6 +1052,89 @@ return arr;
     public void RedisResultUnderstandsNullNull() => TestNullValue(null);
     [Fact]
     public void RedisResultUnderstandsNullValue() => TestNullValue(RedisResult.Create(RedisValue.Null, ResultType.None));
+
+    [Fact]
+    public void TestEvalReadonly()
+    {
+        using var conn = GetScriptConn();
+        var db = conn.GetDatabase();
+
+        string script = "return KEYS[1]";
+        RedisKey[] keys = new RedisKey[1] { "key1" };
+        RedisValue[] values = new RedisValue[1] { "first" };
+
+        var result = db.ScriptEvaluateReadOnly(script, keys, values);
+        Assert.Equal("key1", result.ToString());
+    }
+
+    [Fact]
+    public async Task TestEvalReadonlyAsync()
+    {
+        using var conn = GetScriptConn();
+        var db = conn.GetDatabase();
+
+        string script = "return KEYS[1]";
+        RedisKey[] keys = new RedisKey[1] { "key1" };
+        RedisValue[] values = new RedisValue[1] { "first" };
+
+        var result = await db.ScriptEvaluateReadOnlyAsync(script, keys, values);
+        Assert.Equal("key1", result.ToString());
+    }
+
+    [Fact]
+    public void TestEvalShaReadOnly()
+    {
+        using var conn = GetScriptConn();
+        var db = conn.GetDatabase();
+        db.StringSet("foo", "bar");
+        db.ScriptEvaluate("return redis.call('get','foo')");
+        // Create a SHA1 hash of the script: 6b1bf486c81ceb7edf3c093f4c48582e38c0e791
+        SHA1 sha1Hash = SHA1.Create();
+
+        byte[] hash = sha1Hash.ComputeHash(Encoding.UTF8.GetBytes("return redis.call('get','foo')"));
+        var result = db.ScriptEvaluateReadOnly(hash);
+
+        Assert.Equal("bar", result.ToString());
+    }
+
+    [Fact]
+    public async Task TestEvalShaReadOnlyAsync()
+    {
+        using var conn = GetScriptConn();
+        var db = conn.GetDatabase();
+        db.StringSet("foo", "bar");
+        db.ScriptEvaluate("return redis.call('get','foo')");
+        // Create a SHA1 hash of the script: 6b1bf486c81ceb7edf3c093f4c48582e38c0e791
+        SHA1 sha1Hash = SHA1.Create();
+
+        byte[] hash = sha1Hash.ComputeHash(Encoding.UTF8.GetBytes("return redis.call('get','foo')"));
+        var result = await db.ScriptEvaluateReadOnlyAsync(hash);
+
+        Assert.Equal("bar", result.ToString());
+    }
+
+    [Fact, TestCulture("en-US")]
+    public void LuaScriptEnglishParameters() => LuaScriptParameterShared();
+
+    [Fact, TestCulture("tr-TR")]
+    public void LuaScriptTurkishParameters() => LuaScriptParameterShared();
+
+    private void LuaScriptParameterShared()
+    {
+        const string Script = "redis.call('set', @key, @testIId)";
+        var prepared = LuaScript.Prepare(Script);
+        var key = Me();
+        var p = new { key = (RedisKey)key, testIId = "hello" };
+
+        prepared.ExtractParameters(p, null, out RedisKey[]? keys, out RedisValue[]? args);
+        Assert.NotNull(keys);
+        Assert.Single(keys);
+        Assert.Equal(key, keys[0]);
+        Assert.NotNull(args);
+        Assert.Equal(2, args.Length);
+        Assert.Equal(key, args[0]);
+        Assert.Equal("hello", args[1]);
+    }
 
     private static void TestNullValue(RedisResult? value)
     {

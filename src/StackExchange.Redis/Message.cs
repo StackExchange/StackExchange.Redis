@@ -609,6 +609,11 @@ namespace StackExchange.Redis
             }
         }
 
+        internal bool IsBacklogged => Status == CommandStatus.WaitingInBacklog;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal void SetBacklogged() => Status = CommandStatus.WaitingInBacklog;
+
         private PhysicalConnection? _enqueuedTo;
         private long _queuedStampReceived, _queuedStampSent;
 
@@ -1565,6 +1570,16 @@ namespace StackExchange.Redis
                 physical.WriteBulkString(Db);
             }
             public override int ArgCount => 1;
+        }
+
+        // this is a placeholder message for use when (for example) unable to queue the
+        // connection queue due to a lock timeout
+        internal sealed class UnknownMessage : Message
+        {
+            public static UnknownMessage Instance { get; } = new();
+            private UnknownMessage() : base(0, CommandFlags.None, RedisCommand.UNKNOWN) { }
+            public override int ArgCount => 0;
+            protected override void WriteImpl(PhysicalConnection physical) => throw new InvalidOperationException("This message cannot be written");
         }
     }
 }

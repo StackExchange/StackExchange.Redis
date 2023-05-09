@@ -79,6 +79,7 @@ StackExchange.Redis.ChannelMessage.SubscriptionChannel.get -> StackExchange.Redi
 StackExchange.Redis.ChannelMessageQueue
 StackExchange.Redis.ChannelMessageQueue.Channel.get -> StackExchange.Redis.RedisChannel
 StackExchange.Redis.ChannelMessageQueue.Completion.get -> System.Threading.Tasks.Task!
+StackExchange.Redis.ChannelMessageQueue.GetAsyncEnumerator(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Collections.Generic.IAsyncEnumerator<StackExchange.Redis.ChannelMessage>!
 StackExchange.Redis.ChannelMessageQueue.OnMessage(System.Action<StackExchange.Redis.ChannelMessage>! handler) -> void
 StackExchange.Redis.ChannelMessageQueue.OnMessage(System.Func<StackExchange.Redis.ChannelMessage, System.Threading.Tasks.Task!>! handler) -> void
 StackExchange.Redis.ChannelMessageQueue.ReadAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<StackExchange.Redis.ChannelMessage>
@@ -117,9 +118,12 @@ StackExchange.Redis.ClientInfo.Host.get -> string?
 StackExchange.Redis.ClientInfo.Id.get -> long
 StackExchange.Redis.ClientInfo.IdleSeconds.get -> int
 StackExchange.Redis.ClientInfo.LastCommand.get -> string?
+StackExchange.Redis.ClientInfo.LibraryName.get -> string?
+StackExchange.Redis.ClientInfo.LibraryVersion.get -> string?
 StackExchange.Redis.ClientInfo.Name.get -> string?
 StackExchange.Redis.ClientInfo.PatternSubscriptionCount.get -> int
 StackExchange.Redis.ClientInfo.Port.get -> int
+StackExchange.Redis.ClientInfo.ProtocolVersion.get -> string?
 StackExchange.Redis.ClientInfo.Raw.get -> string?
 StackExchange.Redis.ClientInfo.SubscriptionCount.get -> int
 StackExchange.Redis.ClientInfo.TransactionCommandLength.get -> int
@@ -140,8 +144,10 @@ StackExchange.Redis.ClusterNode.CompareTo(StackExchange.Redis.ClusterNode? other
 StackExchange.Redis.ClusterNode.EndPoint.get -> System.Net.EndPoint?
 StackExchange.Redis.ClusterNode.Equals(StackExchange.Redis.ClusterNode? other) -> bool
 StackExchange.Redis.ClusterNode.IsConnected.get -> bool
+StackExchange.Redis.ClusterNode.IsFail.get -> bool
 StackExchange.Redis.ClusterNode.IsMyself.get -> bool
 StackExchange.Redis.ClusterNode.IsNoAddr.get -> bool
+StackExchange.Redis.ClusterNode.IsPossiblyFail.get -> bool
 StackExchange.Redis.ClusterNode.IsReplica.get -> bool
 StackExchange.Redis.ClusterNode.IsSlave.get -> bool
 StackExchange.Redis.ClusterNode.NodeId.get -> string!
@@ -166,6 +172,7 @@ StackExchange.Redis.CommandStatus
 StackExchange.Redis.CommandStatus.Sent = 2 -> StackExchange.Redis.CommandStatus
 StackExchange.Redis.CommandStatus.Unknown = 0 -> StackExchange.Redis.CommandStatus
 StackExchange.Redis.CommandStatus.WaitingToBeSent = 1 -> StackExchange.Redis.CommandStatus
+StackExchange.Redis.CommandStatus.WaitingInBacklog = 3 -> StackExchange.Redis.CommandStatus
 StackExchange.Redis.CommandTrace
 StackExchange.Redis.CommandTrace.Arguments.get -> StackExchange.Redis.RedisValue[]!
 StackExchange.Redis.CommandTrace.Duration.get -> System.TimeSpan
@@ -252,6 +259,8 @@ StackExchange.Redis.ConfigurationOptions.ResponseTimeout.get -> int
 StackExchange.Redis.ConfigurationOptions.ResponseTimeout.set -> void
 StackExchange.Redis.ConfigurationOptions.ServiceName.get -> string?
 StackExchange.Redis.ConfigurationOptions.ServiceName.set -> void
+StackExchange.Redis.ConfigurationOptions.SetClientLibrary.get -> bool
+StackExchange.Redis.ConfigurationOptions.SetClientLibrary.set -> void
 StackExchange.Redis.ConfigurationOptions.SetDefaultPorts() -> void
 StackExchange.Redis.ConfigurationOptions.SocketManager.get -> StackExchange.Redis.SocketManager?
 StackExchange.Redis.ConfigurationOptions.SocketManager.set -> void
@@ -492,6 +501,7 @@ StackExchange.Redis.IConnectionMultiplexer.PublishReconfigure(StackExchange.Redi
 StackExchange.Redis.IConnectionMultiplexer.PublishReconfigureAsync(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
 StackExchange.Redis.IConnectionMultiplexer.RegisterProfiler(System.Func<StackExchange.Redis.Profiling.ProfilingSession!>! profilingSessionProvider) -> void
 StackExchange.Redis.IConnectionMultiplexer.ResetStormLog() -> void
+StackExchange.Redis.IConnectionMultiplexer.ServerMaintenanceEvent -> System.EventHandler<StackExchange.Redis.Maintenance.ServerMaintenanceEvent!>!
 StackExchange.Redis.IConnectionMultiplexer.StormLogThreshold.get -> int
 StackExchange.Redis.IConnectionMultiplexer.StormLogThreshold.set -> void
 StackExchange.Redis.IConnectionMultiplexer.TimeoutMilliseconds.get -> int
@@ -608,6 +618,8 @@ StackExchange.Redis.IDatabase.ScriptEvaluate(byte[]! hash, StackExchange.Redis.R
 StackExchange.Redis.IDatabase.ScriptEvaluate(StackExchange.Redis.LoadedLuaScript! script, object? parameters = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisResult!
 StackExchange.Redis.IDatabase.ScriptEvaluate(StackExchange.Redis.LuaScript! script, object? parameters = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisResult!
 StackExchange.Redis.IDatabase.ScriptEvaluate(string! script, StackExchange.Redis.RedisKey[]? keys = null, StackExchange.Redis.RedisValue[]? values = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisResult!
+StackExchange.Redis.IDatabase.ScriptEvaluateReadOnly(byte[]! hash, StackExchange.Redis.RedisKey[]? keys = null, StackExchange.Redis.RedisValue[]? values = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisResult!
+StackExchange.Redis.IDatabase.ScriptEvaluateReadOnly(string! script, StackExchange.Redis.RedisKey[]? keys = null, StackExchange.Redis.RedisValue[]? values = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisResult!
 StackExchange.Redis.IDatabase.SetAdd(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue value, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> bool
 StackExchange.Redis.IDatabase.SetAdd(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue[]! values, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
 StackExchange.Redis.IDatabase.SetCombine(StackExchange.Redis.SetOperation operation, StackExchange.Redis.RedisKey first, StackExchange.Redis.RedisKey second, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue[]!
@@ -837,6 +849,8 @@ StackExchange.Redis.IDatabaseAsync.ScriptEvaluateAsync(byte[]! hash, StackExchan
 StackExchange.Redis.IDatabaseAsync.ScriptEvaluateAsync(StackExchange.Redis.LoadedLuaScript! script, object? parameters = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisResult!>!
 StackExchange.Redis.IDatabaseAsync.ScriptEvaluateAsync(StackExchange.Redis.LuaScript! script, object? parameters = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisResult!>!
 StackExchange.Redis.IDatabaseAsync.ScriptEvaluateAsync(string! script, StackExchange.Redis.RedisKey[]? keys = null, StackExchange.Redis.RedisValue[]? values = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisResult!>!
+StackExchange.Redis.IDatabaseAsync.ScriptEvaluateReadOnlyAsync(byte[]! hash, StackExchange.Redis.RedisKey[]? keys = null, StackExchange.Redis.RedisValue[]? values = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisResult!>!
+StackExchange.Redis.IDatabaseAsync.ScriptEvaluateReadOnlyAsync(string! script, StackExchange.Redis.RedisKey[]? keys = null, StackExchange.Redis.RedisValue[]? values = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisResult!>!
 StackExchange.Redis.IDatabaseAsync.SetAddAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue value, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<bool>!
 StackExchange.Redis.IDatabaseAsync.SetAddAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue[]! values, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
 StackExchange.Redis.IDatabaseAsync.SetCombineAndStoreAsync(StackExchange.Redis.SetOperation operation, StackExchange.Redis.RedisKey destination, StackExchange.Redis.RedisKey first, StackExchange.Redis.RedisKey second, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
@@ -1776,9 +1790,13 @@ virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.IncludeDetailIn
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.IncludePerformanceCountersInExceptions.get -> bool
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.IsMatch(System.Net.EndPoint! endpoint) -> bool
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.KeepAliveInterval.get -> System.TimeSpan
+virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.LibraryName.get -> string!
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.Logger.get -> Microsoft.Extensions.Logging.ILogger?
+virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.Password.get -> string?
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.Proxy.get -> StackExchange.Redis.Proxy
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.ReconnectRetryPolicy.get -> StackExchange.Redis.IReconnectRetryPolicy?
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.ResolveDns.get -> bool
+virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.SetClientLibrary.get -> bool
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.SyncTimeout.get -> System.TimeSpan
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.TieBreaker.get -> string!
+virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.User.get -> string?

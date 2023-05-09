@@ -8,9 +8,54 @@ Current package versions:
 
 ## Unreleased
 
+- Fix [#2449](https://github.com/StackExchange/StackExchange.Redis/issues/2449): Update `Pipelines.Sockets.Unofficial` to `v2.2.8` to support native AOT ([#2456 by eerhardt](https://github.com/StackExchange/StackExchange.Redis/pull/2456))
+
+## 2.6.111
+
+- Fix [#2426](https://github.com/StackExchange/StackExchange.Redis/issues/2426): Don't restrict multi-slot operations on Envoy proxy; let the proxy decide ([#2428 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2428))
+- Add: Support for `User`/`Password` in `DefaultOptionsProvider` to support token rotation scenarios ([#2445 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2445))
+- Fix [#2449](https://github.com/StackExchange/StackExchange.Redis/issues/2449): Resolve AOT trim warnings in `TryGetAzureRoleInstanceIdNoThrow` ([#2451 by eerhardt](https://github.com/StackExchange/StackExchange.Redis/pull/2451))
+- Adds: Support for `HTTP/1.1 200 Connection established` in HTTP Tunnel ([#2448 by flobernd](https://github.com/StackExchange/StackExchange.Redis/pull/2448))
+- Adds: Timeout duration to backlog timeout error messages ([#2452 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2452))
+- Adds: `DefaultOptionsProvider.LibraryName` for specifying lib-name passed to `CLIENT SETINFO` in Redis 7.2+ ([#2453 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2453))
+
+## 2.6.104
+
+- Fix [#2412](https://github.com/StackExchange/StackExchange.Redis/issues/2412): Critical (but rare) GC bug that can lead to async tasks never completing if the multiplexer is not held by the consumer ([#2408 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2408))
+- Add: Better error messages (over generic timeout) when commands are backlogged and unable to write to any connection ([#2408 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2408))
+- Fix [#2392](https://github.com/StackExchange/StackExchange.Redis/issues/2392): Dequeue *all* timed out messages from the backlog when not connected (including Fire+Forget) ([#2397 by kornelpal](https://github.com/StackExchange/StackExchange.Redis/pull/2397))
+- Fix [#2400](https://github.com/StackExchange/StackExchange.Redis/issues/2400): Expose `ChannelMessageQueue` as `IAsyncEnumerable<ChannelMessage>` ([#2402 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2402))
+- Add: Support for `CLIENT SETINFO` (lib name/version) during handshake; opt-out is via `ConfigurationOptions`; also support read of `resp`, `lib-ver` and `lib-name` via `CLIENT LIST` ([#2414 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2414))
+- Documentation: clarify the meaning of `RedisValue.IsInteger` re [#2418](https://github.com/StackExchange/StackExchange.Redis/issues/2418) ([#2420 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2420))
+
+## 2.6.96
+
+- Fix [#2350](https://github.com/StackExchange/StackExchange.Redis/issues/2350): Properly parse lua script parameters in all cultures ([#2351 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2351))
+- Fix [#2362](https://github.com/StackExchange/StackExchange.Redis/issues/2362): Set `RedisConnectionException.FailureType` to `AuthenticationFailure` on all authentication scenarios for better handling ([#2367 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2367))
+- Fix [#2368](https://github.com/StackExchange/StackExchange.Redis/issues/2368): Support `RedisValue.Length()` for all storage types ([#2370 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2370))
+- Fix [#2376](https://github.com/StackExchange/StackExchange.Redis/issues/2376): Avoid a (rare) deadlock scenario ([#2378 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2378))
+
+## 2.6.90
+
+- Adds: Support for `EVAL_RO` and `EVALSHA_RO` via `IDatabase.ScriptEvaluateReadOnly`/`IDatabase.ScriptEvaluateReadOnlyAsync` ([#2168 by shacharPash](https://github.com/StackExchange/StackExchange.Redis/pull/2168))
+- Fix [#1458](https://github.com/StackExchange/StackExchange.Redis/issues/1458): Fixes a leak condition when a connection completes on the TCP phase but not the Redis handshake ([#2238 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2238))
+- Internal: ServerSnapshot: Improve API and allow filtering with custom struct enumerator ([#2337 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2337))
+
+
+## 2.6.86
+
+- Fix [#1520](https://github.com/StackExchange/StackExchange.Redis/issues/1520) & [#1660](https://github.com/StackExchange/StackExchange.Redis/issues/1660): When `MOVED` is encountered from a cluster, a reconfigure will happen proactively to react to cluster changes ASAP ([#2286 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2286))
+- Fix [#2249](https://github.com/StackExchange/StackExchange.Redis/issues/2249): Properly handle a `fail` state (new `ClusterNode.IsFail` property) for `CLUSTER NODES` and expose `fail?` as a property (`IsPossiblyFail`) as well ([#2288 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2288))
+- Adds: `IConnectionMultiplexer.ServerMaintenanceEvent` (was on `ConnectionMultiplexer` but not the interface) ([#2306 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2306))
+- Adds: To timeout messages, additional debug information: `Sync-Ops` (synchronous operations), `Async-Ops` (asynchronous operations), and `Server-Connected-Seconds` (how long the connection in question has been connected, or `"n/a"`) ([#2300 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2300))
+
+
+## 2.6.80
+
 - Adds: `last-in` and `cur-in` (bytes) to timeout exceptions to help identify timeouts that were just-behind another large payload off the wire ([#2276 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2276))
 - Adds: general-purpose tunnel support, with HTTP proxy "connect" support included ([#2274 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2274))
 - Removes: Package dependency (`System.Diagnostics.PerformanceCounter`) ([#2285 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2285))
+
 
 ## 2.6.70
 
@@ -36,8 +81,8 @@ Current package versions:
 
 ## 2.6.48
 
-- URGENT Fix: [#2167](https://github.com/StackExchange/StackExchange.Redis/issues/2167), [#2176](https://github.com/StackExchange/StackExchange.Redis/issues/2176): fix error in batch/transaction handling that can result in out-of-order instructions ([#2177 by MarcGravell](https://github.com/StackExchange/StackExchange.Redis/pull/2177))
-- Fix: [#2164](https://github.com/StackExchange/StackExchange.Redis/issues/2164): fix `LuaScript.Prepare` for scripts that don't have parameters ([#2166 by MarcGravell](https://github.com/StackExchange/StackExchange.Redis/pull/2166))
+- URGENT Fix: [#2167](https://github.com/StackExchange/StackExchange.Redis/issues/2167), [#2176](https://github.com/StackExchange/StackExchange.Redis/issues/2176): fix error in batch/transaction handling that can result in out-of-order instructions ([#2177 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2177))
+- Fix: [#2164](https://github.com/StackExchange/StackExchange.Redis/issues/2164): fix `LuaScript.Prepare` for scripts that don't have parameters ([#2166 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2166))
 
 ## 2.6.45
 
@@ -69,10 +114,10 @@ Current package versions:
 - Fix [#2086](https://github.com/StackExchange/StackExchange.Redis/issues/2086): Correct HashSlot calculations for `XREAD` and `XREADGROUP` commands ([#2093 by nielsderdaele](https://github.com/StackExchange/StackExchange.Redis/pull/2093))
 - Adds: Support for `LCS` with `.StringLongestCommonSubsequence()`/`.StringLongestCommonSubsequence()`, `.StringLongestCommonSubsequenceLength()`/`.StringLongestCommonSubsequenceLengthAsync()`, and `.StringLongestCommonSubsequenceWithMatches()`/`.StringLongestCommonSubsequenceWithMatchesAsync()` ([#2104 by Avital-Fine](https://github.com/StackExchange/StackExchange.Redis/pull/2104))
 - Adds: Support for `OBJECT FREQ` with `.KeyFrequency()`/`.KeyFrequencyAsync()` ([#2105 by Avital-Fine](https://github.com/StackExchange/StackExchange.Redis/pull/2105))
-- Performance: Avoids allocations when computing cluster hash slots or testing key equality ([#2110 by Marc Gravell](https://github.com/StackExchange/StackExchange.Redis/pull/2110))
+- Performance: Avoids allocations when computing cluster hash slots or testing key equality ([#2110 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2110))
 - Adds: Support for `SORT_RO` with `.Sort()`/`.SortAsync()` ([#2111 by slorello89](https://github.com/StackExchange/StackExchange.Redis/pull/2111))
 - Adds: Support for `BIT | BYTE` to `BITCOUNT` and `BITPOS` with `.StringBitCount()`/`.StringBitCountAsync()` and `.StringBitPosition()`/`.StringBitPositionAsync()` ([#2116 by Avital-Fine](https://github.com/StackExchange/StackExchange.Redis/pull/2116))
-- Adds: Support for pub/sub payloads that are unary arrays ([#2118 by Marc Gravell](https://github.com/StackExchange/StackExchange.Redis/pull/2118))
+- Adds: Support for pub/sub payloads that are unary arrays ([#2118 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2118))
 - Fix: Sentinel timer race during dispose ([#2133 by ewisuri](https://github.com/StackExchange/StackExchange.Redis/pull/2133))
 - Adds: Support for `GT`, `LT`, and `CH` on `ZADD` with `.SortedSetAdd()`/`.SortedSetAddAsync()` and `.SortedSetUpdate()`/`.SortedSetUpdateAsync()` ([#2136 by Avital-Fine](https://github.com/StackExchange/StackExchange.Redis/pull/2136))
 - Adds: Support for `COMMAND COUNT`, `COMMAND GETKEYS`, and `COMMAND LIST`, with `.CommandCount()`/`.CommandCountAsync()`, `.CommandGetKeys()`/`.CommandGetKeysAsync()`, and `.CommandList()`/`.CommandListAsync()` ([#2143 by shacharPash](https://github.com/StackExchange/StackExchange.Redis/pull/2143))
@@ -127,7 +172,7 @@ Current package versions:
 ## 2.2.88
 
 - Change: Connection backoff default is now exponential instead of linear ([#1896 by lolodi](https://github.com/StackExchange/StackExchange.Redis/pull/1896))
-- Adds: Support for NodeMaintenanceScaleComplete event (handles Redis cluster scaling) ([#1902 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/1902))
+- Adds: Support for `NodeMaintenanceScaleComplete` event (handles Redis cluster scaling) ([#1902 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/1902))
 
 ## 2.2.79
 
@@ -202,12 +247,12 @@ Current package versions:
 
 ## 2.1.30
 
-- Build: Fix deterministic builds
+- Build: Fix deterministic builds ([#1420 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/1420))
 
 ## 2.1.28
 
 - Fix: Stability in new sentinel APIs
-- Fix: Include `SslProtocolos` in `ConfigurationOptions.ToString()` ([#1408 by vksampath and Sampath Vuyyuru](https://github.com/StackExchange/StackExchange.Redis/pull/1408))
+- Fix [#1407](https://github.com/StackExchange/StackExchange.Redis/issues/1407): Include `SslProtocolos` in `ConfigurationOptions.ToString()` ([#1408 by vksampath and Sampath Vuyyuru](https://github.com/StackExchange/StackExchange.Redis/pull/1408))
 - Fix: Clarify messaging around disconnected multiplexers ([#1396 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/1396))
 - Change: Tweak methods of new sentinel API (this is technically a breaking change, but since this is a new API that was pulled quickly, we consider this to be acceptable)
 - Adds: New thread `SocketManager` mode (opt-in) to always use the regular thread-pool instead of the dedicated pool
@@ -257,7 +302,7 @@ Current package versions:
 ## 2.0.593
 
 - Performance: Unify spin-wait usage on sync/async paths to one competitor
-- Fix [#1101](https://github.com/StackExchange/StackExchange.Redis/issues/1101) - when a `ChannelMessageQueue` is involved, unsubscribing *via any route* should still unsubscribe and mark the queue-writer as complete
+- Fix [#1101](https://github.com/StackExchange/StackExchange.Redis/issues/1101): When a `ChannelMessageQueue` is involved, unsubscribing *via any route* should still unsubscribe and mark the queue-writer as complete
 
 ## 2.0.588
 
@@ -283,7 +328,7 @@ Current package versions:
 
 ## 2.0.513
 
-- Fix [#961](https://github.com/StackExchange/StackExchange.Redis/issues/962) - fix assembly binding redirect problems; IMPORTANT: this drops to an older `System.Buffers` version - if you have manually added redirects for `4.0.3.0`, you may need to manually update to `4.0.2.0` (or remove completely)
+- Fix [#961](https://github.com/StackExchange/StackExchange.Redis/issues/962): fix assembly binding redirect problems; IMPORTANT: this drops to an older `System.Buffers` version - if you have manually added redirects for `4.0.3.0`, you may need to manually update to `4.0.2.0` (or remove completely)
 - Fix [#962](https://github.com/StackExchange/StackExchange.Redis/issues/962): Avoid NRE in edge-case when fetching bridge
 
 ## 2.0.505
@@ -294,9 +339,7 @@ Current package versions:
 
 ## 2.0.495
 
-- 2.0 is a large - and breaking - change
-
-The key focus of this release is stability and reliability.
+2.0 is a large - and breaking - change. The key focus of this release is stability and reliability.
 
 - **Hard Break**: The package identity has changed; instead of `StackExchange.Redis` (not strong-named) and `StackExchange.Redis.StrongName` (strong-named), we are now
   only releasing `StackExchange.Redis` (strong-named). This is a binary breaking change that requires consumers to be re-compiled; it cannot be applied via binding-redirects
@@ -318,10 +361,9 @@ The key focus of this release is stability and reliability.
 - Fix: A *lot* of general bugs and issues have been resolved
 - **Break**: `RedisValue.TryParse` was accidentally omitted in the overhaul; this has been rectified and will be available in the next build
 
-a more complete list of issues addressed can be seen in [this tracking issue](https://github.com/StackExchange/StackExchange.Redis/issues/871)
+A more complete list of issues addressed can be seen in [this tracking issue](https://github.com/StackExchange/StackExchange.Redis/issues/871)
 
-Note: we currently have no plans to do an additional `1.*` release. In particular, even though there was a `1.2.7-alpha` build on nuget, we *do not* currently have
-plans to release `1.2.7`.
+Note: we currently have no plans to do an additional `1.*` release. In particular, even though there was a `1.2.7-alpha` build on nuget, we *do not* currently have plans to release `1.2.7`.
 
 ---
 

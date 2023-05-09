@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Threading.Tasks;
+using StackExchange.Redis.Maintenance;
 using StackExchange.Redis.Profiling;
 
 namespace StackExchange.Redis
@@ -114,6 +115,11 @@ namespace StackExchange.Redis
         /// This usually means primary/replica changes.
         /// </summary>
         event EventHandler<EndPointEventArgs> ConfigurationChangedBroadcast;
+
+        /// <summary>
+        /// Raised when server indicates a maintenance event is going to happen.
+        /// </summary>
+        event EventHandler<ServerMaintenanceEvent> ServerMaintenanceEvent;
 
         /// <summary>
         /// Gets all endpoints defined on the multiplexer.

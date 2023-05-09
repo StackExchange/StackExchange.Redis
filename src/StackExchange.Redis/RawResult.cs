@@ -77,7 +77,7 @@ namespace StackExchange.Redis
             public Tokenizer GetEnumerator() => this;
             private BufferReader _value;
 
-            public Tokenizer(in ReadOnlySequence<byte> value)
+            public Tokenizer(scoped in ReadOnlySequence<byte> value)
             {
                 _value = new BufferReader(value);
                 Current = default;
@@ -384,7 +384,7 @@ namespace StackExchange.Redis
 
         internal bool TryGetInt64(out long value)
         {
-            if (IsNull || Payload.IsEmpty || Payload.Length > PhysicalConnection.MaxInt64TextLen)
+            if (IsNull || Payload.IsEmpty || Payload.Length > Format.MaxInt64TextLen)
             {
                 value = 0;
                 return false;

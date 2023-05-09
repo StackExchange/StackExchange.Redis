@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Channels;
@@ -66,7 +67,7 @@ namespace StackExchange.Redis
     /// To create a ChannelMessageQueue, use <see cref="ISubscriber.Subscribe(RedisChannel, CommandFlags)"/>
     /// or <see cref="ISubscriber.SubscribeAsync(RedisChannel, CommandFlags)"/>.
     /// </remarks>
-    public sealed class ChannelMessageQueue
+    public sealed class ChannelMessageQueue : IAsyncEnumerable<ChannelMessage>
     {
         private readonly Channel<ChannelMessage> _queue;
         /// <summary>
@@ -124,6 +125,7 @@ namespace StackExchange.Redis
         /// <param name="count">The (approximate) count of items in the Channel.</param>
         public bool TryGetCount(out int count)
         {
+#if NETCOREAPP3_1
             // get this using the reflection
             try
             {
@@ -135,6 +137,15 @@ namespace StackExchange.Redis
                 }
             }
             catch { }
+#else
+            var reader = _queue.Reader;
+            if (reader.CanCount)
+            {
+                count = reader.Count;
+                return true;
+            }
+#endif
+
             count = default;
             return false;
         }
@@ -319,10 +330,7 @@ namespace StackExchange.Redis
         {
             var parent = _parent;
             _parent = null;
-            if (parent != null)
-            {
-                parent.UnsubscribeAsync(Channel, null, this, flags);
-            }
+            parent?.UnsubscribeAsync(Channel, null, this, flags);
             _queue.Writer.TryComplete(error);
         }
 
@@ -348,5 +356,22 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="flags">The flags to use when unsubscribing.</param>
         public Task UnsubscribeAsync(CommandFlags flags = CommandFlags.None) => UnsubscribeAsyncImpl(null, flags);
+
+        /// <inheritdoc cref="IAsyncEnumerable{ChannelMessage}.GetAsyncEnumerator(CancellationToken)"/>
+#if NETCOREAPP3_0_OR_GREATER
+        public IAsyncEnumerator<ChannelMessage> GetAsyncEnumerator(CancellationToken cancellationToken = default)
+            => _queue.Reader.ReadAllAsync().GetAsyncEnumerator(cancellationToken);
+#else
+        public async IAsyncEnumerator<ChannelMessage> GetAsyncEnumerator(CancellationToken cancellationToken = default)
+        {
+            while (await _queue.Reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                while (_queue.Reader.TryRead(out var item))
+                {
+                    yield return item;
+                }
+            }
+        }
+#endif
     }
 }

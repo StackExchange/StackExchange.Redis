@@ -769,7 +769,7 @@ namespace StackExchange.Redis
 
             var source = TaskResultBox<T?>.Create(out var tcs, null);
             message.SetSource(processor, source);
-            if (bridge == null) bridge = GetBridge(message);
+            bridge ??= GetBridge(message);
 
             WriteResult result;
             if (bridge == null)
@@ -929,6 +929,30 @@ namespace StackExchange.Redis
                         await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
                     }
                 }
+                if (Multiplexer.RawConfig.SetClientLibrary)
+                {
+                    // note that this is a relatively new feature, but usually we won't know the
+                    // server version, so we will use this speculatively and hope for the best
+                    log?.WriteLine($"{Format.ToString(this)}: Setting client lib/ver");
+
+                    var libName = Multiplexer.RawConfig.Defaults.LibraryName;
+                    if (!string.IsNullOrWhiteSpace(libName))
+                    {
+                        msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.CLIENT,
+                            RedisLiterals.SETINFO, RedisLiterals.lib_name, libName);
+                        msg.SetInternalCall();
+                        await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
+                    }
+
+                    var version = Utils.GetLibVersion();
+                    if (!string.IsNullOrWhiteSpace(version))
+                    {
+                        msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.CLIENT,
+                            RedisLiterals.SETINFO, RedisLiterals.lib_ver, version);
+                        msg.SetInternalCall();
+                        await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
+                    }
+                }
             }
 
             var bridge = connection.BridgeCouldBeNull;
@@ -968,10 +992,11 @@ namespace StackExchange.Redis
         {
             if (!EqualityComparer<T>.Default.Equals(field, value))
             {
-                Multiplexer.Trace(caller + " changed from " + field + " to " + value, "Configuration");
+                // multiplexer might be null here in some test scenarios; just roll with it...
+                Multiplexer?.Trace(caller + " changed from " + field + " to " + value, "Configuration");
                 field = value;
                 ClearMemoized();
-                Multiplexer.ReconfigureIfNeeded(EndPoint, false, caller!);
+                Multiplexer?.ReconfigureIfNeeded(EndPoint, false, caller!);
             }
         }
 
@@ -988,6 +1013,13 @@ namespace StackExchange.Redis
         {
             interactive?.SimulateConnectionFailure(failureType);
             subscription?.SimulateConnectionFailure(failureType);
+        }
+
+        internal bool HasPendingCallerFacingItems()
+        {
+            // check whichever bridges exist
+            if (interactive?.HasPendingCallerFacingItems() == true) return true;
+            return subscription?.HasPendingCallerFacingItems() ?? false;
         }
     }
 }

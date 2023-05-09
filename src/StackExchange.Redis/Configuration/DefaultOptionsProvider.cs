@@ -178,6 +178,16 @@ namespace StackExchange.Redis.Configuration
         /// </summary>
         public virtual TimeSpan ConfigCheckInterval => TimeSpan.FromMinutes(1);
 
+        /// <summary>
+        /// The username to use to authenticate with the server.
+        /// </summary>
+        public virtual string? User => null;
+
+        /// <summary>
+        /// The password to use to authenticate with the server.
+        /// </summary>
+        public virtual string? Password => null;
+
         // We memoize this to reduce cost on re-access
         private string? defaultClientName;
         /// <summary>
@@ -194,6 +204,12 @@ namespace StackExchange.Redis.Configuration
              ?? "StackExchange.Redis") + "(SE.Redis-v" + LibraryVersion + ")";
 
         /// <summary>
+        /// Gets the library name to use for CLIENT SETINFO lib-name calls to Redis during handshake.
+        /// Defaults to "SE.Redis".
+        /// </summary>
+        public virtual string LibraryName => "SE.Redis";
+
+        /// <summary>
         /// String version of the StackExchange.Redis library, for use in any options.
         /// </summary>
         protected static string LibraryVersion => Utils.GetLibVersion();
@@ -202,6 +218,11 @@ namespace StackExchange.Redis.Configuration
         /// Name of the machine we're running on, for use in any options.
         /// </summary>
         protected static string ComputerName => Environment.MachineName ?? Environment.GetEnvironmentVariable("ComputerName") ?? "Unknown";
+
+        /// <summary>
+        /// Whether to identify the client by library name/version when possible
+        /// </summary>
+        public virtual bool SetClientLibrary => true;
 
         /// <summary>
         /// Tries to get the RoleInstance Id if Microsoft.WindowsAzure.ServiceRuntime is loaded.
@@ -216,31 +237,21 @@ namespace StackExchange.Redis.Configuration
             string? roleInstanceId;
             try
             {
-                Assembly? asm = null;
-                foreach (var asmb in AppDomain.CurrentDomain.GetAssemblies())
-                {
-                    if (asmb.GetName()?.Name?.Equals("Microsoft.WindowsAzure.ServiceRuntime") == true)
-                    {
-                        asm = asmb;
-                        break;
-                    }
-                }
-                if (asm == null)
-                    return null;
-
-                var type = asm.GetType("Microsoft.WindowsAzure.ServiceRuntime.RoleEnvironment");
+                var roleEnvironmentType = Type.GetType("Microsoft.WindowsAzure.ServiceRuntime.RoleEnvironment, Microsoft.WindowsAzure.ServiceRuntime", throwOnError: false);
 
                 // https://msdn.microsoft.com/en-us/library/microsoft.windowsazure.serviceruntime.roleenvironment.isavailable.aspx
-                if (type?.GetProperty("IsAvailable") is not PropertyInfo isAvailableProp
+                if (roleEnvironmentType?.GetProperty("IsAvailable") is not PropertyInfo isAvailableProp
                     || isAvailableProp.GetValue(null, null) is not bool isAvailableVal
                     || !isAvailableVal)
                 {
                     return null;
                 }
 
-                var currentRoleInstanceProp = type.GetProperty("CurrentRoleInstance");
+                var currentRoleInstanceProp = roleEnvironmentType.GetProperty("CurrentRoleInstance");
                 var currentRoleInstanceId = currentRoleInstanceProp?.GetValue(null, null);
-                roleInstanceId = currentRoleInstanceId?.GetType().GetProperty("Id")?.GetValue(currentRoleInstanceId, null)?.ToString();
+
+                var roleInstanceType = Type.GetType("Microsoft.WindowsAzure.ServiceRuntime.RoleInstance, Microsoft.WindowsAzure.ServiceRuntime", throwOnError: false);
+                roleInstanceId = roleInstanceType?.GetProperty("Id")?.GetValue(currentRoleInstanceId, null)?.ToString();
 
                 if (roleInstanceId.IsNullOrEmpty())
                 {

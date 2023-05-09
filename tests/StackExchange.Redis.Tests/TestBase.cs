@@ -315,7 +315,7 @@ public abstract class TestBase : IDisposable
         return conn;
     }
 
-    private void ThrowIfBelowMinVersion(IInternalConnectionMultiplexer conn, Version? requiredVersion)
+    protected void ThrowIfBelowMinVersion(IConnectionMultiplexer conn, Version? requiredVersion)
     {
         if (requiredVersion is null)
         {

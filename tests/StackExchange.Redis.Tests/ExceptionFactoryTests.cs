@@ -121,6 +121,10 @@ public class ExceptionFactoryTests : TestBase
             Assert.Contains("serverEndpoint: " + server.EndPoint, ex.Message);
             Assert.Contains("IOCP: ", ex.Message);
             Assert.Contains("WORKER: ", ex.Message);
+            Assert.Contains("sync-ops: ", ex.Message);
+            Assert.Contains("async-ops: ", ex.Message);
+            Assert.Contains("conn-sec: n/a", ex.Message);
+            Assert.Contains("aoc: 1", ex.Message);
 #if NETCOREAPP
                 Assert.Contains("POOL: ", ex.Message);
 #endif

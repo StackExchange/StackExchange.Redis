@@ -5,6 +5,7 @@ using System.Linq;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
+using StackExchange.Redis.Maintenance;
 using StackExchange.Redis.Profiling;
 using Xunit;
 
@@ -118,6 +119,12 @@ public class SharedConnectionFixture : IDisposable
             remove => _inner.HashSlotMoved -= value;
         }
 
+        public event EventHandler<ServerMaintenanceEvent> ServerMaintenanceEvent
+        {
+            add => _inner.ServerMaintenanceEvent += value;
+            remove => _inner.ServerMaintenanceEvent -= value;
+        }
+
         public void Close(bool allowCommandsToComplete = true) => _inner.Close(allowCommandsToComplete);
 
         public Task CloseAsync(bool allowCommandsToComplete = true) => _inner.CloseAsync(allowCommandsToComplete);
@@ -225,10 +232,10 @@ public class SharedConnectionFixture : IDisposable
             foreach (var ep in _actualConnection.GetServerSnapshot())
             {
                 var interactive = ep.GetBridge(ConnectionType.Interactive);
-                TestBase.Log(output, $"  {Format.ToString(interactive)}: " + interactive?.GetStatus());
+                TestBase.Log(output, $"  {Format.ToString(interactive)}: {interactive?.GetStatus()}");
 
                 var subscription = ep.GetBridge(ConnectionType.Subscription);
-                TestBase.Log(output, $"  {Format.ToString(subscription)}: " + subscription?.GetStatus());
+                TestBase.Log(output, $"  {Format.ToString(subscription)}: {subscription?.GetStatus()}");
             }
         }
     }
