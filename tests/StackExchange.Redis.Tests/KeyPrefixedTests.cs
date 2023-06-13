@@ -528,8 +528,8 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void PublishAsync()
         {
-            prefixed.PublishAsync("channel", "message", CommandFlags.None);
-            mock.Verify(_ => _.PublishAsync("prefix:channel", "message", CommandFlags.None));
+            prefixed.PublishAsync(RedisChannel.Literal("channel"), "message", CommandFlags.None);
+            mock.Verify(_ => _.PublishAsync(RedisChannel.Literal("prefix:channel"), "message", CommandFlags.None));
         }
 
         [Fact]

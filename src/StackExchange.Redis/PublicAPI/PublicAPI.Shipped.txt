@@ -1658,6 +1658,8 @@ static StackExchange.Redis.RedisChannel.implicit operator byte[]?(StackExchange.
 static StackExchange.Redis.RedisChannel.implicit operator StackExchange.Redis.RedisChannel(byte[]? key) -> StackExchange.Redis.RedisChannel
 static StackExchange.Redis.RedisChannel.implicit operator StackExchange.Redis.RedisChannel(string! key) -> StackExchange.Redis.RedisChannel
 static StackExchange.Redis.RedisChannel.implicit operator string?(StackExchange.Redis.RedisChannel key) -> string?
+static StackExchange.Redis.RedisChannel.Literal(byte[]! value) -> StackExchange.Redis.RedisChannel
+static StackExchange.Redis.RedisChannel.Literal(string! value) -> StackExchange.Redis.RedisChannel
 static StackExchange.Redis.RedisChannel.operator !=(byte[]! x, StackExchange.Redis.RedisChannel y) -> bool
 static StackExchange.Redis.RedisChannel.operator !=(StackExchange.Redis.RedisChannel x, byte[]! y) -> bool
 static StackExchange.Redis.RedisChannel.operator !=(StackExchange.Redis.RedisChannel x, StackExchange.Redis.RedisChannel y) -> bool
@@ -1668,6 +1670,8 @@ static StackExchange.Redis.RedisChannel.operator ==(StackExchange.Redis.RedisCha
 static StackExchange.Redis.RedisChannel.operator ==(StackExchange.Redis.RedisChannel x, StackExchange.Redis.RedisChannel y) -> bool
 static StackExchange.Redis.RedisChannel.operator ==(StackExchange.Redis.RedisChannel x, string! y) -> bool
 static StackExchange.Redis.RedisChannel.operator ==(string! x, StackExchange.Redis.RedisChannel y) -> bool
+static StackExchange.Redis.RedisChannel.Pattern(byte[]! value) -> StackExchange.Redis.RedisChannel
+static StackExchange.Redis.RedisChannel.Pattern(string! value) -> StackExchange.Redis.RedisChannel
 static StackExchange.Redis.RedisChannel.UseImplicitAutoPattern.get -> bool
 static StackExchange.Redis.RedisChannel.UseImplicitAutoPattern.set -> void
 static StackExchange.Redis.RedisFeatures.operator !=(StackExchange.Redis.RedisFeatures left, StackExchange.Redis.RedisFeatures right) -> bool
