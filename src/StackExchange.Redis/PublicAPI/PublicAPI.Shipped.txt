@@ -1259,7 +1259,7 @@ StackExchange.Redis.Proxy.Twemproxy = 1 -> StackExchange.Redis.Proxy
 StackExchange.Redis.RedisChannel
 StackExchange.Redis.RedisChannel.Equals(StackExchange.Redis.RedisChannel other) -> bool
 StackExchange.Redis.RedisChannel.IsNullOrEmpty.get -> bool
-StackExchange.Redis.RedisChannel.IsPatternBased.get -> bool
+StackExchange.Redis.RedisChannel.IsPattern.get -> bool
 StackExchange.Redis.RedisChannel.PatternMode
 StackExchange.Redis.RedisChannel.PatternMode.Auto = 0 -> StackExchange.Redis.RedisChannel.PatternMode
 StackExchange.Redis.RedisChannel.PatternMode.Literal = 1 -> StackExchange.Redis.RedisChannel.PatternMode

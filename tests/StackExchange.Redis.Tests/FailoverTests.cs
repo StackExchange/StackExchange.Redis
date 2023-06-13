@@ -203,7 +203,7 @@ public class FailoverTests : TestBase, IAsyncLifetime
         using var conn = (Create(allowAdmin: true, shared: false, log: Writer, syncTimeout: 1000) as ConnectionMultiplexer)!;
 
         var profiler = conn.AddProfiler();
-        RedisChannel channel = Me();
+        RedisChannel channel = RedisChannel.Literal(Me());
         var sub = conn.GetSubscriber();
         int counter = 0;
         Assert.True(sub.IsConnected());
@@ -308,7 +308,7 @@ public class FailoverTests : TestBase, IAsyncLifetime
         using var aConn = Create(allowAdmin: true, shared: false);
         using var bConn = Create(allowAdmin: true, shared: false);
 
-        RedisChannel channel = Me();
+        RedisChannel channel = RedisChannel.Literal(Me());
         Log("Using Channel: " + channel);
         var subA = aConn.GetSubscriber();
         var subB = bConn.GetSubscriber();

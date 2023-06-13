@@ -25,7 +25,7 @@ namespace StackExchange.Redis.Tests
 #pragma warning disable CS0618 // we need to test the operator
                 RedisChannel channel = name;
 #pragma warning restore CS0618
-                Assert.Equal(isPatternBased, channel.IsPatternBased);
+                Assert.Equal(isPatternBased, channel.IsPattern);
             }
             finally
             {
@@ -53,7 +53,7 @@ namespace StackExchange.Redis.Tests
             {
                 RedisChannel.UseImplicitAutoPattern = useImplicitAutoPattern;
                 RedisChannel channel = new(name, mode);
-                Assert.Equal(isPatternBased, channel.IsPatternBased);
+                Assert.Equal(isPatternBased, channel.IsPattern);
             }
             finally
             {
@@ -76,7 +76,7 @@ namespace StackExchange.Redis.Tests
 #pragma warning disable CS0618 // we need to test the operator
                 RedisChannel channel = bytes;
 #pragma warning restore CS0618
-                Assert.Equal(isPatternBased, channel.IsPatternBased);
+                Assert.Equal(isPatternBased, channel.IsPattern);
             }
             finally
             {
@@ -105,7 +105,7 @@ namespace StackExchange.Redis.Tests
             {
                 RedisChannel.UseImplicitAutoPattern = useImplicitAutoPattern;
                 RedisChannel channel = new(bytes, mode);
-                Assert.Equal(isPatternBased, channel.IsPatternBased);
+                Assert.Equal(isPatternBased, channel.IsPattern);
             }
             finally
             {
@@ -128,21 +128,21 @@ namespace StackExchange.Redis.Tests
 
                 // literal, string
                 channel = RedisChannel.Literal(name);
-                Assert.False(channel.IsPatternBased);
+                Assert.False(channel.IsPattern);
 
                 // pattern, string
                 channel = RedisChannel.Pattern(name);
-                Assert.True(channel.IsPatternBased);
+                Assert.True(channel.IsPattern);
 
                 var bytes = Encoding.UTF8.GetBytes(name);
 
                 // literal, byte[]
                 channel = RedisChannel.Literal(bytes);
-                Assert.False(channel.IsPatternBased);
+                Assert.False(channel.IsPattern);
 
                 // pattern, byte[]
                 channel = RedisChannel.Pattern(bytes);
-                Assert.True(channel.IsPatternBased);
+                Assert.True(channel.IsPattern);
             }
             finally
             {
