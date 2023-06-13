@@ -2221,7 +2221,7 @@ namespace StackExchange.Redis
 
         private long PublishReconfigureImpl(CommandFlags flags) =>
             ConfigurationChangedChannel is byte[] channel
-                ? GetSubscriber().Publish(channel, RedisLiterals.Wildcard, flags)
+                ? GetSubscriber().Publish(RedisChannel.Literal(channel), RedisLiterals.Wildcard, flags)
                 : 0;
 
         /// <summary>
@@ -2231,7 +2231,7 @@ namespace StackExchange.Redis
         /// <returns>The number of instances known to have received the message (however, the actual number can be higher).</returns>
         public Task<long> PublishReconfigureAsync(CommandFlags flags = CommandFlags.None) =>
             ConfigurationChangedChannel is byte[] channel
-                ? GetSubscriber().PublishAsync(channel, RedisLiterals.Wildcard, flags)
+                ? GetSubscriber().PublishAsync(RedisChannel.Literal(channel), RedisLiterals.Wildcard, flags)
                 : CompletedTask<long>.Default(null);
 
         /// <summary>

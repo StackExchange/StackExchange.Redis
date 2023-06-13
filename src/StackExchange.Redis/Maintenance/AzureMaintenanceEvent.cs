@@ -130,7 +130,7 @@ namespace StackExchange.Redis.Maintenance
                     return;
                 }
 
-                await sub.SubscribeAsync(PubSubChannelName, async (_, message) =>
+                await sub.SubscribeAsync(RedisChannel.Literal(PubSubChannelName), async (_, message) =>
                 {
                     var newMessage = new AzureMaintenanceEvent(message!);
                     newMessage.NotifyMultiplexer(multiplexer);
