@@ -227,7 +227,7 @@ namespace StackExchange.Redis
         /// Create a channel name from a <see cref="string"/>.
         /// </summary>
         /// <param name="key">The string to get a channel from.</param>
-        [Obsolete("It is preferable to explicitly specify a " + nameof(PatternMode) + ", or use the " + nameof(Literal) + "/" + nameof(Pattern) + "methods", error: false)]
+        [Obsolete("It is preferable to explicitly specify a " + nameof(PatternMode) + ", or use the " + nameof(Literal) + "/" + nameof(Pattern) + " methods", error: false)]
         public static implicit operator RedisChannel(string key)
         {
             if (key == null) return default;
@@ -238,7 +238,7 @@ namespace StackExchange.Redis
         /// Create a channel name from a <see cref="T:byte[]"/>.
         /// </summary>
         /// <param name="key">The byte array to get a channel from.</param>
-        [Obsolete("It is preferable to explicitly specify a " + nameof(PatternMode) + ", or use the " + nameof(Literal) + "/" + nameof(Pattern) + "methods", error: false)]
+        [Obsolete("It is preferable to explicitly specify a " + nameof(PatternMode) + ", or use the " + nameof(Literal) + "/" + nameof(Pattern) + " methods", error: false)]
         public static implicit operator RedisChannel(byte[]? key)
         {
             if (key == null) return default;
