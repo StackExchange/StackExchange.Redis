@@ -159,7 +159,7 @@ namespace StackExchange.Redis
             /// </summary>
             internal Message GetMessage(RedisChannel channel, SubscriptionAction action, CommandFlags flags, bool internalCall)
             {
-                var isPattern = channel.IsPatternBased;
+                var isPattern = channel._isPatternBased;
                 var command = action switch
                 {
                     SubscriptionAction.Subscribe when isPattern => RedisCommand.PSUBSCRIBE,

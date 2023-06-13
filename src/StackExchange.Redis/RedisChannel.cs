@@ -9,33 +9,50 @@ namespace StackExchange.Redis
     public readonly struct RedisChannel : IEquatable<RedisChannel>
     {
         internal readonly byte[]? Value;
-        internal readonly bool IsPatternBased;
+        internal readonly bool _isPatternBased;
 
         /// <summary>
         /// Indicates whether the channel-name is either null or a zero-length value.
         /// </summary>
         public bool IsNullOrEmpty => Value == null || Value.Length == 0;
 
+        /// <summary>
+        /// Indicates whether this channel represents a wildcard pattern (see <c>PSUBSCRIBE</c>)
+        /// </summary>
+        public bool IsPatternBased => _isPatternBased;
+
         internal bool IsNull => Value == null;
+
+
+        /// <summary>
+        /// Indicates whether channels should use <see cref="PatternMode.Auto"/> when no <see cref="PatternMode"/>
+        /// is specified; this is enabled by default, but can be disabled to avoid unexpected wildcard scenarios.
+        /// </summary>
+        public static bool UseImplicitAutoPattern
+        {
+            get => s_DefaultPatternMode == PatternMode.Auto;
+            set => s_DefaultPatternMode = value ? PatternMode.Auto : PatternMode.Literal;
+        }
+        private static PatternMode s_DefaultPatternMode = PatternMode.Auto;
 
         /// <summary>
         /// Create a new redis channel from a buffer, explicitly controlling the pattern mode.
         /// </summary>
         /// <param name="value">The name of the channel to create.</param>
         /// <param name="mode">The mode for name matching.</param>
-        public RedisChannel(byte[]? value, PatternMode mode) : this(value, DeterminePatternBased(value, mode)) {}
+        public RedisChannel(byte[]? value, PatternMode mode) : this(value, DeterminePatternBased(value, mode)) { }
 
         /// <summary>
         /// Create a new redis channel from a string, explicitly controlling the pattern mode.
         /// </summary>
         /// <param name="value">The string name of the channel to create.</param>
         /// <param name="mode">The mode for name matching.</param>
-        public RedisChannel(string value, PatternMode mode) : this(value == null ? null : Encoding.UTF8.GetBytes(value), mode) {}
+        public RedisChannel(string value, PatternMode mode) : this(value == null ? null : Encoding.UTF8.GetBytes(value), mode) { }
 
         private RedisChannel(byte[]? value, bool isPatternBased)
         {
             Value = value;
-            IsPatternBased = isPatternBased;
+            _isPatternBased = isPatternBased;
         }
 
         private static bool DeterminePatternBased(byte[]? value, PatternMode mode) => mode switch
@@ -87,7 +104,7 @@ namespace StackExchange.Redis
         /// <param name="x">The first <see cref="RedisChannel"/> to compare.</param>
         /// <param name="y">The second <see cref="RedisChannel"/> to compare.</param>
         public static bool operator ==(RedisChannel x, RedisChannel y) =>
-            x.IsPatternBased == y.IsPatternBased && RedisValue.Equals(x.Value, y.Value);
+            x._isPatternBased == y._isPatternBased && RedisValue.Equals(x.Value, y.Value);
 
         /// <summary>
         /// Indicate whether two channel names are equal.
@@ -135,10 +152,10 @@ namespace StackExchange.Redis
         /// Indicate whether two channel names are equal.
         /// </summary>
         /// <param name="other">The <see cref="RedisChannel"/> to compare to.</param>
-        public bool Equals(RedisChannel other) => IsPatternBased == other.IsPatternBased && RedisValue.Equals(Value, other.Value);
+        public bool Equals(RedisChannel other) => _isPatternBased == other._isPatternBased && RedisValue.Equals(Value, other.Value);
 
         /// <inheritdoc/>
-        public override int GetHashCode() => RedisValue.GetHashCode(Value) + (IsPatternBased ? 1 : 0);
+        public override int GetHashCode() => RedisValue.GetHashCode(Value) + (_isPatternBased ? 1 : 0);
 
         /// <summary>
         /// Obtains a string representation of the channel name.
@@ -187,7 +204,7 @@ namespace StackExchange.Redis
         public static implicit operator RedisChannel(string key)
         {
             if (key == null) return default;
-            return new RedisChannel(Encoding.UTF8.GetBytes(key), PatternMode.Auto);
+            return new RedisChannel(Encoding.UTF8.GetBytes(key), s_DefaultPatternMode);
         }
 
         /// <summary>
@@ -197,20 +214,20 @@ namespace StackExchange.Redis
         public static implicit operator RedisChannel(byte[]? key)
         {
             if (key == null) return default;
-            return new RedisChannel(key, PatternMode.Auto);
+            return new RedisChannel(key, s_DefaultPatternMode);
         }
 
         /// <summary>
         /// Obtain the channel name as a <see cref="T:byte[]"/>.
         /// </summary>
         /// <param name="key">The channel to get a byte[] from.</param>
-        public static implicit operator byte[]? (RedisChannel key) => key.Value;
+        public static implicit operator byte[]?(RedisChannel key) => key.Value;
 
         /// <summary>
         /// Obtain the channel name as a <see cref="string"/>.
         /// </summary>
         /// <param name="key">The channel to get a string from.</param>
-        public static implicit operator string? (RedisChannel key)
+        public static implicit operator string?(RedisChannel key)
         {
             var arr = key.Value;
             if (arr == null)
@@ -226,5 +243,15 @@ namespace StackExchange.Redis
                 return BitConverter.ToString(arr);
             }
         }
+
+#if DEBUG
+        // these exist *purely* to ensure that we never add them later *without*
+        // giving due consideration to the default pattern mode (UseImplicitAutoPattern)
+        // (since we don't ship them, we don't need them in release)
+        [Obsolete("Watch for " + nameof(UseImplicitAutoPattern), error: true)]
+        private RedisChannel(string value) => throw new NotSupportedException();
+        [Obsolete("Watch for " + nameof(UseImplicitAutoPattern), error: true)]
+        private RedisChannel(byte[]? value) => throw new NotSupportedException();
+#endif
     }
 }
