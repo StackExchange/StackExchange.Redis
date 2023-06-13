@@ -28,7 +28,7 @@ public class Issue1101Tests : TestBase
     {
         using var conn = Create(log: Writer);
 
-        RedisChannel name = Me();
+        RedisChannel name = RedisChannel.Literal(Me());
         var pubsub = conn.GetSubscriber();
         AssertCounts(pubsub, name, false, 0, 0);
 
@@ -93,7 +93,7 @@ public class Issue1101Tests : TestBase
     {
         using var conn = Create(shared: false, log: Writer);
 
-        RedisChannel name = Me();
+        RedisChannel name = RedisChannel.Literal(Me());
         var pubsub = conn.GetSubscriber();
         AssertCounts(pubsub, name, false, 0, 0);
 
@@ -144,7 +144,7 @@ public class Issue1101Tests : TestBase
     {
         using var conn = Create(log: Writer);
 
-        RedisChannel name = Me();
+        RedisChannel name = RedisChannel.Literal(Me());
         var pubsub = conn.GetSubscriber();
         AssertCounts(pubsub, name, false, 0, 0);
 

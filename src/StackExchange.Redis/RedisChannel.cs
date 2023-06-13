@@ -36,6 +36,23 @@ namespace StackExchange.Redis
         private static PatternMode s_DefaultPatternMode = PatternMode.Auto;
 
         /// <summary>
+        /// Creates a new <see cref="RedisChannel"/> that does not act as a wildcard subscription
+        /// </summary>
+        public static RedisChannel Literal(string value) => new RedisChannel(value, PatternMode.Literal);
+        /// <summary>
+        /// Creates a new <see cref="RedisChannel"/> that does not act as a wildcard subscription
+        /// </summary>
+        public static RedisChannel Literal(byte[] value) => new RedisChannel(value, PatternMode.Literal);
+        /// <summary>
+        /// Creates a new <see cref="RedisChannel"/> that acts as a wildcard subscription
+        /// </summary>
+        public static RedisChannel Pattern(string value) => new RedisChannel(value, PatternMode.Pattern);
+        /// <summary>
+        /// Creates a new <see cref="RedisChannel"/> that acts as a wildcard subscription
+        /// </summary>
+        public static RedisChannel Pattern(byte[] value) => new RedisChannel(value, PatternMode.Pattern);
+
+        /// <summary>
         /// Create a new redis channel from a buffer, explicitly controlling the pattern mode.
         /// </summary>
         /// <param name="value">The name of the channel to create.</param>
@@ -176,7 +193,16 @@ namespace StackExchange.Redis
             if (IsNull) throw new ArgumentException("A null key is not valid in this context");
         }
 
-        internal RedisChannel Clone() => (byte[]?)Value?.Clone() ?? default;
+        internal RedisChannel Clone()
+        {
+            if (Value is null || Value.Length == 0)
+            {
+                // no need to duplicate anything
+                return this;
+            }
+            var copy = (byte[])Value.Clone(); // defensive array copy
+            return new RedisChannel(copy, _isPatternBased);
+        }
 
         /// <summary>
         /// The matching pattern for this channel.
@@ -201,6 +227,7 @@ namespace StackExchange.Redis
         /// Create a channel name from a <see cref="string"/>.
         /// </summary>
         /// <param name="key">The string to get a channel from.</param>
+        [Obsolete("It is preferable to explicitly specify a " + nameof(PatternMode) + ", or use the " + nameof(Literal) + "/" + nameof(Pattern) + "methods", error: false)]
         public static implicit operator RedisChannel(string key)
         {
             if (key == null) return default;
@@ -211,6 +238,7 @@ namespace StackExchange.Redis
         /// Create a channel name from a <see cref="T:byte[]"/>.
         /// </summary>
         /// <param name="key">The byte array to get a channel from.</param>
+        [Obsolete("It is preferable to explicitly specify a " + nameof(PatternMode) + ", or use the " + nameof(Literal) + "/" + nameof(Pattern) + "methods", error: false)]
         public static implicit operator RedisChannel(byte[]? key)
         {
             if (key == null) return default;
