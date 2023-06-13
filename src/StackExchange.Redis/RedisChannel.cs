@@ -19,7 +19,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Indicates whether this channel represents a wildcard pattern (see <c>PSUBSCRIBE</c>)
         /// </summary>
-        public bool IsPatternBased => _isPatternBased;
+        public bool IsPattern => _isPatternBased;
 
         internal bool IsNull => Value == null;
 
