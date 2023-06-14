@@ -98,27 +98,6 @@ public class ScriptingTests : TestBase
     }
 
     [Fact]
-    public void HackyGetPerf()
-    {
-        using var conn = GetScriptConn();
-
-        var key = Me();
-        var db = conn.GetDatabase();
-        db.StringSet(key + "foo", "bar", flags: CommandFlags.FireAndForget);
-        var result = (long)db.ScriptEvaluate(@"
-redis.call('psetex', KEYS[1], 60000, 'timing')
-for i = 1,500000 do
-    redis.call('set', 'ignore','abc')
-end
-local timeTaken = 60000 - redis.call('pttl', KEYS[1])
-redis.call('del', KEYS[1])
-return timeTaken
-", new RedisKey[] { key }, null);
-        Log(result.ToString());
-        Assert.True(result > 0);
-    }
-
-    [Fact]
     public async Task MultiIncrWithoutReplies()
     {
         using var conn = GetScriptConn();
