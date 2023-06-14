@@ -8,6 +8,8 @@ Current package versions:
 
 ## Unreleased
 
+- Adds: support for `Publish(string, ...)` and `PublishAsync(string, ...)` to minimize CS0618 flags from changes in 2.6.116 ([#2483 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2483))
+
 ## 2.6.116
 
 - Fix [#2479](https://github.com/StackExchange/StackExchange.Redis/issues/2479): Add `RedisChannel.UseImplicitAutoPattern` (global) and `RedisChannel.IsPattern` ([#2480 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2480))
