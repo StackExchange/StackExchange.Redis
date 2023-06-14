@@ -290,7 +290,7 @@ public class StreamTests : TestBase
         db.StreamDelete(key, new RedisValue[] { messageIds[0] });
 
         // Claim a single pending message and reassign it to consumer2.
-        var result = db.StreamAutoClaim(key, group, consumer2, 0, "0-0", count: 1);
+        var result = db.StreamAutoClaim(key, group, consumer2, 0, "0-0", count: 2);
 
         Assert.Equal("0-0", result.NextStartId);
         Assert.NotEmpty(result.ClaimedEntries);
@@ -318,7 +318,7 @@ public class StreamTests : TestBase
         db.StreamDelete(key, new RedisValue[] { messageIds[0] });
 
         // Claim a single pending message and reassign it to consumer2.
-        var result = await db.StreamAutoClaimAsync(key, group, consumer2, 0, "0-0", count: 1);
+        var result = await db.StreamAutoClaimAsync(key, group, consumer2, 0, "0-0", count: 2);
 
         Assert.Equal("0-0", result.NextStartId);
         Assert.NotEmpty(result.ClaimedEntries);
