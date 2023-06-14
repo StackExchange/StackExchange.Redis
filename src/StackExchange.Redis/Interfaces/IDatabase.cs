@@ -1229,6 +1229,13 @@ namespace StackExchange.Redis
         /// <remarks><seealso href="https://redis.io/commands/publish"/></remarks>
         long Publish(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None);
 
+
+#if NETCOREAPP3_1_OR_GREATER
+        /// <inheritdoc cref="Publish(RedisChannel, RedisValue, CommandFlags)"/>
+        long Publish(string channel, RedisValue message, CommandFlags flags = CommandFlags.None)
+            => Publish(RedisChannel.Literal(channel), message, flags);
+#endif
+
         /// <summary>
         /// Execute an arbitrary command against the server; this is primarily intended for executing modules,
         /// but may also be used to provide access to new features that lack a direct API.

@@ -45,6 +45,16 @@ namespace StackExchange.Redis
         /// <inheritdoc cref="Publish(RedisChannel, RedisValue, CommandFlags)"/>
         Task<long> PublishAsync(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None);
 
+#if NETCOREAPP3_1_OR_GREATER
+        /// <inheritdoc cref="Publish(RedisChannel, RedisValue, CommandFlags)"/>
+        long Publish(string channel, RedisValue message, CommandFlags flags = CommandFlags.None)
+            => Publish(RedisChannel.Literal(channel), message, flags);
+
+        /// <inheritdoc cref="PublishAsync(RedisChannel, RedisValue, CommandFlags)"/>
+        Task<long> PublishAsync(string channel, RedisValue message, CommandFlags flags = CommandFlags.None)
+            => PublishAsync(RedisChannel.Literal(channel), message, flags);
+#endif
+
         /// <summary>
         /// Subscribe to perform some operation when a message to the preferred/active node is broadcast, without any guarantee of ordered handling.
         /// </summary>

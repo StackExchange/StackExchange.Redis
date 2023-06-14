@@ -42,7 +42,11 @@ public class PreserveOrderTests : TestBase
             // it all goes to the server and back
             for (int i = 0; i < COUNT; i++)
             {
+#if NET472      // #if here is to show that we don't get the CS0618 on up-level frameworks
                 sub.Publish(RedisChannel.Literal(channel), i, CommandFlags.FireAndForget);
+#else
+                sub.Publish(channel, i, CommandFlags.FireAndForget);
+#endif
             }
 
             Log("Allowing time for delivery etc...");

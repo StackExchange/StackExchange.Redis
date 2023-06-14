@@ -1,2 +1,6 @@
 ﻿StackExchange.Redis.ConfigurationOptions.SslClientAuthenticationOptions.get -> System.Func<string!, System.Net.Security.SslClientAuthenticationOptions!>?
 StackExchange.Redis.ConfigurationOptions.SslClientAuthenticationOptions.set -> void
+StackExchange.Redis.IDatabase.Publish(string! channel, StackExchange.Redis.RedisValue message, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
+StackExchange.Redis.IDatabaseAsync.PublishAsync(string! channel, StackExchange.Redis.RedisValue message, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
+StackExchange.Redis.ISubscriber.Publish(string! channel, StackExchange.Redis.RedisValue message, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
+StackExchange.Redis.ISubscriber.PublishAsync(string! channel, StackExchange.Redis.RedisValue message, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!

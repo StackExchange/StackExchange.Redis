@@ -568,10 +568,15 @@ public sealed class KeyPrefixedDatabaseTests
     [Fact]
     public void Publish()
     {
+#if NETFRAMEWORK // #if here to show we don't get the CS0618 on up-level
 #pragma warning disable CS0618
         prefixed.Publish("channel", "message", CommandFlags.None);
         mock.Verify(_ => _.Publish("prefix:channel", "message", CommandFlags.None));
 #pragma warning restore CS0618
+#else
+        prefixed.Publish("channel", "message", CommandFlags.None);
+        mock.Verify(_ => _.Publish("prefix:channel", "message", CommandFlags.None));
+#endif
     }
 
     [Fact]
