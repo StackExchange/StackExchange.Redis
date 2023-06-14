@@ -1259,6 +1259,7 @@ StackExchange.Redis.Proxy.Twemproxy = 1 -> StackExchange.Redis.Proxy
 StackExchange.Redis.RedisChannel
 StackExchange.Redis.RedisChannel.Equals(StackExchange.Redis.RedisChannel other) -> bool
 StackExchange.Redis.RedisChannel.IsNullOrEmpty.get -> bool
+StackExchange.Redis.RedisChannel.IsPattern.get -> bool
 StackExchange.Redis.RedisChannel.PatternMode
 StackExchange.Redis.RedisChannel.PatternMode.Auto = 0 -> StackExchange.Redis.RedisChannel.PatternMode
 StackExchange.Redis.RedisChannel.PatternMode.Literal = 1 -> StackExchange.Redis.RedisChannel.PatternMode
@@ -1657,6 +1658,8 @@ static StackExchange.Redis.RedisChannel.implicit operator byte[]?(StackExchange.
 static StackExchange.Redis.RedisChannel.implicit operator StackExchange.Redis.RedisChannel(byte[]? key) -> StackExchange.Redis.RedisChannel
 static StackExchange.Redis.RedisChannel.implicit operator StackExchange.Redis.RedisChannel(string! key) -> StackExchange.Redis.RedisChannel
 static StackExchange.Redis.RedisChannel.implicit operator string?(StackExchange.Redis.RedisChannel key) -> string?
+static StackExchange.Redis.RedisChannel.Literal(byte[]! value) -> StackExchange.Redis.RedisChannel
+static StackExchange.Redis.RedisChannel.Literal(string! value) -> StackExchange.Redis.RedisChannel
 static StackExchange.Redis.RedisChannel.operator !=(byte[]! x, StackExchange.Redis.RedisChannel y) -> bool
 static StackExchange.Redis.RedisChannel.operator !=(StackExchange.Redis.RedisChannel x, byte[]! y) -> bool
 static StackExchange.Redis.RedisChannel.operator !=(StackExchange.Redis.RedisChannel x, StackExchange.Redis.RedisChannel y) -> bool
@@ -1667,6 +1670,10 @@ static StackExchange.Redis.RedisChannel.operator ==(StackExchange.Redis.RedisCha
 static StackExchange.Redis.RedisChannel.operator ==(StackExchange.Redis.RedisChannel x, StackExchange.Redis.RedisChannel y) -> bool
 static StackExchange.Redis.RedisChannel.operator ==(StackExchange.Redis.RedisChannel x, string! y) -> bool
 static StackExchange.Redis.RedisChannel.operator ==(string! x, StackExchange.Redis.RedisChannel y) -> bool
+static StackExchange.Redis.RedisChannel.Pattern(byte[]! value) -> StackExchange.Redis.RedisChannel
+static StackExchange.Redis.RedisChannel.Pattern(string! value) -> StackExchange.Redis.RedisChannel
+static StackExchange.Redis.RedisChannel.UseImplicitAutoPattern.get -> bool
+static StackExchange.Redis.RedisChannel.UseImplicitAutoPattern.set -> void
 static StackExchange.Redis.RedisFeatures.operator !=(StackExchange.Redis.RedisFeatures left, StackExchange.Redis.RedisFeatures right) -> bool
 static StackExchange.Redis.RedisFeatures.operator ==(StackExchange.Redis.RedisFeatures left, StackExchange.Redis.RedisFeatures right) -> bool
 static StackExchange.Redis.RedisKey.implicit operator byte[]?(StackExchange.Redis.RedisKey key) -> byte[]?
@@ -1788,6 +1795,7 @@ virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.IncludeDetailIn
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.IncludePerformanceCountersInExceptions.get -> bool
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.IsMatch(System.Net.EndPoint! endpoint) -> bool
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.KeepAliveInterval.get -> System.TimeSpan
+virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.LibraryName.get -> string!
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.Password.get -> string?
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.Proxy.get -> StackExchange.Redis.Proxy
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.ReconnectRetryPolicy.get -> StackExchange.Redis.IReconnectRetryPolicy?

@@ -27,9 +27,11 @@ public class PubSubTests : TestBase
         pub.Subscribe(new RedisChannel("*bcd", RedisChannel.PatternMode.Literal), (x, y) => Interlocked.Increment(ref a));
         pub.Subscribe(new RedisChannel("a*cd", RedisChannel.PatternMode.Pattern), (x, y) => Interlocked.Increment(ref b));
         pub.Subscribe(new RedisChannel("ab*d", RedisChannel.PatternMode.Auto), (x, y) => Interlocked.Increment(ref c));
+#pragma warning disable CS0618
         pub.Subscribe("abc*", (x, y) => Interlocked.Increment(ref d));
 
         pub.Publish("abcd", "efg");
+#pragma warning restore CS0618
         await UntilConditionAsync(TimeSpan.FromSeconds(10),
             () => Thread.VolatileRead(ref b) == 1
                && Thread.VolatileRead(ref c) == 1
@@ -39,7 +41,9 @@ public class PubSubTests : TestBase
         Assert.Equal(1, Thread.VolatileRead(ref c));
         Assert.Equal(1, Thread.VolatileRead(ref d));
 
+#pragma warning disable CS0618
         pub.Publish("*bcd", "efg");
+#pragma warning restore CS0618
         await UntilConditionAsync(TimeSpan.FromSeconds(10), () => Thread.VolatileRead(ref a) == 1);
         Assert.Equal(1, Thread.VolatileRead(ref a));
     }
@@ -77,15 +81,19 @@ public class PubSubTests : TestBase
             }
         }
         , handler2 = (_, __) => Interlocked.Increment(ref secondHandler);
+#pragma warning disable CS0618
         sub.Subscribe(subChannel, handler1);
         sub.Subscribe(subChannel, handler2);
+#pragma warning restore CS0618
 
         lock (received)
         {
             Assert.Empty(received);
         }
         Assert.Equal(0, Thread.VolatileRead(ref secondHandler));
+#pragma warning disable CS0618
         var count = sub.Publish(pubChannel, "def");
+#pragma warning restore CS0618
 
         await PingAsync(pub, sub, 3).ForAwait();
 
@@ -99,8 +107,10 @@ public class PubSubTests : TestBase
         Assert.Equal(1, Thread.VolatileRead(ref secondHandler));
 
         // unsubscribe from first; should still see second
+#pragma warning disable CS0618
         sub.Unsubscribe(subChannel, handler1);
         count = sub.Publish(pubChannel, "ghi");
+#pragma warning restore CS0618
         await PingAsync(pub, sub).ForAwait();
         lock (received)
         {
@@ -115,8 +125,10 @@ public class PubSubTests : TestBase
         Assert.Equal(1, count);
 
         // unsubscribe from second; should see nothing this time
+#pragma warning disable CS0618
         sub.Unsubscribe(subChannel, handler2);
         count = sub.Publish(pubChannel, "ghi");
+#pragma warning restore CS0618
         await PingAsync(pub, sub).ForAwait();
         lock (received)
         {
@@ -137,7 +149,7 @@ public class PubSubTests : TestBase
         var pub = GetAnyPrimary(conn);
         var sub = conn.GetSubscriber();
 
-        RedisChannel key = Me() + Guid.NewGuid();
+        RedisChannel key = RedisChannel.Literal(Me() + Guid.NewGuid());
         HashSet<string?> received = new();
         int secondHandler = 0;
         await PingAsync(pub, sub).ForAwait();
@@ -210,7 +222,9 @@ public class PubSubTests : TestBase
 
         HashSet<string?> received = new();
         int secondHandler = 0;
+#pragma warning disable CS0618
         sub.Subscribe("a*c", (channel, payload) =>
+#pragma warning restore CS0618
         {
             lock (received)
             {
@@ -221,7 +235,9 @@ public class PubSubTests : TestBase
             }
         });
 
+#pragma warning disable CS0618
         sub.Subscribe("a*c", (_, __) => Interlocked.Increment(ref secondHandler));
+#pragma warning restore CS0618
         lock (received)
         {
             Assert.Empty(received);
@@ -229,7 +245,7 @@ public class PubSubTests : TestBase
         Assert.Equal(0, Thread.VolatileRead(ref secondHandler));
 
         await PingAsync(pub, sub).ForAwait();
-        var count = sub.Publish("abc", "def");
+        var count = sub.Publish(RedisChannel.Literal("abc"), "def");
         await PingAsync(pub, sub).ForAwait();
 
         await UntilConditionAsync(TimeSpan.FromSeconds(5), () => received.Count == 1);
@@ -242,8 +258,10 @@ public class PubSubTests : TestBase
         await UntilConditionAsync(TimeSpan.FromSeconds(2), () => Thread.VolatileRead(ref secondHandler) == 1);
         Assert.Equal(1, Thread.VolatileRead(ref secondHandler));
 
+#pragma warning disable CS0618
         sub.Unsubscribe("a*c");
         count = sub.Publish("abc", "ghi");
+#pragma warning restore CS0618
 
         await PingAsync(pub, sub).ForAwait();
 
@@ -259,7 +277,9 @@ public class PubSubTests : TestBase
         using var conn = Create();
 
         var sub = conn.GetSubscriber();
+#pragma warning disable CS0618
         Assert.Equal(0, sub.Publish(Me() + "channel", "message"));
+#pragma warning restore CS0618
     }
 
     [FactLongRunning]
@@ -289,14 +309,18 @@ public class PubSubTests : TestBase
         var withFAF = Stopwatch.StartNew();
         for (int i = 0; i < loop; i++)
         {
+#pragma warning disable CS0618
             sub.Publish(channel, "bar", CommandFlags.FireAndForget);
+#pragma warning restore CS0618
         }
         withFAF.Stop();
 
         var withAsync = Stopwatch.StartNew();
         for (int i = 0; i < loop; i++)
         {
+#pragma warning disable CS0618
             tasks[i] = sub.PublishAsync(channel, "bar");
+#pragma warning restore CS0618
         }
         sub.WaitAll(tasks);
         withAsync.Stop();
@@ -314,7 +338,7 @@ public class PubSubTests : TestBase
         using var conn = Create(syncTimeout: 20000, shared: false, log: Writer);
 
         var sub = conn.GetSubscriber();
-        RedisChannel channel = Me();
+        RedisChannel channel = RedisChannel.Literal(Me());
 
         const int TO_SEND = 5;
         var gotall = new TaskCompletionSource<int>();
@@ -348,7 +372,7 @@ public class PubSubTests : TestBase
         using var sonn = Create(syncTimeout: 20000, shared: false, log: Writer);
 
         var sub = sonn.GetSubscriber();
-        RedisChannel channel = Me();
+        RedisChannel channel = RedisChannel.Literal(Me());
         const int count = 1000;
         var syncLock = new object();
 
@@ -396,7 +420,7 @@ public class PubSubTests : TestBase
         using (var conn = Create(configuration: TestConfig.Current.RemoteServerAndPort, syncTimeout: 20000, log: Writer))
         {
             var sub = conn.GetSubscriber();
-            RedisChannel channel = Me();
+            RedisChannel channel = RedisChannel.Literal(Me());
             const int count = 250;
             var syncLock = new object();
 
@@ -469,7 +493,7 @@ public class PubSubTests : TestBase
         using (var conn = Create(configuration: TestConfig.Current.RemoteServerAndPort, syncTimeout: 20000, log: Writer))
         {
             var sub = conn.GetSubscriber();
-            RedisChannel channel = Me();
+            RedisChannel channel = RedisChannel.Literal(Me());
             const int count = 1000;
             var syncLock = new object();
 
@@ -538,7 +562,7 @@ public class PubSubTests : TestBase
         using (var conn = Create(configuration: TestConfig.Current.RemoteServerAndPort, syncTimeout: 20000, log: Writer))
         {
             var sub = conn.GetSubscriber();
-            RedisChannel channel = Me();
+            RedisChannel channel = RedisChannel.Literal(Me());
             const int count = 1000;
             var syncLock = new object();
 
@@ -616,8 +640,10 @@ public class PubSubTests : TestBase
         var channel = Me();
         var listenA = connA.GetSubscriber();
         var listenB = connB.GetSubscriber();
+#pragma warning disable CS0618
         var t1 = listenA.SubscribeAsync(channel, delegate { });
         var t2 = listenB.SubscribeAsync(channel, delegate { });
+#pragma warning restore CS0618
 
         await Task.WhenAll(t1, t2).ForAwait();
 
@@ -625,7 +651,9 @@ public class PubSubTests : TestBase
         await listenA.PingAsync();
         await listenB.PingAsync();
 
+#pragma warning disable CS0618
         var pub = connPub.GetSubscriber().PublishAsync(channel, "message");
+#pragma warning restore CS0618
         Assert.Equal(2, await pub); // delivery count
     }
 
@@ -636,7 +664,7 @@ public class PubSubTests : TestBase
         using var connB = Create(shared: false, log: Writer);
         using var connPub = Create();
 
-        var channel = Me();
+        var channel = RedisChannel.Literal(Me());
         var listenA = connA.GetSubscriber();
         var listenB = connB.GetSubscriber();
         connPub.GetDatabase().Ping();
@@ -668,16 +696,20 @@ public class PubSubTests : TestBase
         int count = 0;
         var prefix = Me();
         void handler(RedisChannel _, RedisValue __) => Interlocked.Increment(ref count);
+#pragma warning disable CS0618
         var a0 = sub.SubscribeAsync(prefix + "foo", handler);
         var a1 = sub.SubscribeAsync(prefix + "bar", handler);
         var b0 = sub.SubscribeAsync(prefix + "f*o", handler);
         var b1 = sub.SubscribeAsync(prefix + "b*r", handler);
+#pragma warning restore CS0618
         await Task.WhenAll(a0, a1, b0, b1).ForAwait();
 
+#pragma warning disable CS0618
         var c = sub.PublishAsync(prefix + "foo", "foo");
         var d = sub.PublishAsync(prefix + "f@o", "f@o");
         var e = sub.PublishAsync(prefix + "bar", "bar");
         var f = sub.PublishAsync(prefix + "b@r", "b@r");
+#pragma warning restore CS0618
         await Task.WhenAll(c, d, e, f).ForAwait();
 
         long total = c.Result + d.Result + e.Result + f.Result;
@@ -702,18 +734,22 @@ public class PubSubTests : TestBase
         var listenB = connB.GetSubscriber();
         var pub = connPub.GetSubscriber();
         var prefix = Me();
+#pragma warning disable CS0618
         var tA = listenA.SubscribeAsync(prefix + "channel", (s, msg) => { if (s == prefix + "channel" && msg == "message") Interlocked.Increment(ref gotA); });
         var tB = listenB.SubscribeAsync(prefix + "chann*", (s, msg) => { if (s == prefix + "channel" && msg == "message") Interlocked.Increment(ref gotB); });
         await Task.WhenAll(tA, tB).ForAwait();
         Assert.Equal(2, pub.Publish(prefix + "channel", "message"));
+#pragma warning restore CS0618
         await AllowReasonableTimeToPublishAndProcess().ForAwait();
         Assert.Equal(1, Interlocked.CompareExchange(ref gotA, 0, 0));
         Assert.Equal(1, Interlocked.CompareExchange(ref gotB, 0, 0));
 
         // and unsubscibe...
+#pragma warning disable CS0618
         tB = listenB.UnsubscribeAsync(prefix + "chann*", null);
         await tB;
         Assert.Equal(1, pub.Publish(prefix + "channel", "message"));
+#pragma warning restore CS0618
         await AllowReasonableTimeToPublishAndProcess().ForAwait();
         Assert.Equal(2, Interlocked.CompareExchange(ref gotA, 0, 0));
         Assert.Equal(1, Interlocked.CompareExchange(ref gotB, 0, 0));
@@ -729,6 +765,7 @@ public class PubSubTests : TestBase
         var pub = connPub.GetSubscriber();
         var sub = connSub.GetSubscriber();
         int x = 0, y = 0;
+#pragma warning disable CS0618
         var t1 = sub.SubscribeAsync(prefix + "abc", delegate { Interlocked.Increment(ref x); });
         var t2 = sub.SubscribeAsync(prefix + "ab*", delegate { Interlocked.Increment(ref y); });
         await Task.WhenAll(t1, t2).ForAwait();
@@ -746,6 +783,7 @@ public class PubSubTests : TestBase
         t2 = sub.SubscribeAsync(prefix + "ab*", delegate { Interlocked.Increment(ref y); });
         await Task.WhenAll(t1, t2).ForAwait();
         pub.Publish(prefix + "abc", "");
+#pragma warning restore CS0618
         await AllowReasonableTimeToPublishAndProcess().ForAwait();
         Assert.Equal(2, Volatile.Read(ref x));
         Assert.Equal(2, Volatile.Read(ref y));
@@ -776,7 +814,7 @@ public class PubSubTests : TestBase
             };
 
             var pubSub = connection.GetSubscriber();
-            await pubSub.PublishAsync("AzureRedisEvents", "HI");
+            await pubSub.PublishAsync(RedisChannel.Literal("AzureRedisEvents"), "HI");
             await Task.Delay(100);
 
             Assert.True(didUpdate);

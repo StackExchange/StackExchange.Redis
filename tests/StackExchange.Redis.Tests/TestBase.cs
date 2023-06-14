@@ -315,7 +315,7 @@ public abstract class TestBase : IDisposable
         return conn;
     }
 
-    private void ThrowIfBelowMinVersion(IInternalConnectionMultiplexer conn, Version? requiredVersion)
+    protected void ThrowIfBelowMinVersion(IConnectionMultiplexer conn, Version? requiredVersion)
     {
         if (requiredVersion is null)
         {
@@ -377,7 +377,7 @@ public abstract class TestBase : IDisposable
                 syncTimeout = int.MaxValue;
             }
 
-            if (channelPrefix != null) config.ChannelPrefix = channelPrefix;
+            if (channelPrefix != null) config.ChannelPrefix = RedisChannel.Literal(channelPrefix);
             if (tieBreaker != null) config.TieBreaker = tieBreaker;
             if (password != null) config.Password = string.IsNullOrEmpty(password) ? null : password;
             if (clientName != null) config.ClientName = clientName;

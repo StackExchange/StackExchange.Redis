@@ -8,11 +8,20 @@ Current package versions:
 
 ## Unreleased
 
+## 2.6.116
+
+- Fix [#2479](https://github.com/StackExchange/StackExchange.Redis/issues/2479): Add `RedisChannel.UseImplicitAutoPattern` (global) and `RedisChannel.IsPattern` ([#2480 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2480))
+- Fix [#2479](https://github.com/StackExchange/StackExchange.Redis/issues/2479): Mark `RedisChannel` conversion operators as obsolete; add `RedisChannel.Literal` and `RedisChannel.Pattern` helpers ([#2481 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2481))
+- Fix [#2449](https://github.com/StackExchange/StackExchange.Redis/issues/2449): Update `Pipelines.Sockets.Unofficial` to `v2.2.8` to support native AOT ([#2456 by eerhardt](https://github.com/StackExchange/StackExchange.Redis/pull/2456))
+
+## 2.6.111
+
 - Fix [#2426](https://github.com/StackExchange/StackExchange.Redis/issues/2426): Don't restrict multi-slot operations on Envoy proxy; let the proxy decide ([#2428 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2428))
 - Add: Support for `User`/`Password` in `DefaultOptionsProvider` to support token rotation scenarios ([#2445 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2445))
 - Fix [#2449](https://github.com/StackExchange/StackExchange.Redis/issues/2449): Resolve AOT trim warnings in `TryGetAzureRoleInstanceIdNoThrow` ([#2451 by eerhardt](https://github.com/StackExchange/StackExchange.Redis/pull/2451))
 - Adds: Support for `HTTP/1.1 200 Connection established` in HTTP Tunnel ([#2448 by flobernd](https://github.com/StackExchange/StackExchange.Redis/pull/2448))
 - Adds: Timeout duration to backlog timeout error messages ([#2452 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2452))
+- Adds: `DefaultOptionsProvider.LibraryName` for specifying lib-name passed to `CLIENT SETINFO` in Redis 7.2+ ([#2453 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2453))
 
 ## 2.6.104
 

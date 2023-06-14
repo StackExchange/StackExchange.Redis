@@ -935,10 +935,14 @@ namespace StackExchange.Redis
                     // server version, so we will use this speculatively and hope for the best
                     log?.WriteLine($"{Format.ToString(this)}: Setting client lib/ver");
 
-                    msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.CLIENT,
-                        RedisLiterals.SETINFO, RedisLiterals.lib_name, RedisLiterals.SE_Redis);
-                    msg.SetInternalCall();
-                    await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
+                    var libName = Multiplexer.RawConfig.Defaults.LibraryName;
+                    if (!string.IsNullOrWhiteSpace(libName))
+                    {
+                        msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.CLIENT,
+                            RedisLiterals.SETINFO, RedisLiterals.lib_name, libName);
+                        msg.SetInternalCall();
+                        await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
+                    }
 
                     var version = Utils.GetLibVersion();
                     if (!string.IsNullOrWhiteSpace(version))
@@ -975,7 +979,7 @@ namespace StackExchange.Redis
                 var configChannel = Multiplexer.ConfigurationChangedChannel;
                 if (configChannel != null)
                 {
-                    msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.SUBSCRIBE, (RedisChannel)configChannel);
+                    msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.SUBSCRIBE, RedisChannel.Literal(configChannel));
                     // Note: this is NOT internal, we want it to queue in a backlog for sending when ready if necessary
                     await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.TrackSubscriptions).ForAwait();
                 }

@@ -22,7 +22,7 @@ public class PreserveOrderTests : TestBase
         var received = new List<int>();
         Log("Subscribing...");
         const int COUNT = 500;
-        sub.Subscribe(channel, (_, message) =>
+        sub.Subscribe(RedisChannel.Literal(channel), (_, message) =>
         {
             lock (received)
             {
@@ -42,7 +42,7 @@ public class PreserveOrderTests : TestBase
             // it all goes to the server and back
             for (int i = 0; i < COUNT; i++)
             {
-                sub.Publish(channel, i, CommandFlags.FireAndForget);
+                sub.Publish(RedisChannel.Literal(channel), i, CommandFlags.FireAndForget);
             }
 
             Log("Allowing time for delivery etc...");
