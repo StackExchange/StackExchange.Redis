@@ -570,7 +570,7 @@ public class ConfigTests : TestBase
     public async Task MutableOptions()
     {
         var options = ConfigurationOptions.Parse(TestConfig.Current.PrimaryServerAndPort + ",name=Details");
-        options.Logger = NullLogger.Instance;
+        options.LoggerFactory = NullLoggerFactory.Instance;
         var originalConfigChannel = options.ConfigurationChannel = "originalConfig";
         var originalUser = options.User = "originalUser";
         var originalPassword = options.Password = "originalPassword";
@@ -619,7 +619,7 @@ public class ConfigTests : TestBase
         Assert.Equal(originalPassword, conn.RawConfig.Password);
         var newPass = options.Password = "newPassword";
         Assert.Equal(newPass, conn.RawConfig.Password);
-        Assert.Equal(options.Logger, conn.RawConfig.Logger);
+        Assert.Equal(options.LoggerFactory, conn.RawConfig.LoggerFactory);
     }
 
     [Theory]

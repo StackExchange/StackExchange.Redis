@@ -34,7 +34,7 @@ public class DefaultOptionsTests : TestBase
         protected override string GetDefaultClientName() => "TestPrefix-" + base.GetDefaultClientName();
         public override bool IsMatch(EndPoint endpoint) => endpoint is DnsEndPoint dnsep && dnsep.Host.EndsWith(_domainSuffix);
         public override TimeSpan KeepAliveInterval => TimeSpan.FromSeconds(125);
-        public override ILogger? Logger => NullLogger.Instance;
+        public override ILoggerFactory? LoggerFactory => NullLoggerFactory.Instance;
         public override Proxy Proxy => Proxy.Twemproxy;
         public override IReconnectRetryPolicy ReconnectRetryPolicy => new TestRetryPolicy();
         public override bool ResolveDns => true;
@@ -100,7 +100,7 @@ public class DefaultOptionsTests : TestBase
         Assert.Equal(new Version(1, 2, 3, 4), options.DefaultVersion);
 
         Assert.Equal(TimeSpan.FromSeconds(125), TimeSpan.FromSeconds(options.KeepAlive));
-        Assert.Equal(NullLogger.Instance, options.Logger);
+        Assert.Equal(NullLoggerFactory.Instance, options.LoggerFactory);
         Assert.Equal(Proxy.Twemproxy, options.Proxy);
         Assert.IsType<TestRetryPolicy>(options.ReconnectRetryPolicy);
         Assert.True(options.ResolveDns);

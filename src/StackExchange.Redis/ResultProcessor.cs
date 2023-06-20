@@ -960,8 +960,7 @@ namespace StackExchange.Redis
         {
             internal static ClusterConfiguration Parse(PhysicalConnection connection, string nodes)
             {
-                var bridge = connection.BridgeCouldBeNull;
-                if (bridge == null) throw new ObjectDisposedException(connection.ToString());
+                var bridge = connection.BridgeCouldBeNull ?? throw new ObjectDisposedException(connection.ToString());
                 var server = bridge.ServerEndPoint;
                 var config = new ClusterConfiguration(bridge.Multiplexer.ServerSelectionStrategy, nodes, server.EndPoint);
                 server.SetClusterConfiguration(config);
