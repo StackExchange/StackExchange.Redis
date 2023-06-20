@@ -277,7 +277,7 @@ public class ConfigTests : TestBase
         Assert.True(servers[0].IsConnected);
         Assert.False(servers[0].IsSubscriberConnected);
 
-        var ex = Assert.Throws<RedisCommandException>(() => conn.GetSubscriber().Subscribe(Me(), (_, _) => GC.KeepAlive(this)));
+        var ex = Assert.Throws<RedisCommandException>(() => conn.GetSubscriber().Subscribe(RedisChannel.Literal(Me()), (_, _) => GC.KeepAlive(this)));
         Assert.Equal("This operation has been disabled in the command-map and cannot be used: SUBSCRIBE", ex.Message);
     }
 

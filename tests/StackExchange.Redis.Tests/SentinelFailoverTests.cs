@@ -21,7 +21,9 @@ public class SentinelFailoverTests : SentinelBase
         conn.ConfigurationChanged += (s, e) => Log($"Configuration changed: {e.EndPoint}");
 
         var sub = conn.GetSubscriber();
+#pragma warning disable CS0618
         sub.Subscribe("*", (channel, message) => Log($"Sub: {channel}, message:{message}"));
+#pragma warning restore CS0618
 
         var db = conn.GetDatabase();
         await db.PingAsync();

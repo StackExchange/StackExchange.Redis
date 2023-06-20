@@ -17,10 +17,12 @@ public class PubSubCommandTests : TestBase
     {
         using var conn = Create();
 
+#pragma warning disable CS0618
         RedisChannel channel = Me() + Guid.NewGuid();
         var server = conn.GetServer(conn.GetEndPoints()[0]);
 
         var channels = server.SubscriptionChannels(Me() + "*");
+#pragma warning restore CS0618
         Assert.DoesNotContain(channel, channels);
 
         _ = server.SubscriptionPatternCount();
@@ -30,7 +32,9 @@ public class PubSubCommandTests : TestBase
         count = server.SubscriptionSubscriberCount(channel);
         Assert.Equal(1, count);
 
+#pragma warning disable CS0618
         channels = server.SubscriptionChannels(Me() + "*");
+#pragma warning restore CS0618
         Assert.Contains(channel, channels);
     }
 
@@ -39,10 +43,14 @@ public class PubSubCommandTests : TestBase
     {
         using var conn = Create();
 
+#pragma warning disable CS0618
         RedisChannel channel = Me() + Guid.NewGuid();
+#pragma warning restore CS0618
         var server = conn.GetServer(conn.GetEndPoints()[0]);
 
+#pragma warning disable CS0618
         var channels = await server.SubscriptionChannelsAsync(Me() + "*").WithTimeout(2000);
+#pragma warning restore CS0618
         Assert.DoesNotContain(channel, channels);
 
         _ = await server.SubscriptionPatternCountAsync().WithTimeout(2000);
@@ -52,7 +60,9 @@ public class PubSubCommandTests : TestBase
         count = await server.SubscriptionSubscriberCountAsync(channel).WithTimeout(2000);
         Assert.Equal(1, count);
 
+#pragma warning disable CS0618
         channels = await server.SubscriptionChannelsAsync(Me() + "*").WithTimeout(2000);
+#pragma warning restore CS0618
         Assert.Contains(channel, channels);
     }
 }

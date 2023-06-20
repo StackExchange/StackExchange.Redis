@@ -1,11 +1,11 @@
-﻿using System;
+﻿using Pipelines.Sockets.Unofficial;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
-using Pipelines.Sockets.Unofficial;
 
 namespace StackExchange.Redis;
 
@@ -30,9 +30,9 @@ public partial class ConnectionMultiplexer
         // Subscribe to sentinel change events
         ISubscriber sub = GetSubscriber();
 
-        if (sub.SubscribedEndpoint("+switch-master") == null)
+        if (sub.SubscribedEndpoint(RedisChannel.Literal("+switch-master")) == null)
         {
-            sub.Subscribe("+switch-master", (__, message) =>
+            sub.Subscribe(RedisChannel.Literal("+switch-master"), (__, message) =>
             {
                 string[] messageParts = ((string)message!).Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
                 // We don't care about the result of this - we're just trying
@@ -68,9 +68,9 @@ public partial class ConnectionMultiplexer
             ReconfigureAsync(first: false, reconfigureAll: true, logProxy, e.EndPoint, "Lost sentinel connection", false).Wait();
 
         // Subscribe to new sentinels being added
-        if (sub.SubscribedEndpoint("+sentinel") == null)
+        if (sub.SubscribedEndpoint(RedisChannel.Literal("+sentinel")) == null)
         {
-            sub.Subscribe("+sentinel", (_, message) =>
+            sub.Subscribe(RedisChannel.Literal("+sentinel"), (_, message) =>
             {
                 string[] messageParts = ((string)message!).Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
                 UpdateSentinelAddressList(messageParts[0]);

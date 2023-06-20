@@ -874,7 +874,7 @@ namespace StackExchange.Redis
                             ClientName = value;
                             break;
                         case OptionKeys.ChannelPrefix:
-                            ChannelPrefix = value;
+                            ChannelPrefix = RedisChannel.Literal(value);
                             break;
                         case OptionKeys.ConfigChannel:
                             ConfigurationChannel = value;

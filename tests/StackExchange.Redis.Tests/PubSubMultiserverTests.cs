@@ -18,8 +18,8 @@ public class PubSubMultiserverTests : TestBase
         using var conn = (Create(channelPrefix: Me()) as ConnectionMultiplexer)!;
 
         var defaultSlot = conn.ServerSelectionStrategy.HashSlot(default(RedisChannel));
-        var slot1 = conn.ServerSelectionStrategy.HashSlot((RedisChannel)"hey");
-        var slot2 = conn.ServerSelectionStrategy.HashSlot((RedisChannel)"hey2");
+        var slot1 = conn.ServerSelectionStrategy.HashSlot(RedisChannel.Literal("hey"));
+        var slot2 = conn.ServerSelectionStrategy.HashSlot(RedisChannel.Literal("hey2"));
 
         Assert.NotEqual(defaultSlot, slot1);
         Assert.NotEqual(ServerSelectionStrategy.NoSlot, slot1);
@@ -34,7 +34,7 @@ public class PubSubMultiserverTests : TestBase
         using var conn = (Create(allowAdmin: true) as ConnectionMultiplexer)!;
 
         var sub = conn.GetSubscriber();
-        var channel = (RedisChannel)Me();
+        var channel = RedisChannel.Literal(Me());
 
         var count = 0;
         Log("Subscribing...");
@@ -108,7 +108,7 @@ public class PubSubMultiserverTests : TestBase
         using var conn = (Create(configuration: config, shared: false, allowAdmin: true) as ConnectionMultiplexer)!;
 
         var sub = conn.GetSubscriber();
-        var channel = (RedisChannel)(Me() + flags.ToString()); // Individual channel per case to not overlap publishers
+        var channel = RedisChannel.Literal(Me() + flags.ToString()); // Individual channel per case to not overlap publishers
 
         var count = 0;
         Log("Subscribing...");
