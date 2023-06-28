@@ -8,6 +8,8 @@ Current package versions:
 
 ## Unreleased
 
+- Fix: Fix nullability annotation of IConnectionMultiplexer.RegisterProfiler ([#XXX by eerhardt](https://github.com/StackExchange/StackExchange.Redis/pull/XXX))
+
 ## 2.6.116
 
 - Fix [#2479](https://github.com/StackExchange/StackExchange.Redis/issues/2479): Add `RedisChannel.UseImplicitAutoPattern` (global) and `RedisChannel.IsPattern` ([#2480 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2480))

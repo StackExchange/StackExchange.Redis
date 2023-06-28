@@ -78,7 +78,7 @@ namespace StackExchange.Redis
         /// based on ambient context, or returning null to not profile.
         /// </summary>
         /// <param name="profilingSessionProvider">The profiling session provider.</param>
-        void RegisterProfiler(Func<ProfilingSession> profilingSessionProvider);
+        void RegisterProfiler(Func<ProfilingSession?> profilingSessionProvider);
 
         /// <summary>
         /// Get summary statistics associates with this server.
