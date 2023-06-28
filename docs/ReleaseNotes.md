@@ -8,7 +8,7 @@ Current package versions:
 
 ## Unreleased
 
-- Fix: Fix nullability annotation of IConnectionMultiplexer.RegisterProfiler ([#XXX by eerhardt](https://github.com/StackExchange/StackExchange.Redis/pull/XXX))
+- Fix: Fix nullability annotation of IConnectionMultiplexer.RegisterProfiler ([#2494 by eerhardt](https://github.com/StackExchange/StackExchange.Redis/pull/2494))
 
 ## 2.6.116
 
