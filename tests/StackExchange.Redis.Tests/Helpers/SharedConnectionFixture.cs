@@ -169,7 +169,7 @@ public class SharedConnectionFixture : IDisposable
 
         public Task<long> PublishReconfigureAsync(CommandFlags flags = CommandFlags.None) => _inner.PublishReconfigureAsync(flags);
 
-        public void RegisterProfiler(Func<ProfilingSession> profilingSessionProvider) => _inner.RegisterProfiler(profilingSessionProvider);
+        public void RegisterProfiler(Func<ProfilingSession?> profilingSessionProvider) => _inner.RegisterProfiler(profilingSessionProvider);
 
         public void ResetStormLog() => _inner.ResetStormLog();
 
