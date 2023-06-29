@@ -463,7 +463,7 @@ namespace StackExchange.Redis
 
                         var newServer = message.Command switch
                         {
-                            RedisCommand.SUBSCRIBE or RedisCommand.PSUBSCRIBE => connection.BridgeCouldBeNull?.ServerEndPoint,
+                            RedisCommand.SUBSCRIBE or RedisCommand.SSUBSCRIBE or RedisCommand.PSUBSCRIBE => connection.BridgeCouldBeNull?.ServerEndPoint,
                             _ => null
                         };
                         Subscription?.SetCurrentServer(newServer);
@@ -1325,7 +1325,7 @@ namespace StackExchange.Redis
                 {
                     case ResultType.MultiBulk:
                         var final = result.ToArray(
-                                (in RawResult item, in ChannelState state) => item.AsRedisChannel(state.Prefix, state.Mode),
+                                (in RawResult item, in ChannelState state) => item.AsRedisChannel(state.Prefix, state.Mode, isSharded: false),
                                 new ChannelState(connection.ChannelPrefix, mode))!;
 
                         SetResult(message, final);

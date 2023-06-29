@@ -359,7 +359,7 @@ StackExchange.Redis.ConnectionMultiplexer.PreserveAsyncOrder.set -> void
 StackExchange.Redis.ConnectionMultiplexer.PublishReconfigure(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
 StackExchange.Redis.ConnectionMultiplexer.PublishReconfigureAsync(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
 StackExchange.Redis.ConnectionMultiplexer.ReconfigureAsync(string! reason) -> System.Threading.Tasks.Task<bool>!
-StackExchange.Redis.ConnectionMultiplexer.RegisterProfiler(System.Func<StackExchange.Redis.Profiling.ProfilingSession?>! profilingSessionProvider) -> void
+StackExchange.Redis.ConnectionMultiplexer.RegisterProfiler(System.Func<StackExchange.Redis.Profiling.ProfilingSession!>! profilingSessionProvider) -> void
 StackExchange.Redis.ConnectionMultiplexer.ResetStormLog() -> void
 StackExchange.Redis.ConnectionMultiplexer.ServerMaintenanceEvent -> System.EventHandler<StackExchange.Redis.Maintenance.ServerMaintenanceEvent!>?
 StackExchange.Redis.ConnectionMultiplexer.StormLogThreshold.get -> int
@@ -497,7 +497,7 @@ StackExchange.Redis.IConnectionMultiplexer.PreserveAsyncOrder.get -> bool
 StackExchange.Redis.IConnectionMultiplexer.PreserveAsyncOrder.set -> void
 StackExchange.Redis.IConnectionMultiplexer.PublishReconfigure(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
 StackExchange.Redis.IConnectionMultiplexer.PublishReconfigureAsync(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
-StackExchange.Redis.IConnectionMultiplexer.RegisterProfiler(System.Func<StackExchange.Redis.Profiling.ProfilingSession?>! profilingSessionProvider) -> void
+StackExchange.Redis.IConnectionMultiplexer.RegisterProfiler(System.Func<StackExchange.Redis.Profiling.ProfilingSession!>! profilingSessionProvider) -> void
 StackExchange.Redis.IConnectionMultiplexer.ResetStormLog() -> void
 StackExchange.Redis.IConnectionMultiplexer.ServerMaintenanceEvent -> System.EventHandler<StackExchange.Redis.Maintenance.ServerMaintenanceEvent!>!
 StackExchange.Redis.IConnectionMultiplexer.StormLogThreshold.get -> int
@@ -1265,7 +1265,9 @@ StackExchange.Redis.RedisChannel.PatternMode.Auto = 0 -> StackExchange.Redis.Red
 StackExchange.Redis.RedisChannel.PatternMode.Literal = 1 -> StackExchange.Redis.RedisChannel.PatternMode
 StackExchange.Redis.RedisChannel.PatternMode.Pattern = 2 -> StackExchange.Redis.RedisChannel.PatternMode
 StackExchange.Redis.RedisChannel.RedisChannel() -> void
+StackExchange.Redis.RedisChannel.RedisChannel(byte[]? value, bool isSharded) -> void
 StackExchange.Redis.RedisChannel.RedisChannel(byte[]? value, StackExchange.Redis.RedisChannel.PatternMode mode) -> void
+StackExchange.Redis.RedisChannel.RedisChannel(string! value, bool isSharded) -> void
 StackExchange.Redis.RedisChannel.RedisChannel(string! value, StackExchange.Redis.RedisChannel.PatternMode mode) -> void
 StackExchange.Redis.RedisCommandException
 StackExchange.Redis.RedisCommandException.RedisCommandException(string! message) -> void

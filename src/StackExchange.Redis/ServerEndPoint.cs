@@ -242,6 +242,8 @@ namespace StackExchange.Redis
                 case RedisCommand.UNSUBSCRIBE:
                 case RedisCommand.PSUBSCRIBE:
                 case RedisCommand.PUNSUBSCRIBE:
+                case RedisCommand.SSUBSCRIBE:
+                case RedisCommand.SUNSUBSCRIBE:                
                     message.SetForSubscriptionBridge();
                     break;
             }
@@ -260,6 +262,8 @@ namespace StackExchange.Redis
                 case RedisCommand.UNSUBSCRIBE:
                 case RedisCommand.PSUBSCRIBE:
                 case RedisCommand.PUNSUBSCRIBE:
+                case RedisCommand.SSUBSCRIBE:
+                case RedisCommand.SUNSUBSCRIBE:
                     return subscription ?? (create ? subscription = CreateBridge(ConnectionType.Subscription, null) : null);
                 default:
                     return interactive ?? (create ? interactive = CreateBridge(ConnectionType.Interactive, null) : null);
