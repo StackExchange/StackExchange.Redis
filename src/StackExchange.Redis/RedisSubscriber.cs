@@ -160,6 +160,7 @@ namespace StackExchange.Redis
             internal Message GetMessage(RedisChannel channel, SubscriptionAction action, CommandFlags flags, bool internalCall)
             {
                 var isPattern = channel._isPatternBased;
+                var isSharded = channel._isSharded;
                 var command = action switch
                 {
                     SubscriptionAction.Subscribe when isPattern => RedisCommand.PSUBSCRIBE,
