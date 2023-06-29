@@ -502,7 +502,6 @@ namespace StackExchange.Redis
                 case RedisCommand.SUBSCRIBE:
                 case RedisCommand.SPUBLISH:
                 case RedisCommand.SSUBSCRIBE:
-                case RedisCommand.SUBSCRIBE:
                 case RedisCommand.SUNSUBSCRIBE:
                 case RedisCommand.SWAPDB:
                 case RedisCommand.SYNC:
