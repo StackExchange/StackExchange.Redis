@@ -350,6 +350,10 @@ namespace StackExchange.Redis
         internal void IncrementOpCount()
         {
             Interlocked.Increment(ref operationCount);
+
+#if NET6_0_OR_GREATER
+            RedisMetrics.Instance.IncrementOpCount(Name);
+#endif
         }
 
         internal void KeepAlive()
