@@ -374,6 +374,9 @@ namespace StackExchange.Redis
 
             // set the completion/performance data
             performance?.SetCompleted();
+#if NET6_0_OR_GREATER
+            RedisMetrics.Instance.OnMessageComplete(currBox);
+#endif
 
             currBox?.ActivateContinuations();
         }
@@ -441,7 +444,7 @@ namespace StackExchange.Redis
                 3 => new CommandKeyKeyValueValueValueMessage(db, flags, command, key0, key1, values[0], values[1], values[2]),
                 4 => new CommandKeyKeyValueValueValueValueMessage(db, flags, command, key0, key1, values[0], values[1], values[2], values[3]),
                 5 => new CommandKeyKeyValueValueValueValueValueMessage(db, flags, command, key0, key1, values[0], values[1], values[2], values[3], values[4]),
-                6 => new CommandKeyKeyValueValueValueValueValueValueMessage(db, flags, command, key0, key1, values[0], values[1], values[2], values[3],values[4],values[5]),
+                6 => new CommandKeyKeyValueValueValueValueValueValueMessage(db, flags, command, key0, key1, values[0], values[1], values[2], values[3], values[4], values[5]),
                 7 => new CommandKeyKeyValueValueValueValueValueValueValueMessage(db, flags, command, key0, key1, values[0], values[1], values[2], values[3], values[4], values[5], values[6]),
                 _ => new CommandKeyKeyValuesMessage(db, flags, command, key0, key1, values),
             };

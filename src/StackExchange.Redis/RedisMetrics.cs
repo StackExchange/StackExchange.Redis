@@ -9,14 +9,15 @@ internal sealed class RedisMetrics
 {
     private readonly Meter _meter;
     private readonly Counter<long> _operationCount;
-    //private readonly Counter<long> _completedAsynchronously;
-    //private readonly Counter<long> _completedSynchronously;
-    //private readonly Counter<long> _failedSynchronously;
+    private readonly Counter<long> _completedAsynchronously;
+    private readonly Counter<long> _completedSynchronously;
+    private readonly Counter<long> _failedAsynchronously;
+    private readonly Counter<long> _failedSynchronously;
     private readonly Counter<long> _nonPreferredEndpointCount;
 
     public static readonly RedisMetrics Instance = new RedisMetrics();
 
-    public RedisMetrics()
+    private RedisMetrics()
     {
         _meter = new Meter("StackExchange.Redis");
 
@@ -24,17 +25,21 @@ internal sealed class RedisMetrics
             "redis-operation-count",
             description: "The number of operations performed.");
 
-        //_completedAsynchronously = _meter.CreateCounter<long>(
-        //    "redis-completed-asynchronously",
-        //    description: "The number of operations that have been completed asynchronously.");
+        _completedAsynchronously = _meter.CreateCounter<long>(
+            "redis-completed-asynchronously",
+            description: "The number of operations that have been completed asynchronously.");
 
-        //_completedSynchronously = _meter.CreateCounter<long>(
-        //    "redis-completed-synchronously",
-        //    description: "The number of operations that have been completed synchronously.");
+        _completedSynchronously = _meter.CreateCounter<long>(
+            "redis-completed-synchronously",
+            description: "The number of operations that have been completed synchronously.");
 
-        //_failedSynchronously = _meter.CreateCounter<long>(
-        //    "redis-failed-synchronously",
-        //    description: "The number of operations that failed to complete asynchronously.");
+        _failedAsynchronously = _meter.CreateCounter<long>(
+            "redis-failed-asynchronously",
+            description: "The number of operations that failed to complete asynchronously.");
+
+        _failedSynchronously = _meter.CreateCounter<long>(
+            "redis-failed-synchronously",
+            description: "The number of operations that failed to complete synchronously.");
 
         _nonPreferredEndpointCount = _meter.CreateCounter<long>(
             "redis-non-preferred-endpoint-count",
@@ -47,6 +52,27 @@ internal sealed class RedisMetrics
         {
             _operationCount.Add(1,
                 new KeyValuePair<string, object?>("endpoint", endpoint));
+        }
+    }
+
+    public void OnMessageComplete(IResultBox? result)
+    {
+        if (result is not null &&
+            (_completedAsynchronously.Enabled ||
+            _completedSynchronously.Enabled ||
+            _failedAsynchronously.Enabled ||
+            _failedSynchronously.Enabled))
+        {
+            Counter<long> counter = (result.IsFaulted, result.IsAsync) switch
+            {
+                (false, true) => _completedAsynchronously,
+                (false, false) => _completedSynchronously,
+                (true, true) => _failedAsynchronously,
+                (true, false) => _failedSynchronously,
+            };
+
+            // TODO: can we pass endpoint here?
+            counter.Add(1);
         }
     }
 
