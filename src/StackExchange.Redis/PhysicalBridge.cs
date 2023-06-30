@@ -350,9 +350,8 @@ namespace StackExchange.Redis
         internal void IncrementOpCount()
         {
             Interlocked.Increment(ref operationCount);
-
 #if NET6_0_OR_GREATER
-            RedisMetrics.Instance.IncrementOpCount(Name);
+            RedisMetrics.Instance.IncrementOperationCount(Name);
 #endif
         }
 
@@ -1408,12 +1407,22 @@ namespace StackExchange.Redis
                 if (isReplica)
                 {
                     if (Message.GetPrimaryReplicaFlags(flags) == CommandFlags.PreferMaster)
+                    {
                         Interlocked.Increment(ref nonPreferredEndpointCount);
+#if NET6_0_OR_GREATER
+                        RedisMetrics.Instance.IncrementNonPreferredEndpointCount(Name);
+#endif
+                    }
                 }
                 else
                 {
                     if (Message.GetPrimaryReplicaFlags(flags) == CommandFlags.PreferReplica)
+                    {
                         Interlocked.Increment(ref nonPreferredEndpointCount);
+#if NET6_0_OR_GREATER
+                        RedisMetrics.Instance.IncrementNonPreferredEndpointCount(Name);
+#endif
+                    }
                 }
             }
         }

@@ -12,6 +12,7 @@ internal sealed class RedisMetrics
     //private readonly Counter<long> _completedAsynchronously;
     //private readonly Counter<long> _completedSynchronously;
     //private readonly Counter<long> _failedSynchronously;
+    private readonly Counter<long> _nonPreferredEndpointCount;
 
     public static readonly RedisMetrics Instance = new RedisMetrics();
 
@@ -20,28 +21,41 @@ internal sealed class RedisMetrics
         _meter = new Meter("StackExchange.Redis");
 
         _operationCount = _meter.CreateCounter<long>(
-            "operation-count",
+            "redis-operation-count",
             description: "The number of operations performed.");
 
         //_completedAsynchronously = _meter.CreateCounter<long>(
-        //    "completed-asynchronously",
+        //    "redis-completed-asynchronously",
         //    description: "The number of operations that have been completed asynchronously.");
 
         //_completedSynchronously = _meter.CreateCounter<long>(
-        //    "completed-synchronously",
+        //    "redis-completed-synchronously",
         //    description: "The number of operations that have been completed synchronously.");
 
         //_failedSynchronously = _meter.CreateCounter<long>(
-        //    "failed-synchronously",
+        //    "redis-failed-synchronously",
         //    description: "The number of operations that failed to complete asynchronously.");
+
+        _nonPreferredEndpointCount = _meter.CreateCounter<long>(
+            "redis-non-preferred-endpoint-count",
+            description: "Indicates the total number of messages dispatched to a non-preferred endpoint, for example sent to a primary when the caller stated a preference of replica.");
     }
 
-    public void IncrementOpCount(string connectionName)
+    public void IncrementOperationCount(string endpoint)
     {
         if (_operationCount.Enabled)
         {
             _operationCount.Add(1,
-                new KeyValuePair<string, object?>("connection-name", connectionName));
+                new KeyValuePair<string, object?>("endpoint", endpoint));
+        }
+    }
+
+    public void IncrementNonPreferredEndpointCount(string endpoint)
+    {
+        if (_nonPreferredEndpointCount.Enabled)
+        {
+            _nonPreferredEndpointCount.Add(1,
+                new KeyValuePair<string, object?>("endpoint", endpoint));
         }
     }
 }
