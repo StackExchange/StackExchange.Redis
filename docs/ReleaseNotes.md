@@ -8,6 +8,7 @@ Current package versions:
 
 ## Unreleased
 
+- Change: Target net6.0 instead of net5.0, since net5.0 is end of life. ([#2497 by eerhardt](https://github.com/StackExchange/StackExchange.Redis/pull/2497))
 - Fix: Fix nullability annotation of IConnectionMultiplexer.RegisterProfiler ([#2494 by eerhardt](https://github.com/StackExchange/StackExchange.Redis/pull/2494))
 
 ## 2.6.116
