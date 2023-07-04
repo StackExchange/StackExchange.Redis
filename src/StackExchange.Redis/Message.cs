@@ -5,21 +5,22 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
+using Microsoft.Extensions.Logging;
 using StackExchange.Redis.Profiling;
 
 namespace StackExchange.Redis
 {
     internal sealed class LoggingMessage : Message
     {
-        public readonly LogProxy log;
+        public readonly ILogger log;
         private readonly Message tail;
 
-        public static Message Create(LogProxy? log, Message tail)
+        public static Message Create(ILogger? log, Message tail)
         {
             return log == null ? tail : new LoggingMessage(log, tail);
         }
 
-        private LoggingMessage(LogProxy log, Message tail) : base(tail.Db, tail.Flags, tail.Command)
+        private LoggingMessage(ILogger log, Message tail) : base(tail.Db, tail.Flags, tail.Command)
         {
             this.log = log;
             this.tail = tail;
@@ -44,7 +45,7 @@ namespace StackExchange.Redis
         }
         public override int ArgCount => tail.ArgCount;
 
-        public LogProxy Log => log;
+        public ILogger Log => log;
     }
 
     internal abstract class Message : ICompletable

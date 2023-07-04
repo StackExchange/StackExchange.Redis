@@ -398,14 +398,14 @@ namespace StackExchange.Redis
             }
         }
 
-        internal async Task OnConnectedAsync(PhysicalConnection connection, LogProxy? log)
+        internal async Task OnConnectedAsync(PhysicalConnection connection, ILogger? log)
         {
             Trace("OnConnected");
             if (physical == connection && !isDisposed && ChangeState(State.Connecting, State.ConnectedEstablishing))
             {
                 ConnectedAt ??= DateTime.UtcNow;
                 await ServerEndPoint.OnEstablishingAsync(connection, log).ForAwait();
-                log?.LogInfo($"{Format.ToString(ServerEndPoint)}: OnEstablishingAsync complete");
+                log?.LogInformation($"{Format.ToString(ServerEndPoint)}: OnEstablishingAsync complete");
             }
             else
             {
@@ -1000,7 +1000,7 @@ namespace StackExchange.Redis
                                 break;
                             }
                         }
-                        
+
                         var ex = ExceptionFactory.Timeout(Multiplexer, "The message was in the backlog when connection was disposed", message, ServerEndPoint, WriteResult.TimeoutBeforeWrite, this);
                         message.SetExceptionAndComplete(ex, this);
                     }
@@ -1376,7 +1376,7 @@ namespace StackExchange.Redis
             return result;
         }
 
-        public PhysicalConnection? TryConnect(LogProxy? log)
+        public PhysicalConnection? TryConnect(ILogger? log)
         {
             if (state == (int)State.Disconnected)
             {
@@ -1384,7 +1384,7 @@ namespace StackExchange.Redis
                 {
                     if (!Multiplexer.IsDisposed)
                     {
-                        log?.LogInfo($"{Name}: Connecting...");
+                        log?.LogInformation($"{Name}: Connecting...");
                         Multiplexer.Trace("Connecting...", Name);
                         if (ChangeState(State.Disconnected, State.Connecting))
                         {

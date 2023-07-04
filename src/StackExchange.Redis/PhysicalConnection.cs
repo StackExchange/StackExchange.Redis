@@ -94,7 +94,7 @@ namespace StackExchange.Redis
             OnCreateEcho();
         }
 
-        internal async Task BeginConnectAsync(LogProxy? log)
+        internal async Task BeginConnectAsync(ILogger? log)
         {
             var bridge = BridgeCouldBeNull;
             var endpoint = bridge?.ServerEndPoint?.EndPoint;
@@ -125,7 +125,7 @@ namespace StackExchange.Redis
                 }
             }
             bridge.Multiplexer.OnConnecting(endpoint, bridge.ConnectionType);
-            log?.LogInfo($"{Format.ToString(endpoint)}: BeginConnectAsync");
+            log?.LogInformation($"{Format.ToString(endpoint)}: BeginConnectAsync");
 
             CancellationTokenSource? timeoutSource = null;
             try
@@ -172,7 +172,7 @@ namespace StackExchange.Redis
                         }
                         else if (await ConnectedAsync(x, log, bridge.Multiplexer.SocketManager!).ForAwait())
                         {
-                            log?.LogInfo($"{Format.ToString(endpoint)}: Starting read");
+                            log?.LogInformation($"{Format.ToString(endpoint)}: Starting read");
                             try
                             {
                                 StartReading();
@@ -1461,7 +1461,7 @@ namespace StackExchange.Redis
             return null;
         }
 
-        internal async ValueTask<bool> ConnectedAsync(Socket? socket, LogProxy? log, SocketManager manager)
+        internal async ValueTask<bool> ConnectedAsync(Socket? socket, ILogger? log, SocketManager manager)
         {
             var bridge = BridgeCouldBeNull;
             if (bridge == null) return false;
@@ -1487,7 +1487,7 @@ namespace StackExchange.Redis
 
                 if (config.Ssl)
                 {
-                    log?.LogInfo("Configuring TLS");
+                    log?.LogInformation("Configuring TLS");
                     var host = config.SslHost;
                     if (host.IsNullOrWhiteSpace())
                     {
@@ -1524,7 +1524,7 @@ namespace StackExchange.Redis
                             bridge.Multiplexer?.Logger?.LogError(ex, ex.Message);
                             throw;
                         }
-                        log?.LogInfo($"TLS connection established successfully using protocol: {ssl.SslProtocol}");
+                        log?.LogInformation($"TLS connection established successfully using protocol: {ssl.SslProtocol}");
                     }
                     catch (AuthenticationException authexception)
                     {
@@ -1547,7 +1547,7 @@ namespace StackExchange.Redis
 
                 _ioPipe = pipe;
 
-                log?.LogInfo($"{bridge.Name}: Connected ");
+                log?.LogInformation($"{bridge.Name}: Connected ");
 
                 await bridge.OnConnectedAsync(this, log).ForAwait();
                 return true;

@@ -186,7 +186,7 @@ public class ConfigTests : TestBase
     }
 
     [Fact]
-    public async Task TestManaulHeartbeat()
+    public async Task TestManualHeartbeat()
     {
         var options = ConfigurationOptions.Parse(GetConfiguration());
         options.HeartbeatInterval = TimeSpan.FromMilliseconds(100);
