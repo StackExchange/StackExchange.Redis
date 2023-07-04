@@ -162,9 +162,7 @@ namespace StackExchange.Redis
 
         private BacklogPolicy? backlogPolicy;
 
-        private ILoggerFactory? loggerFactory;
-
-        internal ILogger? Logger => loggerFactory?.CreateLogger<ConnectionMultiplexer>();
+        private ILogger? logger;
 
         /// <summary>
         /// A LocalCertificateSelectionCallback delegate responsible for selecting the certificate used for authentication; note
@@ -445,13 +443,12 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// The <see cref="ILoggerFactory"/> to use for connection events.
-        /// Note that changes to this are not respected until the next connection.
+        /// The <see cref="ILogger"/> to use for connection events.
         /// </summary>
-        public ILoggerFactory? LoggerFactory
+        public ILogger? Logger
         {
-            get => loggerFactory ?? Defaults.LoggerFactory;
-            set => loggerFactory = value;
+            get => logger ?? Defaults.Logger;
+            set => logger = value;
         }
 
         /// <summary>
@@ -682,7 +679,7 @@ namespace StackExchange.Redis
             checkCertificateRevocation = checkCertificateRevocation,
             BeforeSocketConnect = BeforeSocketConnect,
             EndPoints = EndPoints.Clone(),
-            LoggerFactory = LoggerFactory,
+            Logger = Logger,
 #if NETCOREAPP3_1_OR_GREATER
             SslClientAuthenticationOptions = SslClientAuthenticationOptions,
 #endif

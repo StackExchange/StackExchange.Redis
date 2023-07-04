@@ -143,10 +143,9 @@ namespace StackExchange.Redis.Configuration
         public virtual TimeSpan KeepAliveInterval => TimeSpan.FromSeconds(60);
 
         /// <summary>
-        /// The <see cref="ILoggerFactory"/> to use for connection events.
-        /// Note that changes to this are not respected until the next connection.
+        /// The <see cref="ILogger"/> to use for connection events.
         /// </summary>
-        public virtual ILoggerFactory? LoggerFactory => null;
+        public virtual ILogger? Logger => null;
 
         /// <summary>
         /// Type of proxy to use (if any); for example <see cref="Proxy.Twemproxy"/>.

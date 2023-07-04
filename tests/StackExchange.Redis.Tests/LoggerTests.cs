@@ -1,6 +1,5 @@
 ﻿using GitHubActionsTestLogger;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using System;
 using System.CodeDom;
@@ -23,23 +22,15 @@ public class LoggerTests : TestBase
     [Fact]
     public async Task BasicLoggerConfig()
     {
-        TestLoggerProvider traceLoggerProvider = new TestLoggerProvider(LogLevel.Trace, Writer),
-                           debugLoggerProvider = new TestLoggerProvider(LogLevel.Debug, Writer),
-                           infoLoggerProvider = new TestLoggerProvider(LogLevel.Information, Writer),
-                           warningLoggerProvider = new TestLoggerProvider(LogLevel.Warning, Writer),
-                           errorLoggerProvider = new TestLoggerProvider(LogLevel.Error, Writer),
-                           criticalLoggerProvider = new TestLoggerProvider(LogLevel.Critical, Writer);
-
-        TestLogger traceLogger = (TestLogger)traceLoggerProvider.CreateLogger(""),
-            debugLogger = (TestLogger)debugLoggerProvider.CreateLogger(""),
-            infoLogger = (TestLogger)infoLoggerProvider.CreateLogger(""),
-            warningLogger = (TestLogger)warningLoggerProvider.CreateLogger(""),
-            errorLogger = (TestLogger)errorLoggerProvider.CreateLogger(""),
-            criticalLogger = (TestLogger)criticalLoggerProvider.CreateLogger("");
+        var traceLogger = new TestLogger(LogLevel.Trace, Writer);
+        var debugLogger = new TestLogger(LogLevel.Debug, Writer);
+        var infoLogger = new TestLogger(LogLevel.Information, Writer);
+        var warningLogger = new TestLogger(LogLevel.Warning, Writer);
+        var errorLogger = new TestLogger(LogLevel.Error, Writer);
+        var criticalLogger = new TestLogger(LogLevel.Critical, Writer);
 
         var options = ConfigurationOptions.Parse(GetConfiguration());
-
-        options.LoggerFactory = new LoggerFactory(new[] { traceLoggerProvider, debugLoggerProvider, infoLoggerProvider, warningLoggerProvider, errorLoggerProvider, criticalLoggerProvider });
+        options.Logger = new TestMultiLogger(traceLogger, debugLogger, infoLogger, warningLogger, errorLogger, criticalLogger);
 
         using var conn = await ConnectionMultiplexer.ConnectAsync(options);
         // We expect more at the trace level: GET, ECHO, PING on commands
@@ -53,14 +44,23 @@ public class LoggerTests : TestBase
         Assert.Equal(0, criticalLogger.CallCount);
     }
 
-    private class TestLoggerProvider : ILoggerProvider
+    /// <summary>
+    /// To save on test time, no reason to spin up n connections just to test n logging implementations...
+    /// </summary>
+    private class TestMultiLogger : ILogger
     {
-        private readonly ILogger _logger;
+        private readonly ILogger[] _loggers;
+        public TestMultiLogger(params ILogger[] loggers) => _loggers = loggers;
 
-        public TestLoggerProvider(LogLevel logLevel, TextWriter output) => _logger = new TestLogger(logLevel, output);
-
-        public ILogger CreateLogger(string categoryName) => _logger;
-        public void Dispose() { }
+        public IDisposable BeginScope<TState>(TState state) => throw new NotImplementedException();
+        public bool IsEnabled(LogLevel logLevel) => true;
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            foreach (var logger in _loggers)
+            {
+                logger.Log(logLevel, eventId, state, exception, formatter);
+            }
+        }
     }
 
     private class TestLogger : ILogger

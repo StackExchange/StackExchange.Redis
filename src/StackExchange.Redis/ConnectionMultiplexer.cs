@@ -42,7 +42,7 @@ namespace StackExchange.Redis
 
         private volatile bool _isDisposed;
         internal bool IsDisposed => _isDisposed;
-        internal ILogger? Logger;
+        private ILogger? Logger => RawConfig.Logger;
 
         internal CommandMap CommandMap { get; }
         internal EndPointCollection EndPoints { get; }
@@ -127,12 +127,11 @@ namespace StackExchange.Redis
             SetAutodetectFeatureFlags();
         }
 
-        private ConnectionMultiplexer(ConfigurationOptions configuration, ILogger? logger, ServerType? serverType = null, EndPointCollection? endpoints = null)
+        private ConnectionMultiplexer(ConfigurationOptions configuration, ServerType? serverType = null, EndPointCollection? endpoints = null)
         {
             RawConfig = configuration ?? throw new ArgumentNullException(nameof(configuration));
             EndPoints = endpoints ?? RawConfig.EndPoints.Clone();
             EndPoints.SetDefaultPorts(serverType, ssl: RawConfig.Ssl);
-            Logger = logger;
 
             var map = CommandMap = configuration.GetCommandMap(serverType);
             if (!string.IsNullOrWhiteSpace(configuration.Password))
@@ -157,9 +156,9 @@ namespace StackExchange.Redis
             lastHeartbeatTicks = Environment.TickCount;
         }
 
-        private static ConnectionMultiplexer CreateMultiplexer(ConfigurationOptions configuration, ILogger? logger, LogProxy? log, ServerType? serverType, out EventHandler<ConnectionFailedEventArgs>? connectHandler, EndPointCollection? endpoints = null)
+        private static ConnectionMultiplexer CreateMultiplexer(ConfigurationOptions configuration, LogProxy? log, ServerType? serverType, out EventHandler<ConnectionFailedEventArgs>? connectHandler, EndPointCollection? endpoints = null)
         {
-            var muxer = new ConnectionMultiplexer(configuration, logger, serverType, endpoints);
+            var muxer = new ConnectionMultiplexer(configuration, serverType, endpoints);
             connectHandler = null;
             if (log is not null)
             {
@@ -597,14 +596,13 @@ namespace StackExchange.Redis
             IDisposable? killMe = null;
             EventHandler<ConnectionFailedEventArgs>? connectHandler = null;
             ConnectionMultiplexer? muxer = null;
-            var logger = configuration.LoggerFactory?.CreateLogger<ConnectionMultiplexer>();
-            using var logProxy = LogProxy.TryCreate(log, logger);
+            using var logProxy = LogProxy.TryCreate(log, configuration);
             try
             {
                 var sw = ValueStopwatch.StartNew();
                 logProxy?.LogInfo($"Connecting (async) on {RuntimeInformation.FrameworkDescription} (StackExchange.Redis: v{Utils.GetLibVersion()})");
 
-                muxer = CreateMultiplexer(configuration, logger, logProxy, serverType, out connectHandler);
+                muxer = CreateMultiplexer(configuration, logProxy, serverType, out connectHandler);
                 killMe = muxer;
                 Interlocked.Increment(ref muxer._connectAttemptCount);
                 bool configured = await muxer.ReconfigureAsync(first: true, reconfigureAll: false, logProxy, null, "connect").ObserveErrors().ForAwait();
@@ -684,14 +682,13 @@ namespace StackExchange.Redis
             IDisposable? killMe = null;
             EventHandler<ConnectionFailedEventArgs>? connectHandler = null;
             ConnectionMultiplexer? muxer = null;
-            var logger = configuration.LoggerFactory?.CreateLogger<ConnectionMultiplexer>();
-            using var logProxy = LogProxy.TryCreate(log, logger);
+            using var logProxy = LogProxy.TryCreate(log, configuration);
             try
             {
                 var sw = ValueStopwatch.StartNew();
                 logProxy?.LogInfo($"Connecting (sync) on {RuntimeInformation.FrameworkDescription} (StackExchange.Redis: v{Utils.GetLibVersion()})");
 
-                muxer = CreateMultiplexer(configuration, logger, logProxy, serverType, out connectHandler, endpoints);
+                muxer = CreateMultiplexer(configuration, logProxy, serverType, out connectHandler, endpoints);
                 killMe = muxer;
                 Interlocked.Increment(ref muxer._connectAttemptCount);
                 // note that task has timeouts internally, so it might take *just over* the regular timeout
@@ -708,7 +705,7 @@ namespace StackExchange.Redis
                     {
                         var ex = ExceptionFactory.UnableToConnect(muxer, "ConnectTimeout");
                         muxer.LastException = ex;
-                        muxer.Logger?.LogError(ex, ex.Message);
+                        configuration.Logger?.LogError(ex, ex.Message);
                     }
                 }
 
@@ -1282,7 +1279,7 @@ namespace StackExchange.Redis
         {
             // Note we expect ReconfigureAsync to internally allow [n] duration,
             // so to avoid near misses, here we wait 2*[n].
-            using var logProxy = LogProxy.TryCreate(log, Logger);
+            using var logProxy = LogProxy.TryCreate(log, RawConfig);
             var task = ReconfigureAsync(first: false, reconfigureAll: true, logProxy, null, "configure");
             if (!task.Wait(SyncConnectTimeout(false)))
             {
@@ -1306,7 +1303,7 @@ namespace StackExchange.Redis
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
         public async Task<bool> ConfigureAsync(TextWriter? log = null)
         {
-            using var logProxy = LogProxy.TryCreate(log, Logger);
+            using var logProxy = LogProxy.TryCreate(log, RawConfig);
             return await ReconfigureAsync(first: false, reconfigureAll: true, logProxy, null, "configure").ObserveErrors().ForAwait();
         }
 
