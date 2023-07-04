@@ -22,17 +22,6 @@ internal sealed class LogProxy : IDisposable
         _logger = logger;
     }
 
-    public void WriteLine()
-    {
-        if (_log is not null) // note: double-checked
-        {
-            lock (SyncLock)
-            {
-                _log?.WriteLine();
-            }
-        }
-    }
-
     public void LogInfo(string? message = null)
     {
         var msg = $"{DateTime.UtcNow:HH:mm:ss.ffff}: {message}";
@@ -70,17 +59,6 @@ internal sealed class LogProxy : IDisposable
             }
         }
         _logger?.LogError(ex, msg);
-    }
-
-    public void WriteLine(string prefix, string message)
-    {
-        if (_log != null) // note: double-checked
-        {
-            lock (SyncLock)
-            {
-                _log?.WriteLine($"{DateTime.UtcNow:HH:mm:ss.ffff}: {prefix}{message}");
-            }
-        }
     }
 
     public override string ToString()

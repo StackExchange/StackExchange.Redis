@@ -1347,9 +1347,9 @@ namespace StackExchange.Redis
             log?.LogInfo("Endpoint Summary:");
             foreach (var server in tmp)
             {
-                log?.WriteLine(prefix: "  ", message: server.Summary());
-                log?.WriteLine(prefix: "  ", message: server.GetCounters().ToString());
-                log?.WriteLine(prefix: "  ", message: server.GetProfile());
+                log?.LogInfo(prefix: "  ", message: server.Summary());
+                log?.LogInfo(prefix: "  ", message: server.GetCounters().ToString());
+                log?.LogInfo(prefix: "  ", message: server.GetProfile());
             }
             log?.LogInfo($"Sync timeouts: {Interlocked.Read(ref syncTimeouts)}; async timeouts: {Interlocked.Read(ref asyncTimeouts)}; fire and forget: {Interlocked.Read(ref fireAndForgets)}; last heartbeat: {LastHeartbeatSecondsAgo}s ago");
         }
@@ -1416,7 +1416,6 @@ namespace StackExchange.Redis
                 Interlocked.Exchange(ref lastReconfigiureTicks, Environment.TickCount);
 
                 log?.LogInfo(RawConfig.ToString(includePassword: false));
-                log?.WriteLine();
 
                 if (first)
                 {
@@ -1679,7 +1678,6 @@ namespace StackExchange.Redis
                     string? stormLog = GetStormLog();
                     if (!string.IsNullOrWhiteSpace(stormLog))
                     {
-                        log?.WriteLine();
                         log?.LogInfo(stormLog);
                     }
                     healthy = standaloneCount != 0 || clusterCount != 0 || sentinelCount != 0;
