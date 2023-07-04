@@ -1,9 +1,6 @@
-﻿using GitHubActionsTestLogger;
-using Microsoft.Extensions.Logging;
-using Moq;
+﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using System;
-using System.CodeDom;
-using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Threading;
@@ -42,6 +39,34 @@ public class LoggerTests : TestBase
         // We expect no error/critical level calls to have happened here
         Assert.Equal(0, errorLogger.CallCount);
         Assert.Equal(0, criticalLogger.CallCount);
+    }
+
+    [Fact]
+    public async Task WrappedLogger()
+    {
+        var options = ConfigurationOptions.Parse(GetConfiguration());
+        options.Logger = NullLogger.Instance;
+        var wrapped = new TestWrapperLogger(options.Logger);
+        options.Logger = wrapped;
+
+        using var conn = await ConnectionMultiplexer.ConnectAsync(options);
+        Assert.True(wrapped.LogCount > 0);
+    }
+
+    public class TestWrapperLogger : ILogger
+    {
+        public int LogCount = 0;
+        public ILogger _inner { get; }
+
+        public TestWrapperLogger(ILogger toWrap) => _inner = toWrap;
+
+        public IDisposable BeginScope<TState>(TState state) => _inner.BeginScope(state);
+        public bool IsEnabled(LogLevel logLevel) => _inner.IsEnabled(logLevel);
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            Interlocked.Increment(ref LogCount);
+            _inner.Log(logLevel, eventId, state, exception, formatter);
+        }
     }
 
     /// <summary>
