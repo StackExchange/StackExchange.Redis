@@ -378,9 +378,9 @@ public partial class ConnectionMultiplexer
     /// <param name="log">The writer to log to, if any.</param>
     internal void SwitchPrimary(EndPoint? switchBlame, ConnectionMultiplexer connection, TextWriter? log = null)
     {
-        if (log == null) log = TextWriter.Null;
+        log ??= TextWriter.Null;
 
-        using (var logProxy = LogProxy.TryCreate(log, RawConfig))
+        using (var logProxy = LogProxy.TryCreate(log, Logger))
         {
             if (connection.RawConfig.ServiceName is not string serviceName)
             {

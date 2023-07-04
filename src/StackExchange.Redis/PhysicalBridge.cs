@@ -431,11 +431,11 @@ namespace StackExchange.Redis
         {
             if (wasRequested)
             {
-                Multiplexer.RawConfig.Logger?.LogInformation(innerException, innerException.Message);
+                Multiplexer.Logger?.LogInformation(innerException, innerException.Message);
             }
             else
             {
-                Multiplexer.RawConfig.Logger?.LogError(innerException, innerException.Message);
+                Multiplexer.Logger?.LogError(innerException, innerException.Message);
             }
             Trace($"OnConnectionFailed: {connection}");
             // If we're configured to, fail all pending backlogged messages
@@ -559,7 +559,7 @@ namespace StackExchange.Redis
                             Interlocked.Increment(ref connectTimeoutRetryCount);
                             var ex = ExceptionFactory.UnableToConnect(Multiplexer, "ConnectTimeout");
                             LastException = ex;
-                            Multiplexer.RawConfig.Logger?.LogError(ex, ex.Message);
+                            Multiplexer.Logger?.LogError(ex, ex.Message);
                             Trace("Aborting connect");
                             // abort and reconnect
                             var snapshot = physical;

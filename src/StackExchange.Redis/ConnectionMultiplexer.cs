@@ -42,7 +42,7 @@ namespace StackExchange.Redis
 
         private volatile bool _isDisposed;
         internal bool IsDisposed => _isDisposed;
-        private ILogger? Logger => RawConfig.Logger;
+        internal ILogger? Logger { get; }
 
         internal CommandMap CommandMap { get; }
         internal EndPointCollection EndPoints { get; }
@@ -132,6 +132,7 @@ namespace StackExchange.Redis
             RawConfig = configuration ?? throw new ArgumentNullException(nameof(configuration));
             EndPoints = endpoints ?? RawConfig.EndPoints.Clone();
             EndPoints.SetDefaultPorts(serverType, ssl: RawConfig.Ssl);
+            Logger = configuration.Logger;
 
             var map = CommandMap = configuration.GetCommandMap(serverType);
             if (!string.IsNullOrWhiteSpace(configuration.Password))
@@ -596,7 +597,7 @@ namespace StackExchange.Redis
             IDisposable? killMe = null;
             EventHandler<ConnectionFailedEventArgs>? connectHandler = null;
             ConnectionMultiplexer? muxer = null;
-            using var logProxy = LogProxy.TryCreate(log, configuration);
+            using var logProxy = LogProxy.TryCreate(log, configuration.Logger);
             try
             {
                 var sw = ValueStopwatch.StartNew();
@@ -682,7 +683,7 @@ namespace StackExchange.Redis
             IDisposable? killMe = null;
             EventHandler<ConnectionFailedEventArgs>? connectHandler = null;
             ConnectionMultiplexer? muxer = null;
-            using var logProxy = LogProxy.TryCreate(log, configuration);
+            using var logProxy = LogProxy.TryCreate(log, configuration.Logger);
             try
             {
                 var sw = ValueStopwatch.StartNew();
@@ -705,7 +706,7 @@ namespace StackExchange.Redis
                     {
                         var ex = ExceptionFactory.UnableToConnect(muxer, "ConnectTimeout");
                         muxer.LastException = ex;
-                        configuration.Logger?.LogError(ex, ex.Message);
+                        muxer.Logger?.LogError(ex, ex.Message);
                     }
                 }
 
@@ -843,7 +844,6 @@ namespace StackExchange.Redis
                 return false;
             }
 
-
             public ServerSnapshotFiltered Where(CommandFlags flags)
             {
                 var effectiveFlags = flags & (CommandFlags.DemandMaster | CommandFlags.DemandReplica);
@@ -964,7 +964,6 @@ namespace StackExchange.Redis
 
                 _strongRef = null; // note that this shouldn't be relevant since we've unrooted the TimerToken
             }
-
 
             // explanation of rooting model:
             //
@@ -1279,7 +1278,7 @@ namespace StackExchange.Redis
         {
             // Note we expect ReconfigureAsync to internally allow [n] duration,
             // so to avoid near misses, here we wait 2*[n].
-            using var logProxy = LogProxy.TryCreate(log, RawConfig);
+            using var logProxy = LogProxy.TryCreate(log, Logger);
             var task = ReconfigureAsync(first: false, reconfigureAll: true, logProxy, null, "configure");
             if (!task.Wait(SyncConnectTimeout(false)))
             {
@@ -1303,7 +1302,7 @@ namespace StackExchange.Redis
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
         public async Task<bool> ConfigureAsync(TextWriter? log = null)
         {
-            using var logProxy = LogProxy.TryCreate(log, RawConfig);
+            using var logProxy = LogProxy.TryCreate(log, Logger);
             return await ReconfigureAsync(first: false, reconfigureAll: true, logProxy, null, "configure").ObserveErrors().ForAwait();
         }
 

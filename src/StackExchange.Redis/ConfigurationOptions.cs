@@ -444,6 +444,7 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// The <see cref="ILogger"/> to use for connection events.
+        /// Note: changes here only affect <see cref="ConnectionMultiplexer"/>s created after.
         /// </summary>
         public ILogger? Logger
         {
@@ -452,7 +453,6 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// The user to use to authenticate with the server.
         /// The username to use to authenticate with the server.
         /// </summary>
         public string? User

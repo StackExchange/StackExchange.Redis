@@ -1521,7 +1521,7 @@ namespace StackExchange.Redis
                         {
                             Debug.WriteLine(ex.Message);
                             bridge.Multiplexer?.SetAuthSuspect(ex);
-                            bridge.Multiplexer?.RawConfig.Logger?.LogError(ex, ex.Message);
+                            bridge.Multiplexer?.Logger?.LogError(ex, ex.Message);
                             throw;
                         }
                         log?.LogInfo($"TLS connection established successfully using protocol: {ssl.SslProtocol}");

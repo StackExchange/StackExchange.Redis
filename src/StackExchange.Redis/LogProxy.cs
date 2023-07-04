@@ -6,10 +6,10 @@ namespace StackExchange.Redis;
 
 internal sealed class LogProxy : IDisposable
 {
-    public static LogProxy? TryCreate(TextWriter? writer, ConfigurationOptions? options)
-        => writer == null && options?.Logger == null
+    public static LogProxy? TryCreate(TextWriter? writer, ILogger? logger)
+        => writer is null && logger is null
         ? null
-        : new LogProxy(writer, options?.Logger);
+        : new LogProxy(writer, logger);
 
     private TextWriter? _log;
     private ILogger? _logger;

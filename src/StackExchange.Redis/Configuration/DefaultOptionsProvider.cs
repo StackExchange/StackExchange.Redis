@@ -144,6 +144,7 @@ namespace StackExchange.Redis.Configuration
 
         /// <summary>
         /// The <see cref="ILogger"/> to use for connection events.
+        /// Note: changes here only affect <see cref="ConnectionMultiplexer"/>s created after.
         /// </summary>
         public virtual ILogger? Logger => null;
 
