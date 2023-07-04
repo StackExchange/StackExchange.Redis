@@ -1332,7 +1332,7 @@ namespace StackExchange.Redis
         /// Provides a text overview of the status of all connections.
         /// </summary>
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
-        public void GetStatus(TextWriter log) => GetStatus(Logger.With(log));
+        public void GetStatus(TextWriter log) => GetStatus(new TextWriterLogger(log, null));
 
         internal void GetStatus(ILogger? log)
         {
