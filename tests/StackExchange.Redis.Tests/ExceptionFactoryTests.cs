@@ -126,7 +126,12 @@ public class ExceptionFactoryTests : TestBase
             Assert.Contains("conn-sec: n/a", ex.Message);
             Assert.Contains("aoc: 1", ex.Message);
 #if NETCOREAPP
-                Assert.Contains("POOL: ", ex.Message);
+            // ...POOL: (Threads=33,QueuedItems=0,CompletedItems=5547,Timers=60)...
+            Assert.Contains("POOL: ", ex.Message);
+            Assert.Contains("Threads=", ex.Message);
+            Assert.Contains("QueuedItems=", ex.Message);
+            Assert.Contains("CompletedItems=", ex.Message);
+            Assert.Contains("Timers=", ex.Message);
 #endif
             Assert.DoesNotContain("Unspecified/", ex.Message);
             Assert.EndsWith(" (Please take a look at this article for some common client-side issues that can cause timeouts: https://stackexchange.github.io/StackExchange.Redis/Timeouts)", ex.Message);
