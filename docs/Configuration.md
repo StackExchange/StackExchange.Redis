@@ -97,7 +97,7 @@ The `ConfigurationOptions` object has a wide range of properties, all of which a
 | tiebreaker={string}    | `TieBreaker`           | `__Booksleeve_TieBreak`      | Key to use for selecting a server in an ambiguous primary scenario                                        |
 | version={string}       | `DefaultVersion`       | (`4.0` in Azure, else `2.0`) | Redis version level (useful when the server does not make this available)                                 |
 | tunnel={string}        | `Tunnel`               | `null`                       | Tunnel for connections (use `http:{proxy url}` for "connect"-based proxy server)                          |
-| setlib={bool}          | `SetClientLibrary`     | `true`                       | Whether to attempt to use `CLIENT SETINFO` to set the lib name/version on the connection                  |
+| setlib={bool}          | `SetClientLibrary`     | `true`                       | Whether to attempt to use `CLIENT SETINFO` to set the library name/version on the connection              |
 
 Additional code-only options:
 - ReconnectRetryPolicy (`IReconnectRetryPolicy`) - Default: `ReconnectRetryPolicy = ExponentialRetry(ConnectTimeout / 2);`
@@ -115,6 +115,8 @@ Additional code-only options:
 - HeartbeatInterval - Default: `1000ms`
   - Allows running the heartbeat more often which importantly includes timeout evaluation for async commands. For example if you have a 50ms async command timeout, we're only actually checking it during the heartbeat (once per second by default), so it's possible 50-1050ms pass _before we notice it timed out_. If you want more fidelity in that check and to observe that a server failed faster, you can lower this to run the heartbeat more often to achieve that. 
   - **Note: heartbeats are not free and that's why the default is 1 second. There is additional overhead to running this more often simply because it does some work each time it fires.**
+- LibraryName - Default: `SE.Redis` (unless a `DefaultOptionsProvider` specifies otherwise)
+  - The library name to use with `CLIENT SETINFO` when setting the library name/version on the connection
 
 Tokens in the configuration string are comma-separated; any without an `=` sign are assumed to be redis server endpoints. Endpoints without an explicit port will use 6379 if ssl is not enabled, and 6380 if ssl is enabled.
 Tokens starting with `$` are taken to represent command maps, for example: `$config=cfg`.

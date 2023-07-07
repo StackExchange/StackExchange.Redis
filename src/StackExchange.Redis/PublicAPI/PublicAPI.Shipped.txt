@@ -243,6 +243,8 @@ StackExchange.Redis.ConfigurationOptions.IncludePerformanceCountersInExceptions.
 StackExchange.Redis.ConfigurationOptions.IncludePerformanceCountersInExceptions.set -> void
 StackExchange.Redis.ConfigurationOptions.KeepAlive.get -> int
 StackExchange.Redis.ConfigurationOptions.KeepAlive.set -> void
+StackExchange.Redis.ConfigurationOptions.LibraryName.get -> string?
+StackExchange.Redis.ConfigurationOptions.LibraryName.set -> void
 StackExchange.Redis.ConfigurationOptions.Password.get -> string?
 StackExchange.Redis.ConfigurationOptions.Password.set -> void
 StackExchange.Redis.ConfigurationOptions.PreserveAsyncOrder.get -> bool
@@ -1604,6 +1606,8 @@ static StackExchange.Redis.Condition.StringLengthLessThan(StackExchange.Redis.Re
 static StackExchange.Redis.Condition.StringNotEqual(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue value) -> StackExchange.Redis.Condition!
 static StackExchange.Redis.Configuration.DefaultOptionsProvider.AddProvider(StackExchange.Redis.Configuration.DefaultOptionsProvider! provider) -> void
 static StackExchange.Redis.Configuration.DefaultOptionsProvider.ComputerName.get -> string!
+static StackExchange.Redis.Configuration.DefaultOptionsProvider.GetProvider(StackExchange.Redis.EndPointCollection! endpoints) -> StackExchange.Redis.Configuration.DefaultOptionsProvider!
+static StackExchange.Redis.Configuration.DefaultOptionsProvider.GetProvider(System.Net.EndPoint! endpoint) -> StackExchange.Redis.Configuration.DefaultOptionsProvider!
 static StackExchange.Redis.Configuration.DefaultOptionsProvider.LibraryVersion.get -> string!
 static StackExchange.Redis.ConfigurationOptions.Parse(string! configuration) -> StackExchange.Redis.ConfigurationOptions!
 static StackExchange.Redis.ConfigurationOptions.Parse(string! configuration, bool ignoreUnknown) -> StackExchange.Redis.ConfigurationOptions!

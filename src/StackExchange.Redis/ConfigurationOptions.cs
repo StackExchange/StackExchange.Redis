@@ -180,7 +180,7 @@ namespace StackExchange.Redis
         /// </summary>
         public DefaultOptionsProvider Defaults
         {
-            get => defaultOptions ??= DefaultOptionsProvider.GetForEndpoints(EndPoints);
+            get => defaultOptions ??= DefaultOptionsProvider.GetProvider(EndPoints);
             set => defaultOptions = value;
         }
 
@@ -233,13 +233,22 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Gets or sets whether the library should identify itself by library-name/version when possible
+        /// Gets or sets whether the library should identify itself by library-name/version when possible.
         /// </summary>
         public bool SetClientLibrary
         {
             get => setClientLibrary ?? Defaults.SetClientLibrary;
             set => setClientLibrary = value;
         }
+
+
+        /// <summary>
+        /// Gets or sets the library name to use for CLIENT SETINFO lib-name calls to Redis during handshake.
+        /// Defaults to "SE.Redis".
+        /// </summary>
+        /// <remarks>If the value is null, empty or whitespace, then the value from the options-provideer is used;
+        /// to disable the library name feature, use <see cref="SetClientLibrary"/> instead.</remarks>
+        public string? LibraryName { get; set; }
 
         /// <summary>
         /// Automatically encodes and decodes channels.
@@ -671,6 +680,7 @@ namespace StackExchange.Redis
 #endif
             Tunnel = Tunnel,
             setClientLibrary = setClientLibrary,
+            LibraryName = LibraryName,
         };
 
         /// <summary>
