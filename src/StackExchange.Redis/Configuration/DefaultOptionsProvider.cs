@@ -49,8 +49,6 @@ namespace StackExchange.Redis.Configuration
         /// </summary>
         public virtual bool IsMatch(EndPoint endpoint) => false;
 
-        private static readonly DefaultOptionsProvider s_DefaultProvider = new DefaultOptionsProvider();
-
         /// <summary>
         /// Gets a provider for the given endpoints, falling back to <see cref="DefaultOptionsProvider"/> if nothing more specific is found.
         /// </summary>
@@ -67,7 +65,7 @@ namespace StackExchange.Redis.Configuration
                 }
             }
 
-            return s_DefaultProvider;
+            return new DefaultOptionsProvider(); // no memoize; allow mutability concerns (also impacts subclasses, but: pragmatism)
         }
 
         /// <summary>
@@ -82,7 +80,7 @@ namespace StackExchange.Redis.Configuration
                     return provider;
                 }
             }
-            return s_DefaultProvider;
+            return new DefaultOptionsProvider(); // no memoize; allow mutability concerns (also impacts subclasses, but: pragmatism)
         }
 
         /// <summary>
