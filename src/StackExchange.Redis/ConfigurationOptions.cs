@@ -98,8 +98,7 @@ namespace StackExchange.Redis
                 WriteBuffer = "writeBuffer",
                 CheckCertificateRevocation = "checkCertificateRevocation",
                 Tunnel = "tunnel",
-                SetClientLibrary = "setlib",
-                LibraryName = "libname";
+                SetClientLibrary = "setlib";
 
             private static readonly Dictionary<string, string> normalizedOptions = new[]
             {
@@ -762,7 +761,6 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.ResponseTimeout, responseTimeout);
             Append(sb, OptionKeys.DefaultDatabase, DefaultDatabase);
             Append(sb, OptionKeys.SetClientLibrary, setClientLibrary);
-            Append(sb, OptionKeys.LibraryName, LibraryName);
             if (Tunnel is { IsInbuilt: true } tunnel)
             {
                 Append(sb, OptionKeys.Tunnel, tunnel.ToString());
@@ -918,9 +916,6 @@ namespace StackExchange.Redis
                             break;
                         case OptionKeys.SetClientLibrary:
                             SetClientLibrary = OptionKeys.ParseBoolean(key, value);
-                            break;
-                        case OptionKeys.LibraryName:
-                            LibraryName = value;
                             break;
                         case OptionKeys.Tunnel:
                             if (value.IsNullOrWhiteSpace())
