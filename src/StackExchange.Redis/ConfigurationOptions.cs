@@ -181,7 +181,7 @@ namespace StackExchange.Redis
         /// </summary>
         public DefaultOptionsProvider Defaults
         {
-            get => defaultOptions ??= DefaultOptionsProvider.GetForEndpoints(EndPoints);
+            get => defaultOptions ??= DefaultOptionsProvider.GetProvider(EndPoints);
             set => defaultOptions = value;
         }
 

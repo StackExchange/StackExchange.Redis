@@ -49,10 +49,12 @@ namespace StackExchange.Redis.Configuration
         /// </summary>
         public virtual bool IsMatch(EndPoint endpoint) => false;
 
+        private static readonly DefaultOptionsProvider s_DefaultProvider = new DefaultOptionsProvider();
+
         /// <summary>
         /// Gets a provider for the given endpoints, falling back to <see cref="DefaultOptionsProvider"/> if nothing more specific is found.
         /// </summary>
-        internal static Func<EndPointCollection, DefaultOptionsProvider> GetForEndpoints { get; } = (endpoints) =>
+        public static DefaultOptionsProvider GetProvider(EndPointCollection endpoints)
         {
             foreach (var provider in KnownProviders)
             {
@@ -65,8 +67,23 @@ namespace StackExchange.Redis.Configuration
                 }
             }
 
-            return new DefaultOptionsProvider();
-        };
+            return s_DefaultProvider;
+        }
+
+        /// <summary>
+        /// Gets a provider for a given endpoints, falling back to <see cref="DefaultOptionsProvider"/> if nothing more specific is found.
+        /// </summary>
+        public static DefaultOptionsProvider GetProvider(EndPoint endpoint)
+        {
+            foreach (var provider in KnownProviders)
+            {
+                if (provider.IsMatch(endpoint))
+                {
+                    return provider;
+                }
+            }
+            return s_DefaultProvider;
+        }
 
         /// <summary>
         /// Gets or sets whether connect/configuration timeouts should be explicitly notified via a TimeoutException.

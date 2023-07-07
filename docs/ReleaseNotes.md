@@ -12,6 +12,7 @@ Current package versions:
 - Fix: Fix nullability annotation of IConnectionMultiplexer.RegisterProfiler ([#2494 by eerhardt](https://github.com/StackExchange/StackExchange.Redis/pull/2494))
 - Add: `Timer.ActiveCount` under `POOL` in timeout messages on .NET 6+ to help diagnose timer overload affecting timeout evaluations ([#2500 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2500))
 - Add: `LibraryName` / `libname` configuration option; allows the library name to be controlled at the individual options level (in addition to the existing controls in `DefaultOptionsProvider`) ([#2502 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2502))
+- Add: `DefaultOptionsProvider.GetProvider` allows lookup of provider by endpoint ([#2502 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2502))
 
 ## 2.6.116
 
