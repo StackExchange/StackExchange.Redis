@@ -664,4 +664,17 @@ public class ConfigTests : TestBase
         Assert.Equal(setlib, options.SetClientLibrary);
         Assert.Equal(configurationString, options.ToString());
     }
+
+    [Theory]
+    [InlineData("server:6379", null)]
+    [InlineData("server:6379,libname=test", "test")]
+    public void DefaultConfigOptionsForLibName(string configurationString, string? libname)
+    {
+        var options = ConfigurationOptions.Parse(configurationString);
+        Assert.Equal(libname, options.LibraryName);
+        Assert.Equal(configurationString, options.ToString());
+        options = options.Clone();
+        Assert.Equal(libname, options.LibraryName);
+        Assert.Equal(configurationString, options.ToString());
+    }
 }

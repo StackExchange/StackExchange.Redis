@@ -98,7 +98,8 @@ namespace StackExchange.Redis
                 WriteBuffer = "writeBuffer",
                 CheckCertificateRevocation = "checkCertificateRevocation",
                 Tunnel = "tunnel",
-                SetClientLibrary = "setlib";
+                SetClientLibrary = "setlib",
+                LibraryName = "libname";
 
             private static readonly Dictionary<string, string> normalizedOptions = new[]
             {
@@ -233,13 +234,22 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Gets or sets whether the library should identify itself by library-name/version when possible
+        /// Gets or sets whether the library should identify itself by library-name/version when possible.
         /// </summary>
         public bool SetClientLibrary
         {
             get => setClientLibrary ?? Defaults.SetClientLibrary;
             set => setClientLibrary = value;
         }
+
+
+        /// <summary>
+        /// Gets or sets the library name to use for CLIENT SETINFO lib-name calls to Redis during handshake.
+        /// Defaults to "SE.Redis".
+        /// </summary>
+        /// <remarks>If the value is null, empty or whitespace, then the value from the options-provideer is used;
+        /// to disable the library name feature, use <see cref="SetClientLibrary"/> instead.</remarks>
+        public string? LibraryName { get; set; }
 
         /// <summary>
         /// Automatically encodes and decodes channels.
@@ -671,6 +681,7 @@ namespace StackExchange.Redis
 #endif
             Tunnel = Tunnel,
             setClientLibrary = setClientLibrary,
+            LibraryName = LibraryName,
         };
 
         /// <summary>
@@ -751,6 +762,7 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.ResponseTimeout, responseTimeout);
             Append(sb, OptionKeys.DefaultDatabase, DefaultDatabase);
             Append(sb, OptionKeys.SetClientLibrary, setClientLibrary);
+            Append(sb, OptionKeys.LibraryName, LibraryName);
             if (Tunnel is { IsInbuilt: true } tunnel)
             {
                 Append(sb, OptionKeys.Tunnel, tunnel.ToString());
@@ -906,6 +918,9 @@ namespace StackExchange.Redis
                             break;
                         case OptionKeys.SetClientLibrary:
                             SetClientLibrary = OptionKeys.ParseBoolean(key, value);
+                            break;
+                        case OptionKeys.LibraryName:
+                            LibraryName = value;
                             break;
                         case OptionKeys.Tunnel:
                             if (value.IsNullOrWhiteSpace())

@@ -97,7 +97,8 @@ The `ConfigurationOptions` object has a wide range of properties, all of which a
 | tiebreaker={string}    | `TieBreaker`           | `__Booksleeve_TieBreak`      | Key to use for selecting a server in an ambiguous primary scenario                                        |
 | version={string}       | `DefaultVersion`       | (`4.0` in Azure, else `2.0`) | Redis version level (useful when the server does not make this available)                                 |
 | tunnel={string}        | `Tunnel`               | `null`                       | Tunnel for connections (use `http:{proxy url}` for "connect"-based proxy server)                          |
-| setlib={bool}          | `SetClientLibrary`     | `true`                       | Whether to attempt to use `CLIENT SETINFO` to set the lib name/version on the connection                  |
+| setlib={bool}          | `SetClientLibrary`     | `true`                       | Whether to attempt to use `CLIENT SETINFO` to set the library name/version on the connection              |
+| libname={string}       | `LibraryName`          | `SE.Redis`                   | The library name to use with `CLIENT SETINFO` when setting the library name/version on the connection     |
 
 Additional code-only options:
 - ReconnectRetryPolicy (`IReconnectRetryPolicy`) - Default: `ReconnectRetryPolicy = ExponentialRetry(ConnectTimeout / 2);`

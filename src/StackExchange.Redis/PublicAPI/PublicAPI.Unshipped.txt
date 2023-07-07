@@ -1,1 +1,2 @@
-﻿
+﻿StackExchange.Redis.ConfigurationOptions.LibraryName.get -> string?
+StackExchange.Redis.ConfigurationOptions.LibraryName.set -> void
