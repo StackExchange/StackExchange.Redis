@@ -219,7 +219,7 @@ public class SharedConnectionFixture : IDisposable
             {
                 foreach (var item in privateExceptions.Take(5))
                 {
-                    TestBase.LogNoTime(output, item);
+                    TestBase.Log(output, item);
                 }
                 privateExceptions.Clear();
             }
