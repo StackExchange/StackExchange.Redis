@@ -866,10 +866,6 @@ namespace StackExchange.Redis
             {
                 _backlogStatus = BacklogStatus.Activating;
 
-#if NET6_0_OR_GREATER
-                // In .NET 6, use the thread pool stall semantics to our advantage and use a lighter-weight Task
-                Task.Run(ProcessBacklogAsync);
-#else
                 // Start the backlog processor; this is a bit unorthodox, as you would *expect* this to just
                 // be Task.Run; that would work fine when healthy, but when we're falling on our face, it is
                 // easy to get into a thread-pool-starvation "spiral of death" if we rely on the thread-pool
@@ -882,7 +878,6 @@ namespace StackExchange.Redis
                     Name = "StackExchange.Redis Backlog", // help anyone looking at thread-dumps
                 };
                 thread.Start(this);
-#endif
             }
             else
             {

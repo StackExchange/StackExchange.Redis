@@ -55,11 +55,11 @@ public class DefaultOptionsTests : TestBase
         DefaultOptionsProvider.AddProvider(new TestOptionsProvider(".testdomain"));
 
         var epc = new EndPointCollection(new List<EndPoint>() { new DnsEndPoint("local.testdomain", 0) });
-        var provider = DefaultOptionsProvider.GetForEndpoints(epc);
+        var provider = DefaultOptionsProvider.GetProvider(epc);
         Assert.IsType<TestOptionsProvider>(provider);
 
         epc = new EndPointCollection(new List<EndPoint>() { new DnsEndPoint("local.nottestdomain", 0) });
-        provider = DefaultOptionsProvider.GetForEndpoints(epc);
+        provider = DefaultOptionsProvider.GetProvider(epc);
         Assert.IsType<DefaultOptionsProvider>(provider);
     }
 

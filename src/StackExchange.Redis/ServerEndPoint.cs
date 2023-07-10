@@ -899,8 +899,9 @@ namespace StackExchange.Redis
             }
             Message msg;
             // Note that we need "" (not null) for password in the case of 'nopass' logins
-            string? user = Multiplexer.RawConfig.User;
-            string password = Multiplexer.RawConfig.Password ?? "";
+            var config = Multiplexer.RawConfig;
+            string? user = config.User;
+            string password = config.Password ?? "";
             if (!string.IsNullOrWhiteSpace(user))
             {
                 log?.LogInformation($"{Format.ToString(this)}: Authenticating (user/password)");
@@ -930,13 +931,19 @@ namespace StackExchange.Redis
                         await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
                     }
                 }
-                if (Multiplexer.RawConfig.SetClientLibrary)
+                if (config.SetClientLibrary)
                 {
                     // note that this is a relatively new feature, but usually we won't know the
                     // server version, so we will use this speculatively and hope for the best
                     log?.LogInformation($"{Format.ToString(this)}: Setting client lib/ver");
 
-                    var libName = Multiplexer.RawConfig.Defaults.LibraryName;
+                    var libName = config.LibraryName;
+                    if (string.IsNullOrWhiteSpace(libName))
+                    {
+                        // defer to provider if missing (note re null vs blank; if caller wants to disable
+                        // it, they should set SetClientLibrary to false, not set the name to empty string)
+                        libName = config.Defaults.LibraryName;
+                    }
                     if (!string.IsNullOrWhiteSpace(libName))
                     {
                         msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.CLIENT,

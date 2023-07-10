@@ -469,7 +469,7 @@ public class ConfigTests : TestBase
 
         using var conn = ConnectionMultiplexer.Connect(config);
 
-        Assert.Same(ConnectionMultiplexer.GetDefaultSocketManager().Scheduler, conn.SocketManager?.Scheduler);
+        Assert.Same(SocketManager.Shared.Scheduler, conn.SocketManager?.Scheduler);
     }
 
     [Theory]

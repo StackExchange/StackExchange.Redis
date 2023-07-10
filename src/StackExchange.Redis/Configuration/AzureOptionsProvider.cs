@@ -1,8 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using StackExchange.Redis.Maintenance;
+using System;
 using System.Net;
 using System.Threading.Tasks;
-using StackExchange.Redis.Maintenance;
 
 namespace StackExchange.Redis.Configuration
 {
