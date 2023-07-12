@@ -59,6 +59,8 @@ namespace StackExchange.Redis
 
         private volatile int state = (int)State.Disconnected;
 
+        internal long? ConnectionId => physical?.ConnectionId;
+
 #if NETCOREAPP
         private readonly SemaphoreSlim _singleWriterMutex = new(1,1);
 #else

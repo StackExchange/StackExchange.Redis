@@ -1,10 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using StackExchange.Redis.Maintenance;
+using StackExchange.Redis.Profiling;
+using System;
 using System.IO;
 using System.Net;
 using System.Threading.Tasks;
-using StackExchange.Redis.Maintenance;
-using StackExchange.Redis.Profiling;
 
 namespace StackExchange.Redis
 {
@@ -17,6 +16,8 @@ namespace StackExchange.Redis
         ReadOnlySpan<ServerEndPoint> GetServerSnapshot();
 
         ConfigurationOptions RawConfig { get; }
+
+        long? GetConnectionId(EndPoint endPoint, ConnectionType type);
     }
 
     /// <summary>

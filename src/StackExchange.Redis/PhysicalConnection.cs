@@ -55,6 +55,7 @@ namespace StackExchange.Redis
 
         private long bytesLastResult;
         private long bytesInBuffer;
+        internal long? ConnectionId { get; set; }
 
         internal void GetBytes(out long sent, out long received)
         {
@@ -1581,10 +1582,19 @@ namespace StackExchange.Redis
                     // invoke the handlers
                     var channel = items[1].AsRedisChannel(ChannelPrefix, RedisChannel.PatternMode.Literal);
                     Trace("MESSAGE: " + channel);
-                    if (!channel.IsNull && TryGetPubSubPayload(items[2], out var payload))
+                    if (!channel.IsNull)
                     {
-                        _readStatus = ReadStatus.InvokePubSub;
-                        muxer.OnMessage(channel, channel, payload);
+                        if (TryGetPubSubPayload(items[2], out var payload))
+                        {
+                            _readStatus = ReadStatus.InvokePubSub;
+                            muxer.OnMessage(channel, channel, payload);
+                        }
+                        // could be multi-message: https://github.com/StackExchange/StackExchange.Redis/issues/2507
+                        else if (TryGetMultiPubSubPayload(items[2], out var payloads))
+                        {
+                            _readStatus = ReadStatus.InvokePubSub;
+                            muxer.OnMessage(channel, channel, payloads);
+                        }
                     }
                     return; // AND STOP PROCESSING!
                 }
@@ -1594,11 +1604,20 @@ namespace StackExchange.Redis
 
                     var channel = items[2].AsRedisChannel(ChannelPrefix, RedisChannel.PatternMode.Literal);
                     Trace("PMESSAGE: " + channel);
-                    if (!channel.IsNull && TryGetPubSubPayload(items[3], out var payload))
+                    if (!channel.IsNull)
                     {
-                        var sub = items[1].AsRedisChannel(ChannelPrefix, RedisChannel.PatternMode.Pattern);
-                        _readStatus = ReadStatus.InvokePubSub;
-                        muxer.OnMessage(sub, channel, payload);
+                        if (TryGetPubSubPayload(items[3], out var payload))
+                        {
+                            var sub = items[1].AsRedisChannel(ChannelPrefix, RedisChannel.PatternMode.Pattern);
+                            _readStatus = ReadStatus.InvokePubSub;
+                            muxer.OnMessage(sub, channel, payload);
+                        }
+                        else if (TryGetMultiPubSubPayload(items[3], out var payloads))
+                        {
+                            var sub = items[1].AsRedisChannel(ChannelPrefix, RedisChannel.PatternMode.Pattern);
+                            _readStatus = ReadStatus.InvokePubSub;
+                            muxer.OnMessage(sub, channel, payloads);
+                        }
                     }
                     return; // AND STOP PROCESSING!
                 }
@@ -1643,6 +1662,17 @@ namespace StackExchange.Redis
                         return true;
                     case ResultType.MultiBulk when allowArraySingleton && value.ItemsCount == 1:
                         return TryGetPubSubPayload(in value[0], out parsed, allowArraySingleton: false);
+                }
+                parsed = default;
+                return false;
+            }
+
+            static bool TryGetMultiPubSubPayload(in RawResult value, out Sequence<RawResult> parsed)
+            {
+                if (value.Type == ResultType.MultiBulk && value.ItemsCount != 0)
+                {
+                    parsed = value.GetItems();
+                    return true;
                 }
                 parsed = default;
                 return false;
