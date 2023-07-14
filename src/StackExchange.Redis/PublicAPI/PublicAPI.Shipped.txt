@@ -1507,6 +1507,8 @@ StackExchange.Redis.StreamEntry.this[StackExchange.Redis.RedisValue fieldName].g
 StackExchange.Redis.StreamEntry.Values.get -> StackExchange.Redis.NameValueEntry[]!
 StackExchange.Redis.StreamGroupInfo
 StackExchange.Redis.StreamGroupInfo.ConsumerCount.get -> int
+StackExchange.Redis.StreamGroupInfo.EntriesRead.get -> int?
+StackExchange.Redis.StreamGroupInfo.Lag.get -> int?
 StackExchange.Redis.StreamGroupInfo.LastDeliveredId.get -> string?
 StackExchange.Redis.StreamGroupInfo.Name.get -> string!
 StackExchange.Redis.StreamGroupInfo.PendingMessageCount.get -> int

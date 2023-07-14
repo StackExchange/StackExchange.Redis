@@ -2049,6 +2049,8 @@ The coordinates as a two items x,y array (longitude,latitude).
                 Pending = "pending",
                 Idle = "idle",
                 LastDeliveredId = "last-delivered-id",
+                EntriesRead = "entries-read",
+                Lag = "lag",
                 IP = "ip",
                 Port = "port";
 
@@ -2107,6 +2109,10 @@ The coordinates as a two items x,y array (longitude,latitude).
                 //    6) (integer)2
                 //    7) last-delivered-id
                 //    8) "1588152489012-0"
+                //    9) "entries-read"
+                //   10) (integer)2
+                //   11) "lag"
+                //   12) (integer)0
                 // 2) 1) name
                 //    2) "some-other-group"
                 //    3) consumers
@@ -2115,17 +2121,23 @@ The coordinates as a two items x,y array (longitude,latitude).
                 //    6) (integer)0
                 //    7) last-delivered-id
                 //    8) "1588152498034-0"
+                //    9) "entries-read"
+                //   10) (integer)1
+                //   11) "lag"
+                //   12) (integer)1
 
                 var arr = result.GetItems();
                 string? name = default, lastDeliveredId = default;
-                int consumerCount = default, pendingMessageCount = default;
+                int consumerCount = default, pendingMessageCount = default, entriesRead = default, lag = default;
 
                 KeyValuePairParser.TryRead(arr, KeyValuePairParser.Name, ref name);
                 KeyValuePairParser.TryRead(arr, KeyValuePairParser.Consumers, ref consumerCount);
                 KeyValuePairParser.TryRead(arr, KeyValuePairParser.Pending, ref pendingMessageCount);
                 KeyValuePairParser.TryRead(arr, KeyValuePairParser.LastDeliveredId, ref lastDeliveredId);
+                KeyValuePairParser.TryRead(arr, KeyValuePairParser.EntriesRead, ref entriesRead);
+                KeyValuePairParser.TryRead(arr, KeyValuePairParser.Lag, ref lag);
 
-                return new StreamGroupInfo(name!, consumerCount, pendingMessageCount, lastDeliveredId);
+                return new StreamGroupInfo(name!, consumerCount, pendingMessageCount, lastDeliveredId, entriesRead, lag);
             }
         }
 
