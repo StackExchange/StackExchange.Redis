@@ -375,7 +375,7 @@ namespace StackExchange.Redis
             // set the completion/performance data
             performance?.SetCompleted();
 #if NET6_0_OR_GREATER
-            RedisMetrics.Instance.OnMessageComplete(currBox);
+            RedisMetrics.Instance.OnMessageComplete(this, currBox);
 #endif
 
             currBox?.ActivateContinuations();

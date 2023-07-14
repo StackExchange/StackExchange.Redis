@@ -1,18 +1,22 @@
 ﻿#if NET6_0_OR_GREATER
 
+using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
 namespace StackExchange.Redis;
 
 internal sealed class RedisMetrics
 {
+    private static readonly double s_tickFrequency = (double)TimeSpan.TicksPerSecond / Stopwatch.Frequency;
+    // cache these boxed boolean values so we don't allocate on each usage.
+    private static readonly object s_trueBox = true;
+    private static readonly object s_falseBox = false;
+
     private readonly Meter _meter;
     private readonly Counter<long> _operationCount;
-    private readonly Counter<long> _completedAsynchronously;
-    private readonly Counter<long> _completedSynchronously;
-    private readonly Counter<long> _failedAsynchronously;
-    private readonly Counter<long> _failedSynchronously;
+    private readonly Histogram<double> _messageDuration;
     private readonly Counter<long> _nonPreferredEndpointCount;
 
     public static readonly RedisMetrics Instance = new RedisMetrics();
@@ -22,67 +26,53 @@ internal sealed class RedisMetrics
         _meter = new Meter("StackExchange.Redis");
 
         _operationCount = _meter.CreateCounter<long>(
-            "redis-operation-count",
+            "db.redis.operation.count",
             description: "The number of operations performed.");
 
-        _completedAsynchronously = _meter.CreateCounter<long>(
-            "redis-completed-asynchronously",
-            description: "The number of operations that have been completed asynchronously.");
-
-        _completedSynchronously = _meter.CreateCounter<long>(
-            "redis-completed-synchronously",
-            description: "The number of operations that have been completed synchronously.");
-
-        _failedAsynchronously = _meter.CreateCounter<long>(
-            "redis-failed-asynchronously",
-            description: "The number of operations that failed to complete asynchronously.");
-
-        _failedSynchronously = _meter.CreateCounter<long>(
-            "redis-failed-synchronously",
-            description: "The number of operations that failed to complete synchronously.");
+        _messageDuration = _meter.CreateHistogram<double>(
+            "db.redis.duration",
+            unit: "s",
+            description: "Measures the duration of outbound message requests.");
 
         _nonPreferredEndpointCount = _meter.CreateCounter<long>(
-            "redis-non-preferred-endpoint-count",
+            "db.redis.non_preferred_endpoint.count",
             description: "Indicates the total number of messages dispatched to a non-preferred endpoint, for example sent to a primary when the caller stated a preference of replica.");
     }
 
     public void IncrementOperationCount(string endpoint)
     {
-        if (_operationCount.Enabled)
-        {
-            _operationCount.Add(1,
-                new KeyValuePair<string, object?>("endpoint", endpoint));
-        }
+        _operationCount.Add(1,
+            new KeyValuePair<string, object?>("endpoint", endpoint));
     }
 
-    public void OnMessageComplete(IResultBox? result)
+    public void OnMessageComplete(Message message, IResultBox? result)
     {
-        if (result is not null &&
-            (_completedAsynchronously.Enabled ||
-            _completedSynchronously.Enabled ||
-            _failedAsynchronously.Enabled ||
-            _failedSynchronously.Enabled))
+        // The caller ensures we can don't record on the same resultBox from two threads.
+        // 'result' can be null if this method is called for the same message more than once.
+        if (result is not null && _messageDuration.Enabled)
         {
-            Counter<long> counter = (result.IsFaulted, result.IsAsync) switch
+            // Stopwatch.GetElapsedTime is only available in net7.0+
+            // https://github.com/dotnet/runtime/blob/ae068fec6ede58d2a5b343c5ac41c9ca8715fa47/src/libraries/System.Private.CoreLib/src/System/Diagnostics/Stopwatch.cs#L129-L137
+            var now = Stopwatch.GetTimestamp();
+            var duration = new TimeSpan((long)((now - message.CreatedTimestamp) * s_tickFrequency));
+
+            var tags = new TagList
             {
-                (false, true) => _completedAsynchronously,
-                (false, false) => _completedSynchronously,
-                (true, true) => _failedAsynchronously,
-                (true, false) => _failedSynchronously,
+                { "db.redis.async", result.IsAsync ? s_trueBox : s_falseBox },
+                { "db.redis.faulted", result.IsFaulted ? s_trueBox : s_falseBox }
+                // TODO: can we pass endpoint here?
+                // should we log the Db?
+                // { "db.redis.database_index", message.Db },
             };
 
-            // TODO: can we pass endpoint here?
-            counter.Add(1);
+            _messageDuration.Record(duration.TotalSeconds, tags);
         }
     }
 
     public void IncrementNonPreferredEndpointCount(string endpoint)
     {
-        if (_nonPreferredEndpointCount.Enabled)
-        {
-            _nonPreferredEndpointCount.Add(1,
-                new KeyValuePair<string, object?>("endpoint", endpoint));
-        }
+        _nonPreferredEndpointCount.Add(1,
+            new KeyValuePair<string, object?>("endpoint", endpoint));
     }
 }
 
