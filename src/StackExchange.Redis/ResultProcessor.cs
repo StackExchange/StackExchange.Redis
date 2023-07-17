@@ -2128,8 +2128,8 @@ The coordinates as a two items x,y array (longitude,latitude).
 
                 var arr = result.GetItems();
                 string? name = default, lastDeliveredId = default;
-                int consumerCount = default, pendingMessageCount = default, lag = default;
-                long entriesRead = default;
+                int consumerCount = default, pendingMessageCount = default;
+                long entriesRead = default, lag = default;
 
                 KeyValuePairParser.TryRead(arr, KeyValuePairParser.Name, ref name);
                 KeyValuePairParser.TryRead(arr, KeyValuePairParser.Consumers, ref consumerCount);
