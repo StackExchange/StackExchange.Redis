@@ -5,7 +5,7 @@
 /// </summary>
 public readonly struct StreamGroupInfo
 {
-    internal StreamGroupInfo(string name, int consumerCount, int pendingMessageCount, string? lastDeliveredId, int? entriesRead, int? lag)
+    internal StreamGroupInfo(string name, int consumerCount, int pendingMessageCount, string? lastDeliveredId, long? entriesRead, int? lag)
     {
         Name = name;
         ConsumerCount = consumerCount;
@@ -39,7 +39,7 @@ public readonly struct StreamGroupInfo
     /// <summary>
     /// Total number of entries the group had read.
     /// </summary>
-    public int? EntriesRead { get; }
+    public long? EntriesRead { get; }
 
     /// <summary>
     /// The number of entries in the range between the group's read entries and the stream's entries.
