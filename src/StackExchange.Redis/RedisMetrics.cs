@@ -19,11 +19,11 @@ internal sealed class RedisMetrics
     private readonly Histogram<double> _messageDuration;
     private readonly Counter<long> _nonPreferredEndpointCount;
 
-    public static readonly RedisMetrics Instance = new RedisMetrics();
+    public static readonly RedisMetrics Default = new RedisMetrics();
 
-    private RedisMetrics()
+    public RedisMetrics(Meter? meter = null)
     {
-        _meter = new Meter("StackExchange.Redis");
+        _meter = meter ?? new Meter("StackExchange.Redis");
 
         _operationCount = _meter.CreateCounter<long>(
             "db.redis.operation.count",

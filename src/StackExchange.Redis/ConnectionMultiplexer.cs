@@ -128,6 +128,9 @@ namespace StackExchange.Redis
         private ConnectionMultiplexer(ConfigurationOptions configuration, ServerType? serverType = null, EndPointCollection? endpoints = null)
         {
             RawConfig = configuration ?? throw new ArgumentNullException(nameof(configuration));
+#if NET6_0_OR_GREATER
+            Metrics = GetMetrics(configuration);
+#endif
             EndPoints = endpoints ?? RawConfig.EndPoints.Clone();
             EndPoints.SetDefaultPorts(serverType, ssl: RawConfig.Ssl);
 
@@ -1939,6 +1942,9 @@ namespace StackExchange.Redis
         private bool PrepareToPushMessageToBridge<T>(Message message, ResultProcessor<T>? processor, IResultBox<T>? resultBox, [NotNullWhen(true)] ref ServerEndPoint? server)
         {
             message.SetSource(processor, resultBox);
+#if NET6_0_OR_GREATER
+            message.SetMetrics(Metrics);
+#endif
 
             if (server == null)
             {

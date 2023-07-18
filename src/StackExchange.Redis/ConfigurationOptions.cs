@@ -12,6 +12,10 @@ using System.Threading;
 using System.Threading.Tasks;
 using StackExchange.Redis.Configuration;
 
+#if NET6_0_OR_GREATER
+using System.Diagnostics.Metrics;
+#endif
+
 namespace StackExchange.Redis
 {
     /// <summary>
@@ -618,6 +622,14 @@ namespace StackExchange.Redis
             get => configCheckSeconds ?? (int)Defaults.ConfigCheckInterval.TotalSeconds;
             set => configCheckSeconds = value;
         }
+
+#if NET6_0_OR_GREATER
+        /// <summary>
+        /// A factory method able to inject the <see cref="Meter"/> object to use
+        /// when emitting metrics. Used by tests.
+        /// </summary>
+        internal Func<Meter>? MeterFactory { get; set; }
+#endif
 
         /// <summary>
         /// Parse the configuration from a comma-delimited configuration string.

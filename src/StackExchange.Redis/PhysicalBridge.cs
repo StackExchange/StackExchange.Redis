@@ -351,7 +351,7 @@ namespace StackExchange.Redis
         {
             Interlocked.Increment(ref operationCount);
 #if NET6_0_OR_GREATER
-            RedisMetrics.Instance.IncrementOperationCount(Name);
+            Multiplexer.Metrics.IncrementOperationCount(Name);
 #endif
         }
 
@@ -1410,7 +1410,7 @@ namespace StackExchange.Redis
                     {
                         Interlocked.Increment(ref nonPreferredEndpointCount);
 #if NET6_0_OR_GREATER
-                        RedisMetrics.Instance.IncrementNonPreferredEndpointCount(Name);
+                        Multiplexer.Metrics.IncrementNonPreferredEndpointCount(Name);
 #endif
                     }
                 }
@@ -1420,7 +1420,7 @@ namespace StackExchange.Redis
                     {
                         Interlocked.Increment(ref nonPreferredEndpointCount);
 #if NET6_0_OR_GREATER
-                        RedisMetrics.Instance.IncrementNonPreferredEndpointCount(Name);
+                        Multiplexer.Metrics.IncrementNonPreferredEndpointCount(Name);
 #endif
                     }
                 }

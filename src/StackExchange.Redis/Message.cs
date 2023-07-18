@@ -84,6 +84,10 @@ namespace StackExchange.Redis
         internal DateTime CreatedDateTime;
         internal long CreatedTimestamp;
 
+#if NET6_0_OR_GREATER
+        private RedisMetrics? metrics;
+#endif
+
         protected Message(int db, CommandFlags flags, RedisCommand command)
         {
             bool dbNeeded = RequiresDatabase(command);
@@ -133,6 +137,13 @@ namespace StackExchange.Redis
                     break;
             }
         }
+
+#if NET6_0_OR_GREATER
+        internal void SetMetrics(RedisMetrics redisMetrics)
+        {
+            metrics = redisMetrics;
+        }
+#endif
 
         internal void SetProfileStorage(ProfiledCommand storage)
         {
@@ -375,7 +386,7 @@ namespace StackExchange.Redis
             // set the completion/performance data
             performance?.SetCompleted();
 #if NET6_0_OR_GREATER
-            RedisMetrics.Instance.OnMessageComplete(this, currBox);
+            metrics?.OnMessageComplete(this, currBox);
 #endif
 
             currBox?.ActivateContinuations();

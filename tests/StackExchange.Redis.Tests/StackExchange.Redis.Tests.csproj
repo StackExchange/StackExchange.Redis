@@ -33,4 +33,8 @@
     <Reference Include="Microsoft.CSharp" />
     <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="5.0.0" />
   </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFrameworkIdentifier)' == '.NETCoreApp'">
+    <PackageReference Include="Microsoft.Extensions.Telemetry.Testing" />
+  </ItemGroup>
 </Project>
