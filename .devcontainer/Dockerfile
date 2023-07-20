@@ -1,6 +1,6 @@
 ARG INSTALL_NODE=false
 ARG INSTALL_AZURE_CLI=false
-FROM mcr.microsoft.com/devcontainers/dotnet:7.0
+FROM mcr.microsoft.com/vscode/devcontainers/dotnet:dev-5.0
 
 ENV DOTNET_NOLOGO=true
 ENV DOTNET_CLI_TELEMETRY_OPTOUT=true
