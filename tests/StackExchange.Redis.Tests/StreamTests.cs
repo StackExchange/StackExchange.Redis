@@ -1248,7 +1248,6 @@ public class StreamTests : TestBase
             Assert.Equal(0, groupInfoList[0].EntriesRead);
             Assert.Equal(4, groupInfoList[1].Lag);
 
-
             // Read a single message into the first consumer.
             db.StreamReadGroup(key, group1, consumer1, count: 1);
 
