@@ -4,10 +4,10 @@ using Microsoft.Extensions.Logging;
 
 namespace StackExchange.Redis;
 
-internal sealed class TextWriterLogger : ILogger
+internal sealed class TextWriterLogger : ILogger, IDisposable
 {
-    private readonly TextWriter _writer;
-    private readonly ILogger? _wrapped;
+    private TextWriter? _writer;
+    private ILogger? _wrapped;
 
     internal static Action<string> NullWriter = _ => { };
 
@@ -17,16 +17,25 @@ internal sealed class TextWriterLogger : ILogger
         _wrapped = wrapped;
     }
 
-    public IDisposable BeginScope<TState>(TState state) => new NothingDisposable();
-    public bool IsEnabled(LogLevel logLevel) => true;
+    public IDisposable BeginScope<TState>(TState state) => NothingDisposable.Instance;
+    public bool IsEnabled(LogLevel logLevel) => _writer is not null || _wrapped is not null;
     public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
     {
         _wrapped?.Log(logLevel, eventId, state, exception, formatter);
-        lock (_writer)
+        if (_writer is TextWriter writer)
         {
-            _writer.Write($"{DateTime.UtcNow:HH:mm:ss.ffff}: ");
-            _writer.WriteLine(formatter(state, exception));
+            lock (writer)
+            {
+                writer.Write($"{DateTime.UtcNow:HH:mm:ss.ffff}: ");
+                writer.WriteLine(formatter(state, exception));
+            }
         }
+    }
+
+    public void Dispose()
+    {
+        _writer = null;
+        _wrapped = null;
     }
 }
 
@@ -38,5 +47,6 @@ internal static class TextWriterLoggerExtensions
 
 internal sealed class NothingDisposable : IDisposable
 {
+    public static readonly NothingDisposable Instance = new NothingDisposable();
     public void Dispose() { }
 }
