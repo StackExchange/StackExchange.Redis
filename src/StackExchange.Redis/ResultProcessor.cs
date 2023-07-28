@@ -57,7 +57,8 @@ namespace StackExchange.Redis
         public static readonly ResultProcessor<long>
             Int64 = new Int64Processor(),
             PubSubNumSub = new PubSubNumSubProcessor(),
-            Int64DefaultNegativeOne = new Int64DefaultValueProcessor(-1);
+            Int64DefaultNegativeOne = new Int64DefaultValueProcessor(-1),
+            ClientId = new ClientIdProcessor();
 
         public static readonly ResultProcessor<double?>
                             NullableDouble = new NullableDoubleProcessor();
@@ -961,8 +962,7 @@ namespace StackExchange.Redis
         {
             internal static ClusterConfiguration Parse(PhysicalConnection connection, string nodes)
             {
-                var bridge = connection.BridgeCouldBeNull;
-                if (bridge == null) throw new ObjectDisposedException(connection.ToString());
+                var bridge = connection.BridgeCouldBeNull ?? throw new ObjectDisposedException(connection.ToString());
                 var server = bridge.ServerEndPoint;
                 var config = new ClusterConfiguration(bridge.Multiplexer.ServerSelectionStrategy, nodes, server.EndPoint);
                 server.SetClusterConfiguration(config);
@@ -1211,6 +1211,28 @@ namespace StackExchange.Redis
                         if (result.TryGetInt64(out i64))
                         {
                             SetResult(message, i64);
+                            return true;
+                        }
+                        break;
+                }
+                return false;
+            }
+        }
+
+        private class ClientIdProcessor : ResultProcessor<long>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                switch (result.Type)
+                {
+                    case ResultType.Integer:
+                    case ResultType.SimpleString:
+                    case ResultType.BulkString:
+                        long i64;
+                        if (result.TryGetInt64(out i64))
+                        {
+                            SetResult(message, i64);
+                            connection.ConnectionId = i64;
                             return true;
                         }
                         break;
