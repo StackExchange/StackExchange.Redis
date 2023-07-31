@@ -70,6 +70,24 @@ public class StringTests : TestBase
     }
 
     [Fact]
+    public async Task SetEmpty()
+    {
+        using var conn = Create();
+
+        var db = conn.GetDatabase();
+        var key = Me();
+        db.KeyDelete(key, CommandFlags.FireAndForget);
+
+        db.StringSet(key, new byte[] { });
+        var exists = await db.KeyExistsAsync(key);
+        var val = await db.StringGetAsync(key);
+
+        Assert.True(exists);
+        Log("Value: " + val);
+        Assert.Equal(0, val.Length());
+    }
+
+    [Fact]
     public async Task StringGetSetExpiryNoValue()
     {
         using var conn = Create(require: RedisFeatures.v6_2_0);
