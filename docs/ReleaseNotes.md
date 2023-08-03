@@ -12,7 +12,6 @@ Current package versions:
 - Add: connection-id tracking (internal only, no public API) ([#2508 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2508))
 - Fix [#2467](https://github.com/StackExchange/StackExchange.Redis/issues/2467): Add StreamGroupInfo EntriesRead and Lag ([#2510 by tvdias](https://github.com/StackExchange/StackExchange.Redis/pull/2510))
 
-
 ## 2.6.122
 
 - Change: Target net6.0 instead of net5.0, since net5.0 is end of life. ([#2497 by eerhardt](https://github.com/StackExchange/StackExchange.Redis/pull/2497))
