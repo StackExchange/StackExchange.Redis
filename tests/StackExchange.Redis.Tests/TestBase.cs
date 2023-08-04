@@ -46,7 +46,6 @@ public abstract class TestBase : IDisposable
     /// <remarks>See 'ConnectFailTimeout' class for example usage.</remarks>
     protected static Task RunBlockingSynchronousWithExtraThreadAsync(Action testScenario) => Task.Factory.StartNew(testScenario, CancellationToken.None, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
 
-    protected void Log(string? message) => Log(Writer, message ?? "");
     public static void Log(TextWriter output, string message)
     {
         lock (output)
@@ -58,7 +57,7 @@ public abstract class TestBase : IDisposable
             Console.WriteLine(message);
         }
     }
-    protected void Log(string message, params object?[] args)
+    protected void Log(string? message, params object?[] args)
     {
         lock (Output)
         {
@@ -66,7 +65,7 @@ public abstract class TestBase : IDisposable
         }
         if (TestConfig.Current.LogToConsole)
         {
-            Console.WriteLine(message, args);
+            Console.WriteLine(message ?? "", args);
         }
     }
 
