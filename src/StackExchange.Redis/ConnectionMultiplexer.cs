@@ -42,7 +42,7 @@ namespace StackExchange.Redis
 
         private volatile bool _isDisposed;
         internal bool IsDisposed => _isDisposed;
-        internal ILogger? Logger { get; }
+        internal ILogger<ConnectionMultiplexer>? Logger { get; }
 
         internal CommandMap CommandMap { get; }
         internal EndPointCollection EndPoints { get; }
@@ -132,7 +132,7 @@ namespace StackExchange.Redis
             RawConfig = configuration ?? throw new ArgumentNullException(nameof(configuration));
             EndPoints = endpoints ?? RawConfig.EndPoints.Clone();
             EndPoints.SetDefaultPorts(serverType, ssl: RawConfig.Ssl);
-            Logger = configuration.Logger;
+            Logger = configuration.LoggerFactory?.CreateLogger<ConnectionMultiplexer>();
 
             var map = CommandMap = configuration.GetCommandMap(serverType);
             if (!string.IsNullOrWhiteSpace(configuration.Password))
@@ -598,7 +598,8 @@ namespace StackExchange.Redis
             IDisposable? killMe = null;
             EventHandler<ConnectionFailedEventArgs>? connectHandler = null;
             ConnectionMultiplexer? muxer = null;
-            var log = configuration.Logger.With(writer);
+            var configLogger = configuration.LoggerFactory?.CreateLogger<ConnectionMultiplexer>();
+            var log = configLogger.With(writer);
             try
             {
                 var sw = ValueStopwatch.StartNew();
@@ -685,7 +686,8 @@ namespace StackExchange.Redis
             IDisposable? killMe = null;
             EventHandler<ConnectionFailedEventArgs>? connectHandler = null;
             ConnectionMultiplexer? muxer = null;
-            var log = configuration.Logger.With(writer);
+            var configLogger = configuration.LoggerFactory?.CreateLogger<ConnectionMultiplexer>();
+            var log = configLogger.With(writer);
             try
             {
                 var sw = ValueStopwatch.StartNew();

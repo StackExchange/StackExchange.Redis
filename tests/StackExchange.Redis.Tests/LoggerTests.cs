@@ -27,7 +27,7 @@ public class LoggerTests : TestBase
         var criticalLogger = new TestLogger(LogLevel.Critical, Writer);
 
         var options = ConfigurationOptions.Parse(GetConfiguration());
-        options.Logger = new TestMultiLogger(traceLogger, debugLogger, infoLogger, warningLogger, errorLogger, criticalLogger);
+        options.LoggerFactory = new TestWrapperLoggerFactory(new TestMultiLogger(traceLogger, debugLogger, infoLogger, warningLogger, errorLogger, criticalLogger));
 
         using var conn = await ConnectionMultiplexer.ConnectAsync(options);
         // We expect more at the trace level: GET, ECHO, PING on commands
@@ -45,12 +45,21 @@ public class LoggerTests : TestBase
     public async Task WrappedLogger()
     {
         var options = ConfigurationOptions.Parse(GetConfiguration());
-        options.Logger = NullLogger.Instance;
-        var wrapped = new TestWrapperLogger(options.Logger);
-        options.Logger = wrapped;
+        var wrapped = new TestWrapperLoggerFactory(NullLogger.Instance);
+        options.LoggerFactory = wrapped;
 
         using var conn = await ConnectionMultiplexer.ConnectAsync(options);
-        Assert.True(wrapped.LogCount > 0);
+        Assert.True(wrapped.Logger.LogCount > 0);
+    }
+
+    public class TestWrapperLoggerFactory : ILoggerFactory
+    {
+        public TestWrapperLogger Logger { get; }
+        public TestWrapperLoggerFactory(ILogger logger) => Logger = new TestWrapperLogger(logger);
+
+        public void AddProvider(ILoggerProvider provider) => throw new NotImplementedException();
+        public ILogger CreateLogger(string categoryName) => Logger;
+        public void Dispose() { }
     }
 
     public class TestWrapperLogger : ILogger
