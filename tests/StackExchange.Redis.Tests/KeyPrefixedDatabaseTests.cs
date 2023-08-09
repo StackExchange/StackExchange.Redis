@@ -31,7 +31,7 @@ public sealed class KeyPrefixedDatabaseTests
         IBatch innerBatch = Substitute.For<IBatch>();
         mock.CreateBatch(asyncState).Returns(innerBatch);
         IBatch wrappedBatch = prefixed.CreateBatch(asyncState);
-        mock.CreateBatch(asyncState);
+        mock.Received().CreateBatch(asyncState);
         Assert.IsType<KeyPrefixedBatch>(wrappedBatch);
         Assert.Same(innerBatch, ((KeyPrefixedBatch)wrappedBatch).Inner);
     }
