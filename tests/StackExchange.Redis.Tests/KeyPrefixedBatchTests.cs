@@ -1,26 +1,26 @@
-﻿using Moq;
-using StackExchange.Redis.KeyspaceIsolation;
+﻿using StackExchange.Redis.KeyspaceIsolation;
 using System.Text;
+using NSubstitute;
 using Xunit;
 
 namespace StackExchange.Redis.Tests;
 
-[Collection(nameof(MoqDependentCollection))]
+[Collection(nameof(SubstituteDependentCollection))]
 public sealed class KeyPrefixedBatchTests
 {
-    private readonly Mock<IBatch> mock;
+    private readonly IBatch mock;
     private readonly KeyPrefixedBatch prefixed;
 
     public KeyPrefixedBatchTests()
     {
-        mock = new Mock<IBatch>();
-        prefixed = new KeyPrefixedBatch(mock.Object, Encoding.UTF8.GetBytes("prefix:"));
+        mock = Substitute.For<IBatch>();
+        prefixed = new KeyPrefixedBatch(mock, Encoding.UTF8.GetBytes("prefix:"));
     }
 
     [Fact]
     public void Execute()
     {
         prefixed.Execute();
-        mock.Verify(_ => _.Execute(), Times.Once());
+        mock.Received(1).Execute();
     }
 }
