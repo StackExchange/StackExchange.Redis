@@ -278,6 +278,8 @@ public abstract class TestBase : IDisposable
         {
             configuration = GetConfiguration();
             // Only return if we match
+            ThrowIfIncorrectProtocol(_fixture.Connection, protocol);
+
             if (configuration == _fixture.Configuration)
             {
                 ThrowIfBelowMinVersion(_fixture.Connection, require);
@@ -297,6 +299,7 @@ public abstract class TestBase : IDisposable
             backlogPolicy, protocol,
             caller);
 
+        ThrowIfIncorrectProtocol(conn, protocol);
         ThrowIfBelowMinVersion(conn, require);
 
         conn.InternalError += OnInternalError;
@@ -331,6 +334,23 @@ public abstract class TestBase : IDisposable
             && (allowAdmin == null || allowAdmin == true)
             && backlogPolicy == null
             && protocol is null;
+
+    internal void ThrowIfIncorrectProtocol(IInternalConnectionMultiplexer conn, RedisProtocol? requiredProtocol)
+    {
+        if (requiredProtocol is null)
+        {
+            return;
+        }
+
+        var serverProtocol = conn.GetServerEndPoint(conn.GetEndPoints()[0]).IsResp3 ? RedisProtocol.Resp3 : RedisProtocol.Resp2;
+        if (serverProtocol != requiredProtocol)
+        {
+            throw new SkipTestException($"Requires protocol {requiredProtocol}, but connection is {serverProtocol}.")
+            {
+                MissingFeatures = $"Protocol {requiredProtocol}."
+            };
+        }
+    }
 
     internal void ThrowIfBelowMinVersion(IInternalConnectionMultiplexer conn, Version? requiredVersion)
     {

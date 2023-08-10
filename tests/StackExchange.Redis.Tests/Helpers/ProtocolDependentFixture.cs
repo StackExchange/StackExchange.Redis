@@ -57,18 +57,20 @@ public abstract class ProtocolFixedTestBase : ProtocolDependentTestBase // exten
     {
         if (protocol is not null)
         {
-            Assert.True(Resp3 && protocol >= RedisProtocol.Resp3, "Test is requesting incorrect RESP");
+            Assert.True(Resp3 && protocol != RedisProtocol.Resp3, "Test is demanding incorrect RESP");
         }
-        if (shared && CanShare(allowAdmin, password, tieBreaker, fail, disabledCommands, enabledCommands, channelPrefix, proxy, configuration, defaultDatabase, backlogPolicy, protocol))
+        protocol = Resp3 ? RedisProtocol.Resp3 : RedisProtocol.Resp2;
+        if (shared && CanShare(allowAdmin, password, tieBreaker, fail, disabledCommands, enabledCommands, channelPrefix, proxy, configuration, defaultDatabase, backlogPolicy, protocol: null)) // we're handling  protocol manually
         {
             // can use the fixture's *pair* of resp clients
             var conn = Fixture.GetConnection(this, Resp3, caller!);
+            ThrowIfIncorrectProtocol(conn, protocol);
             ThrowIfBelowMinVersion(conn, require);
             return conn;
         }
         else
         {
-            if (Resp3 && (require is null || require < RedisFeatures.v6_0_0))
+            if (Resp3 && (require is null || !require.IsAtLeast(RedisFeatures.v6_0_0)))
             {
                 require = RedisFeatures.v6_0_0;
             }
