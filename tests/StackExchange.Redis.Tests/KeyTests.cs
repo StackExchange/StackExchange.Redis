@@ -26,7 +26,7 @@ public abstract class KeyTests : ProtocolFixedTestBase
     {
         using var conn = Create(allowAdmin: true);
 
-        var dbId = TestConfig.GetDedicatedDB();
+        var dbId = TestConfig.GetDedicatedDB(conn);
         var db = conn.GetDatabase(dbId);
         var server = GetAnyPrimary(conn);
         var prefix = Me();

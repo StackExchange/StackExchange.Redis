@@ -29,7 +29,7 @@ public class ProfilingTests : TestBase
 
         conn.RegisterProfiler(() => session);
 
-        var dbId = TestConfig.GetDedicatedDB();
+        var dbId = TestConfig.GetDedicatedDB(conn);
         var db = conn.GetDatabase(dbId);
         db.StringSet(key, "world");
         var result = db.ScriptEvaluate(script, new { key = (RedisKey)key });
