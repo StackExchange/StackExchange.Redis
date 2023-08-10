@@ -74,7 +74,7 @@ public class ParseTests : TestBase
         var reader = new BufferReader(buffer);
         RawResult result;
         int found = 0;
-        while (!(result = PhysicalConnection.TryParseResult(arena, buffer, ref reader, false, null, false)).IsNull)
+        while (!(result = PhysicalConnection.TryParseResult(false, arena, buffer, ref reader, false, null, false)).IsNull)
         {
             Writer.WriteLine($"{result} - {result.GetString()}");
             found++;

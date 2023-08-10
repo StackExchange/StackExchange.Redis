@@ -198,6 +198,8 @@ namespace StackExchange.Redis
             set => SetConfig(ref version, value);
         }
 
+        public bool IsResp3 => interactive is { IsResp3: true };
+
         public int WriteEverySeconds
         {
             get => writeEverySeconds;
@@ -223,7 +225,7 @@ namespace StackExchange.Redis
             if (isDisposed) return null;
             return type switch
             {
-                ConnectionType.Interactive => interactive ?? (create ? interactive = CreateBridge(ConnectionType.Interactive, log) : null),
+                ConnectionType.Interactive /* or _ when IsResp3 */ => interactive ?? (create ? interactive = CreateBridge(ConnectionType.Interactive, log) : null),
                 ConnectionType.Subscription => subscription ?? (create ? subscription = CreateBridge(ConnectionType.Subscription, log) : null),
                 _ => null,
             };
@@ -236,6 +238,7 @@ namespace StackExchange.Redis
             // Subscription commands go to a specific bridge - so we need to set that up.
             // There are other commands we need to send to the right connection (e.g. subscriber PING with an explicit SetForSubscriptionBridge call),
             // but these always go subscriber.
+
             switch (message.Command)
             {
                 case RedisCommand.SUBSCRIBE:
@@ -246,7 +249,7 @@ namespace StackExchange.Redis
                     break;
             }
 
-            return message.IsForSubscriptionBridge
+            return (message.IsForSubscriptionBridge /* && !IsResp3 */)
                 ? subscription ??= CreateBridge(ConnectionType.Subscription, null)
                 : interactive ??= CreateBridge(ConnectionType.Interactive, null);
         }
@@ -254,16 +257,18 @@ namespace StackExchange.Redis
         public PhysicalBridge? GetBridge(RedisCommand command, bool create = true)
         {
             if (isDisposed) return null;
-            switch (command)
+            //if (!IsResp3)
             {
-                case RedisCommand.SUBSCRIBE:
-                case RedisCommand.UNSUBSCRIBE:
-                case RedisCommand.PSUBSCRIBE:
-                case RedisCommand.PUNSUBSCRIBE:
-                    return subscription ?? (create ? subscription = CreateBridge(ConnectionType.Subscription, null) : null);
-                default:
-                    return interactive ?? (create ? interactive = CreateBridge(ConnectionType.Interactive, null) : null);
+                switch (command)
+                {
+                    case RedisCommand.SUBSCRIBE:
+                    case RedisCommand.UNSUBSCRIBE:
+                    case RedisCommand.PSUBSCRIBE:
+                    case RedisCommand.PUNSUBSCRIBE:
+                        return subscription ?? (create ? subscription = CreateBridge(ConnectionType.Subscription, null) : null);
+                }
             }
+            return interactive ?? (create ? interactive = CreateBridge(ConnectionType.Interactive, null) : null);
         }
 
         public RedisFeatures GetFeatures() => new RedisFeatures(version);
@@ -365,7 +370,7 @@ namespace StackExchange.Redis
             var features = GetFeatures();
             Message msg;
 
-            var autoConfigProcessor = new ResultProcessor.AutoConfigureProcessor(log);
+            var autoConfigProcessor = ResultProcessor.AutoConfigureProcessor.Create(log);
 
             if (commandMap.IsAvailable(RedisCommand.CONFIG))
             {
@@ -629,10 +634,13 @@ namespace StackExchange.Redis
             try
             {
                 if (connection == null) return Task.CompletedTask;
+
                 var handshake = HandshakeAsync(connection, log);
 
                 if (handshake.Status != TaskStatus.RanToCompletion)
+                {
                     return OnEstablishingAsyncAwaited(connection, handshake);
+                }
             }
             catch (Exception ex)
             {
@@ -694,7 +702,7 @@ namespace StackExchange.Redis
             lastInfoReplicationCheckTicks = Environment.TickCount;
             ResetExponentiallyReplicationCheck();
 
-            if (version >= RedisFeatures.v2_8_0 && Multiplexer.CommandMap.IsAvailable(RedisCommand.INFO)
+            if (version.IsAtLeast(RedisFeatures.v2_8_0) && Multiplexer.CommandMap.IsAvailable(RedisCommand.INFO)
                 && GetBridge(ConnectionType.Interactive, false) is PhysicalBridge bridge)
             {
                 var msg = Message.Create(-1, CommandFlags.FireAndForget | CommandFlags.NoRedirect, RedisCommand.INFO, RedisLiterals.replication);
@@ -901,14 +909,56 @@ namespace StackExchange.Redis
             var config = Multiplexer.RawConfig;
             string? user = config.User;
             string password = config.Password ?? "";
-            if (!string.IsNullOrWhiteSpace(user))
+            
+            string clientName = Multiplexer.ClientName;
+            if (!string.IsNullOrWhiteSpace(clientName))
+            {
+                clientName = nameSanitizer.Replace(clientName, "");
+            }
+
+            // NOTE:
+            // we might send the auth and client-name *twice* in RESP3 mode; this is intentional:
+            // - we don't know for sure which commands are available; HELLO is not always available,
+            //   even on v6 servers, and we don't usually even know the server version yet; likewise,
+            //   CLIENT could be disabled/renamed
+            // - on an authenticated server, you MUST issue HELLO with AUTH, so we can't avoid it there
+            // - but if the HELLO with AUTH isn't recognized, we might still need to auth; the following is
+            //   legal in all scenarios, and results in a consistent state:
+            //
+            //   (auth enabled)
+            //
+            //   HELLO 3 AUTH {user} {password} SETNAME {client}
+            //   AUTH {user} {password}
+            //   CLIENT SETNAME {client}
+            //
+            //   (auth disabled)
+            //
+            //   HELLO 3 SETNAME {client}
+            //   CLIENT SETNAME {client}
+            //
+            // this might look a little redundant, but: we only do it once per connection, and it isn't
+            // many bytes different; this allows us to pipeline the entire handshake without having to
+            // add latency
+
+            ResultProcessor<bool>? autoConfig = null;
+            if (Multiplexer.RawConfig.TryResp3()) // note this includes a availability check on HELLO
+            {
+                log?.WriteLine($"{Format.ToString(this)}: Authenticating via HELLO");
+                var hello = Message.CreateHello(3, user, password, clientName, CommandFlags.None);
+                hello.SetInternalCall();
+                await WriteDirectOrQueueFireAndForgetAsync(connection, hello, autoConfig ??= ResultProcessor.AutoConfigureProcessor.Create(log)).ForAwait();
+            }
+
+            // note: we auth EVEN IF we have used HELLO to AUTH; because otherwise the fallback/detection path is pure hell,
+            // and: we're pipelined here, so... meh
+            if (!string.IsNullOrWhiteSpace(user) && Multiplexer.CommandMap.IsAvailable(RedisCommand.AUTH))
             {
                 log?.WriteLine($"{Format.ToString(this)}: Authenticating (user/password)");
                 msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.AUTH, (RedisValue)user, (RedisValue)password);
                 msg.SetInternalCall();
                 await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
             }
-            else if (!string.IsNullOrWhiteSpace(password))
+            else if (!string.IsNullOrWhiteSpace(password) && Multiplexer.CommandMap.IsAvailable(RedisCommand.AUTH))
             {
                 log?.WriteLine($"{Format.ToString(this)}: Authenticating (password)");
                 msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.AUTH, (RedisValue)password);
@@ -918,18 +968,14 @@ namespace StackExchange.Redis
 
             if (Multiplexer.CommandMap.IsAvailable(RedisCommand.CLIENT))
             {
-                string name = Multiplexer.ClientName;
-                if (!string.IsNullOrWhiteSpace(name))
+                if (!string.IsNullOrWhiteSpace(clientName))
                 {
-                    name = nameSanitizer.Replace(name, "");
-                    if (!string.IsNullOrWhiteSpace(name))
-                    {
-                        log?.WriteLine($"{Format.ToString(this)}: Setting client name: {name}");
-                        msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.CLIENT, RedisLiterals.SETNAME, (RedisValue)name);
-                        msg.SetInternalCall();
-                        await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
-                    }
+                    log?.WriteLine($"{Format.ToString(this)}: Setting client name: {clientName}");
+                    msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.CLIENT, RedisLiterals.SETNAME, (RedisValue)clientName);
+                    msg.SetInternalCall();
+                    await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
                 }
+
                 if (config.SetClientLibrary)
                 {
                     // note that this is a relatively new feature, but usually we won't know the
@@ -963,10 +1009,14 @@ namespace StackExchange.Redis
                 msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.CLIENT, RedisLiterals.ID);
                 msg.SetInternalCall();
                 await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.ClientId).ForAwait();
+
+                msg = Message.Create(-1, default, RedisCommand.CLIENT, RedisLiterals.ID);
+                msg.SetInternalCall();
+                await WriteDirectOrQueueFireAndForgetAsync(connection, msg, autoConfig ??= ResultProcessor.AutoConfigureProcessor.Create(log)).ForAwait();
             }
 
             var bridge = connection.BridgeCouldBeNull;
-            if (bridge == null)
+            if (bridge is null)
             {
                 return;
             }

@@ -4702,14 +4702,14 @@ namespace StackExchange.Redis
 
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
-                switch (result.Type)
+                switch (result.Resp2TypeArray)
                 {
-                    case ResultType.MultiBulk:
+                    case ResultType.Array:
                         var arr = result.GetItems();
                         if (arr.Length == 2)
                         {
                             ref RawResult inner = ref arr[1];
-                            if (inner.Type == ResultType.MultiBulk && arr[0].TryGetInt64(out var i64))
+                            if (inner.Resp2TypeArray == ResultType.Array && arr[0].TryGetInt64(out var i64))
                             {
                                 T[]? oversized = Parse(inner, out int count);
                                 var sscanResult = new ScanEnumerable<T>.ScanResult(i64, oversized, count, true);
@@ -4761,6 +4761,7 @@ namespace StackExchange.Redis
                 }
             }
 
+            public override string CommandString => Command.ToString();
             public override string CommandAndKey => Command.ToString();
 
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
@@ -5048,7 +5049,7 @@ namespace StackExchange.Redis
             private StringGetWithExpiryProcessor() { }
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
-                switch (result.Type)
+                switch (result.Resp2TypeBulkString)
                 {
                     case ResultType.Integer:
                     case ResultType.SimpleString:

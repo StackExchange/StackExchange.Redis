@@ -241,12 +241,12 @@ namespace StackExchange.Redis
 
                 if (message != null)
                 {
-                    sb.Append(", command=").Append(message.Command); // no key here, note
+                    sb.Append(", command=").Append(message.CommandString); // no key here, note
                 }
             }
             else
             {
-                sb.Append("Timeout performing ").Append(message.Command).Append(" (").Append(Format.ToString(multiplexer.TimeoutMilliseconds)).Append("ms)");
+                sb.Append("Timeout performing ").Append(message.CommandString).Append(" (").Append(Format.ToString(multiplexer.TimeoutMilliseconds)).Append("ms)");
             }
 
             // Add timeout data, if we have it
@@ -318,8 +318,8 @@ namespace StackExchange.Redis
             if (message != null)
             {
                 message.TryGetHeadMessages(out var now, out var next);
-                if (now != null) Add(data, sb, "Message-Current", "active", multiplexer.RawConfig.IncludeDetailInExceptions ? now.CommandAndKey : now.Command.ToString());
-                if (next != null) Add(data, sb, "Message-Next", "next", multiplexer.RawConfig.IncludeDetailInExceptions ? next.CommandAndKey : next.Command.ToString());
+                if (now != null) Add(data, sb, "Message-Current", "active", multiplexer.RawConfig.IncludeDetailInExceptions ? now.CommandAndKey : now.CommandString);
+                if (next != null) Add(data, sb, "Message-Next", "next", multiplexer.RawConfig.IncludeDetailInExceptions ? next.CommandAndKey : next.CommandString);
             }
 
             // Add server data, if we have it
@@ -406,7 +406,7 @@ namespace StackExchange.Redis
 
         private static string GetLabel(bool includeDetail, RedisCommand command, Message? message)
         {
-            return message == null ? command.ToString() : (includeDetail ? message.CommandAndKey : message.Command.ToString());
+            return message == null ? command.ToString() : (includeDetail ? message.CommandAndKey : message.CommandString);
         }
 
         internal static Exception UnableToConnect(ConnectionMultiplexer muxer, string? failureMessage = null)

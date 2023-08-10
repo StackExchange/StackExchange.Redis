@@ -9,10 +9,17 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-[Collection(SharedConnectionFixture.Key)]
-public class KeyTests : TestBase
+public class Resp2KeyTests : KeyTests
 {
-    public KeyTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base (output, fixture) { }
+    public Resp2KeyTests(ITestOutputHelper output, ProtocolDependentFixture fixture) : base(output, fixture, false) { }
+}
+public class Resp3KeyTests : KeyTests
+{
+    public Resp3KeyTests(ITestOutputHelper output, ProtocolDependentFixture fixture) : base(output, fixture, true) { }
+}
+public abstract class KeyTests : ProtocolFixedTestBase
+{
+    public KeyTests(ITestOutputHelper output, ProtocolDependentFixture fixture, bool resp3) : base(output, fixture, resp3) { }
 
     [Fact]
     public void TestScan()

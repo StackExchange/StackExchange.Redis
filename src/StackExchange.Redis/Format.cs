@@ -5,6 +5,7 @@ using System.Globalization;
 using System.Net;
 using System.Text;
 using System.Diagnostics.CodeAnalysis;
+
 #if UNIX_SOCKET
 using System.Net.Sockets;
 #endif
@@ -139,26 +140,37 @@ namespace StackExchange.Redis
 
         internal static bool TryParseDouble(string? s, out double value)
         {
-            if (s.IsNullOrEmpty())
+            if (s is null)
             {
                 value = 0;
                 return false;
             }
-            if (s.Length == 1 && s[0] >= '0' && s[0] <= '9')
+            switch (s.Length)
             {
-                value = (int)(s[0] - '0');
-                return true;
-            }
-            // need to handle these
-            if (string.Equals("+inf", s, StringComparison.OrdinalIgnoreCase) || string.Equals("inf", s, StringComparison.OrdinalIgnoreCase))
-            {
-                value = double.PositiveInfinity;
-                return true;
-            }
-            if (string.Equals("-inf", s, StringComparison.OrdinalIgnoreCase))
-            {
-                value = double.NegativeInfinity;
-                return true;
+                case 0:
+                    value = 0;
+                    return false;
+                // single-digits
+                case 1 when s[0] >= '0' && s[0] <= '9':
+                    value = s[0] - '0';
+                    return true;
+                // RESP3 spec demands inf/nan handling
+                case 3 when CaseInsensitiveASCIIEqual("inf", s):
+                    value = double.PositiveInfinity;
+                    return true;
+                case 3 when CaseInsensitiveASCIIEqual("nan", s):
+                    value = double.NaN;
+                    return true;
+                case 4 when CaseInsensitiveASCIIEqual("+inf", s):
+                    value = double.PositiveInfinity;
+                    return true;
+                case 4 when CaseInsensitiveASCIIEqual("-inf", s):
+                    value = double.NegativeInfinity;
+                    return true;
+                case 4 when CaseInsensitiveASCIIEqual("+nan", s):
+                case 4 when CaseInsensitiveASCIIEqual("-nan", s):
+                    value = double.NaN;
+                    return true;
             }
             return double.TryParse(s, NumberStyles.Any, NumberFormatInfo.InvariantInfo, out value);
         }
@@ -200,29 +212,38 @@ namespace StackExchange.Redis
 
         internal static bool TryParseDouble(ReadOnlySpan<byte> s, out double value)
         {
-            if (s.IsEmpty)
+            switch (s.Length)
             {
-                value = 0;
-                return false;
-            }
-            if (s.Length == 1 && s[0] >= '0' && s[0] <= '9')
-            {
-                value = (int)(s[0] - '0');
-                return true;
-            }
-            // need to handle these
-            if (CaseInsensitiveASCIIEqual("+inf", s) || CaseInsensitiveASCIIEqual("inf", s))
-            {
-                value = double.PositiveInfinity;
-                return true;
-            }
-            if (CaseInsensitiveASCIIEqual("-inf", s))
-            {
-                value = double.NegativeInfinity;
-                return true;
+                case 0:
+                    value = 0;
+                    return false;
+                // single-digits
+                case 1 when s[0] >= '0' && s[0] <= '9':
+                    value = s[0] - '0';
+                    return true;
+                // RESP3 spec demands inf/nan handling
+                case 3 when CaseInsensitiveASCIIEqual("inf", s):
+                    value = double.PositiveInfinity;
+                    return true;
+                case 3 when CaseInsensitiveASCIIEqual("nan", s):
+                    value = double.NaN;
+                    return true;
+                case 4 when CaseInsensitiveASCIIEqual("+inf", s):
+                    value = double.PositiveInfinity;
+                    return true;
+                case 4 when CaseInsensitiveASCIIEqual("-inf", s):
+                    value = double.NegativeInfinity;
+                    return true;
+                case 4 when CaseInsensitiveASCIIEqual("+nan", s):
+                case 4 when CaseInsensitiveASCIIEqual("-nan", s):
+                    value = double.NaN;
+                    return true;
             }
             return Utf8Parser.TryParse(s, out value, out int bytes) & bytes == s.Length;
         }
+
+        private static bool CaseInsensitiveASCIIEqual(string xLowerCase, string y)
+            => string.Equals(xLowerCase, y, StringComparison.OrdinalIgnoreCase);
 
         private static bool CaseInsensitiveASCIIEqual(string xLowerCase, ReadOnlySpan<byte> y)
         {
@@ -350,10 +371,14 @@ namespace StackExchange.Redis
         internal static unsafe string GetString(ReadOnlySpan<byte> span)
         {
             if (span.IsEmpty) return "";
+#if NETCOREAPP3_1_OR_GREATER
+            return Encoding.UTF8.GetString(span);
+#else
             fixed (byte* ptr = span)
             {
                 return Encoding.UTF8.GetString(ptr, span.Length);
             }
+#endif
         }
 
         [DoesNotReturn]
@@ -426,6 +451,51 @@ namespace StackExchange.Redis
             if (!Utf8Formatter.TryFormat(value, destination, out var len))
                 ThrowFormatFailed();
             return len;
+        }
+
+        internal static bool TryParseVersion(ReadOnlySpan<char> input, [NotNullWhen(true)] out Version? version)
+        {
+#if NETCOREAPP3_1_OR_GREATER
+            if (Version.TryParse(input, out version)) return true;
+            // allow major-only (Version doesn't do this, because... reasons?)
+            if (TryParseInt32(input, out int i32))
+            {
+                version = new(i32, 0);
+                return true;
+            }
+            version = null;
+            return false;
+#else
+            if (input.IsEmpty)
+            {
+                version = null;
+                return false;
+            }
+            unsafe
+            {
+                fixed (char* ptr = input)
+                {
+                    string s = new(ptr, 0, input.Length);
+                    return TryParseVersion(s, out version);
+                }
+            }
+#endif
+        }
+
+        internal static bool TryParseVersion(string? input, [NotNullWhen(true)] out Version? version)
+        {
+            if (input is not null)
+            {
+                if (Version.TryParse(input, out version)) return true;
+                // allow major-only (Version doesn't do this, because... reasons?)
+                if (TryParseInt32(input, out int i32))
+                {
+                    version = new(i32, 0);
+                    return true;
+                }
+            }
+            version = null;
+            return false;
         }
     }
 }

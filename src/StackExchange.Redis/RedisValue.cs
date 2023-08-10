@@ -329,6 +329,28 @@ namespace StackExchange.Redis
             }
         }
 
+        internal Version? TryGetVersion()
+        {
+            switch (Type)
+            {
+                case StorageType.Int64:
+                    var value64 = OverlappedValueInt64;
+                    return value64 >= 0 & value64 <= int.MaxValue ? new Version((int)value64, 0) : null;
+                case StorageType.Raw when _memory.Length < 128:
+#if NETCOREAPP3_1_OR_GREATER
+                    Span<char> chars = stackalloc char[Encoding.UTF8.GetMaxCharCount(_memory.Length)];
+                    int count = Encoding.UTF8.GetChars(_memory.Span, chars);
+                    return Format.TryParseVersion(chars.Slice(0, count), out var version) ? version : null;
+#else
+                    return Format.TryParseVersion(ToString(), out var version) ? version : null;
+#endif
+                case StorageType.String:
+                    return Format.TryParseVersion((string)_objectOrSentinel!, out version) ? version : null;
+                default:
+                    return null;
+            }
+        }
+
         /// <summary>
         /// Get the size of this value in bytes
         /// </summary>

@@ -36,8 +36,10 @@ public class SharedConnectionFixture : IDisposable
         Connection = new NonDisposingConnection(_actualConnection);
     }
 
-    private class NonDisposingConnection : IInternalConnectionMultiplexer
+    internal sealed class NonDisposingConnection : IInternalConnectionMultiplexer
     {
+        public IInternalConnectionMultiplexer UnderlyingConnection => _inner;
+
         public bool AllowConnect
         {
             get => _inner.AllowConnect;
@@ -49,6 +51,8 @@ public class SharedConnectionFixture : IDisposable
             get => _inner.IgnoreConnect;
             set => _inner.IgnoreConnect = value;
         }
+
+        public ServerEndPoint GetServerEndPoint(EndPoint endpoint) => _inner.GetServerEndPoint(endpoint);
 
         public ReadOnlySpan<ServerEndPoint> GetServerSnapshot() => _inner.GetServerSnapshot();
 

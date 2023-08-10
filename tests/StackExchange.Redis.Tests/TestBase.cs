@@ -1,4 +1,6 @@
-﻿using System;
+﻿using StackExchange.Redis.Profiling;
+using StackExchange.Redis.Tests.Helpers;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -7,8 +9,6 @@ using System.Runtime;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
-using StackExchange.Redis.Profiling;
-using StackExchange.Redis.Tests.Helpers;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -263,6 +263,7 @@ public abstract class TestBase : IDisposable
         int? defaultDatabase = null,
         BacklogPolicy? backlogPolicy = null,
         Version? require = null,
+        RedisProtocol? protocol = null,
         [CallerMemberName] string? caller = null)
     {
         if (Output == null)
@@ -271,20 +272,9 @@ public abstract class TestBase : IDisposable
         }
 
         // Share a connection if instructed to and we can - many specifics mean no sharing
-        if (shared
+        if (shared && expectedFailCount == 0
             && _fixture != null && _fixture.IsEnabled
-            && enabledCommands == null
-            && disabledCommands == null
-            && fail
-            && channelPrefix == null
-            && proxy == null
-            && configuration == null
-            && password == null
-            && tieBreaker == null
-            && defaultDatabase == null
-            && (allowAdmin == null || allowAdmin == true)
-            && expectedFailCount == 0
-            && backlogPolicy == null)
+            && CanShare(allowAdmin, password, tieBreaker, fail, disabledCommands, enabledCommands, channelPrefix, proxy, configuration, defaultDatabase, backlogPolicy, protocol))
         {
             configuration = GetConfiguration();
             // Only return if we match
@@ -304,7 +294,7 @@ public abstract class TestBase : IDisposable
             checkConnect, failMessage,
             channelPrefix, proxy,
             logTransactionData, defaultDatabase,
-            backlogPolicy,
+            backlogPolicy, protocol,
             caller);
 
         ThrowIfBelowMinVersion(conn, require);
@@ -315,15 +305,42 @@ public abstract class TestBase : IDisposable
         return conn;
     }
 
-    protected void ThrowIfBelowMinVersion(IConnectionMultiplexer conn, Version? requiredVersion)
+    internal static bool CanShare(
+        bool? allowAdmin,
+        string? password,
+        string? tieBreaker,
+        bool fail,
+        string[]? disabledCommands,
+        string[]? enabledCommands,
+        string? channelPrefix,
+        Proxy? proxy,
+        string? configuration,
+        int? defaultDatabase,
+        BacklogPolicy? backlogPolicy,
+        RedisProtocol? protocol
+        )
+        => enabledCommands == null
+            && disabledCommands == null
+            && fail
+            && channelPrefix == null
+            && proxy == null
+            && configuration == null
+            && password == null
+            && tieBreaker == null
+            && defaultDatabase == null
+            && (allowAdmin == null || allowAdmin == true)
+            && backlogPolicy == null
+            && protocol is null;
+
+    internal void ThrowIfBelowMinVersion(IInternalConnectionMultiplexer conn, Version? requiredVersion)
     {
         if (requiredVersion is null)
         {
             return;
         }
 
-        var serverVersion = conn.GetServer(conn.GetEndPoints()[0]).Version;
-        if (requiredVersion > serverVersion)
+        var serverVersion = conn.GetServerEndPoint(conn.GetEndPoints()[0]).Version;
+        if (!serverVersion.IsAtLeast(requiredVersion))
         {
             throw new SkipTestException($"Requires server version {requiredVersion}, but server is only {serverVersion}.")
             {
@@ -353,6 +370,7 @@ public abstract class TestBase : IDisposable
         bool logTransactionData = true,
         int? defaultDatabase = null,
         BacklogPolicy? backlogPolicy = null,
+        RedisProtocol? protocol = null,
         [CallerMemberName] string? caller = null)
     {
         StringWriter? localLog = null;
@@ -389,6 +407,7 @@ public abstract class TestBase : IDisposable
             if (proxy != null) config.Proxy = proxy.Value;
             if (defaultDatabase != null) config.DefaultDatabase = defaultDatabase.Value;
             if (backlogPolicy != null) config.BacklogPolicy = backlogPolicy;
+            if (protocol is not null) config.Protocol = protocol;
             var watch = Stopwatch.StartNew();
             var task = ConnectionMultiplexer.ConnectAsync(config, log);
             if (!task.Wait(config.ConnectTimeout >= (int.MaxValue / 2) ? int.MaxValue : config.ConnectTimeout * 2))

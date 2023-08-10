@@ -3,10 +3,17 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-[Collection(SharedConnectionFixture.Key)]
-public class BitTests : TestBase
+public class Resp2BitTests : BitTests
 {
-    public BitTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base (output, fixture) { }
+    public Resp2BitTests(ITestOutputHelper output, ProtocolDependentFixture fixture) : base(output, fixture, false) { }
+}
+public class Resp3BitTests : BitTests
+{
+    public Resp3BitTests(ITestOutputHelper output, ProtocolDependentFixture fixture) : base(output, fixture, true) { }
+}
+public abstract class BitTests : ProtocolFixedTestBase
+{
+    public BitTests(ITestOutputHelper output, ProtocolDependentFixture fixture, bool resp3) : base (output, fixture, resp3) { }
 
     [Fact]
     public void BasicOps()

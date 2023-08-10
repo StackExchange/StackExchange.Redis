@@ -1,1 +1,29 @@
-﻿
+﻿abstract StackExchange.Redis.RedisResult.ToString(out string? type) -> string?
+override sealed StackExchange.Redis.RedisResult.ToString() -> string!
+override StackExchange.Redis.Role.Master.Replica.ToString() -> string!
+StackExchange.Redis.ConfigurationOptions.Protocol.get -> StackExchange.Redis.RedisProtocol?
+StackExchange.Redis.ConfigurationOptions.Protocol.set -> void
+StackExchange.Redis.RedisFeatures.ClientId.get -> bool
+StackExchange.Redis.RedisFeatures.Equals(StackExchange.Redis.RedisFeatures other) -> bool
+StackExchange.Redis.RedisFeatures.Resp3.get -> bool
+StackExchange.Redis.RedisProtocol
+StackExchange.Redis.RedisProtocol.Resp2 = 20000 -> StackExchange.Redis.RedisProtocol
+StackExchange.Redis.RedisProtocol.Resp3 = 30000 -> StackExchange.Redis.RedisProtocol
+StackExchange.Redis.RedisResult.Resp2Type.get -> StackExchange.Redis.ResultType
+StackExchange.Redis.RedisResult.Resp3Type.get -> StackExchange.Redis.ResultType
+StackExchange.Redis.RedisResult.Type.get -> StackExchange.Redis.ResultType
+StackExchange.Redis.ResultType.Array = 5 -> StackExchange.Redis.ResultType
+StackExchange.Redis.ResultType.Attribute = 29 -> StackExchange.Redis.ResultType
+StackExchange.Redis.ResultType.BigInteger = 17 -> StackExchange.Redis.ResultType
+StackExchange.Redis.ResultType.BlobError = 10 -> StackExchange.Redis.ResultType
+StackExchange.Redis.ResultType.Boolean = 11 -> StackExchange.Redis.ResultType
+StackExchange.Redis.ResultType.Double = 9 -> StackExchange.Redis.ResultType
+StackExchange.Redis.ResultType.Map = 13 -> StackExchange.Redis.ResultType
+StackExchange.Redis.ResultType.Null = 8 -> StackExchange.Redis.ResultType
+StackExchange.Redis.ResultType.Push = 37 -> StackExchange.Redis.ResultType
+StackExchange.Redis.ResultType.Set = 21 -> StackExchange.Redis.ResultType
+StackExchange.Redis.ResultType.VerbatimString = 12 -> StackExchange.Redis.ResultType
+static StackExchange.Redis.RedisResult.Create(StackExchange.Redis.RedisResult![]! values, StackExchange.Redis.ResultType resultType) -> StackExchange.Redis.RedisResult!
+static StackExchange.Redis.RedisResult.Create(StackExchange.Redis.RedisValue[]! values, StackExchange.Redis.ResultType resultType) -> StackExchange.Redis.RedisResult!
+virtual StackExchange.Redis.RedisResult.Length.get -> int
+virtual StackExchange.Redis.RedisResult.this[int index].get -> StackExchange.Redis.RedisResult!

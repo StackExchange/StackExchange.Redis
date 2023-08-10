@@ -12,11 +12,14 @@ public class RawResultTests
         Assert.Equal(nameof(RawResult), type.Name);
     }
 
-    [Fact]
-    public void NullWorks()
+    [Theory]
+    [InlineData(ResultType.BulkString)]
+    [InlineData(ResultType.Null)]
+    public void NullWorks(ResultType type)
     {
-        var result = new RawResult(ResultType.BulkString, ReadOnlySequence<byte>.Empty, true);
-        Assert.Equal(ResultType.BulkString, result.Type);
+        var result = new RawResult(type, ReadOnlySequence<byte>.Empty, RawResult.ResultFlags.None);
+        Assert.Equal(type, result.Resp3Type);
+        Assert.True(result.HasValue);
         Assert.True(result.IsNull);
 
         var value = result.AsRedisValue();
@@ -32,8 +35,9 @@ public class RawResultTests
     [Fact]
     public void DefaultWorks()
     {
-        var result = default(RawResult);
-        Assert.Equal(ResultType.None, result.Type);
+        var result = RawResult.Nil;
+        Assert.Equal(ResultType.None, result.Resp3Type);
+        Assert.False(result.HasValue);
         Assert.True(result.IsNull);
 
         var value = result.AsRedisValue();
@@ -50,7 +54,7 @@ public class RawResultTests
     public void NilWorks()
     {
         var result = RawResult.Nil;
-        Assert.Equal(ResultType.None, result.Type);
+        Assert.Equal(ResultType.None, result.Resp3Type);
         Assert.True(result.IsNull);
 
         var value = result.AsRedisValue();

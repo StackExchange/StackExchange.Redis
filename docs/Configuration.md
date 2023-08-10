@@ -1,4 +1,4 @@
-﻿Configuration
+﻿# Configuration
 ===
 
 When connecting to Redis version 6 or above with an ACL configured, your ACL user needs to at least have permissions to run the ECHO command. We run this command to verify that we have a valid connection to the Redis service.
@@ -15,7 +15,7 @@ The `configuration` here can be either:
 
 The latter is *basically* a tokenized form of the former.
 
-Basic Configuration Strings
+## Basic Configuration Strings
 -
 
 The *simplest* configuration example is just the host name:
@@ -66,7 +66,7 @@ Microsoft Azure Redis example with password
 var conn = ConnectionMultiplexer.Connect("contoso5.redis.cache.windows.net,ssl=true,password=...");
 ```
 
-Configuration Options
+## Configuration Options
 ---
 
 The `ConfigurationOptions` object has a wide range of properties, all of which are fully documented in intellisense. Some of the more common options to use include:
@@ -98,6 +98,7 @@ The `ConfigurationOptions` object has a wide range of properties, all of which a
 | version={string}       | `DefaultVersion`       | (`4.0` in Azure, else `2.0`) | Redis version level (useful when the server does not make this available)                                 |
 | tunnel={string}        | `Tunnel`               | `null`                       | Tunnel for connections (use `http:{proxy url}` for "connect"-based proxy server)                          |
 | setlib={bool}          | `SetClientLibrary`     | `true`                       | Whether to attempt to use `CLIENT SETINFO` to set the library name/version on the connection              |
+| protocol={string}      | `Protocol`             | `null`                       | Redis protocol to use; see section below                                                                  |
 
 Additional code-only options:
 - ReconnectRetryPolicy (`IReconnectRetryPolicy`) - Default: `ReconnectRetryPolicy = ExponentialRetry(ConnectTimeout / 2);`
@@ -121,8 +122,9 @@ Additional code-only options:
 Tokens in the configuration string are comma-separated; any without an `=` sign are assumed to be redis server endpoints. Endpoints without an explicit port will use 6379 if ssl is not enabled, and 6380 if ssl is enabled.
 Tokens starting with `$` are taken to represent command maps, for example: `$config=cfg`.
 
-Obsolete Configuration Options
+## Obsolete Configuration Options
 ---
+
 These options are parsed in connection strings for backwards compatibility (meaning they do not error as invalid), but no longer have any effect.
 
 | Configuration string   | `ConfigurationOptions` | Previous Default | Previous Meaning |
@@ -130,7 +132,7 @@ These options are parsed in connection strings for backwards compatibility (mean
 | responseTimeout={int} | `ResponseTimeout` | `SyncTimeout` | Time (ms) to decide whether the socket is unhealthy |
 | writeBuffer={int} | `WriteBuffer` | `4096` | Size of the output buffer |
 
-Automatic and Manual Configuration
+## Automatic and Manual Configuration
 ---
 
 In many common scenarios, StackExchange.Redis will automatically configure a lot of settings, including the server type and version, connection timeouts, and primary/replica relationships. Sometimes, though, the commands for this have been disabled on the redis server. In this case, it is useful to provide more information:
@@ -159,7 +161,8 @@ Which is equivalent to the command string:
 ```config
 redis0:6379,redis1:6380,keepAlive=180,version=2.8.8,$CLIENT=,$CLUSTER=,$CONFIG=,$ECHO=,$INFO=,$PING=
 ```
-Renaming Commands
+
+## Renaming Commands
 ---
 
 A slightly unusual feature of redis is that you can disable and/or rename individual commands. As per the previous example, this is done via the `CommandMap`, but instead of passing a `HashSet<string>` to `Create()` (to indicate the available or unavailable commands), you pass a `Dictionary<string,string>`. All commands not mentioned in the dictionary are assumed to be enabled and not renamed. A `null` or blank value records that the command is disabled. For example:
@@ -182,8 +185,9 @@ The above is equivalent to (in the connection string):
 $INFO=,$SELECT=use
 ```
 
-Redis Server Permissions
+## Redis Server Permissions
 ---
+
 If the user you're connecting to Redis with is limited, it still needs to have certain commands enabled for the StackExchange.Redis to succeed in connecting. The client uses:
 - `AUTH` to authenticate
 - `CLIENT` to set the client name
@@ -203,7 +207,7 @@ For example, a common _very_ minimal configuration ACL on the server (non-cluste
 
 Note that if you choose to disable access to the above commands, it needs to be done via the `CommandMap` and not only the ACL on the server (otherwise we'll attempt the command and fail the handshake). Also, if any of the these commands are disabled, some functionality may be diminished or broken.
 
-twemproxy
+## twemproxy
 ---
 
 [twemproxy](https://github.com/twitter/twemproxy) is a tool that allows multiple redis instances to be used as though it were a single server, with inbuilt sharding and fault tolerance (much like redis cluster, but implemented separately). The feature-set available to Twemproxy is reduced. To avoid having to configure this manually, the `Proxy` option can be used:
@@ -216,8 +220,9 @@ var options = new ConfigurationOptions
 };
 ```
 
-envoyproxy
+##envoyproxy
 ---
+
 [Envoyproxy](https://github.com/envoyproxy/envoy) is a tool that allows to front a redis cluster with a set of proxies, with inbuilt discovery and fault tolerance. The feature-set available to Envoyproxy is reduced. To avoid having to configure this manually, the `Proxy` option can be used:
 ```csharp
 var options = new ConfigurationOptions+{
@@ -227,7 +232,7 @@ var options = new ConfigurationOptions+{
 ```
 
 
-Tiebreakers and Configuration Change Announcements
+## Tiebreakers and Configuration Change Announcements
 ---
 
 Normally StackExchange.Redis will resolve primary/replica nodes automatically. However, if you are not using a management tool such as redis-sentinel or redis cluster, there is a chance that occasionally you will get multiple primary nodes (for example, while resetting a node for maintenance it may reappear on the network as a primary). To help with this, StackExchange.Redis can use the notion of a *tie-breaker* - which is only used when multiple primaries are detected (not including redis cluster, where multiple primaries are *expected*). For compatibility with BookSleeve, this defaults to the key named `"__Booksleeve_TieBreak"` (always in database 0). This is used as a crude voting mechanism to help determine the *preferred* primary, so that work is routed correctly.
@@ -238,8 +243,9 @@ Both options can be customized or disabled (set to `""`), via the `.Configuratio
 
 These settings are also used by the `IServer.MakeMaster()` method, which can set the tie-breaker in the database and broadcast the configuration change message. The configuration message can also be used separately to primary/replica changes simply to request all nodes to refresh their configurations, via the `ConnectionMultiplexer.PublishReconfigure` method.
 
-ReconnectRetryPolicy
+## ReconnectRetryPolicy
 ---
+
 StackExchange.Redis automatically tries to reconnect in the background when the connection is lost for any reason. It keeps retrying  until the connection has been restored. It would use ReconnectRetryPolicy to decide how long it should wait between the retries.
 ReconnectRetryPolicy can be exponential (default), linear or a custom retry policy.
 
@@ -264,3 +270,20 @@ config.ReconnectRetryPolicy = new LinearRetry(5000);
 //5	        5000
 //6	        5000
 ```
+
+## Redis protocol
+```
+
+Without any additional prompting, StackExchange.Redis will use the RESP2 protocol; this means that pub/sub requires a separatate connection to the server. RESP3 is a newer protocol
+(usually, but not always, available on v6 servers and above) which allows (smong other changes) pub/sub messages to be communicated on the *same* connection - which can be very
+desirable in servers with a large number of clients. The protocol handshake needs to happen very early in the connection, so *by default* the library does not attempt a RESP3 connection
+unless it has reason to expect it to work:
+
+This can be considered, in order:
+
+- the `HELLO` command has been disabled: RESP2 is used
+- a protocol *other than* `resp3` or `3` is specified: RESP2 is used
+- a protocol of `resp3` or `3` is specified: RESP3 is attempted (with fallback if it fails)
+- a version of at least 6 is specified: RESP3 is attempted (with fallback if it fails)
+- in all other scenarios: RESP2 is used
+

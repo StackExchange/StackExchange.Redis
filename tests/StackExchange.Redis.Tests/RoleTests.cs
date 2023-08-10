@@ -22,6 +22,11 @@ public class Roles : TestBase
         var primary = role as Role.Master;
         Assert.NotNull(primary);
         Assert.NotNull(primary.Replicas);
+        Assert.NotEmpty(primary.Replicas);
+        foreach (var replica in primary.Replicas)
+        {
+            Log(replica.ToString());
+        }
         Assert.Contains(primary.Replicas, r =>
             r.Ip == TestConfig.Current.ReplicaServer &&
             r.Port == TestConfig.Current.ReplicaPort);

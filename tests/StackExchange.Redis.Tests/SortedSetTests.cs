@@ -5,10 +5,19 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-[Collection(SharedConnectionFixture.Key)]
-public class SortedSetTests : TestBase
+
+public class Resp2SortedSetTests : SortedSetTests
 {
-    public SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
+    public Resp2SortedSetTests(ITestOutputHelper output, ProtocolDependentFixture fixture) : base(output, fixture, false) { }
+}
+public class Resp3SortedSetTests : SortedSetTests
+{
+    public Resp3SortedSetTests(ITestOutputHelper output, ProtocolDependentFixture fixture) : base(output, fixture, true) { }
+}
+
+public abstract class SortedSetTests : ProtocolFixedTestBase
+{
+    public SortedSetTests(ITestOutputHelper output, ProtocolDependentFixture fixture, bool resp3) : base(output, fixture, resp3) { }
 
     private static readonly SortedSetEntry[] entries = new SortedSetEntry[]
     {
@@ -325,6 +334,81 @@ public class SortedSetTests : TestBase
         // with limit
         inter = await db.SortedSetIntersectionLengthAsync(new RedisKey[] { key1, key2 }, 3);
         Assert.Equal(3, inter);
+    }
+
+    [Fact]
+    public void SortedSetRangeViaScript()
+    {
+        using var conn = Create(require: RedisFeatures.v5_0_0);
+        var db = conn.GetDatabase();
+        var key = Me();
+
+        db.KeyDelete(key, CommandFlags.FireAndForget);
+        db.SortedSetAdd(key, entries, CommandFlags.FireAndForget);
+
+        var result = db.ScriptEvaluate("return redis.call('ZRANGE', KEYS[1], 0, -1, 'WITHSCORES')", new RedisKey[] { key });
+        AssertFlatArrayEntries(result);
+    }
+
+    [Fact]
+    public void SortedSetRangeViaExecute()
+    {
+        using var conn = Create(require: RedisFeatures.v5_0_0);
+        var db = conn.GetDatabase();
+        var key = Me();
+
+        db.KeyDelete(key, CommandFlags.FireAndForget);
+        db.SortedSetAdd(key, entries, CommandFlags.FireAndForget);
+
+        var result = db.Execute("ZRANGE", new object[] { key, 0, -1, "WITHSCORES" });
+
+        if (Resp3)
+        {
+            AssertJaggedArrayEntries(result);
+        }
+        else
+        {
+            AssertFlatArrayEntries(result);
+        }
+    }
+
+    private void AssertFlatArrayEntries(RedisResult result)
+    {
+        Assert.Equal(ResultType.Array, result.Resp2Type);
+        Assert.Equal(entries.Length * 2, (int)result.Length);
+        int index = 0;
+        foreach (var entry in entries)
+        {
+            var e = result[index++];
+            Assert.Equal(ResultType.BulkString, e.Resp2Type);
+            Assert.Equal(entry.Element, e.AsRedisValue());
+
+            e = result[index++];
+            Assert.Equal(ResultType.BulkString, e.Resp2Type);
+            Assert.Equal(entry.Score, e.AsDouble());
+        }
+    }
+
+    private void AssertJaggedArrayEntries(RedisResult result)
+    {
+        Assert.Equal(ResultType.Array, result.Resp2Type);
+        Assert.Equal(entries.Length, (int)result.Length);
+        int index = 0;
+        foreach (var entry in entries)
+        {
+            var arr = result[index++];
+            Assert.Equal(ResultType.Array, arr.Resp2Type);
+            Assert.Equal(2, arr.Length);
+
+            var e = arr[0];
+            Assert.Equal(ResultType.BulkString, e.Resp2Type);
+            Assert.Equal(entry.Element, e.AsRedisValue());
+
+            e = arr[1];
+            Assert.Equal(ResultType.SimpleString, e.Resp2Type);
+            Assert.Equal(ResultType.Double, e.Resp3Type);
+            Assert.Equal(entry.Score, e.AsDouble());
+        }
     }
 
     [Fact]

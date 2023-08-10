@@ -357,6 +357,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc cref="MakePrimaryAsync(ReplicationChangeOptions, TextWriter?)"/>
         [Obsolete("Please use " + nameof(MakePrimaryAsync) + ", this will be removed in 3.0.")]
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         void MakeMaster(ReplicationChangeOptions options, TextWriter? log = null);
 
         /// <summary>
@@ -468,6 +469,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc cref="ReplicaOfAsync(EndPoint, CommandFlags)"/>
         [Obsolete("Please use " + nameof(ReplicaOfAsync) + ", this will be removed in 3.0.")]
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         void ReplicaOf(EndPoint master, CommandFlags flags = CommandFlags.None);
 
         /// <summary>

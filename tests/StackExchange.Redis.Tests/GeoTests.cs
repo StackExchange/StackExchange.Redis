@@ -5,10 +5,18 @@ using System.Threading.Tasks;
 
 namespace StackExchange.Redis.Tests;
 
-[Collection(SharedConnectionFixture.Key)]
-public class GeoTests : TestBase
+public class Resp2GeoTests : StringTests
 {
-    public GeoTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base (output, fixture) { }
+    public Resp2GeoTests(ITestOutputHelper output, ProtocolDependentFixture fixture) : base(output, fixture, false) { }
+}
+public class Resp3GeoTests : StringTests
+{
+    public Resp3GeoTests(ITestOutputHelper output, ProtocolDependentFixture fixture) : base(output, fixture, true) { }
+}
+
+public abstract class GeoTests : ProtocolFixedTestBase
+{
+    public GeoTests(ITestOutputHelper output, ProtocolDependentFixture fixture, bool resp3) : base (output, fixture, resp3) { }
 
     private static readonly GeoEntry
         palermo = new GeoEntry(13.361389, 38.115556, "Palermo"),

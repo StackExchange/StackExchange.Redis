@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Globalization;
 using System.Linq;
 using System.Net;
 using System.Net.Security;
@@ -46,8 +47,11 @@ namespace StackExchange.Redis
 
             internal static Version ParseVersion(string key, string value)
             {
-                if (!System.Version.TryParse(value, out Version? tmp)) throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' requires a version value; the value '{value}' is not recognised.");
-                return tmp;
+                if (Format.TryParseVersion(value, out Version? tmp))
+                {
+                    return tmp;
+                }
+                throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' requires a version value; the value '{value}' is not recognised.");
             }
 
             internal static Proxy ParseProxy(string key, string value)
@@ -64,6 +68,27 @@ namespace StackExchange.Redis
                 if (!Enum.TryParse(value, true, out SslProtocols tmp)) throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' requires an SslProtocol value (multiple values separated by '|'); the value '{value}' is not recognised.");
 
                 return tmp;
+            }
+
+            internal static RedisProtocol ParseRedisProtocol(string key, string value)
+            {
+                // accept raw integers too, but only trust them if we recognize them
+                // (note we need to do this before enums, because Enum.TryParse will
+                // accept integers as the raw value, which is not what we want here)
+                if (Format.TryParseInt32(value, out int i32))
+                {
+                    switch (i32)
+                    {
+                        case 2: return RedisProtocol.Resp2;
+                        case 3: return RedisProtocol.Resp3;
+                    }
+                }
+                else
+                {
+                    if (Enum.TryParse(value, true, out RedisProtocol tmp)) return tmp;
+                }
+
+                throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' requires a RedisProtocol value or a known protocol version number; the value '{value}' is not recognised.");
             }
 
             internal static void Unknown(string key) =>
@@ -98,7 +123,8 @@ namespace StackExchange.Redis
                 WriteBuffer = "writeBuffer",
                 CheckCertificateRevocation = "checkCertificateRevocation",
                 Tunnel = "tunnel",
-                SetClientLibrary = "setlib";
+                SetClientLibrary = "setlib",
+                Protocol = "protocol";
 
             private static readonly Dictionary<string, string> normalizedOptions = new[]
             {
@@ -127,7 +153,8 @@ namespace StackExchange.Redis
                 TieBreaker,
                 Version,
                 WriteBuffer,
-                CheckCertificateRevocation
+                CheckCertificateRevocation,
+                Protocol,
             }.ToDictionary(x => x, StringComparer.OrdinalIgnoreCase);
 
             public static string TryNormalize(string value)
@@ -411,6 +438,7 @@ namespace StackExchange.Redis
         /// If <see langword="false"/>, <see cref="ThreadPriority.Normal"/> will be used.
         /// </summary>
         [Obsolete($"This setting no longer has any effect, please use {nameof(SocketManager.SocketManagerOptions)}.{nameof(SocketManager.SocketManagerOptions.UseHighPrioritySocketThreads)} instead - this setting will be removed in 3.0.")]
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         public bool HighPrioritySocketThreads
         {
             get => false;
@@ -470,6 +498,7 @@ namespace StackExchange.Redis
         /// Specifies whether asynchronous operations should be invoked in a way that guarantees their original delivery order.
         /// </summary>
         [Obsolete("Not supported; if you require ordered pub/sub, please see " + nameof(ChannelMessageQueue) + " - this will be removed in 3.0.", false)]
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         public bool PreserveAsyncOrder
         {
             get => false;
@@ -517,6 +546,7 @@ namespace StackExchange.Redis
         /// Specifies the time in milliseconds that the system should allow for responses before concluding that the socket is unhealthy.
         /// </summary>
         [Obsolete("This setting no longer has any effect, and should not be used - will be removed in 3.0.")]
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         public int ResponseTimeout
         {
             get => 0;
@@ -591,6 +621,7 @@ namespace StackExchange.Redis
         /// The size of the output buffer to use.
         /// </summary>
         [Obsolete("This setting no longer has any effect, and should not be used - will be removed in 3.0.")]
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         public int WriteBuffer
         {
             get => 0;
@@ -681,6 +712,7 @@ namespace StackExchange.Redis
             Tunnel = Tunnel,
             setClientLibrary = setClientLibrary,
             LibraryName = LibraryName,
+            Protocol = Protocol,
         };
 
         /// <summary>
@@ -761,12 +793,20 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.ResponseTimeout, responseTimeout);
             Append(sb, OptionKeys.DefaultDatabase, DefaultDatabase);
             Append(sb, OptionKeys.SetClientLibrary, setClientLibrary);
+            Append(sb, OptionKeys.Protocol, FormatProtocol(Protocol));
             if (Tunnel is { IsInbuilt: true } tunnel)
             {
                 Append(sb, OptionKeys.Tunnel, tunnel.ToString());
             }
             commandMap?.AppendDeltas(sb);
             return sb.ToString();
+
+            static string? FormatProtocol(RedisProtocol? protocol) => protocol switch {
+                null => null,
+                RedisProtocol.Resp2 => "resp2",
+                RedisProtocol.Resp3 => "resp3",
+                _ => protocol.GetValueOrDefault().ToString(),
+            };
         }
 
         private static void Append(StringBuilder sb, object value)
@@ -942,6 +982,9 @@ namespace StackExchange.Redis
                                 Tunnel = Tunnel.HttpProxy(ep);
                             }
                             break;
+                        case OptionKeys.Protocol:
+                            Protocol = OptionKeys.ParseRedisProtocol(key, value);
+                            break;
                         // Deprecated options we ignore...
                         case OptionKeys.HighPrioritySocketThreads:
                         case OptionKeys.PreserveAsyncOrder:
@@ -984,5 +1027,30 @@ namespace StackExchange.Redis
         /// Allows custom transport implementations, such as http-tunneling via a proxy.
         /// </summary>
         public Tunnel? Tunnel { get; set; }
+
+        /// <summary>
+        /// Specify the redis protocol type
+        /// </summary>
+        public RedisProtocol? Protocol { get; set; }
+
+        internal bool TryResp3()
+        {
+            // note: deliberately leaving the IsAvailable duplicated to use short-circuit
+
+            //if (Protocol is null)
+            //{
+            //    // if not specified, lean on the server version and whether HELLO is available
+            //    return new RedisFeatures(DefaultVersion).Resp3 && CommandMap.IsAvailable(RedisCommand.HELLO);
+            //}
+            //else
+            // ^^^ left for context; originally our intention was to auto-enable RESP3 by default *if* the server version
+            // is >= 6; however, it turns out (see extensive conversation here https://github.com/StackExchange/StackExchange.Redis/pull/2396)
+            // that tangential undocumented API breaks were made at the same time; this means that even if we fix every
+            // edge case in the library itself, the break is still visible to external callers via Execute[Async]; with an
+            // abundance of caution, we are therefore making RESP3 explicit opt-in only for now; we may revisit this in a major
+            {
+                return Protocol.GetValueOrDefault() >= RedisProtocol.Resp3 && CommandMap.IsAvailable(RedisCommand.HELLO);
+            }
+        }
     }
 }

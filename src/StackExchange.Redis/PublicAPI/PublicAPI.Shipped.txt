@@ -1,6 +1,5 @@
 ﻿#nullable enable
 abstract StackExchange.Redis.RedisResult.IsNull.get -> bool
-abstract StackExchange.Redis.RedisResult.Type.get -> StackExchange.Redis.ResultType
 override StackExchange.Redis.ChannelMessage.Equals(object? obj) -> bool
 override StackExchange.Redis.ChannelMessage.GetHashCode() -> int
 override StackExchange.Redis.ChannelMessage.ToString() -> string!

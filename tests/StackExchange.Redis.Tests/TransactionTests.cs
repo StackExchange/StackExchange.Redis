@@ -5,10 +5,18 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-[Collection(SharedConnectionFixture.Key)]
-public class TransactionTests : TestBase
+public class Resp2TransactionTests : TransactionTests
 {
-    public TransactionTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
+    public Resp2TransactionTests(ITestOutputHelper output, ProtocolDependentFixture fixture) : base(output, fixture, false) { }
+}
+public class Resp3TransactionTests : TransactionTests
+{
+    public Resp3TransactionTests(ITestOutputHelper output, ProtocolDependentFixture fixture) : base(output, fixture, true) { }
+}
+
+public abstract class TransactionTests : ProtocolFixedTestBase
+{
+    public TransactionTests(ITestOutputHelper output, ProtocolDependentFixture fixture, bool resp3) : base(output, fixture, resp3) { }
 
     [Fact]
     public void BasicEmptyTran()

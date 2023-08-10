@@ -199,7 +199,7 @@ namespace StackExchange.Redis
 
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
-                if (result.Type == ResultType.SimpleString && result.IsEqual(CommonReplies.QUEUED))
+                if (result.Resp2TypeBulkString == ResultType.SimpleString && result.IsEqual(CommonReplies.QUEUED))
                 {
                     if (message is QueuedMessage q)
                     {
@@ -270,8 +270,7 @@ namespace StackExchange.Redis
             public IEnumerable<Message> GetMessages(PhysicalConnection connection)
             {
                 IResultBox? lastBox = null;
-                var bridge = connection.BridgeCouldBeNull;
-                if (bridge == null) throw new ObjectDisposedException(connection.ToString());
+                var bridge = connection.BridgeCouldBeNull ?? throw new ObjectDisposedException(connection.ToString());
 
                 bool explicitCheckForQueued = !bridge.ServerEndPoint.GetFeatures().ExecAbort;
                 var multiplexer = bridge.Multiplexer;
@@ -486,7 +485,7 @@ namespace StackExchange.Redis
                 if (message is TransactionMessage tran)
                 {
                     var wrapped = tran.InnerOperations;
-                    switch (result.Type)
+                    switch (result.Resp2TypeArray)
                     {
                         case ResultType.SimpleString:
                             if (tran.IsAborted && result.IsEqual(CommonReplies.OK))
@@ -510,7 +509,7 @@ namespace StackExchange.Redis
                                 return true;
                             }
                             break;
-                        case ResultType.MultiBulk:
+                        case ResultType.Array:
                             if (!tran.IsAborted)
                             {
                                 var arr = result.GetItems();
