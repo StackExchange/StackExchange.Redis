@@ -257,7 +257,7 @@ namespace StackExchange.Redis
         public long SubscriptionCount { get; set; }
 
         public bool TransactionActive { get; internal set; }
-        internal long? ClientId { get; set; }
+
         public bool IsResp3 { get; set; }
 
 
@@ -1497,7 +1497,7 @@ namespace StackExchange.Redis
                             var configOptions = config.SslClientAuthenticationOptions?.Invoke(host);
                             if (configOptions is not null)
                             {
-                                await ssl.AuthenticateAsClientAsync(configOptions);
+                                await ssl.AuthenticateAsClientAsync(configOptions).ForAwait();
                             }
                             else
                             {

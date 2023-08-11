@@ -1,5 +1,4 @@
-﻿using System;
-using System.Linq;
+﻿using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Xunit;
@@ -10,6 +9,16 @@ namespace StackExchange.Redis.Tests;
 public sealed class Resp3Tests : ProtocolDependentTestBase
 {
     public Resp3Tests(ITestOutputHelper output, ProtocolDependentFixture fixture) : base(output, fixture) { }
+
+    [Theory]
+    [InlineData(RedisProtocol.Resp2)]
+    [InlineData(RedisProtocol.Resp3)]
+    public async Task ConnectWithTiming(RedisProtocol protocol)
+    {
+        using var conn = Create(protocol: protocol, shared: false, log: Writer);
+        await conn.GetDatabase().PingAsync();
+
+    }
 
     [Theory]
     // specify nothing
@@ -85,7 +94,7 @@ public sealed class Resp3Tests : ProtocolDependentTestBase
         {
             Assert.False(server.IsResp3, nameof(server.IsResp3));
         }
-        var cid = server.GetBridge(RedisCommand.GET)?.ClientId;
+        var cid = server.GetBridge(RedisCommand.GET)?.ConnectionId;
         if (server.GetFeatures().ClientId)
         {
             Assert.NotNull(cid);

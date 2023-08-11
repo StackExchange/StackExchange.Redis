@@ -56,8 +56,7 @@ namespace StackExchange.Redis
         public static readonly ResultProcessor<long>
             Int64 = new Int64Processor(),
             PubSubNumSub = new PubSubNumSubProcessor(),
-            Int64DefaultNegativeOne = new Int64DefaultValueProcessor(-1),
-            ClientId = new ClientIdProcessor();
+            Int64DefaultNegativeOne = new Int64DefaultValueProcessor(-1);
 
         public static readonly ResultProcessor<double?>
                             NullableDouble = new NullableDoubleProcessor();
@@ -818,7 +817,7 @@ namespace StackExchange.Redis
                         {
                             if (result.TryGetInt64(out long clientId))
                             {
-                                connection.ClientId = clientId;
+                                connection.ConnectionId = clientId;
                                 Log?.WriteLine($"{Format.ToString(server)}: Auto-configured (CLIENT) connection-id: {clientId}");
                             }
                         }
@@ -966,7 +965,7 @@ namespace StackExchange.Redis
                                 }
                                 else if (key.IsEqual(CommonReplies.id) && val.TryGetInt64(out i64))
                                 {
-                                    connection.ClientId = i64;
+                                    connection.ConnectionId = i64;
                                     Log?.WriteLine($"{Format.ToString(server)}: Auto-configured (HELLO) connection-id: {i64}");
                                 }
                                 else if (key.IsEqual(CommonReplies.mode) && TryParseServerType(val.GetString(), out var serverType))
@@ -1343,28 +1342,6 @@ namespace StackExchange.Redis
                         if (result.TryGetInt64(out i64))
                         {
                             SetResult(message, i64);
-                            return true;
-                        }
-                        break;
-                }
-                return false;
-            }
-        }
-
-        private class ClientIdProcessor : ResultProcessor<long>
-        {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
-            {
-                switch (result.Resp2TypeBulkString)
-                {
-                    case ResultType.Integer:
-                    case ResultType.SimpleString:
-                    case ResultType.BulkString:
-                        long i64;
-                        if (result.TryGetInt64(out i64))
-                        {
-                            SetResult(message, i64);
-                            connection.ConnectionId = i64;
                             return true;
                         }
                         break;
