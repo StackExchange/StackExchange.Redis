@@ -1278,7 +1278,7 @@ namespace StackExchange.Redis
                 {
                     string category = Normalize(null);
                     var list = new List<Tuple<string, KeyValuePair<string, string>>>();
-                    var raw = result.GetVerbatimString(out _);
+                    var raw = result.GetString();
                     if (raw is not null)
                     {
                         using var reader = new StringReader(raw);

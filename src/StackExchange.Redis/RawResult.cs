@@ -385,14 +385,18 @@ namespace StackExchange.Redis
         internal GeoPosition?[]? GetItemsAsGeoPositionArray()
             => this.ToArray<GeoPosition?>((in RawResult item) => item.IsNull ? default : AsGeoPosition(item.GetItems()));
 
-        internal unsafe string? GetString()
+        internal unsafe string? GetString() => GetString(out _);
+        internal unsafe string? GetString(out ReadOnlySpan<char> verbatimPrefix)
         {
+            verbatimPrefix = default;
             if (IsNull) return null;
             if (Payload.IsEmpty) return "";
 
+            string s;
             if (Payload.IsSingleSegment)
             {
-                return Format.GetString(Payload.First.Span);
+                s = Format.GetString(Payload.First.Span);
+                return Resp3Type == ResultType.VerbatimString ? GetVerbatimString(s, out verbatimPrefix) : s;
             }
             var decoder = Encoding.UTF8.GetDecoder();
             int charCount = 0;
@@ -409,7 +413,7 @@ namespace StackExchange.Redis
 
             decoder.Reset();
 
-            string s = new string((char)0, charCount);
+            s = new string((char)0, charCount);
             fixed (char* sPtr = s)
             {
                 char* cPtr = sPtr;
@@ -426,26 +430,25 @@ namespace StackExchange.Redis
                     }
                 }
             }
-            return s;
-        }
+            return Resp3Type == ResultType.VerbatimString ? GetVerbatimString(s, out verbatimPrefix) : s;
 
-        internal string? GetVerbatimString(out ReadOnlySpan<char> type)
-        {
-            //  the first three bytes provide information about the format of the following string, which
-            //  can be txt for plain text, or mkd for markdown. The fourth byte is always `:`
-            //  Then the real string follows.
-            var value = GetString();
-            if (value is not null && Resp3Type == ResultType.VerbatimString
-                && value.Length >= 4 && value[3] == ':')
+            static string? GetVerbatimString(string? value, out ReadOnlySpan<char> type)
             {
-                type = value.AsSpan().Slice(0, 3);
-                value = value.Substring(4);
+                //  the first three bytes provide information about the format of the following string, which
+                //  can be txt for plain text, or mkd for markdown. The fourth byte is always `:`
+                //  Then the real string follows.
+                if (value is not null
+                    && value.Length >= 4 && value[3] == ':')
+                {
+                    type = value.AsSpan().Slice(0, 3);
+                    value = value.Substring(4);
+                }
+                else
+                {
+                    type = default;
+                }
+                return value;
             }
-            else
-            {
-                type = default;
-            }
-            return value;
         }
 
         internal bool TryGetDouble(out double val)
