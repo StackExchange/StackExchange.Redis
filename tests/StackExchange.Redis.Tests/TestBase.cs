@@ -342,7 +342,7 @@ public abstract class TestBase : IDisposable
             return;
         }
 
-        var serverProtocol = conn.GetServerEndPoint(conn.GetEndPoints()[0]).IsResp3 ? RedisProtocol.Resp3 : RedisProtocol.Resp2;
+        var serverProtocol = conn.GetServerEndPoint(conn.GetEndPoints()[0]).Protocol ?? RedisProtocol.Resp2;
         if (serverProtocol != requiredProtocol)
         {
             throw new SkipTestException($"Requires protocol {requiredProtocol}, but connection is {serverProtocol}.")

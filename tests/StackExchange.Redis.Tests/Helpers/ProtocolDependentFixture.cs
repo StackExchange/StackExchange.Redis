@@ -78,20 +78,6 @@ public abstract class ProtocolFixedTestBase : ProtocolDependentTestBase // exten
                 defaultDatabase, backlogPolicy, require, protocol, caller);
         }
     }
-
-
-    //internal override IInternalConnectionMultiplexer Create(string? clientName = null, int? syncTimeout = null, bool? allowAdmin = null, int? keepAlive = null, int? connectTimeout = null, string? password = null, string? tieBreaker = null, TextWriter? log = null, bool fail = true, string[]? disabledCommands = null, string[]? enabledCommands = null, bool checkConnect = true, string? failMessage = null, string? channelPrefix = null, Proxy? proxy = null, string? configuration = null, bool logTransactionData = true, bool shared = true, int? defaultDatabase = null, BacklogPolicy? backlogPolicy = null, Version? require = null, RedisProtocol? protocol = null, [CallerMemberName] string? caller = null)
-    //{
-    //    var obj = base.Create(clientName, syncTimeout, allowAdmin, keepAlive, connectTimeout, password, tieBreaker, log, fail, disabledCommands, enabledCommands, checkConnect, failMessage, channelPrefix, proxy, configuration, logTransactionData, shared, defaultDatabase, backlogPolicy, require, protocol, caller);
-
-    //    var ep = obj.GetEndPoints().FirstOrDefault();
-    //    if (ep is not null)
-    //    {
-    //        var server = obj.GetServerEndPoint(ep);
-    //        if (server is not null && server.IsResp3 != Resp3) Skip.Inconclusive("Incorrect RESP version");
-    //    }
-    //    return obj;
-    //}
 }
 
 /// <summary>

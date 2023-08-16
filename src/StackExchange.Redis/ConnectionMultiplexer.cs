@@ -904,7 +904,7 @@ namespace StackExchange.Redis
                 if (isNew && activate)
                 {
                     server.Activate(ConnectionType.Interactive, log);
-                    if (server.SupportsSubscriptions && !RawConfig.TryResp3())
+                    if (server.SupportsSubscriptions && !server.KnowOrAssumeResp3())
                     {
                         // Intentionally not logging the sub connection
                         server.Activate(ConnectionType.Subscription, null);
@@ -1358,11 +1358,10 @@ namespace StackExchange.Redis
 
         private void ActivateAllServers(LogProxy? log)
         {
-            bool tryResp3 = RawConfig.TryResp3();
             foreach (var server in GetServerSnapshot())
             {
                 server.Activate(ConnectionType.Interactive, log);
-                if (server.SupportsSubscriptions && !tryResp3)
+                if (server.SupportsSubscriptions && !server.KnowOrAssumeResp3())
                 {
                     // Intentionally not logging the sub connection
                     server.Activate(ConnectionType.Subscription, null);

@@ -88,11 +88,11 @@ public sealed class Resp3Tests : ProtocolDependentTestBase
         }
         if (useResp3)
         {
-            Assert.True(server.IsResp3, nameof(server.IsResp3));
+            Assert.Equal(RedisProtocol.Resp3, server.Protocol);
         }
         else
         {
-            Assert.False(server.IsResp3, nameof(server.IsResp3));
+            Assert.Equal(RedisProtocol.Resp2, server.Protocol);
         }
         var cid = server.GetBridge(RedisCommand.GET)?.ConnectionId;
         if (server.GetFeatures().ClientId)
@@ -122,7 +122,7 @@ public sealed class Resp3Tests : ProtocolDependentTestBase
         {
             isResp3 = false; // then, no: it won't be
         }
-        Assert.Equal(isResp3, ep.IsResp3);
+        Assert.Equal(isResp3 ? RedisProtocol.Resp3 : RedisProtocol.Resp2, ep.Protocol);
         var result = await muxer.GetDatabase().ExecuteAsync("latency", "doctor");
         Assert.Equal(isResp3 ? ResultType.VerbatimString : ResultType.BulkString, result.Resp3Type);
     }
@@ -172,7 +172,7 @@ return redis.pcall('hgetall', 'key')", true, ResultType.Array, ResultType.Map, M
         {
             Skip.Inconclusive("debug protocol not available");
         }
-        Assert.Equal(useResp3, ep.IsResp3);
+        Assert.Equal(useResp3 ? RedisProtocol.Resp3 : RedisProtocol.Resp2, ep.Protocol);
 
         var db = muxer.GetDatabase();
         if (expected is MAP_ABC)
@@ -326,7 +326,7 @@ return redis.pcall('hgetall', 'key')", true, ResultType.Array, ResultType.Map, M
         {
             Skip.Inconclusive("debug protocol not available");
         }
-        Assert.Equal(useResp3, ep.IsResp3);
+        Assert.Equal(useResp3 ? RedisProtocol.Resp3 : RedisProtocol.Resp2, ep.Protocol);
 
         var db = muxer.GetDatabase();
         if (args.Length > 0)

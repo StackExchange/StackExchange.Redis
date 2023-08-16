@@ -258,7 +258,9 @@ namespace StackExchange.Redis
 
         public bool TransactionActive { get; internal set; }
 
-        public bool IsResp3 { get; set; }
+        public RedisProtocol? Protocol => _knownProtocol == 0 ? null : _knownProtocol; // advertise null if we haven't completed handshake
+        public void SetProtocol(RedisProtocol value) => _knownProtocol = value;
+        private RedisProtocol _knownProtocol; // note that this defaults to ZERO, not 2, until the handshake; just to avoid some storage;
 
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:Do not dispose objects multiple times")]
@@ -1809,7 +1811,7 @@ namespace StackExchange.Redis
             {
                 _readStatus = ReadStatus.TryParseResult;
                 var reader = new BufferReader(buffer);
-                var result = TryParseResult(IsResp3, _arena, in buffer, ref reader, IncludeDetailInExceptions, this);
+                var result = TryParseResult(_knownProtocol >= RedisProtocol.Resp3, _arena, in buffer, ref reader, IncludeDetailInExceptions, this);
                 try
                 {
                     if (result.HasValue)

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Net;
 using System.Runtime.CompilerServices;
@@ -93,7 +94,15 @@ namespace StackExchange.Redis
 
         public bool IsConnecting => interactive?.IsConnecting == true;
         public bool IsConnected => interactive?.IsConnected == true;
-        public bool IsSubscriberConnected => subscription?.IsConnected == true;
+        public bool IsSubscriberConnected => KnowOrAssumeResp3() ? IsConnected : subscription?.IsConnected == true;
+
+        public bool KnowOrAssumeResp3()
+        {
+            var protocol = interactive?.Protocol;
+            return protocol is not null
+                ? protocol.GetValueOrDefault() >= RedisProtocol.Resp3 // <= if we've completed handshake, use what we *know for sure*
+                : Multiplexer.RawConfig.TryResp3(); // otherwise, use what we *expect*
+        }
 
         public bool SupportsSubscriptions => Multiplexer.CommandMap.IsAvailable(RedisCommand.SUBSCRIBE);
         public bool SupportsPrimaryWrites => supportsPrimaryWrites ??= (!IsReplica || !ReplicaReadOnly || AllowReplicaWrites);
@@ -198,7 +207,7 @@ namespace StackExchange.Redis
             set => SetConfig(ref version, value);
         }
 
-        public bool IsResp3 => interactive is { IsResp3: true };
+        public RedisProtocol? Protocol => interactive?.Protocol;
 
         public int WriteEverySeconds
         {
@@ -223,12 +232,16 @@ namespace StackExchange.Redis
         public PhysicalBridge? GetBridge(ConnectionType type, bool create = true, LogProxy? log = null)
         {
             if (isDisposed) return null;
-            return type switch
+            switch (type)
             {
-                ConnectionType.Interactive /* or _ when IsResp3 */ => interactive ?? (create ? interactive = CreateBridge(ConnectionType.Interactive, log) : null),
-                ConnectionType.Subscription => subscription ?? (create ? subscription = CreateBridge(ConnectionType.Subscription, log) : null),
-                _ => null,
-            };
+                case ConnectionType.Interactive:
+                case ConnectionType.Subscription when KnowOrAssumeResp3():
+                    return interactive ?? (create ? interactive = CreateBridge(ConnectionType.Interactive, log) : null);
+                case ConnectionType.Subscription:
+                    return subscription ?? (create ? subscription = CreateBridge(ConnectionType.Subscription, log) : null);
+                default:
+                    return null;
+            }
         }
 
         public PhysicalBridge? GetBridge(Message message)
@@ -249,7 +262,7 @@ namespace StackExchange.Redis
                     break;
             }
 
-            return (message.IsForSubscriptionBridge /* && !IsResp3 */)
+            return (message.IsForSubscriptionBridge && !KnowOrAssumeResp3())
                 ? subscription ??= CreateBridge(ConnectionType.Subscription, null)
                 : interactive ??= CreateBridge(ConnectionType.Interactive, null);
         }
@@ -257,16 +270,17 @@ namespace StackExchange.Redis
         public PhysicalBridge? GetBridge(RedisCommand command, bool create = true)
         {
             if (isDisposed) return null;
-            //if (!IsResp3)
+            switch (command)
             {
-                switch (command)
-                {
-                    case RedisCommand.SUBSCRIBE:
-                    case RedisCommand.UNSUBSCRIBE:
-                    case RedisCommand.PSUBSCRIBE:
-                    case RedisCommand.PUNSUBSCRIBE:
+                case RedisCommand.SUBSCRIBE:
+                case RedisCommand.UNSUBSCRIBE:
+                case RedisCommand.PSUBSCRIBE:
+                case RedisCommand.PUNSUBSCRIBE:
+                    if (!KnowOrAssumeResp3())
+                    {
                         return subscription ?? (create ? subscription = CreateBridge(ConnectionType.Subscription, null) : null);
-                }
+                    }
+                    break;
             }
             return interactive ?? (create ? interactive = CreateBridge(ConnectionType.Interactive, null) : null);
         }
@@ -666,7 +680,7 @@ namespace StackExchange.Redis
                         // Since we're issuing commands inside a SetResult path in a message, we'd create a deadlock by waiting.
                         Multiplexer.EnsureSubscriptions(CommandFlags.FireAndForget);
                     }
-                    if (IsConnected && (IsSubscriberConnected || !SupportsSubscriptions))
+                    if (IsConnected && (IsSubscriberConnected || !SupportsSubscriptions || KnowOrAssumeResp3()))
                     {
                         // Only connect on the second leg - we can accomplish this by checking both
                         // Or the first leg, if we're only making 1 connection because subscriptions aren't supported
@@ -940,13 +954,27 @@ namespace StackExchange.Redis
             // many bytes different; this allows us to pipeline the entire handshake without having to
             // add latency
 
+            // note on the use of FireAndForget here; in F+F, the result processor is still invoked, which
+            // is what we need for things to work; what *doesn't* happen is the result-box activation etc;
+            // that's fine and doesn't cause a problem; if we wanted we could probably just discard (`_ =`)
+            // the various tasks and just `return connection.FlushAsync();` - however, since handshake is low
+            // volume, we can afford to optimize for a good stack-trace rather than avoiding state machines.
+
             ResultProcessor<bool>? autoConfig = null;
             if (Multiplexer.RawConfig.TryResp3()) // note this includes a availability check on HELLO
             {
                 log?.WriteLine($"{Format.ToString(this)}: Authenticating via HELLO");
-                var hello = Message.CreateHello(3, user, password, clientName, CommandFlags.None);
+                var hello = Message.CreateHello(3, user, password, clientName, CommandFlags.FireAndForget);
                 hello.SetInternalCall();
                 await WriteDirectOrQueueFireAndForgetAsync(connection, hello, autoConfig ??= ResultProcessor.AutoConfigureProcessor.Create(log)).ForAwait();
+
+                // note that we don't know the actual protocol yet; this still could be RESP2 if either HELLO isn't supported/reports an error,
+                // or if the server negotiation says "I understand HELLO, but we're talking RESP2"
+            }
+            else
+            {
+                // if we're not even issuing HELLO, we're RESP2
+                connection.SetProtocol(RedisProtocol.Resp2);
             }
 
             // note: we auth EVEN IF we have used HELLO to AUTH; because otherwise the fallback/detection path is pure hell,

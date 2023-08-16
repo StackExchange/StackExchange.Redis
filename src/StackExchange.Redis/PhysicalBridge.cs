@@ -113,7 +113,11 @@ namespace StackExchange.Redis
         internal long OperationCount => Interlocked.Read(ref operationCount);
 
         public RedisCommand LastCommand { get; private set; }
-        public bool IsResp3 => physical is { IsResp3: true };
+
+        /// <summary>
+        /// If we have completed handshake, report the actual protocol; if we're not sure, report null
+        /// </summary>
+        public RedisProtocol? Protocol => physical?.Protocol;
 
         public void Dispose()
         {
