@@ -10,10 +10,19 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-[Collection(SharedConnectionFixture.Key)]
-public class ScriptingTests : TestBase
+public class Resp2ScriptingTests : ScriptingTests
 {
-    public ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base (output, fixture) { }
+    public Resp2ScriptingTests(ITestOutputHelper output, ProtocolDependentFixture fixture) : base(output, fixture, false) { }
+}
+public class Resp3ScriptingTests : ScriptingTests
+{
+    public Resp3ScriptingTests(ITestOutputHelper output, ProtocolDependentFixture fixture) : base(output, fixture, true) { }
+}
+
+
+public abstract class ScriptingTests : ProtocolFixedTestBase
+{
+    public ScriptingTests(ITestOutputHelper output, ProtocolDependentFixture fixture, bool resp3) : base(output, fixture, resp3) { }
 
     private IConnectionMultiplexer GetScriptConn(bool allowAdmin = false)
     {
@@ -791,13 +800,13 @@ public class ScriptingTests : TestBase
         var db = conn.GetDatabase();
         var key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
-        db.ScriptEvaluate(script, new { key = (RedisKey)key, value = "value" }, flags: CommandFlags.FireAndForget);
+        db.ScriptEvaluate(script, new { key = (RedisKey)key, value = "value" });
         var val = db.StringGet(key);
         Assert.Equal("value", val);
 
         var prepared = script.Load(conn.GetServer(conn.GetEndPoints()[0]));
 
-        db.ScriptEvaluate(prepared, new { key = (RedisKey)(key + "2"), value = "value2" }, flags: CommandFlags.FireAndForget);
+        db.ScriptEvaluate(prepared, new { key = (RedisKey)(key + "2"), value = "value2" });
         var val2 = db.StringGet(key + "2");
         Assert.Equal("value2", val2);
     }

@@ -11,9 +11,20 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-public class ClusterTests : TestBase
+
+public class Resp2ClusterTests : ClusterTests
 {
-    public ClusterTests(ITestOutputHelper output) : base (output) { }
+    public Resp2ClusterTests(ITestOutputHelper output, ProtocolDependentFixture fixture) : base(output, fixture, false) { }
+}
+public class Resp3ClusterTests : ClusterTests
+{
+    public Resp3ClusterTests(ITestOutputHelper output, ProtocolDependentFixture fixture) : base(output, fixture, true) { }
+}
+
+public abstract class ClusterTests : ProtocolFixedTestBase
+{
+    public ClusterTests(ITestOutputHelper output, ProtocolDependentFixture fixture, bool resp3) : base(output, fixture, resp3) { }
+
     protected override string GetConfiguration() => TestConfig.Current.ClusterServersAndPorts + ",connectTimeout=10000";
 
     [Fact]
@@ -48,7 +59,7 @@ public class ClusterTests : TestBase
                 var srv = conn.GetServer(ep);
                 var counters = srv.GetCounters();
                 Assert.Equal(1, counters.Interactive.SocketCount);
-                Assert.Equal(1, counters.Subscription.SocketCount);
+                Assert.Equal(Resp3 ? 0 : 1, counters.Subscription.SocketCount);
             }
         }
     }

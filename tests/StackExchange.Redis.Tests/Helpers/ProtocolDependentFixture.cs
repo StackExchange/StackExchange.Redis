@@ -48,6 +48,9 @@ public abstract class ProtocolDependentTestBase : TestBase // ProtocolDependentF
 
 public abstract class ProtocolFixedTestBase : ProtocolDependentTestBase // extends that cability to apply/enforce correct RESP during Create
 {
+    public override string Me([CallerFilePath] string? filePath = null, [CallerMemberName] string? caller = null)
+        => (Resp3 ? "R3:" : "R2:") + base.Me(filePath, caller);
+
     public ProtocolFixedTestBase(ITestOutputHelper output, ProtocolDependentFixture fixture, bool resp3) : base(output, fixture)
        => Resp3 = resp3;
 

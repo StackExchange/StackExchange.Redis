@@ -3,6 +3,7 @@ override sealed StackExchange.Redis.RedisResult.ToString() -> string!
 override StackExchange.Redis.Role.Master.Replica.ToString() -> string!
 StackExchange.Redis.ConfigurationOptions.Protocol.get -> StackExchange.Redis.RedisProtocol?
 StackExchange.Redis.ConfigurationOptions.Protocol.set -> void
+StackExchange.Redis.IServer.Protocol.get -> StackExchange.Redis.RedisProtocol
 StackExchange.Redis.RedisFeatures.ClientId.get -> bool
 StackExchange.Redis.RedisFeatures.Equals(StackExchange.Redis.RedisFeatures other) -> bool
 StackExchange.Redis.RedisFeatures.Resp3.get -> bool

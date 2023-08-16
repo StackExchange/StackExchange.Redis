@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Net;
 using System.Runtime.CompilerServices;
@@ -167,7 +166,7 @@ namespace StackExchange.Redis
         }
 
         internal State InteractiveConnectionState => interactive?.ConnectionState ?? State.Disconnected;
-        internal State SubscriptionConnectionState => subscription?.ConnectionState ?? State.Disconnected;
+        internal State SubscriptionConnectionState => KnowOrAssumeResp3() ? InteractiveConnectionState : subscription?.ConnectionState ?? State.Disconnected;
 
         public long OperationCount => interactive?.OperationCount ?? 0 + subscription?.OperationCount ?? 0;
 

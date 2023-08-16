@@ -34,6 +34,8 @@ namespace StackExchange.Redis
         bool IServer.IsSlave => IsReplica;
         public bool IsReplica => server.IsReplica;
 
+        public RedisProtocol Protocol => server.Protocol ?? (multiplexer.RawConfig.TryResp3() ? RedisProtocol.Resp3 : RedisProtocol.Resp2);
+
         bool IServer.AllowSlaveWrites
         {
             get => AllowReplicaWrites;

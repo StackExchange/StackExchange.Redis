@@ -482,10 +482,10 @@ public abstract class TestBase : IDisposable
         }
     }
 
-    public static string Me([CallerFilePath] string? filePath = null, [CallerMemberName] string? caller = null) =>
+    public virtual string Me([CallerFilePath] string? filePath = null, [CallerMemberName] string? caller = null) =>
         Environment.Version.ToString() + Path.GetFileNameWithoutExtension(filePath) + "-" + caller;
 
-    protected static TimeSpan RunConcurrent(Action work, int threads, int timeout = 10000, [CallerMemberName] string? caller = null)
+    protected TimeSpan RunConcurrent(Action work, int threads, int timeout = 10000, [CallerMemberName] string? caller = null)
     {
         if (work == null) throw new ArgumentNullException(nameof(work));
         if (threads < 1) throw new ArgumentOutOfRangeException(nameof(threads));

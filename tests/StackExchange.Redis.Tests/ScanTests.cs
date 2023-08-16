@@ -32,6 +32,7 @@ public abstract class ScanTests : ProtocolFixedTestBase
         var db = conn.GetDatabase(dbId);
         var prefix = Me() + ":";
         var server = GetServer(conn);
+        Assert.Equal(Resp3 ? RedisProtocol.Resp3 : RedisProtocol.Resp2, server.Protocol);
         server.FlushDatabase(dbId);
         for (int i = 0; i < 100; i++)
         {

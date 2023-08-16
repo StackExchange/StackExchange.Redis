@@ -34,6 +34,11 @@ namespace StackExchange.Redis
         bool IsConnected { get; }
 
         /// <summary>
+        /// The protocol being used to communicate with this server (if not connected/known, then the anticipated protocol from the configuration is returned, assuming success)
+        /// </summary>
+        RedisProtocol Protocol { get; }
+
+        /// <summary>
         /// Gets whether the connected server is a replica.
         /// </summary>
         [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(IsReplica) + " instead, this will be removed in 3.0.")]
