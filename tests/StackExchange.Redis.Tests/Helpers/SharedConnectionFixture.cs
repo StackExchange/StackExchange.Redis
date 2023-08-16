@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -52,12 +53,19 @@ public class SharedConnectionFixture : IDisposable
             set => _inner.IgnoreConnect = value;
         }
 
+        public ServerSelectionStrategy ServerSelectionStrategy => _inner.ServerSelectionStrategy;
+
         public ServerEndPoint GetServerEndPoint(EndPoint endpoint) => _inner.GetServerEndPoint(endpoint);
 
         public ReadOnlySpan<ServerEndPoint> GetServerSnapshot() => _inner.GetServerSnapshot();
 
+        public ConnectionMultiplexer UnderlyingMultiplexer => _inner.UnderlyingMultiplexer;
+
         private readonly IInternalConnectionMultiplexer _inner;
         public NonDisposingConnection(IInternalConnectionMultiplexer inner) => _inner = inner;
+
+        public int GetSubscriptionsCount() => _inner.GetSubscriptionsCount();
+        public ConcurrentDictionary<RedisChannel, ConnectionMultiplexer.Subscription> GetSubscriptions() => _inner.GetSubscriptions();
 
         public string ClientName => _inner.ClientName;
 

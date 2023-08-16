@@ -1,10 +1,12 @@
 ﻿using StackExchange.Redis.Maintenance;
 using StackExchange.Redis.Profiling;
 using System;
+using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.IO;
 using System.Net;
 using System.Threading.Tasks;
+using static StackExchange.Redis.ConnectionMultiplexer;
 
 namespace StackExchange.Redis
 {
@@ -20,6 +22,13 @@ namespace StackExchange.Redis
         ConfigurationOptions RawConfig { get; }
 
         long? GetConnectionId(EndPoint endPoint, ConnectionType type);
+
+        ServerSelectionStrategy ServerSelectionStrategy { get; }
+
+        int GetSubscriptionsCount();
+        ConcurrentDictionary<RedisChannel, Subscription> GetSubscriptions();
+
+        ConnectionMultiplexer UnderlyingMultiplexer { get; }
     }
 
     /// <summary>

@@ -47,6 +47,9 @@ namespace StackExchange.Redis
         internal EndPointCollection EndPoints { get; }
         internal ConfigurationOptions RawConfig { get; }
         internal ServerSelectionStrategy ServerSelectionStrategy { get; }
+        ServerSelectionStrategy IInternalConnectionMultiplexer.ServerSelectionStrategy => ServerSelectionStrategy;
+        ConnectionMultiplexer IInternalConnectionMultiplexer.UnderlyingMultiplexer => this;
+
         internal Exception? LastException { get; set; }
 
         ConfigurationOptions IInternalConnectionMultiplexer.RawConfig => RawConfig;

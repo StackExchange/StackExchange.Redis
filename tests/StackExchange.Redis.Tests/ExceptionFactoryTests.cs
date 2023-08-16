@@ -15,7 +15,7 @@ public class ExceptionFactoryTests : TestBase
 
         conn.GetDatabase();
         Assert.Null(conn.GetServerSnapshot()[0].LastException);
-        var ex = ExceptionFactory.NoConnectionAvailable((conn as ConnectionMultiplexer)!, null, null);
+        var ex = ExceptionFactory.NoConnectionAvailable(conn.UnderlyingMultiplexer, null, null);
         Assert.Null(ex.InnerException);
     }
 
@@ -42,7 +42,7 @@ public class ExceptionFactoryTests : TestBase
                 conn.GetServer(endpoint).SimulateConnectionFailure(SimulatedFailureType.All);
             }
 
-            var ex = ExceptionFactory.NoConnectionAvailable((conn as ConnectionMultiplexer)!, null, null);
+            var ex = ExceptionFactory.NoConnectionAvailable(conn.UnderlyingMultiplexer, null, null);
             var outer = Assert.IsType<RedisConnectionException>(ex);
             Assert.Equal(ConnectionFailureType.UnableToResolvePhysicalConnection, outer.FailureType);
             var inner = Assert.IsType<RedisConnectionException>(outer.InnerException);
@@ -68,7 +68,7 @@ public class ExceptionFactoryTests : TestBase
 
             conn.GetServer(conn.GetEndPoints()[0]).SimulateConnectionFailure(SimulatedFailureType.All);
 
-            var ex = ExceptionFactory.NoConnectionAvailable((conn as ConnectionMultiplexer)!, null, conn.GetServerSnapshot()[0]);
+            var ex = ExceptionFactory.NoConnectionAvailable(conn.UnderlyingMultiplexer, null, conn.GetServerSnapshot()[0]);
             Assert.IsType<RedisConnectionException>(ex);
             Assert.IsType<RedisConnectionException>(ex.InnerException);
             Assert.Equal(ex.InnerException, conn.GetServerSnapshot()[0].LastException);
@@ -88,7 +88,7 @@ public class ExceptionFactoryTests : TestBase
 
             conn.GetDatabase();
             conn.AllowConnect = false;
-            var ex = ExceptionFactory.NoConnectionAvailable((conn as ConnectionMultiplexer)!, null, null);
+            var ex = ExceptionFactory.NoConnectionAvailable(conn.UnderlyingMultiplexer, null, null);
             Assert.IsType<RedisConnectionException>(ex);
             Assert.Null(ex.InnerException);
         }
@@ -103,12 +103,12 @@ public class ExceptionFactoryTests : TestBase
     {
         try
         {
-            using var conn = (Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true, shared: false) as ConnectionMultiplexer)!;
+            using var conn = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true, shared: false);
 
             var server = GetServer(conn);
             conn.AllowConnect = false;
             var msg = Message.Create(-1, CommandFlags.None, RedisCommand.PING);
-            var rawEx = ExceptionFactory.Timeout(conn, "Test Timeout", msg, new ServerEndPoint(conn, server.EndPoint));
+            var rawEx = ExceptionFactory.Timeout(conn.UnderlyingMultiplexer, "Test Timeout", msg, new ServerEndPoint(conn.UnderlyingMultiplexer, server.EndPoint));
             var ex = Assert.IsType<RedisTimeoutException>(rawEx);
             Writer.WriteLine("Exception: " + ex.Message);
 
@@ -247,7 +247,7 @@ public class ExceptionFactoryTests : TestBase
         var resultBox = SimpleResultBox<string>.Create();
         message.SetSource(ResultProcessor.String, resultBox);
 
-        message.Fail(failType, null, "my annotation", conn as ConnectionMultiplexer);
+        message.Fail(failType, null, "my annotation", conn.UnderlyingMultiplexer);
 
         resultBox.GetResult(out var ex);
         Assert.NotNull(ex);
