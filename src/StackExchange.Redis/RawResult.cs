@@ -429,6 +429,25 @@ namespace StackExchange.Redis
             return s;
         }
 
+        internal string? GetVerbatimString(out ReadOnlySpan<char> type)
+        {
+            //  the first three bytes provide information about the format of the following string, which
+            //  can be txt for plain text, or mkd for markdown. The fourth byte is always `:`
+            //  Then the real string follows.
+            var value = GetString();
+            if (value is not null && Resp3Type == ResultType.VerbatimString
+                && value.Length >= 4 && value[3] == ':')
+            {
+                type = value.AsSpan().Slice(0, 3);
+                value = value.Substring(4);
+            }
+            else
+            {
+                type = default;
+            }
+            return value;
+        }
+
         internal bool TryGetDouble(out double val)
         {
             if (IsNull || Payload.IsEmpty)
