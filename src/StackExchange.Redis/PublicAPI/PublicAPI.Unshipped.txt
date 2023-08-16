@@ -1,6 +1,7 @@
 ﻿abstract StackExchange.Redis.RedisResult.ToString(out string? type) -> string?
 override sealed StackExchange.Redis.RedisResult.ToString() -> string!
 override StackExchange.Redis.Role.Master.Replica.ToString() -> string!
+StackExchange.Redis.ClientInfo.Protocol.get -> StackExchange.Redis.RedisProtocol?
 StackExchange.Redis.ConfigurationOptions.Protocol.get -> StackExchange.Redis.RedisProtocol?
 StackExchange.Redis.ConfigurationOptions.Protocol.set -> void
 StackExchange.Redis.IServer.Protocol.get -> StackExchange.Redis.RedisProtocol

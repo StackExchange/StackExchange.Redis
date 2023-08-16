@@ -56,13 +56,15 @@ public abstract class ProtocolFixedTestBase : ProtocolDependentTestBase // exten
 
     public bool Resp3 { get; }
 
+    public RedisProtocol ExpectedProtocol => Resp3 ? RedisProtocol.Resp3 : RedisProtocol.Resp2;
+
     internal new IInternalConnectionMultiplexer Create(string? clientName = null, int? syncTimeout = null, bool? allowAdmin = null, int? keepAlive = null, int? connectTimeout = null, string? password = null, string? tieBreaker = null, TextWriter? log = null, bool fail = true, string[]? disabledCommands = null, string[]? enabledCommands = null, bool checkConnect = true, string? failMessage = null, string? channelPrefix = null, Proxy? proxy = null, string? configuration = null, bool logTransactionData = true, bool shared = true, int? defaultDatabase = null, BacklogPolicy? backlogPolicy = null, Version? require = null, RedisProtocol? protocol = null, [CallerMemberName] string? caller = null)
     {
         if (protocol is not null)
         {
             Assert.True(Resp3 && protocol != RedisProtocol.Resp3, "Test is demanding incorrect RESP");
         }
-        protocol = Resp3 ? RedisProtocol.Resp3 : RedisProtocol.Resp2;
+        protocol = ExpectedProtocol;
         if (shared && CanShare(allowAdmin, password, tieBreaker, fail, disabledCommands, enabledCommands, channelPrefix, proxy, configuration, defaultDatabase, backlogPolicy, protocol: null)) // we're handling  protocol manually
         {
             // can use the fixture's *pair* of resp clients

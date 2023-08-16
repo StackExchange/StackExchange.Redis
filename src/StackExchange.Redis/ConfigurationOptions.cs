@@ -72,22 +72,7 @@ namespace StackExchange.Redis
 
             internal static RedisProtocol ParseRedisProtocol(string key, string value)
             {
-                // accept raw integers too, but only trust them if we recognize them
-                // (note we need to do this before enums, because Enum.TryParse will
-                // accept integers as the raw value, which is not what we want here)
-                if (Format.TryParseInt32(value, out int i32))
-                {
-                    switch (i32)
-                    {
-                        case 2: return RedisProtocol.Resp2;
-                        case 3: return RedisProtocol.Resp3;
-                    }
-                }
-                else
-                {
-                    if (Enum.TryParse(value, true, out RedisProtocol tmp)) return tmp;
-                }
-
+                if (TryParseRedisProtocol(value, out var protocol)) return protocol;
                 throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' requires a RedisProtocol value or a known protocol version number; the value '{value}' is not recognised.");
             }
 
@@ -1051,6 +1036,34 @@ namespace StackExchange.Redis
             {
                 return Protocol.GetValueOrDefault() >= RedisProtocol.Resp3 && CommandMap.IsAvailable(RedisCommand.HELLO);
             }
+        }
+
+        internal static bool TryParseRedisProtocol(string? value, out RedisProtocol protocol)
+        {
+            // accept raw integers too, but only trust them if we recognize them
+            // (note we need to do this before enums, because Enum.TryParse will
+            // accept integers as the raw value, which is not what we want here)
+            if (value is not null)
+            {
+                if (Format.TryParseInt32(value, out int i32))
+                {
+                    switch (i32)
+                    {
+                        case 2:
+                            protocol = RedisProtocol.Resp2;
+                            return true;
+                        case 3:
+                            protocol = RedisProtocol.Resp3;
+                            return true;
+                    }
+                }
+                else
+                {
+                    if (Enum.TryParse(value, true, out protocol)) return true;
+                }
+            }
+            protocol = default;
+            return false;
         }
     }
 }

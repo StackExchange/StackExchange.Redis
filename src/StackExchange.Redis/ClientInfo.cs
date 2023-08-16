@@ -186,6 +186,11 @@ namespace StackExchange.Redis
         public string? ProtocolVersion { get; private set; }
 
         /// <summary>
+        /// Client RESP protocol version. Added in Redis 7.0
+        /// </summary>
+        public RedisProtocol? Protocol => ConfigurationOptions.TryParseRedisProtocol(ProtocolVersion, out var value) ? value : null;
+
+        /// <summary>
         /// Client library name. Added in Redis 7.2
         /// </summary>
         /// <remarks><seealso href="https://redis.io/commands/client-setinfo"/></remarks>
