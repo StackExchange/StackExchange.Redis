@@ -100,6 +100,8 @@ The `ConfigurationOptions` object has a wide range of properties, all of which a
 | setlib={bool}          | `SetClientLibrary`     | `true`                       | Whether to attempt to use `CLIENT SETINFO` to set the library name/version on the connection              |
 
 Additional code-only options:
+- LoggerFactory (`ILoggerFactory`) - Default: `null`
+  - The logger to use for connection events (not per command), e.g. connection log, disconnects, reconnects, server errors.
 - ReconnectRetryPolicy (`IReconnectRetryPolicy`) - Default: `ReconnectRetryPolicy = ExponentialRetry(ConnectTimeout / 2);`
   - Determines how often a multiplexer will try to reconnect after a failure
 - BacklogPolicy - Default: `BacklogPolicy = BacklogPolicy.Default;`

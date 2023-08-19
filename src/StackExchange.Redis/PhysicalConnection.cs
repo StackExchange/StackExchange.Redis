@@ -17,6 +17,7 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using static StackExchange.Redis.Message;
 
 namespace StackExchange.Redis
@@ -94,13 +95,13 @@ namespace StackExchange.Redis
             OnCreateEcho();
         }
 
-        internal async Task BeginConnectAsync(LogProxy? log)
+        internal async Task BeginConnectAsync(ILogger? log)
         {
             var bridge = BridgeCouldBeNull;
             var endpoint = bridge?.ServerEndPoint?.EndPoint;
             if (bridge == null || endpoint == null)
             {
-                log?.WriteLine("No endpoint");
+                log?.LogError(new ArgumentNullException(nameof(endpoint)), "No endpoint");
                 return;
             }
 
@@ -125,7 +126,7 @@ namespace StackExchange.Redis
                 }
             }
             bridge.Multiplexer.OnConnecting(endpoint, bridge.ConnectionType);
-            log?.WriteLine($"{Format.ToString(endpoint)}: BeginConnectAsync");
+            log?.LogInformation($"{Format.ToString(endpoint)}: BeginConnectAsync");
 
             CancellationTokenSource? timeoutSource = null;
             try
@@ -172,7 +173,7 @@ namespace StackExchange.Redis
                         }
                         else if (await ConnectedAsync(x, log, bridge.Multiplexer.SocketManager!).ForAwait())
                         {
-                            log?.WriteLine($"{Format.ToString(endpoint)}: Starting read");
+                            log?.LogInformation($"{Format.ToString(endpoint)}: Starting read");
                             try
                             {
                                 StartReading();
@@ -190,9 +191,9 @@ namespace StackExchange.Redis
                             Shutdown();
                         }
                     }
-                    catch (ObjectDisposedException)
+                    catch (ObjectDisposedException ex)
                     {
-                        log?.WriteLine($"{Format.ToString(endpoint)}: (socket shutdown)");
+                        log?.LogError(ex, $"{Format.ToString(endpoint)}: (socket shutdown)");
                         try { RecordConnectionFailed(ConnectionFailureType.UnableToConnect, isInitialConnect: true); }
                         catch (Exception inner)
                         {
@@ -357,6 +358,15 @@ namespace StackExchange.Redis
             }
         }
 
+        /// <summary>
+        /// Did we ask for the shutdown? If so this leads to informational messages for tracking but not errors.
+        /// </summary>
+        private bool IsRequestedShutdown(PipeShutdownKind kind) => kind switch
+        {
+            PipeShutdownKind.ProtocolExitClient => true,
+            _ => false,
+        };
+
         public void RecordConnectionFailed(
             ConnectionFailureType failureType,
             Exception? innerException = null,
@@ -365,6 +375,7 @@ namespace StackExchange.Redis
             IDuplexPipe? connectingPipe = null
             )
         {
+            bool weAskedForThis = false;
             Exception? outerException = innerException;
             IdentifyFailureType(innerException, ref failureType);
             var bridge = BridgeCouldBeNull;
@@ -410,6 +421,9 @@ namespace StackExchange.Redis
                     var pipe = connectingPipe ?? _ioPipe;
                     if (pipe is SocketConnection sc)
                     {
+                        // If the reason for the shutdown was we asked for the socket to die, don't log it as an error (only informational)
+                        weAskedForThis = IsRequestedShutdown(sc.ShutdownKind);
+
                         exMessage.Append(" (").Append(sc.ShutdownKind);
                         if (sc.SocketError != SocketError.Success)
                         {
@@ -477,7 +491,7 @@ namespace StackExchange.Redis
                         outerException.Data["Redis-" + kv.Item1] = kv.Item2;
                     }
 
-                    bridge?.OnConnectionFailed(this, failureType, outerException);
+                    bridge?.OnConnectionFailed(this, failureType, outerException, wasRequested: weAskedForThis);
                 }
             }
             // clean up (note: avoid holding the lock when we complete things, even if this means taking
@@ -1448,7 +1462,7 @@ namespace StackExchange.Redis
             return null;
         }
 
-        internal async ValueTask<bool> ConnectedAsync(Socket? socket, LogProxy? log, SocketManager manager)
+        internal async ValueTask<bool> ConnectedAsync(Socket? socket, ILogger? log, SocketManager manager)
         {
             var bridge = BridgeCouldBeNull;
             if (bridge == null) return false;
@@ -1474,7 +1488,7 @@ namespace StackExchange.Redis
 
                 if (config.Ssl)
                 {
-                    log?.WriteLine("Configuring TLS");
+                    log?.LogInformation("Configuring TLS");
                     var host = config.SslHost;
                     if (host.IsNullOrWhiteSpace())
                     {
@@ -1508,9 +1522,10 @@ namespace StackExchange.Redis
                         {
                             Debug.WriteLine(ex.Message);
                             bridge.Multiplexer?.SetAuthSuspect(ex);
+                            bridge.Multiplexer?.Logger?.LogError(ex, ex.Message);
                             throw;
                         }
-                        log?.WriteLine($"TLS connection established successfully using protocol: {ssl.SslProtocol}");
+                        log?.LogInformation($"TLS connection established successfully using protocol: {ssl.SslProtocol}");
                     }
                     catch (AuthenticationException authexception)
                     {
@@ -1533,7 +1548,7 @@ namespace StackExchange.Redis
 
                 _ioPipe = pipe;
 
-                log?.WriteLine($"{bridge.Name}: Connected ");
+                log?.LogInformation($"{bridge.Name}: Connected ");
 
                 await bridge.OnConnectedAsync(this, log).ForAwait();
                 return true;

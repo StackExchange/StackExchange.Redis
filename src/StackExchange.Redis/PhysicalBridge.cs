@@ -7,6 +7,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 #if !NETCOREAPP
 using Pipelines.Sockets.Unofficial.Threading;
 using static Pipelines.Sockets.Unofficial.Threading.MutexSlim;
@@ -399,14 +400,14 @@ namespace StackExchange.Redis
             }
         }
 
-        internal async Task OnConnectedAsync(PhysicalConnection connection, LogProxy? log)
+        internal async Task OnConnectedAsync(PhysicalConnection connection, ILogger? log)
         {
             Trace("OnConnected");
             if (physical == connection && !isDisposed && ChangeState(State.Connecting, State.ConnectedEstablishing))
             {
                 ConnectedAt ??= DateTime.UtcNow;
                 await ServerEndPoint.OnEstablishingAsync(connection, log).ForAwait();
-                log?.WriteLine($"{Format.ToString(ServerEndPoint)}: OnEstablishingAsync complete");
+                log?.LogInformation($"{Format.ToString(ServerEndPoint)}: OnEstablishingAsync complete");
             }
             else
             {
@@ -428,8 +429,16 @@ namespace StackExchange.Redis
             TryConnect(null);
         }
 
-        internal void OnConnectionFailed(PhysicalConnection connection, ConnectionFailureType failureType, Exception innerException)
+        internal void OnConnectionFailed(PhysicalConnection connection, ConnectionFailureType failureType, Exception innerException, bool wasRequested)
         {
+            if (wasRequested)
+            {
+                Multiplexer.Logger?.LogInformation(innerException, innerException.Message);
+            }
+            else
+            {
+                Multiplexer.Logger?.LogError(innerException, innerException.Message);
+            }
             Trace($"OnConnectionFailed: {connection}");
             // If we're configured to, fail all pending backlogged messages
             if (Multiplexer.RawConfig.BacklogPolicy?.AbortPendingOnConnectionFailure == true)
@@ -550,7 +559,9 @@ namespace StackExchange.Redis
                         if (shouldRetry)
                         {
                             Interlocked.Increment(ref connectTimeoutRetryCount);
-                            LastException = ExceptionFactory.UnableToConnect(Multiplexer, "ConnectTimeout");
+                            var ex = ExceptionFactory.UnableToConnect(Multiplexer, "ConnectTimeout");
+                            LastException = ex;
+                            Multiplexer.Logger?.LogError(ex, ex.Message);
                             Trace("Aborting connect");
                             // abort and reconnect
                             var snapshot = physical;
@@ -986,7 +997,7 @@ namespace StackExchange.Redis
                                 break;
                             }
                         }
-                        
+
                         var ex = ExceptionFactory.Timeout(Multiplexer, "The message was in the backlog when connection was disposed", message, ServerEndPoint, WriteResult.TimeoutBeforeWrite, this);
                         message.SetExceptionAndComplete(ex, this);
                     }
@@ -1362,7 +1373,7 @@ namespace StackExchange.Redis
             return result;
         }
 
-        public PhysicalConnection? TryConnect(LogProxy? log)
+        public PhysicalConnection? TryConnect(ILogger? log)
         {
             if (state == (int)State.Disconnected)
             {
@@ -1370,7 +1381,7 @@ namespace StackExchange.Redis
                 {
                     if (!Multiplexer.IsDisposed)
                     {
-                        log?.WriteLine($"{Name}: Connecting...");
+                        log?.LogInformation($"{Name}: Connecting...");
                         Multiplexer.Trace("Connecting...", Name);
                         if (ChangeState(State.Disconnected, State.Connecting))
                         {
@@ -1387,7 +1398,7 @@ namespace StackExchange.Redis
                 }
                 catch (Exception ex)
                 {
-                    log?.WriteLine($"{Name}: Connect failed: {ex.Message}");
+                    log?.LogError(ex, $"{Name}: Connect failed: {ex.Message}");
                     Multiplexer.Trace("Connect failed: " + ex.Message, Name);
                     ChangeState(State.Disconnected);
                     OnInternalError(ex);

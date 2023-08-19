@@ -110,7 +110,7 @@ public class ExceptionFactoryTests : TestBase
             var msg = Message.Create(-1, CommandFlags.None, RedisCommand.PING);
             var rawEx = ExceptionFactory.Timeout(conn, "Test Timeout", msg, new ServerEndPoint(conn, server.EndPoint));
             var ex = Assert.IsType<RedisTimeoutException>(rawEx);
-            Writer.WriteLine("Exception: " + ex.Message);
+            Log("Exception: " + ex.Message);
 
             // Example format: "Test Timeout, command=PING, inst: 0, qu: 0, qs: 0, aw: False, in: 0, in-pipe: 0, out-pipe: 0, last-in: 0, cur-in: 0, serverEndpoint: 127.0.0.1:6379, mgr: 10 of 10 available, clientName: TimeoutException, IOCP: (Busy=0,Free=1000,Min=8,Max=1000), WORKER: (Busy=2,Free=2045,Min=8,Max=2047), v: 2.1.0 (Please take a look at this article for some common client-side issues that can cause timeouts: https://stackexchange.github.io/StackExchange.Redis/Timeouts)";
             Assert.StartsWith("Test Timeout, command=PING", ex.Message);
@@ -190,7 +190,7 @@ public class ExceptionFactoryTests : TestBase
                 var msg = Message.Create(-1, CommandFlags.None, RedisCommand.PING);
                 var rawEx = ExceptionFactory.NoConnectionAvailable(conn, msg, new ServerEndPoint(conn, server.EndPoint));
                 var ex = Assert.IsType<RedisConnectionException>(rawEx);
-                Writer.WriteLine("Exception: " + ex.Message);
+                Log("Exception: " + ex.Message);
 
                 // Example format: "Exception: No connection is active/available to service this operation: PING, inst: 0, qu: 0, qs: 0, aw: False, in: 0, in-pipe: 0, out-pipe: 0, last-in: 0, cur-in: 0, serverEndpoint: 127.0.0.1:6379, mc: 1/1/0, mgr: 10 of 10 available, clientName: NoConnectionException, IOCP: (Busy=0,Free=1000,Min=8,Max=1000), WORKER: (Busy=2,Free=2045,Min=8,Max=2047), Local-CPU: 100%, v: 2.1.0.5";
                 Assert.StartsWith(messageStart, ex.Message);
@@ -226,7 +226,7 @@ public class ExceptionFactoryTests : TestBase
         Assert.True(msg.IsPrimaryOnly());
         var rawEx = ExceptionFactory.NoConnectionAvailable(conn, msg, null);
         var ex = Assert.IsType<RedisConnectionException>(rawEx);
-        Writer.WriteLine("Exception: " + ex.Message);
+        Log("Exception: " + ex.Message);
 
         // Ensure a primary-only operation like SET gives the additional context
         Assert.StartsWith("No connection (requires writable - not eligible for replica) is active/available to service this operation: SET", ex.Message);

@@ -10,6 +10,7 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using StackExchange.Redis.Configuration;
 
 namespace StackExchange.Redis
@@ -160,6 +161,8 @@ namespace StackExchange.Redis
         private IReconnectRetryPolicy? reconnectRetryPolicy;
 
         private BacklogPolicy? backlogPolicy;
+
+        private ILoggerFactory? loggerFactory;
 
         /// <summary>
         /// A LocalCertificateSelectionCallback delegate responsible for selecting the certificate used for authentication; note
@@ -449,6 +452,16 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
+        /// The <see cref="ILoggerFactory"/> to get loggers for connection events.
+        /// Note: changes here only affect <see cref="ConnectionMultiplexer"/>s created after.
+        /// </summary>
+        public ILoggerFactory? LoggerFactory
+        {
+            get => loggerFactory ?? Defaults.LoggerFactory;
+            set => loggerFactory = value;
+        }
+
+        /// <summary>
         /// The username to use to authenticate with the server.
         /// </summary>
         public string? User
@@ -675,6 +688,7 @@ namespace StackExchange.Redis
             checkCertificateRevocation = checkCertificateRevocation,
             BeforeSocketConnect = BeforeSocketConnect,
             EndPoints = EndPoints.Clone(),
+            LoggerFactory = LoggerFactory,
 #if NETCOREAPP3_1_OR_GREATER
             SslClientAuthenticationOptions = SslClientAuthenticationOptions,
 #endif
