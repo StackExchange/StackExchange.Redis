@@ -369,17 +369,17 @@ return redis.pcall('hgetall', 'key')", true, ResultType.Array, ResultType.Map, M
                 break;
             case STR_DAVE:
                 var scontent = result.ToString();
-                LogNoTime(scontent);
+                Log(scontent);
                 Assert.NotNull(scontent);
                 var isExpectedContent = scontent.StartsWith("Dave, ") || scontent.StartsWith("I'm sorry, Dave");
                 Assert.True(isExpectedContent);
-                LogNoTime(scontent);
+                Log(scontent);
 
                 scontent = result.ToString(out var type);
                 Assert.NotNull(scontent);
                 isExpectedContent = scontent.StartsWith("Dave, ") || scontent.StartsWith("I'm sorry, Dave");
                 Assert.True(isExpectedContent);
-                LogNoTime(scontent);
+                Log(scontent);
                 if (useResp3)
                 {
                     Assert.Equal("txt", type); 
