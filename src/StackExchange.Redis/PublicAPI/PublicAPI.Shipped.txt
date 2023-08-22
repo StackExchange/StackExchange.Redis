@@ -245,6 +245,8 @@ StackExchange.Redis.ConfigurationOptions.KeepAlive.get -> int
 StackExchange.Redis.ConfigurationOptions.KeepAlive.set -> void
 StackExchange.Redis.ConfigurationOptions.LibraryName.get -> string?
 StackExchange.Redis.ConfigurationOptions.LibraryName.set -> void
+StackExchange.Redis.ConfigurationOptions.LoggerFactory.get -> Microsoft.Extensions.Logging.ILoggerFactory?
+StackExchange.Redis.ConfigurationOptions.LoggerFactory.set -> void
 StackExchange.Redis.ConfigurationOptions.Password.get -> string?
 StackExchange.Redis.ConfigurationOptions.Password.set -> void
 StackExchange.Redis.ConfigurationOptions.PreserveAsyncOrder.get -> bool
@@ -1507,6 +1509,8 @@ StackExchange.Redis.StreamEntry.this[StackExchange.Redis.RedisValue fieldName].g
 StackExchange.Redis.StreamEntry.Values.get -> StackExchange.Redis.NameValueEntry[]!
 StackExchange.Redis.StreamGroupInfo
 StackExchange.Redis.StreamGroupInfo.ConsumerCount.get -> int
+StackExchange.Redis.StreamGroupInfo.EntriesRead.get -> long?
+StackExchange.Redis.StreamGroupInfo.Lag.get -> long?
 StackExchange.Redis.StreamGroupInfo.LastDeliveredId.get -> string?
 StackExchange.Redis.StreamGroupInfo.Name.get -> string!
 StackExchange.Redis.StreamGroupInfo.PendingMessageCount.get -> int
@@ -1800,6 +1804,7 @@ virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.IncludePerforma
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.IsMatch(System.Net.EndPoint! endpoint) -> bool
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.KeepAliveInterval.get -> System.TimeSpan
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.LibraryName.get -> string!
+virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.LoggerFactory.get -> Microsoft.Extensions.Logging.ILoggerFactory?
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.Password.get -> string?
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.Proxy.get -> StackExchange.Redis.Proxy
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.ReconnectRetryPolicy.get -> StackExchange.Redis.IReconnectRetryPolicy?

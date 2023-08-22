@@ -11,7 +11,9 @@ namespace StackExchange.Redis
         internal ref RawResult this[int index] => ref GetItems()[index];
 
         internal int ItemsCount => (int)_items.Length;
-        internal ReadOnlySequence<byte> Payload { get; }
+
+        private readonly ReadOnlySequence<byte> _payload;
+        internal ReadOnlySequence<byte> Payload => _payload;
 
         internal static readonly RawResult NullMultiBulk = new RawResult(default(Sequence<RawResult>), isNull: true);
         internal static readonly RawResult EmptyMultiBulk = new RawResult(default(Sequence<RawResult>), isNull: false);
@@ -36,14 +38,14 @@ namespace StackExchange.Redis
             }
             if (!isNull) resultType |= NonNullFlag;
             _type = resultType;
-            Payload = payload;
+            _payload = payload;
             _items = default;
         }
 
         public RawResult(Sequence<RawResult> items, bool isNull)
         {
             _type = isNull ? ResultType.MultiBulk : (ResultType.MultiBulk | NonNullFlag);
-            Payload = default;
+            _payload = default;
             _items = items.Untyped();
         }
 
@@ -332,6 +334,10 @@ namespace StackExchange.Redis
             {
                 return Format.GetString(Payload.First.Span);
             }
+#if NET6_0_OR_GREATER
+            // use system-provided sequence decoder
+            return Encoding.UTF8.GetString(in _payload);
+#else
             var decoder = Encoding.UTF8.GetDecoder();
             int charCount = 0;
             foreach(var segment in Payload)
@@ -359,12 +365,16 @@ namespace StackExchange.Redis
                     fixed (byte* bPtr = span)
                     {
                         var written = decoder.GetChars(bPtr, span.Length, cPtr, charCount, false);
+                        if (written < 0 || written > charCount) Throw(); // protect against hypothetical cPtr weirdness
                         cPtr += written;
                         charCount -= written;
                     }
                 }
             }
             return s;
+
+            static void Throw() => throw new InvalidOperationException("Invalid result from GetChars");
+#endif
         }
 
         internal bool TryGetDouble(out double val)

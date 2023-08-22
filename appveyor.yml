@@ -74,6 +74,7 @@ build_script:
 test: off
 artifacts:
 - path: .\.nupkgs\*.nupkg
+- path: '**\*.trx'
 
 deploy:
 - provider: NuGet

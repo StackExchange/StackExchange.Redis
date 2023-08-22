@@ -183,6 +183,8 @@ public class SharedConnectionFixture : IDisposable
             => _inner.ExportConfiguration(destination, options);
 
         public override string ToString() => _inner.ToString();
+        long? IInternalConnectionMultiplexer.GetConnectionId(EndPoint endPoint, ConnectionType type)
+            => _inner.GetConnectionId(endPoint, type);
     }
 
     public void Dispose()
@@ -219,7 +221,7 @@ public class SharedConnectionFixture : IDisposable
             {
                 foreach (var item in privateExceptions.Take(5))
                 {
-                    TestBase.LogNoTime(output, item);
+                    TestBase.Log(output, item);
                 }
                 privateExceptions.Clear();
             }

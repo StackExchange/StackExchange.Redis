@@ -10,6 +10,7 @@ using System.Security.Authentication;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -185,7 +186,7 @@ public class ConfigTests : TestBase
     }
 
     [Fact]
-    public async Task TestManaulHeartbeat()
+    public async Task TestManualHeartbeat()
     {
         var options = ConfigurationOptions.Parse(GetConfiguration());
         options.HeartbeatInterval = TimeSpan.FromMilliseconds(100);
@@ -569,6 +570,7 @@ public class ConfigTests : TestBase
     public async Task MutableOptions()
     {
         var options = ConfigurationOptions.Parse(TestConfig.Current.PrimaryServerAndPort + ",name=Details");
+        options.LoggerFactory = NullLoggerFactory.Instance;
         var originalConfigChannel = options.ConfigurationChannel = "originalConfig";
         var originalUser = options.User = "originalUser";
         var originalPassword = options.Password = "originalPassword";
@@ -617,6 +619,7 @@ public class ConfigTests : TestBase
         Assert.Equal(originalPassword, conn.RawConfig.Password);
         var newPass = options.Password = "newPassword";
         Assert.Equal(newPass, conn.RawConfig.Password);
+        Assert.Equal(options.LoggerFactory, conn.RawConfig.LoggerFactory);
     }
 
     [Theory]

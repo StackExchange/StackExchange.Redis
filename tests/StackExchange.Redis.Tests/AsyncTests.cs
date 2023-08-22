@@ -66,12 +66,12 @@ public class AsyncTests : TestBase
         {
             await db.StringGetAsync(key).ForAwait(); // but *subsequent* operations are paused
             ms.Stop();
-            Writer.WriteLine($"Unexpectedly succeeded after {ms.ElapsedMilliseconds}ms");
+            Log($"Unexpectedly succeeded after {ms.ElapsedMilliseconds}ms");
         }).ForAwait();
         ms.Stop();
-        Writer.WriteLine($"Timed out after {ms.ElapsedMilliseconds}ms");
+        Log($"Timed out after {ms.ElapsedMilliseconds}ms");
 
-        Writer.WriteLine("Exception message: " + ex.Message);
+        Log("Exception message: " + ex.Message);
         Assert.Contains("Timeout awaiting response", ex.Message);
         // Ensure we are including the last payload size
         Assert.Contains("last-in:", ex.Message);
@@ -81,7 +81,7 @@ public class AsyncTests : TestBase
         Assert.Contains("cur-in:", ex.Message);
 
         string status = conn.GetStatus();
-        Writer.WriteLine(status);
+        Log(status);
         Assert.Contains("; async timeouts: 1;", status);
     }
 }
