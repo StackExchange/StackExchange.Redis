@@ -1250,13 +1250,19 @@ public abstract class StreamTests : ProtocolFixedTestBase
             db.StreamCreateConsumerGroup(key, group1, StreamPosition.Beginning);
             db.StreamCreateConsumerGroup(key, group2, StreamPosition.Beginning);
 
+            var groupInfoList = db.StreamGroupInfo(key);
+            Assert.Equal(0, groupInfoList[0].EntriesRead);
+            Assert.Equal(4, groupInfoList[0].Lag);
+            Assert.Equal(0, groupInfoList[0].EntriesRead);
+            Assert.Equal(4, groupInfoList[1].Lag);
+
             // Read a single message into the first consumer.
             db.StreamReadGroup(key, group1, consumer1, count: 1);
 
             // Read the remaining messages into the second consumer.
             db.StreamReadGroup(key, group2, consumer2);
 
-            var groupInfoList = db.StreamGroupInfo(key);
+            groupInfoList = db.StreamGroupInfo(key);
 
             Assert.NotNull(groupInfoList);
             Assert.Equal(2, groupInfoList.Length);
@@ -1264,10 +1270,14 @@ public abstract class StreamTests : ProtocolFixedTestBase
             Assert.Equal(group1, groupInfoList[0].Name);
             Assert.Equal(1, groupInfoList[0].PendingMessageCount);
             Assert.True(IsMessageId(groupInfoList[0].LastDeliveredId)); // can't test actual - will vary
+            Assert.Equal(1, groupInfoList[0].EntriesRead);
+            Assert.Equal(3, groupInfoList[0].Lag);
 
             Assert.Equal(group2, groupInfoList[1].Name);
             Assert.Equal(4, groupInfoList[1].PendingMessageCount);
             Assert.True(IsMessageId(groupInfoList[1].LastDeliveredId)); // can't test actual - will vary
+            Assert.Equal(4, groupInfoList[1].EntriesRead);
+            Assert.Equal(0, groupInfoList[1].Lag);
         }
 
         static bool IsMessageId(string? value)

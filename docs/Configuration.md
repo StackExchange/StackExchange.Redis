@@ -101,6 +101,8 @@ The `ConfigurationOptions` object has a wide range of properties, all of which a
 | protocol={string}      | `Protocol`             | `null`                       | Redis protocol to use; see section below                                                                  |
 
 Additional code-only options:
+- LoggerFactory (`ILoggerFactory`) - Default: `null`
+  - The logger to use for connection events (not per command), e.g. connection log, disconnects, reconnects, server errors.
 - ReconnectRetryPolicy (`IReconnectRetryPolicy`) - Default: `ReconnectRetryPolicy = ExponentialRetry(ConnectTimeout / 2);`
   - Determines how often a multiplexer will try to reconnect after a failure
 - BacklogPolicy - Default: `BacklogPolicy = BacklogPolicy.Default;`

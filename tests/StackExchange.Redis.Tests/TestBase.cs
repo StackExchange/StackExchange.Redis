@@ -46,19 +46,6 @@ public abstract class TestBase : IDisposable
     /// <remarks>See 'ConnectFailTimeout' class for example usage.</remarks>
     protected static Task RunBlockingSynchronousWithExtraThreadAsync(Action testScenario) => Task.Factory.StartNew(testScenario, CancellationToken.None, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
 
-    protected void LogNoTime(string message) => LogNoTime(Writer, message);
-    internal static void LogNoTime(TextWriter output, string? message)
-    {
-        lock (output)
-        {
-            output.WriteLine(message);
-        }
-        if (TestConfig.Current.LogToConsole)
-        {
-            Console.WriteLine(message);
-        }
-    }
-    protected void Log(string? message) => LogNoTime(Writer, message);
     public static void Log(TextWriter output, string message)
     {
         lock (output)
@@ -70,7 +57,7 @@ public abstract class TestBase : IDisposable
             Console.WriteLine(message);
         }
     }
-    protected void Log(string message, params object?[] args)
+    protected void Log(string? message, params object?[] args)
     {
         lock (Output)
         {
@@ -78,7 +65,7 @@ public abstract class TestBase : IDisposable
         }
         if (TestConfig.Current.LogToConsole)
         {
-            Console.WriteLine(message, args);
+            Console.WriteLine(message ?? "", args);
         }
     }
 
@@ -202,14 +189,14 @@ public abstract class TestBase : IDisposable
             {
                 foreach (var item in privateExceptions.Take(5))
                 {
-                    LogNoTime(item);
+                    Log(item);
                 }
             }
             lock (backgroundExceptions)
             {
                 foreach (var item in backgroundExceptions.Take(5))
                 {
-                    LogNoTime(item);
+                    Log(item);
                 }
             }
             Skip.Inconclusive($"There were {privateFailCount} private and {sharedFailCount.Value} ambient exceptions; expected {expectedFailCount}.");

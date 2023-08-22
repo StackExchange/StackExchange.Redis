@@ -14,12 +14,12 @@ namespace StackExchange.Redis.Tests
         /* Note A (referenced below)
          *
          * When sync-context is *enabled*, we don't validate OpCount > 0 - this is because *with the additional checks*,
-         * it can genuinely happen that by the time we actually await it, it has completd - which results in a brittle test.
+         * it can genuinely happen that by the time we actually await it, it has completed - which results in a brittle test.
          */
         [Theory]
         [InlineData(true)]
         [InlineData(false)]
-        public async Task DetectSyncContextUsafe(bool continueOnCapturedContext)
+        public async Task DetectSyncContextUnsafe(bool continueOnCapturedContext)
         {
             using var ctx = new MySyncContext(Writer);
             Assert.Equal(0, ctx.OpCount);
@@ -30,7 +30,7 @@ namespace StackExchange.Redis.Tests
 
         private void AssertState(bool continueOnCapturedContext, MySyncContext ctx)
         {
-            LogNoTime($"Context in AssertState: {ctx}");
+            Log($"Context in AssertState: {ctx}");
             if (continueOnCapturedContext)
             {
                 Assert.True(ctx.IsCurrent, nameof(ctx.IsCurrent));
@@ -63,9 +63,9 @@ namespace StackExchange.Redis.Tests
             using var conn = Create();
             Assert.Equal(0, ctx.OpCount);
             var db = conn.GetDatabase();
-            LogNoTime($"Context before await: {ctx}");
+            Log($"Context before await: {ctx}");
             await db.PingAsync().ConfigureAwait(continueOnCapturedContext);
-            
+
             AssertState(continueOnCapturedContext, ctx);
         }
 
@@ -87,11 +87,11 @@ namespace StackExchange.Redis.Tests
             using var ctx = new MySyncContext(Writer);
             using var conn = Create();
 
-            LogNoTime($"Context initial: {ctx}");
+            Log($"Context initial: {ctx}");
             await Task.Delay(500);
             await conn.GetDatabase().PingAsync(); // ensure we're all ready
             ctx.Reset();
-            LogNoTime($"Context before: {ctx}");
+            Log($"Context before: {ctx}");
 
             Assert.Equal(0, ctx.OpCount);
             Assert.True(await conn.ConfigureAsync(Writer).ConfigureAwait(continueOnCapturedContext), "config ran");
@@ -114,8 +114,8 @@ namespace StackExchange.Redis.Tests
         public sealed class MySyncContext : SynchronizationContext, IDisposable
         {
             private readonly SynchronizationContext? _previousContext;
-            private readonly TextWriter? _log;
-            public MySyncContext(TextWriter? log)
+            private readonly TextWriter _log;
+            public MySyncContext(TextWriter log)
             {
                 _previousContext = Current;
                 _log = log;
@@ -123,10 +123,7 @@ namespace StackExchange.Redis.Tests
             }
             public int OpCount => Thread.VolatileRead(ref _opCount);
             private int _opCount;
-            private void Incr()
-            {
-                Interlocked.Increment(ref _opCount);
-            }
+            private void Incr() => Interlocked.Increment(ref _opCount);
 
             public void Reset() => Thread.VolatileWrite(ref _opCount, 0);
 
@@ -136,7 +133,7 @@ namespace StackExchange.Redis.Tests
 
             public override void Post(SendOrPostCallback d, object? state)
             {
-                _log?.WriteLine("sync-ctx: Post");
+                Log(_log, "sync-ctx: Post");
                 Incr();
                 ThreadPool.QueueUserWorkItem(static state =>
                 {
@@ -147,14 +144,14 @@ namespace StackExchange.Redis.Tests
 
             private void Invoke(SendOrPostCallback d, object? state)
             {
-                _log?.WriteLine("sync-ctx: Invoke");
+                Log(_log, "sync-ctx: Invoke");
                 if (!IsCurrent) SetSynchronizationContext(this);
                 d(state);
             }
 
             public override void Send(SendOrPostCallback d, object? state)
             {
-                _log?.WriteLine("sync-ctx: Send");
+                Log(_log, "sync-ctx: Send");
                 Incr();
                 Invoke(d, state);
             }
@@ -177,6 +174,5 @@ namespace StackExchange.Redis.Tests
                 base.OperationCompleted();
             }
         }
-        
     }
 }

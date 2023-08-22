@@ -1,4 +1,5 @@
-﻿using StackExchange.Redis.Profiling;
+﻿using Microsoft.Extensions.Logging;
+using StackExchange.Redis.Profiling;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -11,15 +12,15 @@ namespace StackExchange.Redis
 {
     internal sealed class LoggingMessage : Message
     {
-        public readonly LogProxy log;
+        public readonly ILogger log;
         private readonly Message tail;
 
-        public static Message Create(LogProxy? log, Message tail)
+        public static Message Create(ILogger? log, Message tail)
         {
             return log == null ? tail : new LoggingMessage(log, tail);
         }
 
-        private LoggingMessage(LogProxy log, Message tail) : base(tail.Db, tail.Flags, tail.Command)
+        private LoggingMessage(ILogger log, Message tail) : base(tail.Db, tail.Flags, tail.Command)
         {
             this.log = log;
             this.tail = tail;
@@ -37,14 +38,14 @@ namespace StackExchange.Redis
             try
             {
                 var bridge = physical.BridgeCouldBeNull;
-                log?.WriteLine($"{bridge?.Name}: Writing: {tail.CommandAndKey}");
+                log?.LogTrace($"{bridge?.Name}: Writing: {tail.CommandAndKey}");
             }
             catch { }
             tail.WriteTo(physical);
         }
         public override int ArgCount => tail.ArgCount;
 
-        public LogProxy Log => log;
+        public ILogger Log => log;
     }
 
     internal abstract class Message : ICompletable

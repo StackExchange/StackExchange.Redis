@@ -408,20 +408,14 @@ namespace StackExchange.Redis
         }
 
         public void MakeMaster(ReplicationChangeOptions options, TextWriter? log = null)
-        {
-            using (var proxy = LogProxy.TryCreate(log))
-            {
-                // Do you believe in magic?
-                multiplexer.MakePrimaryAsync(server, options, proxy).Wait(60000);
-            }
+    {
+            // Do you believe in magic?
+            multiplexer.MakePrimaryAsync(server, options, log).Wait(60000);
         }
 
         public async Task MakePrimaryAsync(ReplicationChangeOptions options, TextWriter? log = null)
         {
-            using (var proxy = LogProxy.TryCreate(log))
-            {
-                await multiplexer.MakePrimaryAsync(server, options, proxy).ForAwait();
-            }
+            await multiplexer.MakePrimaryAsync(server, options, log).ForAwait();
         }
 
         public Role Role(CommandFlags flags = CommandFlags.None)

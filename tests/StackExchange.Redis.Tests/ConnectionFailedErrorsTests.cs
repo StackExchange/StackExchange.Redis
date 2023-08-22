@@ -128,12 +128,12 @@ public class ConnectionFailedErrorsTests : TestBase
             }
             else
             {
-                Writer.WriteLine(outer.InnerException.ToString());
+                Log(outer.InnerException.ToString());
                 if (outer.InnerException is AggregateException inner)
                 {
                     foreach (var ex in inner.InnerExceptions)
                     {
-                        Writer.WriteLine(ex.ToString());
+                        Log(ex.ToString());
                     }
                 }
                 Assert.False(true); // force fail

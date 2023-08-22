@@ -1306,7 +1306,7 @@ public abstract class TransactionTests : ProtocolFixedTestBase
             }
         }
 
-        Writer.WriteLine($"hash hit: {hashHit}, miss: {hashMiss}; expire hit: {expireHit}, miss: {expireMiss}");
+        Log($"hash hit: {hashHit}, miss: {hashMiss}; expire hit: {expireHit}, miss: {expireMiss}");
         Assert.Equal(0, hashMiss);
         Assert.Equal(0, expireMiss);
     }
