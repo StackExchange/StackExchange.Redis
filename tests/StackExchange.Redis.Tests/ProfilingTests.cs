@@ -143,7 +143,7 @@ public class ProfilingTests : TestBase
         Assert.Contains("SET", kinds);
         if (kinds.Count == 2 && !kinds.Contains("SELECT") && !kinds.Contains("GET"))
         {
-            Assert.True(false, "Non-SET, Non-SELECT, Non-GET command seen");
+            Assert.Fail("Non-SET, Non-SELECT, Non-GET command seen");
         }
 
         Assert.Equal(16 * CountPer, relevant.Count);

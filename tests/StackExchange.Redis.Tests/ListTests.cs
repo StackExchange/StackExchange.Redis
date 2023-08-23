@@ -6,18 +6,11 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-public class Resp2ListTests : ListTests
+[RunPerProtocol]
+[Collection(SharedConnectionFixture.Key)]
+public class ListTests : TestBase
 {
-    public Resp2ListTests(ITestOutputHelper output, ProtocolDependentFixture fixture) : base(output, fixture, false) { }
-}
-public class Resp3ListTests : ListTests
-{
-    public Resp3ListTests(ITestOutputHelper output, ProtocolDependentFixture fixture) : base(output, fixture, true) { }
-}
-public abstract class ListTests : ProtocolFixedTestBase
-{
-    public ListTests(ITestOutputHelper output, ProtocolDependentFixture fixture, bool resp3) : base(output, fixture, resp3) { }
-
+    public ListTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
 
     [Fact]
     public void Ranges()

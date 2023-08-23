@@ -22,6 +22,13 @@ public abstract class TestBase : IDisposable
     protected virtual string GetConfiguration() => GetDefaultConfiguration();
     internal static string GetDefaultConfiguration() => TestConfig.Current.PrimaryServerAndPort;
 
+    /// <summary>
+    /// Gives the current TestContext, propulated by the runner (this type of thing will be built-in in xUnit 3.x)
+    /// </summary>
+    protected TestContext Context => _context.Value!;
+    private static readonly AsyncLocal<TestContext> _context = new();
+    public static void SetContext(TestContext context) => _context.Value = context;
+
     private readonly SharedConnectionFixture? _fixture;
 
     protected bool SharedFixtureAvailable => _fixture != null && _fixture.IsEnabled;
@@ -30,6 +37,7 @@ public abstract class TestBase : IDisposable
     {
         Output = output;
         Output.WriteFrameworkVersion();
+        Output.WriteLine("  Context: " + Context.ToString());
         Writer = new TextWriterOutputHelper(output, TestConfig.Current.LogToConsole);
         _fixture = fixture;
         ClearAmbientFailures();
@@ -251,26 +259,30 @@ public abstract class TestBase : IDisposable
         BacklogPolicy? backlogPolicy = null,
         Version? require = null,
         RedisProtocol? protocol = null,
-        [CallerMemberName] string? caller = null)
+        [CallerMemberName] string caller = "")
     {
         if (Output == null)
         {
-            Assert.True(false, "Failure: Be sure to call the TestBase constructor like this: BasicOpsTests(ITestOutputHelper output) : base(output) { }");
+            Assert.Fail("Failure: Be sure to call the TestBase constructor like this: BasicOpsTests(ITestOutputHelper output) : base(output) { }");
         }
+
+        // Default to protocol context if not explicitly passed in
+        protocol ??= Context.Test.Protocol;
 
         // Share a connection if instructed to and we can - many specifics mean no sharing
         if (shared && expectedFailCount == 0
             && _fixture != null && _fixture.IsEnabled
-            && CanShare(allowAdmin, password, tieBreaker, fail, disabledCommands, enabledCommands, channelPrefix, proxy, configuration, defaultDatabase, backlogPolicy, protocol))
+            && CanShare(allowAdmin, password, tieBreaker, fail, disabledCommands, enabledCommands, channelPrefix, proxy, configuration, defaultDatabase, backlogPolicy))
         {
             configuration = GetConfiguration();
+            var fixtureConn = _fixture.GetConnection(this, protocol.Value, caller: caller);
             // Only return if we match
-            ThrowIfIncorrectProtocol(_fixture.Connection, protocol);
+            ThrowIfIncorrectProtocol(fixtureConn, protocol);
 
             if (configuration == _fixture.Configuration)
             {
-                ThrowIfBelowMinVersion(_fixture.Connection, require);
-                return _fixture.Connection;
+                ThrowIfBelowMinVersion(fixtureConn, require);
+                return fixtureConn;
             }
         }
 
@@ -306,8 +318,7 @@ public abstract class TestBase : IDisposable
         Proxy? proxy,
         string? configuration,
         int? defaultDatabase,
-        BacklogPolicy? backlogPolicy,
-        RedisProtocol? protocol
+        BacklogPolicy? backlogPolicy
         )
         => enabledCommands == null
             && disabledCommands == null
@@ -319,8 +330,7 @@ public abstract class TestBase : IDisposable
             && tieBreaker == null
             && defaultDatabase == null
             && (allowAdmin == null || allowAdmin == true)
-            && backlogPolicy == null
-            && protocol is null;
+            && backlogPolicy == null;
 
     internal void ThrowIfIncorrectProtocol(IInternalConnectionMultiplexer conn, RedisProtocol? requiredProtocol)
     {
@@ -378,7 +388,7 @@ public abstract class TestBase : IDisposable
         int? defaultDatabase = null,
         BacklogPolicy? backlogPolicy = null,
         RedisProtocol? protocol = null,
-        [CallerMemberName] string? caller = null)
+        [CallerMemberName] string caller = "")
     {
         StringWriter? localLog = null;
         if (log == null)
@@ -406,7 +416,7 @@ public abstract class TestBase : IDisposable
             if (tieBreaker != null) config.TieBreaker = tieBreaker;
             if (password != null) config.Password = string.IsNullOrEmpty(password) ? null : password;
             if (clientName != null) config.ClientName = clientName;
-            else if (caller != null) config.ClientName = caller;
+            else if (!string.IsNullOrEmpty(caller)) config.ClientName = caller;
             if (syncTimeout != null) config.SyncTimeout = syncTimeout.Value;
             if (allowAdmin != null) config.AllowAdmin = allowAdmin.Value;
             if (keepAlive != null) config.KeepAlive = keepAlive.Value;
@@ -470,7 +480,7 @@ public abstract class TestBase : IDisposable
     }
 
     public virtual string Me([CallerFilePath] string? filePath = null, [CallerMemberName] string? caller = null) =>
-        Environment.Version.ToString() + Path.GetFileNameWithoutExtension(filePath) + "-" + caller;
+        Environment.Version.ToString() + Path.GetFileNameWithoutExtension(filePath) + "-" + caller + Context.KeySuffix;
 
     protected TimeSpan RunConcurrent(Action work, int threads, int timeout = 10000, [CallerMemberName] string? caller = null)
     {

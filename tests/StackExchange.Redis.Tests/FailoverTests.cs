@@ -1,4 +1,5 @@
-﻿using System;
+﻿#if NET6_0_OR_GREATER
+using System;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -449,3 +450,4 @@ public class FailoverTests : TestBase, IAsyncLifetime
     }
 #endif
 }
+#endif

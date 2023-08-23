@@ -5,19 +5,11 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-
-public class Resp2SortedSetTests : SortedSetTests
+[RunPerProtocol]
+[Collection(SharedConnectionFixture.Key)]
+public class SortedSetTests : TestBase
 {
-    public Resp2SortedSetTests(ITestOutputHelper output, ProtocolDependentFixture fixture) : base(output, fixture, false) { }
-}
-public class Resp3SortedSetTests : SortedSetTests
-{
-    public Resp3SortedSetTests(ITestOutputHelper output, ProtocolDependentFixture fixture) : base(output, fixture, true) { }
-}
-
-public abstract class SortedSetTests : ProtocolFixedTestBase
-{
-    public SortedSetTests(ITestOutputHelper output, ProtocolDependentFixture fixture, bool resp3) : base(output, fixture, resp3) { }
+    public SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
 
     private static readonly SortedSetEntry[] entries = new SortedSetEntry[]
     {
@@ -362,7 +354,7 @@ public abstract class SortedSetTests : ProtocolFixedTestBase
 
         var result = db.Execute("ZRANGE", new object[] { key, 0, -1, "WITHSCORES" });
 
-        if (Resp3)
+        if (Context.IsResp3)
         {
             AssertJaggedArrayEntries(result);
         }
@@ -1218,7 +1210,7 @@ public abstract class SortedSetTests : ProtocolFixedTestBase
         var score = db.SortedSetScore(key, memberName);
 
         Assert.NotNull(score);
-        Assert.Equal((double)1.5, score.Value);
+        Assert.Equal((double)1.5, score);
     }
 
     [Fact]

@@ -10,19 +10,11 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-public class Resp2ScriptingTests : ScriptingTests
+[RunPerProtocol]
+[Collection(SharedConnectionFixture.Key)]
+public class ScriptingTests : TestBase
 {
-    public Resp2ScriptingTests(ITestOutputHelper output, ProtocolDependentFixture fixture) : base(output, fixture, false) { }
-}
-public class Resp3ScriptingTests : ScriptingTests
-{
-    public Resp3ScriptingTests(ITestOutputHelper output, ProtocolDependentFixture fixture) : base(output, fixture, true) { }
-}
-
-
-public abstract class ScriptingTests : ProtocolFixedTestBase
-{
-    public ScriptingTests(ITestOutputHelper output, ProtocolDependentFixture fixture, bool resp3) : base(output, fixture, resp3) { }
+    public ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
 
     private IConnectionMultiplexer GetScriptConn(bool allowAdmin = false)
     {

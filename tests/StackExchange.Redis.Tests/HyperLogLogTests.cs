@@ -3,17 +3,11 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-public class Resp2HyperLogLogTests : HyperLogLogTests
+[RunPerProtocol]
+[Collection(SharedConnectionFixture.Key)]
+public class HyperLogLogTests : TestBase
 {
-    public Resp2HyperLogLogTests(ITestOutputHelper output, ProtocolDependentFixture fixture) : base(output, fixture, false) { }
-}
-public class Resp3HyperLogLogTests : HyperLogLogTests
-{
-    public Resp3HyperLogLogTests(ITestOutputHelper output, ProtocolDependentFixture fixture) : base(output, fixture, true) { }
-}
-public abstract class HyperLogLogTests : ProtocolFixedTestBase
-{
-    public HyperLogLogTests(ITestOutputHelper output, ProtocolDependentFixture fixture, bool resp3) : base(output, fixture, resp3) { }
+    public HyperLogLogTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
 
     [Fact]
     public void SingleKeyLength()

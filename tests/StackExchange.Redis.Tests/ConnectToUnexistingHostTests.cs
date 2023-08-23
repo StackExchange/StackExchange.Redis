@@ -29,7 +29,7 @@ public class ConnectToUnexistingHostTests : TestBase
                 await Task.Delay(10000).ForAwait();
             }
 
-            Assert.True(false, "Connect should fail with RedisConnectionException exception");
+            Assert.Fail("Connect should fail with RedisConnectionException exception");
         }
         catch (RedisConnectionException)
         {

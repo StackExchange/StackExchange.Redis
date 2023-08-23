@@ -8,21 +8,14 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-public class Resp2StringTests : StringTests
-{
-    public Resp2StringTests(ITestOutputHelper output, ProtocolDependentFixture fixture) : base(output, fixture, false) { }
-}
-public class Resp3StringTests : StringTests
-{
-    public Resp3StringTests(ITestOutputHelper output, ProtocolDependentFixture fixture) : base(output, fixture, true) { }
-}
-
 /// <summary>
 /// Tests for <see href="https://redis.io/commands#string"/>.
 /// </summary>
-public abstract class StringTests : ProtocolFixedTestBase
+[RunPerProtocol]
+[Collection(SharedConnectionFixture.Key)]
+public class StringTests : TestBase
 {
-    public StringTests(ITestOutputHelper output, ProtocolDependentFixture fixture, bool resp3) : base(output, fixture, resp3) { }
+    public StringTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
 
     [Fact]
     public async Task Append()

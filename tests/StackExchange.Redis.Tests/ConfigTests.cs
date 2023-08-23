@@ -16,18 +16,11 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-public class Resp2ConfigTests : ConfigTests
+[RunPerProtocol]
+[Collection(SharedConnectionFixture.Key)]
+public class ConfigTests : TestBase
 {
-    public Resp2ConfigTests(ITestOutputHelper output, ProtocolDependentFixture fixture) : base(output, fixture, false) { }
-}
-public class Resp3ConfigTests : ConfigTests
-{
-    public Resp3ConfigTests(ITestOutputHelper output, ProtocolDependentFixture fixture) : base(output, fixture, true) { }
-}
-
-public abstract class ConfigTests : ProtocolFixedTestBase
-{
-    public ConfigTests(ITestOutputHelper output, ProtocolDependentFixture fixture, bool resp3) : base(output, fixture, resp3) { }
+    public ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
 
     public Version DefaultVersion = new (3, 0, 0);
     public Version DefaultAzureVersion = new (4, 0, 0);
@@ -256,7 +249,7 @@ public abstract class ConfigTests : ProtocolFixedTestBase
     [Fact]
     public void DefaultClientName()
     {
-        using var conn = Create(allowAdmin: true, caller: null, shared: false); // force default naming to kick in
+        using var conn = Create(allowAdmin: true, caller: "", shared: false); // force default naming to kick in
 
         Assert.Equal($"{Environment.MachineName}(SE.Redis-v{Utils.GetLibVersion()})", conn.ClientName);
         var db = conn.GetDatabase();
@@ -284,7 +277,7 @@ public abstract class ConfigTests : ProtocolFixedTestBase
         Assert.True(conn.IsConnected);
         var servers = conn.GetServerSnapshot();
         Assert.True(servers[0].IsConnected);
-        if (!Resp3)
+        if (!Context.IsResp3)
         {
             Assert.False(servers[0].IsSubscriberConnected);
         }
@@ -405,7 +398,7 @@ public abstract class ConfigTests : ProtocolFixedTestBase
             var self = clients.First(x => x.Id == id);
             if (server.Version.Major >= 7)
             {
-                Assert.Equal(ExpectedProtocol, self.Protocol);
+                Assert.Equal(Context.Test.Protocol, self.Protocol);
             }
             else
             {

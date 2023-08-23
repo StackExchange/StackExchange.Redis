@@ -7,18 +7,17 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-public sealed class Resp3Tests : ProtocolDependentTestBase
+[Collection(SharedConnectionFixture.Key)]
+public sealed class RespProtocolTests : TestBase
 {
-    public Resp3Tests(ITestOutputHelper output, ProtocolDependentFixture fixture) : base(output, fixture) { }
+    public RespProtocolTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
 
-    [Theory]
-    [InlineData(RedisProtocol.Resp2)]
-    [InlineData(RedisProtocol.Resp3)]
-    public async Task ConnectWithTiming(RedisProtocol protocol)
+    [Fact]
+    [RunPerProtocol]
+    public async Task ConnectWithTiming()
     {
-        using var conn = Create(protocol: protocol, shared: false, log: Writer);
+        using var conn = Create(shared: false, log: Writer);
         await conn.GetDatabase().PingAsync();
-
     }
 
     [Theory]
@@ -74,20 +73,19 @@ public sealed class Resp3Tests : ProtocolDependentTestBase
         Assert.Equal(tryResp3, config.TryResp3());
     }
 
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task TryConnect(bool useResp3)
+    [Fact]
+    [RunPerProtocol]
+    public async Task TryConnect()
     {
-        var muxer = Fixture.GetConnection(this, useResp3);
+        var muxer = Create(shared: false);
         await muxer.GetDatabase().PingAsync();
 
         var server = muxer.GetServerEndPoint(muxer.GetEndPoints().Single());
-        if (useResp3 && !server.GetFeatures().Resp3)
+        if (Context.IsResp3 && !server.GetFeatures().Resp3)
         {
             Skip.Inconclusive("server does not support RESP3");
         }
-        if (useResp3)
+        if (Context.IsResp3)
         {
             Assert.Equal(RedisProtocol.Resp3, server.Protocol);
         }
@@ -129,41 +127,41 @@ public sealed class Resp3Tests : ProtocolDependentTestBase
     }
 
     [Theory]
-    [InlineData("return 42", false, ResultType.Integer, ResultType.Integer, 42)]
-    [InlineData("return 'abc'", false, ResultType.BulkString, ResultType.BulkString, "abc")]
-    [InlineData(@"return {1,2,3}", false, ResultType.Array, ResultType.Array, ARR_123)]
-    [InlineData("return nil", false, ResultType.BulkString, ResultType.Null, null)]
-    [InlineData(@"return redis.pcall('hgetall', 'key')", false, ResultType.Array, ResultType.Array, MAP_ABC)]
+    [InlineData("return 42", RedisProtocol.Resp2, ResultType.Integer, ResultType.Integer, 42)]
+    [InlineData("return 'abc'", RedisProtocol.Resp2, ResultType.BulkString, ResultType.BulkString, "abc")]
+    [InlineData(@"return {1,2,3}", RedisProtocol.Resp2, ResultType.Array, ResultType.Array, ARR_123)]
+    [InlineData("return nil", RedisProtocol.Resp2, ResultType.BulkString, ResultType.Null, null)]
+    [InlineData(@"return redis.pcall('hgetall', 'key')", RedisProtocol.Resp2, ResultType.Array, ResultType.Array, MAP_ABC)]
     [InlineData(@"redis.setresp(3)
-return redis.pcall('hgetall', 'key')", false, ResultType.Array, ResultType.Array, MAP_ABC)]
-    [InlineData("return true", false, ResultType.Integer, ResultType.Integer, 1)]
-    [InlineData("return false", false, ResultType.BulkString, ResultType.Null, null)]
-    [InlineData("redis.setresp(3) return true", false, ResultType.Integer, ResultType.Integer, 1)]
-    [InlineData("redis.setresp(3) return false", false, ResultType.Integer, ResultType.Integer, 0)]
+return redis.pcall('hgetall', 'key')", RedisProtocol.Resp2, ResultType.Array, ResultType.Array, MAP_ABC)]
+    [InlineData("return true", RedisProtocol.Resp2, ResultType.Integer, ResultType.Integer, 1)]
+    [InlineData("return false", RedisProtocol.Resp2, ResultType.BulkString, ResultType.Null, null)]
+    [InlineData("redis.setresp(3) return true", RedisProtocol.Resp2, ResultType.Integer, ResultType.Integer, 1)]
+    [InlineData("redis.setresp(3) return false", RedisProtocol.Resp2, ResultType.Integer, ResultType.Integer, 0)]
 
-    [InlineData("return { map = { a = 1, b = 2, c = 3 } }", false, ResultType.Array, ResultType.Array, MAP_ABC, 6)]
-    [InlineData("return { set = { a = 1, b = 2, c = 3 } }", false, ResultType.Array, ResultType.Array, SET_ABC, 6)]
-    [InlineData("return { double = 42 }", false, ResultType.BulkString, ResultType.BulkString, 42.0, 6)]
+    [InlineData("return { map = { a = 1, b = 2, c = 3 } }", RedisProtocol.Resp2, ResultType.Array, ResultType.Array, MAP_ABC, 6)]
+    [InlineData("return { set = { a = 1, b = 2, c = 3 } }", RedisProtocol.Resp2, ResultType.Array, ResultType.Array, SET_ABC, 6)]
+    [InlineData("return { double = 42 }", RedisProtocol.Resp2, ResultType.BulkString, ResultType.BulkString, 42.0, 6)]
 
-    [InlineData("return 42", true, ResultType.Integer, ResultType.Integer, 42)]
-    [InlineData("return 'abc'", true, ResultType.BulkString, ResultType.BulkString, "abc")]
-    [InlineData("return {1,2,3}", true, ResultType.Array, ResultType.Array, ARR_123)]
-    [InlineData("return nil", true, ResultType.BulkString, ResultType.Null, null)]
-    [InlineData(@"return redis.pcall('hgetall', 'key')", true, ResultType.Array, ResultType.Array, MAP_ABC)]
+    [InlineData("return 42", RedisProtocol.Resp3, ResultType.Integer, ResultType.Integer, 42)]
+    [InlineData("return 'abc'", RedisProtocol.Resp3, ResultType.BulkString, ResultType.BulkString, "abc")]
+    [InlineData("return {1,2,3}", RedisProtocol.Resp3, ResultType.Array, ResultType.Array, ARR_123)]
+    [InlineData("return nil", RedisProtocol.Resp3, ResultType.BulkString, ResultType.Null, null)]
+    [InlineData(@"return redis.pcall('hgetall', 'key')", RedisProtocol.Resp3, ResultType.Array, ResultType.Array, MAP_ABC)]
     [InlineData(@"redis.setresp(3)
-return redis.pcall('hgetall', 'key')", true, ResultType.Array, ResultType.Map, MAP_ABC)]
-    [InlineData("return true", true, ResultType.Integer, ResultType.Integer, 1)]
-    [InlineData("return false", true, ResultType.BulkString, ResultType.Null, null)]
-    [InlineData("redis.setresp(3) return true", true, ResultType.Integer, ResultType.Boolean, true)]
-    [InlineData("redis.setresp(3) return false", true, ResultType.Integer, ResultType.Boolean, false)]
+return redis.pcall('hgetall', 'key')", RedisProtocol.Resp3, ResultType.Array, ResultType.Map, MAP_ABC)]
+    [InlineData("return true", RedisProtocol.Resp3, ResultType.Integer, ResultType.Integer, 1)]
+    [InlineData("return false", RedisProtocol.Resp3, ResultType.BulkString, ResultType.Null, null)]
+    [InlineData("redis.setresp(3) return true", RedisProtocol.Resp3, ResultType.Integer, ResultType.Boolean, true)]
+    [InlineData("redis.setresp(3) return false", RedisProtocol.Resp3, ResultType.Integer, ResultType.Boolean, false)]
 
-    [InlineData("return { map = { a = 1, b = 2, c = 3 } }", true, ResultType.Array, ResultType.Map, MAP_ABC, 6)]
-    [InlineData("return { set = { a = 1, b = 2, c = 3 } }", true, ResultType.Array, ResultType.Set, SET_ABC, 6)]
-    [InlineData("return { double = 42 }", true, ResultType.SimpleString, ResultType.Double, 42.0, 6)]
-    public async Task CheckLuaResult(string script, bool useResp3, ResultType resp2, ResultType resp3, object expected, int serverMin = 1)
+    [InlineData("return { map = { a = 1, b = 2, c = 3 } }", RedisProtocol.Resp3, ResultType.Array, ResultType.Map, MAP_ABC, 6)]
+    [InlineData("return { set = { a = 1, b = 2, c = 3 } }", RedisProtocol.Resp3, ResultType.Array, ResultType.Set, SET_ABC, 6)]
+    [InlineData("return { double = 42 }", RedisProtocol.Resp3, ResultType.SimpleString, ResultType.Double, 42.0, 6)]
+    public async Task CheckLuaResult(string script, RedisProtocol protocol, ResultType resp2, ResultType resp3, object expected, int serverMin = 1)
     {
         // note Lua does not appear to return RESP3 types in any scenarios
-        var muxer = Fixture.GetConnection(this, useResp3);
+        var muxer = Create(protocol: protocol);
         var ep = muxer.GetServerEndPoint(muxer.GetEndPoints().Single());
         if (serverMin > ep.Version.Major)
         {
@@ -174,7 +172,7 @@ return redis.pcall('hgetall', 'key')", true, ResultType.Array, ResultType.Map, M
             Skip.Inconclusive("debug protocol not available");
         }
         if (ep.Protocol is null) throw new InvalidOperationException($"No protocol! {ep.InteractiveConnectionState}");
-        Assert.Equal(useResp3 ? RedisProtocol.Resp3 : RedisProtocol.Resp2, ep.Protocol);
+        Assert.Equal(protocol, ep.Protocol);
 
         var db = muxer.GetDatabase();
         if (expected is MAP_ABC)
@@ -249,38 +247,38 @@ return redis.pcall('hgetall', 'key')", true, ResultType.Array, ResultType.Map, M
     //[InlineData("return true", true, ResultType.Integer, ResultType.Integer, 1)]
 
 
-    [InlineData("incrby", false, ResultType.Integer, ResultType.Integer, 42, "ikey", 2)]
-    [InlineData("incrby", true, ResultType.Integer, ResultType.Integer, 42, "ikey", 2)]
-    [InlineData("incrby", false, ResultType.Integer, ResultType.Integer, 2, "nkey", 2)]
-    [InlineData("incrby", true, ResultType.Integer, ResultType.Integer, 2, "nkey", 2)]
+    [InlineData("incrby", RedisProtocol.Resp2, ResultType.Integer, ResultType.Integer, 42, "ikey", 2)]
+    [InlineData("incrby", RedisProtocol.Resp3, ResultType.Integer, ResultType.Integer, 42, "ikey", 2)]
+    [InlineData("incrby", RedisProtocol.Resp2, ResultType.Integer, ResultType.Integer, 2, "nkey", 2)]
+    [InlineData("incrby", RedisProtocol.Resp3, ResultType.Integer, ResultType.Integer, 2, "nkey", 2)]
 
-    [InlineData("get", false, ResultType.BulkString, ResultType.BulkString, "40", "ikey")]
-    [InlineData("get", true, ResultType.BulkString, ResultType.BulkString, "40", "ikey")]
-    [InlineData("get", false, ResultType.BulkString, ResultType.Null, null, "nkey")]
-    [InlineData("get", true, ResultType.BulkString, ResultType.Null, null, "nkey")]
+    [InlineData("get", RedisProtocol.Resp2, ResultType.BulkString, ResultType.BulkString, "40", "ikey")]
+    [InlineData("get", RedisProtocol.Resp3, ResultType.BulkString, ResultType.BulkString, "40", "ikey")]
+    [InlineData("get", RedisProtocol.Resp2, ResultType.BulkString, ResultType.Null, null, "nkey")]
+    [InlineData("get", RedisProtocol.Resp3, ResultType.BulkString, ResultType.Null, null, "nkey")]
 
-    [InlineData("smembers", false, ResultType.Array, ResultType.Array, SET_ABC, "skey")]
-    [InlineData("smembers", true, ResultType.Array, ResultType.Set, SET_ABC, "skey")]
-    [InlineData("smembers", false, ResultType.Array, ResultType.Array, EMPTY_ARR, "nkey")]
-    [InlineData("smembers", true, ResultType.Array, ResultType.Set, EMPTY_ARR, "nkey")]
+    [InlineData("smembers", RedisProtocol.Resp2, ResultType.Array, ResultType.Array, SET_ABC, "skey")]
+    [InlineData("smembers", RedisProtocol.Resp3, ResultType.Array, ResultType.Set, SET_ABC, "skey")]
+    [InlineData("smembers", RedisProtocol.Resp2, ResultType.Array, ResultType.Array, EMPTY_ARR, "nkey")]
+    [InlineData("smembers", RedisProtocol.Resp3, ResultType.Array, ResultType.Set, EMPTY_ARR, "nkey")]
 
-    [InlineData("hgetall", false, ResultType.Array, ResultType.Array, MAP_ABC, "hkey")]
-    [InlineData("hgetall", true, ResultType.Array, ResultType.Map, MAP_ABC, "hkey")]
-    [InlineData("hgetall", false, ResultType.Array, ResultType.Array, EMPTY_ARR, "nkey")]
-    [InlineData("hgetall", true, ResultType.Array, ResultType.Map, EMPTY_ARR, "nkey")]
+    [InlineData("hgetall", RedisProtocol.Resp2, ResultType.Array, ResultType.Array, MAP_ABC, "hkey")]
+    [InlineData("hgetall", RedisProtocol.Resp3, ResultType.Array, ResultType.Map, MAP_ABC, "hkey")]
+    [InlineData("hgetall", RedisProtocol.Resp2, ResultType.Array, ResultType.Array, EMPTY_ARR, "nkey")]
+    [InlineData("hgetall", RedisProtocol.Resp3, ResultType.Array, ResultType.Map, EMPTY_ARR, "nkey")]
 
-    [InlineData("sismember", false, ResultType.Integer, ResultType.Integer, true, "skey", "b")]
-    [InlineData("sismember", true, ResultType.Integer, ResultType.Integer, true, "skey", "b")]
-    [InlineData("sismember", false, ResultType.Integer, ResultType.Integer, false, "nkey", "b")]
-    [InlineData("sismember", true, ResultType.Integer, ResultType.Integer, false, "nkey", "b")]
-    [InlineData("sismember", false, ResultType.Integer, ResultType.Integer, false, "skey", "d")]
-    [InlineData("sismember", true, ResultType.Integer, ResultType.Integer, false, "skey", "d")]
+    [InlineData("sismember", RedisProtocol.Resp2, ResultType.Integer, ResultType.Integer, true, "skey", "b")]
+    [InlineData("sismember", RedisProtocol.Resp3, ResultType.Integer, ResultType.Integer, true, "skey", "b")]
+    [InlineData("sismember", RedisProtocol.Resp2, ResultType.Integer, ResultType.Integer, false, "nkey", "b")]
+    [InlineData("sismember", RedisProtocol.Resp3, ResultType.Integer, ResultType.Integer, false, "nkey", "b")]
+    [InlineData("sismember", RedisProtocol.Resp2, ResultType.Integer, ResultType.Integer, false, "skey", "d")]
+    [InlineData("sismember", RedisProtocol.Resp3, ResultType.Integer, ResultType.Integer, false, "skey", "d")]
 
-    [InlineData("latency", false, ResultType.BulkString, ResultType.BulkString, STR_DAVE, "doctor")]
-    [InlineData("latency", true, ResultType.BulkString, ResultType.VerbatimString, STR_DAVE, "doctor")]
+    [InlineData("latency", RedisProtocol.Resp2, ResultType.BulkString, ResultType.BulkString, STR_DAVE, "doctor")]
+    [InlineData("latency", RedisProtocol.Resp3, ResultType.BulkString, ResultType.VerbatimString, STR_DAVE, "doctor")]
 
-    [InlineData("incrbyfloat", false, ResultType.BulkString, ResultType.BulkString, 41.5, "ikey", 1.5)]
-    [InlineData("incrbyfloat", true, ResultType.BulkString, ResultType.BulkString, 41.5, "ikey", 1.5)]
+    [InlineData("incrbyfloat", RedisProtocol.Resp2, ResultType.BulkString, ResultType.BulkString, 41.5, "ikey", 1.5)]
+    [InlineData("incrbyfloat", RedisProtocol.Resp3, ResultType.BulkString, ResultType.BulkString, 41.5, "ikey", 1.5)]
 
     /* DEBUG PROTOCOL <type>
      * Reply with a test value of the specified type. <type> can be: string,
@@ -290,45 +288,45 @@ return redis.pcall('hgetall', 'key')", true, ResultType.Array, ResultType.Map, M
      * NOTE: "debug protocol" may be disabled in later default server configs; if this starts
      * failing when we upgrade the test server: update the config to re-enable the command
      */
-    [InlineData("debug", false, ResultType.BulkString, ResultType.BulkString, ANY, "protocol", "string")]
-    [InlineData("debug", true, ResultType.BulkString, ResultType.BulkString, ANY, "protocol", "string")]
+    [InlineData("debug", RedisProtocol.Resp2, ResultType.BulkString, ResultType.BulkString, ANY, "protocol", "string")]
+    [InlineData("debug", RedisProtocol.Resp3, ResultType.BulkString, ResultType.BulkString, ANY, "protocol", "string")]
 
-    [InlineData("debug", false, ResultType.BulkString, ResultType.BulkString, ANY, "protocol", "double")]
-    [InlineData("debug", true, ResultType.SimpleString, ResultType.Double, ANY, "protocol", "double")]
+    [InlineData("debug", RedisProtocol.Resp2, ResultType.BulkString, ResultType.BulkString, ANY, "protocol", "double")]
+    [InlineData("debug", RedisProtocol.Resp3, ResultType.SimpleString, ResultType.Double, ANY, "protocol", "double")]
 
-    [InlineData("debug", false, ResultType.BulkString, ResultType.BulkString, ANY, "protocol", "bignum")]
-    [InlineData("debug", true, ResultType.SimpleString, ResultType.BigInteger, ANY, "protocol", "bignum")]
+    [InlineData("debug", RedisProtocol.Resp2, ResultType.BulkString, ResultType.BulkString, ANY, "protocol", "bignum")]
+    [InlineData("debug", RedisProtocol.Resp3, ResultType.SimpleString, ResultType.BigInteger, ANY, "protocol", "bignum")]
 
-    [InlineData("debug", false, ResultType.BulkString, ResultType.Null, null, "protocol", "null")]
-    [InlineData("debug", true, ResultType.BulkString, ResultType.Null, null, "protocol", "null")]
+    [InlineData("debug", RedisProtocol.Resp2, ResultType.BulkString, ResultType.Null, null, "protocol", "null")]
+    [InlineData("debug", RedisProtocol.Resp3, ResultType.BulkString, ResultType.Null, null, "protocol", "null")]
 
-    [InlineData("debug", false, ResultType.Array, ResultType.Array, ANY, "protocol", "array")]
-    [InlineData("debug", true, ResultType.Array, ResultType.Array, ANY, "protocol", "array")]
+    [InlineData("debug", RedisProtocol.Resp2, ResultType.Array, ResultType.Array, ANY, "protocol", "array")]
+    [InlineData("debug", RedisProtocol.Resp3, ResultType.Array, ResultType.Array, ANY, "protocol", "array")]
 
-    [InlineData("debug", false, ResultType.Array, ResultType.Array, ANY, "protocol", "set")]
-    [InlineData("debug", true, ResultType.Array, ResultType.Set, ANY, "protocol", "set")]
+    [InlineData("debug", RedisProtocol.Resp2, ResultType.Array, ResultType.Array, ANY, "protocol", "set")]
+    [InlineData("debug", RedisProtocol.Resp3, ResultType.Array, ResultType.Set, ANY, "protocol", "set")]
 
-    [InlineData("debug", false, ResultType.Array, ResultType.Array, ANY, "protocol", "map")]
-    [InlineData("debug", true, ResultType.Array, ResultType.Map, ANY, "protocol", "map")]
+    [InlineData("debug", RedisProtocol.Resp2, ResultType.Array, ResultType.Array, ANY, "protocol", "map")]
+    [InlineData("debug", RedisProtocol.Resp3, ResultType.Array, ResultType.Map, ANY, "protocol", "map")]
 
-    [InlineData("debug", false, ResultType.BulkString, ResultType.BulkString, ANY, "protocol", "verbatim")]
-    [InlineData("debug", true, ResultType.BulkString, ResultType.VerbatimString, ANY, "protocol", "verbatim")]
+    [InlineData("debug", RedisProtocol.Resp2, ResultType.BulkString, ResultType.BulkString, ANY, "protocol", "verbatim")]
+    [InlineData("debug", RedisProtocol.Resp3, ResultType.BulkString, ResultType.VerbatimString, ANY, "protocol", "verbatim")]
 
-    [InlineData("debug", false, ResultType.Integer, ResultType.Integer, true, "protocol", "true")]
-    [InlineData("debug", true, ResultType.Integer, ResultType.Boolean, true, "protocol", "true")]
+    [InlineData("debug", RedisProtocol.Resp2, ResultType.Integer, ResultType.Integer, true, "protocol", "true")]
+    [InlineData("debug", RedisProtocol.Resp3, ResultType.Integer, ResultType.Boolean, true, "protocol", "true")]
 
-    [InlineData("debug", false, ResultType.Integer, ResultType.Integer, false, "protocol", "false")]
-    [InlineData("debug", true, ResultType.Integer, ResultType.Boolean, false, "protocol", "false")]
+    [InlineData("debug", RedisProtocol.Resp2, ResultType.Integer, ResultType.Integer, false, "protocol", "false")]
+    [InlineData("debug", RedisProtocol.Resp3, ResultType.Integer, ResultType.Boolean, false, "protocol", "false")]
 
-    public async Task CheckCommandResult(string command, bool useResp3, ResultType resp2, ResultType resp3, object expected, params object[] args)
+    public async Task CheckCommandResult(string command, RedisProtocol protocol, ResultType resp2, ResultType resp3, object expected, params object[] args)
     {
-        var muxer = Fixture.GetConnection(this, useResp3);
+        var muxer = Create(protocol: protocol);
         var ep = muxer.GetServerEndPoint(muxer.GetEndPoints().Single());
         if (command == "debug" && args.Length > 0 && args[0] is "protocol" && !ep.GetFeatures().Resp3 /* v6 check */ )
         {
             Skip.Inconclusive("debug protocol not available");
         }
-        Assert.Equal(useResp3 ? RedisProtocol.Resp3 : RedisProtocol.Resp2, ep.Protocol);
+        Assert.Equal(protocol, ep.Protocol);
 
         var db = muxer.GetDatabase();
         if (args.Length > 0)
@@ -382,7 +380,7 @@ return redis.pcall('hgetall', 'key')", true, ResultType.Array, ResultType.Map, M
                 isExpectedContent = scontent.StartsWith("Dave, ") || scontent.StartsWith("I'm sorry, Dave");
                 Assert.True(isExpectedContent);
                 Log(scontent);
-                if (useResp3)
+                if (protocol == RedisProtocol.Resp3)
                 {
                     Assert.Equal("txt", type); 
                 }

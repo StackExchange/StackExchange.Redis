@@ -11,19 +11,11 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-
-public class Resp2ClusterTests : ClusterTests
+[RunPerProtocol]
+[Collection(SharedConnectionFixture.Key)]
+public class ClusterTests : TestBase
 {
-    public Resp2ClusterTests(ITestOutputHelper output, ProtocolDependentFixture fixture) : base(output, fixture, false) { }
-}
-public class Resp3ClusterTests : ClusterTests
-{
-    public Resp3ClusterTests(ITestOutputHelper output, ProtocolDependentFixture fixture) : base(output, fixture, true) { }
-}
-
-public abstract class ClusterTests : ProtocolFixedTestBase
-{
-    public ClusterTests(ITestOutputHelper output, ProtocolDependentFixture fixture, bool resp3) : base(output, fixture, resp3) { }
+    public ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
 
     protected override string GetConfiguration() => TestConfig.Current.ClusterServersAndPorts + ",connectTimeout=10000";
 
@@ -59,7 +51,7 @@ public abstract class ClusterTests : ProtocolFixedTestBase
                 var srv = conn.GetServer(ep);
                 var counters = srv.GetCounters();
                 Assert.Equal(1, counters.Interactive.SocketCount);
-                Assert.Equal(Resp3 ? 0 : 1, counters.Subscription.SocketCount);
+                Assert.Equal(Context.IsResp3 ? 0 : 1, counters.Subscription.SocketCount);
             }
         }
     }
@@ -127,7 +119,7 @@ public abstract class ClusterTests : ProtocolFixedTestBase
             {
                 Log(fail.ToString());
             }
-            Assert.True(false, "not all servers connected");
+            Assert.Fail("not all servers connected");
         }
 
         Assert.Equal(TestConfig.Current.ClusterServerCount / 2, replicas);
@@ -248,7 +240,7 @@ public abstract class ClusterTests : ProtocolFixedTestBase
             _ = tran.StringSetAsync(y, "y-val");
             tran.Execute();
 
-            Assert.True(false, "Expected single-slot rules to apply");
+            Assert.Fail("Expected single-slot rules to apply");
             // the rest no longer applies while we are following single-slot rules
 
             //// check that everything was aborted
@@ -305,7 +297,7 @@ public abstract class ClusterTests : ProtocolFixedTestBase
             _ = tran.StringSetAsync(y, "y-val");
             tran.Execute();
 
-            Assert.True(false, "Expected single-slot rules to apply");
+            Assert.Fail("Expected single-slot rules to apply");
             // the rest no longer applies while we are following single-slot rules
 
             //// check that everything was aborted

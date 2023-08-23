@@ -7,18 +7,11 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-public class Resp2ScanTests : StringTests
+[RunPerProtocol]
+[Collection(SharedConnectionFixture.Key)]
+public class ScanTests : TestBase
 {
-    public Resp2ScanTests(ITestOutputHelper output, ProtocolDependentFixture fixture) : base(output, fixture, false) { }
-}
-public class Resp3ScanTests : StringTests
-{
-    public Resp3ScanTests(ITestOutputHelper output, ProtocolDependentFixture fixture) : base(output, fixture, true) { }
-}
-
-public abstract class ScanTests : ProtocolFixedTestBase
-{
-    public ScanTests(ITestOutputHelper output, ProtocolDependentFixture fixture, bool resp3) : base(output, fixture, resp3) { }
+    public ScanTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
 
     [Theory]
     [InlineData(true)]
@@ -32,7 +25,7 @@ public abstract class ScanTests : ProtocolFixedTestBase
         var db = conn.GetDatabase(dbId);
         var prefix = Me() + ":";
         var server = GetServer(conn);
-        Assert.Equal(ExpectedProtocol, server.Protocol);
+        Assert.Equal(Context.Test.Protocol, server.Protocol);
         server.FlushDatabase(dbId);
         for (int i = 0; i < 100; i++)
         {

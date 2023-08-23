@@ -6,17 +6,11 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-public class Resp2PubSubMultiserverTests : PubSubMultiserverTests
+[RunPerProtocol]
+[Collection(SharedConnectionFixture.Key)]
+public class PubSubMultiserverTests : TestBase
 {
-    public Resp2PubSubMultiserverTests(ITestOutputHelper output, ProtocolDependentFixture fixture) : base(output, fixture, false) { }
-}
-public class Resp3PubSubMultiserverTests : PubSubMultiserverTests
-{
-    public Resp3PubSubMultiserverTests(ITestOutputHelper output, ProtocolDependentFixture fixture) : base(output, fixture, true) { }
-}
-public abstract class PubSubMultiserverTests : ProtocolFixedTestBase
-{
-    public PubSubMultiserverTests(ITestOutputHelper output, ProtocolDependentFixture fixture, bool resp3) : base(output, fixture, resp3) { }
+    public PubSubMultiserverTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
 
     protected override string GetConfiguration() => TestConfig.Current.ClusterServersAndPorts + ",connectTimeout=10000";
 
@@ -78,7 +72,7 @@ public abstract class PubSubMultiserverTests : ProtocolFixedTestBase
         Log("Connected to: " + initialServer);
 
         conn.AllowConnect = false;
-        if (Resp3)
+        if (Context.IsResp3)
         {
             subscribedServerEndpoint.SimulateConnectionFailure(SimulatedFailureType.All);
 
@@ -160,7 +154,7 @@ public abstract class PubSubMultiserverTests : ProtocolFixedTestBase
         Log("Connected to: " + initialServer);
 
         conn.AllowConnect = false;
-        if (Resp3)
+        if (Context.IsResp3)
         {
             subscribedServerEndpoint.SimulateConnectionFailure(SimulatedFailureType.All); // need to kill the main connection
             Assert.False(subscribedServerEndpoint.IsConnected, "subscribedServerEndpoint.IsConnected");

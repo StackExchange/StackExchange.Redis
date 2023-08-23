@@ -8,20 +8,14 @@ using System.Threading.Tasks;
 
 namespace StackExchange.Redis.Tests;
 
-public class Resp2HashTests : HashTests
-{
-    public Resp2HashTests(ITestOutputHelper output, ProtocolDependentFixture fixture) : base(output, fixture, false) { }
-}
-public class Resp3HashTests : HashTests
-{
-    public Resp3HashTests(ITestOutputHelper output, ProtocolDependentFixture fixture) : base(output, fixture, true) { }
-}
 /// <summary>
 /// Tests for <see href="https://redis.io/commands#hash"/>.
 /// </summary>
-public abstract class HashTests : ProtocolFixedTestBase
+[RunPerProtocol]
+[Collection(SharedConnectionFixture.Key)]
+public class HashTests : TestBase
 {
-    public HashTests(ITestOutputHelper output, ProtocolDependentFixture fixture, bool resp3) : base(output, fixture, resp3) { }
+    public HashTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
 
     [Fact]
     public async Task TestIncrBy()

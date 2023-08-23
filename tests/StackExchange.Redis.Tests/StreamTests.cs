@@ -7,18 +7,11 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-public class Resp2StreamTests : StreamTests
+[RunPerProtocol]
+[Collection(SharedConnectionFixture.Key)]
+public class StreamTests : TestBase
 {
-    public Resp2StreamTests(ITestOutputHelper output, ProtocolDependentFixture fixture) : base(output, fixture, false) { }
-}
-public class Resp3StreamTests : StreamTests
-{
-    public Resp3StreamTests(ITestOutputHelper output, ProtocolDependentFixture fixture) : base(output, fixture, true) { }
-}
-
-public abstract class StreamTests : ProtocolFixedTestBase
-{
-    public StreamTests(ITestOutputHelper output, ProtocolDependentFixture fixture, bool resp3) : base(output, fixture, resp3) { }
+    public StreamTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
 
     [Fact]
     public void IsStreamType()

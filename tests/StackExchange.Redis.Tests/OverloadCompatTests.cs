@@ -60,6 +60,7 @@ public class OverloadCompatTests : TestBase
         await db.KeyExpireAsync(key, expireTime, when: when, flags: flags);
     }
 
+    [Fact]
     public async Task StringBitCount()
     {
         using var conn = Create(require: RedisFeatures.v2_6_0);

@@ -334,7 +334,7 @@ public class SSLTests : TestBase, IClassFixture<SSLTests.SSLServerFixture>
             using var conn = ConnectionMultiplexer.Connect(options);
 
             RedisKey key = Me();
-            if (!setEnv) Assert.True(false, "Could not set environment");
+            if (!setEnv) Assert.Fail("Could not set environment");
 
             var db = conn.GetDatabase();
             db.KeyDelete(key, CommandFlags.FireAndForget);
