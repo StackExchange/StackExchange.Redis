@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using Xunit;
 using Xunit.Abstractions;
@@ -18,14 +19,32 @@ public class ProtocolDependentFixture : IDisposable // without this, test perf i
         Version? require = useResp3 ? RedisFeatures.v6_0_0 : null;
         lock (this)
         {
-            if (useResp3)
-            {
-                return resp3 ??= new NonDisposingConnection(obj.Create(protocol: RedisProtocol.Resp3, require: require, caller: caller, shared: false, allowAdmin: true));
+            ref NonDisposingConnection? field = ref useResp3 ? ref resp3 : ref resp2;
+            if (field is {  IsConnected: false})
+            {   // abandon memoized connection if disconnected
+                var muxer = field.UnderlyingMultiplexer;
+                field = null;
+                muxer.Dispose();
             }
-            else
+            var protocol = useResp3 ? RedisProtocol.Resp3 : RedisProtocol.Resp2;
+            return field ??= VerifyAndWrap(obj.Create(protocol: protocol, require: require, caller: caller, shared: false, allowAdmin: true), useResp3);
+        }
+
+        static NonDisposingConnection VerifyAndWrap(IInternalConnectionMultiplexer muxer, bool useResp3)
+        {
+            var ep = muxer.GetEndPoints().FirstOrDefault();
+            Assert.NotNull(ep);
+            var server = muxer.GetServer(ep);
+            server.Ping();
+            var sep = muxer.GetServerEndPoint(ep);
+            if (sep.Protocol is null)
             {
-                return resp2 ??= new NonDisposingConnection(obj.Create(protocol: RedisProtocol.Resp2, require: require, caller: caller, shared: false, allowAdmin: true));
+                throw new InvalidOperationException("No RESP protocol; this means no connection?");
             }
+            var expected = useResp3 ? RedisProtocol.Resp3 : RedisProtocol.Resp2;
+            Assert.Equal(expected, sep.Protocol);
+            Assert.Equal(expected, server.Protocol);
+            return new NonDisposingConnection(muxer);
         }
     }
 

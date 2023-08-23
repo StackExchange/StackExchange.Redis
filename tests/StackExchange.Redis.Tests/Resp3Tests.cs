@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System;
+using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Xunit;
@@ -172,6 +173,7 @@ return redis.pcall('hgetall', 'key')", true, ResultType.Array, ResultType.Map, M
         {
             Skip.Inconclusive("debug protocol not available");
         }
+        if (ep.Protocol is null) throw new InvalidOperationException($"No protocol! {ep.InteractiveConnectionState}");
         Assert.Equal(useResp3 ? RedisProtocol.Resp3 : RedisProtocol.Resp2, ep.Protocol);
 
         var db = muxer.GetDatabase();

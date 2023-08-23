@@ -207,6 +207,9 @@ namespace StackExchange.Redis
             set => SetConfig(ref version, value);
         }
 
+        /// <summary>
+        /// If we have a connection (interactive), report the protocol being used
+        /// </summary>
         public RedisProtocol? Protocol => interactive?.Protocol;
 
         public int WriteEverySeconds
@@ -968,13 +971,8 @@ namespace StackExchange.Redis
                 hello.SetInternalCall();
                 await WriteDirectOrQueueFireAndForgetAsync(connection, hello, autoConfig ??= ResultProcessor.AutoConfigureProcessor.Create(log)).ForAwait();
 
-                // note that we don't know the actual protocol yet; this still could be RESP2 if either HELLO isn't supported/reports an error,
-                // or if the server negotiation says "I understand HELLO, but we're talking RESP2"
-            }
-            else
-            {
-                // if we're not even issuing HELLO, we're RESP2
-                connection.SetProtocol(RedisProtocol.Resp2);
+                // note that the server can reject RESP3 via either an -ERR response (HELLO not understood), or by simply saying "nope",
+                // so we don't set the actual .Protocol until we process the result of the HELLO request
             }
 
             // note: we auth EVEN IF we have used HELLO to AUTH; because otherwise the fallback/detection path is pure hell,

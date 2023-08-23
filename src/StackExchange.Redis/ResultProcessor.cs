@@ -961,7 +961,7 @@ namespace StackExchange.Redis
                                 }
                                 else if (key.IsEqual(CommonReplies.proto) && val.TryGetInt64(out var i64))
                                 {
-                                    connection.SetProtocol(i64 >= 3 ? RedisProtocol.Resp3 : RedisProtocol.Resp2);
+                                    connection.Protocol = (i64 >= 3 ? RedisProtocol.Resp3 : RedisProtocol.Resp2);
                                     Log?.LogInformation($"{Format.ToString(server)}: Auto-configured (HELLO) protocol: {connection.Protocol}");
                                 }
                                 else if (key.IsEqual(CommonReplies.id) && val.TryGetInt64(out i64))
@@ -2618,12 +2618,6 @@ The coordinates as a two items x,y array (longitude,latitude).
                     {
                         connection.RecordConnectionFailed(ConnectionFailureType.ProtocolFailure, new RedisServerException(result.ToString()));
                     }
-                }
-
-                if (connection.Protocol is null)
-                {
-                    // if we didn't get a valid response from HELLO, then we have to assume RESP2 at some point
-                    connection.SetProtocol(RedisProtocol.Resp2);
                 }
 
                 return final;

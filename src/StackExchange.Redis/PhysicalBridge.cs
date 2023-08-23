@@ -116,7 +116,7 @@ namespace StackExchange.Redis
         public RedisCommand LastCommand { get; private set; }
 
         /// <summary>
-        /// If we have completed handshake, report the actual protocol; if we're not sure, report null
+        /// If we have a connection, report the protocol being used
         /// </summary>
         public RedisProtocol? Protocol => physical?.Protocol;
 

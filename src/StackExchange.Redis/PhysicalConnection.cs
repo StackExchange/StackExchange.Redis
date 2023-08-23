@@ -259,10 +259,12 @@ namespace StackExchange.Redis
 
         public bool TransactionActive { get; internal set; }
 
-        public RedisProtocol? Protocol => _knownProtocol == 0 ? null : _knownProtocol; // advertise null if we haven't completed handshake
-        public void SetProtocol(RedisProtocol value) => _knownProtocol = value;
-        private RedisProtocol _knownProtocol; // note that this defaults to ZERO, not 2, until the handshake; just to avoid some storage;
-
+        private RedisProtocol _protocol = RedisProtocol.Resp2; // all connections start as RESP2
+        public RedisProtocol Protocol
+        {
+            get => _protocol;
+            set => _protocol = value;
+        }
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:Do not dispose objects multiple times")]
         internal void Shutdown()
@@ -1826,7 +1828,7 @@ namespace StackExchange.Redis
             {
                 _readStatus = ReadStatus.TryParseResult;
                 var reader = new BufferReader(buffer);
-                var result = TryParseResult(_knownProtocol >= RedisProtocol.Resp3, _arena, in buffer, ref reader, IncludeDetailInExceptions, this);
+                var result = TryParseResult(_protocol >= RedisProtocol.Resp3, _arena, in buffer, ref reader, IncludeDetailInExceptions, this);
                 try
                 {
                     if (result.HasValue)
