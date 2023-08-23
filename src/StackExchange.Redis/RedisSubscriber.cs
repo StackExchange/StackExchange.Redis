@@ -75,7 +75,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Handler that executes whenever a message comes in, this doles out messages to any registered handlers.
         /// </summary>
-        internal void OnMessage(in RedisChannel subscription, in RedisChannel channel, in RedisValue payload)
+        internal void OnMessage(in RedisChannel subscription, in RedisChannel channel, in RedisValue payload, in RawResult rawPayload)
         {
             ICompletable? completable = null;
             ChannelMessageQueue? queues = null;
@@ -91,22 +91,28 @@ namespace StackExchange.Redis
             {
                 CompleteAsWorker(completable);
             }
+            if (subscription == ClientCachingChannel)
+            {
+                _clientSideTracking?.Write(rawPayload.AsRedisKey());
+            }
         }
+
+        internal static readonly RedisChannel ClientCachingChannel = RedisChannel.Literal("__redis__:invalidate");
 
         internal void OnMessage(in RedisChannel subscription, in RedisChannel channel, Sequence<RawResult> payload)
         {
             if (payload.IsSingleSegment)
             {
-                foreach (var message in payload.FirstSpan)
+                foreach (ref readonly RawResult message in payload.FirstSpan)
                 {
-                    OnMessage(subscription, channel, message.AsRedisValue());
+                    OnMessage(subscription, channel, message.AsRedisValue(), in message);
                 }
             }
             else
             {
-                foreach (var message in payload)
+                foreach (ref readonly RawResult message in payload)
                 {
-                    OnMessage(subscription, channel, message.AsRedisValue());
+                    OnMessage(subscription, channel, message.AsRedisValue(), in message);
                 }
             }
         }

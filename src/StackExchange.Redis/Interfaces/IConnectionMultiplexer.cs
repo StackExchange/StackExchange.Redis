@@ -281,5 +281,8 @@ namespace StackExchange.Redis
         /// <param name="destination">The destination stream to write the export to.</param>
         /// <param name="options">The options to use for this export.</param>
         void ExportConfiguration(Stream destination, ExportOptions options = ExportOptions.All);
+
+        /// <inheritdoc cref="ConnectionMultiplexer.EnableServerAssistedClientSideTracking(Func{RedisKey, ValueTask}, ClientTrackingOptions, ReadOnlyMemory{RedisKey})"/>
+        void EnableServerAssistedClientSideTracking(Func<RedisKey, ValueTask> keyInvalidated, ClientTrackingOptions options = ClientTrackingOptions.None, ReadOnlyMemory<RedisKey> prefixes = default);
     }
 }

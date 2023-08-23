@@ -1,4 +1,7 @@
-﻿using System;
+﻿using Microsoft.Extensions.Logging;
+using Pipelines.Sockets.Unofficial;
+using StackExchange.Redis.Profiling;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
@@ -9,10 +12,8 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Logging;
-using Pipelines.Sockets.Unofficial;
-using StackExchange.Redis.Profiling;
 
 namespace StackExchange.Redis
 {
@@ -354,6 +355,11 @@ namespace StackExchange.Redis
             if (message.ArgCount >= PhysicalConnection.REDIS_MAX_ARGS)
             {
                 throw ExceptionFactory.TooManyArgs(message.CommandAndKey, message.ArgCount);
+            }
+
+            if (message.IsClientCaching && ClientSideTracking is null)
+            {
+                throw new InvalidOperationException("The " + nameof(CommandFlags.ClientCaching) + " flag can only be used if " + nameof(EnableServerAssistedClientSideTracking) + " has been called");
             }
         }
 
@@ -2268,7 +2274,7 @@ namespace StackExchange.Redis
         public void Close(bool allowCommandsToComplete = true)
         {
             if (_isDisposed) return;
-
+            _clientSideTracking?.Shutdown();
             OnClosing(false);
             _isDisposed = true;
             _profilingSessionProvider = null;
@@ -2295,6 +2301,7 @@ namespace StackExchange.Redis
         public async Task CloseAsync(bool allowCommandsToComplete = true)
         {
             _isDisposed = true;
+            _clientSideTracking?.Shutdown();
             using (var tmp = pulse)
             {
                 pulse = null;
@@ -2341,5 +2348,89 @@ namespace StackExchange.Redis
 
         long? IInternalConnectionMultiplexer.GetConnectionId(EndPoint endpoint, ConnectionType type)
             => GetServerEndPoint(endpoint)?.GetBridge(type)?.ConnectionId;
+
+        /// <summary>
+        /// Enable the <a href="https://redis.io/commands/client-tracking/">client tracking</a> feature of redis
+        /// </summary>
+        /// <remarks>see also https://redis.io/docs/manual/client-side-caching/</remarks>
+        /// <param name="keyInvalidated">The callback to be invoked when keys are determined to be invalidated</param>
+        /// <param name="options">Additional flags to influence the behavior of client tracking</param>
+        /// <param name="prefixes">Optionally restricts client-side caching notifications for these connections to a subset of key prefixes; this has performance implications (see the PREFIX option in CLIENT TRACKING)</param>
+        public void EnableServerAssistedClientSideTracking(Func<RedisKey, ValueTask> keyInvalidated, ClientTrackingOptions options = ClientTrackingOptions.None, ReadOnlyMemory<RedisKey> prefixes = default)
+        {
+            if (_clientSideTracking is not null) ThrowOnceOnly();
+            var obj = new ClientSideTrackingState(keyInvalidated, options, prefixes);
+            if (Interlocked.CompareExchange(ref _clientSideTracking, obj, null) is not null) ThrowOnceOnly();
+
+            static void ThrowOnceOnly() => throw new InvalidOperationException("The " + nameof(EnableServerAssistedClientSideTracking) + " method can be invoked once-only per multiplexer instance");
+        }
+
+        private ClientSideTrackingState? _clientSideTracking;
+        internal ClientSideTrackingState? ClientSideTracking => _clientSideTracking;
+        internal sealed class ClientSideTrackingState
+        {
+            public bool IsAlive { get; private set; }
+            private readonly Func<RedisKey, ValueTask> _keyInvalidated;
+            public ClientTrackingOptions Options { get; }
+            public ReadOnlyMemory<RedisKey> Prefixes { get; }
+
+            private readonly Channel<RedisKey> _notifications;
+
+            public ClientSideTrackingState(Func<RedisKey, ValueTask> keyInvalidated, ClientTrackingOptions options, ReadOnlyMemory<RedisKey> prefixes)
+            {
+                _keyInvalidated = keyInvalidated;
+                Options = options;
+                Prefixes = prefixes;
+                _notifications = Channel.CreateUnbounded<RedisKey>(ChannelOptions);
+                _ = Task.Run(RunAsync);
+                IsAlive = true;
+            }
+            private async Task RunAsync()
+            {
+                while (await _notifications.Reader.WaitToReadAsync().ConfigureAwait(false))
+                {
+                    while (_notifications.Reader.TryRead(out var key))
+                    {
+                        await _keyInvalidated(key).ConfigureAwait(false);
+                    }
+                }
+            }
+
+            public void Write(RedisKey key) => _notifications.Writer.TryWrite(key);
+
+            public void Shutdown()
+            {
+                IsAlive = false;
+                _notifications.Writer.TryComplete(null);
+            }
+
+            private static readonly UnboundedChannelOptions ChannelOptions = new UnboundedChannelOptions {  SingleReader = true, SingleWriter = false, AllowSynchronousContinuations = true };
+
+
+        }
+    }
+
+    /// <summary>
+    /// Additional flags to influence the behavior of client tracking
+    /// </summary>
+    [Flags]
+    public enum ClientTrackingOptions
+    {
+        /// <summary>
+        /// No additional options
+        /// </summary>
+        None = 0,
+        /// <summary>
+        /// Enable tracking in broadcasting mode. In this mode invalidation messages are reported for all the prefixes specified, regardless of the keys requested by the connection. Instead when the broadcasting mode is not enabled, Redis will track which keys are fetched using read-only commands, and will report invalidation messages only for such keys.
+        /// </summary>
+        /// <remarks>This corresponds to CLIENT TRACKING ... BCAST</remarks>
+        Broadcast = 1 << 0,
+        /// <summary>
+        /// Send notifications about keys modified by this connection itself.
+        /// </summary>
+        /// <remarks>This corresponds to the <b>inverse</b> of CLIENT TRACKING ... NOLOOP</remarks>
+        NotifyForOwnCommands = 1 << 1,
+
+        // to think about: OPTIN / OPTOUT ? I'm happy to implement on the basis of OPTIN for now, though
     }
 }

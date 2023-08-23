@@ -185,6 +185,8 @@ public class SharedConnectionFixture : IDisposable
         public override string ToString() => _inner.ToString();
         long? IInternalConnectionMultiplexer.GetConnectionId(EndPoint endPoint, ConnectionType type)
             => _inner.GetConnectionId(endPoint, type);
+        public void EnableServerAssistedClientSideTracking(Func<RedisKey, ValueTask> keyInvalidated, ClientTrackingOptions options = ClientTrackingOptions.None, ReadOnlyMemory<RedisKey> prefixes = default)
+            => _inner.EnableServerAssistedClientSideTracking(keyInvalidated, options, prefixes);
     }
 
     public void Dispose()

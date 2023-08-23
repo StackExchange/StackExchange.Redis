@@ -23,7 +23,9 @@ namespace StackExchange.Redis
 
         private const double ProfileLogSeconds = (1000 /* ms */ * ProfileLogSamples) / 1000.0;
 
-        private static readonly Message ReusableAskingCommand = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.ASKING);
+        private static readonly Message
+            ReusableAskingCommand = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.ASKING),
+            ReusableClientCachingYesCommand = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.CLIENT, RedisLiterals.CACHING, RedisLiterals.yes);
 
         private readonly long[] profileLog = new long[ProfileLogSamples];
 
@@ -1494,12 +1496,12 @@ namespace StackExchange.Redis
                     }
                     if (message.IsAsking)
                     {
-                        var asking = ReusableAskingCommand;
-                        connection.EnqueueInsideWriteLock(asking);
-                        asking.WriteTo(connection);
-                        asking.SetRequestSent();
-                        IncrementOpCount();
+                        RawWriteInternalMessageInsideWriteLock(connection, ReusableAskingCommand);
                     }
+                }
+                if (message.IsClientCaching && connection.EnsureServerAssistedClientSideTrackingInsideWriteLock())
+                {
+                    RawWriteInternalMessageInsideWriteLock(connection, ReusableClientCachingYesCommand);
                 }
                 switch (cmd)
                 {
@@ -1568,6 +1570,15 @@ namespace StackExchange.Redis
                 connection?.RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
                 return WriteResult.WriteFailure;
             }
+        }
+
+        internal void RawWriteInternalMessageInsideWriteLock(PhysicalConnection connection, Message message)
+        {
+            message.SetInternalCall();
+            connection.EnqueueInsideWriteLock(message);
+            message.WriteTo(connection);
+            message.SetRequestSent();
+            IncrementOpCount();
         }
 
         /// <summary>

@@ -75,7 +75,8 @@ namespace StackExchange.Redis
 #pragma warning restore CS0618
                                                        | CommandFlags.FireAndForget
                                                        | CommandFlags.NoRedirect
-                                                       | CommandFlags.NoScriptCache;
+                                                       | CommandFlags.NoScriptCache
+                                                       | CommandFlags.ClientCaching;
         private IResultBox? resultBox;
 
         private ResultProcessor? resultProcessor;
@@ -197,6 +198,7 @@ namespace StackExchange.Redis
         }
 
         public bool IsAsking => (Flags & AskingFlag) != 0;
+        public bool IsClientCaching => (Flags & CommandFlags.ClientCaching) != 0;
 
         internal bool IsScriptUnavailable => (Flags & ScriptUnavailableFlag) != 0;
 

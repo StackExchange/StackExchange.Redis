@@ -19,6 +19,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using static StackExchange.Redis.Message;
+using System.Threading.Channels;
 
 namespace StackExchange.Redis
 {
@@ -1599,10 +1600,10 @@ namespace StackExchange.Redis
                     Trace("MESSAGE: " + channel);
                     if (!channel.IsNull)
                     {
-                        if (TryGetPubSubPayload(items[2], out var payload))
+                        if (TryGetPubSubPayload(items[2], out var payload, out var source))
                         {
                             _readStatus = ReadStatus.InvokePubSub;
-                            muxer.OnMessage(channel, channel, payload);
+                            muxer.OnMessage(channel, channel, payload, source);
                         }
                         // could be multi-message: https://github.com/StackExchange/StackExchange.Redis/issues/2507
                         else if (TryGetMultiPubSubPayload(items[2], out var payloads))
@@ -1621,11 +1622,11 @@ namespace StackExchange.Redis
                     Trace("PMESSAGE: " + channel);
                     if (!channel.IsNull)
                     {
-                        if (TryGetPubSubPayload(items[3], out var payload))
+                        if (TryGetPubSubPayload(items[3], out var payload, out var source))
                         {
                             var sub = items[1].AsRedisChannel(ChannelPrefix, RedisChannel.PatternMode.Pattern);
                             _readStatus = ReadStatus.InvokePubSub;
-                            muxer.OnMessage(sub, channel, payload);
+                            muxer.OnMessage(sub, channel, payload, source);
                         }
                         else if (TryGetMultiPubSubPayload(items[3], out var payloads))
                         {
@@ -1661,8 +1662,9 @@ namespace StackExchange.Redis
             _readStatus = ReadStatus.MatchResultComplete;
             _activeMessage = null;
 
-            static bool TryGetPubSubPayload(in RawResult value, out RedisValue parsed, bool allowArraySingleton = true)
+            static bool TryGetPubSubPayload(in RawResult value, out RedisValue parsed, out RawResult source, bool allowArraySingleton = true)
             {
+                source = value;
                 if (value.IsNull)
                 {
                     parsed = RedisValue.Null;
@@ -1676,7 +1678,7 @@ namespace StackExchange.Redis
                         parsed = value.AsRedisValue();
                         return true;
                     case ResultType.MultiBulk when allowArraySingleton && value.ItemsCount == 1:
-                        return TryGetPubSubPayload(in value[0], out parsed, allowArraySingleton: false);
+                        return TryGetPubSubPayload(in value[0], out parsed, out source, allowArraySingleton: false);
                 }
                 parsed = default;
                 return false;
@@ -2069,6 +2071,132 @@ namespace StackExchange.Redis
             finally
             {
                 if (lockTaken) Monitor.Exit(_writtenAwaitingResponse);
+            }
+        }
+
+        private ClientTrackingState _clientTrackingState = ClientTrackingState.NotInitialized;
+        private enum ClientTrackingState
+        {
+            NotInitialized = 0,
+            Active = 1,
+            Broken = 2, // was active, now not
+        }
+
+        internal bool EnsureServerAssistedClientSideTrackingInsideWriteLock() =>
+            _clientTrackingState == ClientTrackingState.Active // optimize for this
+                || InitializeServerAssistedClientSideTrackingInsideWriteLock();
+
+        private bool InitializeServerAssistedClientSideTrackingInsideWriteLock()
+        {
+            var bridge = BridgeCouldBeNull;
+            if (bridge is null)
+            {
+                return false; // shutting down, be gentle in our nope
+            }
+
+            var config = bridge.Multiplexer.ClientSideTracking;
+            if (config is not { IsAlive: true })
+            {
+                return false; // not enabled (should alrady have faulted, note), or: already dead
+            }
+
+            switch (_clientTrackingState)
+            {
+                case ClientTrackingState.Active:
+                    return true; // we shouldn't be here, but: whatever
+                case ClientTrackingState.Broken:
+                    bridge.RawWriteInternalMessageInsideWriteLock(this, Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.CLIENT, RedisLiterals.TRACKING, RedisLiterals.OFF));
+                    _clientTrackingState = ClientTrackingState.NotInitialized;
+                    goto case ClientTrackingState.NotInitialized;
+                case ClientTrackingState.NotInitialized:
+                    // note: this check will need to be removed in RESP3
+                    if (BridgeCouldBeNull?.ServerEndPoint is { SupportsSubscriptions: true } sep
+                        && sep.GetBridge(ConnectionType.Subscription) is { IsConnected: true } sub)
+                    {
+                        var subId = sub.ConnectionId;
+                        if (subId is not null)
+                        {
+                            // subscribe
+                            bridge.Multiplexer.ExecuteSyncImpl<int>(ReusableSubscribeClientCachingSubscribeMessage, null, sep, 0);
+                            bridge.RawWriteInternalMessageInsideWriteLock(this, new ClientTrackingMessage(config, subId));
+                            _clientTrackingState = ClientTrackingState.Active;
+                            return true;
+                        }
+                    }
+                    return false;
+                default:
+                    return false;
+            }
+        }
+
+        private static readonly Message ReusableSubscribeClientCachingSubscribeMessage = Message.Create(
+            -1, CommandFlags.FireAndForget, RedisCommand.SUBSCRIBE, ConnectionMultiplexer.ClientCachingChannel);
+
+        private sealed class ClientTrackingMessage : Message
+        {
+            private readonly ConnectionMultiplexer.ClientSideTrackingState _state;
+            private readonly long? _subId; // will be NULL in RESP3
+
+            public ClientTrackingMessage(ConnectionMultiplexer.ClientSideTrackingState state, long? subId) : base(-1, CommandFlags.FireAndForget, RedisCommand.CLIENT)
+            {
+                _state = state;
+                _subId = subId;
+            }
+
+            public override int ArgCount
+            {
+                get
+                {
+                    var count = 3; // TRACKING ON [OPTIN]
+                    if (_subId is not null)
+                    {
+                        count += 2; // [REDIRECT client-id]
+                    }
+                    if (!_state.Prefixes.IsEmpty)
+                    {
+                        count += _state.Prefixes.Length + 1; // [PREFIX prefix ...]
+                    }
+                    var options = _state.Options;
+                    if ((options & ClientTrackingOptions.Broadcast) != 0)
+                    {
+                        count++; // [BCAST]
+                    }
+                    if ((options & ClientTrackingOptions.NotifyForOwnCommands) == 0)
+                    {
+                        count++; // [NOLOOP]
+                    }
+                    return count;
+                }
+            }
+
+            protected override void WriteImpl(PhysicalConnection physical)
+            {
+                physical.WriteHeader(Command, ArgCount);
+                physical.WriteBulkString(RedisLiterals.TRACKING);
+                physical.WriteBulkString(RedisLiterals.ON);
+                if (_subId is not null)
+                {
+                    physical.WriteBulkString(RedisLiterals.REDIRECT);
+                    physical.WriteBulkString(_subId.GetValueOrDefault());
+                }
+                if (!_state.Prefixes.IsEmpty)
+                {
+                    physical.WriteBulkString(RedisLiterals.PREFIX);
+                    foreach (ref readonly RedisKey prefix in _state.Prefixes.Span)
+                    {
+                        physical.Write(in prefix);
+                    }
+                }
+                var options = _state.Options;
+                if ((options & ClientTrackingOptions.Broadcast) != 0)
+                {
+                    physical.WriteBulkString(RedisLiterals.BCAST);
+                }
+                physical.WriteBulkString(RedisLiterals.OPTIN);
+                if ((options & ClientTrackingOptions.NotifyForOwnCommands) == 0)
+                {
+                    physical.WriteBulkString(RedisLiterals.NOLOOP);
+                }
             }
         }
     }
