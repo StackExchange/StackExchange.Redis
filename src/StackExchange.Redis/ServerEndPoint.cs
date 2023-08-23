@@ -974,6 +974,11 @@ namespace StackExchange.Redis
                 // note that the server can reject RESP3 via either an -ERR response (HELLO not understood), or by simply saying "nope",
                 // so we don't set the actual .Protocol until we process the result of the HELLO request
             }
+            else
+            {
+                // if we're not even issuing HELLO, we're RESP2
+                connection.SetProtocol(RedisProtocol.Resp2);
+            }
 
             // note: we auth EVEN IF we have used HELLO to AUTH; because otherwise the fallback/detection path is pure hell,
             // and: we're pipelined here, so... meh

@@ -259,12 +259,9 @@ namespace StackExchange.Redis
 
         public bool TransactionActive { get; internal set; }
 
-        private RedisProtocol _protocol = RedisProtocol.Resp2; // all connections start as RESP2
-        public RedisProtocol Protocol
-        {
-            get => _protocol;
-            set => _protocol = value;
-        }
+        private RedisProtocol _protocol; // note starts at **zero**, not RESP2
+        public RedisProtocol? Protocol => _protocol == 0 ? null : _protocol;
+        internal void SetProtocol(RedisProtocol value) => _protocol = value;
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:Do not dispose objects multiple times")]
         internal void Shutdown()
