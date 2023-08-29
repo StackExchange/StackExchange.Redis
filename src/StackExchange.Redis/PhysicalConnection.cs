@@ -2074,17 +2074,31 @@ namespace StackExchange.Redis
             }
         }
 
-        private ClientTrackingState _clientTrackingState = ClientTrackingState.NotInitialized;
+        private volatile ClientTrackingState _clientTrackingState = ClientTrackingState.NotInitialized;
         private enum ClientTrackingState
         {
             NotInitialized = 0,
-            Active = 1,
-            Broken = 2, // was active, now not
+            ActiveSingleConnectionPerItemTracking = 1,
+            ActiveSplitConnectionPerItemTracking = 2,
+            ActiveSingleConnectionBroadcast = 3,
+            ActiveSplitConnectionBroadcast = 4,
+            Broken = 10, // was active, now not
         }
 
+        /// <summary>
+        /// initializes client caching state and returns True if CLIENT CACHING YES should be sent
+        /// </summary>
         internal bool EnsureServerAssistedClientSideTrackingInsideWriteLock() =>
-            _clientTrackingState == ClientTrackingState.Active // optimize for this
-                || InitializeServerAssistedClientSideTrackingInsideWriteLock();
+            _clientTrackingState switch
+            {
+                ClientTrackingState.ActiveSingleConnectionPerItemTracking => true,
+                ClientTrackingState.ActiveSplitConnectionPerItemTracking => true,
+                // don't add CLIENT CACHING per-item when in broadcast mode
+                ClientTrackingState.ActiveSingleConnectionBroadcast => false,
+                ClientTrackingState.ActiveSplitConnectionBroadcast => false,
+                // anything else? slow mode
+                _ => InitializeServerAssistedClientSideTrackingInsideWriteLock()
+            };
 
         private bool InitializeServerAssistedClientSideTrackingInsideWriteLock()
         {
@@ -2097,13 +2111,17 @@ namespace StackExchange.Redis
             var config = bridge.Multiplexer.ClientSideTracking;
             if (config is not { IsAlive: true })
             {
-                return false; // not enabled (should alrady have faulted, note), or: already dead
+                return false; // not enabled (should already have faulted, note), or: already dead
             }
 
             switch (_clientTrackingState)
             {
-                case ClientTrackingState.Active:
+                case ClientTrackingState.ActiveSingleConnectionPerItemTracking:
+                case ClientTrackingState.ActiveSplitConnectionPerItemTracking:
                     return true; // we shouldn't be here, but: whatever
+                case ClientTrackingState.ActiveSingleConnectionBroadcast:
+                case ClientTrackingState.ActiveSplitConnectionBroadcast:
+                    return false; // we shouldn't be here, but: whatever
                 case ClientTrackingState.Broken:
                     bridge.RawWriteInternalMessageInsideWriteLock(this, Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.CLIENT, RedisLiterals.TRACKING, RedisLiterals.OFF));
                     _clientTrackingState = ClientTrackingState.NotInitialized;
@@ -2119,13 +2137,22 @@ namespace StackExchange.Redis
                             // subscribe
                             bridge.Multiplexer.ExecuteSyncImpl<int>(ReusableSubscribeClientCachingSubscribeMessage, null, sep, 0);
                             bridge.RawWriteInternalMessageInsideWriteLock(this, new ClientTrackingMessage(config, subId));
-                            _clientTrackingState = ClientTrackingState.Active;
+                            _clientTrackingState = (config.Options & ClientTrackingOptions.Broadcast) == 0 ? ClientTrackingState.ActiveSplitConnectionPerItemTracking : ClientTrackingState.ActiveSplitConnectionBroadcast;
                             return true;
                         }
                     }
-                    return false;
+                    return false; // unable to initialize; connections unavailable or similar
                 default:
-                    return false;
+                    return false; // unknown state
+            }
+        }
+
+        internal void OnSubscriberFailed()
+        {
+            // if in split connection mode, then: our notifications have failed and we need to reset
+            if (_clientTrackingState is ClientTrackingState.ActiveSplitConnectionPerItemTracking or ClientTrackingState.ActiveSplitConnectionBroadcast)
+            {
+                _clientTrackingState = ClientTrackingState.Broken;
             }
         }
 
@@ -2147,7 +2174,7 @@ namespace StackExchange.Redis
             {
                 get
                 {
-                    var count = 3; // TRACKING ON [OPTIN]
+                    var count = 3; // TRACKING ON {OPTIN|BCAST}
                     if (_subId is not null)
                     {
                         count += 2; // [REDIRECT client-id]
@@ -2157,10 +2184,6 @@ namespace StackExchange.Redis
                         count += _state.Prefixes.Length + 1; // [PREFIX prefix ...]
                     }
                     var options = _state.Options;
-                    if ((options & ClientTrackingOptions.Broadcast) != 0)
-                    {
-                        count++; // [BCAST]
-                    }
                     if ((options & ClientTrackingOptions.NotifyForOwnCommands) == 0)
                     {
                         count++; // [NOLOOP]
@@ -2188,11 +2211,14 @@ namespace StackExchange.Redis
                     }
                 }
                 var options = _state.Options;
-                if ((options & ClientTrackingOptions.Broadcast) != 0)
+                if ((options & ClientTrackingOptions.Broadcast) == 0)
+                {
+                    physical.WriteBulkString(RedisLiterals.OPTIN);
+                }
+                else
                 {
                     physical.WriteBulkString(RedisLiterals.BCAST);
                 }
-                physical.WriteBulkString(RedisLiterals.OPTIN);
                 if ((options & ClientTrackingOptions.NotifyForOwnCommands) == 0)
                 {
                     physical.WriteBulkString(RedisLiterals.NOLOOP);

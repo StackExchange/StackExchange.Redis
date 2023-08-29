@@ -1032,5 +1032,7 @@ namespace StackExchange.Redis
             if (interactive?.HasPendingCallerFacingItems() == true) return true;
             return subscription?.HasPendingCallerFacingItems() ?? false;
         }
+
+        internal void OnSubscriberFailed() => interactive?.OnSubscriberFailed();
     }
 }

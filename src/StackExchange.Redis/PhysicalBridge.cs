@@ -1594,5 +1594,6 @@ namespace StackExchange.Redis
         }
 
         internal RedisCommand? GetActiveMessage() => Volatile.Read(ref _activeMessage)?.Command;
+        internal void OnSubscriberFailed() => physical?.OnSubscriberFailed();
     }
 }

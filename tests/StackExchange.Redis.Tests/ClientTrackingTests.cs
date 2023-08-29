@@ -34,14 +34,40 @@ public class ClientTrackingTests : TestBase
         Assert.Equal("The EnableServerAssistedClientSideTracking method can be invoked once-only per multiplexer instance", ex.Message);
     }
 
-    [Theory]
-    [InlineData(true, true)]
-    [InlineData(true, false)]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    public async void GetNotification(bool listenToSelf, bool externalConnectionMakesChange)
+    [Fact]
+    public void UsePrefixesWithoutBroadcast()
     {
-        bool expectNotification = listenToSelf || externalConnectionMakesChange;
+        using var conn = Create(shared: false);
+        var ex = Assert.Throws<ArgumentException>(() => conn.EnableServerAssistedClientSideTracking(key => default, prefixes: new RedisKey[] { "abc" }));
+        Assert.StartsWith("Prefixes can only be specified when ClientTrackingOptions.Broadcast is used", ex.Message);
+        Assert.Equal("prefixes", ex.ParamName);
+    }
+
+    [Theory]
+    [InlineData(ClientTrackingOptions.None)]
+    [InlineData(ClientTrackingOptions.Broadcast)]
+    [InlineData(ClientTrackingOptions.NotifyForOwnCommands)]
+    [InlineData(ClientTrackingOptions.Broadcast | ClientTrackingOptions.NotifyForOwnCommands)]
+    [InlineData(ClientTrackingOptions.ConcurrentInvalidation)]
+    [InlineData(ClientTrackingOptions.ConcurrentInvalidation | ClientTrackingOptions.Broadcast)]
+    [InlineData(ClientTrackingOptions.ConcurrentInvalidation | ClientTrackingOptions.NotifyForOwnCommands)]
+    [InlineData(ClientTrackingOptions.ConcurrentInvalidation |  ClientTrackingOptions.Broadcast | ClientTrackingOptions.NotifyForOwnCommands)]
+    public Task GetNotificationFromOwnConnection(ClientTrackingOptions options) => GetNotification(options, false);
+
+    [Theory]
+    [InlineData(ClientTrackingOptions.None)]
+    [InlineData(ClientTrackingOptions.Broadcast)]
+    [InlineData(ClientTrackingOptions.NotifyForOwnCommands)]
+    [InlineData(ClientTrackingOptions.Broadcast | ClientTrackingOptions.NotifyForOwnCommands)]
+    [InlineData(ClientTrackingOptions.ConcurrentInvalidation)]
+    [InlineData(ClientTrackingOptions.ConcurrentInvalidation | ClientTrackingOptions.Broadcast)]
+    [InlineData(ClientTrackingOptions.ConcurrentInvalidation | ClientTrackingOptions.NotifyForOwnCommands)]
+    [InlineData(ClientTrackingOptions.ConcurrentInvalidation | ClientTrackingOptions.Broadcast | ClientTrackingOptions.NotifyForOwnCommands)]
+    public Task GetNotificationFromExternalConnection(ClientTrackingOptions options) => GetNotification(options, true);
+
+    private async Task GetNotification(ClientTrackingOptions options, bool externalConnectionMakesChange)
+    {
+        bool expectNotification = ((options & ClientTrackingOptions.NotifyForOwnCommands) != 0) || externalConnectionMakesChange;
 
         using var listen = Create(shared: false);
         using var send = externalConnectionMakesChange ? Create() : listen;
@@ -53,7 +79,6 @@ public class ClientTrackingTests : TestBase
         db.KeyDelete(key);
         db.StringSet(key, value);
 
-        var options = listenToSelf ? ClientTrackingOptions.NotifyForOwnCommands : ClientTrackingOptions.None;
         listen.EnableServerAssistedClientSideTracking(rkey =>
         {
             if (rkey == key) Interlocked.Increment(ref notifyCount);
