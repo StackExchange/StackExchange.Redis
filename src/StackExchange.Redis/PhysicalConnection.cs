@@ -2074,7 +2074,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private volatile ClientTrackingState _clientTrackingState = ClientTrackingState.NotInitialized;
+        private int _clientTrackingState = (int)ClientTrackingState.NotInitialized;
         private enum ClientTrackingState
         {
             NotInitialized = 0,
@@ -2085,11 +2085,13 @@ namespace StackExchange.Redis
             Broken = 10, // was active, now not
         }
 
+        private ClientTrackingState GetClientTrackingState() => (ClientTrackingState)Volatile.Read(ref _clientTrackingState);
+
         /// <summary>
         /// initializes client caching state and returns True if CLIENT CACHING YES should be sent
         /// </summary>
         internal bool EnsureServerAssistedClientSideTrackingInsideWriteLock() =>
-            _clientTrackingState switch
+            GetClientTrackingState() switch
             {
                 ClientTrackingState.ActiveSingleConnectionPerItemTracking => true,
                 ClientTrackingState.ActiveSplitConnectionPerItemTracking => true,
@@ -2114,45 +2116,54 @@ namespace StackExchange.Redis
                 return false; // not enabled (should already have faulted, note), or: already dead
             }
 
-            switch (_clientTrackingState)
+            ClientTrackingState oldState, newState;
+            do
             {
-                case ClientTrackingState.ActiveSingleConnectionPerItemTracking:
-                case ClientTrackingState.ActiveSplitConnectionPerItemTracking:
-                    return true; // we shouldn't be here, but: whatever
-                case ClientTrackingState.ActiveSingleConnectionBroadcast:
-                case ClientTrackingState.ActiveSplitConnectionBroadcast:
-                    return false; // we shouldn't be here, but: whatever
-                case ClientTrackingState.Broken:
-                    bridge.RawWriteInternalMessageInsideWriteLock(this, Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.CLIENT, RedisLiterals.TRACKING, RedisLiterals.OFF));
-                    _clientTrackingState = ClientTrackingState.NotInitialized;
-                    goto case ClientTrackingState.NotInitialized;
-                case ClientTrackingState.NotInitialized:
-                    // note: this check will need to be removed in RESP3
-                    if (BridgeCouldBeNull?.ServerEndPoint is { SupportsSubscriptions: true } sep
-                        && sep.GetBridge(ConnectionType.Subscription) is { IsConnected: true } sub)
-                    {
-                        var subId = sub.ConnectionId;
-                        if (subId is not null)
+                switch (oldState = GetClientTrackingState())
+                {
+                    case ClientTrackingState.ActiveSingleConnectionPerItemTracking:
+                    case ClientTrackingState.ActiveSplitConnectionPerItemTracking:
+                        return true; // we shouldn't be here, but: whatever
+                    case ClientTrackingState.ActiveSingleConnectionBroadcast:
+                    case ClientTrackingState.ActiveSplitConnectionBroadcast:
+                        return false; // we shouldn't be here, but: whatever
+                    case ClientTrackingState.Broken:
+                        bridge.RawWriteInternalMessageInsideWriteLock(this, Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.CLIENT, RedisLiterals.TRACKING, RedisLiterals.OFF));
+                        oldState = ClientTrackingState.NotInitialized; // ack that we've reset things
+                        Volatile.Write(ref _clientTrackingState, (int)oldState);
+                        goto case ClientTrackingState.NotInitialized;
+                    case ClientTrackingState.NotInitialized:
+                        // note: this check will need to be removed in RESP3
+                        if (BridgeCouldBeNull?.ServerEndPoint is { SupportsSubscriptions: true } sep
+                            && sep.GetBridge(ConnectionType.Subscription) is { IsConnected: true } sub)
                         {
-                            // subscribe
-                            bridge.Multiplexer.ExecuteSyncImpl<int>(ReusableSubscribeClientCachingSubscribeMessage, null, sep, 0);
-                            bridge.RawWriteInternalMessageInsideWriteLock(this, new ClientTrackingMessage(config, subId));
-                            _clientTrackingState = (config.Options & ClientTrackingOptions.Broadcast) == 0 ? ClientTrackingState.ActiveSplitConnectionPerItemTracking : ClientTrackingState.ActiveSplitConnectionBroadcast;
-                            return true;
+                            var subId = sub.ConnectionId;
+                            if (subId is not null)
+                            {
+                                // subscribe
+                                bridge.Multiplexer.ExecuteSyncImpl<int>(ReusableSubscribeClientCachingSubscribeMessage, null, sep, 0);
+                                bridge.RawWriteInternalMessageInsideWriteLock(this, new ClientTrackingMessage(config, subId));
+                                newState = (config.Options & ClientTrackingOptions.Broadcast) == 0 ? ClientTrackingState.ActiveSplitConnectionPerItemTracking : ClientTrackingState.ActiveSplitConnectionBroadcast;
+                                break;
+                            }
                         }
-                    }
-                    return false; // unable to initialize; connections unavailable or similar
-                default:
-                    return false; // unknown state
-            }
+                        return false; // unable to initialize; connections unavailable or similar
+                    default:
+                        return false; // unknown state
+                }
+            } while (Interlocked.CompareExchange(ref _clientTrackingState, (int)newState, (int)oldState) != (int)oldState); // redo from start if fighting with OnSubscriberFailed, which is only for the "Broken" scenario
+
+            // we're now in a known state; we only issue CLIENT CACHING YES if we're in per-item tracking mode
+            return newState is ClientTrackingState.ActiveSingleConnectionPerItemTracking or ClientTrackingState.ActiveSplitConnectionPerItemTracking;
+
         }
 
         internal void OnSubscriberFailed()
         {
             // if in split connection mode, then: our notifications have failed and we need to reset
-            if (_clientTrackingState is ClientTrackingState.ActiveSplitConnectionPerItemTracking or ClientTrackingState.ActiveSplitConnectionBroadcast)
+            if (GetClientTrackingState() is ClientTrackingState.ActiveSplitConnectionPerItemTracking or ClientTrackingState.ActiveSplitConnectionBroadcast)
             {
-                _clientTrackingState = ClientTrackingState.Broken;
+                Volatile.Write(ref _clientTrackingState, (int)ClientTrackingState.Broken);
             }
         }
 
