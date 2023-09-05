@@ -81,7 +81,10 @@ namespace StackExchange.Redis
         /// </summary>
         NoScriptCache = 512,
 
-        // 1024: Removed - was used for async timeout checks; never user-specified, so not visible on the public API
+        /// <summary>
+        /// Indicates a command that relates to server-assisted client-side caching; this corresponds to CLIENT CACHING YES being issues before the command
+        /// </summary>
+        ClientCaching = 1024,
 
         // 2048: Use subscription connection type; never user-specified, so not visible on the public API
     }

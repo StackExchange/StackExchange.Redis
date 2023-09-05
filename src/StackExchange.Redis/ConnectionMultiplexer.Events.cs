@@ -14,6 +14,12 @@ public partial class ConnectionMultiplexer
     internal void OnConnectionFailed(EndPoint endpoint, ConnectionType connectionType, ConnectionFailureType failureType, Exception exception, bool reconfigure, string? physicalName)
     {
         if (_isDisposed) return;
+
+        if (connectionType is ConnectionType.Subscription)
+        {
+            GetServerEndPoint(endpoint, activate: false)?.OnSubscriberFailed();
+        }
+
         var handler = ConnectionFailed;
         if (handler != null)
         {

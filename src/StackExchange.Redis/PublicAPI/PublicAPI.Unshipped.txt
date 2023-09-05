@@ -1,1 +1,8 @@
-﻿
+﻿StackExchange.Redis.ClientTrackingOptions
+StackExchange.Redis.ClientTrackingOptions.Broadcast = 1 -> StackExchange.Redis.ClientTrackingOptions
+StackExchange.Redis.ClientTrackingOptions.ConcurrentInvalidation = 4 -> StackExchange.Redis.ClientTrackingOptions
+StackExchange.Redis.ClientTrackingOptions.None = 0 -> StackExchange.Redis.ClientTrackingOptions
+StackExchange.Redis.ClientTrackingOptions.NotifyForOwnCommands = 2 -> StackExchange.Redis.ClientTrackingOptions
+StackExchange.Redis.CommandFlags.ClientCaching = 1024 -> StackExchange.Redis.CommandFlags
+StackExchange.Redis.ConnectionMultiplexer.EnableServerAssistedClientSideTracking(System.Func<StackExchange.Redis.RedisKey, System.Threading.Tasks.ValueTask>! keyInvalidated, StackExchange.Redis.ClientTrackingOptions options = StackExchange.Redis.ClientTrackingOptions.None, System.ReadOnlyMemory<StackExchange.Redis.RedisKey> prefixes = default(System.ReadOnlyMemory<StackExchange.Redis.RedisKey>)) -> void
+StackExchange.Redis.IConnectionMultiplexer.EnableServerAssistedClientSideTracking(System.Func<StackExchange.Redis.RedisKey, System.Threading.Tasks.ValueTask>! keyInvalidated, StackExchange.Redis.ClientTrackingOptions options = StackExchange.Redis.ClientTrackingOptions.None, System.ReadOnlyMemory<StackExchange.Redis.RedisKey> prefixes = default(System.ReadOnlyMemory<StackExchange.Redis.RedisKey>)) -> void

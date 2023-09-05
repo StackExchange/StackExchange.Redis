@@ -1,4 +1,7 @@
-﻿using System;
+﻿using Microsoft.Extensions.Logging;
+using Pipelines.Sockets.Unofficial;
+using StackExchange.Redis.Profiling;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
@@ -10,9 +13,6 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Logging;
-using Pipelines.Sockets.Unofficial;
-using StackExchange.Redis.Profiling;
 
 namespace StackExchange.Redis
 {
@@ -354,6 +354,11 @@ namespace StackExchange.Redis
             if (message.ArgCount >= PhysicalConnection.REDIS_MAX_ARGS)
             {
                 throw ExceptionFactory.TooManyArgs(message.CommandAndKey, message.ArgCount);
+            }
+
+            if (message.IsClientCaching && ClientSideTracking is null)
+            {
+                throw new InvalidOperationException("The " + nameof(CommandFlags.ClientCaching) + " flag can only be used if " + nameof(EnableServerAssistedClientSideTracking) + " has been called");
             }
         }
 
@@ -2268,7 +2273,7 @@ namespace StackExchange.Redis
         public void Close(bool allowCommandsToComplete = true)
         {
             if (_isDisposed) return;
-
+            _clientSideTracking?.Shutdown();
             OnClosing(false);
             _isDisposed = true;
             _profilingSessionProvider = null;
@@ -2295,6 +2300,7 @@ namespace StackExchange.Redis
         public async Task CloseAsync(bool allowCommandsToComplete = true)
         {
             _isDisposed = true;
+            _clientSideTracking?.Shutdown();
             using (var tmp = pulse)
             {
                 pulse = null;
