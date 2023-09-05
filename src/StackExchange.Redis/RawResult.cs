@@ -200,7 +200,7 @@ namespace StackExchange.Redis
                 {
                     case (byte)'t': return (RedisValue)true;
                     case (byte)'f': return (RedisValue)false;
-                };
+                }
             }
             switch (Resp2TypeBulkString)
             {

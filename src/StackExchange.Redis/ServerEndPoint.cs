@@ -964,7 +964,7 @@ namespace StackExchange.Redis
             // volume, we can afford to optimize for a good stack-trace rather than avoiding state machines.
 
             ResultProcessor<bool>? autoConfig = null;
-            if (Multiplexer.RawConfig.TryResp3()) // note this includes a availability check on HELLO
+            if (Multiplexer.RawConfig.TryResp3()) // note this includes an availability check on HELLO
             {
                 log?.LogInformation($"{Format.ToString(this)}: Authenticating via HELLO");
                 var hello = Message.CreateHello(3, user, password, clientName, CommandFlags.FireAndForget);

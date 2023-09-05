@@ -1,7 +1,7 @@
 ﻿namespace StackExchange.Redis;
 
 /// <summary>
-/// Indicates the protocol for communicating with the server
+/// Indicates the protocol for communicating with the server.
 /// </summary>
 public enum RedisProtocol
 {

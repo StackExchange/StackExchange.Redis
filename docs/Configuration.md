@@ -274,18 +274,15 @@ config.ReconnectRetryPolicy = new LinearRetry(5000);
 ```
 
 ## Redis protocol
-```
 
-Without any additional prompting, StackExchange.Redis will use the RESP2 protocol; this means that pub/sub requires a separatate connection to the server. RESP3 is a newer protocol
-(usually, but not always, available on v6 servers and above) which allows (smong other changes) pub/sub messages to be communicated on the *same* connection - which can be very
+Without specific configuration, StackExchange.Redis will use the RESP2 protocol; this means that pub/sub requires a separatate connection to the server. RESP3 is a newer protocol
+(usually, but not always, available on v6 servers and above) which allows (among other changes) pub/sub messages to be communicated on the *same* connection - which can be very
 desirable in servers with a large number of clients. The protocol handshake needs to happen very early in the connection, so *by default* the library does not attempt a RESP3 connection
-unless it has reason to expect it to work:
+unless it has reason to expect it to work. 
 
-This can be considered, in order:
-
-- the `HELLO` command has been disabled: RESP2 is used
-- a protocol *other than* `resp3` or `3` is specified: RESP2 is used
-- a protocol of `resp3` or `3` is specified: RESP3 is attempted (with fallback if it fails)
-- a version of at least 6 is specified: RESP3 is attempted (with fallback if it fails)
-- in all other scenarios: RESP2 is used
-
+The library determines whether to use RESP3 by:
+- The `HELLO` command has been disabled: RESP2 is used
+- A protocol *other than* `resp3` or `3` is specified: RESP2 is used
+- A protocol of `resp3` or `3` is specified: RESP3 is attempted (with fallback if it fails)
+- A version of at least 6 is specified: RESP3 is attempted (with fallback if it fails)
+- In all other scenarios: RESP2 is used

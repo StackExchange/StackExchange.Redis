@@ -333,6 +333,7 @@ namespace StackExchange.Redis
         public static bool operator !=(RedisFeatures left, RedisFeatures right) => !left.Version.IsEqual(right.Version);
     }
 }
+
 internal static class VersionExtensions
 {
     // normalize two version parts and smash them together into a long; if either part is -ve,

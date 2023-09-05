@@ -12,7 +12,7 @@ namespace StackExchange.Redis
     public abstract class RedisResult
     {
         /// <summary>
-        /// Do not use
+        /// Do not use.
         /// </summary>
         [Obsolete("Please specify a result type", true)] // retained purely for binary compat
         public RedisResult() : this(default) { }
@@ -40,8 +40,8 @@ namespace StackExchange.Redis
         /// Create a new RedisResult representing an array of values.
         /// </summary>
         /// <param name="values">The <see cref="RedisValue"/>s to create a result from.</param>
+        /// <param name="resultType">The explicit data type.</param>
         /// <returns> new <see cref="RedisResult"/>.</returns>
-        /// <param name="resultType">The explicit data type</param>
         public static RedisResult Create(RedisValue[] values, ResultType resultType) =>
             values == null ? NullArray : values.Length == 0 ? EmptyArray(resultType) :
                 new ArrayRedisResult(Array.ConvertAll(values, value => new SingleRedisResult(value, null)), resultType);
@@ -58,8 +58,8 @@ namespace StackExchange.Redis
         /// Create a new RedisResult representing an array of values.
         /// </summary>
         /// <param name="values">The <see cref="RedisResult"/>s to create a result from.</param>
+        /// <param name="resultType">The explicit data type.</param>
         /// <returns> new <see cref="RedisResult"/>.</returns>
-        /// <param name="resultType">The explicit data type</param>
         public static RedisResult Create(RedisResult[] values, ResultType resultType)
             => values == null ? NullArray : values.Length == 0 ? EmptyArray(resultType) : new ArrayRedisResult(values, resultType);
 
@@ -97,7 +97,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Gets the string content as per <see cref="ToString()"/>, but also obtains the declared type from verbatim strings (for example <c>LATENCY DOCTOR</c>)
         /// </summary>
-        /// <param name="type">The type of the returned string</param>
+        /// <param name="type">The type of the returned string.</param>
         /// <returns>The content</returns>
         public abstract string? ToString(out string? type);
 
@@ -333,7 +333,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Get a sub-item by index
+        /// Get a sub-item by index.
         /// </summary>
         public virtual RedisResult this[int index] => throw new InvalidOperationException("Indexers can only be used on array results");
 
