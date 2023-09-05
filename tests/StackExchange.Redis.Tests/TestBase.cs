@@ -239,6 +239,7 @@ public abstract class TestBase : IDisposable
     internal virtual IInternalConnectionMultiplexer Create(
         string? clientName = null,
         int? syncTimeout = null,
+        int? asyncTimeout = null,
         bool? allowAdmin = null,
         int? keepAlive = null,
         int? connectTimeout = null,
@@ -289,7 +290,7 @@ public abstract class TestBase : IDisposable
         var conn = CreateDefault(
             Writer,
             configuration ?? GetConfiguration(),
-            clientName, syncTimeout, allowAdmin, keepAlive,
+            clientName, syncTimeout, asyncTimeout, allowAdmin, keepAlive,
             connectTimeout, password, tieBreaker, log,
             fail, disabledCommands, enabledCommands,
             checkConnect, failMessage,
@@ -371,6 +372,7 @@ public abstract class TestBase : IDisposable
         string configuration,
         string? clientName = null,
         int? syncTimeout = null,
+        int? asyncTimeout = null,
         bool? allowAdmin = null,
         int? keepAlive = null,
         int? connectTimeout = null,
@@ -391,10 +393,7 @@ public abstract class TestBase : IDisposable
         [CallerMemberName] string caller = "")
     {
         StringWriter? localLog = null;
-        if (log == null)
-        {
-            log = localLog = new StringWriter();
-        }
+        log ??= localLog = new StringWriter();
         try
         {
             var config = ConfigurationOptions.Parse(configuration);
@@ -412,18 +411,19 @@ public abstract class TestBase : IDisposable
                 syncTimeout = int.MaxValue;
             }
 
-            if (channelPrefix != null) config.ChannelPrefix = RedisChannel.Literal(channelPrefix);
-            if (tieBreaker != null) config.TieBreaker = tieBreaker;
-            if (password != null) config.Password = string.IsNullOrEmpty(password) ? null : password;
-            if (clientName != null) config.ClientName = clientName;
+            if (channelPrefix is not null) config.ChannelPrefix = RedisChannel.Literal(channelPrefix);
+            if (tieBreaker is not null) config.TieBreaker = tieBreaker;
+            if (password is not null) config.Password = string.IsNullOrEmpty(password) ? null : password;
+            if (clientName is not null) config.ClientName = clientName;
             else if (!string.IsNullOrEmpty(caller)) config.ClientName = caller;
-            if (syncTimeout != null) config.SyncTimeout = syncTimeout.Value;
-            if (allowAdmin != null) config.AllowAdmin = allowAdmin.Value;
-            if (keepAlive != null) config.KeepAlive = keepAlive.Value;
-            if (connectTimeout != null) config.ConnectTimeout = connectTimeout.Value;
-            if (proxy != null) config.Proxy = proxy.Value;
-            if (defaultDatabase != null) config.DefaultDatabase = defaultDatabase.Value;
-            if (backlogPolicy != null) config.BacklogPolicy = backlogPolicy;
+            if (syncTimeout is not null) config.SyncTimeout = syncTimeout.Value;
+            if (asyncTimeout is not null) config.AsyncTimeout = asyncTimeout.Value;
+            if (allowAdmin is not null) config.AllowAdmin = allowAdmin.Value;
+            if (keepAlive is not null) config.KeepAlive = keepAlive.Value;
+            if (connectTimeout is not null) config.ConnectTimeout = connectTimeout.Value;
+            if (proxy is not null) config.Proxy = proxy.Value;
+            if (defaultDatabase is not null) config.DefaultDatabase = defaultDatabase.Value;
+            if (backlogPolicy is not null) config.BacklogPolicy = backlogPolicy;
             if (protocol is not null) config.Protocol = protocol;
             var watch = Stopwatch.StartNew();
             var task = ConnectionMultiplexer.ConnectAsync(config, log);
