@@ -109,10 +109,6 @@ namespace StackExchange.Redis
         {
             try
             {
-                if (result.Resp3Type == ResultType.Null)
-                {
-                    Console.Write("hi");
-                }
                 switch (result.Resp2TypeBulkString)
                 {
                     case ResultType.Integer:
