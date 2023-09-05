@@ -11,7 +11,9 @@ namespace StackExchange.Redis
         internal ref RawResult this[int index] => ref GetItems()[index];
 
         internal int ItemsCount => (int)_items.Length;
-        internal ReadOnlySequence<byte> Payload { get; }
+
+        private readonly ReadOnlySequence<byte> _payload;
+        internal ReadOnlySequence<byte> Payload => _payload;
 
         internal static readonly RawResult Nil = default;
         // Note: can't use Memory<RawResult> here - struct recursion breaks runtime
@@ -51,7 +53,7 @@ namespace StackExchange.Redis
             }
             _resultType = resultType;
             _flags = flags | ResultFlags.HasValue;
-            Payload = payload;
+            _payload = payload;
             _items = default;
         }
 
@@ -74,7 +76,7 @@ namespace StackExchange.Redis
             }
             _resultType = resultType;
             _flags = flags | ResultFlags.HasValue;
-            Payload = default;
+            _payload = default;
             _items = items.Untyped();
         }
 
@@ -398,6 +400,10 @@ namespace StackExchange.Redis
                 s = Format.GetString(Payload.First.Span);
                 return Resp3Type == ResultType.VerbatimString ? GetVerbatimString(s, out verbatimPrefix) : s;
             }
+#if NET6_0_OR_GREATER
+            // use system-provided sequence decoder
+            return Encoding.UTF8.GetString(in _payload);
+#else
             var decoder = Encoding.UTF8.GetDecoder();
             int charCount = 0;
             foreach(var segment in Payload)
@@ -425,13 +431,17 @@ namespace StackExchange.Redis
                     fixed (byte* bPtr = span)
                     {
                         var written = decoder.GetChars(bPtr, span.Length, cPtr, charCount, false);
+                        if (written < 0 || written > charCount) Throw(); // protect against hypothetical cPtr weirdness
                         cPtr += written;
                         charCount -= written;
                     }
                 }
             }
+
             return Resp3Type == ResultType.VerbatimString ? GetVerbatimString(s, out verbatimPrefix) : s;
 
+            static void Throw() => throw new InvalidOperationException("Invalid result from GetChars");
+#endif
             static string? GetVerbatimString(string? value, out ReadOnlySpan<char> type)
             {
                 //  the first three bytes provide information about the format of the following string, which
