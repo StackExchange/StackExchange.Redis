@@ -200,10 +200,9 @@ public class ClusterTests : TestBase
     [Fact]
     public void TransactionWithMultiServerKeys()
     {
+        using var conn = Create();
         var ex = Assert.Throws<RedisCommandException>(() =>
         {
-            using var conn = Create();
-
             // connect
             var cluster = conn.GetDatabase();
             var anyServer = conn.GetServer(conn.GetEndPoints()[0]);
@@ -258,10 +257,9 @@ public class ClusterTests : TestBase
     [Fact]
     public void TransactionWithSameServerKeys()
     {
+        using var conn = Create();
         var ex = Assert.Throws<RedisCommandException>(() =>
         {
-            using var conn = Create();
-
             // connect
             var cluster = conn.GetDatabase();
             var anyServer = conn.GetServer(conn.GetEndPoints()[0]);

@@ -248,10 +248,9 @@ public class ScriptingTests : TestBase
     [Fact]
     public async Task ScriptThrowsError()
     {
+        using var conn = GetScriptConn();
         await Assert.ThrowsAsync<RedisServerException>(async () =>
         {
-            using var conn = GetScriptConn();
-
             var db = conn.GetDatabase();
             try
             {
