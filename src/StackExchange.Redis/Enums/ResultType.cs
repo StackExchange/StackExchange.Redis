@@ -95,7 +95,7 @@ namespace StackExchange.Redis
         Attribute = (3 << 3) | Array,
 
         /// <summary>
-        /// Out of band data. The format is like the <see cref="MultiBulk"/> type, but the client should just check the first string element,
+        /// Out of band data. The format is like the <see cref="Array"/> type, but the client should just check the first string element,
         /// stating the type of the out of band data, a call a callback if there is one registered for this specific type of push information.
         /// Push types are not related to replies, since they are information that the server may push at any time in the connection,
         /// so the client should keep reading if it is reading the reply of a command.

@@ -284,5 +284,4 @@ The library determines whether to use RESP3 by:
 - The `HELLO` command has been disabled: RESP2 is used
 - A protocol *other than* `resp3` or `3` is specified: RESP2 is used
 - A protocol of `resp3` or `3` is specified: RESP3 is attempted (with fallback if it fails)
-- A version of at least 6 is specified: RESP3 is attempted (with fallback if it fails)
 - In all other scenarios: RESP2 is used
