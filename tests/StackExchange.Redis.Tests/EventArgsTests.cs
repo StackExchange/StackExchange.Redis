@@ -27,25 +27,25 @@ public class EventArgsTests
         DiagnosticStub stub = new DiagnosticStub();
 
         stub.ConfigurationChangedBroadcastHandler(default, endpointArgsMock);
-        Assert.Equal(stub.Message,DiagnosticStub.ConfigurationChangedBroadcastHandlerMessage);
+        Assert.Equal(DiagnosticStub.ConfigurationChangedBroadcastHandlerMessage, stub.Message);
 
         stub.ErrorMessageHandler(default, redisErrorArgsMock);
-        Assert.Equal(stub.Message, DiagnosticStub.ErrorMessageHandlerMessage);
+        Assert.Equal(DiagnosticStub.ErrorMessageHandlerMessage, stub.Message);
 
         stub.ConnectionFailedHandler(default, connectionFailedArgsMock);
-        Assert.Equal(stub.Message, DiagnosticStub.ConnectionFailedHandlerMessage);
+        Assert.Equal(DiagnosticStub.ConnectionFailedHandlerMessage, stub.Message);
 
         stub.InternalErrorHandler(default, internalErrorArgsMock);
-        Assert.Equal(stub.Message, DiagnosticStub.InternalErrorHandlerMessage);
+        Assert.Equal(DiagnosticStub.InternalErrorHandlerMessage, stub.Message);
 
         stub.ConnectionRestoredHandler(default, connectionFailedArgsMock);
-        Assert.Equal(stub.Message, DiagnosticStub.ConnectionRestoredHandlerMessage);
+        Assert.Equal(DiagnosticStub.ConnectionRestoredHandlerMessage, stub.Message);
 
         stub.ConfigurationChangedHandler(default, endpointArgsMock);
-        Assert.Equal(stub.Message, DiagnosticStub.ConfigurationChangedHandlerMessage);
+        Assert.Equal(DiagnosticStub.ConfigurationChangedHandlerMessage, stub.Message);
 
         stub.HashSlotMovedHandler(default, hashSlotMovedArgsMock);
-        Assert.Equal(stub.Message, DiagnosticStub.HashSlotMovedHandlerMessage);
+        Assert.Equal(DiagnosticStub.HashSlotMovedHandlerMessage, stub.Message);
     }
 
     public class DiagnosticStub

@@ -8,6 +8,7 @@ Current package versions:
 
 ## Unreleased
 
+- Adds: RESP3 support ([#2396 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2396)) - see https://stackexchange.github.io/StackExchange.Redis/Resp3
 - Fix [#2507](https://github.com/StackExchange/StackExchange.Redis/issues/2507): Pub/sub with multi-item payloads should be usable ([#2508 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2508))
 - Add: connection-id tracking (internal only, no public API) ([#2508 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2508))
 - Add: `ConfigurationOptions.LoggerFactory` for logging to an `ILoggerFactory` (e.g. `ILogger`) all connection and error events ([#2051 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2051))

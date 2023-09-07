@@ -24,9 +24,11 @@ public class Roles : TestBase
         Assert.NotNull(primary.Replicas);
         Log($"Searching for: {TestConfig.Current.ReplicaServer}:{TestConfig.Current.ReplicaPort}");
         Log($"Replica count: {primary.Replicas.Count}");
-        foreach (var r in primary.Replicas)
+        Assert.NotEmpty(primary.Replicas);
+        foreach (var replica in primary.Replicas)
         {
-            Log($"  Replica: {r.Ip}:{r.Port} (offset: {r.ReplicationOffset})");
+            Log($"  Replica: {replica.Ip}:{replica.Port} (offset: {replica.ReplicationOffset})");
+            Log(replica.ToString());
         }
         Assert.Contains(primary.Replicas, r =>
             r.Ip == TestConfig.Current.ReplicaServer &&

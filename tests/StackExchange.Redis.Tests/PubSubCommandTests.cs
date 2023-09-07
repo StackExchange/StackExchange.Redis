@@ -7,10 +7,11 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
+[RunPerProtocol]
 [Collection(SharedConnectionFixture.Key)]
 public class PubSubCommandTests : TestBase
 {
-    public PubSubCommandTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base (output, fixture) { }
+    public PubSubCommandTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
 
     [Fact]
     public void SubscriberCount()

@@ -234,7 +234,7 @@ public class AggressiveTests : TestBase
         Log($"tally: {count}");
     }
 
-    private static void TranRunPings(IDatabase db)
+    private void TranRunPings(IDatabase db)
     {
         var key = Me();
         db.KeyDelete(key);
@@ -292,7 +292,7 @@ public class AggressiveTests : TestBase
         Log($"tally: {count}");
     }
 
-    private static async Task TranRunPingsAsync(IDatabase db)
+    private async Task TranRunPingsAsync(IDatabase db)
     {
         var key = Me();
         db.KeyDelete(key);

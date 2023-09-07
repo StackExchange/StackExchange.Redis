@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
@@ -48,6 +49,9 @@ namespace StackExchange.Redis
         internal EndPointCollection EndPoints { get; }
         internal ConfigurationOptions RawConfig { get; }
         internal ServerSelectionStrategy ServerSelectionStrategy { get; }
+        ServerSelectionStrategy IInternalConnectionMultiplexer.ServerSelectionStrategy => ServerSelectionStrategy;
+        ConnectionMultiplexer IInternalConnectionMultiplexer.UnderlyingMultiplexer => this;
+
         internal Exception? LastException { get; set; }
 
         ConfigurationOptions IInternalConnectionMultiplexer.RawConfig => RawConfig;
@@ -70,6 +74,7 @@ namespace StackExchange.Redis
         /// Should exceptions include identifiable details? (key names, additional .Data annotations)
         /// </summary>
         [Obsolete($"Please use {nameof(ConfigurationOptions)}.{nameof(ConfigurationOptions.IncludeDetailInExceptions)} instead - this will be removed in 3.0.")]
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         public bool IncludeDetailInExceptions
         {
             get => RawConfig.IncludeDetailInExceptions;
@@ -83,6 +88,7 @@ namespace StackExchange.Redis
         /// CPU usage, etc - note that this can be problematic on some platforms.
         /// </remarks>
         [Obsolete($"Please use {nameof(ConfigurationOptions)}.{nameof(ConfigurationOptions.IncludePerformanceCountersInExceptions)} instead - this will be removed in 3.0.")]
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         public bool IncludePerformanceCountersInExceptions
         {
             get => RawConfig.IncludePerformanceCountersInExceptions;
@@ -135,7 +141,7 @@ namespace StackExchange.Redis
             Logger = configuration.LoggerFactory?.CreateLogger<ConnectionMultiplexer>();
 
             var map = CommandMap = configuration.GetCommandMap(serverType);
-            if (!string.IsNullOrWhiteSpace(configuration.Password))
+            if (!string.IsNullOrWhiteSpace(configuration.Password) && !configuration.TryResp3()) // RESP3 doesn't need AUTH (can issue as part of HELLO)
             {
                 map.AssertAvailable(RedisCommand.AUTH);
             }
@@ -883,6 +889,8 @@ namespace StackExchange.Redis
             }
         }
 
+        ServerEndPoint IInternalConnectionMultiplexer.GetServerEndPoint(EndPoint endpoint) => GetServerEndPoint(endpoint);
+
         [return: NotNullIfNotNull(nameof(endpoint))]
         internal ServerEndPoint? GetServerEndPoint(EndPoint? endpoint, ILogger? log = null, bool activate = true)
         {
@@ -908,7 +916,7 @@ namespace StackExchange.Redis
                 if (isNew && activate)
                 {
                     server.Activate(ConnectionType.Interactive, log);
-                    if (server.SupportsSubscriptions)
+                    if (server.SupportsSubscriptions && !server.KnowOrAssumeResp3())
                     {
                         // Intentionally not logging the sub connection
                         server.Activate(ConnectionType.Subscription, null);
@@ -1358,7 +1366,7 @@ namespace StackExchange.Redis
             foreach (var server in GetServerSnapshot())
             {
                 server.Activate(ConnectionType.Interactive, log);
-                if (server.SupportsSubscriptions)
+                if (server.SupportsSubscriptions && !server.KnowOrAssumeResp3())
                 {
                     // Intentionally not logging the sub connection
                     server.Activate(ConnectionType.Subscription, null);

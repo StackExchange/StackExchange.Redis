@@ -47,7 +47,7 @@ public class ConnectCustomConfigTests : TestBase
     [Fact]
     public void TieBreakerIntact()
     {
-        using var conn = (Create(allowAdmin: true, log: Writer) as ConnectionMultiplexer)!;
+        using var conn = Create(allowAdmin: true, log: Writer);
 
         var tiebreaker = conn.GetDatabase().StringGet(conn.RawConfig.TieBreaker);
         Log($"Tiebreaker: {tiebreaker}");
@@ -61,7 +61,7 @@ public class ConnectCustomConfigTests : TestBase
     [Fact]
     public void TieBreakerSkips()
     {
-        using var conn = (Create(allowAdmin: true, disabledCommands: new[] { "get" }, log: Writer) as ConnectionMultiplexer)!;
+        using var conn = Create(allowAdmin: true, disabledCommands: new[] { "get" }, log: Writer);
         Assert.Throws<RedisCommandException>(() => conn.GetDatabase().StringGet(conn.RawConfig.TieBreaker));
 
         foreach (var server in conn.GetServerSnapshot())

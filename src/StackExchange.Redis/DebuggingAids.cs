@@ -1,7 +1,4 @@
-﻿using System;
-using System.Diagnostics;
-
-namespace StackExchange.Redis
+﻿namespace StackExchange.Redis
 {
 #if VERBOSE
     partial class ConnectionMultiplexer

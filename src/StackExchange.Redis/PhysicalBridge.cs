@@ -69,6 +69,7 @@ namespace StackExchange.Redis
 #endif
 
         internal string? PhysicalName => physical?.ToString();
+
         public DateTime? ConnectedAt { get; private set; }
 
         public PhysicalBridge(ServerEndPoint serverEndPoint, ConnectionType type, int timeoutMilliseconds)
@@ -113,6 +114,11 @@ namespace StackExchange.Redis
         internal long OperationCount => Interlocked.Read(ref operationCount);
 
         public RedisCommand LastCommand { get; private set; }
+
+        /// <summary>
+        /// If we have a connection, report the protocol being used
+        /// </summary>
+        public RedisProtocol? Protocol => physical?.Protocol;
 
         public void Dispose()
         {
@@ -1481,7 +1487,7 @@ namespace StackExchange.Redis
                     // If we are executing AUTH, it means we are still unauthenticated
                     // Setting READONLY before AUTH always fails but we think it succeeded since
                     // we run it as Fire and Forget. 
-                    if (cmd != RedisCommand.AUTH)
+                    if (cmd != RedisCommand.AUTH && cmd != RedisCommand.HELLO)
                     {
                         var readmode = connection.GetReadModeCommand(isPrimaryOnly);
                         if (readmode != null)

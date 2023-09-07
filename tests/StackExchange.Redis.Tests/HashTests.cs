@@ -11,6 +11,7 @@ namespace StackExchange.Redis.Tests;
 /// <summary>
 /// Tests for <see href="https://redis.io/commands#hash"/>.
 /// </summary>
+[RunPerProtocol]
 [Collection(SharedConnectionFixture.Key)]
 public class HashTests : TestBase
 {

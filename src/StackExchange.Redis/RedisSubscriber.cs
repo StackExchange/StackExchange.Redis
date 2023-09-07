@@ -18,7 +18,10 @@ namespace StackExchange.Redis
         private readonly ConcurrentDictionary<RedisChannel, Subscription> subscriptions = new();
 
         internal ConcurrentDictionary<RedisChannel, Subscription> GetSubscriptions() => subscriptions;
+        ConcurrentDictionary<RedisChannel, Subscription> IInternalConnectionMultiplexer.GetSubscriptions() => GetSubscriptions();
+
         internal int GetSubscriptionsCount() => subscriptions.Count;
+        int IInternalConnectionMultiplexer.GetSubscriptionsCount() => GetSubscriptionsCount();
 
         internal Subscription GetOrAddSubscription(in RedisChannel channel, CommandFlags flags)
         {

@@ -13,7 +13,7 @@ public readonly struct LatencyHistoryEntry
     {
         protected override bool TryParse(in RawResult raw, out LatencyHistoryEntry parsed)
         {
-            if (raw.Type == ResultType.MultiBulk)
+            if (raw.Resp2TypeArray == ResultType.Array)
             {
                 var items = raw.GetItems();
                 if (items.Length >= 2

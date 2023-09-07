@@ -1,4 +1,5 @@
-﻿using System;
+﻿#if NET6_0_OR_GREATER
+using System;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -200,7 +201,7 @@ public class FailoverTests : TestBase, IAsyncLifetime
     [Fact]
     public async Task SubscriptionsSurviveConnectionFailureAsync()
     {
-        using var conn = (Create(allowAdmin: true, shared: false, log: Writer, syncTimeout: 1000) as ConnectionMultiplexer)!;
+        using var conn = Create(allowAdmin: true, shared: false, log: Writer, syncTimeout: 1000);
 
         var profiler = conn.AddProfiler();
         RedisChannel channel = RedisChannel.Literal(Me());
@@ -449,3 +450,4 @@ public class FailoverTests : TestBase, IAsyncLifetime
     }
 #endif
 }
+#endif

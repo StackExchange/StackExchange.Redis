@@ -11,9 +11,12 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
+[RunPerProtocol]
+[Collection(SharedConnectionFixture.Key)]
 public class ClusterTests : TestBase
 {
-    public ClusterTests(ITestOutputHelper output) : base (output) { }
+    public ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
+
     protected override string GetConfiguration() => TestConfig.Current.ClusterServersAndPorts + ",connectTimeout=10000";
 
     [Fact]
@@ -48,7 +51,7 @@ public class ClusterTests : TestBase
                 var srv = conn.GetServer(ep);
                 var counters = srv.GetCounters();
                 Assert.Equal(1, counters.Interactive.SocketCount);
-                Assert.Equal(1, counters.Subscription.SocketCount);
+                Assert.Equal(Context.IsResp3 ? 0 : 1, counters.Subscription.SocketCount);
             }
         }
     }
@@ -116,7 +119,7 @@ public class ClusterTests : TestBase
             {
                 Log(fail.ToString());
             }
-            Assert.True(false, "not all servers connected");
+            Assert.Fail("not all servers connected");
         }
 
         Assert.Equal(TestConfig.Current.ClusterServerCount / 2, replicas);
@@ -197,10 +200,9 @@ public class ClusterTests : TestBase
     [Fact]
     public void TransactionWithMultiServerKeys()
     {
+        using var conn = Create();
         var ex = Assert.Throws<RedisCommandException>(() =>
         {
-            using var conn = Create();
-
             // connect
             var cluster = conn.GetDatabase();
             var anyServer = conn.GetServer(conn.GetEndPoints()[0]);
@@ -237,7 +239,7 @@ public class ClusterTests : TestBase
             _ = tran.StringSetAsync(y, "y-val");
             tran.Execute();
 
-            Assert.True(false, "Expected single-slot rules to apply");
+            Assert.Fail("Expected single-slot rules to apply");
             // the rest no longer applies while we are following single-slot rules
 
             //// check that everything was aborted
@@ -255,10 +257,9 @@ public class ClusterTests : TestBase
     [Fact]
     public void TransactionWithSameServerKeys()
     {
+        using var conn = Create();
         var ex = Assert.Throws<RedisCommandException>(() =>
         {
-            using var conn = Create();
-
             // connect
             var cluster = conn.GetDatabase();
             var anyServer = conn.GetServer(conn.GetEndPoints()[0]);
@@ -294,7 +295,7 @@ public class ClusterTests : TestBase
             _ = tran.StringSetAsync(y, "y-val");
             tran.Execute();
 
-            Assert.True(false, "Expected single-slot rules to apply");
+            Assert.Fail("Expected single-slot rules to apply");
             // the rest no longer applies while we are following single-slot rules
 
             //// check that everything was aborted

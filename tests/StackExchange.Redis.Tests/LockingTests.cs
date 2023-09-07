@@ -75,7 +75,7 @@ public class LockingTests : TestBase
         TestLockOpCountByVersion(conn, 1, true);
     }
 
-    private static void TestLockOpCountByVersion(IConnectionMultiplexer conn, int expectedOps, bool existFirst)
+    private void TestLockOpCountByVersion(IConnectionMultiplexer conn, int expectedOps, bool existFirst)
     {
         const int LockDuration = 30;
         RedisKey Key = Me();

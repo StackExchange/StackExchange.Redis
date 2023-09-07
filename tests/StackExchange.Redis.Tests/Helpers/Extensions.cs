@@ -17,11 +17,11 @@ public static class Extensions
 #endif
         try
         {
-            VersionInfo += "\n   Running on: " + RuntimeInformation.OSDescription;
+            VersionInfo += "\n  Running on: " + RuntimeInformation.OSDescription;
         }
         catch (Exception)
         {
-            VersionInfo += "\n   Failed to get OS version";
+            VersionInfo += "\n  Failed to get OS version";
         }
     }
 

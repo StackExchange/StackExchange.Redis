@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Reflection;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
+#if NETCOREAPP3_1
+using System.Reflection;
+#endif
 
 namespace StackExchange.Redis
 {
@@ -125,6 +127,7 @@ namespace StackExchange.Redis
         /// <param name="count">The (approximate) count of items in the Channel.</param>
         public bool TryGetCount(out int count)
         {
+            // This is specific to netcoreapp3.1, because full framework was out of band and the new prop is present
 #if NETCOREAPP3_1
             // get this using the reflection
             try

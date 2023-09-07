@@ -13,7 +13,7 @@ public class BgSaveResponseTests : TestBase
     [InlineData(SaveType.BackgroundRewriteAppendOnlyFile)]
     public async Task ShouldntThrowException(SaveType saveType)
     {
-        using var conn = Create(null, null, true);
+        using var conn = Create(allowAdmin: true);
 
         var Server = GetServer(conn);
         Server.Save(saveType);

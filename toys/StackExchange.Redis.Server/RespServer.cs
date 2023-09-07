@@ -315,7 +315,7 @@ namespace StackExchange.Redis.Server
             if (value.IsNil) return; // not actually a request (i.e. empty/whitespace request)
             if (client != null && client.ShouldSkipResponse()) return; // intentionally skipping the result
             char prefix;
-            switch (value.Type)
+            switch (value.Type.ToResp2())
             {
                 case ResultType.Integer:
                     PhysicalConnection.WriteInteger(output, (long)value.AsRedisValue());
@@ -335,7 +335,7 @@ namespace StackExchange.Redis.Server
                 case ResultType.BulkString:
                     PhysicalConnection.WriteBulkString(value.AsRedisValue(), output);
                     break;
-                case ResultType.MultiBulk:
+                case ResultType.Array:
                     if (value.IsNullArray)
                     {
                         PhysicalConnection.WriteMultiBulkHeader(output, -1);
@@ -367,7 +367,7 @@ namespace StackExchange.Redis.Server
         private static bool TryParseRequest(Arena<RawResult> arena, ref ReadOnlySequence<byte> buffer, out RedisRequest request)
         {
             var reader = new BufferReader(buffer);
-            var raw = PhysicalConnection.TryParseResult(arena, in buffer, ref reader, false, null, true);
+            var raw = PhysicalConnection.TryParseResult(false, arena, in buffer, ref reader, false, null, true);
             if (raw.HasValue)
             {
                 buffer = reader.SliceFromCurrent();

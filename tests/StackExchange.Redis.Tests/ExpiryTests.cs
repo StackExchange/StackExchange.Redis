@@ -149,7 +149,7 @@ public class ExpiryTests : TestBase
 
         var time = db.KeyExpireTime(key);
         Assert.NotNull(time);
-        Assert.Equal(expireTime, time.Value, TimeSpan.FromSeconds(30));
+        Assert.Equal(expireTime, time!.Value, TimeSpan.FromSeconds(30));
 
         // Without associated expiration time
         db.KeyDelete(key, CommandFlags.FireAndForget);

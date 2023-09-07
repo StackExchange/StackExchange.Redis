@@ -16,12 +16,14 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
+[RunPerProtocol]
+[Collection(SharedConnectionFixture.Key)]
 public class ConfigTests : TestBase
 {
+    public ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
+
     public Version DefaultVersion = new (3, 0, 0);
     public Version DefaultAzureVersion = new (4, 0, 0);
-
-    public ConfigTests(ITestOutputHelper output) : base(output) { }
 
     [Fact]
     public void SslProtocols_SingleValue()
@@ -233,7 +235,7 @@ public class ConfigTests : TestBase
     [Fact]
     public void ClientName()
     {
-        using var conn = Create(clientName: "Test Rig", allowAdmin: true);
+        using var conn = Create(clientName: "Test Rig", allowAdmin: true, shared: false);
 
         Assert.Equal("Test Rig", conn.ClientName);
 
@@ -247,7 +249,7 @@ public class ConfigTests : TestBase
     [Fact]
     public void DefaultClientName()
     {
-        using var conn = Create(allowAdmin: true, caller: null); // force default naming to kick in
+        using var conn = Create(allowAdmin: true, caller: "", shared: false); // force default naming to kick in
 
         Assert.Equal($"{Environment.MachineName}(SE.Redis-v{Utils.GetLibVersion()})", conn.ClientName);
         var db = conn.GetDatabase();
@@ -275,7 +277,10 @@ public class ConfigTests : TestBase
         Assert.True(conn.IsConnected);
         var servers = conn.GetServerSnapshot();
         Assert.True(servers[0].IsConnected);
-        Assert.False(servers[0].IsSubscriberConnected);
+        if (!Context.IsResp3)
+        {
+            Assert.False(servers[0].IsSubscriberConnected);
+        }
 
         var ex = Assert.Throws<RedisCommandException>(() => conn.GetSubscriber().Subscribe(RedisChannel.Literal(Me()), (_, _) => GC.KeepAlive(this)));
         Assert.Equal("This operation has been disabled in the command-map and cannot be used: SUBSCRIBE", ex.Message);
@@ -374,12 +379,32 @@ public class ConfigTests : TestBase
     public void GetClients()
     {
         var name = Guid.NewGuid().ToString();
-        using var conn = Create(clientName: name, allowAdmin: true);
+        using var conn = Create(clientName: name, allowAdmin: true, shared: false);
 
         var server = GetAnyPrimary(conn);
         var clients = server.ClientList();
         Assert.True(clients.Length > 0, "no clients"); // ourselves!
         Assert.True(clients.Any(x => x.Name == name), "expected: " + name);
+
+        if (server.Features.ClientId)
+        {
+            var id = conn.GetConnectionId(server.EndPoint, ConnectionType.Interactive);
+            Assert.NotNull(id);
+            Assert.True(clients.Any(x => x.Id == id), "expected: " + id);
+            id = conn.GetConnectionId(server.EndPoint, ConnectionType.Subscription);
+            Assert.NotNull(id);
+            Assert.True(clients.Any(x => x.Id == id), "expected: " + id);
+
+            var self = clients.First(x => x.Id == id);
+            if (server.Version.Major >= 7)
+            {
+                Assert.Equal(Context.Test.Protocol, self.Protocol);
+            }
+            else
+            {
+                Assert.Null(self.Protocol);
+            }
+        }
     }
 
     [Fact]

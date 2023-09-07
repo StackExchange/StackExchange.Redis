@@ -1,12 +1,12 @@
-﻿using System;
+﻿using Microsoft.Extensions.Logging;
+using StackExchange.Redis.Profiling;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
-using Microsoft.Extensions.Logging;
-using StackExchange.Redis.Profiling;
 
 namespace StackExchange.Redis
 {
@@ -479,6 +479,7 @@ namespace StackExchange.Redis
                 case RedisCommand.DISCARD:
                 case RedisCommand.ECHO:
                 case RedisCommand.FLUSHALL:
+                case RedisCommand.HELLO:
                 case RedisCommand.INFO:
                 case RedisCommand.LASTSAVE:
                 case RedisCommand.LATENCY:
@@ -637,6 +638,9 @@ namespace StackExchange.Redis
         /// Gets if this command should be sent over the subscription bridge.
         /// </summary>
         internal bool IsForSubscriptionBridge => (Flags & DemandSubscriptionConnection) != 0;
+
+        public virtual string CommandString => Command.ToString();
+
         /// <summary>
         /// Sends this command to the subscription connection rather than the interactive.
         /// </summary>
@@ -703,6 +707,53 @@ namespace StackExchange.Redis
             {
                 physical?.OnInternalError(ex);
                 Fail(ConnectionFailureType.InternalFailure, ex, null, physical?.BridgeCouldBeNull?.Multiplexer);
+            }
+        }
+
+        internal static Message CreateHello(int protocolVersion, string? username, string? password, string? clientName, CommandFlags flags)
+            => new HelloMessage(protocolVersion, username, password, clientName, flags);
+
+        internal sealed class HelloMessage : Message
+        {
+            private readonly string? _username, _password, _clientName;
+            private readonly int _protocolVersion;
+
+            internal HelloMessage(int protocolVersion, string? username, string? password, string? clientName, CommandFlags flags)
+                : base(-1, flags, RedisCommand.HELLO)
+            {
+                _protocolVersion = protocolVersion;
+                _username = username;
+                _password = password;
+                _clientName = clientName;
+            }
+
+            public override string CommandAndKey => Command + " " + _protocolVersion;
+
+            public override int ArgCount
+            {
+                get
+                {
+                    int count = 1; // HELLO protover
+                    if (!string.IsNullOrWhiteSpace(_password)) count += 3; // [AUTH username password]
+                    if (!string.IsNullOrWhiteSpace(_clientName)) count += 2; // [SETNAME client]
+                    return count;
+                }
+            }
+            protected override void WriteImpl(PhysicalConnection physical)
+            {
+                physical.WriteHeader(Command, ArgCount);
+                physical.WriteBulkString(_protocolVersion);
+                if (!string.IsNullOrWhiteSpace(_password))
+                {
+                    physical.WriteBulkString(RedisLiterals.AUTH);
+                    physical.WriteBulkString(string.IsNullOrWhiteSpace(_username) ? RedisLiterals.@default : _username);
+                    physical.WriteBulkString(_password);
+                }
+                if (!string.IsNullOrWhiteSpace(_clientName))
+                {
+                    physical.WriteBulkString(RedisLiterals.SETNAME);
+                    physical.WriteBulkString(_clientName);
+                }
             }
         }
 

@@ -1,9 +1,12 @@
 ﻿using StackExchange.Redis.Maintenance;
 using StackExchange.Redis.Profiling;
 using System;
+using System.Collections.Concurrent;
+using System.ComponentModel;
 using System.IO;
 using System.Net;
 using System.Threading.Tasks;
+using static StackExchange.Redis.ConnectionMultiplexer;
 
 namespace StackExchange.Redis
 {
@@ -14,10 +17,18 @@ namespace StackExchange.Redis
         bool IgnoreConnect { get; set; }
 
         ReadOnlySpan<ServerEndPoint> GetServerSnapshot();
+        ServerEndPoint GetServerEndPoint(EndPoint endpoint);
 
         ConfigurationOptions RawConfig { get; }
 
         long? GetConnectionId(EndPoint endPoint, ConnectionType type);
+
+        ServerSelectionStrategy ServerSelectionStrategy { get; }
+
+        int GetSubscriptionsCount();
+        ConcurrentDictionary<RedisChannel, Subscription> GetSubscriptions();
+
+        ConnectionMultiplexer UnderlyingMultiplexer { get; }
     }
 
     /// <summary>
@@ -49,6 +60,7 @@ namespace StackExchange.Redis
         /// Gets or sets whether asynchronous operations should be invoked in a way that guarantees their original delivery order.
         /// </summary>
         [Obsolete("Not supported; if you require ordered pub/sub, please see " + nameof(ChannelMessageQueue), false)]
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         bool PreserveAsyncOrder { get; set; }
 
         /// <summary>
@@ -65,6 +77,7 @@ namespace StackExchange.Redis
         /// Should exceptions include identifiable details? (key names, additional <see cref="Exception.Data"/> annotations).
         /// </summary>
         [Obsolete($"Please use {nameof(ConfigurationOptions)}.{nameof(ConfigurationOptions.IncludeDetailInExceptions)} instead - this will be removed in 3.0.")]
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         bool IncludeDetailInExceptions { get; set; }
 
         /// <summary>

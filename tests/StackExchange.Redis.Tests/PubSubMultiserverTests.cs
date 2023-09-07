@@ -6,16 +6,18 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
+[RunPerProtocol]
 [Collection(SharedConnectionFixture.Key)]
 public class PubSubMultiserverTests : TestBase
 {
     public PubSubMultiserverTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
+
     protected override string GetConfiguration() => TestConfig.Current.ClusterServersAndPorts + ",connectTimeout=10000";
 
     [Fact]
     public void ChannelSharding()
     {
-        using var conn = (Create(channelPrefix: Me()) as ConnectionMultiplexer)!;
+        using var conn = Create(channelPrefix: Me());
 
         var defaultSlot = conn.ServerSelectionStrategy.HashSlot(default(RedisChannel));
         var slot1 = conn.ServerSelectionStrategy.HashSlot(RedisChannel.Literal("hey"));
@@ -31,7 +33,7 @@ public class PubSubMultiserverTests : TestBase
     {
         Log("Connecting...");
 
-        using var conn = (Create(allowAdmin: true) as ConnectionMultiplexer)!;
+        using var conn = Create(allowAdmin: true);
 
         var sub = conn.GetSubscriber();
         var channel = RedisChannel.Literal(Me());
@@ -54,7 +56,7 @@ public class PubSubMultiserverTests : TestBase
         Log($"  Published (1) to {publishedTo} subscriber(s).");
         Assert.Equal(1, publishedTo);
 
-        var endpoint = sub.SubscribedEndpoint(channel);
+        var endpoint = sub.SubscribedEndpoint(channel)!;
         var subscribedServer = conn.GetServer(endpoint);
         var subscribedServerEndpoint = conn.GetServerEndPoint(endpoint);
 
@@ -63,18 +65,27 @@ public class PubSubMultiserverTests : TestBase
         Assert.True(subscribedServerEndpoint.IsConnected, "subscribedServerEndpoint.IsConnected");
         Assert.True(subscribedServerEndpoint.IsSubscriberConnected, "subscribedServerEndpoint.IsSubscriberConnected");
 
-        Assert.True(conn.TryGetSubscription(channel, out var subscription));
+        Assert.True(conn.GetSubscriptions().TryGetValue(channel, out var subscription));
         var initialServer = subscription.GetCurrentServer();
         Assert.NotNull(initialServer);
         Assert.True(initialServer.IsConnected);
         Log("Connected to: " + initialServer);
 
         conn.AllowConnect = false;
-        subscribedServerEndpoint.SimulateConnectionFailure(SimulatedFailureType.AllSubscription);
+        if (Context.IsResp3)
+        {
+            subscribedServerEndpoint.SimulateConnectionFailure(SimulatedFailureType.All);
 
-        Assert.True(subscribedServerEndpoint.IsConnected, "subscribedServerEndpoint.IsConnected");
-        Assert.False(subscribedServerEndpoint.IsSubscriberConnected, "subscribedServerEndpoint.IsSubscriberConnected");
+            Assert.False(subscribedServerEndpoint.IsConnected, "subscribedServerEndpoint.IsConnected");
+            Assert.False(subscribedServerEndpoint.IsSubscriberConnected, "subscribedServerEndpoint.IsSubscriberConnected");
+        }
+        else
+        {
+            subscribedServerEndpoint.SimulateConnectionFailure(SimulatedFailureType.AllSubscription);
 
+            Assert.True(subscribedServerEndpoint.IsConnected, "subscribedServerEndpoint.IsConnected");
+            Assert.False(subscribedServerEndpoint.IsSubscriberConnected, "subscribedServerEndpoint.IsSubscriberConnected");
+        }
         await UntilConditionAsync(TimeSpan.FromSeconds(5), () => subscription.IsConnected);
         Assert.True(subscription.IsConnected);
 
@@ -105,7 +116,7 @@ public class PubSubMultiserverTests : TestBase
         var config = TestConfig.Current.PrimaryServerAndPort + "," + TestConfig.Current.ReplicaServerAndPort;
         Log("Connecting...");
 
-        using var conn = (Create(configuration: config, shared: false, allowAdmin: true) as ConnectionMultiplexer)!;
+        using var conn = Create(configuration: config, shared: false, allowAdmin: true);
 
         var sub = conn.GetSubscriber();
         var channel = RedisChannel.Literal(Me() + flags.ToString()); // Individual channel per case to not overlap publishers
@@ -127,7 +138,7 @@ public class PubSubMultiserverTests : TestBase
         Assert.Equal(1, count);
         Log($"  Published (1) to {publishedTo} subscriber(s).");
 
-        var endpoint = sub.SubscribedEndpoint(channel);
+        var endpoint = sub.SubscribedEndpoint(channel)!;
         var subscribedServer = conn.GetServer(endpoint);
         var subscribedServerEndpoint = conn.GetServerEndPoint(endpoint);
 
@@ -136,17 +147,25 @@ public class PubSubMultiserverTests : TestBase
         Assert.True(subscribedServerEndpoint.IsConnected, "subscribedServerEndpoint.IsConnected");
         Assert.True(subscribedServerEndpoint.IsSubscriberConnected, "subscribedServerEndpoint.IsSubscriberConnected");
 
-        Assert.True(conn.TryGetSubscription(channel, out var subscription));
+        Assert.True(conn.GetSubscriptions().TryGetValue(channel, out var subscription));
         var initialServer = subscription.GetCurrentServer();
         Assert.NotNull(initialServer);
         Assert.True(initialServer.IsConnected);
         Log("Connected to: " + initialServer);
 
         conn.AllowConnect = false;
-        subscribedServerEndpoint.SimulateConnectionFailure(SimulatedFailureType.AllSubscription);
-
-        Assert.True(subscribedServerEndpoint.IsConnected, "subscribedServerEndpoint.IsConnected");
-        Assert.False(subscribedServerEndpoint.IsSubscriberConnected, "subscribedServerEndpoint.IsSubscriberConnected");
+        if (Context.IsResp3)
+        {
+            subscribedServerEndpoint.SimulateConnectionFailure(SimulatedFailureType.All); // need to kill the main connection
+            Assert.False(subscribedServerEndpoint.IsConnected, "subscribedServerEndpoint.IsConnected");
+            Assert.False(subscribedServerEndpoint.IsSubscriberConnected, "subscribedServerEndpoint.IsSubscriberConnected");
+        }
+        else
+        {
+            subscribedServerEndpoint.SimulateConnectionFailure(SimulatedFailureType.AllSubscription);
+            Assert.True(subscribedServerEndpoint.IsConnected, "subscribedServerEndpoint.IsConnected");
+            Assert.False(subscribedServerEndpoint.IsSubscriberConnected, "subscribedServerEndpoint.IsSubscriberConnected");
+        }
 
         if (expectSuccess)
         {
