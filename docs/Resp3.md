@@ -19,7 +19,7 @@ via `ConfigurationOptions.Protocol` or by adding `,protocol=resp3` (or `,protoco
 #3 is a critical one - the library *should* already handle all documented commands that have revised results in RESP3, but if you're using
 `Execute[Async]` to issue ad-hoc commands, you may need to update your processing code to compensate for this, ideally using detection to handle
 *either* format so that the same code works in both REP2 and RESP3. Since the impacted commands are handled internally by the library, in reality
-this should usually not usually present a difficulty.
+this should not usually present a difficulty.
 
 The minor (#2) and major (#3) differences to results are only visible to your code when using:
 

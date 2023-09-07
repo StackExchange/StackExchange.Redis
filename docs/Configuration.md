@@ -275,7 +275,7 @@ config.ReconnectRetryPolicy = new LinearRetry(5000);
 
 ## Redis protocol
 
-Without specific configuration, StackExchange.Redis will use the RESP2 protocol; this means that pub/sub requires a separatate connection to the server. RESP3 is a newer protocol
+Without specific configuration, StackExchange.Redis will use the RESP2 protocol; this means that pub/sub requires a separate connection to the server. RESP3 is a newer protocol
 (usually, but not always, available on v6 servers and above) which allows (among other changes) pub/sub messages to be communicated on the *same* connection - which can be very
 desirable in servers with a large number of clients. The protocol handshake needs to happen very early in the connection, so *by default* the library does not attempt a RESP3 connection
 unless it has reason to expect it to work. 
