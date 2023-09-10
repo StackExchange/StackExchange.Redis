@@ -228,7 +228,7 @@ namespace StackExchange.Redis.Configuration
         /// <summary>
         /// String version of the StackExchange.Redis library, for use in any options.
         /// </summary>
-        protected static string LibraryVersion => Utils.GetLibVersion();
+        public virtual string LibraryVersion => Utils.GetLibVersion();
 
         /// <summary>
         /// Name of the machine we're running on, for use in any options.

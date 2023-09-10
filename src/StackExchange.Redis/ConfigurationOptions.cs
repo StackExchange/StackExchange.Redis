@@ -157,7 +157,7 @@ namespace StackExchange.Redis
         private bool? allowAdmin, abortOnConnectFail, resolveDns, ssl, checkCertificateRevocation,
                       includeDetailInExceptions, includePerformanceCountersInExceptions, setClientLibrary;
 
-        private string? tieBreaker, sslHost, configChannel, user, password;
+        private string? tieBreaker, sslHost, configChannel, user, password, libraryName, libraryVersion;
 
         private TimeSpan? heartbeatInterval;
 
@@ -249,20 +249,40 @@ namespace StackExchange.Redis
         /// <summary>
         /// Gets or sets whether the library should identify itself by library-name/version when possible.
         /// </summary>
+        /// <remarks><see href="https://redis.io/commands/client-setinfo/"/></remarks>
         public bool SetClientLibrary
         {
             get => setClientLibrary ?? Defaults.SetClientLibrary;
             set => setClientLibrary = value;
         }
 
-
         /// <summary>
         /// Gets or sets the library name to use for CLIENT SETINFO lib-name calls to Redis during handshake.
         /// Defaults to "SE.Redis".
         /// </summary>
-        /// <remarks>If the value is null, empty or whitespace, then the value from the options-provideer is used;
-        /// to disable the library name feature, use <see cref="SetClientLibrary"/> instead.</remarks>
-        public string? LibraryName { get; set; }
+        /// <remarks>
+        /// To disable the library name feature, set <see cref="SetClientLibrary"/> to <c>false</c>.
+        /// For allowed values, see <see href="https://redis.io/commands/client-setinfo/"/>.
+        /// </remarks>
+        public string? LibraryName
+        {
+            get => libraryName ?? Defaults.LibraryName;
+            set => libraryName = value;
+        }
+
+        /// <summary>
+        /// Gets or sets the library version to use for CLIENT SETINFO lib-ver calls to Redis during handshake.
+        /// Defaults to the build version of StackExchange.Redis.
+        /// </summary>
+        /// <remarks>
+        /// To disable the library name feature, set <see cref="SetClientLibrary"/> to <c>false</c>.
+        /// For allowed values, see <see href="https://redis.io/commands/client-setinfo/"/>.
+        /// </remarks>
+        public string? LibraryVersion
+        {
+            get => libraryVersion ?? Defaults.LibraryVersion;
+            set => libraryVersion = value;
+        }
 
         /// <summary>
         /// Automatically encodes and decodes channels.
@@ -709,7 +729,8 @@ namespace StackExchange.Redis
 #endif
             Tunnel = Tunnel,
             setClientLibrary = setClientLibrary,
-            LibraryName = LibraryName,
+            libraryName = libraryName,
+            libraryVersion = libraryVersion,
             Protocol = Protocol,
         };
 
@@ -834,7 +855,7 @@ namespace StackExchange.Redis
 
         private void Clear()
         {
-            ClientName = ServiceName = user = password = tieBreaker = sslHost = configChannel = null;
+            ClientName = ServiceName = user = password = tieBreaker = sslHost = configChannel = libraryName = libraryVersion = null;
             keepAlive = syncTimeout = asyncTimeout = connectTimeout = connectRetry = configCheckSeconds = DefaultDatabase = null;
             allowAdmin = abortOnConnectFail = resolveDns = ssl = setClientLibrary = null;
             SslProtocols = null;

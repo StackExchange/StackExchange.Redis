@@ -167,11 +167,12 @@ public class DefaultOptionsTests : TestBase
     public class TestLibraryNameOptionsProvider : DefaultOptionsProvider
     {
         public string Id { get; } = Guid.NewGuid().ToString();
-        public override string LibraryName => Id;
+        public override string LibraryName => Id + "Name";
+        public override string LibraryVersion => Id + "Version";
     }
 
     [Fact]
-    public async Task LibraryNameOverride()
+    public async Task LibraryNameAndVersionOverride()
     {
         var options = ConfigurationOptions.Parse(GetConfiguration());
         var defaults = new TestLibraryNameOptionsProvider();
@@ -185,10 +186,11 @@ public class DefaultOptionsTests : TestBase
         var clients = await GetServer(conn).ClientListAsync();
         foreach (var client in clients)
         {
-            Log("Library name: " + client.LibraryName);
+            Log("Library name: " + client.LibraryName + ", version:" + client.LibraryVersion);
         }
 
         Assert.True(conn.IsConnected);
-        Assert.True(clients.Any(c => c.LibraryName == defaults.LibraryName), "Did not find client with name: " + defaults.Id);
+        Assert.True(clients.Any(c => c.LibraryName == defaults.LibraryName && c.LibraryVersion == defaults.LibraryVersion),
+            "Did not find client with name: '" + defaults.LibraryName + "' and version: '" + defaults.LibraryVersion + "'");
     }
 }

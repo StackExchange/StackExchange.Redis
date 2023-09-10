@@ -244,6 +244,8 @@ StackExchange.Redis.ConfigurationOptions.KeepAlive.get -> int
 StackExchange.Redis.ConfigurationOptions.KeepAlive.set -> void
 StackExchange.Redis.ConfigurationOptions.LibraryName.get -> string?
 StackExchange.Redis.ConfigurationOptions.LibraryName.set -> void
+StackExchange.Redis.ConfigurationOptions.LibraryVersion.get -> string?
+StackExchange.Redis.ConfigurationOptions.LibraryVersion.set -> void
 StackExchange.Redis.ConfigurationOptions.LoggerFactory.get -> Microsoft.Extensions.Logging.ILoggerFactory?
 StackExchange.Redis.ConfigurationOptions.LoggerFactory.set -> void
 StackExchange.Redis.ConfigurationOptions.Password.get -> string?
@@ -1611,7 +1613,6 @@ static StackExchange.Redis.Configuration.DefaultOptionsProvider.AddProvider(Stac
 static StackExchange.Redis.Configuration.DefaultOptionsProvider.ComputerName.get -> string!
 static StackExchange.Redis.Configuration.DefaultOptionsProvider.GetProvider(StackExchange.Redis.EndPointCollection! endpoints) -> StackExchange.Redis.Configuration.DefaultOptionsProvider!
 static StackExchange.Redis.Configuration.DefaultOptionsProvider.GetProvider(System.Net.EndPoint! endpoint) -> StackExchange.Redis.Configuration.DefaultOptionsProvider!
-static StackExchange.Redis.Configuration.DefaultOptionsProvider.LibraryVersion.get -> string!
 static StackExchange.Redis.ConfigurationOptions.Parse(string! configuration) -> StackExchange.Redis.ConfigurationOptions!
 static StackExchange.Redis.ConfigurationOptions.Parse(string! configuration, bool ignoreUnknown) -> StackExchange.Redis.ConfigurationOptions!
 static StackExchange.Redis.ConnectionMultiplexer.Connect(StackExchange.Redis.ConfigurationOptions! configuration, System.IO.TextWriter? log = null) -> StackExchange.Redis.ConnectionMultiplexer!
@@ -1803,6 +1804,7 @@ virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.IncludePerforma
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.IsMatch(System.Net.EndPoint! endpoint) -> bool
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.KeepAliveInterval.get -> System.TimeSpan
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.LibraryName.get -> string!
+virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.LibraryVersion.get -> string!
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.LoggerFactory.get -> Microsoft.Extensions.Logging.ILoggerFactory?
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.Password.get -> string?
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.Proxy.get -> StackExchange.Redis.Proxy
