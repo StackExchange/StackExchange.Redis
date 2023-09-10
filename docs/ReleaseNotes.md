@@ -10,17 +10,18 @@ Current package versions:
 
 - Adds: RESP3 support ([#2396 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2396)) - see https://stackexchange.github.io/StackExchange.Redis/Resp3
 - Fix [#2507](https://github.com/StackExchange/StackExchange.Redis/issues/2507): Pub/sub with multi-item payloads should be usable ([#2508 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2508))
-- Add: connection-id tracking (internal only, no public API) ([#2508 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2508))
-- Add: `ConfigurationOptions.LoggerFactory` for logging to an `ILoggerFactory` (e.g. `ILogger`) all connection and error events ([#2051 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2051))
+- Adds: connection-id tracking (internal only, no public API) ([#2508 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2508))
+- Adds: `ConfigurationOptions.LoggerFactory` for logging to an `ILoggerFactory` (e.g. `ILogger`) all connection and error events ([#2051 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2051))
 - Fix [#2467](https://github.com/StackExchange/StackExchange.Redis/issues/2467): Add StreamGroupInfo EntriesRead and Lag ([#2510 by tvdias](https://github.com/StackExchange/StackExchange.Redis/pull/2510))
+- Adds: `LibraryVersion` configuration option - allows the library version to be controlled at the individual options level (in addition to the existing controls in `DefaultOptionsProvider`) ([#2547 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2547))
 
 ## 2.6.122
 
 - Change: Target net6.0 instead of net5.0, since net5.0 is end of life. ([#2497 by eerhardt](https://github.com/StackExchange/StackExchange.Redis/pull/2497))
 - Fix: Fix nullability annotation of IConnectionMultiplexer.RegisterProfiler ([#2494 by eerhardt](https://github.com/StackExchange/StackExchange.Redis/pull/2494))
-- Add: `Timer.ActiveCount` under `POOL` in timeout messages on .NET 6+ to help diagnose timer overload affecting timeout evaluations ([#2500 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2500))
-- Add: `LibraryName` configuration option; allows the library name to be controlled at the individual options level (in addition to the existing controls in `DefaultOptionsProvider`) ([#2502 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2502))
-- Add: `DefaultOptionsProvider.GetProvider` allows lookup of provider by endpoint ([#2502 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2502))
+- Adds: `Timer.ActiveCount` under `POOL` in timeout messages on .NET 6+ to help diagnose timer overload affecting timeout evaluations ([#2500 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2500))
+- Adds: `LibraryName` configuration option - allows the library name to be controlled at the individual options level (in addition to the existing controls in `DefaultOptionsProvider`) ([#2502 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2502))
+- Adds: `DefaultOptionsProvider.GetProvider` allows lookup of provider by endpoint ([#2502 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2502))
 
 ## 2.6.116
 
@@ -31,7 +32,7 @@ Current package versions:
 ## 2.6.111
 
 - Fix [#2426](https://github.com/StackExchange/StackExchange.Redis/issues/2426): Don't restrict multi-slot operations on Envoy proxy; let the proxy decide ([#2428 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2428))
-- Add: Support for `User`/`Password` in `DefaultOptionsProvider` to support token rotation scenarios ([#2445 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2445))
+- Adds: Support for `User`/`Password` in `DefaultOptionsProvider` to support token rotation scenarios ([#2445 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2445))
 - Fix [#2449](https://github.com/StackExchange/StackExchange.Redis/issues/2449): Resolve AOT trim warnings in `TryGetAzureRoleInstanceIdNoThrow` ([#2451 by eerhardt](https://github.com/StackExchange/StackExchange.Redis/pull/2451))
 - Adds: Support for `HTTP/1.1 200 Connection established` in HTTP Tunnel ([#2448 by flobernd](https://github.com/StackExchange/StackExchange.Redis/pull/2448))
 - Adds: Timeout duration to backlog timeout error messages ([#2452 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2452))
@@ -40,10 +41,10 @@ Current package versions:
 ## 2.6.104
 
 - Fix [#2412](https://github.com/StackExchange/StackExchange.Redis/issues/2412): Critical (but rare) GC bug that can lead to async tasks never completing if the multiplexer is not held by the consumer ([#2408 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2408))
-- Add: Better error messages (over generic timeout) when commands are backlogged and unable to write to any connection ([#2408 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2408))
+- Adds: Better error messages (over generic timeout) when commands are backlogged and unable to write to any connection ([#2408 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2408))
 - Fix [#2392](https://github.com/StackExchange/StackExchange.Redis/issues/2392): Dequeue *all* timed out messages from the backlog when not connected (including Fire+Forget) ([#2397 by kornelpal](https://github.com/StackExchange/StackExchange.Redis/pull/2397))
 - Fix [#2400](https://github.com/StackExchange/StackExchange.Redis/issues/2400): Expose `ChannelMessageQueue` as `IAsyncEnumerable<ChannelMessage>` ([#2402 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2402))
-- Add: Support for `CLIENT SETINFO` (lib name/version) during handshake; opt-out is via `ConfigurationOptions`; also support read of `resp`, `lib-ver` and `lib-name` via `CLIENT LIST` ([#2414 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2414))
+- Adds: Support for `CLIENT SETINFO` (lib name/version) during handshake; opt-out is via `ConfigurationOptions`; also support read of `resp`, `lib-ver` and `lib-name` via `CLIENT LIST` ([#2414 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2414))
 - Documentation: clarify the meaning of `RedisValue.IsInteger` re [#2418](https://github.com/StackExchange/StackExchange.Redis/issues/2418) ([#2420 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2420))
 
 ## 2.6.96
@@ -234,7 +235,7 @@ Current package versions:
 - Fix: Server-selection strategy race condition ([#1532 by deepakverma](https://github.com/StackExchange/StackExchange.Redis/pull/1532))
 - Fix: Sentinel default port ([#1525 by ejsmith](https://github.com/StackExchange/StackExchange.Redis/pull/1525))
 - Fix: `Int64` parse scenario ([#1568 by arsnyder16](https://github.com/StackExchange/StackExchange.Redis/pull/1568))
-- Add: Force replication check during failover ([#1563 by aravindyeduvaka & joroda](https://github.com/StackExchange/StackExchange.Redis/pull/1563))
+- Adds: Force replication check during failover ([#1563 by aravindyeduvaka & joroda](https://github.com/StackExchange/StackExchange.Redis/pull/1563))
 - Documentation tweaks (multiple)
 - Fix: Backlog contention issue ([#1612 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/1612/), see also [#1574 by devbv](https://github.com/StackExchange/StackExchange.Redis/pull/1574/))
 

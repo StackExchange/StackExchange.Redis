@@ -926,7 +926,7 @@ namespace StackExchange.Redis
             var config = Multiplexer.RawConfig;
             string? user = config.User;
             string password = config.Password ?? "";
-            
+
             string clientName = Multiplexer.ClientName;
             if (!string.IsNullOrWhiteSpace(clientName))
             {
@@ -1009,17 +1009,13 @@ namespace StackExchange.Redis
 
                 if (config.SetClientLibrary)
                 {
+                    var libName = config.LibraryName;
+                    var libVersion = config.LibraryVersion;
+
                     // note that this is a relatively new feature, but usually we won't know the
                     // server version, so we will use this speculatively and hope for the best
-                    log?.LogInformation($"{Format.ToString(this)}: Setting client lib/ver");
+                    log?.LogInformation($"{Format.ToString(this)}: Setting client lib/ver to {libName}/{libVersion}");
 
-                    var libName = config.LibraryName;
-                    if (string.IsNullOrWhiteSpace(libName))
-                    {
-                        // defer to provider if missing (note re null vs blank; if caller wants to disable
-                        // it, they should set SetClientLibrary to false, not set the name to empty string)
-                        libName = config.Defaults.LibraryName;
-                    }
                     if (!string.IsNullOrWhiteSpace(libName))
                     {
                         msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.CLIENT,
@@ -1028,11 +1024,10 @@ namespace StackExchange.Redis
                         await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
                     }
 
-                    var version = Utils.GetLibVersion();
-                    if (!string.IsNullOrWhiteSpace(version))
+                    if (!string.IsNullOrWhiteSpace(libVersion))
                     {
                         msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.CLIENT,
-                            RedisLiterals.SETINFO, RedisLiterals.lib_ver, version);
+                            RedisLiterals.SETINFO, RedisLiterals.lib_ver, libVersion);
                         msg.SetInternalCall();
                         await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
                     }

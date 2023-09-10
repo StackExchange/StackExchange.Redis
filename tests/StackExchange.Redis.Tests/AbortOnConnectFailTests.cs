@@ -92,7 +92,7 @@ public class AbortOnConnectFailTests : TestBase
     {
         AbortOnConnectFail = false,
         BacklogPolicy = policy,
-        ConnectTimeout = 50,
+        ConnectTimeout = 500,
         SyncTimeout = 400,
         KeepAlive = 400,
         AllowAdmin = true,
