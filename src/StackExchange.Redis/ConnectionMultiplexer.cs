@@ -1487,8 +1487,9 @@ namespace StackExchange.Redis
                             servers[i] = server;
 
                             // This awaits either the endpoint's initial connection, or a tracer if we're already connected
-                            // (which is the reconfigure case)
-                            available[i] = server.OnConnectedAsync(log, sendTracerIfConnected: true, autoConfigureIfConnected: reconfigureAll);
+                            // (which is the reconfigure case, except second iteration which is only for newly discovered cluster members).
+                            var isFirstIteration = iter == 0;
+                            available[i] = server.OnConnectedAsync(log, sendTracerIfConnected: isFirstIteration, autoConfigureIfConnected: reconfigureAll);
                         }
 
                         watch ??= ValueStopwatch.StartNew();
