@@ -1,4 +1,5 @@
-﻿using System;
+﻿using StackExchange.Redis.Tests.Helpers;
+using System;
 using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
@@ -96,5 +97,5 @@ public class AbortOnConnectFailTests : TestBase
         SyncTimeout = 400,
         KeepAlive = 400,
         AllowAdmin = true,
-    };
+    }.WithoutSubscriptions();
 }
