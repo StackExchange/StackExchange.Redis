@@ -1,4 +1,5 @@
-﻿using Xunit;
+﻿using System.Linq;
+using Xunit;
 using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
@@ -8,13 +9,15 @@ public class Roles : TestBase
 {
     public Roles(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
 
+    protected override string GetConfiguration() => TestConfig.Current.PrimaryServerAndPort + "," + TestConfig.Current.ReplicaServerAndPort;
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
     public void PrimaryRole(bool allowAdmin) // should work with or without admin now
     {
         using var conn = Create(allowAdmin: allowAdmin);
-        var server = conn.GetServer(TestConfig.Current.PrimaryServerAndPort);
+        var server = conn.GetServers().First(conn => !conn.IsReplica);
 
         var role = server.Role();
         Assert.NotNull(role);
@@ -39,7 +42,7 @@ public class Roles : TestBase
     public void ReplicaRole()
     {
         using var conn = ConnectionMultiplexer.Connect($"{TestConfig.Current.ReplicaServerAndPort},allowAdmin=true");
-        var server = conn.GetServer(TestConfig.Current.ReplicaServerAndPort);
+        var server = conn.GetServers().First(conn => conn.IsReplica);
 
         var role = server.Role();
         Assert.NotNull(role);
