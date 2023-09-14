@@ -104,6 +104,10 @@ public static class TestConfig
         public int SentinelPortC { get; set; } = 26381;
         public string SentinelSeviceName { get; set; } = "myprimary";
 
+        public int SentinelTwoReplicasPortA { get; set; } = 26389;
+        public int SentinelTwoReplicasPortB { get; set; } = 26390;
+        public int SentinelTwoReplicasPortC { get; set; } = 26391;
+
         public string ClusterServer { get; set; } = "127.0.0.1";
         public int ClusterStartPort { get; set; } = 7000;
         public int ClusterServerCount { get; set; } = 6;

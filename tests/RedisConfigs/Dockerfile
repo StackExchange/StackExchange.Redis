@@ -4,6 +4,7 @@ COPY Basic /data/Basic/
 COPY Failover /data/Failover/
 COPY Cluster /data/Cluster/
 COPY Sentinel /data/Sentinel/
+COPY SentinelTwoReplicas /data/SentinelTwoReplicas/
 COPY Certs /Certs/
 
 RUN chown -R redis:redis /data
@@ -24,4 +25,4 @@ ADD Docker/supervisord.conf /etc/
 
 ENTRYPOINT ["docker-entrypoint.sh"]
 
-EXPOSE 6379 6380 6381 6382 6383 6384 7000 7001 7002 7003 7004 7005 7010 7011 7015 26379 26380 26381
+EXPOSE 6379 6380 6381 6382 6383 6384 7000 7001 7002 7003 7004 7005 7010 7011 7015 7020 7021 7022 26379 26380 26381 26389 26390 26391

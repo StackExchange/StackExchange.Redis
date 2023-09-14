@@ -1169,41 +1169,75 @@ namespace StackExchange.Redis
 
         internal ServerEndPoint? AnyServer(ServerType serverType, uint startOffset, RedisCommand command, CommandFlags flags, bool allowDisconnected)
         {
-            var tmp = GetServerSnapshot();
-            int len = tmp.Length;
             ServerEndPoint? fallback = null;
-            for (int i = 0; i < len; i++)
+            bool masterSkip = false;
+            while (true)
             {
-                var server = tmp[(int)(((uint)i + startOffset) % len)];
-                if (server != null && server.ServerType == serverType && server.IsSelectable(command, allowDisconnected))
+                var repeat = false;
+
+                var tmp = GetServerSnapshot();
+                if (masterSkip)
+                    tmp = GetReplicas(tmp);
+                int len = tmp.Length;
+                
+                for (int i = 0; i < len; i++)
                 {
-                    if (server.IsReplica)
+                    var server = tmp[(int)(((uint)i + startOffset) % len)];
+                    if (server != null && server.ServerType == serverType && server.IsSelectable(command, allowDisconnected))
                     {
-                        switch (flags)
+                        if (server.IsReplica)
                         {
-                            case CommandFlags.DemandReplica:
-                            case CommandFlags.PreferReplica:
-                                return server;
-                            case CommandFlags.PreferMaster:
-                                fallback = server;
-                                break;
+                            switch (flags)
+                            {
+                                case CommandFlags.DemandReplica:
+                                case CommandFlags.PreferReplica:
+                                    return server;
+                                case CommandFlags.PreferMaster:
+                                    fallback = server;
+                                    break;
+                            }
                         }
-                    }
-                    else
-                    {
-                        switch (flags)
+                        else
                         {
-                            case CommandFlags.DemandMaster:
-                            case CommandFlags.PreferMaster:
-                                return server;
-                            case CommandFlags.PreferReplica:
-                                fallback = server;
+                            switch (flags)
+                            {
+                                case CommandFlags.DemandMaster:
+                                case CommandFlags.PreferMaster:
+                                    return server;
+                                
+                                case CommandFlags.PreferReplica:
+                                    masterSkip = true;
+                                    fallback = server;
+                                    break;
+                                case CommandFlags.DemandReplica:
+                                    masterSkip = true;
+                                    break;
+                            }
+                            if (masterSkip)
+                            {
+                                repeat = true;
                                 break;
+                            }
                         }
                     }
                 }
+                if (!repeat)
+                {
+                    break;
+                }
             }
             return fallback;
+        }
+
+        private ReadOnlySpan<ServerEndPoint> GetReplicas(ReadOnlySpan<ServerEndPoint> serverSnapshot)
+        {
+            var result = new List<ServerEndPoint>();
+            foreach (var server in serverSnapshot)
+            {
+                if (server.IsReplica)
+                    result.Add(server);
+            }
+            return new ReadOnlySpan<ServerEndPoint>(result.ToArray(), 0, result.Count);
         }
 
         /// <summary>

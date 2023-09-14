@@ -46,6 +46,19 @@ redis-server sentinel-26380.conf --sentinel &>/dev/null &
 redis-server sentinel-26381.conf --sentinel &>/dev/null &
 popd > /dev/null
 
+#Sentinel Two Replicas Servers
+echo Starting SentinelTwoReplicas: 7020-7022,26389-26391
+pushd SentinelTwoReplicas > /dev/null
+echo "${INDENT}Targets: 7020-7022"
+redis-server redis-7020.conf &>/dev/null &
+redis-server redis-7021.conf &>/dev/null &
+redis-server redis-7022.conf &>/dev/null &
+echo "${INDENT}Monitors: 26389-26391"
+redis-server sentinel-26389.conf --sentinel &>/dev/null &
+redis-server sentinel-26390.conf --sentinel &>/dev/null &
+redis-server sentinel-26391.conf --sentinel &>/dev/null &
+popd > /dev/null
+
 #Envoy Servers
 # Installation: https://www.envoyproxy.io/docs/envoy/latest/start/install
 # Use Envoy on Ubuntu Linux to install on WSL2

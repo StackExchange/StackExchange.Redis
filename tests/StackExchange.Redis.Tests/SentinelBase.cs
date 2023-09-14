@@ -11,6 +11,9 @@ namespace StackExchange.Redis.Tests;
 
 public class SentinelBase : TestBase, IAsyncLifetime
 {
+    private readonly int _sentinelPortA;
+    private readonly int _sentinelPortB;
+    private readonly int _sentinelPortC;
     protected static string ServiceName => TestConfig.Current.SentinelSeviceName;
     protected static ConfigurationOptions ServiceOptions => new ConfigurationOptions { ServiceName = ServiceName, AllowAdmin = true };
 
@@ -21,10 +24,17 @@ public class SentinelBase : TestBase, IAsyncLifetime
     public IServer[] SentinelsServers { get; set; }
 
 #nullable disable
-    public SentinelBase(ITestOutputHelper output) : base(output)
+    protected SentinelBase(ITestOutputHelper output, int sentinelPortA, int sentinelPortB, int sentinelPortC) : base(output)
     {
+        _sentinelPortA = sentinelPortA;
+        _sentinelPortB = sentinelPortB;
+        _sentinelPortC = sentinelPortC;
         Skip.IfNoConfig(nameof(TestConfig.Config.SentinelServer), TestConfig.Current.SentinelServer);
         Skip.IfNoConfig(nameof(TestConfig.Config.SentinelSeviceName), TestConfig.Current.SentinelSeviceName);
+    }
+
+    public SentinelBase(ITestOutputHelper output) : this(output, TestConfig.Current.SentinelPortA, TestConfig.Current.SentinelPortB, TestConfig.Current.SentinelPortC)
+    {
     }
 #nullable enable
 
@@ -33,9 +43,9 @@ public class SentinelBase : TestBase, IAsyncLifetime
     public async Task InitializeAsync()
     {
         var options = ServiceOptions.Clone();
-        options.EndPoints.Add(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortA);
-        options.EndPoints.Add(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortB);
-        options.EndPoints.Add(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortC);
+        options.EndPoints.Add(TestConfig.Current.SentinelServer, _sentinelPortA);
+        options.EndPoints.Add(TestConfig.Current.SentinelServer, _sentinelPortB);
+        options.EndPoints.Add(TestConfig.Current.SentinelServer, _sentinelPortC);
         Conn = ConnectionMultiplexer.SentinelConnect(options, Writer);
 
         for (var i = 0; i < 150; i++)
@@ -51,9 +61,9 @@ public class SentinelBase : TestBase, IAsyncLifetime
             }
         }
         Assert.True(Conn.IsConnected);
-        SentinelServerA = Conn.GetServer(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortA)!;
-        SentinelServerB = Conn.GetServer(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortB)!;
-        SentinelServerC = Conn.GetServer(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortC)!;
+        SentinelServerA = Conn.GetServer(TestConfig.Current.SentinelServer, _sentinelPortA)!;
+        SentinelServerB = Conn.GetServer(TestConfig.Current.SentinelServer, _sentinelPortB)!;
+        SentinelServerC = Conn.GetServer(TestConfig.Current.SentinelServer, _sentinelPortC)!;
         SentinelsServers = new[] { SentinelServerA, SentinelServerB, SentinelServerC };
 
         SentinelServerA.AllowReplicaWrites = true;
@@ -108,7 +118,10 @@ public class SentinelBase : TestBase, IAsyncLifetime
         {
             await Task.Delay(1000).ForAwait();
             replicas = SentinelServerA.SentinelGetReplicaAddresses(ServiceName);
-            await WaitForRoleAsync(checkConn.GetServer(replicas[0]), "slave", duration.Value.Subtract(sw.Elapsed)).ForAwait();
+            foreach (var replica in replicas)
+            {
+                await WaitForRoleAsync(checkConn.GetServer(replica), "slave", duration.Value.Subtract(sw.Elapsed)).ForAwait();
+            }
         }
 
         if (waitForReplication)
@@ -169,18 +182,32 @@ public class SentinelBase : TestBase, IAsyncLifetime
         {
             var info = primary.Info("replication");
             var replicationInfo = info.FirstOrDefault(f => f.Key == "Replication")?.ToArray().ToDictionary();
-            var replicaInfo = replicationInfo?.FirstOrDefault(i => i.Key.StartsWith("slave")).Value?.Split(',').ToDictionary(i => i.Split('=').First(), i => i.Split('=').Last());
-            var replicaOffset = replicaInfo?["offset"];
-            var primaryOffset = replicationInfo?["master_repl_offset"];
+            var replicaInfos =replicationInfo?.Where(i => i.Key
+                    .StartsWith("slave"))
+                .Select(pair =>
+                    pair.Value?.Split(',').ToDictionary(i => i.Split('=').First(), i => i.Split('=').Last()));
 
-            if (replicaOffset == primaryOffset)
+            var primaryOffset = replicationInfo?["master_repl_offset"];
+            var done = true;
+            foreach (var replicaInfo in replicaInfos ?? new List<Dictionary<string, string>>())
             {
-                Log($"Done waiting for primary ({primaryOffset}) / replica ({replicaOffset}) replication to be in sync");
+                var replicaOffset = replicaInfo?["offset"];
+                var port = replicaInfo?["port"];
+                if (replicaOffset == primaryOffset)
+                {
+                    Log($"Done waiting for primary ({primaryOffset}) / replica {port} ({replicaOffset}) replication to be in sync");
+                }
+                else
+                {
+                    Log($"Waiting for primary ({primaryOffset}) / replica {port} ({replicaOffset}) replication to be in sync...");
+                    done = false;
+                }
+            }
+            if (done)
+            {
                 LogEndpoints(primary, m => Log(m));
                 return;
             }
-
-            Log($"Waiting for primary ({primaryOffset}) / replica ({replicaOffset}) replication to be in sync...");
 
             await Task.Delay(250).ForAwait();
         }
