@@ -48,13 +48,13 @@ install:
 
     redis-server.exe --service-install --service-name "redis-7021" "..\SentinelTwoReplicas\redis-7021.conf"
     
-    redis-server.exe --service-install --service-name "redis-7021" "..\SentinelTwoReplicas\redis-7022.conf"
+    redis-server.exe --service-install --service-name "redis-7022" "..\SentinelTwoReplicas\redis-7022.conf"
 
-    redis-server.exe --service-install --service-name "redis-26379" "..\SentinelTwoReplicas\sentinel-26389.conf" --sentinel
+    redis-server.exe --service-install --service-name "redis-26389" "..\SentinelTwoReplicas\sentinel-26389.conf" --sentinel
 
-    redis-server.exe --service-install --service-name "redis-26380" "..\SentinelTwoReplicas\sentinel-26390.conf" --sentinel
+    redis-server.exe --service-install --service-name "redis-26390" "..\SentinelTwoReplicas\sentinel-26390.conf" --sentinel
     
-    redis-server.exe --service-install --service-name "redis-26381" "..\SentinelTwoReplicas\sentinel-26391.conf" --sentinel
+    redis-server.exe --service-install --service-name "redis-26391" "..\SentinelTwoReplicas\sentinel-26391.conf" --sentinel
 
     cd ..\..\..
 - ps: >-
