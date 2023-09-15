@@ -5,6 +5,7 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
+[Collection(NonParallelCollection.Name)]
 public class AbortOnConnectFailTests : TestBase
 {
     public AbortOnConnectFailTests(ITestOutputHelper output) : base (output) { }
