@@ -58,8 +58,10 @@ public class SentinelTwoReplicasTest : SentinelBase
         Assert.Equal(expected, value);
     }
 
-    [Fact]
-    public async Task ReplicasRoundRobinServerSelectionTest()
+    [Theory]
+    [InlineData(CommandFlags.DemandReplica)]
+    [InlineData(CommandFlags.PreferReplica)]
+    public async Task ReplicasRoundRobinServerSelectionTest(CommandFlags replicaFlags)
     {
         var connectionString = $"{TestConfig.Current.SentinelServer}:{TestConfig.Current.SentinelTwoReplicasPortA},serviceName={ServiceOptions.ServiceName},allowAdmin=true";
         using var conn = await ConnectionMultiplexer.ConnectAsync(connectionString);
@@ -98,7 +100,7 @@ public class SentinelTwoReplicasTest : SentinelBase
         conn.RegisterProfiler(() => profilingSession);
         for (var i = 0; i < 100; i++)
         {
-            await db.StringGetAsync(key, CommandFlags.DemandReplica);
+            await db.StringGetAsync(key, replicaFlags);
         }
 
         var commands = profilingSession.FinishProfiling();
