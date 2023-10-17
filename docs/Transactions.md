@@ -70,7 +70,7 @@ mixed together with other callers. So our example becomes:
 var newId = CreateNewId();
 var tran = db.CreateTransaction();
 tran.AddCondition(Condition.HashNotExists(custKey, "UniqueID"));
-tran.HashSetAsync(custKey, "UniqueID", newId);
+await tran.HashSetAsync(custKey, "UniqueID", newId);
 bool committed = tran.Execute();
 // ^^^ if true: it was applied; if false: it was rolled back
 ```
