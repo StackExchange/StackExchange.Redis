@@ -191,7 +191,7 @@ public class KeyTests : TestBase
             var key4 = key3.Append("buzz");
 
             var key5 = key2.Append(key4);
-            Assert.Equal("helloworldfizz", key5);
+            Assert.Equal("helloworldfizzbuzz", key5);
         }
     }
 
