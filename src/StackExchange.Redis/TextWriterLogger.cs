@@ -4,10 +4,10 @@ using Microsoft.Extensions.Logging;
 
 namespace StackExchange.Redis;
 
-internal sealed class TextWriterLogger : ILogger, IDisposable
+internal sealed class TextWriterLogger : ILogger
 {
     private TextWriter? _writer;
-    private ILogger? _wrapped;
+    private readonly ILogger? _wrapped;
 
     internal static Action<string> NullWriter = _ => { };
 
@@ -26,16 +26,27 @@ internal sealed class TextWriterLogger : ILogger, IDisposable
         {
             lock (writer)
             {
-                writer.Write($"{DateTime.UtcNow:HH:mm:ss.ffff}: ");
-                writer.WriteLine(formatter(state, exception));
+                // We check here again because it's possible we've released below, and never want to write past releasing.
+                if (_writer is TextWriter innerWriter)
+                {
+                    innerWriter.Write($"{DateTime.UtcNow:HH:mm:ss.ffff}: ");
+                    innerWriter.WriteLine(formatter(state, exception));
+                }
             }
         }
     }
 
-    public void Dispose()
+    public void Release()
     {
-        _writer = null;
-        _wrapped = null;
+        // We lock here because we may have piled up on a lock above and still be writing.
+        // We never want a write to go past the Release(), as many TextWriter implementations are not thread safe.
+        if (_writer is TextWriter writer)
+        {
+            lock (writer)
+            {
+                _writer = null;
+            }
+        }
     }
 }
 
