@@ -96,7 +96,7 @@ By default Redis Timeout exception(s) includes useful information, which can hel
 |mgr | 8 of 10 available|Redis Internal Dedicated Thread Pool State| 
 |IOCP | IOCP: (Busy=0,Free=500,Min=248,Max=500)| Runtime Global Thread Pool IO Threads. |
 |WORKER | WORKER: (Busy=170,Free=330,Min=248,Max=500)| Runtime Global Thread Pool Worker Threads.| 
-|POOL | POOL: (Threads=8,QueuedItems=0,CompletedItems=42)| Thread Pool Work Item Stats.| 
+|POOL | POOL: (Threads=8,QueuedItems=0,CompletedItems=42,Timers=10)| Thread Pool Work Item Stats.| 
 |v | Redis Version: version |The `StackExchange.Redis` version you are currently using in your application.|
 |active | Message-Current: {string} |Included in exception message when `IncludeDetailInExceptions=True` on multiplexer|
 |next | Message-Next: {string} |When `IncludeDetailInExceptions=True` on multiplexer, it might include command and key, otherwise only command.|
