@@ -638,7 +638,7 @@ namespace StackExchange.Redis
             {
                 if (connectHandler != null && muxer != null) muxer.ConnectionFailed -= connectHandler;
                 if (killMe != null) try { killMe.Dispose(); } catch { }
-                if (log is TextWriterLogger twLogger) twLogger.Dispose();
+                if (log is TextWriterLogger twLogger) twLogger.Release();
             }
         }
 
@@ -740,7 +740,7 @@ namespace StackExchange.Redis
             {
                 if (connectHandler != null && muxer != null) muxer.ConnectionFailed -= connectHandler;
                 if (killMe != null) try { killMe.Dispose(); } catch { }
-                if (log is TextWriterLogger twLogger) twLogger.Dispose();
+                if (log is TextWriterLogger twLogger) twLogger.Release();
             }
         }
 
