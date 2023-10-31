@@ -28,9 +28,19 @@ public class Roles : TestBase
         Log($"Chosen primary: {server.EndPoint} (role: {role})");
         if (allowAdmin)
         {
-            Log("Info dump:");
-            Log(server.InfoRaw());
+            Log($"Info (Replication) dump for {server.EndPoint}:");
+            Log(server.InfoRaw("Replication"));
             Log("");
+
+            foreach (var s in servers)
+            {
+                if (s.IsReplica)
+                {
+                    Log($"Info (Replication) dump for {s.EndPoint}:");
+                    Log(s.InfoRaw("Replication"));
+                    Log("");
+                }
+            }
         }
         Assert.NotNull(role);
         Assert.Equal(role.Value, RedisLiterals.master);
