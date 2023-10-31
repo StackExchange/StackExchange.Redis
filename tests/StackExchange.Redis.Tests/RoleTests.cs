@@ -17,7 +17,13 @@ public class Roles : TestBase
     public void PrimaryRole(bool allowAdmin) // should work with or without admin now
     {
         using var conn = Create(allowAdmin: allowAdmin);
-        var server = conn.GetServers().First(conn => !conn.IsReplica);
+        var servers = conn.GetServers();
+        Log("Server list:");
+        foreach (var s in servers)
+        {
+            Log($"  Server: {s.EndPoint} (isConnected: {s.IsConnected}, isReplica: {s.IsReplica})");
+        }
+        var server = servers.First(conn => !conn.IsReplica);
 
         var role = server.Role();
         Assert.NotNull(role);
