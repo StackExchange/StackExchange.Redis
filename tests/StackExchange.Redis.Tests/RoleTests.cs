@@ -24,8 +24,14 @@ public class Roles : TestBase
             Log($"  Server: {s.EndPoint} (isConnected: {s.IsConnected}, isReplica: {s.IsReplica})");
         }
         var server = servers.First(conn => !conn.IsReplica);
-
         var role = server.Role();
+        Log($"Chosen primary: {server.EndPoint} (role: {role})");
+        if (allowAdmin)
+        {
+            Log("Info dump:");
+            Log(server.InfoRaw());
+            Log("");
+        }
         Assert.NotNull(role);
         Assert.Equal(role.Value, RedisLiterals.master);
         var primary = role as Role.Master;
