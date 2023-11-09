@@ -272,7 +272,6 @@ internal static class RedisCommandExtensions
             case RedisCommand.DEL:
             case RedisCommand.EXPIRE:
             case RedisCommand.EXPIREAT:
-            case RedisCommand.EXPIRETIME:
             case RedisCommand.FLUSHALL:
             case RedisCommand.FLUSHDB:
             case RedisCommand.GEOSEARCHSTORE:
@@ -304,7 +303,6 @@ internal static class RedisCommandExtensions
             case RedisCommand.PERSIST:
             case RedisCommand.PEXPIRE:
             case RedisCommand.PEXPIREAT:
-            case RedisCommand.PEXPIRETIME:
             case RedisCommand.PFADD:
             case RedisCommand.PFMERGE:
             case RedisCommand.PSETEX:
@@ -368,6 +366,7 @@ internal static class RedisCommandExtensions
             case RedisCommand.EVALSHA_RO:
             case RedisCommand.EXEC:
             case RedisCommand.EXISTS:
+            case RedisCommand.EXPIRETIME:
             case RedisCommand.GEODIST:
             case RedisCommand.GEOHASH:
             case RedisCommand.GEOPOS:
@@ -402,6 +401,7 @@ internal static class RedisCommandExtensions
             case RedisCommand.MONITOR:
             case RedisCommand.MULTI:
             case RedisCommand.OBJECT:
+            case RedisCommand.PEXPIRETIME:
             case RedisCommand.PFCOUNT:
             case RedisCommand.PING:
             case RedisCommand.PSUBSCRIBE:
