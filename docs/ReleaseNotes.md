@@ -8,7 +8,7 @@ Current package versions:
 
 ## Unreleased
 
-No pending unreleased changes.
+- Fix [#2593](https://github.com/StackExchange/StackExchange.Redis/pull/2593): `EXPIRETIME` and `PEXPIRETIME` miscategorized as `PrimaryOnly` commands causing them to fail when issued against a read-only replica.
 
 ## 2.7.4
 
