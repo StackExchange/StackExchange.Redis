@@ -8,7 +8,8 @@ Current package versions:
 
 ## Unreleased
 
-- Fix [#2593](https://github.com/StackExchange/StackExchange.Redis/pull/2593): `EXPIRETIME` and `PEXPIRETIME` miscategorized as `PrimaryOnly` commands causing them to fail when issued against a read-only replica.
+- Fix [#2593](https://github.com/StackExchange/StackExchange.Redis/pull/2593): `EXPIRETIME` and `PEXPIRETIME` miscategorized as `PrimaryOnly` commands causing them to fail when issued against a read-only replica ([#2593 by slorello89](https://github.com/StackExchange/StackExchange.Redis/pull/2593))
+- Fix [#2591](https://github.com/StackExchange/StackExchange.Redis/pull/2591): Add `HELLO` to Sentinel connections so they can support RESP3 ([#2601 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2601))
 
 ## 2.7.4
 
