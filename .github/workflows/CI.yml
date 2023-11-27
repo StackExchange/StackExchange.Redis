@@ -20,17 +20,18 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v1
     - name: Install .NET SDK
-      uses: actions/setup-dotnet@v1
+      uses: actions/setup-dotnet@v3
       with:
         dotnet-version: | 
           6.0.x
+          7.0.x
     - name: .NET Build
       run: dotnet build Build.csproj -c Release /p:CI=true
     - name: Start Redis Services (docker-compose)
       working-directory: ./tests/RedisConfigs
       run: docker-compose -f docker-compose.yml up -d
     - name: StackExchange.Redis.Tests
-      run: dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj -c Release --logger trx --results-directory ./test-results/ /p:CI=true
+      run: dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj -c Release --logger trx --logger GitHubActions --results-directory ./test-results/ /p:CI=true
     - uses: dorny/test-reporter@v1
       continue-on-error: true
       if: success() || failure()
@@ -52,10 +53,11 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v1
     # - name: Install .NET SDK
-    #   uses: actions/setup-dotnet@v1
+    #   uses: actions/setup-dotnet@v3
     #   with:
     #     dotnet-version: | 
     #       6.0.x
+    #       7.0.x
     - name: .NET Build
       run: dotnet build Build.csproj -c Release /p:CI=true
     - name: Start Redis Services (v3.0.503)
@@ -79,7 +81,7 @@ jobs:
         .\redis-server.exe --service-install --service-name "redis-26381" "..\Sentinel\sentinel-26381.conf" --sentinel
         Start-Service redis-*
     - name: StackExchange.Redis.Tests
-      run: dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj -c Release --logger trx --results-directory ./test-results/ /p:CI=true
+      run: dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj -c Release --logger trx --logger GitHubActions --results-directory ./test-results/ /p:CI=true
     - uses: dorny/test-reporter@v1
       continue-on-error: true
       if: success() || failure()

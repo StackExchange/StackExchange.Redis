@@ -180,6 +180,28 @@ namespace StackExchange.Redis
             }
         }
 
+        /// <summary>
+        /// Client RESP protocol version. Added in Redis 7.0.
+        /// </summary>
+        public string? ProtocolVersion { get; private set; }
+
+        /// <summary>
+        /// Client RESP protocol version. Added in Redis 7.0.
+        /// </summary>
+        public RedisProtocol? Protocol => ConfigurationOptions.TryParseRedisProtocol(ProtocolVersion, out var value) ? value : null;
+
+        /// <summary>
+        /// Client library name. Added in Redis 7.2.
+        /// </summary>
+        /// <remarks><seealso href="https://redis.io/commands/client-setinfo"/></remarks>
+        public string? LibraryName { get; private set; }
+
+        /// <summary>
+        /// Client library version. Added in Redis 7.2.
+        /// </summary>
+        /// <remarks><seealso href="https://redis.io/commands/client-setinfo"/></remarks>
+        public string? LibraryVersion { get; private set; }
+
         internal static bool TryParse(string? input, [NotNullWhen(true)] out ClientInfo[]? clientList)
         {
             if (input == null)
@@ -241,6 +263,9 @@ namespace StackExchange.Redis
                                 client.Flags = flags;
                                 break;
                             case "id": client.Id = Format.ParseInt64(value); break;
+                            case "resp": client.ProtocolVersion = value; break;
+                            case "lib-name": client.LibraryName = value; break;
+                            case "lib-ver": client.LibraryVersion = value; break;
                         }
                     }
                     clients.Add(client);
@@ -260,7 +285,7 @@ namespace StackExchange.Redis
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
-                switch(result.Type)
+                switch(result.Resp2TypeBulkString)
                 {
                     case ResultType.BulkString:
                         var raw = result.GetString();

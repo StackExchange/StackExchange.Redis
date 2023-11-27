@@ -65,7 +65,7 @@ public class BitfieldCommandBuilder
 
     internal BitfieldCommandMessage Build(int db, RedisKey key, CommandFlags flags, RedisBase redisBase, out ServerEndPoint? server)
     {
-        var features = redisBase.GetFeatures(key, flags, out server);
+        var features = redisBase.GetFeatures(key, flags, _eligibleForReadOnly ? RedisCommand.BITFIELD_RO : RedisCommand.BITFIELD, out server);
         var command = _eligibleForReadOnly && features.ReadOnlyBitfield ? RedisCommand.BITFIELD_RO : RedisCommand.BITFIELD;
         return new BitfieldCommandMessage(db, flags, key, command, _args);
     }

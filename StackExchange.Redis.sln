@@ -9,6 +9,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		build.cmd = build.cmd
 		Build.csproj = Build.csproj
 		build.ps1 = build.ps1
+		.github\workflows\CI.yml = .github\workflows\CI.yml
 		Directory.Build.props = Directory.Build.props
 		Directory.Build.targets = Directory.Build.targets
 		Directory.Packages.props = Directory.Packages.props
@@ -72,6 +73,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Basic", "Basic", "{38BDEEED
 		tests\RedisConfigs\Basic\primary-6379.conf = tests\RedisConfigs\Basic\primary-6379.conf
 		tests\RedisConfigs\Basic\replica-6380.conf = tests\RedisConfigs\Basic\replica-6380.conf
 		tests\RedisConfigs\Basic\secure-6381.conf = tests\RedisConfigs\Basic\secure-6381.conf
+		tests\RedisConfigs\Basic\tls-ciphers-6384.conf = tests\RedisConfigs\Basic\tls-ciphers-6384.conf
 	EndProjectSection
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BasicTestBaseline", "tests\BasicTestBaseline\BasicTestBaseline.csproj", "{8FDB623D-779B-4A84-BC6B-75106E41D8A4}"
@@ -117,6 +119,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{153A10E4-E
 		docs\Profiling_v2.md = docs\Profiling_v2.md
 		docs\PubSubOrder.md = docs\PubSubOrder.md
 		docs\ReleaseNotes.md = docs\ReleaseNotes.md
+		docs\Resp3.md = docs\Resp3.md
 		docs\Scripting.md = docs\Scripting.md
 		docs\Server.md = docs\Server.md
 		docs\Testing.md = docs\Testing.md

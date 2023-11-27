@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Security.Authentication;
 using System.Text;
 using System.Threading;
 
@@ -154,7 +155,7 @@ namespace StackExchange.Redis
             if (multiplexer.RawConfig.IncludeDetailInExceptions)
             {
                 CopyDataToException(data, ex);
-                sb.Append("; ").Append(PerfCounterHelper.GetThreadPoolAndCPUSummary(multiplexer.RawConfig.IncludePerformanceCountersInExceptions));
+                sb.Append("; ").Append(PerfCounterHelper.GetThreadPoolAndCPUSummary());
                 AddExceptionDetail(ex, message, server, commandLabel);
             }
             return ex;
@@ -211,21 +212,41 @@ namespace StackExchange.Redis
             }
         }
 
-        internal static Exception Timeout(ConnectionMultiplexer multiplexer, string? baseErrorMessage, Message message, ServerEndPoint? server, WriteResult? result = null)
+        internal static Exception Timeout(ConnectionMultiplexer multiplexer, string? baseErrorMessage, Message message, ServerEndPoint? server, WriteResult? result = null, PhysicalBridge? bridge = null)
         {
             List<Tuple<string, string>> data = new List<Tuple<string, string>> { Tuple.Create("Message", message.CommandAndKey) };
             var sb = new StringBuilder();
+
+            // We timeout writing messages in quite different ways sync/async - so centralize messaging here.
+            if (string.IsNullOrEmpty(baseErrorMessage) && result == WriteResult.TimeoutBeforeWrite)
+            {
+                baseErrorMessage = message.IsBacklogged
+                    ? "The message timed out in the backlog attempting to send because no connection became available"
+                    : "The timeout was reached before the message could be written to the output buffer, and it was not sent";
+            }
+
+            var lastConnectionException = bridge?.LastException as RedisConnectionException;
+            var logConnectionException = message.IsBacklogged && lastConnectionException is not null;
+
             if (!string.IsNullOrEmpty(baseErrorMessage))
             {
                 sb.Append(baseErrorMessage);
+
+                // If we're in the situation where we've never connected
+                if (logConnectionException && lastConnectionException is not null)
+                {
+                    sb.Append(" (").Append(Format.ToString(multiplexer.TimeoutMilliseconds)).Append("ms)");
+                    sb.Append(" - Last Connection Exception: ").Append(lastConnectionException.Message);
+                }
+
                 if (message != null)
                 {
-                    sb.Append(", command=").Append(message.Command); // no key here, note
+                    sb.Append(", command=").Append(message.CommandString); // no key here, note
                 }
             }
             else
             {
-                sb.Append("Timeout performing ").Append(message.Command).Append(" (").Append(Format.ToString(multiplexer.TimeoutMilliseconds)).Append("ms)");
+                sb.Append("Timeout performing ").Append(message.CommandString).Append(" (").Append(Format.ToString(multiplexer.TimeoutMilliseconds)).Append("ms)");
             }
 
             // Add timeout data, if we have it
@@ -251,17 +272,23 @@ namespace StackExchange.Redis
                 }
                 catch { }
             }
-
             AddCommonDetail(data, sb, message, multiplexer, server);
 
-            sb.Append(" (Please take a look at this article for some common client-side issues that can cause timeouts: ");
-            sb.Append(TimeoutHelpLink);
-            sb.Append(')');
+            sb.Append(" (Please take a look at this article for some common client-side issues that can cause timeouts: ")
+              .Append(TimeoutHelpLink)
+              .Append(')');
 
-            var ex = new RedisTimeoutException(sb.ToString(), message?.Status ?? CommandStatus.Unknown)
-            {
-                HelpLink = TimeoutHelpLink
-            };
+            // If we're from a backlog timeout scenario, we log a more intuitive connection exception for the timeout...because the timeout was a symptom
+            // and we have a more direct cause: we had no connection to send it on.
+            Exception ex = logConnectionException && lastConnectionException is not null
+                ? new RedisConnectionException(lastConnectionException.FailureType, sb.ToString(), lastConnectionException, message?.Status ?? CommandStatus.Unknown)
+                {
+                    HelpLink = TimeoutHelpLink
+                }
+                : new RedisTimeoutException(sb.ToString(), message?.Status ?? CommandStatus.Unknown)
+                {
+                    HelpLink = TimeoutHelpLink
+                };
             CopyDataToException(data, ex);
 
             if (multiplexer.RawConfig.IncludeDetailInExceptions) AddExceptionDetail(ex, message, server, null);
@@ -291,8 +318,8 @@ namespace StackExchange.Redis
             if (message != null)
             {
                 message.TryGetHeadMessages(out var now, out var next);
-                if (now != null) Add(data, sb, "Message-Current", "active", multiplexer.RawConfig.IncludeDetailInExceptions ? now.CommandAndKey : now.Command.ToString());
-                if (next != null) Add(data, sb, "Message-Next", "next", multiplexer.RawConfig.IncludeDetailInExceptions ? next.CommandAndKey : next.Command.ToString());
+                if (now != null) Add(data, sb, "Message-Current", "active", multiplexer.RawConfig.IncludeDetailInExceptions ? now.CommandAndKey : now.CommandString);
+                if (next != null) Add(data, sb, "Message-Next", "next", multiplexer.RawConfig.IncludeDetailInExceptions ? next.CommandAndKey : next.CommandString);
             }
 
             // Add server data, if we have it
@@ -318,6 +345,11 @@ namespace StackExchange.Redis
                 if (bs.Connection.BytesAvailableOnSocket >= 0) Add(data, sb, "Inbound-Bytes", "in", bs.Connection.BytesAvailableOnSocket.ToString());
                 if (bs.Connection.BytesInReadPipe >= 0) Add(data, sb, "Inbound-Pipe-Bytes", "in-pipe", bs.Connection.BytesInReadPipe.ToString());
                 if (bs.Connection.BytesInWritePipe >= 0) Add(data, sb, "Outbound-Pipe-Bytes", "out-pipe", bs.Connection.BytesInWritePipe.ToString());
+                Add(data, sb, "Last-Result-Bytes", "last-in", bs.Connection.BytesLastResult.ToString());
+                Add(data, sb, "Inbound-Buffer-Bytes", "cur-in", bs.Connection.BytesInBuffer.ToString());
+
+                Add(data, sb, "Sync-Ops", "sync-ops", multiplexer.syncOps.ToString());
+                Add(data, sb, "Async-Ops", "async-ops", multiplexer.asyncOps.ToString());
 
                 if (multiplexer.StormLogThreshold >= 0 && bs.Connection.MessagesSentAwaitingResponse >= multiplexer.StormLogThreshold && Interlocked.CompareExchange(ref multiplexer.haveStormLog, 1, 0) == 0)
                 {
@@ -326,6 +358,8 @@ namespace StackExchange.Redis
                     else Interlocked.Exchange(ref multiplexer.stormLogSnapshot, log);
                 }
                 Add(data, sb, "Server-Endpoint", "serverEndpoint", (server.EndPoint.ToString() ?? "Unknown").Replace("Unspecified/", ""));
+                Add(data, sb, "Server-Connected-Seconds", "conn-sec", bs.ConnectedAt is DateTime dt ? (DateTime.UtcNow - dt).TotalSeconds.ToString("0.##") : "n/a");
+                Add(data, sb, "Abort-On-Connect", "aoc", multiplexer.RawConfig.AbortOnConnectFail ? "1" : "0");
             }
             Add(data, sb, "Multiplexer-Connects", "mc", $"{multiplexer._connectAttemptCount}/{multiplexer._connectCompletedCount}/{multiplexer._connectionCloseCount}");
             Add(data, sb, "Manager", "mgr", multiplexer.SocketManager?.GetState());
@@ -348,11 +382,6 @@ namespace StackExchange.Redis
                 Add(data, sb, "ThreadPool-Items", "POOL", workItems);
             }
             data.Add(Tuple.Create("Busy-Workers", busyWorkerCount.ToString()));
-
-            if (multiplexer.RawConfig.IncludePerformanceCountersInExceptions)
-            {
-                Add(data, sb, "Local-CPU", "Local-CPU", PerfCounterHelper.GetSystemCpuPercent());
-            }
 
             Add(data, sb, "Version", "v", Utils.GetLibVersion());
         }
@@ -377,37 +406,37 @@ namespace StackExchange.Redis
 
         private static string GetLabel(bool includeDetail, RedisCommand command, Message? message)
         {
-            return message == null ? command.ToString() : (includeDetail ? message.CommandAndKey : message.Command.ToString());
+            return message == null ? command.ToString() : (includeDetail ? message.CommandAndKey : message.CommandString);
         }
 
         internal static Exception UnableToConnect(ConnectionMultiplexer muxer, string? failureMessage = null)
         {
             var sb = new StringBuilder("It was not possible to connect to the redis server(s).");
-            if (muxer != null)
+            Exception? inner = null;
+            var failureType = ConnectionFailureType.UnableToConnect;
+            if (muxer is not null)
             {
-                if (muxer.AuthSuspect) sb.Append(" There was an authentication failure; check that passwords (or client certificates) are configured correctly.");
-                else if (muxer.RawConfig.AbortOnConnectFail) sb.Append(" Error connecting right now. To allow this multiplexer to continue retrying until it's able to connect, use abortConnect=false in your connection string or AbortOnConnectFail=false; in your code.");
+                if (muxer.AuthException is Exception aex)
+                {
+                    failureType = ConnectionFailureType.AuthenticationFailure;
+                    sb.Append(" There was an authentication failure; check that passwords (or client certificates) are configured correctly: (").Append(aex.GetType().Name).Append(") ").Append(aex.Message);
+                    inner = aex;
+                    if (aex is AuthenticationException && aex.InnerException is Exception iaex)
+                    {
+                        sb.Append(" (Inner - ").Append(iaex.GetType().Name).Append(") ").Append(iaex.Message);
+                    }
+                }
+                else if (muxer.RawConfig.AbortOnConnectFail)
+                {
+                    sb.Append(" Error connecting right now. To allow this multiplexer to continue retrying until it's able to connect, use abortConnect=false in your connection string or AbortOnConnectFail=false; in your code.");
+                }
             }
             if (!failureMessage.IsNullOrWhiteSpace())
             {
                 sb.Append(' ').Append(failureMessage.Trim());
             }
 
-            return new RedisConnectionException(ConnectionFailureType.UnableToConnect, sb.ToString());
-        }
-
-        internal static Exception BeganProfilingWithDuplicateContext(object forContext)
-        {
-            var exc = new InvalidOperationException("Attempted to begin profiling for the same context twice");
-            exc.Data["forContext"] = forContext;
-            return exc;
-        }
-
-        internal static Exception FinishedProfilingWithInvalidContext(object forContext)
-        {
-            var exc = new InvalidOperationException("Attempted to finish profiling for a context which is no longer valid, or was never begun");
-            exc.Data["forContext"] = forContext;
-            return exc;
+            return new RedisConnectionException(failureType, sb.ToString(), inner);
         }
     }
 }

@@ -1,8 +1,12 @@
-﻿using System;
+﻿using StackExchange.Redis.Maintenance;
+using StackExchange.Redis.Profiling;
+using System;
+using System.Collections.Concurrent;
+using System.ComponentModel;
 using System.IO;
 using System.Net;
 using System.Threading.Tasks;
-using StackExchange.Redis.Profiling;
+using static StackExchange.Redis.ConnectionMultiplexer;
 
 namespace StackExchange.Redis
 {
@@ -13,14 +17,24 @@ namespace StackExchange.Redis
         bool IgnoreConnect { get; set; }
 
         ReadOnlySpan<ServerEndPoint> GetServerSnapshot();
+        ServerEndPoint GetServerEndPoint(EndPoint endpoint);
 
         ConfigurationOptions RawConfig { get; }
+
+        long? GetConnectionId(EndPoint endPoint, ConnectionType type);
+
+        ServerSelectionStrategy ServerSelectionStrategy { get; }
+
+        int GetSubscriptionsCount();
+        ConcurrentDictionary<RedisChannel, Subscription> GetSubscriptions();
+
+        ConnectionMultiplexer UnderlyingMultiplexer { get; }
     }
 
     /// <summary>
     /// Represents the abstract multiplexer API.
     /// </summary>
-    public interface IConnectionMultiplexer : IDisposable
+    public interface IConnectionMultiplexer : IDisposable, IAsyncDisposable
     {
         /// <summary>
         /// Gets the client-name that will be used on all new connections.
@@ -46,6 +60,7 @@ namespace StackExchange.Redis
         /// Gets or sets whether asynchronous operations should be invoked in a way that guarantees their original delivery order.
         /// </summary>
         [Obsolete("Not supported; if you require ordered pub/sub, please see " + nameof(ChannelMessageQueue), false)]
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         bool PreserveAsyncOrder { get; set; }
 
         /// <summary>
@@ -62,6 +77,7 @@ namespace StackExchange.Redis
         /// Should exceptions include identifiable details? (key names, additional <see cref="Exception.Data"/> annotations).
         /// </summary>
         [Obsolete($"Please use {nameof(ConfigurationOptions)}.{nameof(ConfigurationOptions.IncludeDetailInExceptions)} instead - this will be removed in 3.0.")]
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         bool IncludeDetailInExceptions { get; set; }
 
         /// <summary>
@@ -76,7 +92,7 @@ namespace StackExchange.Redis
         /// based on ambient context, or returning null to not profile.
         /// </summary>
         /// <param name="profilingSessionProvider">The profiling session provider.</param>
-        void RegisterProfiler(Func<ProfilingSession> profilingSessionProvider);
+        void RegisterProfiler(Func<ProfilingSession?> profilingSessionProvider);
 
         /// <summary>
         /// Get summary statistics associates with this server.
@@ -113,6 +129,11 @@ namespace StackExchange.Redis
         /// This usually means primary/replica changes.
         /// </summary>
         event EventHandler<EndPointEventArgs> ConfigurationChangedBroadcast;
+
+        /// <summary>
+        /// Raised when server indicates a maintenance event is going to happen.
+        /// </summary>
+        event EventHandler<ServerMaintenanceEvent> ServerMaintenanceEvent;
 
         /// <summary>
         /// Gets all endpoints defined on the multiplexer.
@@ -191,6 +212,11 @@ namespace StackExchange.Redis
         /// <param name="endpoint">The endpoint to get a server for.</param>
         /// <param name="asyncState">The async state to pass to the created <see cref="IServer"/>.</param>
         IServer GetServer(EndPoint endpoint, object? asyncState = null);
+
+        /// <summary>
+        /// Obtain configuration APIs for all servers in this multiplexer.
+        /// </summary>
+        IServer[] GetServers();
 
         /// <summary>
         /// Reconfigure the current connections based on the existing configuration.

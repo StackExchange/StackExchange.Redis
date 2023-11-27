@@ -56,6 +56,30 @@ namespace StackExchange.Redis
             return base.ExecuteAsync(msg, proc); // need base to avoid our local wrapping override
         }
 
+        internal override Task<T> ExecuteAsync<T>(Message? message, ResultProcessor<T>? processor, T defaultValue, ServerEndPoint? server = null)
+        {
+            if (message == null) return CompletedTask<T>.FromDefault(defaultValue, asyncState);
+            multiplexer.CheckMessage(message);
+
+            multiplexer.Trace("Wrapping " + message.Command, "Transaction");
+            // prepare the inner command as a task
+            Task<T> task;
+            if (message.IsFireAndForget)
+            {
+                task = CompletedTask<T>.FromDefault(defaultValue, null); // F+F explicitly does not get async-state
+            }
+            else
+            {
+                var source = TaskResultBox<T>.Create(out var tcs, asyncState);
+                message.SetSource(source, processor);
+                task = tcs.Task;
+            }
+
+            QueueMessage(message);
+
+            return task;
+        }
+
         internal override Task<T?> ExecuteAsync<T>(Message? message, ResultProcessor<T>? processor, ServerEndPoint? server = null) where T : default
         {
             if (message == null) return CompletedTask<T>.Default(asyncState);
@@ -75,6 +99,13 @@ namespace StackExchange.Redis
                 task = tcs.Task;
             }
 
+            QueueMessage(message);
+
+            return task;
+        }
+
+        private void QueueMessage(Message message)
+        {
             // prepare an outer-command that decorates that, but expects QUEUED
             var queued = new QueuedMessage(message);
             var wasQueued = SimpleResultBox<bool>.Create();
@@ -102,7 +133,6 @@ namespace StackExchange.Redis
                         break;
                 }
             }
-            return task;
         }
 
         internal override T? ExecuteSync<T>(Message? message, ResultProcessor<T>? processor, ServerEndPoint? server = null, T? defaultValue = default) where T : default
@@ -169,7 +199,7 @@ namespace StackExchange.Redis
 
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
-                if (result.Type == ResultType.SimpleString && result.IsEqual(CommonReplies.QUEUED))
+                if (result.Resp2TypeBulkString == ResultType.SimpleString && result.IsEqual(CommonReplies.QUEUED))
                 {
                     if (message is QueuedMessage q)
                     {
@@ -240,8 +270,7 @@ namespace StackExchange.Redis
             public IEnumerable<Message> GetMessages(PhysicalConnection connection)
             {
                 IResultBox? lastBox = null;
-                var bridge = connection.BridgeCouldBeNull;
-                if (bridge == null) throw new ObjectDisposedException(connection.ToString());
+                var bridge = connection.BridgeCouldBeNull ?? throw new ObjectDisposedException(connection.ToString());
 
                 bool explicitCheckForQueued = !bridge.ServerEndPoint.GetFeatures().ExecAbort;
                 var multiplexer = bridge.Multiplexer;
@@ -456,7 +485,7 @@ namespace StackExchange.Redis
                 if (message is TransactionMessage tran)
                 {
                     var wrapped = tran.InnerOperations;
-                    switch (result.Type)
+                    switch (result.Resp2TypeArray)
                     {
                         case ResultType.SimpleString:
                             if (tran.IsAborted && result.IsEqual(CommonReplies.OK))
@@ -480,7 +509,7 @@ namespace StackExchange.Redis
                                 return true;
                             }
                             break;
-                        case ResultType.MultiBulk:
+                        case ResultType.Array:
                             if (!tran.IsAborted)
                             {
                                 var arr = result.GetItems();

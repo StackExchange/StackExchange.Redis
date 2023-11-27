@@ -10,7 +10,7 @@ it is possible that the reader loop has been hijacked; see [Thread Theft](Thread
 
 Are there commands taking a long time to process on the redis-server?
 ---------------
-There can be commands that are taking a long time to process on the redis-server causing the request to timeout. Few examples of long running commands are mget with large number of keys, keys * or poorly written lua script. You can run the SlowLog command to see if there are requests taking longer than expected. More details regarding the command can be found [here](https://redis.io/commands/slowlog).
+There can be commands that are taking a long time to process on the redis-server causing the request to timeout. Few examples of long running commands are mget with large number of keys, keys * or poorly written lua script. You can run [the `SLOWLOG` command](https://redis.io/commands/slowlog) to see if there are requests taking longer than expected. More details regarding the command can be found [here](https://redis.io/commands/slowlog).
 
 Was there a big request preceding several small requests to the Redis that timed out?
 ---------------
@@ -87,7 +87,7 @@ By default Redis Timeout exception(s) includes useful information, which can hel
 |qu | Queue-Awaiting-Write : {int}|There are x operations currently waiting in queue to write to the redis server.| 
 |qs | Queue-Awaiting-Response : {int}|There are x operations currently awaiting replies from redis server.| 
 |aw | Active-Writer: {bool}|| 
-|bw | Backlog-Writer: {enum} | Possible values are     Inactive, Started, CheckingForWork, CheckingForTimeout, RecordingTimeout, WritingMessage, Flushing, MarkingInactive, RecordingWriteFailure, RecordingFault,SettingIdle,Faulted|
+|bw | Backlog-Writer: {enum} | Possible values are     Inactive, Started, CheckingForWork, CheckingForTimeout, RecordingTimeout, WritingMessage, Flushing, MarkingInactive, RecordingWriteFailure, RecordingFault, SettingIdle, SpinningDown, Faulted|
 |rs | Read-State: {enum}|Possible values are NotStarted, Init, RanToCompletion, Faulted, ReadSync, ReadAsync, UpdateWriteTime, ProcessBuffer, MarkProcessed, TryParseResult, MatchResult, PubSubMessage, PubSubPMessage, Reconfigure, InvokePubSub, DequeueResult, ComputeResult, CompletePendingMessage, NA| 
 |ws | Write-State: {enum}| Possible values are Initializing, Idle, Writing, Flushing, Flushed, NA| 
 |in | Inbound-Bytes : {long}|there are x bytes waiting to be read from the input stream from redis| 
@@ -96,7 +96,7 @@ By default Redis Timeout exception(s) includes useful information, which can hel
 |mgr | 8 of 10 available|Redis Internal Dedicated Thread Pool State| 
 |IOCP | IOCP: (Busy=0,Free=500,Min=248,Max=500)| Runtime Global Thread Pool IO Threads. |
 |WORKER | WORKER: (Busy=170,Free=330,Min=248,Max=500)| Runtime Global Thread Pool Worker Threads.| 
-|POOL | POOL: (Threads=8,QueuedItems=0,CompletedItems=42)| Thread Pool Work Item Stats.| 
+|POOL | POOL: (Threads=8,QueuedItems=0,CompletedItems=42,Timers=10)| Thread Pool Work Item Stats.| 
 |v | Redis Version: version |The `StackExchange.Redis` version you are currently using in your application.|
 |active | Message-Current: {string} |Included in exception message when `IncludeDetailInExceptions=True` on multiplexer|
 |next | Message-Next: {string} |When `IncludeDetailInExceptions=True` on multiplexer, it might include command and key, otherwise only command.|

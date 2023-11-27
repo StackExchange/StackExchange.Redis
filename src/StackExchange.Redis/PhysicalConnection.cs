@@ -1,8 +1,10 @@
-﻿using System;
+﻿using Pipelines.Sockets.Unofficial;
+using Pipelines.Sockets.Unofficial.Arenas;
+using System;
 using System.Buffers;
-using System.Buffers.Text;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.IO.Pipelines;
 using System.Linq;
@@ -15,8 +17,8 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Pipelines.Sockets.Unofficial;
-using Pipelines.Sockets.Unofficial.Arenas;
+using Microsoft.Extensions.Logging;
+using static StackExchange.Redis.Message;
 
 namespace StackExchange.Redis
 {
@@ -51,6 +53,10 @@ namespace StackExchange.Redis
         private int failureReported;
 
         private int lastWriteTickCount, lastReadTickCount, lastBeatTickCount;
+
+        private long bytesLastResult;
+        private long bytesInBuffer;
+        internal long? ConnectionId { get; set; }
 
         internal void GetBytes(out long sent, out long received)
         {
@@ -89,42 +95,59 @@ namespace StackExchange.Redis
             OnCreateEcho();
         }
 
-        internal async Task BeginConnectAsync(LogProxy? log)
+        internal async Task BeginConnectAsync(ILogger? log)
         {
             var bridge = BridgeCouldBeNull;
             var endpoint = bridge?.ServerEndPoint?.EndPoint;
             if (bridge == null || endpoint == null)
             {
-                log?.WriteLine("No endpoint");
+                log?.LogError(new ArgumentNullException(nameof(endpoint)), "No endpoint");
                 return;
             }
 
             Trace("Connecting...");
-            _socket = SocketManager.CreateSocket(endpoint);
-            bridge.Multiplexer.RawConfig.BeforeSocketConnect?.Invoke(endpoint, bridge.ConnectionType, _socket);
+            var tunnel = bridge.Multiplexer.RawConfig.Tunnel;
+            var connectTo = endpoint;
+            if (tunnel is not null)
+            {
+                connectTo = await tunnel.GetSocketConnectEndpointAsync(endpoint, CancellationToken.None).ForAwait();
+            }
+            if (connectTo is not null)
+            {
+                _socket = SocketManager.CreateSocket(connectTo);
+            }
+
+            if (_socket is not null)
+            {
+                bridge.Multiplexer.RawConfig.BeforeSocketConnect?.Invoke(endpoint, bridge.ConnectionType, _socket);
+                if (tunnel is not null)
+                {   // same functionality as part of a tunnel
+                    await tunnel.BeforeSocketConnectAsync(endpoint, bridge.ConnectionType, _socket, CancellationToken.None).ForAwait();
+                }
+            }
             bridge.Multiplexer.OnConnecting(endpoint, bridge.ConnectionType);
-            log?.WriteLine($"{Format.ToString(endpoint)}: BeginConnectAsync");
+            log?.LogInformation($"{Format.ToString(endpoint)}: BeginConnectAsync");
 
             CancellationTokenSource? timeoutSource = null;
             try
             {
-                using (var args = new SocketAwaitableEventArgs
+                using (var args = connectTo is null ? null : new SocketAwaitableEventArgs
                 {
-                    RemoteEndPoint = endpoint,
+                    RemoteEndPoint = connectTo,
                 })
                 {
                     var x = VolatileSocket;
                     if (x == null)
                     {
-                        args.Abort();
+                        args?.Abort();
                     }
-                    else if (x.ConnectAsync(args))
+                    else if (args is not null && x.ConnectAsync(args))
                     {   // asynchronous operation is pending
                         timeoutSource = ConfigureTimeout(args, bridge.Multiplexer.RawConfig.ConnectTimeout);
                     }
                     else
                     {   // completed synchronously
-                        args.Complete();
+                        args?.Complete();
                     }
 
                     // Complete connection
@@ -133,7 +156,10 @@ namespace StackExchange.Redis
                         // If we're told to ignore connect, abort here
                         if (BridgeCouldBeNull?.Multiplexer?.IgnoreConnect ?? false) return;
 
-                        await args; // wait for the connect to complete or fail (will throw)
+                        if (args is not null)
+                        {
+                            await args; // wait for the connect to complete or fail (will throw)
+                        }
                         if (timeoutSource != null)
                         {
                             timeoutSource.Cancel();
@@ -141,13 +167,13 @@ namespace StackExchange.Redis
                         }
 
                         x = VolatileSocket;
-                        if (x == null)
+                        if (x == null && args is not null)
                         {
                             ConnectionMultiplexer.TraceWithoutContext("Socket was already aborted");
                         }
                         else if (await ConnectedAsync(x, log, bridge.Multiplexer.SocketManager!).ForAwait())
                         {
-                            log?.WriteLine($"{Format.ToString(endpoint)}: Starting read");
+                            log?.LogInformation($"{Format.ToString(endpoint)}: Starting read");
                             try
                             {
                                 StartReading();
@@ -165,9 +191,9 @@ namespace StackExchange.Redis
                             Shutdown();
                         }
                     }
-                    catch (ObjectDisposedException)
+                    catch (ObjectDisposedException ex)
                     {
-                        log?.WriteLine($"{Format.ToString(endpoint)}: (socket shutdown)");
+                        log?.LogError(ex, $"{Format.ToString(endpoint)}: (socket shutdown)");
                         try { RecordConnectionFailed(ConnectionFailureType.UnableToConnect, isInitialConnect: true); }
                         catch (Exception inner)
                         {
@@ -232,6 +258,10 @@ namespace StackExchange.Redis
         public long SubscriptionCount { get; set; }
 
         public bool TransactionActive { get; internal set; }
+
+        private RedisProtocol _protocol; // note starts at **zero**, not RESP2
+        public RedisProtocol? Protocol => _protocol == 0 ? null : _protocol;
+        internal void SetProtocol(RedisProtocol value) => _protocol = value;
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:Do not dispose objects multiple times")]
         internal void Shutdown()
@@ -332,6 +362,15 @@ namespace StackExchange.Redis
             }
         }
 
+        /// <summary>
+        /// Did we ask for the shutdown? If so this leads to informational messages for tracking but not errors.
+        /// </summary>
+        private bool IsRequestedShutdown(PipeShutdownKind kind) => kind switch
+        {
+            PipeShutdownKind.ProtocolExitClient => true,
+            _ => false,
+        };
+
         public void RecordConnectionFailed(
             ConnectionFailureType failureType,
             Exception? innerException = null,
@@ -340,6 +379,7 @@ namespace StackExchange.Redis
             IDuplexPipe? connectingPipe = null
             )
         {
+            bool weAskedForThis = false;
             Exception? outerException = innerException;
             IdentifyFailureType(innerException, ref failureType);
             var bridge = BridgeCouldBeNull;
@@ -374,9 +414,8 @@ namespace StackExchange.Redis
                     lock (_writtenAwaitingResponse)
                     {
                         // find oldest message awaiting a response
-                        if (_writtenAwaitingResponse.Count != 0)
+                        if (_writtenAwaitingResponse.TryPeek(out var next))
                         {
-                            var next = _writtenAwaitingResponse.Peek();
                             unansweredWriteTime = next.GetWriteTime();
                         }
                     }
@@ -386,6 +425,9 @@ namespace StackExchange.Redis
                     var pipe = connectingPipe ?? _ioPipe;
                     if (pipe is SocketConnection sc)
                     {
+                        // If the reason for the shutdown was we asked for the socket to die, don't log it as an error (only informational)
+                        weAskedForThis = IsRequestedShutdown(sc.ShutdownKind);
+
                         exMessage.Append(" (").Append(sc.ShutdownKind);
                         if (sc.SocketError != SocketError.Success)
                         {
@@ -426,7 +468,7 @@ namespace StackExchange.Redis
                             add("Outstanding-Responses", "outstanding", GetSentAwaitingResponseCount().ToString());
                             add("Last-Read", "last-read", (unchecked(now - lastRead) / 1000) + "s ago");
                             add("Last-Write", "last-write", (unchecked(now - lastWrite) / 1000) + "s ago");
-                            if(unansweredWriteTime != 0) add("Unanswered-Write", "unanswered-write", (unchecked(now - unansweredWriteTime) / 1000) + "s ago");
+                            if (unansweredWriteTime != 0) add("Unanswered-Write", "unanswered-write", (unchecked(now - unansweredWriteTime) / 1000) + "s ago");
                             add("Keep-Alive", "keep-alive", bridge.ServerEndPoint?.WriteEverySeconds + "s");
                             add("Previous-Physical-State", "state", oldState.ToString());
                             add("Manager", "mgr", bridge.Multiplexer.SocketManager?.GetState());
@@ -453,37 +495,45 @@ namespace StackExchange.Redis
                         outerException.Data["Redis-" + kv.Item1] = kv.Item2;
                     }
 
-                    bridge?.OnConnectionFailed(this, failureType, outerException);
+                    bridge?.OnConnectionFailed(this, failureType, outerException, wasRequested: weAskedForThis);
                 }
             }
-            // cleanup
+            // clean up (note: avoid holding the lock when we complete things, even if this means taking
+            // the lock multiple times; this is fine here - we shouldn't be fighting anyone, and we're already toast)
             lock (_writtenAwaitingResponse)
             {
                 bridge?.Trace(_writtenAwaitingResponse.Count != 0, "Failing outstanding messages: " + _writtenAwaitingResponse.Count);
-                while (_writtenAwaitingResponse.Count != 0)
-                {
-                    var next = _writtenAwaitingResponse.Dequeue();
+            }
 
-                    if (next.Command == RedisCommand.QUIT && next.TrySetResult(true))
+            while (TryDequeueLocked(_writtenAwaitingResponse, out var next))
+            {
+                if (next.Command == RedisCommand.QUIT && next.TrySetResult(true))
+                {
+                    // fine, death of a socket is close enough
+                    next.Complete();
+                }
+                else
+                {
+                    var ex = innerException is RedisException ? innerException : outerException;
+                    if (bridge != null)
                     {
-                        // fine, death of a socket is close enough
-                        next.Complete();
+                        bridge.Trace("Failing: " + next);
+                        bridge.Multiplexer?.OnMessageFaulted(next, ex, origin);
                     }
-                    else
-                    {
-                        var ex = innerException is RedisException ? innerException : outerException;
-                        if (bridge != null)
-                        {
-                            bridge.Trace("Failing: " + next);
-                            bridge.Multiplexer?.OnMessageFaulted(next, ex, origin);
-                        }
-                        next.SetExceptionAndComplete(ex!, bridge);
-                    }
+                    next.SetExceptionAndComplete(ex!, bridge);
                 }
             }
 
             // burn the socket
             Shutdown();
+
+            static bool TryDequeueLocked(Queue<Message> queue, [NotNullWhen(true)] out Message? message)
+            {
+                lock (queue)
+                {
+                    return queue.TryDequeue(out message);
+                }
+            }
         }
 
         internal bool IsIdle() => _writeStatus == WriteStatus.Idle;
@@ -530,9 +580,30 @@ namespace StackExchange.Redis
 
         internal void EnqueueInsideWriteLock(Message next)
         {
+            var multiplexer = BridgeCouldBeNull?.Multiplexer;
+            if (multiplexer is null)
+            {
+                // multiplexer already collected? then we're almost certainly doomed;
+                // we can still process it to avoid making things worse/more complex,
+                // but: we can't reliably assume this works, so: shout now!
+                next.Cancel();
+                next.Complete();
+            }
+
+            bool wasEmpty;
             lock (_writtenAwaitingResponse)
             {
+                wasEmpty = _writtenAwaitingResponse.Count == 0;
                 _writtenAwaitingResponse.Enqueue(next);
+            }
+            if (wasEmpty)
+            {
+                // it is important to do this *after* adding, so that we can't
+                // get into a thread-race where the heartbeat checks too fast;
+                // the fact that we're accessing Multiplexer down here means that
+                // we're rooting it ourselves via the stack, so we don't need
+                // to worry about it being collected until at least after this
+                multiplexer?.Root();
             }
         }
 
@@ -665,15 +736,24 @@ namespace StackExchange.Redis
                     {
                         // We only handle async timeouts here, synchronous timeouts are handled upstream.
                         // Those sync timeouts happen in ConnectionMultiplexer.ExecuteSyncImpl() via Monitor.Wait.
-                        if (msg.ResultBoxIsAsync && msg.HasTimedOut(now, timeout, out var elapsed))
+                        if (msg.HasTimedOut(now, timeout, out var elapsed))
                         {
-                            bool haveDeltas = msg.TryGetPhysicalState(out _, out _, out long sentDelta, out var receivedDelta) && sentDelta >= 0 && receivedDelta >= 0;
-                            var timeoutEx = ExceptionFactory.Timeout(multiplexer, haveDeltas
-                                ? $"Timeout awaiting response (outbound={sentDelta >> 10}KiB, inbound={receivedDelta >> 10}KiB, {elapsed}ms elapsed, timeout is {timeout}ms)"
-                                : $"Timeout awaiting response ({elapsed}ms elapsed, timeout is {timeout}ms)", msg, server);
-                            multiplexer.OnMessageFaulted(msg, timeoutEx);
-                            msg.SetExceptionAndComplete(timeoutEx, bridge); // tell the message that it is doomed
-                            multiplexer.OnAsyncTimeout();
+                            if (msg.ResultBoxIsAsync)
+                            {
+                                bool haveDeltas = msg.TryGetPhysicalState(out _, out _, out long sentDelta, out var receivedDelta) && sentDelta >= 0 && receivedDelta >= 0;
+                                var timeoutEx = ExceptionFactory.Timeout(multiplexer, haveDeltas
+                                    ? $"Timeout awaiting response (outbound={sentDelta >> 10}KiB, inbound={receivedDelta >> 10}KiB, {elapsed}ms elapsed, timeout is {timeout}ms)"
+                                    : $"Timeout awaiting response ({elapsed}ms elapsed, timeout is {timeout}ms)", msg, server);
+                                multiplexer.OnMessageFaulted(msg, timeoutEx);
+                                msg.SetExceptionAndComplete(timeoutEx, bridge); // tell the message that it is doomed
+                                multiplexer.OnAsyncTimeout();
+                            }
+                        }
+                        else
+                        {
+                            // This is a head-of-line queue, which means the first thing we hit that *hasn't* timed out means no more will timeout
+                            // and we can stop looping and release the lock early.
+                            break;
                         }
                         // Note: it is important that we **do not** remove the message unless we're tearing down the socket; that
                         // would disrupt the chain for MatchResult; we just preemptively abort the message from the caller's
@@ -745,8 +825,7 @@ namespace StackExchange.Redis
 
         internal void WriteHeader(RedisCommand command, int arguments, CommandBytes commandBytes = default)
         {
-            var bridge = BridgeCouldBeNull;
-            if (bridge == null) throw new ObjectDisposedException(ToString());
+            var bridge = BridgeCouldBeNull ?? throw new ObjectDisposedException(ToString());
 
             if (command == RedisCommand.UNKNOWN)
             {
@@ -769,7 +848,7 @@ namespace StackExchange.Redis
             // *{argCount}\r\n      = 3 + MaxInt32TextLen
             // ${cmd-len}\r\n       = 3 + MaxInt32TextLen
             // {cmd}\r\n            = 2 + commandBytes.Length
-            var span = _ioPipe!.Output.GetSpan(commandBytes.Length + 8 + MaxInt32TextLen + MaxInt32TextLen);
+            var span = _ioPipe!.Output.GetSpan(commandBytes.Length + 8 + Format.MaxInt32TextLen + Format.MaxInt32TextLen);
             span[0] = (byte)'*';
 
             int offset = WriteRaw(span, arguments + 1, offset: 1);
@@ -785,15 +864,11 @@ namespace StackExchange.Redis
         internal static void WriteMultiBulkHeader(PipeWriter output, long count)
         {
             // *{count}\r\n         = 3 + MaxInt32TextLen
-            var span = output.GetSpan(3 + MaxInt32TextLen);
+            var span = output.GetSpan(3 + Format.MaxInt32TextLen);
             span[0] = (byte)'*';
             int offset = WriteRaw(span, count, offset: 1);
             output.Advance(offset);
         }
-
-        internal const int
-            MaxInt32TextLen = 11, // -2,147,483,648 (not including the commas)
-            MaxInt64TextLen = 20; // -9,223,372,036,854,775,808 (not including the commas)
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static int WriteCrlf(Span<byte> span, int offset)
@@ -874,25 +949,16 @@ namespace StackExchange.Redis
             {
                 // we're going to write it, but *to the wrong place*
                 var availableChunk = span.Slice(offset);
-                if (!Utf8Formatter.TryFormat(value, availableChunk, out int formattedLength))
-                {
-                    throw new InvalidOperationException("TryFormat failed");
-                }
+                var formattedLength = Format.FormatInt64(value, availableChunk);
                 if (withLengthPrefix)
                 {
                     // now we know how large the prefix is: write the prefix, then write the value
-                    if (!Utf8Formatter.TryFormat(formattedLength, availableChunk, out int prefixLength))
-                    {
-                        throw new InvalidOperationException("TryFormat failed");
-                    }
+                    var prefixLength = Format.FormatInt32(formattedLength, availableChunk);
                     offset += prefixLength;
                     offset = WriteCrlf(span, offset);
 
                     availableChunk = span.Slice(offset);
-                    if (!Utf8Formatter.TryFormat(value, availableChunk, out int finalLength))
-                    {
-                        throw new InvalidOperationException("TryFormat failed");
-                    }
+                    var finalLength = Format.FormatInt64(value, availableChunk);
                     offset += finalLength;
                     Debug.Assert(finalLength == formattedLength);
                 }
@@ -1003,7 +1069,7 @@ namespace StackExchange.Redis
             }
             else if (value.Length <= MaxQuickSpanSize)
             {
-                var span = writer.GetSpan(5 + MaxInt32TextLen + value.Length);
+                var span = writer.GetSpan(5 + Format.MaxInt32TextLen + value.Length);
                 span[0] = (byte)'$';
                 int bytes = AppendToSpan(span, value, 1);
                 writer.Advance(bytes);
@@ -1011,7 +1077,7 @@ namespace StackExchange.Redis
             else
             {
                 // too big to guarantee can do in a single span
-                var span = writer.GetSpan(3 + MaxInt32TextLen);
+                var span = writer.GetSpan(3 + Format.MaxInt32TextLen);
                 span[0] = (byte)'$';
                 int bytes = WriteRaw(span, value.Length, offset: 1);
                 writer.Advance(bytes);
@@ -1104,7 +1170,7 @@ namespace StackExchange.Redis
                 }
                 else
                 {
-                    var span = writer.GetSpan(3 + MaxInt32TextLen);
+                    var span = writer.GetSpan(3 + Format.MaxInt32TextLen);
                     span[0] = (byte)'$';
                     int bytes = WriteRaw(span, totalLength, offset: 1);
                     writer.Advance(bytes);
@@ -1196,7 +1262,7 @@ namespace StackExchange.Redis
             }
             else
             {
-                var span = writer.GetSpan(3 + MaxInt32TextLen); // note even with 2 max-len, we're still in same text range
+                var span = writer.GetSpan(3 + Format.MaxInt32TextLen); // note even with 2 max-len, we're still in same text range
                 span[0] = (byte)'$';
                 int bytes = WriteRaw(span, prefix.LongLength + value.LongLength, offset: 1);
                 writer.Advance(bytes);
@@ -1217,7 +1283,7 @@ namespace StackExchange.Redis
 
             // ${asc-len}\r\n           = 3 + MaxInt32TextLen
             // {asc}\r\n                = MaxInt64TextLen + 2
-            var span = writer.GetSpan(5 + MaxInt32TextLen + MaxInt64TextLen);
+            var span = writer.GetSpan(5 + Format.MaxInt32TextLen + Format.MaxInt64TextLen);
 
             span[0] = (byte)'$';
             var bytes = WriteRaw(span, value, withLengthPrefix: true, offset: 1);
@@ -1231,11 +1297,10 @@ namespace StackExchange.Redis
 
             // ${asc-len}\r\n           = 3 + MaxInt32TextLen
             // {asc}\r\n                = MaxInt64TextLen + 2
-            var span = writer.GetSpan(5 + MaxInt32TextLen + MaxInt64TextLen);
+            var span = writer.GetSpan(5 + Format.MaxInt32TextLen + Format.MaxInt64TextLen);
 
-            Span<byte> valueSpan = stackalloc byte[MaxInt64TextLen];
-            if (!Utf8Formatter.TryFormat(value, valueSpan, out var len))
-                throw new InvalidOperationException("TryFormat failed");
+            Span<byte> valueSpan = stackalloc byte[Format.MaxInt64TextLen];
+            var len = Format.FormatUInt64(value, valueSpan);
             span[0] = (byte)'$';
             int offset = WriteRaw(span, len, withLengthPrefix: false, offset: 1);
             valueSpan.Slice(0, len).CopyTo(span.Slice(offset));
@@ -1248,7 +1313,7 @@ namespace StackExchange.Redis
             //note: client should never write integer; only server does this
 
             // :{asc}\r\n                = MaxInt64TextLen + 3
-            var span = writer.GetSpan(3 + MaxInt64TextLen);
+            var span = writer.GetSpan(3 + Format.MaxInt64TextLen);
 
             span[0] = (byte)':';
             var bytes = WriteRaw(span, value, withLengthPrefix: false, offset: 1);
@@ -1274,6 +1339,14 @@ namespace StackExchange.Redis
             /// Bytes in the writer pipe, waiting to be written to the socket.
             /// </summary>
             public long BytesInWritePipe { get; init; }
+            /// <summary>
+            /// Byte size of the last result we processed.
+            /// </summary>
+            public long BytesLastResult { get; init; }
+            /// <summary>
+            /// Byte size on the buffer that isn't processed yet.
+            /// </summary>
+            public long BytesInBuffer { get; init; }
 
             /// <summary>
             /// The inbound pipe reader status.
@@ -1325,6 +1398,8 @@ namespace StackExchange.Redis
                     BytesInWritePipe = counters.BytesWaitingToBeSent,
                     ReadStatus = _readStatus,
                     WriteStatus = _writeStatus,
+                    BytesLastResult = bytesLastResult,
+                    BytesInBuffer = bytesInBuffer,
                 };
             }
 
@@ -1347,6 +1422,8 @@ namespace StackExchange.Redis
                 BytesInWritePipe = -1,
                 ReadStatus = _readStatus,
                 WriteStatus = _writeStatus,
+                BytesLastResult = bytesLastResult,
+                BytesInBuffer = bytesInBuffer,
             };
         }
 
@@ -1389,7 +1466,7 @@ namespace StackExchange.Redis
             return null;
         }
 
-        internal async ValueTask<bool> ConnectedAsync(Socket socket, LogProxy? log, SocketManager manager)
+        internal async ValueTask<bool> ConnectedAsync(Socket? socket, ILogger? log, SocketManager manager)
         {
             var bridge = BridgeCouldBeNull;
             if (bridge == null) return false;
@@ -1406,16 +1483,24 @@ namespace StackExchange.Redis
 
                 var config = bridge.Multiplexer.RawConfig;
 
+                var tunnel = config.Tunnel;
+                Stream? stream = null;
+                if (tunnel is not null)
+                {
+                    stream = await tunnel.BeforeAuthenticateAsync(bridge.ServerEndPoint.EndPoint, bridge.ConnectionType, socket, CancellationToken.None).ForAwait();
+                }
+
                 if (config.Ssl)
                 {
-                    log?.WriteLine("Configuring TLS");
+                    log?.LogInformation("Configuring TLS");
                     var host = config.SslHost;
                     if (host.IsNullOrWhiteSpace())
                     {
                         host = Format.ToStringHostOnly(bridge.ServerEndPoint.EndPoint);
                     }
 
-                    var ssl = new SslStream(new NetworkStream(socket), false,
+                    stream ??= new NetworkStream(socket ?? throw new InvalidOperationException("No socket or stream available - possibly a tunnel error"));
+                    var ssl = new SslStream(stream, false,
                         config.CertificateValidationCallback ?? GetAmbientIssuerCertificateCallback(),
                         config.CertificateSelectionCallback ?? GetAmbientClientCertificateCallback(),
                         EncryptionPolicy.RequireEncryption);
@@ -1423,15 +1508,28 @@ namespace StackExchange.Redis
                     {
                         try
                         {
+#if NETCOREAPP3_1_OR_GREATER
+                            var configOptions = config.SslClientAuthenticationOptions?.Invoke(host);
+                            if (configOptions is not null)
+                            {
+                                await ssl.AuthenticateAsClientAsync(configOptions).ForAwait();
+                            }
+                            else
+                            {
+                                ssl.AuthenticateAsClient(host, config.SslProtocols, config.CheckCertificateRevocation);
+                            }
+#else
                             ssl.AuthenticateAsClient(host, config.SslProtocols, config.CheckCertificateRevocation);
+#endif
                         }
                         catch (Exception ex)
                         {
                             Debug.WriteLine(ex.Message);
-                            bridge.Multiplexer?.SetAuthSuspect();
+                            bridge.Multiplexer?.SetAuthSuspect(ex);
+                            bridge.Multiplexer?.Logger?.LogError(ex, ex.Message);
                             throw;
                         }
-                        log?.WriteLine($"TLS connection established successfully using protocol: {ssl.SslProtocol}");
+                        log?.LogInformation($"TLS connection established successfully using protocol: {ssl.SslProtocol}");
                     }
                     catch (AuthenticationException authexception)
                     {
@@ -1439,7 +1537,12 @@ namespace StackExchange.Redis
                         bridge.Multiplexer.Trace("Encryption failure");
                         return false;
                     }
-                    pipe = StreamConnection.GetDuplex(ssl, manager.SendPipeOptions, manager.ReceivePipeOptions, name: bridge.Name);
+                    stream = ssl;
+                }
+
+                if (stream is not null)
+                {
+                    pipe = StreamConnection.GetDuplex(stream, manager.SendPipeOptions, manager.ReceivePipeOptions, name: bridge.Name);
                 }
                 else
                 {
@@ -1449,7 +1552,7 @@ namespace StackExchange.Redis
 
                 _ioPipe = pipe;
 
-                log?.WriteLine($"{bridge.Name}: Connected ");
+                log?.LogInformation($"{bridge.Name}: Connected ");
 
                 await bridge.OnConnectedAsync(this, log).ForAwait();
                 return true;
@@ -1465,7 +1568,7 @@ namespace StackExchange.Redis
         private void MatchResult(in RawResult result)
         {
             // check to see if it could be an out-of-band pubsub message
-            if (connectionType == ConnectionType.Subscription && result.Type == ResultType.MultiBulk)
+            if ((connectionType == ConnectionType.Subscription && result.Resp2TypeArray == ResultType.Array) || result.Resp3Type == ResultType.Push)
             {
                 var muxer = BridgeCouldBeNull?.Multiplexer;
                 if (muxer == null) return;
@@ -1498,10 +1601,19 @@ namespace StackExchange.Redis
                     // invoke the handlers
                     var channel = items[1].AsRedisChannel(ChannelPrefix, RedisChannel.PatternMode.Literal);
                     Trace("MESSAGE: " + channel);
-                    if (!channel.IsNull && TryGetPubSubPayload(items[2], out var payload))
+                    if (!channel.IsNull)
                     {
-                        _readStatus = ReadStatus.InvokePubSub;
-                        muxer.OnMessage(channel, channel, payload);
+                        if (TryGetPubSubPayload(items[2], out var payload))
+                        {
+                            _readStatus = ReadStatus.InvokePubSub;
+                            muxer.OnMessage(channel, channel, payload);
+                        }
+                        // could be multi-message: https://github.com/StackExchange/StackExchange.Redis/issues/2507
+                        else if (TryGetMultiPubSubPayload(items[2], out var payloads))
+                        {
+                            _readStatus = ReadStatus.InvokePubSub;
+                            muxer.OnMessage(channel, channel, payloads);
+                        }
                     }
                     return; // AND STOP PROCESSING!
                 }
@@ -1511,11 +1623,20 @@ namespace StackExchange.Redis
 
                     var channel = items[2].AsRedisChannel(ChannelPrefix, RedisChannel.PatternMode.Literal);
                     Trace("PMESSAGE: " + channel);
-                    if (!channel.IsNull && TryGetPubSubPayload(items[3], out var payload))
+                    if (!channel.IsNull)
                     {
-                        var sub = items[1].AsRedisChannel(ChannelPrefix, RedisChannel.PatternMode.Pattern);
-                        _readStatus = ReadStatus.InvokePubSub;
-                        muxer.OnMessage(sub, channel, payload);
+                        if (TryGetPubSubPayload(items[3], out var payload))
+                        {
+                            var sub = items[1].AsRedisChannel(ChannelPrefix, RedisChannel.PatternMode.Pattern);
+                            _readStatus = ReadStatus.InvokePubSub;
+                            muxer.OnMessage(sub, channel, payload);
+                        }
+                        else if (TryGetMultiPubSubPayload(items[3], out var payloads))
+                        {
+                            var sub = items[1].AsRedisChannel(ChannelPrefix, RedisChannel.PatternMode.Pattern);
+                            _readStatus = ReadStatus.InvokePubSub;
+                            muxer.OnMessage(sub, channel, payloads);
+                        }
                     }
                     return; // AND STOP PROCESSING!
                 }
@@ -1527,18 +1648,10 @@ namespace StackExchange.Redis
             _readStatus = ReadStatus.DequeueResult;
             lock (_writtenAwaitingResponse)
             {
-#if NET5_0_OR_GREATER
                 if (!_writtenAwaitingResponse.TryDequeue(out msg))
                 {
                     throw new InvalidOperationException("Received response with no message waiting: " + result.ToString());
                 }
-#else
-                if (_writtenAwaitingResponse.Count == 0)
-                {
-                    throw new InvalidOperationException("Received response with no message waiting: " + result.ToString());
-                }
-                msg = _writtenAwaitingResponse.Dequeue();
-#endif
             }
             _activeMessage = msg;
 
@@ -1559,15 +1672,26 @@ namespace StackExchange.Redis
                     parsed = RedisValue.Null;
                     return true;
                 }
-                switch (value.Type)
+                switch (value.Resp2TypeBulkString)
                 {
                     case ResultType.Integer:
                     case ResultType.SimpleString:
                     case ResultType.BulkString:
                         parsed = value.AsRedisValue();
                         return true;
-                    case ResultType.MultiBulk when allowArraySingleton && value.ItemsCount == 1:
+                    case ResultType.Array when allowArraySingleton && value.ItemsCount == 1:
                         return TryGetPubSubPayload(in value[0], out parsed, allowArraySingleton: false);
+                }
+                parsed = default;
+                return false;
+            }
+
+            static bool TryGetMultiPubSubPayload(in RawResult value, out Sequence<RawResult> parsed)
+            {
+                if (value.Resp2TypeArray == ResultType.Array && value.ItemsCount != 0)
+                {
+                    parsed = value.GetItems();
+                    return true;
                 }
                 parsed = default;
                 return false;
@@ -1579,9 +1703,23 @@ namespace StackExchange.Redis
         internal void GetHeadMessages(out Message? now, out Message? next)
         {
             now = _activeMessage;
-            lock(_writtenAwaitingResponse)
+            bool haveLock = false;
+            try
             {
-                next = _writtenAwaitingResponse.Count == 0 ? null : _writtenAwaitingResponse.Peek();
+                // careful locking here; a: don't try too hard (this is error info only), b: avoid deadlock (see #2376)
+                Monitor.TryEnter(_writtenAwaitingResponse, 10, ref haveLock);
+                if (haveLock)
+                {
+                    _writtenAwaitingResponse.TryPeek(out next);
+                }
+                else
+                {
+                    next = UnknownMessage.Instance;
+                }
+            }
+            finally
+            {
+                if (haveLock) Monitor.Exit(_writtenAwaitingResponse);
             }
         }
 
@@ -1681,12 +1819,13 @@ namespace StackExchange.Redis
         private int ProcessBuffer(ref ReadOnlySequence<byte> buffer)
         {
             int messageCount = 0;
+            bytesInBuffer = buffer.Length;
 
             while (!buffer.IsEmpty)
             {
                 _readStatus = ReadStatus.TryParseResult;
                 var reader = new BufferReader(buffer);
-                var result = TryParseResult(_arena, in buffer, ref reader, IncludeDetailInExceptions, BridgeCouldBeNull?.ServerEndPoint);
+                var result = TryParseResult(_protocol >= RedisProtocol.Resp3, _arena, in buffer, ref reader, IncludeDetailInExceptions, this);
                 try
                 {
                     if (result.HasValue)
@@ -1697,6 +1836,10 @@ namespace StackExchange.Redis
                         Trace(result.ToString());
                         _readStatus = ReadStatus.MatchResult;
                         MatchResult(result);
+
+                        // Track the last result size *after* processing for the *next* error message
+                        bytesInBuffer = buffer.Length;
+                        bytesLastResult = result.Payload.Length;
                     }
                     else
                     {
@@ -1737,34 +1880,39 @@ namespace StackExchange.Redis
         //    }
         //}
 
-        private static RawResult ReadArray(Arena<RawResult> arena, in ReadOnlySequence<byte> buffer, ref BufferReader reader, bool includeDetailInExceptions, ServerEndPoint? server)
+        private static RawResult.ResultFlags AsNull(RawResult.ResultFlags flags) => flags & ~RawResult.ResultFlags.NonNull;
+
+        private static RawResult ReadArray(ResultType resultType, RawResult.ResultFlags flags, Arena<RawResult> arena, in ReadOnlySequence<byte> buffer, ref BufferReader reader, bool includeDetailInExceptions, ServerEndPoint? server)
         {
-            var itemCount = ReadLineTerminatedString(ResultType.Integer, ref reader);
+            var itemCount = ReadLineTerminatedString(ResultType.Integer, flags, ref reader);
             if (itemCount.HasValue)
             {
-                if (!itemCount.TryGetInt64(out long i64)) throw ExceptionFactory.ConnectionFailure(includeDetailInExceptions, ConnectionFailureType.ProtocolFailure, "Invalid array length", server);
+                if (!itemCount.TryGetInt64(out long i64)) throw ExceptionFactory.ConnectionFailure(includeDetailInExceptions, ConnectionFailureType.ProtocolFailure,
+                     itemCount.Is('?') ? "Streamed aggregate types not yet implemented" : "Invalid array length", server);
                 int itemCountActual = checked((int)i64);
 
                 if (itemCountActual < 0)
                 {
                     //for null response by command like EXEC, RESP array: *-1\r\n
-                    return RawResult.NullMultiBulk;
+                    return new RawResult(resultType, items: default, AsNull(flags));
                 }
                 else if (itemCountActual == 0)
                 {
                     //for zero array response by command like SCAN, Resp array: *0\r\n 
-                    return RawResult.EmptyMultiBulk;
+                    return new RawResult(resultType, items: default, flags);
                 }
 
+                if (resultType == ResultType.Map) itemCountActual <<= 1; // if it says "3", it means 3 pairs, i.e. 6 values
+
                 var oversized = arena.Allocate(itemCountActual);
-                var result = new RawResult(oversized, false);
+                var result = new RawResult(resultType, oversized, flags);
 
                 if (oversized.IsSingleSegment)
                 {
                     var span = oversized.FirstSpan;
-                    for(int i = 0; i < span.Length; i++)
+                    for (int i = 0; i < span.Length; i++)
                     {
-                        if (!(span[i] = TryParseResult(arena, in buffer, ref reader, includeDetailInExceptions, server)).HasValue)
+                        if (!(span[i] = TryParseResult(flags, arena, in buffer, ref reader, includeDetailInExceptions, server)).HasValue)
                         {
                             return RawResult.Nil;
                         }
@@ -1772,11 +1920,11 @@ namespace StackExchange.Redis
                 }
                 else
                 {
-                    foreach(var span in oversized.Spans)
+                    foreach (var span in oversized.Spans)
                     {
                         for (int i = 0; i < span.Length; i++)
                         {
-                            if (!(span[i] = TryParseResult(arena, in buffer, ref reader, includeDetailInExceptions, server)).HasValue)
+                            if (!(span[i] = TryParseResult(flags, arena, in buffer, ref reader, includeDetailInExceptions, server)).HasValue)
                             {
                                 return RawResult.Nil;
                             }
@@ -1788,16 +1936,20 @@ namespace StackExchange.Redis
             return RawResult.Nil;
         }
 
-        private static RawResult ReadBulkString(ref BufferReader reader, bool includeDetailInExceptions, ServerEndPoint? server)
+        private static RawResult ReadBulkString(ResultType type, RawResult.ResultFlags flags, ref BufferReader reader, bool includeDetailInExceptions, ServerEndPoint? server)
         {
-            var prefix = ReadLineTerminatedString(ResultType.Integer, ref reader);
+            var prefix = ReadLineTerminatedString(ResultType.Integer, flags, ref reader);
             if (prefix.HasValue)
             {
-                if (!prefix.TryGetInt64(out long i64)) throw ExceptionFactory.ConnectionFailure(includeDetailInExceptions, ConnectionFailureType.ProtocolFailure, "Invalid bulk string length", server);
+                if (!prefix.TryGetInt64(out long i64))
+                {
+                    throw ExceptionFactory.ConnectionFailure(includeDetailInExceptions, ConnectionFailureType.ProtocolFailure,
+                        prefix.Is('?') ? "Streamed strings not yet implemented" : "Invalid bulk string length", server);
+                }
                 int bodySize = checked((int)i64);
                 if (bodySize < 0)
                 {
-                    return new RawResult(ResultType.BulkString, ReadOnlySequence<byte>.Empty, true);
+                    return new RawResult(type, ReadOnlySequence<byte>.Empty, AsNull(flags));
                 }
 
                 if (reader.TryConsumeAsBuffer(bodySize, out var payload))
@@ -1807,7 +1959,7 @@ namespace StackExchange.Redis
                         case ConsumeResult.NeedMoreData:
                             break; // see NilResult below
                         case ConsumeResult.Success:
-                            return new RawResult(ResultType.BulkString, payload, false);
+                            return new RawResult(type, payload, flags);
                         default:
                             throw ExceptionFactory.ConnectionFailure(includeDetailInExceptions, ConnectionFailureType.ProtocolFailure, "Invalid bulk string terminator", server);
                     }
@@ -1816,7 +1968,7 @@ namespace StackExchange.Redis
             return RawResult.Nil;
         }
 
-        private static RawResult ReadLineTerminatedString(ResultType type, ref BufferReader reader)
+        private static RawResult ReadLineTerminatedString(ResultType type, RawResult.ResultFlags flags, ref BufferReader reader)
         {
             int crlfOffsetFromCurrent = BufferReader.FindNextCrLf(reader);
             if (crlfOffsetFromCurrent < 0) return RawResult.Nil;
@@ -1824,7 +1976,7 @@ namespace StackExchange.Redis
             var payload = reader.ConsumeAsBuffer(crlfOffsetFromCurrent);
             reader.Consume(2);
 
-            return new RawResult(type, payload, false);
+            return new RawResult(type, payload, flags);
         }
 
         internal enum ReadStatus
@@ -1858,36 +2010,83 @@ namespace StackExchange.Redis
 
         internal void StartReading() => ReadFromPipe().RedisFireAndForget();
 
-        internal static RawResult TryParseResult(Arena<RawResult> arena, in ReadOnlySequence<byte> buffer, ref BufferReader reader,
-            bool includeDetilInExceptions, ServerEndPoint? server, bool allowInlineProtocol = false)
+        internal static RawResult TryParseResult(bool isResp3, Arena<RawResult> arena, in ReadOnlySequence<byte> buffer, ref BufferReader reader,
+            bool includeDetilInExceptions, PhysicalConnection? connection, bool allowInlineProtocol = false)
         {
-            var prefix = reader.PeekByte();
-            if (prefix < 0) return RawResult.Nil; // EOF
-            switch (prefix)
-            {
-                case '+': // simple string
-                    reader.Consume(1);
-                    return ReadLineTerminatedString(ResultType.SimpleString, ref reader);
-                case '-': // error
-                    reader.Consume(1);
-                    return ReadLineTerminatedString(ResultType.Error, ref reader);
-                case ':': // integer
-                    reader.Consume(1);
-                    return ReadLineTerminatedString(ResultType.Integer, ref reader);
-                case '$': // bulk string
-                    reader.Consume(1);
-                    return ReadBulkString(ref reader, includeDetilInExceptions, server);
-                case '*': // array
-                    reader.Consume(1);
-                    return ReadArray(arena, in buffer, ref reader, includeDetilInExceptions, server);
-                default:
-                    // string s = Format.GetString(buffer);
-                    if (allowInlineProtocol) return ParseInlineProtocol(arena, ReadLineTerminatedString(ResultType.SimpleString, ref reader));
-                    throw new InvalidOperationException("Unexpected response prefix: " + (char)prefix);
-            }
+            return TryParseResult(isResp3 ? (RawResult.ResultFlags.Resp3 | RawResult.ResultFlags.NonNull) : RawResult.ResultFlags.NonNull,
+                arena, buffer, ref reader, includeDetilInExceptions, connection?.BridgeCouldBeNull?.ServerEndPoint, allowInlineProtocol);
         }
 
-        private static RawResult ParseInlineProtocol(Arena<RawResult> arena, in RawResult line)
+        private static RawResult TryParseResult(RawResult.ResultFlags flags, Arena<RawResult> arena, in ReadOnlySequence<byte> buffer, ref BufferReader reader,
+            bool includeDetilInExceptions, ServerEndPoint? server, bool allowInlineProtocol = false)
+        {
+            int prefix;
+            do // this loop is just to allow us to parse (skip) attributes without doing a stack-dive
+            {
+                prefix = reader.PeekByte();
+                if (prefix < 0) return RawResult.Nil; // EOF
+                switch (prefix)
+                {
+                    // RESP2
+                    case '+': // simple string
+                        reader.Consume(1);
+                        return ReadLineTerminatedString(ResultType.SimpleString, flags, ref reader);
+                    case '-': // error
+                        reader.Consume(1);
+                        return ReadLineTerminatedString(ResultType.Error, flags, ref reader);
+                    case ':': // integer
+                        reader.Consume(1);
+                        return ReadLineTerminatedString(ResultType.Integer, flags, ref reader);
+                    case '$': // bulk string
+                        reader.Consume(1);
+                        return ReadBulkString(ResultType.BulkString, flags, ref reader, includeDetilInExceptions, server);
+                    case '*': // array
+                        reader.Consume(1);
+                        return ReadArray(ResultType.Array, flags, arena, in buffer, ref reader, includeDetilInExceptions, server);
+                    // RESP3
+                    case '_': // null
+                        reader.Consume(1);
+                        return ReadLineTerminatedString(ResultType.Null, flags, ref reader);
+                    case ',': // double
+                        reader.Consume(1);
+                        return ReadLineTerminatedString(ResultType.Double, flags, ref reader);
+                    case '#': // boolean
+                        reader.Consume(1);
+                        return ReadLineTerminatedString(ResultType.Boolean, flags, ref reader);
+                    case '!': // blob error
+                        reader.Consume(1);
+                        return ReadBulkString(ResultType.BlobError, flags, ref reader, includeDetilInExceptions, server);
+                    case '=': // verbatim string
+                        reader.Consume(1);
+                        return ReadBulkString(ResultType.VerbatimString, flags, ref reader, includeDetilInExceptions, server);
+                    case '(': // big number
+                        reader.Consume(1);
+                        return ReadLineTerminatedString(ResultType.BigInteger, flags, ref reader);
+                    case '%': // map
+                        reader.Consume(1);
+                        return ReadArray(ResultType.Map, flags, arena, in buffer, ref reader, includeDetilInExceptions, server);
+                    case '~': // set
+                        reader.Consume(1);
+                        return ReadArray(ResultType.Set, flags, arena, in buffer, ref reader, includeDetilInExceptions, server);
+                    case '|': // attribute
+                        reader.Consume(1);
+                        var arr = ReadArray(ResultType.Attribute, flags, arena, in buffer, ref reader, includeDetilInExceptions, server);
+                        if (!arr.HasValue) return RawResult.Nil; // failed to parse attribute data
+
+                        // for now, we want to just skip attribute data; so
+                        // drop whatever we parsed on the floor and keep looking
+                        break; // exits the SWITCH, not the DO/WHILE
+                    case '>': // push
+                        reader.Consume(1);
+                        return ReadArray(ResultType.Push, flags, arena, in buffer, ref reader, includeDetilInExceptions, server);
+                }
+            } while (prefix == '|');
+
+            if (allowInlineProtocol) return ParseInlineProtocol(flags, arena, ReadLineTerminatedString(ResultType.SimpleString, flags, ref reader));
+            throw new InvalidOperationException("Unexpected response prefix: " + (char)prefix);
+        }
+
+        private static RawResult ParseInlineProtocol(RawResult.ResultFlags flags, Arena<RawResult> arena, in RawResult line)
         {
             if (!line.HasValue) return RawResult.Nil; // incomplete line
 
@@ -1898,9 +2097,39 @@ namespace StackExchange.Redis
             var iter = block.GetEnumerator();
             foreach (var token in line.GetInlineTokenizer())
             {   // this assigns *via a reference*, returned via the iterator; just... sweet
-                iter.GetNext() = new RawResult(line.Type, token, false);
+                iter.GetNext() = new RawResult(line.Resp3Type, token, flags); // spoof RESP2 from RESP1
             }
-            return new RawResult(block, false);
+            return new RawResult(ResultType.Array, block, flags); // spoof RESP2 from RESP1
+        }
+
+        internal bool HasPendingCallerFacingItems()
+        {
+            bool lockTaken = false;
+            try
+            {
+                Monitor.TryEnter(_writtenAwaitingResponse, 0, ref lockTaken);
+                if (lockTaken)
+                {
+                    if (_writtenAwaitingResponse.Count != 0)
+                    {
+                        foreach (var item in _writtenAwaitingResponse)
+                        {
+                            if (!item.IsInternalCall) return true;
+                        }
+                    }
+                    return false;
+                }
+                else
+                {
+                    // don't contend the lock; *presume* that something
+                    // qualifies; we can check again next heartbeat
+                    return true;
+                }
+            }
+            finally
+            {
+                if (lockTaken) Monitor.Exit(_writtenAwaitingResponse);
+            }
         }
     }
 }

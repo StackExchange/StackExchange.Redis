@@ -1,15 +1,14 @@
-﻿using System;
+﻿using StackExchange.Redis.Profiling;
+using StackExchange.Redis.Tests.Helpers;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Net;
 using System.Runtime;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
-using StackExchange.Redis.Profiling;
-using StackExchange.Redis.Tests.Helpers;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -23,6 +22,13 @@ public abstract class TestBase : IDisposable
     protected virtual string GetConfiguration() => GetDefaultConfiguration();
     internal static string GetDefaultConfiguration() => TestConfig.Current.PrimaryServerAndPort;
 
+    /// <summary>
+    /// Gives the current TestContext, propulated by the runner (this type of thing will be built-in in xUnit 3.x)
+    /// </summary>
+    protected TestContext Context => _context.Value!;
+    private static readonly AsyncLocal<TestContext> _context = new();
+    public static void SetContext(TestContext context) => _context.Value = context;
+
     private readonly SharedConnectionFixture? _fixture;
 
     protected bool SharedFixtureAvailable => _fixture != null && _fixture.IsEnabled;
@@ -31,6 +37,7 @@ public abstract class TestBase : IDisposable
     {
         Output = output;
         Output.WriteFrameworkVersion();
+        Output.WriteLine("  Context: " + Context.ToString());
         Writer = new TextWriterOutputHelper(output, TestConfig.Current.LogToConsole);
         _fixture = fixture;
         ClearAmbientFailures();
@@ -47,19 +54,6 @@ public abstract class TestBase : IDisposable
     /// <remarks>See 'ConnectFailTimeout' class for example usage.</remarks>
     protected static Task RunBlockingSynchronousWithExtraThreadAsync(Action testScenario) => Task.Factory.StartNew(testScenario, CancellationToken.None, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
 
-    protected void LogNoTime(string message) => LogNoTime(Writer, message);
-    internal static void LogNoTime(TextWriter output, string? message)
-    {
-        lock (output)
-        {
-            output.WriteLine(message);
-        }
-        if (TestConfig.Current.LogToConsole)
-        {
-            Console.WriteLine(message);
-        }
-    }
-    protected void Log(string? message) => LogNoTime(Writer, message);
     public static void Log(TextWriter output, string message)
     {
         lock (output)
@@ -71,7 +65,7 @@ public abstract class TestBase : IDisposable
             Console.WriteLine(message);
         }
     }
-    protected void Log(string message, params object?[] args)
+    protected void Log(string? message, params object?[] args)
     {
         lock (Output)
         {
@@ -79,7 +73,7 @@ public abstract class TestBase : IDisposable
         }
         if (TestConfig.Current.LogToConsole)
         {
-            Console.WriteLine(message, args);
+            Console.WriteLine(message ?? "", args);
         }
     }
 
@@ -203,14 +197,14 @@ public abstract class TestBase : IDisposable
             {
                 foreach (var item in privateExceptions.Take(5))
                 {
-                    LogNoTime(item);
+                    Log(item);
                 }
             }
             lock (backgroundExceptions)
             {
                 foreach (var item in backgroundExceptions.Take(5))
                 {
-                    LogNoTime(item);
+                    Log(item);
                 }
             }
             Skip.Inconclusive($"There were {privateFailCount} private and {sharedFailCount.Value} ambient exceptions; expected {expectedFailCount}.");
@@ -221,11 +215,9 @@ public abstract class TestBase : IDisposable
 
     protected static IServer GetServer(IConnectionMultiplexer muxer)
     {
-        EndPoint[] endpoints = muxer.GetEndPoints();
         IServer? result = null;
-        foreach (var endpoint in endpoints)
+        foreach (var server in muxer.GetServers())
         {
-            var server = muxer.GetServer(endpoint);
             if (server.IsReplica || !server.IsConnected) continue;
             if (result != null) throw new InvalidOperationException("Requires exactly one primary endpoint (found " + server.EndPoint + " and " + result.EndPoint + ")");
             result = server;
@@ -247,6 +239,7 @@ public abstract class TestBase : IDisposable
     internal virtual IInternalConnectionMultiplexer Create(
         string? clientName = null,
         int? syncTimeout = null,
+        int? asyncTimeout = null,
         bool? allowAdmin = null,
         int? keepAlive = null,
         int? connectTimeout = null,
@@ -266,17 +259,69 @@ public abstract class TestBase : IDisposable
         int? defaultDatabase = null,
         BacklogPolicy? backlogPolicy = null,
         Version? require = null,
-        [CallerMemberName] string? caller = null)
+        RedisProtocol? protocol = null,
+        [CallerMemberName] string caller = "")
     {
         if (Output == null)
         {
-            Assert.True(false, "Failure: Be sure to call the TestBase constuctor like this: BasicOpsTests(ITestOutputHelper output) : base(output) { }");
+            Assert.Fail("Failure: Be sure to call the TestBase constructor like this: BasicOpsTests(ITestOutputHelper output) : base(output) { }");
         }
 
+        // Default to protocol context if not explicitly passed in
+        protocol ??= Context.Test.Protocol;
+
         // Share a connection if instructed to and we can - many specifics mean no sharing
-        if (shared
+        if (shared && expectedFailCount == 0
             && _fixture != null && _fixture.IsEnabled
-            && enabledCommands == null
+            && CanShare(allowAdmin, password, tieBreaker, fail, disabledCommands, enabledCommands, channelPrefix, proxy, configuration, defaultDatabase, backlogPolicy))
+        {
+            configuration = GetConfiguration();
+            var fixtureConn = _fixture.GetConnection(this, protocol.Value, caller: caller);
+            // Only return if we match
+            ThrowIfIncorrectProtocol(fixtureConn, protocol);
+
+            if (configuration == _fixture.Configuration)
+            {
+                ThrowIfBelowMinVersion(fixtureConn, require);
+                return fixtureConn;
+            }
+        }
+
+        var conn = CreateDefault(
+            Writer,
+            configuration ?? GetConfiguration(),
+            clientName, syncTimeout, asyncTimeout, allowAdmin, keepAlive,
+            connectTimeout, password, tieBreaker, log,
+            fail, disabledCommands, enabledCommands,
+            checkConnect, failMessage,
+            channelPrefix, proxy,
+            logTransactionData, defaultDatabase,
+            backlogPolicy, protocol,
+            caller);
+
+        ThrowIfIncorrectProtocol(conn, protocol);
+        ThrowIfBelowMinVersion(conn, require);
+
+        conn.InternalError += OnInternalError;
+        conn.ConnectionFailed += OnConnectionFailed;
+        conn.ConnectionRestored += (s, e) => Log($"Connection Restored ({e.ConnectionType},{e.FailureType}): {e.Exception}");
+        return conn;
+    }
+
+    internal static bool CanShare(
+        bool? allowAdmin,
+        string? password,
+        string? tieBreaker,
+        bool fail,
+        string[]? disabledCommands,
+        string[]? enabledCommands,
+        string? channelPrefix,
+        Proxy? proxy,
+        string? configuration,
+        int? defaultDatabase,
+        BacklogPolicy? backlogPolicy
+        )
+        => enabledCommands == null
             && disabledCommands == null
             && fail
             && channelPrefix == null
@@ -286,47 +331,34 @@ public abstract class TestBase : IDisposable
             && tieBreaker == null
             && defaultDatabase == null
             && (allowAdmin == null || allowAdmin == true)
-            && expectedFailCount == 0
-            && backlogPolicy == null)
+            && backlogPolicy == null;
+
+    internal void ThrowIfIncorrectProtocol(IInternalConnectionMultiplexer conn, RedisProtocol? requiredProtocol)
+    {
+        if (requiredProtocol is null)
         {
-            configuration = GetConfiguration();
-            // Only return if we match
-            if (configuration == _fixture.Configuration)
-            {
-                ThrowIfBelowMinVersion(_fixture.Connection, require);
-                return _fixture.Connection;
-            }
+            return;
         }
 
-        var conn = CreateDefault(
-            Writer,
-            configuration ?? GetConfiguration(),
-            clientName, syncTimeout, allowAdmin, keepAlive,
-            connectTimeout, password, tieBreaker, log,
-            fail, disabledCommands, enabledCommands,
-            checkConnect, failMessage,
-            channelPrefix, proxy,
-            logTransactionData, defaultDatabase,
-            backlogPolicy,
-            caller);
-
-        ThrowIfBelowMinVersion(conn, require);
-
-        conn.InternalError += OnInternalError;
-        conn.ConnectionFailed += OnConnectionFailed;
-        conn.ConnectionRestored += (s, e) => Log($"Connection Restored ({e.ConnectionType},{e.FailureType}): {e.Exception}");
-        return conn;
+        var serverProtocol = conn.GetServerEndPoint(conn.GetEndPoints()[0]).Protocol ?? RedisProtocol.Resp2;
+        if (serverProtocol != requiredProtocol)
+        {
+            throw new SkipTestException($"Requires protocol {requiredProtocol}, but connection is {serverProtocol}.")
+            {
+                MissingFeatures = $"Protocol {requiredProtocol}."
+            };
+        }
     }
 
-    private void ThrowIfBelowMinVersion(IInternalConnectionMultiplexer conn, Version? requiredVersion)
+    internal void ThrowIfBelowMinVersion(IInternalConnectionMultiplexer conn, Version? requiredVersion)
     {
         if (requiredVersion is null)
         {
             return;
         }
 
-        var serverVersion = conn.GetServer(conn.GetEndPoints()[0]).Version;
-        if (requiredVersion > serverVersion)
+        var serverVersion = conn.GetServerEndPoint(conn.GetEndPoints()[0]).Version;
+        if (!serverVersion.IsAtLeast(requiredVersion))
         {
             throw new SkipTestException($"Requires server version {requiredVersion}, but server is only {serverVersion}.")
             {
@@ -340,6 +372,7 @@ public abstract class TestBase : IDisposable
         string configuration,
         string? clientName = null,
         int? syncTimeout = null,
+        int? asyncTimeout = null,
         bool? allowAdmin = null,
         int? keepAlive = null,
         int? connectTimeout = null,
@@ -356,13 +389,11 @@ public abstract class TestBase : IDisposable
         bool logTransactionData = true,
         int? defaultDatabase = null,
         BacklogPolicy? backlogPolicy = null,
-        [CallerMemberName] string? caller = null)
+        RedisProtocol? protocol = null,
+        [CallerMemberName] string caller = "")
     {
         StringWriter? localLog = null;
-        if (log == null)
-        {
-            log = localLog = new StringWriter();
-        }
+        log ??= localLog = new StringWriter();
         try
         {
             var config = ConfigurationOptions.Parse(configuration);
@@ -380,18 +411,20 @@ public abstract class TestBase : IDisposable
                 syncTimeout = int.MaxValue;
             }
 
-            if (channelPrefix != null) config.ChannelPrefix = channelPrefix;
-            if (tieBreaker != null) config.TieBreaker = tieBreaker;
-            if (password != null) config.Password = string.IsNullOrEmpty(password) ? null : password;
-            if (clientName != null) config.ClientName = clientName;
-            else if (caller != null) config.ClientName = caller;
-            if (syncTimeout != null) config.SyncTimeout = syncTimeout.Value;
-            if (allowAdmin != null) config.AllowAdmin = allowAdmin.Value;
-            if (keepAlive != null) config.KeepAlive = keepAlive.Value;
-            if (connectTimeout != null) config.ConnectTimeout = connectTimeout.Value;
-            if (proxy != null) config.Proxy = proxy.Value;
-            if (defaultDatabase != null) config.DefaultDatabase = defaultDatabase.Value;
-            if (backlogPolicy != null) config.BacklogPolicy = backlogPolicy;
+            if (channelPrefix is not null) config.ChannelPrefix = RedisChannel.Literal(channelPrefix);
+            if (tieBreaker is not null) config.TieBreaker = tieBreaker;
+            if (password is not null) config.Password = string.IsNullOrEmpty(password) ? null : password;
+            if (clientName is not null) config.ClientName = clientName;
+            else if (!string.IsNullOrEmpty(caller)) config.ClientName = caller;
+            if (syncTimeout is not null) config.SyncTimeout = syncTimeout.Value;
+            if (asyncTimeout is not null) config.AsyncTimeout = asyncTimeout.Value;
+            if (allowAdmin is not null) config.AllowAdmin = allowAdmin.Value;
+            if (keepAlive is not null) config.KeepAlive = keepAlive.Value;
+            if (connectTimeout is not null) config.ConnectTimeout = connectTimeout.Value;
+            if (proxy is not null) config.Proxy = proxy.Value;
+            if (defaultDatabase is not null) config.DefaultDatabase = defaultDatabase.Value;
+            if (backlogPolicy is not null) config.BacklogPolicy = backlogPolicy;
+            if (protocol is not null) config.Protocol = protocol;
             var watch = Stopwatch.StartNew();
             var task = ConnectionMultiplexer.ConnectAsync(config, log);
             if (!task.Wait(config.ConnectTimeout >= (int.MaxValue / 2) ? int.MaxValue : config.ConnectTimeout * 2))
@@ -446,10 +479,10 @@ public abstract class TestBase : IDisposable
         }
     }
 
-    public static string Me([CallerFilePath] string? filePath = null, [CallerMemberName] string? caller = null) =>
-        Environment.Version.ToString() + Path.GetFileNameWithoutExtension(filePath) + "-" + caller;
+    public virtual string Me([CallerFilePath] string? filePath = null, [CallerMemberName] string? caller = null) =>
+        Environment.Version.ToString() + Path.GetFileNameWithoutExtension(filePath) + "-" + caller + Context.KeySuffix;
 
-    protected static TimeSpan RunConcurrent(Action work, int threads, int timeout = 10000, [CallerMemberName] string? caller = null)
+    protected TimeSpan RunConcurrent(Action work, int threads, int timeout = 10000, [CallerMemberName] string? caller = null)
     {
         if (work == null) throw new ArgumentNullException(nameof(work));
         if (threads < 1) throw new ArgumentOutOfRangeException(nameof(threads));

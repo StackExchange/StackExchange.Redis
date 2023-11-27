@@ -45,10 +45,11 @@ public class AsyncTests : TestBase
     [Fact]
     public async Task AsyncTimeoutIsNoticed()
     {
-        using var conn = Create(syncTimeout: 1000);
+        using var conn = Create(syncTimeout: 1000, asyncTimeout: 1000);
+        using var pauseConn = Create();
         var opt = ConfigurationOptions.Parse(conn.Configuration);
         if (!Debugger.IsAttached)
-        { // we max the timeouts if a degugger is detected
+        { // we max the timeouts if a debugger is detected
             Assert.Equal(1000, opt.AsyncTimeout);
         }
 
@@ -59,23 +60,32 @@ public class AsyncTests : TestBase
 
         Assert.Contains("; async timeouts: 0;", conn.GetStatus());
 
-        await db.ExecuteAsync("client", "pause", 4000).ForAwait(); // client pause returns immediately
+        // This is done on another connection, because it queues a SELECT due to being an unknown command that will not timeout
+        // at the head of the queue
+        await pauseConn.GetDatabase().ExecuteAsync("client", "pause", 4000).ForAwait(); // client pause returns immediately
 
         var ms = Stopwatch.StartNew();
         var ex = await Assert.ThrowsAsync<RedisTimeoutException>(async () =>
         {
+            Log("Issuing StringGetAsync");
             await db.StringGetAsync(key).ForAwait(); // but *subsequent* operations are paused
-                ms.Stop();
-            Writer.WriteLine($"Unexpectedly succeeded after {ms.ElapsedMilliseconds}ms");
+            ms.Stop();
+            Log($"Unexpectedly succeeded after {ms.ElapsedMilliseconds}ms");
         }).ForAwait();
         ms.Stop();
-        Writer.WriteLine($"Timed out after {ms.ElapsedMilliseconds}ms");
+        Log($"Timed out after {ms.ElapsedMilliseconds}ms");
 
+        Log("Exception message: " + ex.Message);
         Assert.Contains("Timeout awaiting response", ex.Message);
-        Writer.WriteLine(ex.Message);
+        // Ensure we are including the last payload size
+        Assert.Contains("last-in:", ex.Message);
+        Assert.DoesNotContain("last-in: 0", ex.Message);
+        Assert.NotNull(ex.Data["Redis-Last-Result-Bytes"]);
+
+        Assert.Contains("cur-in:", ex.Message);
 
         string status = conn.GetStatus();
-        Writer.WriteLine(status);
+        Log(status);
         Assert.Contains("; async timeouts: 1;", status);
     }
 }

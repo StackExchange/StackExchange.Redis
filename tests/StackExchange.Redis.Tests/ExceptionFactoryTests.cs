@@ -15,7 +15,7 @@ public class ExceptionFactoryTests : TestBase
 
         conn.GetDatabase();
         Assert.Null(conn.GetServerSnapshot()[0].LastException);
-        var ex = ExceptionFactory.NoConnectionAvailable((conn as ConnectionMultiplexer)!, null, null);
+        var ex = ExceptionFactory.NoConnectionAvailable(conn.UnderlyingMultiplexer, null, null);
         Assert.Null(ex.InnerException);
     }
 
@@ -42,7 +42,7 @@ public class ExceptionFactoryTests : TestBase
                 conn.GetServer(endpoint).SimulateConnectionFailure(SimulatedFailureType.All);
             }
 
-            var ex = ExceptionFactory.NoConnectionAvailable((conn as ConnectionMultiplexer)!, null, null);
+            var ex = ExceptionFactory.NoConnectionAvailable(conn.UnderlyingMultiplexer, null, null);
             var outer = Assert.IsType<RedisConnectionException>(ex);
             Assert.Equal(ConnectionFailureType.UnableToResolvePhysicalConnection, outer.FailureType);
             var inner = Assert.IsType<RedisConnectionException>(outer.InnerException);
@@ -68,7 +68,7 @@ public class ExceptionFactoryTests : TestBase
 
             conn.GetServer(conn.GetEndPoints()[0]).SimulateConnectionFailure(SimulatedFailureType.All);
 
-            var ex = ExceptionFactory.NoConnectionAvailable((conn as ConnectionMultiplexer)!, null, conn.GetServerSnapshot()[0]);
+            var ex = ExceptionFactory.NoConnectionAvailable(conn.UnderlyingMultiplexer, null, conn.GetServerSnapshot()[0]);
             Assert.IsType<RedisConnectionException>(ex);
             Assert.IsType<RedisConnectionException>(ex.InnerException);
             Assert.Equal(ex.InnerException, conn.GetServerSnapshot()[0].LastException);
@@ -88,7 +88,7 @@ public class ExceptionFactoryTests : TestBase
 
             conn.GetDatabase();
             conn.AllowConnect = false;
-            var ex = ExceptionFactory.NoConnectionAvailable((conn as ConnectionMultiplexer)!, null, null);
+            var ex = ExceptionFactory.NoConnectionAvailable(conn.UnderlyingMultiplexer, null, null);
             Assert.IsType<RedisConnectionException>(ex);
             Assert.Null(ex.InnerException);
         }
@@ -103,26 +103,35 @@ public class ExceptionFactoryTests : TestBase
     {
         try
         {
-            using var conn = (Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true, shared: false) as ConnectionMultiplexer)!;
+            using var conn = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true, shared: false);
 
             var server = GetServer(conn);
             conn.AllowConnect = false;
             var msg = Message.Create(-1, CommandFlags.None, RedisCommand.PING);
-            var rawEx = ExceptionFactory.Timeout(conn, "Test Timeout", msg, new ServerEndPoint(conn, server.EndPoint));
+            var rawEx = ExceptionFactory.Timeout(conn.UnderlyingMultiplexer, "Test Timeout", msg, new ServerEndPoint(conn.UnderlyingMultiplexer, server.EndPoint));
             var ex = Assert.IsType<RedisTimeoutException>(rawEx);
-            Writer.WriteLine("Exception: " + ex.Message);
+            Log("Exception: " + ex.Message);
 
-            // Example format: "Test Timeout, command=PING, inst: 0, qu: 0, qs: 0, aw: False, in: 0, in-pipe: 0, out-pipe: 0, serverEndpoint: 127.0.0.1:6379, mgr: 10 of 10 available, clientName: TimeoutException, IOCP: (Busy=0,Free=1000,Min=8,Max=1000), WORKER: (Busy=2,Free=2045,Min=8,Max=2047), v: 2.1.0 (Please take a look at this article for some common client-side issues that can cause timeouts: https://stackexchange.github.io/StackExchange.Redis/Timeouts)";
+            // Example format: "Test Timeout, command=PING, inst: 0, qu: 0, qs: 0, aw: False, in: 0, in-pipe: 0, out-pipe: 0, last-in: 0, cur-in: 0, serverEndpoint: 127.0.0.1:6379, mgr: 10 of 10 available, clientName: TimeoutException, IOCP: (Busy=0,Free=1000,Min=8,Max=1000), WORKER: (Busy=2,Free=2045,Min=8,Max=2047), v: 2.1.0 (Please take a look at this article for some common client-side issues that can cause timeouts: https://stackexchange.github.io/StackExchange.Redis/Timeouts)";
             Assert.StartsWith("Test Timeout, command=PING", ex.Message);
             Assert.Contains("clientName: " + nameof(TimeoutException), ex.Message);
             // Ensure our pipe numbers are in place
-            Assert.Contains("inst: 0, qu: 0, qs: 0, aw: False, bw: Inactive, in: 0, in-pipe: 0, out-pipe: 0", ex.Message);
+            Assert.Contains("inst: 0, qu: 0, qs: 0, aw: False, bw: Inactive, in: 0, in-pipe: 0, out-pipe: 0, last-in: 0, cur-in: 0", ex.Message);
             Assert.Contains("mc: 1/1/0", ex.Message);
             Assert.Contains("serverEndpoint: " + server.EndPoint, ex.Message);
             Assert.Contains("IOCP: ", ex.Message);
             Assert.Contains("WORKER: ", ex.Message);
+            Assert.Contains("sync-ops: ", ex.Message);
+            Assert.Contains("async-ops: ", ex.Message);
+            Assert.Contains("conn-sec: n/a", ex.Message);
+            Assert.Contains("aoc: 1", ex.Message);
 #if NETCOREAPP
-                Assert.Contains("POOL: ", ex.Message);
+            // ...POOL: (Threads=33,QueuedItems=0,CompletedItems=5547,Timers=60)...
+            Assert.Contains("POOL: ", ex.Message);
+            Assert.Contains("Threads=", ex.Message);
+            Assert.Contains("QueuedItems=", ex.Message);
+            Assert.Contains("CompletedItems=", ex.Message);
+            Assert.Contains("Timers=", ex.Message);
 #endif
             Assert.DoesNotContain("Unspecified/", ex.Message);
             Assert.EndsWith(" (Please take a look at this article for some common client-side issues that can cause timeouts: https://stackexchange.github.io/StackExchange.Redis/Timeouts)", ex.Message);
@@ -181,21 +190,21 @@ public class ExceptionFactoryTests : TestBase
                 var msg = Message.Create(-1, CommandFlags.None, RedisCommand.PING);
                 var rawEx = ExceptionFactory.NoConnectionAvailable(conn, msg, new ServerEndPoint(conn, server.EndPoint));
                 var ex = Assert.IsType<RedisConnectionException>(rawEx);
-                Writer.WriteLine("Exception: " + ex.Message);
+                Log("Exception: " + ex.Message);
 
-                // Example format: "Exception: No connection is active/available to service this operation: PING, inst: 0, qu: 0, qs: 0, aw: False, in: 0, in-pipe: 0, out-pipe: 0, serverEndpoint: 127.0.0.1:6379, mc: 1/1/0, mgr: 10 of 10 available, clientName: NoConnectionException, IOCP: (Busy=0,Free=1000,Min=8,Max=1000), WORKER: (Busy=2,Free=2045,Min=8,Max=2047), Local-CPU: 100%, v: 2.1.0.5";
+                // Example format: "Exception: No connection is active/available to service this operation: PING, inst: 0, qu: 0, qs: 0, aw: False, in: 0, in-pipe: 0, out-pipe: 0, last-in: 0, cur-in: 0, serverEndpoint: 127.0.0.1:6379, mc: 1/1/0, mgr: 10 of 10 available, clientName: NoConnectionException, IOCP: (Busy=0,Free=1000,Min=8,Max=1000), WORKER: (Busy=2,Free=2045,Min=8,Max=2047), Local-CPU: 100%, v: 2.1.0.5";
                 Assert.StartsWith(messageStart, ex.Message);
 
                 // Ensure our pipe numbers are in place if they should be
                 if (hasDetail)
                 {
-                    Assert.Contains("inst: 0, qu: 0, qs: 0, aw: False, bw: Inactive, in: 0, in-pipe: 0, out-pipe: 0", ex.Message);
+                    Assert.Contains("inst: 0, qu: 0, qs: 0, aw: False, bw: Inactive, in: 0, in-pipe: 0, out-pipe: 0, last-in: 0, cur-in: 0", ex.Message);
                     Assert.Contains($"mc: {connCount}/{completeCount}/0", ex.Message);
                     Assert.Contains("serverEndpoint: " + server.EndPoint.ToString()?.Replace("Unspecified/", ""), ex.Message);
                 }
                 else
                 {
-                    Assert.DoesNotContain("inst: 0, qu: 0, qs: 0, aw: False, bw: Inactive, in: 0, in-pipe: 0, out-pipe: 0", ex.Message);
+                    Assert.DoesNotContain("inst: 0, qu: 0, qs: 0, aw: False, bw: Inactive, in: 0, in-pipe: 0, out-pipe: 0, last-in: 0, cur-in: 0", ex.Message);
                     Assert.DoesNotContain($"mc: {connCount}/{completeCount}/0", ex.Message);
                     Assert.DoesNotContain("serverEndpoint: " + server.EndPoint.ToString()?.Replace("Unspecified/", ""), ex.Message);
                 }
@@ -217,7 +226,7 @@ public class ExceptionFactoryTests : TestBase
         Assert.True(msg.IsPrimaryOnly());
         var rawEx = ExceptionFactory.NoConnectionAvailable(conn, msg, null);
         var ex = Assert.IsType<RedisConnectionException>(rawEx);
-        Writer.WriteLine("Exception: " + ex.Message);
+        Log("Exception: " + ex.Message);
 
         // Ensure a primary-only operation like SET gives the additional context
         Assert.StartsWith("No connection (requires writable - not eligible for replica) is active/available to service this operation: SET", ex.Message);
@@ -238,7 +247,7 @@ public class ExceptionFactoryTests : TestBase
         var resultBox = SimpleResultBox<string>.Create();
         message.SetSource(ResultProcessor.String, resultBox);
 
-        message.Fail(failType, null, "my annotation", conn as ConnectionMultiplexer);
+        message.Fail(failType, null, "my annotation", conn.UnderlyingMultiplexer);
 
         resultBox.GetResult(out var ex);
         Assert.NotNull(ex);

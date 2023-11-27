@@ -6,7 +6,9 @@ init:
 
 install:
 - cmd: >-
-    choco install dotnet-sdk --version 6.0.101
+    choco install dotnet-6.0-sdk
+
+    choco install dotnet-7.0-sdk
 
     cd tests\RedisConfigs\3.0.503
 
@@ -72,6 +74,7 @@ build_script:
 test: off
 artifacts:
 - path: .\.nupkgs\*.nupkg
+- path: '**\*.trx'
 
 deploy:
 - provider: NuGet

@@ -110,7 +110,7 @@ static void ParallelTasks(ConnectionMultiplexer connection)
 static void MassPublish(ConnectionMultiplexer connection)
 {
     var subscriber = connection.GetSubscriber();
-    Parallel.For(0, 1000, _ => subscriber.Publish("cache-events:cache-testing", "hey"));
+    Parallel.For(0, 1000, _ => subscriber.Publish(new RedisChannel("cache-events:cache-testing", RedisChannel.PatternMode.Literal), "hey"));
 }
 
 static string GetLibVersion()

@@ -5,6 +5,7 @@ using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using Pipelines.Sockets.Unofficial;
+using Pipelines.Sockets.Unofficial.Arenas;
 using static StackExchange.Redis.ConnectionMultiplexer;
 
 namespace StackExchange.Redis
@@ -17,7 +18,10 @@ namespace StackExchange.Redis
         private readonly ConcurrentDictionary<RedisChannel, Subscription> subscriptions = new();
 
         internal ConcurrentDictionary<RedisChannel, Subscription> GetSubscriptions() => subscriptions;
+        ConcurrentDictionary<RedisChannel, Subscription> IInternalConnectionMultiplexer.GetSubscriptions() => GetSubscriptions();
+
         internal int GetSubscriptionsCount() => subscriptions.Count;
+        int IInternalConnectionMultiplexer.GetSubscriptionsCount() => GetSubscriptionsCount();
 
         internal Subscription GetOrAddSubscription(in RedisChannel channel, CommandFlags flags)
         {
@@ -92,6 +96,24 @@ namespace StackExchange.Redis
             }
         }
 
+        internal void OnMessage(in RedisChannel subscription, in RedisChannel channel, Sequence<RawResult> payload)
+        {
+            if (payload.IsSingleSegment)
+            {
+                foreach (var message in payload.FirstSpan)
+                {
+                    OnMessage(subscription, channel, message.AsRedisValue());
+                }
+            }
+            else
+            {
+                foreach (var message in payload)
+                {
+                    OnMessage(subscription, channel, message.AsRedisValue());
+                }
+            }
+        }
+
         /// <summary>
         /// Updates all subscriptions re-evaluating their state.
         /// This clears the current server if it's not connected, prepping them to reconnect.
@@ -159,7 +181,7 @@ namespace StackExchange.Redis
             /// </summary>
             internal Message GetMessage(RedisChannel channel, SubscriptionAction action, CommandFlags flags, bool internalCall)
             {
-                var isPattern = channel.IsPatternBased;
+                var isPattern = channel._isPatternBased;
                 var command = action switch
                 {
                     SubscriptionAction.Subscribe when isPattern => RedisCommand.PSUBSCRIBE,
@@ -307,7 +329,7 @@ namespace StackExchange.Redis
             bool usePing = false;
             if (multiplexer.CommandMap.IsAvailable(RedisCommand.PING))
             {
-                try { usePing = GetFeatures(default, flags, out _).PingOnSubscriber; }
+                try { usePing = GetFeatures(default, flags, RedisCommand.PING, out _).PingOnSubscriber; }
                 catch { }
             }
 

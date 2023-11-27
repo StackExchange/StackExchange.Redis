@@ -2,7 +2,7 @@ StackExchange.Redis
 ===================
 
 - [Release Notes](ReleaseNotes)
-- [API Browser (via furget.org)](https://www.fuget.org/packages/StackExchange.Redis/)
+- [API Browser (via fuget.org)](https://www.fuget.org/packages/StackExchange.Redis/)
 
 ## Overview
 
@@ -39,6 +39,7 @@ Documentation
 - [Transactions](Transactions) - how atomic transactions work in redis
 - [Events](Events) - the events available for logging / information purposes
 - [Pub/Sub Message Order](PubSubOrder) - advice on sequential and concurrent processing
+- [Using RESP3](Resp3) - information on using RESP3
 - [ServerMaintenanceEvent](ServerMaintenanceEvent) - how to listen and prepare for hosted server maintenance (e.g. Azure Cache for Redis)
 - [Streams](Streams) - how to use the Stream data type
 - [Where are `KEYS` / `SCAN` / `FLUSH*`?](KeysScan) - how to use server-based commands

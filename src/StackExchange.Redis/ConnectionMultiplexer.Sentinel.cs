@@ -1,11 +1,12 @@
-﻿using System;
+﻿using Microsoft.Extensions.Logging;
+using Pipelines.Sockets.Unofficial;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
-using Pipelines.Sockets.Unofficial;
 
 namespace StackExchange.Redis;
 
@@ -19,8 +20,8 @@ public partial class ConnectionMultiplexer
     /// <summary>
     /// Initializes the connection as a Sentinel connection and adds the necessary event handlers to track changes to the managed primaries.
     /// </summary>
-    /// <param name="logProxy">The writer to log to, if any.</param>
-    internal void InitializeSentinel(LogProxy? logProxy)
+    /// <param name="log">The <see cref="ILogger"/> to log to, if any.</param>
+    internal void InitializeSentinel(ILogger? log)
     {
         if (ServerSelectionStrategy.ServerType != ServerType.Sentinel)
         {
@@ -30,9 +31,9 @@ public partial class ConnectionMultiplexer
         // Subscribe to sentinel change events
         ISubscriber sub = GetSubscriber();
 
-        if (sub.SubscribedEndpoint("+switch-master") == null)
+        if (sub.SubscribedEndpoint(RedisChannel.Literal("+switch-master")) == null)
         {
-            sub.Subscribe("+switch-master", (__, message) =>
+            sub.Subscribe(RedisChannel.Literal("+switch-master"), (__, message) =>
             {
                 string[] messageParts = ((string)message!).Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
                 // We don't care about the result of this - we're just trying
@@ -65,12 +66,12 @@ public partial class ConnectionMultiplexer
         // we need to reconfigure to make sure we still have a subscription to the +switch-master channel
         ConnectionFailed += (sender, e) =>
             // Reconfigure to get subscriptions back online
-            ReconfigureAsync(first: false, reconfigureAll: true, logProxy, e.EndPoint, "Lost sentinel connection", false).Wait();
+            ReconfigureAsync(first: false, reconfigureAll: true, log, e.EndPoint, "Lost sentinel connection", false).Wait();
 
         // Subscribe to new sentinels being added
-        if (sub.SubscribedEndpoint("+sentinel") == null)
+        if (sub.SubscribedEndpoint(RedisChannel.Literal("+sentinel")) == null)
         {
-            sub.Subscribe("+sentinel", (_, message) =>
+            sub.Subscribe(RedisChannel.Literal("+sentinel"), (_, message) =>
             {
                 string[] messageParts = ((string)message!).Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
                 UpdateSentinelAddressList(messageParts[0]);
@@ -142,12 +143,12 @@ public partial class ConnectionMultiplexer
     /// for the specified <see cref="ConfigurationOptions.ServiceName"/> in the config and returns a managed connection to the current primary server.
     /// </summary>
     /// <param name="configuration">The configuration options to use for this multiplexer.</param>
-    /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
-    private static async Task<ConnectionMultiplexer> SentinelPrimaryConnectAsync(ConfigurationOptions configuration, TextWriter? log = null)
+    /// <param name="writer">The <see cref="TextWriter"/> to log to.</param>
+    private static async Task<ConnectionMultiplexer> SentinelPrimaryConnectAsync(ConfigurationOptions configuration, TextWriter? writer = null)
     {
-        var sentinelConnection = await SentinelConnectAsync(configuration, log).ForAwait();
+        var sentinelConnection = await SentinelConnectAsync(configuration, writer).ForAwait();
 
-        var muxer = sentinelConnection.GetSentinelMasterConnection(configuration, log);
+        var muxer = sentinelConnection.GetSentinelMasterConnection(configuration, writer);
         // Set reference to sentinel connection so that we can dispose it
         muxer.sentinelConnection = sentinelConnection;
 
@@ -181,6 +182,7 @@ public partial class ConnectionMultiplexer
 
         bool success = false;
         ConnectionMultiplexer? connection = null;
+        EndPointCollection? endpoints = null;
 
         var sw = ValueStopwatch.StartNew();
         do
@@ -206,27 +208,29 @@ public partial class ConnectionMultiplexer
                 replicaEndPoints = GetReplicasForService(serviceName);
             }
 
+            endpoints = config.EndPoints.Clone();
+
             // Replace the primary endpoint, if we found another one
             // If not, assume the last state is the best we have and minimize the race
-            if (config.EndPoints.Count == 1)
+            if (endpoints.Count == 1)
             {
-                config.EndPoints[0] = newPrimaryEndPoint;
+                endpoints[0] = newPrimaryEndPoint;
             }
             else
             {
-                config.EndPoints.Clear();
-                config.EndPoints.TryAdd(newPrimaryEndPoint);
+                endpoints.Clear();
+                endpoints.TryAdd(newPrimaryEndPoint);
             }
 
             if (replicaEndPoints is not null)
             {
                 foreach (var replicaEndPoint in replicaEndPoints)
                 {
-                    config.EndPoints.TryAdd(replicaEndPoint);
+                    endpoints.TryAdd(replicaEndPoint);
                 }
             }
 
-            connection = ConnectImpl(config, log);
+            connection = ConnectImpl(config, log, endpoints: endpoints);
 
             // verify role is primary according to:
             // https://redis.io/topics/sentinel-clients
@@ -257,7 +261,7 @@ public partial class ConnectionMultiplexer
         }
 
         // Perform the initial switchover
-        SwitchPrimary(EndPoints[0], connection, log);
+        SwitchPrimary(endpoints[0], connection, log);
 
         return connection;
     }
@@ -346,9 +350,8 @@ public partial class ConnectionMultiplexer
     }
 
     internal EndPoint? GetConfiguredPrimaryForService(string serviceName) =>
-        GetServerSnapshot()
-            .ToArray()
-            .Where(s => s.ServerType == ServerType.Sentinel)
+        _serverSnapshot // same as GetServerSnapshot, but without forcing span
+            .Where(static s => s.ServerType == ServerType.Sentinel)
             .AsParallel()
             .Select(s =>
             {
@@ -358,9 +361,8 @@ public partial class ConnectionMultiplexer
             .FirstOrDefault(r => r != null);
 
     internal EndPoint[]? GetReplicasForService(string serviceName) =>
-        GetServerSnapshot()
-            .ToArray()
-            .Where(s => s.ServerType == ServerType.Sentinel)
+        _serverSnapshot // same as GetServerSnapshot, but without forcing span
+            .Where(static s => s.ServerType == ServerType.Sentinel)
             .AsParallel()
             .Select(s =>
             {
@@ -374,57 +376,52 @@ public partial class ConnectionMultiplexer
     /// </summary>
     /// <param name="switchBlame">The endpoint responsible for the switch.</param>
     /// <param name="connection">The connection that should be switched over to a new primary endpoint.</param>
-    /// <param name="log">The writer to log to, if any.</param>
-    internal void SwitchPrimary(EndPoint? switchBlame, ConnectionMultiplexer connection, TextWriter? log = null)
+    /// <param name="writer">The writer to log to, if any.</param>
+    internal void SwitchPrimary(EndPoint? switchBlame, ConnectionMultiplexer connection, TextWriter? writer = null)
     {
-        if (log == null) log = TextWriter.Null;
-
-        using (var logProxy = LogProxy.TryCreate(log))
+        var logger = Logger.With(writer);
+        if (connection.RawConfig.ServiceName is not string serviceName)
         {
-            if (connection.RawConfig.ServiceName is not string serviceName)
+            logger?.LogInformation("Service name not defined.");
+            return;
+        }
+
+        // Get new primary - try twice
+        EndPoint newPrimaryEndPoint = GetConfiguredPrimaryForService(serviceName)
+                                    ?? GetConfiguredPrimaryForService(serviceName)
+                                    ?? throw new RedisConnectionException(ConnectionFailureType.UnableToConnect,
+                                        $"Sentinel: Failed connecting to switch primary for service: {serviceName}");
+
+        connection.currentSentinelPrimaryEndPoint = newPrimaryEndPoint;
+
+        if (!connection.servers.Contains(newPrimaryEndPoint))
+        {
+            EndPoint[]? replicaEndPoints = GetReplicasForService(serviceName)
+                                        ?? GetReplicasForService(serviceName);
+
+            connection.servers.Clear();
+            connection.EndPoints.Clear();
+            connection.EndPoints.TryAdd(newPrimaryEndPoint);
+            if (replicaEndPoints is not null)
             {
-                logProxy?.WriteLine("Service name not defined.");
-                return;
-            }
-
-            // Get new primary - try twice
-            EndPoint newPrimaryEndPoint = GetConfiguredPrimaryForService(serviceName)
-                                        ?? GetConfiguredPrimaryForService(serviceName)
-                                        ?? throw new RedisConnectionException(ConnectionFailureType.UnableToConnect,
-                                            $"Sentinel: Failed connecting to switch primary for service: {serviceName}");
-
-            connection.currentSentinelPrimaryEndPoint = newPrimaryEndPoint;
-
-            if (!connection.servers.Contains(newPrimaryEndPoint))
-            {
-                EndPoint[]? replicaEndPoints = GetReplicasForService(serviceName)
-                                            ?? GetReplicasForService(serviceName);
-
-                connection.servers.Clear();
-                connection.EndPoints.Clear();
-                connection.EndPoints.TryAdd(newPrimaryEndPoint);
-                if (replicaEndPoints is not null)
+                foreach (var replicaEndPoint in replicaEndPoints)
                 {
-                    foreach (var replicaEndPoint in replicaEndPoints)
-                    {
-                        connection.EndPoints.TryAdd(replicaEndPoint);
-                    }
+                    connection.EndPoints.TryAdd(replicaEndPoint);
                 }
-                Trace($"Switching primary to {newPrimaryEndPoint}");
-                // Trigger a reconfigure
-                connection.ReconfigureAsync(first: false, reconfigureAll: false, logProxy, switchBlame,
-                    $"Primary switch {serviceName}", false, CommandFlags.PreferMaster).Wait();
-
-                UpdateSentinelAddressList(serviceName);
             }
+            Trace($"Switching primary to {newPrimaryEndPoint}");
+            // Trigger a reconfigure
+            connection.ReconfigureAsync(first: false, reconfigureAll: false, logger, switchBlame,
+                $"Primary switch {serviceName}", false, CommandFlags.PreferMaster).Wait();
+
+            UpdateSentinelAddressList(serviceName);
         }
     }
 
     internal void UpdateSentinelAddressList(string serviceName)
     {
-        var firstCompleteRequest = GetServerSnapshot()
-                                    .ToArray()
-                                    .Where(s => s.ServerType == ServerType.Sentinel)
+        var firstCompleteRequest = _serverSnapshot // same as GetServerSnapshot, but without forcing span
+                                    .Where(static s => s.ServerType == ServerType.Sentinel)
                                     .AsParallel()
                                     .Select(s =>
                                     {

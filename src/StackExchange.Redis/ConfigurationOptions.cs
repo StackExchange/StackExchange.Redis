@@ -10,6 +10,7 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using StackExchange.Redis.Configuration;
 
 namespace StackExchange.Redis
@@ -46,8 +47,11 @@ namespace StackExchange.Redis
 
             internal static Version ParseVersion(string key, string value)
             {
-                if (!System.Version.TryParse(value, out Version? tmp)) throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' requires a version value; the value '{value}' is not recognised.");
-                return tmp;
+                if (Format.TryParseVersion(value, out Version? tmp))
+                {
+                    return tmp;
+                }
+                throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' requires a version value; the value '{value}' is not recognised.");
             }
 
             internal static Proxy ParseProxy(string key, string value)
@@ -64,6 +68,12 @@ namespace StackExchange.Redis
                 if (!Enum.TryParse(value, true, out SslProtocols tmp)) throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' requires an SslProtocol value (multiple values separated by '|'); the value '{value}' is not recognised.");
 
                 return tmp;
+            }
+
+            internal static RedisProtocol ParseRedisProtocol(string key, string value)
+            {
+                if (TryParseRedisProtocol(value, out var protocol)) return protocol;
+                throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' requires a RedisProtocol value or a known protocol version number; the value '{value}' is not recognised.");
             }
 
             internal static void Unknown(string key) =>
@@ -96,7 +106,10 @@ namespace StackExchange.Redis
                 TieBreaker = "tiebreaker",
                 Version = "version",
                 WriteBuffer = "writeBuffer",
-                CheckCertificateRevocation = "checkCertificateRevocation";
+                CheckCertificateRevocation = "checkCertificateRevocation",
+                Tunnel = "tunnel",
+                SetClientLibrary = "setlib",
+                Protocol = "protocol";
 
             private static readonly Dictionary<string, string> normalizedOptions = new[]
             {
@@ -125,7 +138,8 @@ namespace StackExchange.Redis
                 TieBreaker,
                 Version,
                 WriteBuffer,
-                CheckCertificateRevocation
+                CheckCertificateRevocation,
+                Protocol,
             }.ToDictionary(x => x, StringComparer.OrdinalIgnoreCase);
 
             public static string TryNormalize(string value)
@@ -141,9 +155,11 @@ namespace StackExchange.Redis
         private DefaultOptionsProvider? defaultOptions;
 
         private bool? allowAdmin, abortOnConnectFail, resolveDns, ssl, checkCertificateRevocation,
-                      includeDetailInExceptions, includePerformanceCountersInExceptions;
+                      includeDetailInExceptions, includePerformanceCountersInExceptions, setClientLibrary;
 
-        private string? tieBreaker, sslHost, configChannel;
+        private string? tieBreaker, sslHost, configChannel, user, password;
+
+        private TimeSpan? heartbeatInterval;
 
         private CommandMap? commandMap;
 
@@ -156,6 +172,8 @@ namespace StackExchange.Redis
         private IReconnectRetryPolicy? reconnectRetryPolicy;
 
         private BacklogPolicy? backlogPolicy;
+
+        private ILoggerFactory? loggerFactory;
 
         /// <summary>
         /// A LocalCertificateSelectionCallback delegate responsible for selecting the certificate used for authentication; note
@@ -176,7 +194,7 @@ namespace StackExchange.Redis
         /// </summary>
         public DefaultOptionsProvider Defaults
         {
-            get => defaultOptions ??= DefaultOptionsProvider.GetForEndpoints(EndPoints);
+            get => defaultOptions ??= DefaultOptionsProvider.GetProvider(EndPoints);
             set => defaultOptions = value;
         }
 
@@ -227,6 +245,24 @@ namespace StackExchange.Redis
             get => Ssl;
             set => Ssl = value;
         }
+
+        /// <summary>
+        /// Gets or sets whether the library should identify itself by library-name/version when possible.
+        /// </summary>
+        public bool SetClientLibrary
+        {
+            get => setClientLibrary ?? Defaults.SetClientLibrary;
+            set => setClientLibrary = value;
+        }
+
+
+        /// <summary>
+        /// Gets or sets the library name to use for CLIENT SETINFO lib-name calls to Redis during handshake.
+        /// Defaults to "SE.Redis".
+        /// </summary>
+        /// <remarks>If the value is null, empty or whitespace, then the value from the options-provideer is used;
+        /// to disable the library name feature, use <see cref="SetClientLibrary"/> instead.</remarks>
+        public string? LibraryName { get; set; }
 
         /// <summary>
         /// Automatically encodes and decodes channels.
@@ -367,10 +403,29 @@ namespace StackExchange.Redis
         public EndPointCollection EndPoints { get; init; } = new EndPointCollection();
 
         /// <summary>
+        /// Controls how often the connection heartbeats. A heartbeat includes:
+        /// - Evaluating if any messages have timed out
+        /// - Evaluating connection status (checking for failures)
+        /// - Sending a server message to keep the connection alive if needed
+        /// </summary>
+        /// <remarks>
+        /// This defaults to 1000 milliseconds and should not be changed for most use cases.
+        /// If for example you want to evaluate whether commands have violated the <see cref="AsyncTimeout"/> at a lower fidelity
+        /// than 1000 milliseconds, you could lower this value.
+        /// Be aware setting this very low incurs additional overhead of evaluating the above more often.
+        /// </remarks>
+        public TimeSpan HeartbeatInterval
+        {
+            get => heartbeatInterval ?? Defaults.HeartbeatInterval;
+            set => heartbeatInterval = value;
+        }
+
+        /// <summary>
         /// Use ThreadPriority.AboveNormal for SocketManager reader and writer threads (true by default).
         /// If <see langword="false"/>, <see cref="ThreadPriority.Normal"/> will be used.
         /// </summary>
         [Obsolete($"This setting no longer has any effect, please use {nameof(SocketManager.SocketManagerOptions)}.{nameof(SocketManager.SocketManagerOptions.UseHighPrioritySocketThreads)} instead - this setting will be removed in 3.0.")]
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         public bool HighPrioritySocketThreads
         {
             get => false;
@@ -409,19 +464,38 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// The user to use to authenticate with the server.
+        /// The <see cref="ILoggerFactory"/> to get loggers for connection events.
+        /// Note: changes here only affect <see cref="ConnectionMultiplexer"/>s created after.
         /// </summary>
-        public string? User { get; set; }
+        public ILoggerFactory? LoggerFactory
+        {
+            get => loggerFactory ?? Defaults.LoggerFactory;
+            set => loggerFactory = value;
+        }
+
+        /// <summary>
+        /// The username to use to authenticate with the server.
+        /// </summary>
+        public string? User
+        {
+            get => user ?? Defaults.User;
+            set => user = value;
+        }
 
         /// <summary>
         /// The password to use to authenticate with the server.
         /// </summary>
-        public string? Password { get; set; }
+        public string? Password
+        {
+            get => password ?? Defaults.Password;
+            set => password = value;
+        }
 
         /// <summary>
         /// Specifies whether asynchronous operations should be invoked in a way that guarantees their original delivery order.
         /// </summary>
         [Obsolete("Not supported; if you require ordered pub/sub, please see " + nameof(ChannelMessageQueue) + " - this will be removed in 3.0.", false)]
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         public bool PreserveAsyncOrder
         {
             get => false;
@@ -469,6 +543,7 @@ namespace StackExchange.Redis
         /// Specifies the time in milliseconds that the system should allow for responses before concluding that the socket is unhealthy.
         /// </summary>
         [Obsolete("This setting no longer has any effect, and should not be used - will be removed in 3.0.")]
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         public int ResponseTimeout
         {
             get => 0;
@@ -489,6 +564,14 @@ namespace StackExchange.Redis
         /// Modifying it afterwards will have no effect on already-created multiplexers.
         /// </remarks>
         public SocketManager? SocketManager { get; set; }
+
+#if NETCOREAPP3_1_OR_GREATER
+        /// <summary>
+        /// A <see cref="SslClientAuthenticationOptions"/> provider for a given host, for custom TLS connection options.
+        /// Note: this overrides *all* other TLS and certificate settings, only for advanced use cases.
+        /// </summary>
+        public Func<string, SslClientAuthenticationOptions>? SslClientAuthenticationOptions { get; set; }
+#endif
 
         /// <summary>
         /// Indicates whether the connection should be encrypted.
@@ -535,6 +618,7 @@ namespace StackExchange.Redis
         /// The size of the output buffer to use.
         /// </summary>
         [Obsolete("This setting no longer has any effect, and should not be used - will be removed in 3.0.")]
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         public int WriteBuffer
         {
             get => 0;
@@ -595,8 +679,8 @@ namespace StackExchange.Redis
             allowAdmin = allowAdmin,
             defaultVersion = defaultVersion,
             connectTimeout = connectTimeout,
-            User = User,
-            Password = Password,
+            user = user,
+            password = password,
             tieBreaker = tieBreaker,
             ssl = ssl,
             sslHost = sslHost,
@@ -619,6 +703,14 @@ namespace StackExchange.Redis
             checkCertificateRevocation = checkCertificateRevocation,
             BeforeSocketConnect = BeforeSocketConnect,
             EndPoints = EndPoints.Clone(),
+            LoggerFactory = LoggerFactory,
+#if NETCOREAPP3_1_OR_GREATER
+            SslClientAuthenticationOptions = SslClientAuthenticationOptions,
+#endif
+            Tunnel = Tunnel,
+            setClientLibrary = setClientLibrary,
+            LibraryName = LibraryName,
+            Protocol = Protocol,
         };
 
         /// <summary>
@@ -682,8 +774,8 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.AllowAdmin, allowAdmin);
             Append(sb, OptionKeys.Version, defaultVersion);
             Append(sb, OptionKeys.ConnectTimeout, connectTimeout);
-            Append(sb, OptionKeys.User, User);
-            Append(sb, OptionKeys.Password, (includePassword || string.IsNullOrEmpty(Password)) ? Password : "*****");
+            Append(sb, OptionKeys.User, user);
+            Append(sb, OptionKeys.Password, (includePassword || string.IsNullOrEmpty(password)) ? password : "*****");
             Append(sb, OptionKeys.TieBreaker, tieBreaker);
             Append(sb, OptionKeys.Ssl, ssl);
             Append(sb, OptionKeys.SslProtocols, SslProtocols?.ToString().Replace(',', '|'));
@@ -698,8 +790,21 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.ConfigCheckSeconds, configCheckSeconds);
             Append(sb, OptionKeys.ResponseTimeout, responseTimeout);
             Append(sb, OptionKeys.DefaultDatabase, DefaultDatabase);
+            Append(sb, OptionKeys.SetClientLibrary, setClientLibrary);
+            Append(sb, OptionKeys.Protocol, FormatProtocol(Protocol));
+            if (Tunnel is { IsInbuilt: true } tunnel)
+            {
+                Append(sb, OptionKeys.Tunnel, tunnel.ToString());
+            }
             commandMap?.AppendDeltas(sb);
             return sb.ToString();
+
+            static string? FormatProtocol(RedisProtocol? protocol) => protocol switch {
+                null => null,
+                RedisProtocol.Resp2 => "resp2",
+                RedisProtocol.Resp3 => "resp3",
+                _ => protocol.GetValueOrDefault().ToString(),
+            };
         }
 
         private static void Append(StringBuilder sb, object value)
@@ -729,9 +834,9 @@ namespace StackExchange.Redis
 
         private void Clear()
         {
-            ClientName = ServiceName = User = Password = tieBreaker = sslHost = configChannel = null;
+            ClientName = ServiceName = user = password = tieBreaker = sslHost = configChannel = null;
             keepAlive = syncTimeout = asyncTimeout = connectTimeout = connectRetry = configCheckSeconds = DefaultDatabase = null;
-            allowAdmin = abortOnConnectFail = resolveDns = ssl = null;
+            allowAdmin = abortOnConnectFail = resolveDns = ssl = setClientLibrary = null;
             SslProtocols = null;
             defaultVersion = null;
             EndPoints.Clear();
@@ -741,6 +846,7 @@ namespace StackExchange.Redis
             CertificateValidation = null;
             ChannelPrefix = default;
             SocketManager = null;
+            Tunnel = null;
         }
 
         object ICloneable.Clone() => Clone();
@@ -802,7 +908,7 @@ namespace StackExchange.Redis
                             ClientName = value;
                             break;
                         case OptionKeys.ChannelPrefix:
-                            ChannelPrefix = value;
+                            ChannelPrefix = RedisChannel.Literal(value);
                             break;
                         case OptionKeys.ConfigChannel:
                             ConfigurationChannel = value;
@@ -823,10 +929,10 @@ namespace StackExchange.Redis
                             DefaultVersion = OptionKeys.ParseVersion(key, value);
                             break;
                         case OptionKeys.User:
-                            User = value;
+                            user = value;
                             break;
                         case OptionKeys.Password:
-                            Password = value;
+                            password = value;
                             break;
                         case OptionKeys.TieBreaker:
                             TieBreaker = value;
@@ -845,6 +951,37 @@ namespace StackExchange.Redis
                             break;
                         case OptionKeys.SslProtocols:
                             SslProtocols = OptionKeys.ParseSslProtocols(key, value);
+                            break;
+                        case OptionKeys.SetClientLibrary:
+                            SetClientLibrary = OptionKeys.ParseBoolean(key, value);
+                            break;
+                        case OptionKeys.Tunnel:
+                            if (value.IsNullOrWhiteSpace())
+                            {
+                                Tunnel = null;
+                            }
+                            else
+                            {
+                                // For backwards compatibility with `http:address_with_port`.
+                                if (value.StartsWith("http:") && !value.StartsWith("http://"))
+                                {
+                                    value = value.Insert(5, "//");
+                                }
+
+                                var uri = new Uri(value, UriKind.Absolute);
+                                if (uri.Scheme != "http")
+                                {
+                                    throw new ArgumentException("Tunnel cannot be parsed: " + value);
+                                }
+                                if (!Format.TryParseEndPoint($"{uri.Host}:{uri.Port}", out var ep))
+                                {
+                                    throw new ArgumentException("HTTP tunnel cannot be parsed: " + value);
+                                }
+                                Tunnel = Tunnel.HttpProxy(ep);
+                            }
+                            break;
+                        case OptionKeys.Protocol:
+                            Protocol = OptionKeys.ParseRedisProtocol(key, value);
                             break;
                         // Deprecated options we ignore...
                         case OptionKeys.HighPrioritySocketThreads:
@@ -882,6 +1019,64 @@ namespace StackExchange.Redis
                 CommandMap = CommandMap.Create(map);
             }
             return this;
+        }
+
+        /// <summary>
+        /// Allows custom transport implementations, such as http-tunneling via a proxy.
+        /// </summary>
+        public Tunnel? Tunnel { get; set; }
+
+        /// <summary>
+        /// Specify the redis protocol type
+        /// </summary>
+        public RedisProtocol? Protocol { get; set; }
+
+        internal bool TryResp3()
+        {
+            // note: deliberately leaving the IsAvailable duplicated to use short-circuit
+
+            //if (Protocol is null)
+            //{
+            //    // if not specified, lean on the server version and whether HELLO is available
+            //    return new RedisFeatures(DefaultVersion).Resp3 && CommandMap.IsAvailable(RedisCommand.HELLO);
+            //}
+            //else
+            // ^^^ left for context; originally our intention was to auto-enable RESP3 by default *if* the server version
+            // is >= 6; however, it turns out (see extensive conversation here https://github.com/StackExchange/StackExchange.Redis/pull/2396)
+            // that tangential undocumented API breaks were made at the same time; this means that even if we fix every
+            // edge case in the library itself, the break is still visible to external callers via Execute[Async]; with an
+            // abundance of caution, we are therefore making RESP3 explicit opt-in only for now; we may revisit this in a major
+            {
+                return Protocol.GetValueOrDefault() >= RedisProtocol.Resp3 && CommandMap.IsAvailable(RedisCommand.HELLO);
+            }
+        }
+
+        internal static bool TryParseRedisProtocol(string? value, out RedisProtocol protocol)
+        {
+            // accept raw integers too, but only trust them if we recognize them
+            // (note we need to do this before enums, because Enum.TryParse will
+            // accept integers as the raw value, which is not what we want here)
+            if (value is not null)
+            {
+                if (Format.TryParseInt32(value, out int i32))
+                {
+                    switch (i32)
+                    {
+                        case 2:
+                            protocol = RedisProtocol.Resp2;
+                            return true;
+                        case 3:
+                            protocol = RedisProtocol.Resp3;
+                            return true;
+                    }
+                }
+                else
+                {
+                    if (Enum.TryParse(value, true, out protocol)) return true;
+                }
+            }
+            protocol = default;
+            return false;
         }
     }
 }

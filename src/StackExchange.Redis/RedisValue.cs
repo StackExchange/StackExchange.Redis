@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Buffers;
 using System.Buffers.Text;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -107,8 +108,11 @@ namespace StackExchange.Redis
         public static RedisValue Null { get; } = new RedisValue(0, default, null);
 
         /// <summary>
-        /// Indicates whether the value is a primitive integer (signed or unsigned).
+        /// Indicates whether the **underlying** value is a primitive integer (signed or unsigned); this is **not**
+        /// the same as whether the value can be *treated* as an integer - see <seealso cref="TryParse(out int)"/>
+        /// and <seealso cref="TryParse(out long)"/>, which is usually the more appropriate test.
         /// </summary>
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Advanced)] // hide it, because this *probably* isn't what callers need
         public bool IsInteger => _objectOrSentinel == Sentinel_SignedInteger || _objectOrSentinel == Sentinel_UnsignedInteger;
 
         /// <summary>
@@ -173,7 +177,7 @@ namespace StackExchange.Redis
             StorageType xType = x.Type, yType = y.Type;
 
             if (xType == StorageType.Null) return yType == StorageType.Null;
-            if (xType == StorageType.Null) return false;
+            if (yType == StorageType.Null) return false;
 
             if (xType == yType)
             {
@@ -333,6 +337,9 @@ namespace StackExchange.Redis
             StorageType.Null => 0,
             StorageType.Raw => _memory.Length,
             StorageType.String => Encoding.UTF8.GetByteCount((string)_objectOrSentinel!),
+            StorageType.Int64 => Format.MeasureInt64(OverlappedValueInt64),
+            StorageType.UInt64 => Format.MeasureUInt64(OverlappedValueUInt64),
+            StorageType.Double => Format.MeasureDouble(OverlappedValueDouble),
             _ => throw new InvalidOperationException("Unable to compute length of type: " + Type),
         };
 
@@ -695,28 +702,28 @@ namespace StackExchange.Redis
         /// Converts the <see cref="RedisValue"/> to a <see cref="T:Nullable{double}"/>.
         /// </summary>
         /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
-        public static explicit operator double? (RedisValue value)
+        public static explicit operator double?(RedisValue value)
             => value.IsNull ? (double?)null : (double)value;
 
         /// <summary>
         /// Converts the <see cref="RedisValue"/> to a <see cref="T:Nullable{float}"/>.
         /// </summary>
         /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
-        public static explicit operator float? (RedisValue value)
+        public static explicit operator float?(RedisValue value)
             => value.IsNull ? (float?)null : (float)value;
 
         /// <summary>
         /// Converts the <see cref="RedisValue"/> to a <see cref="T:Nullable{decimal}"/>.
         /// </summary>
         /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
-        public static explicit operator decimal? (RedisValue value)
+        public static explicit operator decimal?(RedisValue value)
             => value.IsNull ? (decimal?)null : (decimal)value;
 
         /// <summary>
         /// Converts the <see cref="RedisValue"/> to a <see cref="T:Nullable{long}"/>.
         /// </summary>
         /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
-        public static explicit operator long? (RedisValue value)
+        public static explicit operator long?(RedisValue value)
             => value.IsNull ? (long?)null : (long)value;
 
         /// <summary>
@@ -724,14 +731,14 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
         [CLSCompliant(false)]
-        public static explicit operator ulong? (RedisValue value)
+        public static explicit operator ulong?(RedisValue value)
             => value.IsNull ? (ulong?)null : (ulong)value;
 
         /// <summary>
         /// Converts the <see cref="RedisValue"/> to a <see cref="T:Nullable{int}"/>.
         /// </summary>
         /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
-        public static explicit operator int? (RedisValue value)
+        public static explicit operator int?(RedisValue value)
             => value.IsNull ? (int?)null : (int)value;
 
         /// <summary>
@@ -739,21 +746,21 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
         [CLSCompliant(false)]
-        public static explicit operator uint? (RedisValue value)
+        public static explicit operator uint?(RedisValue value)
             => value.IsNull ? (uint?)null : (uint)value;
 
         /// <summary>
         /// Converts the <see cref="RedisValue"/> to a <see cref="T:Nullable{bool}"/>.
         /// </summary>
         /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
-        public static explicit operator bool? (RedisValue value)
+        public static explicit operator bool?(RedisValue value)
             => value.IsNull ? (bool?)null : (bool)value;
 
         /// <summary>
         /// Converts a <see cref="RedisValue"/> to a <see cref="string"/>.
         /// </summary>
         /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
-        public static implicit operator string? (RedisValue value)
+        public static implicit operator string?(RedisValue value)
         {
             switch (value.Type)
             {
@@ -807,7 +814,7 @@ namespace StackExchange.Redis
         /// Converts a <see cref="RedisValue"/> to a <see cref="T:byte[]"/>.
         /// </summary>
         /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
-        public static implicit operator byte[]? (RedisValue value)
+        public static implicit operator byte[]?(RedisValue value)
         {
             switch (value.Type)
             {
@@ -824,16 +831,15 @@ namespace StackExchange.Redis
 
                     return value._memory.ToArray();
                 case StorageType.Int64:
-                    Span<byte> span = stackalloc byte[PhysicalConnection.MaxInt64TextLen + 2];
+                    Span<byte> span = stackalloc byte[Format.MaxInt64TextLen + 2];
                     int len = PhysicalConnection.WriteRaw(span, value.OverlappedValueInt64, false, 0);
                     arr = new byte[len - 2]; // don't need the CRLF
                     span.Slice(0, arr.Length).CopyTo(arr);
                     return arr;
                 case StorageType.UInt64:
                     // we know it is a huge value - just jump straight to Utf8Formatter
-                    span = stackalloc byte[PhysicalConnection.MaxInt64TextLen];
-                    if (!Utf8Formatter.TryFormat(value.OverlappedValueUInt64, span, out len))
-                        throw new InvalidOperationException("TryFormat failed");
+                    span = stackalloc byte[Format.MaxInt64TextLen];
+                    len = Format.FormatUInt64(value.OverlappedValueUInt64, span);
                     arr = new byte[len];
                     span.Slice(0, len).CopyTo(arr);
                     return arr;
@@ -1110,7 +1116,7 @@ namespace StackExchange.Redis
                     return _memory;
                 case StorageType.String:
                     string s = (string)_objectOrSentinel!;
-                    HaveString:
+HaveString:
                     if (s.Length == 0)
                     {
                         leased = null;
@@ -1123,11 +1129,11 @@ namespace StackExchange.Redis
                     s = Format.ToString(OverlappedValueDouble);
                     goto HaveString;
                 case StorageType.Int64:
-                    leased = ArrayPool<byte>.Shared.Rent(PhysicalConnection.MaxInt64TextLen + 2); // reused code has CRLF terminator
+                    leased = ArrayPool<byte>.Shared.Rent(Format.MaxInt64TextLen + 2); // reused code has CRLF terminator
                     len = PhysicalConnection.WriteRaw(leased, OverlappedValueInt64) - 2; // drop the CRLF
                     return new ReadOnlyMemory<byte>(leased, 0, len);
                 case StorageType.UInt64:
-                    leased = ArrayPool<byte>.Shared.Rent(PhysicalConnection.MaxInt64TextLen); // reused code has CRLF terminator
+                    leased = ArrayPool<byte>.Shared.Rent(Format.MaxInt64TextLen); // reused code has CRLF terminator
                     // value is huge, jump direct to Utf8Formatter
                     if (!Utf8Formatter.TryFormat(OverlappedValueUInt64, leased, out len))
                         throw new InvalidOperationException("TryFormat failed");

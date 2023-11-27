@@ -93,7 +93,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <remarks><seealso href="https://redis.io/topics/sentinel"/></remarks>
         public static CommandMap Sentinel { get; } = Create(new HashSet<string> {
-            "auth", "ping", "info", "role", "sentinel", "subscribe", "shutdown", "psubscribe", "unsubscribe", "punsubscribe" }, true);
+            "auth", "hello", "ping", "info", "role", "sentinel", "subscribe", "shutdown", "psubscribe", "unsubscribe", "punsubscribe" }, true);
 
         /// <summary>
         /// Create a new <see cref="CommandMap"/>, customizing some commands.

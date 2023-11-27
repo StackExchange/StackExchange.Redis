@@ -10,6 +10,8 @@ echo "${INDENT}Replica: 6380"
 redis-server replica-6380.conf &>/dev/null &
 echo "${INDENT}Secure: 6381"
 redis-server secure-6381.conf &>/dev/null &
+echo "${INDENT}Tls: 6384"
+redis-server tls-ciphers-6384.conf &>/dev/null &
 popd > /dev/null
 
 #Failover Servers

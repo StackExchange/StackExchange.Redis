@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Net;
 using System.Reflection;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace StackExchange.Redis.Configuration
 {
@@ -52,7 +53,7 @@ namespace StackExchange.Redis.Configuration
         /// <summary>
         /// Gets a provider for the given endpoints, falling back to <see cref="DefaultOptionsProvider"/> if nothing more specific is found.
         /// </summary>
-        internal static Func<EndPointCollection, DefaultOptionsProvider> GetForEndpoints { get; } = (endpoints) =>
+        public static DefaultOptionsProvider GetProvider(EndPointCollection endpoints)
         {
             foreach (var provider in KnownProviders)
             {
@@ -65,8 +66,23 @@ namespace StackExchange.Redis.Configuration
                 }
             }
 
-            return new DefaultOptionsProvider();
-        };
+            return new DefaultOptionsProvider(); // no memoize; allow mutability concerns (also impacts subclasses, but: pragmatism)
+        }
+
+        /// <summary>
+        /// Gets a provider for a given endpoints, falling back to <see cref="DefaultOptionsProvider"/> if nothing more specific is found.
+        /// </summary>
+        public static DefaultOptionsProvider GetProvider(EndPoint endpoint)
+        {
+            foreach (var provider in KnownProviders)
+            {
+                if (provider.IsMatch(endpoint))
+                {
+                    return provider;
+                }
+            }
+            return new DefaultOptionsProvider(); // no memoize; allow mutability concerns (also impacts subclasses, but: pragmatism)
+        }
 
         /// <summary>
         /// Gets or sets whether connect/configuration timeouts should be explicitly notified via a TimeoutException.
@@ -115,6 +131,15 @@ namespace StackExchange.Redis.Configuration
         public virtual Version DefaultVersion => RedisFeatures.v3_0_0;
 
         /// <summary>
+        /// Controls how often the connection heartbeats. A heartbeat includes:
+        /// - Evaluating if any messages have timed out
+        /// - Evaluating connection status (checking for failures)
+        /// - Sending a server message to keep the connection alive if needed
+        /// </summary>
+        /// <remarks>Be aware setting this very low incurs additional overhead of evaluating the above more often.</remarks>
+        public virtual TimeSpan HeartbeatInterval => TimeSpan.FromSeconds(1);
+
+        /// <summary>
         /// Should exceptions include identifiable details? (key names, additional .Data annotations)
         /// </summary>
         public virtual bool IncludeDetailInExceptions => true;
@@ -131,6 +156,12 @@ namespace StackExchange.Redis.Configuration
         /// Specifies the time interval at which connections should be pinged to ensure validity.
         /// </summary>
         public virtual TimeSpan KeepAliveInterval => TimeSpan.FromSeconds(60);
+
+        /// <summary>
+        /// The <see cref="ILoggerFactory"/> to get loggers for connection events.
+        /// Note: changes here only affect <see cref="ConnectionMultiplexer"/>s created after.
+        /// </summary>
+        public virtual ILoggerFactory? LoggerFactory => null;
 
         /// <summary>
         /// Type of proxy to use (if any); for example <see cref="Proxy.Twemproxy"/>.
@@ -163,6 +194,16 @@ namespace StackExchange.Redis.Configuration
         /// </summary>
         public virtual TimeSpan ConfigCheckInterval => TimeSpan.FromMinutes(1);
 
+        /// <summary>
+        /// The username to use to authenticate with the server.
+        /// </summary>
+        public virtual string? User => null;
+
+        /// <summary>
+        /// The password to use to authenticate with the server.
+        /// </summary>
+        public virtual string? Password => null;
+
         // We memoize this to reduce cost on re-access
         private string? defaultClientName;
         /// <summary>
@@ -179,6 +220,12 @@ namespace StackExchange.Redis.Configuration
              ?? "StackExchange.Redis") + "(SE.Redis-v" + LibraryVersion + ")";
 
         /// <summary>
+        /// Gets the library name to use for CLIENT SETINFO lib-name calls to Redis during handshake.
+        /// Defaults to "SE.Redis".
+        /// </summary>
+        public virtual string LibraryName => "SE.Redis";
+
+        /// <summary>
         /// String version of the StackExchange.Redis library, for use in any options.
         /// </summary>
         protected static string LibraryVersion => Utils.GetLibVersion();
@@ -187,6 +234,11 @@ namespace StackExchange.Redis.Configuration
         /// Name of the machine we're running on, for use in any options.
         /// </summary>
         protected static string ComputerName => Environment.MachineName ?? Environment.GetEnvironmentVariable("ComputerName") ?? "Unknown";
+
+        /// <summary>
+        /// Whether to identify the client by library name/version when possible
+        /// </summary>
+        public virtual bool SetClientLibrary => true;
 
         /// <summary>
         /// Tries to get the RoleInstance Id if Microsoft.WindowsAzure.ServiceRuntime is loaded.
@@ -201,31 +253,21 @@ namespace StackExchange.Redis.Configuration
             string? roleInstanceId;
             try
             {
-                Assembly? asm = null;
-                foreach (var asmb in AppDomain.CurrentDomain.GetAssemblies())
-                {
-                    if (asmb.GetName()?.Name?.Equals("Microsoft.WindowsAzure.ServiceRuntime") == true)
-                    {
-                        asm = asmb;
-                        break;
-                    }
-                }
-                if (asm == null)
-                    return null;
-
-                var type = asm.GetType("Microsoft.WindowsAzure.ServiceRuntime.RoleEnvironment");
+                var roleEnvironmentType = Type.GetType("Microsoft.WindowsAzure.ServiceRuntime.RoleEnvironment, Microsoft.WindowsAzure.ServiceRuntime", throwOnError: false);
 
                 // https://msdn.microsoft.com/en-us/library/microsoft.windowsazure.serviceruntime.roleenvironment.isavailable.aspx
-                if (type?.GetProperty("IsAvailable") is not PropertyInfo isAvailableProp
+                if (roleEnvironmentType?.GetProperty("IsAvailable") is not PropertyInfo isAvailableProp
                     || isAvailableProp.GetValue(null, null) is not bool isAvailableVal
                     || !isAvailableVal)
                 {
                     return null;
                 }
 
-                var currentRoleInstanceProp = type.GetProperty("CurrentRoleInstance");
+                var currentRoleInstanceProp = roleEnvironmentType.GetProperty("CurrentRoleInstance");
                 var currentRoleInstanceId = currentRoleInstanceProp?.GetValue(null, null);
-                roleInstanceId = currentRoleInstanceId?.GetType().GetProperty("Id")?.GetValue(currentRoleInstanceId, null)?.ToString();
+
+                var roleInstanceType = Type.GetType("Microsoft.WindowsAzure.ServiceRuntime.RoleInstance, Microsoft.WindowsAzure.ServiceRuntime", throwOnError: false);
+                roleInstanceId = roleInstanceType?.GetProperty("Id")?.GetValue(currentRoleInstanceId, null)?.ToString();
 
                 if (roleInstanceId.IsNullOrEmpty())
                 {

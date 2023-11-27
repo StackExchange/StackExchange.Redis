@@ -1,10 +1,4 @@
-﻿using System;
-using System.Buffers;
-using System.IO;
-using System.IO.Pipelines;
-using System.Runtime.InteropServices;
-
-namespace StackExchange.Redis
+﻿namespace StackExchange.Redis
 {
 #if LOGOUTPUT
     sealed class LoggingPipe : IDuplexPipe
@@ -54,7 +48,7 @@ namespace StackExchange.Redis
 
                 while(true)
                 {
-                    var result = await from.ReadAsync();
+                    var result = await from.ReadAsync().ForAwait();
                     var buffer = result.Buffer;
                     if (result.IsCompleted && buffer.IsEmpty) break;
 

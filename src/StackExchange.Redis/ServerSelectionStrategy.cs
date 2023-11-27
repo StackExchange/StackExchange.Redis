@@ -140,10 +140,15 @@ namespace StackExchange.Redis
                 // strictly speaking some proxies use a different hashing algorithm, but the hash-tag behavior is
                 // the same, so this does a pretty good job of spotting illegal commands before sending them
                 case ServerType.Twemproxy:
-                case ServerType.Envoyproxy:
                     slot = message.GetHashSlot(this);
                     if (slot == MultipleSlots) throw ExceptionFactory.MultiSlot(multiplexer.RawConfig.IncludeDetailInExceptions, message);
                     break;
+                /* just shown for completeness
+                case ServerType.Standalone: // don't use sharding
+                case ServerType.Envoyproxy: // defer to the proxy; see #2426
+                default: // unknown scenario; defer to the server
+                    break;
+                */
             }
             return Select(slot, message.Command, message.Flags, allowDisconnected);
         }

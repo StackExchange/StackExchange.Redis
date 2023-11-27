@@ -1,10 +1,6 @@
-﻿using System;
-using System.Diagnostics;
-
-namespace StackExchange.Redis
+﻿namespace StackExchange.Redis
 {
 #if VERBOSE
-
     partial class ConnectionMultiplexer
     {
         private readonly int epoch = Environment.TickCount;
@@ -18,14 +14,6 @@ namespace StackExchange.Redis
         static partial void OnTraceWithoutContext(string message, string category)
         {
             Debug.WriteLine(message, Environment.CurrentManagedThreadId + " ~ " + category);
-        }
-
-        partial void OnTraceLog(LogProxy log, string caller)
-        {
-            lock (UniqueId)
-            {
-                Trace(log.ToString(), caller); // note that this won't always be useful, but we only do it in debug builds anyway
-            }
         }
     }
 #endif

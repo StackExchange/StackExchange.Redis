@@ -171,7 +171,7 @@ namespace StackExchange.Redis
                     var node = new ClusterNode(this, line, origin);
 
                     // Be resilient to ":0 {primary,replica},fail,noaddr" nodes, and nodes where the endpoint doesn't parse
-                    if (node.IsNoAddr || node.EndPoint == null)
+                    if (node.IsNoAddr || node.IsFail || node.EndPoint == null)
                         continue;
 
                     // Override the origin value with the endpoint advertised with the target node to
@@ -301,6 +301,8 @@ namespace StackExchange.Redis
             }
 
             NodeId = parts[0];
+            IsFail = flags.Contains("fail");
+            IsPossiblyFail = flags.Contains("fail?");
             IsReplica = flags.Contains("slave") || flags.Contains("replica");
             IsNoAddr = flags.Contains("noaddr");
             ParentNodeId = string.IsNullOrWhiteSpace(parts[3]) ? null : parts[3];
@@ -344,6 +346,17 @@ namespace StackExchange.Redis
         /// Gets the endpoint of the current node.
         /// </summary>
         public EndPoint? EndPoint { get; }
+
+        /// <summary>
+        /// Gets whether this node is in a failed state.
+        /// </summary>
+        public bool IsFail { get; }
+
+        /// <summary>
+        /// Gets whether this node is possibly in a failed state.
+        /// Possibly here means the node we're getting status from can't communicate with it, but doesn't mean it's down for sure.
+        /// </summary>
+        public bool IsPossiblyFail { get; }
 
         /// <summary>
         /// Gets whether this is the node which responded to the CLUSTER NODES request.

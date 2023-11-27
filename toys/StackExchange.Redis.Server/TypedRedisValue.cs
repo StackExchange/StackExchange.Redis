@@ -35,7 +35,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Returns whether this value represents a null array.
         /// </summary>
-        public bool IsNullArray => Type == ResultType.MultiBulk && _value.DirectObject == null;
+        public bool IsNullArray => Type == ResultType.Array && _value.DirectObject == null;
 
         private readonly RedisValue _value;
 
@@ -85,7 +85,7 @@ namespace StackExchange.Redis
         {
             get
             {
-                if (Type != ResultType.MultiBulk) return default;
+                if (Type != ResultType.Array) return default;
                 var arr = (TypedRedisValue[])_value.DirectObject;
                 if (arr == null) return default;
                 var length = (int)_value.DirectOverlappedBits64;
@@ -96,7 +96,7 @@ namespace StackExchange.Redis
         {
             get
             {
-                if (Type != ResultType.MultiBulk) return default;
+                if (Type != ResultType.Array) return default;
                 var arr = (TypedRedisValue[])_value.DirectObject;
                 if (arr == null) return default;
                 var length = (int)_value.DirectOverlappedBits64;
@@ -156,7 +156,7 @@ namespace StackExchange.Redis
                 if (count == 0) oversizedItems = Array.Empty<TypedRedisValue>();
             }
             _value = new RedisValue(oversizedItems, count);
-            Type = ResultType.MultiBulk;
+            Type = ResultType.Array;
         }
 
         internal void Recycle(int limit = -1)
@@ -175,7 +175,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Get the underlying <see cref="RedisValue"/> assuming that it is a valid type with a meaningful value.
         /// </summary>
-        internal RedisValue AsRedisValue() => Type == ResultType.MultiBulk ? default :_value;
+        internal RedisValue AsRedisValue() => Type == ResultType.Array ? default :_value;
 
         /// <summary>
         /// Obtain the value as a string.
@@ -189,7 +189,7 @@ namespace StackExchange.Redis
                 case ResultType.Integer:
                 case ResultType.Error:
                     return $"{Type}:{_value}";
-                case ResultType.MultiBulk:
+                case ResultType.Array:
                     return $"{Type}:[{Span.Length}]";
                 default:
                     return Type.ToString();

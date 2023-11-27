@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.Extensions.Logging;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -189,7 +190,7 @@ namespace StackExchange.Redis
             return false;
         }
 
-        internal async Task ResolveEndPointsAsync(ConnectionMultiplexer multiplexer, LogProxy? log)
+        internal async Task ResolveEndPointsAsync(ConnectionMultiplexer multiplexer, ILogger? log)
         {
             var cache = new Dictionary<string, IPAddress>(StringComparer.OrdinalIgnoreCase);
             for (int i = 0; i < Count; i++)
@@ -208,12 +209,12 @@ namespace StackExchange.Redis
                         }
                         else
                         {
-                            log?.WriteLine($"Using DNS to resolve '{dns.Host}'...");
+                            log?.LogInformation($"Using DNS to resolve '{dns.Host}'...");
                             var ips = await Dns.GetHostAddressesAsync(dns.Host).ObserveErrors().ForAwait();
                             if (ips.Length == 1)
                             {
                                 ip = ips[0];
-                                log?.WriteLine($"'{dns.Host}' => {ip}");
+                                log?.LogInformation($"'{dns.Host}' => {ip}");
                                 cache[dns.Host] = ip;
                                 this[i] = new IPEndPoint(ip, dns.Port);
                             }
@@ -222,12 +223,12 @@ namespace StackExchange.Redis
                     catch (Exception ex)
                     {
                         multiplexer.OnInternalError(ex);
-                        log?.WriteLine(ex.Message);
+                        log?.LogError(ex, ex.Message);
                     }
                 }
             }
         }
 
-        internal EndPointCollection Clone() => new EndPointCollection(this);
+        internal EndPointCollection Clone() => new EndPointCollection(new List<EndPoint>(Items));
     }
 }
