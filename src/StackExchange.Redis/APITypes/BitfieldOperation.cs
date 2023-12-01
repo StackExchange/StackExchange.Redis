@@ -17,7 +17,7 @@ public struct BitfieldOperation
         return $"{signedness}{size}";
     }).ToArray();
 
-    private static RedisValue CreateEncoding(bool unsigned, byte size)
+    private static string CreateEncoding(bool unsigned, byte size)
     {
         if (size == 0)
         {
@@ -42,7 +42,7 @@ public struct BitfieldOperation
     internal string Offset;
     internal long? Value;
     internal BitFieldSubCommand SubCommand;
-    internal RedisValue Encoding;
+    internal string Encoding;
     internal BitfieldOverflowHandling? BitfieldOverflowHandling;
 
     /// <summary>
