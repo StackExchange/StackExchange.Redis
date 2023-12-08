@@ -8,8 +8,9 @@ Current package versions:
 
 ## Unreleased
 
-- Fix [#2593](https://github.com/StackExchange/StackExchange.Redis/pull/2593): `EXPIRETIME` and `PEXPIRETIME` miscategorized as `PrimaryOnly` commands causing them to fail when issued against a read-only replica ([#2593 by slorello89](https://github.com/StackExchange/StackExchange.Redis/pull/2593))
-- Fix [#2591](https://github.com/StackExchange/StackExchange.Redis/pull/2591): Add `HELLO` to Sentinel connections so they can support RESP3 ([#2601 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2601))
+- Fix [#2593](https://github.com/StackExchange/StackExchange.Redis/issues/2593): `EXPIRETIME` and `PEXPIRETIME` miscategorized as `PrimaryOnly` commands causing them to fail when issued against a read-only replica ([#2593 by slorello89](https://github.com/StackExchange/StackExchange.Redis/pull/2593))
+- Fix [#2591](https://github.com/StackExchange/StackExchange.Redis/issues/2591): Add `HELLO` to Sentinel connections so they can support RESP3 ([#2601 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2601))
+- Fix [#2595](https://github.com/StackExchange/StackExchange.Redis/issues/2595): Add detection handling for dead sockets that the OS says are okay, seen especially in Linux environments (https://github.com/StackExchange/StackExchange.Redis/pull/2610)
 
 ## 2.7.4
 
