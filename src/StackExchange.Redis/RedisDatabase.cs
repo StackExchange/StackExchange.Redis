@@ -3449,7 +3449,7 @@ namespace StackExchange.Redis
         {
             if (value.IsNull)
             {
-                return isStart ? RedisLiterals.MinusSymbol : RedisLiterals.PlusSumbol;
+                return isStart ? RedisLiterals.MinusSymbol : RedisLiterals.PlusSymbol;
             }
             byte[] orig = value!;
 
