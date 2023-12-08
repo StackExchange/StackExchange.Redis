@@ -168,7 +168,7 @@ namespace StackExchange.Redis
             sync = "sync",
 
             MinusSymbol = "-",
-            PlusSumbol = "+",
+            PlusSymbol = "+",
             Wildcard = "*",
 
             // Geo Radius/Search Literals
