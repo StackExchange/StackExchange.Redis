@@ -1156,19 +1156,30 @@ namespace StackExchange.Redis
             return value < 10 ? (byte)('0' + value) : (byte)('a' - 10 + value);
         }
 
-        internal static void WriteUnifiedPrefixedString(PipeWriter writer, byte[]? prefix, string? value)
+        internal static void WriteUnifiedPrefixedString(PipeWriter writer, ReadOnlyMemory<byte> prefix, string? value)
         {
-            if (value == null)
+            if (prefix.IsEmpty && value == null)
             {
                 // special case
                 writer.Write(NullBulkString.Span);
+            }
+            else if (value == null)
+            {
+                int totalLength = prefix.Length;
+
+                var span = writer.GetSpan(3 + Format.MaxInt32TextLen);
+                span[0] = (byte)'$';
+                int bytes = WriteRaw(span, totalLength, offset: 1);
+                writer.Advance(bytes);
+
+                writer.Write(prefix.Span);
             }
             else
             {
                 // ${total-len}\r\n         3 + MaxInt32TextLen
                 // {prefix}{value}\r\n
                 int encodedLength = Encoding.UTF8.GetByteCount(value),
-                    prefixLength = prefix?.Length ?? 0,
+                    prefixLength = prefix.Length,
                     totalLength = prefixLength + encodedLength;
 
                 if (totalLength == 0)
@@ -1183,7 +1194,7 @@ namespace StackExchange.Redis
                     int bytes = WriteRaw(span, totalLength, offset: 1);
                     writer.Advance(bytes);
 
-                    if (prefixLength != 0) writer.Write(prefix);
+                    if (prefixLength != 0) writer.Write(prefix.Span);
                     if (encodedLength != 0) WriteRaw(writer, value, encodedLength);
                     WriteCrlf(writer);
                 }
@@ -1259,11 +1270,11 @@ namespace StackExchange.Redis
             }
         }
 
-        private static void WriteUnifiedPrefixedBlob(PipeWriter writer, byte[]? prefix, byte[]? value)
+        private static void WriteUnifiedPrefixedBlob(PipeWriter writer, ReadOnlyMemory<byte> prefix, byte[]? value)
         {
             // ${total-len}\r\n 
             // {prefix}{value}\r\n
-            if (prefix == null || prefix.Length == 0 || value == null)
+            if (prefix.Length == 0 || value == null)
             {   // if no prefix, just use the non-prefixed version;
                 // even if prefixed, a null value writes as null, so can use the non-prefixed version
                 WriteUnifiedBlob(writer, value);
@@ -1272,10 +1283,10 @@ namespace StackExchange.Redis
             {
                 var span = writer.GetSpan(3 + Format.MaxInt32TextLen); // note even with 2 max-len, we're still in same text range
                 span[0] = (byte)'$';
-                int bytes = WriteRaw(span, prefix.LongLength + value.LongLength, offset: 1);
+                int bytes = WriteRaw(span, prefix.Length + value.LongLength, offset: 1);
                 writer.Advance(bytes);
 
-                writer.Write(prefix);
+                writer.Write(prefix.Span);
                 writer.Write(value);
 
                 span = writer.GetSpan(2);

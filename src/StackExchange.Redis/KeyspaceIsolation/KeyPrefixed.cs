@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Net;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 
 namespace StackExchange.Redis.KeyspaceIsolation
@@ -843,7 +844,8 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         protected RedisChannel ToInner(RedisChannel outer)
         {
-            var combined = RedisKey.ConcatenateBytes(Prefix, null, (byte[]?)outer);
+            var combined = RedisKey.ConcatenateBytesArray(Prefix, null, (byte[]?)outer);
+
             return new RedisChannel(combined, outer.IsPattern ? RedisChannel.PatternMode.Pattern : RedisChannel.PatternMode.Literal);
         }
 

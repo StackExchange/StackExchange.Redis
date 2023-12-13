@@ -2,6 +2,7 @@
 using System.Buffers;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace StackExchange.Redis
@@ -11,9 +12,9 @@ namespace StackExchange.Redis
     /// </summary>
     public readonly struct RedisKey : IEquatable<RedisKey>
     {
-        internal RedisKey(byte[]? keyPrefix, object? keyValue)
+        internal RedisKey(ReadOnlyMemory<byte> keyPrefix, object? keyValue)
         {
-            KeyPrefix = keyPrefix?.Length == 0 ? null : keyPrefix;
+            KeyPrefix = keyPrefix;
             KeyValue = keyValue;
         }
 
@@ -22,9 +23,14 @@ namespace StackExchange.Redis
         /// </summary>
         public RedisKey(string? key) : this(null, key) { }
 
+        /// <summary>
+        /// Creates a <see cref="RedisKey"/> from a Memory&lt;byte&gt;.
+        /// </summary>
+        public RedisKey(ReadOnlyMemory<byte> key) : this(key, null) { }
+
         internal RedisKey AsPrefix() => new RedisKey((byte[]?)this, null);
 
-        internal bool IsNull => KeyPrefix == null && KeyValue == null;
+        internal bool IsNull => KeyPrefix.IsEmpty && KeyValue == null;
 
         internal static RedisKey Null { get; } = new RedisKey(null, null);
 
@@ -32,14 +38,24 @@ namespace StackExchange.Redis
         {
             get
             {
-                if (KeyPrefix != null) return false;
+                if (!KeyPrefix.IsEmpty) return false;
                 if (KeyValue == null) return true;
                 if (KeyValue is string s) return s.Length == 0;
                 return ((byte[])KeyValue).Length == 0;
             }
         }
 
-        internal byte[]? KeyPrefix { get; }
+        /// <remarks>
+        /// This is used for either prefixes OR memory values.
+        ///
+        /// This lets us handle a reasonable common case (concating values together)
+        /// without allocating, and also lets folks avoid copying into an array
+        /// if they've already packed things into a memory themselves.
+        ///
+        /// The hope is that the case of "have a memory prefix, and then concat another memory"
+        /// is relatively uncommon.
+        /// </remarks>
+        internal ReadOnlyMemory<byte> KeyPrefix { get; }
         internal object? KeyValue { get; }
 
         /// <summary>
@@ -221,7 +237,19 @@ namespace StackExchange.Redis
 
         internal RedisValue AsRedisValue()
         {
-            if (KeyPrefix == null && KeyValue is string keyString) return keyString;
+            if (KeyPrefix.IsEmpty)
+            {
+                if (KeyValue is string keyString) return keyString;
+            }
+            else
+            {
+                if (KeyValue is null)
+                {
+                    return KeyPrefix;
+                }
+            }
+
+            // gotta actually build an array
             return (byte[]?)this;
         }
 
@@ -250,10 +278,27 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
+        /// Create a <see cref="RedisKey"/> from a <see cref="T:Memory{byte}"/>.
+        /// </summary>
+        /// <param name="key">The Memory&lt;byte&gt; to get a key from.</param>
+        public static implicit operator RedisKey(Memory<byte> key)
+        => (ReadOnlyMemory<byte>)key;
+
+        /// <summary>
+        /// Create a <see cref="RedisKey"/> from a <see cref="T:ReadOnlyMemory{byte}"/>.
+        /// </summary>
+        /// <param name="key">The ReadOnlyMemory&lt;byte&gt; to get a key from.</param>
+        public static implicit operator RedisKey(ReadOnlyMemory<byte> key)
+        {
+            if (key.IsEmpty) return default;
+            return new RedisKey(key, null);
+        }
+
+        /// <summary>
         /// Obtain the <see cref="RedisKey"/> as a <see cref="T:byte[]"/>.
         /// </summary>
         /// <param name="key">The key to get a byte array for.</param>
-        public static implicit operator byte[]? (RedisKey key)
+        public static implicit operator byte[]?(RedisKey key)
         {
             if (key.IsNull) return null;
             if (key.TryGetSimpleBuffer(out var arr)) return arr;
@@ -270,9 +315,9 @@ namespace StackExchange.Redis
         /// Obtain the key as a <see cref="string"/>.
         /// </summary>
         /// <param name="key">The key to get a string for.</param>
-        public static implicit operator string? (RedisKey key)
+        public static implicit operator string?(RedisKey key)
         {
-            if (key.KeyPrefix is null)
+            if (key.KeyPrefix.IsEmpty)
             {
                 return key.KeyValue switch
                 {
@@ -314,20 +359,153 @@ namespace StackExchange.Redis
         public static RedisKey operator +(RedisKey x, RedisKey y) =>
             new RedisKey(ConcatenateBytes(x.KeyPrefix, x.KeyValue, y.KeyPrefix), y.KeyValue);
 
-        internal static RedisKey WithPrefix(byte[]? prefix, RedisKey value)
+        internal static RedisKey WithPrefix(RedisKey prefix, RedisKey suffix)
         {
-            if (prefix == null || prefix.Length == 0) return value;
-            if (value.KeyPrefix == null) return new RedisKey(prefix, value.KeyValue);
-            if (value.KeyValue == null) return new RedisKey(prefix, value.KeyPrefix);
+            // trivial no-alloc cases
+            if (prefix.IsEmpty) return suffix;
+            if (suffix.IsEmpty) return prefix;
 
-            // two prefixes; darn
-            byte[] copy = new byte[prefix.Length + value.KeyPrefix.Length];
-            Buffer.BlockCopy(prefix, 0, copy, 0, prefix.Length);
-            Buffer.BlockCopy(value.KeyPrefix, 0, copy, prefix.Length, value.KeyPrefix.Length);
-            return new RedisKey(copy, value.KeyValue);
+            var prefixHasPrefix = !prefix.KeyPrefix.IsEmpty;
+            var prefixHasValue = !(prefix.KeyValue == null || (prefix.KeyValue is byte[] pValBs && pValBs.Length == 0));
+
+            var suffixHasPrefix = !suffix.KeyPrefix.IsEmpty;
+            var suffixHasValue = !(suffix.KeyValue == null || (suffix.KeyValue is byte[] sValBs && sValBs.Length == 0));
+
+            var pieceCount =
+                (prefixHasPrefix ? 1 : 0) +
+                (prefixHasValue ? 1 : 0) +
+                (suffixHasPrefix ? 1 : 0) +
+                (suffixHasValue ? 1 : 0);
+
+            if (pieceCount == 2)
+            {
+                // if there's only one part of each value set, we can try to avoid a copy
+                ReadOnlyMemory<byte> newPrefix;
+                object? newValue;
+
+                if (prefixHasPrefix)
+                {
+                    newPrefix = prefix.KeyPrefix;
+                }
+                else
+                {
+                    // implies prefixHasValue == true
+
+                    if (prefix.KeyValue is byte[] pValB)
+                    {
+                        // if the prefix's value is backed by an array, we can just slide it over into the memory slot
+                        newPrefix = pValB;
+                    }
+                    else if (prefix.KeyValue is string pValS)
+                    {
+                        // always have to transcode strings, unfortunately
+                        newPrefix = Encoding.UTF8.GetBytes(pValS);
+                    }
+                    else
+                    {
+                        // shouldn't happen
+                        newPrefix = default;
+                    }
+                }
+
+                if (suffixHasPrefix)
+                {
+                    // if the suffix's prefix is backed by an array, and covers the entire array, we can just reuse the array
+                    if (MemoryMarshal.TryGetArray(suffix.KeyPrefix, out var arrSeg) && arrSeg.Offset == 0 && arrSeg.Array != null && arrSeg.Count == arrSeg.Array.Length)
+                    {
+                        newValue = arrSeg.Array;
+                    }
+                    else
+                    {
+                        // darn, gotta copy the suffix prefix into an array
+                        newValue = suffix.KeyPrefix.ToArray();
+                    }
+                }
+                else
+                {
+                    // implies suffixHasValue == true;
+                    newValue = suffix.KeyValue;
+                }
+
+                return new RedisKey(newPrefix, newValue);
+            }
+
+            // gotta copy _something_
+            if(prefixHasPrefix)
+            {
+                // but there are a couple cases we can avoid one copy
+                if(!prefixHasValue)
+                {
+                    ReadOnlyMemory<byte> newPrefix = prefix.KeyPrefix;
+                    byte[]? newValue = (byte[]?)suffix;
+
+                    return new RedisKey(newPrefix, newValue);
+                }
+
+                if (!suffixHasPrefix)
+                {
+                    ReadOnlyMemory<byte> newPrefix = (byte[]?)prefix;
+                    object? newValue = suffix.KeyValue;
+
+                    return new RedisKey(newPrefix, newValue);
+                }
+            }
+            else
+            {
+                // implies prefixHasValue == true
+                if(prefix.KeyValue is byte[] prefixValueBytes)
+                {
+                    // just shift everything over one, basically
+                    ReadOnlyMemory<byte> newPrefix = prefixValueBytes;
+                    byte[]? newValue = (byte[]?)suffix;
+
+                    return new RedisKey(newPrefix, newValue);
+                }
+            }
+
+            // whelp, just copy everything (at least two allocs here)
+            return new RedisKey((byte[]?)prefix, (byte[]?)suffix);
         }
 
-        internal static byte[]? ConcatenateBytes(byte[]? a, object? b, byte[]? c)
+        internal static ReadOnlyMemory<byte> ConcatenateBytes(ReadOnlyMemory<byte> a, object? b, ReadOnlyMemory<byte> c)
+        {
+            if (a.IsEmpty && c.IsEmpty)
+            {
+                if (b == null) return null;
+                if (b is string s) return Encoding.UTF8.GetBytes(s);
+                return (byte[])b;
+            }
+
+            int aLen = a.Length,
+                bLen = b == null ? 0 : (b is string bString
+                ? Encoding.UTF8.GetByteCount(bString)
+                : ((byte[])b).Length),
+                cLen = c.Length;
+
+            var result = new byte[aLen + bLen + cLen];
+            if (aLen != 0)
+            {
+                a.CopyTo(result);
+            }
+            if (bLen != 0)
+            {
+                if (b is string s)
+                {
+                    Encoding.UTF8.GetBytes(s, 0, s.Length, result, aLen);
+                }
+                else
+                {
+                    Buffer.BlockCopy((byte[])b!, 0, result, aLen, bLen);
+                }
+            }
+            if (cLen != 0)
+            {
+                c.CopyTo(result.AsMemory().Slice(aLen + bLen, cLen));
+            }
+            return result;
+        }
+
+        internal static byte[]? ConcatenateBytesArray(byte[]? a, object? b, byte[]? c)
         {
             if ((a == null || a.Length == 0) && (c == null || c.Length == 0))
             {
@@ -380,11 +558,11 @@ namespace StackExchange.Redis
         internal bool TryGetSimpleBuffer([NotNullWhen(true)] out byte[]? arr)
         {
             arr = KeyValue is null ? Array.Empty<byte>() : KeyValue as byte[];
-            return arr is not null && (KeyPrefix is null || KeyPrefix.Length == 0);
+            return arr is not null && KeyPrefix.IsEmpty;
         }
 
         internal int TotalLength() =>
-            (KeyPrefix is null ? 0 : KeyPrefix.Length) + KeyValue switch
+            (KeyPrefix.Length) + KeyValue switch
             {
                 null => 0,
                 string s => Encoding.UTF8.GetByteCount(s),
@@ -394,9 +572,9 @@ namespace StackExchange.Redis
         internal int CopyTo(Span<byte> destination)
         {
             int written = 0;
-            if (KeyPrefix is not null && KeyPrefix.Length != 0)
+            if (!KeyPrefix.IsEmpty)
             {
-                KeyPrefix.CopyTo(destination);
+                KeyPrefix.Span.CopyTo(destination);
                 written += KeyPrefix.Length;
                 destination = destination.Slice(KeyPrefix.Length);
             }

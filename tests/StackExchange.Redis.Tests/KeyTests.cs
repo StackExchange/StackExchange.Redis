@@ -89,8 +89,6 @@ public class KeyTests : TestBase
             RedisKey key1 = "world";
             RedisKey key2 = Encoding.UTF8.GetBytes("hello");
             var key3 = key1.Prepend(key2);
-            Assert.True(ReferenceEquals(key1.KeyValue, key3.KeyValue));
-            Assert.True(ReferenceEquals(key2.KeyValue, key3.KeyPrefix));
             Assert.Equal("helloworld", key3);
         }
 
@@ -104,9 +102,96 @@ public class KeyTests : TestBase
             RedisKey key1 = Encoding.UTF8.GetBytes("hello");
             RedisKey key2 = "world";
             var key3 = key1.Append(key2);
-            Assert.True(ReferenceEquals(key2.KeyValue, key3.KeyValue));
-            Assert.True(ReferenceEquals(key1.KeyValue, key3.KeyPrefix));
             Assert.Equal("helloworld", key3);
+        }
+
+        {
+            RedisKey key1 = Encoding.UTF8.GetBytes("hello");
+            var key2 = key1.Append(RedisKey.Null);
+            Assert.Equal("hello", key2);
+        }
+
+        {
+            RedisKey key1 = Encoding.UTF8.GetBytes("hello");
+            var key2 = RedisKey.Null.Append(key1);
+            Assert.Equal("hello", key2);
+        }
+
+        {
+            RedisKey key1 = (ReadOnlyMemory<byte>)Encoding.UTF8.GetBytes("hello");
+            RedisKey key2 = "world";
+            var key3 = key1.Append(key2);
+            Assert.Equal("helloworld", key3);
+        }
+
+        {
+            RedisKey key1 = (ReadOnlyMemory<byte>)Encoding.UTF8.GetBytes("hello");
+            RedisKey key2 = "world";
+            var key3 = key2.Append(key1);
+            Assert.Equal("worldhello", key3);
+        }
+
+        {
+            var mem = (ReadOnlyMemory<byte>)Encoding.UTF8.GetBytes("abcdhello");
+            RedisKey key1 = mem.Slice(4);
+            RedisKey key2 = "world";
+            var key3 = key1.Append(key2);
+            Assert.Equal("helloworld", key3);
+        }
+
+        {
+            var mem1 = (ReadOnlyMemory<byte>)Encoding.UTF8.GetBytes("abcdhello");
+            RedisKey key1 = mem1.Slice(4);
+
+            var mem2 = (ReadOnlyMemory<byte>)Encoding.UTF8.GetBytes("worldefgh");
+            RedisKey key2 = mem2.Slice(0, 5);
+            var key3 = key1.Append(key2);
+            Assert.Equal("helloworld", key3);
+        }
+
+        {
+            var mem1 = (ReadOnlyMemory<byte>)Encoding.UTF8.GetBytes("abcdhello");
+            RedisKey key1 = mem1.Slice(4);
+
+            var mem2 = (ReadOnlyMemory<byte>)Encoding.UTF8.GetBytes("worldefgh");
+            RedisKey key2 = mem2.Slice(0, 5);
+            var key3 = key2.Append("fizz");
+
+            var key4 = key1.Append(key3);
+            Assert.Equal("helloworldfizz", key4);
+        }
+
+        {
+            var mem1 = (ReadOnlyMemory<byte>)Encoding.UTF8.GetBytes("abcdhello");
+            RedisKey key1 = mem1.Slice(4);
+            var key2 = key1.Append("world");
+
+            RedisKey key3 = "fizz";
+            RedisKey key4 = key2.Append(key3);
+
+            Assert.Equal("helloworldfizz", key4);
+        }
+
+        {
+            RedisKey key1 = new RedisKey(default, Encoding.UTF8.GetBytes("hello"));
+
+            var mem2 = (ReadOnlyMemory<byte>)Encoding.UTF8.GetBytes("worldefgh");
+            RedisKey key2 = mem2.Slice(0, 5);
+            var key3 = key2.Append("fizz");
+
+            var key4 = key1.Append(key3);
+            Assert.Equal("helloworldfizz", key4);
+        }
+
+        {
+            RedisKey key1 = Encoding.UTF8.GetBytes("hello");
+            var key2 = key1.Append("world");
+
+            RedisKey key3 = Encoding.UTF8.GetBytes("fizz");
+            var key4 = key3.Append("buzz");
+
+            var key5 = key2.Append(key4);
+            Assert.Equal("helloworldfizzbuzz", key5);
         }
     }
 
