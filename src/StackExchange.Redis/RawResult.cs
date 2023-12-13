@@ -321,6 +321,9 @@ namespace StackExchange.Redis
         internal double?[]? GetItemsAsDoubles() => this.ToArray<double?>((in RawResult x) => x.TryGetDouble(out double val) ? val : null);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal long?[]? GetItemsAsInt64s() => this.ToArray<long?>((in RawResult x) => x.TryGetInt64(out long val) ? val : null);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal RedisKey[]? GetItemsAsKeys() => this.ToArray<RedisKey>((in RawResult x) => x.AsRedisKey());
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

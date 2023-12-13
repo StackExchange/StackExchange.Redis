@@ -13,6 +13,8 @@ internal enum RedisCommand
     BGREWRITEAOF,
     BGSAVE,
     BITCOUNT,
+    BITFIELD,
+    BITFIELD_RO,
     BITOP,
     BITPOS,
     BLPOP,
@@ -263,6 +265,7 @@ internal static class RedisCommandExtensions
             //   for example spreading load via a .DemandReplica flag in the caller.
             // Basically: would it fail on a read-only replica in 100% of cases? Then it goes in the list.
             case RedisCommand.APPEND:
+            case RedisCommand.BITFIELD:
             case RedisCommand.BITOP:
             case RedisCommand.BLPOP:
             case RedisCommand.BRPOP:
@@ -350,6 +353,7 @@ internal static class RedisCommandExtensions
             case RedisCommand.BGREWRITEAOF:
             case RedisCommand.BGSAVE:
             case RedisCommand.BITCOUNT:
+            case RedisCommand.BITFIELD_RO:
             case RedisCommand.BITPOS:
             case RedisCommand.CLIENT:
             case RedisCommand.CLUSTER:

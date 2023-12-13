@@ -618,6 +618,18 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public long StringBitCount(RedisKey key, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, CommandFlags flags = CommandFlags.None) =>
             Inner.StringBitCount(ToInner(key), start, end, indexType, flags);
 
+        public long StringBitfieldGet(RedisKey key, long offset, byte width, bool offsetByBit = true, bool unsigned = false, CommandFlags flags = CommandFlags.None) =>
+            Inner.StringBitfieldGet(ToInner(key), offset, width, offsetByBit, unsigned, flags);
+
+        public long StringBitfieldSet(RedisKey key, long offset, byte width, long value, bool offsetByBit = true, bool unsigned = false, CommandFlags flags = CommandFlags.None) =>
+            Inner.StringBitfieldSet(ToInner(key), offset, width, value, offsetByBit, unsigned, flags);
+
+        public long? StringBitfieldIncrement(RedisKey key, long offset, byte width, long increment, bool offsetByBit = true, bool unsigned = false, BitfieldOverflowHandling overflowHandling = Redis.BitfieldOverflowHandling.Wrap, CommandFlags flags = CommandFlags.None) =>
+            Inner.StringBitfieldIncrement(ToInner(key), offset, width, increment, offsetByBit, unsigned, overflowHandling, flags);
+
+        public long?[] StringBitfield(RedisKey key, BitfieldOperation[] subCommands, CommandFlags flags = CommandFlags.None) =>
+            Inner.StringBitfield(ToInner(key), subCommands, flags);
+
         public long StringBitOperation(Bitwise operation, RedisKey destination, RedisKey[] keys, CommandFlags flags = CommandFlags.None) =>
             Inner.StringBitOperation(operation, ToInner(destination), ToInner(keys), flags);
 

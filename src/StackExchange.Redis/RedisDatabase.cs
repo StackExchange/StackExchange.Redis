@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Buffers;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
 using Pipelines.Sockets.Unofficial.Arenas;
@@ -2917,6 +2918,54 @@ namespace StackExchange.Redis
                 _ => Message.Create(Database, flags, RedisCommand.BITCOUNT, key, start, end, indexType.ToLiteral()),
             };
             return ExecuteAsync(msg, ResultProcessor.Int64);
+        }
+
+        public long?[] StringBitfield(RedisKey key, BitfieldOperation[] subCommands, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = subCommands.BuildMessage(Database, key, flags, this, out var server);
+            return ExecuteSync(msg, ResultProcessor.NullableInt64Array, defaultValue: Array.Empty<long?>(), server: server);
+        }
+
+        public Task<long?[]> StringBitfieldAsync(RedisKey key, BitfieldOperation[] subCommands, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = subCommands.BuildMessage(Database, key, flags, this, out var server);
+            return ExecuteAsync(msg, ResultProcessor.NullableInt64Array, defaultValue: Array.Empty<long?>(), server: server);
+        }
+
+        public long StringBitfieldGet(RedisKey key, long offset, byte width, bool offsetByBit = true, bool unsigned = false, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = BitfieldOperation.Get(offset, width, offsetByBit, unsigned).BuildMessage(Database, key, flags, this, out var server);
+            return ExecuteSync(msg, ResultProcessor.Int64, server);
+        }
+
+        public Task<long> StringBitfieldGetAsync(RedisKey key, long offset, byte width, bool offsetByBit = true, bool unsigned = false, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = BitfieldOperation.Get(offset, width, offsetByBit, unsigned).BuildMessage(Database, key, flags, this, out var server);
+            return ExecuteAsync(msg, ResultProcessor.Int64, server);
+        }
+
+        public long StringBitfieldSet(RedisKey key, long offset, byte width, long value, bool offsetByBit = true, bool unsigned = false, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = BitfieldOperation.Set(offset, width, value, offsetByBit, unsigned).BuildMessage(Database, key, flags, this, out var server);
+            return ExecuteSync(msg, ResultProcessor.Int64, server);
+        }
+
+        public Task<long> StringBitfieldSetAsync(RedisKey key, long offset, byte width, long value, bool offsetByBit = true, bool unsigned = false, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = BitfieldOperation.Set(offset, width, value, offsetByBit, unsigned).BuildMessage(Database, key, flags, this, out var server);
+            return ExecuteAsync(msg, ResultProcessor.Int64, server);
+        }
+
+        public long? StringBitfieldIncrement(RedisKey key, long offset, byte width, long increment, bool offsetByBit = true, bool unsigned = false, BitfieldOverflowHandling overflowHandling = Redis.BitfieldOverflowHandling.Wrap, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = BitfieldOperation.Increment(offset,width, increment, offsetByBit, unsigned, overflowHandling).BuildMessage(Database, key, flags, this, out var server);
+            return ExecuteSync(msg, ResultProcessor.NullableInt64, server);
+        }
+
+        public Task<long?> StringBitfieldIncrementAsync(RedisKey key, long offset, byte width, long increment, bool offsetByBit = true, bool unsigned = false, BitfieldOverflowHandling overflowHandling = Redis.BitfieldOverflowHandling.Wrap, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = BitfieldOperation.Increment(offset,width, increment, offsetByBit, unsigned, overflowHandling).BuildMessage(Database, key, flags, this, out var server);
+            return ExecuteAsync(msg, ResultProcessor.NullableInt64, server);
         }
 
         public long StringBitOperation(Bitwise operation, RedisKey destination, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None)

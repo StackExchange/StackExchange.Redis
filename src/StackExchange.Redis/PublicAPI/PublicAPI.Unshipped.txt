@@ -1,9 +1,23 @@
 ﻿abstract StackExchange.Redis.RedisResult.ToString(out string? type) -> string?
 override sealed StackExchange.Redis.RedisResult.ToString() -> string!
 override StackExchange.Redis.Role.Master.Replica.ToString() -> string!
+StackExchange.Redis.BitfieldOperation
+StackExchange.Redis.BitfieldOperation.BitfieldOperation() -> void
+StackExchange.Redis.BitFieldSubCommand
+StackExchange.Redis.BitFieldSubCommand.Get = 0 -> StackExchange.Redis.BitFieldSubCommand
+StackExchange.Redis.BitFieldSubCommand.Increment = 2 -> StackExchange.Redis.BitFieldSubCommand
+StackExchange.Redis.BitFieldSubCommand.Set = 1 -> StackExchange.Redis.BitFieldSubCommand
 StackExchange.Redis.ClientInfo.Protocol.get -> StackExchange.Redis.RedisProtocol?
 StackExchange.Redis.ConfigurationOptions.Protocol.get -> StackExchange.Redis.RedisProtocol?
 StackExchange.Redis.ConfigurationOptions.Protocol.set -> void
+StackExchange.Redis.IDatabase.StringBitfield(StackExchange.Redis.RedisKey key, StackExchange.Redis.BitfieldOperation[]! subCommands, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long?[]!
+StackExchange.Redis.IDatabase.StringBitfieldGet(StackExchange.Redis.RedisKey key, long offset, byte width, bool offsetByBit = true, bool unsigned = false, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
+StackExchange.Redis.IDatabase.StringBitfieldIncrement(StackExchange.Redis.RedisKey key, long offset, byte width, long increment, bool offsetByBit = true, bool unsigned = false, StackExchange.Redis.BitfieldOverflowHandling overflowHandling = StackExchange.Redis.BitfieldOverflowHandling.Wrap, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long?
+StackExchange.Redis.IDatabase.StringBitfieldSet(StackExchange.Redis.RedisKey key, long offset, byte width, long value, bool offsetByBit = true, bool unsigned = false, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
+StackExchange.Redis.IDatabaseAsync.StringBitfieldAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.BitfieldOperation[]! subCommands, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long?[]!>!
+StackExchange.Redis.IDatabaseAsync.StringBitfieldGetAsync(StackExchange.Redis.RedisKey key, long offset, byte width, bool offsetByBit = true, bool unsigned = false, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
+StackExchange.Redis.IDatabaseAsync.StringBitfieldIncrementAsync(StackExchange.Redis.RedisKey key, long offset, byte width, long increment, bool offsetByBit = true, bool unsigned = false, StackExchange.Redis.BitfieldOverflowHandling overflowHandling = StackExchange.Redis.BitfieldOverflowHandling.Wrap, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long?>!
+StackExchange.Redis.IDatabaseAsync.StringBitfieldSetAsync(StackExchange.Redis.RedisKey key, long offset, byte width, long value, bool offsetByBit = true, bool unsigned = false, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
 StackExchange.Redis.IServer.Protocol.get -> StackExchange.Redis.RedisProtocol
 StackExchange.Redis.RedisFeatures.ClientId.get -> bool
 StackExchange.Redis.RedisFeatures.Equals(StackExchange.Redis.RedisFeatures other) -> bool
@@ -25,6 +39,9 @@ StackExchange.Redis.ResultType.Null = 8 -> StackExchange.Redis.ResultType
 StackExchange.Redis.ResultType.Push = 37 -> StackExchange.Redis.ResultType
 StackExchange.Redis.ResultType.Set = 21 -> StackExchange.Redis.ResultType
 StackExchange.Redis.ResultType.VerbatimString = 12 -> StackExchange.Redis.ResultType
+static StackExchange.Redis.BitfieldOperation.Get(long offset, byte width, bool offsetByBit = true, bool unsigned = false) -> StackExchange.Redis.BitfieldOperation
+static StackExchange.Redis.BitfieldOperation.Increment(long offset, byte width, long increment, bool offsetByBit = true, bool unsigned = false, StackExchange.Redis.BitfieldOverflowHandling overflowHandling = StackExchange.Redis.BitfieldOverflowHandling.Wrap) -> StackExchange.Redis.BitfieldOperation
+static StackExchange.Redis.BitfieldOperation.Set(long offset, byte width, long value, bool offsetByBit = true, bool unsigned = false) -> StackExchange.Redis.BitfieldOperation
 static StackExchange.Redis.RedisResult.Create(StackExchange.Redis.RedisResult![]! values, StackExchange.Redis.ResultType resultType) -> StackExchange.Redis.RedisResult!
 static StackExchange.Redis.RedisResult.Create(StackExchange.Redis.RedisValue[]! values, StackExchange.Redis.ResultType resultType) -> StackExchange.Redis.RedisResult!
 virtual StackExchange.Redis.RedisResult.Length.get -> int

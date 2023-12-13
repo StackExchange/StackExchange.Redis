@@ -2548,6 +2548,66 @@ namespace StackExchange.Redis
         Task<long> StringBitCountAsync(RedisKey key, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Executes a set of Bitfield subcommands as constructed by the <paramref name="subCommands"/> against the bitfield at the provided <paramref name="key"/>.
+        /// Will run as a <c>BITFIELD_RO</c> if all operations are read-only and the command is available.
+        /// </summary>
+        /// <param name="key">The key of the string.</param>
+        /// <param name="subCommands">The subcommands to execute against the bitfield.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>An array of numbers corresponding to the result of each sub-command. For increment subcommands, these can be null.</returns>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/bitfield"/>,
+        /// <seealso href="https://redis.io/commands/bitfield_ro"/>
+        /// </remarks>
+        Task<long?[]> StringBitfieldAsync(RedisKey key, BitfieldOperation[] subCommands, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Pulls a single number out of a bitfield of the provided encoding at the given offset.
+        /// Will execute a <c>BITFIELD_RO</c> if possible.
+        /// </summary>
+        /// <param name="key">The key for the string.</param>
+        /// <param name="offset">The offset into the bitfield to address.</param>
+        /// <param name="width">The width of the encoding to interpret the bitfield width.</param>
+        /// <param name="offsetByBit">Whether or not to offset into the bitfield by bits vs encoding.</param>
+        /// <param name="unsigned">Whether or not to interpret the number gotten as an unsigned integer.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The number of the given encoding at the provided <paramref name="offset"/>.</returns>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/bitfield"/>,
+        /// <seealso href="https://redis.io/commands/bitfield_ro"/>
+        /// </remarks>
+        Task<long> StringBitfieldGetAsync(RedisKey key, long offset, byte width, bool offsetByBit = true, bool unsigned = false, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Sets a single number in a bitfield at the provided <paramref name="offset"/> to the <paramref name="value"/> provided, in the given encoding.
+        /// </summary>
+        /// <param name="key">The key for the string.</param>
+        /// <param name="offset">The offset into the bitfield to address.</param>
+        /// <param name="width">The width of the encoding to interpret the bitfield width.</param>
+        /// <param name="value">The value to set the addressed bits to.</param>
+        /// <param name="offsetByBit">Whether or not to offset into the bitfield by bits vs encoding.</param>
+        /// <param name="unsigned">Whether or not to interpret the number gotten as an unsigned integer.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The previous value as an <see cref="long"/> at the provided <paramref name="offset"/>.</returns>
+        /// <remarks><seealso href="https://redis.io/commands/bitfield"/></remarks>
+        Task<long> StringBitfieldSetAsync(RedisKey key, long offset, byte width, long value, bool offsetByBit = true, bool unsigned = false, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Increments a single number in a bitfield at the provided <paramref name="offset"/> in the provided encoding by the given <paramref name="increment"/>.
+        /// </summary>
+        /// <param name="key">The key for the string.</param>
+        /// <param name="offset">The offset into the bitfield to address.</param>
+        /// <param name="width">The width of the encoding to interpret the bitfield width.</param>
+        /// <param name="increment">The value to set the addressed bits to.</param>
+        /// <param name="offsetByBit">Whether or not to offset into the bitfield by bits vs encoding.</param>
+        /// <param name="unsigned">Whether or not to interpret the number gotten as an unsigned integer.</param>
+        /// <param name="overflowHandling">How to handle overflows.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The new value of the given at the provided <paramref name="offset"/> after the <c>INCRBY</c> is applied, represented as an <see cref="long"/>. Returns <see langword="null"/> if the operation fails.</returns>
+        /// <remarks><seealso href="https://redis.io/commands/bitfield"/></remarks>
+        Task<long?> StringBitfieldIncrementAsync(RedisKey key, long offset, byte width, long increment, bool offsetByBit = true, bool unsigned = false, BitfieldOverflowHandling overflowHandling = Redis.BitfieldOverflowHandling.Wrap, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Perform a bitwise operation between multiple keys (containing string values) and store the result in the destination key.
         /// The BITOP command supports four bitwise operations; note that NOT is a unary operator: the second key should be omitted in this case
         /// and only the first key will be considered.

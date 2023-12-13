@@ -254,6 +254,11 @@ namespace StackExchange.Redis
         public bool KeyTouch => Version.IsAtLeast(v3_2_1);
 
         /// <summary>
+        /// Is <see href="https://redis.io/commands/bitfied_ro">BITFIELD_RO</see> available?
+        /// </summary>
+        internal bool ReadOnlyBitfield => Version > v6_2_0;
+
+        /// <summary>
         /// Does the server prefer 'replica' terminology - '<see href="https://redis.io/commands/replicaof/">REPLICAOF</see>', etc?
         /// </summary>
         public bool ReplicaCommands => Version.IsAtLeast(v5_0_0);

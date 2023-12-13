@@ -65,6 +65,10 @@ StackExchange.Redis.BacklogPolicy.AbortPendingOnConnectionFailure.init -> void
 StackExchange.Redis.BacklogPolicy.BacklogPolicy() -> void
 StackExchange.Redis.BacklogPolicy.QueueWhileDisconnected.get -> bool
 StackExchange.Redis.BacklogPolicy.QueueWhileDisconnected.init -> void
+StackExchange.Redis.BitfieldOverflowHandling
+StackExchange.Redis.BitfieldOverflowHandling.Fail = 2 -> StackExchange.Redis.BitfieldOverflowHandling
+StackExchange.Redis.BitfieldOverflowHandling.Saturate = 1 -> StackExchange.Redis.BitfieldOverflowHandling
+StackExchange.Redis.BitfieldOverflowHandling.Wrap = 0 -> StackExchange.Redis.BitfieldOverflowHandling
 StackExchange.Redis.Bitwise
 StackExchange.Redis.Bitwise.And = 0 -> StackExchange.Redis.Bitwise
 StackExchange.Redis.Bitwise.Not = 3 -> StackExchange.Redis.Bitwise
