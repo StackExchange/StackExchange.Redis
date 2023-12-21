@@ -35,7 +35,7 @@
     <AdditionalFiles Include="PublicAPI/PublicAPI.Shipped.txt" />
     <AdditionalFiles Include="PublicAPI/PublicAPI.Unshipped.txt" />
     <!-- APIs for netcoreapp3.1+ -->
-    <AdditionalFiles Include="PublicAPI/netcoreapp3.1/PublicAPI.Shipped.txt" Condition="'$(TargetFrameworkIdentifier)' == '.NETCoreApp'" />
+    <AdditionalFiles Include="PublicAPI/$(TargetFramework)/PublicAPI.Shipped.txt" Condition="'$(TargetFrameworkIdentifier)' == '.NETCoreApp'" />
   </ItemGroup>
 
   <ItemGroup>
