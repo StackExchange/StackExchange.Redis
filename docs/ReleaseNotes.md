@@ -78,7 +78,7 @@ Current package versions:
 - Fix [#2249](https://github.com/StackExchange/StackExchange.Redis/issues/2249): Properly handle a `fail` state (new `ClusterNode.IsFail` property) for `CLUSTER NODES` and expose `fail?` as a property (`IsPossiblyFail`) as well ([#2288 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2288))
 - Adds: `IConnectionMultiplexer.ServerMaintenanceEvent` (was on `ConnectionMultiplexer` but not the interface) ([#2306 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2306))
 - Adds: To timeout messages, additional debug information: `Sync-Ops` (synchronous operations), `Async-Ops` (asynchronous operations), and `Server-Connected-Seconds` (how long the connection in question has been connected, or `"n/a"`) ([#2300 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2300))
-
+- Fix: [#2321](https://github.com/StackExchange/StackExchange.Redis/issues/2321): Honor disposition of select command in Command Map for transactions [(#2322 by slorello89)](https://github.com/StackExchange/StackExchange.Redis/pull/2322)
 
 ## 2.6.80
 

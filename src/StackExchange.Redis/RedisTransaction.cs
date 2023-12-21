@@ -116,20 +116,24 @@ namespace StackExchange.Redis
             lock (SyncLock)
             {
                 (_pending ??= new List<QueuedMessage>()).Add(queued);
-
                 switch (message.Command)
                 {
                     case RedisCommand.UNKNOWN:
                     case RedisCommand.EVAL:
                     case RedisCommand.EVALSHA:
-                        // people can do very naughty things in an EVAL
-                        // including change the DB; change it back to what we
-                        // think it should be!
-                        var sel = PhysicalConnection.GetSelectDatabaseCommand(message.Db);
-                        queued = new QueuedMessage(sel);
-                        wasQueued = SimpleResultBox<bool>.Create();
-                        queued.SetSource(wasQueued, QueuedProcessor.Default);
-                        _pending.Add(queued);
+                        var server = multiplexer.SelectServer(message);
+                        if (server != null && server.SupportsDatabases)
+                        {
+                            // people can do very naughty things in an EVAL
+                            // including change the DB; change it back to what we
+                            // think it should be!
+                            var sel = PhysicalConnection.GetSelectDatabaseCommand(message.Db);
+                            queued = new QueuedMessage(sel);
+                            wasQueued = SimpleResultBox<bool>.Create();
+                            queued.SetSource(wasQueued, QueuedProcessor.Default);
+                            _pending.Add(queued);
+                        }
+
                         break;
                 }
             }

@@ -1219,6 +1219,22 @@ public class TransactionTests : TestBase
         Assert.Equal(30, count);
     }
 
+    [Fact]
+    public async Task TransactionWithAdHocCommandsAndSelectDisabled()
+    {
+        using var conn = Create(disabledCommands: new string[] { "SELECT" });
+        RedisKey key = Me();
+        var db = conn.GetDatabase();
+        db.KeyDelete(key, CommandFlags.FireAndForget);
+        Assert.False(db.KeyExists(key));
+
+        var tran = db.CreateTransaction("state");
+        var a = tran.ExecuteAsync("SET", "foo", "bar");
+        Assert.True(await tran.ExecuteAsync());
+        var setting = db.StringGet("foo");
+        Assert.Equal("bar",setting);
+    }
+
 #if VERBOSE
     [Fact]
     public async Task WatchAbort_StringEqual()
