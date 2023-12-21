@@ -35,7 +35,4 @@
   <ItemGroup Condition="'$(Configuration)' == 'Release' and '$(SourceRoot)'==''">
     <SourceRoot Include="$(MSBuildThisFileDirectory)/"/>
   </ItemGroup>
-  <ItemGroup>
-    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" PrivateAssets="all" />
-  </ItemGroup>
 </Project>

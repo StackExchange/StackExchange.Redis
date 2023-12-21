@@ -13,7 +13,6 @@
     <PackageVersion Include="GitHubActionsTestLogger" Version="2.0.0-alpha" />
     <PackageVersion Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" Version="3.3.4-beta1.22362.3" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="6.0.0" />
-    <PackageVersion Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.2" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.1.0" />
     <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="1.1.1" />
     <PackageVersion Include="Nerdbank.GitVersioning" Version="3.4.255" />
@@ -25,5 +24,8 @@
     <PackageVersion Include="System.Runtime.Caching" Version="5.0.0" />
     <PackageVersion Include="xunit" Version="2.5.0" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="2.5.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <GlobalPackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.2" />
   </ItemGroup>
 </Project>
