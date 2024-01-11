@@ -790,39 +790,44 @@ namespace StackExchange.Redis
             var val = key.KeyValue;
             if (val is string s)
             {
-                WriteUnifiedPrefixedString(_ioPipe!.Output, key.KeyPrefix, s);
+                WriteUnifiedPrefixedString(_ioPipe?.Output, key.KeyPrefix, s);
             }
             else
             {
-                WriteUnifiedPrefixedBlob(_ioPipe!.Output, key.KeyPrefix, (byte[]?)val);
+                WriteUnifiedPrefixedBlob(_ioPipe?.Output, key.KeyPrefix, (byte[]?)val);
             }
         }
 
         internal void Write(in RedisChannel channel)
-            => WriteUnifiedPrefixedBlob(_ioPipe!.Output, ChannelPrefix, channel.Value);
+            => WriteUnifiedPrefixedBlob(_ioPipe?.Output, ChannelPrefix, channel.Value);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal void WriteBulkString(in RedisValue value)
-            => WriteBulkString(value, _ioPipe!.Output);
-        internal static void WriteBulkString(in RedisValue value, PipeWriter output)
+            => WriteBulkString(value, _ioPipe?.Output);
+        internal static void WriteBulkString(in RedisValue value, PipeWriter? maybeNullWriter)
         {
+            if (maybeNullWriter is not PipeWriter writer)
+            {
+                return; // Prevent null refs during disposal
+            }
+
             switch (value.Type)
             {
                 case RedisValue.StorageType.Null:
-                    WriteUnifiedBlob(output, (byte[]?)null);
+                    WriteUnifiedBlob(writer, (byte[]?)null);
                     break;
                 case RedisValue.StorageType.Int64:
-                    WriteUnifiedInt64(output, value.OverlappedValueInt64);
+                    WriteUnifiedInt64(writer, value.OverlappedValueInt64);
                     break;
                 case RedisValue.StorageType.UInt64:
-                    WriteUnifiedUInt64(output, value.OverlappedValueUInt64);
+                    WriteUnifiedUInt64(writer, value.OverlappedValueUInt64);
                     break;
                 case RedisValue.StorageType.Double: // use string
                 case RedisValue.StorageType.String:
-                    WriteUnifiedPrefixedString(output, null, (string?)value);
+                    WriteUnifiedPrefixedString(writer, null, (string?)value);
                     break;
                 case RedisValue.StorageType.Raw:
-                    WriteUnifiedSpan(output, ((ReadOnlyMemory<byte>)value).Span);
+                    WriteUnifiedSpan(writer, ((ReadOnlyMemory<byte>)value).Span);
                     break;
                 default:
                     throw new InvalidOperationException($"Unexpected {value.Type} value: '{value}'");
@@ -833,6 +838,11 @@ namespace StackExchange.Redis
 
         internal void WriteHeader(RedisCommand command, int arguments, CommandBytes commandBytes = default)
         {
+            if (_ioPipe?.Output is not PipeWriter writer)
+            {
+                return; // Prevent null refs during disposal
+            }
+
             var bridge = BridgeCouldBeNull ?? throw new ObjectDisposedException(ToString());
 
             if (command == RedisCommand.UNKNOWN)
@@ -856,14 +866,14 @@ namespace StackExchange.Redis
             // *{argCount}\r\n      = 3 + MaxInt32TextLen
             // ${cmd-len}\r\n       = 3 + MaxInt32TextLen
             // {cmd}\r\n            = 2 + commandBytes.Length
-            var span = _ioPipe!.Output.GetSpan(commandBytes.Length + 8 + Format.MaxInt32TextLen + Format.MaxInt32TextLen);
+            var span = writer.GetSpan(commandBytes.Length + 8 + Format.MaxInt32TextLen + Format.MaxInt32TextLen);
             span[0] = (byte)'*';
 
             int offset = WriteRaw(span, arguments + 1, offset: 1);
 
             offset = AppendToSpanCommand(span, commandBytes, offset: offset);
 
-            _ioPipe.Output.Advance(offset);
+            writer.Advance(offset);
         }
 
         internal void RecordQuit() // don't blame redis if we fired the first shot
@@ -1116,7 +1126,11 @@ namespace StackExchange.Redis
 
         internal void WriteSha1AsHex(byte[] value)
         {
-            var writer = _ioPipe!.Output;
+            if (_ioPipe?.Output is not PipeWriter writer)
+            {
+                return; // Prevent null refs during disposal
+            }
+
             if (value == null)
             {
                 writer.Write(NullBulkString.Span);
@@ -1156,8 +1170,13 @@ namespace StackExchange.Redis
             return value < 10 ? (byte)('0' + value) : (byte)('a' - 10 + value);
         }
 
-        internal static void WriteUnifiedPrefixedString(PipeWriter writer, byte[]? prefix, string? value)
+        internal static void WriteUnifiedPrefixedString(PipeWriter? maybeNullWriter, byte[]? prefix, string? value)
         {
+            if (maybeNullWriter is not PipeWriter writer)
+            {
+                return; // Prevent null refs during disposal
+            }
+
             if (value == null)
             {
                 // special case
@@ -1259,8 +1278,13 @@ namespace StackExchange.Redis
             }
         }
 
-        private static void WriteUnifiedPrefixedBlob(PipeWriter writer, byte[]? prefix, byte[]? value)
+        private static void WriteUnifiedPrefixedBlob(PipeWriter? maybeNullWriter, byte[]? prefix, byte[]? value)
         {
+            if (maybeNullWriter is not PipeWriter writer)
+            {
+                return; // Prevent null refs during disposal
+            }
+
             // ${total-len}\r\n 
             // {prefix}{value}\r\n
             if (prefix == null || prefix.Length == 0 || value == null)
