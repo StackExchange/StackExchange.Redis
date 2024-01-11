@@ -1126,40 +1126,42 @@ namespace StackExchange.Redis
 
         internal void WriteSha1AsHex(byte[] value)
         {
-            if (_ioPipe?.Output is PipeWriter writer)
+            if (_ioPipe?.Output is not PipeWriter writer)
             {
-                if (value == null)
-                {
-                    writer.Write(NullBulkString.Span);
-                }
-                else if (value.Length == ResultProcessor.ScriptLoadProcessor.Sha1HashLength)
-                {
-                    // $40\r\n              = 5
-                    // {40 bytes}\r\n       = 42
+                return; // Prevent null refs during disposal
+            }
 
-                    var span = writer.GetSpan(47);
-                    span[0] = (byte)'$';
-                    span[1] = (byte)'4';
-                    span[2] = (byte)'0';
-                    span[3] = (byte)'\r';
-                    span[4] = (byte)'\n';
+            if (value == null)
+            {
+                writer.Write(NullBulkString.Span);
+            }
+            else if (value.Length == ResultProcessor.ScriptLoadProcessor.Sha1HashLength)
+            {
+                // $40\r\n              = 5
+                // {40 bytes}\r\n       = 42
 
-                    int offset = 5;
-                    for (int i = 0; i < value.Length; i++)
-                    {
-                        var b = value[i];
-                        span[offset++] = ToHexNibble(b >> 4);
-                        span[offset++] = ToHexNibble(b & 15);
-                    }
-                    span[offset++] = (byte)'\r';
-                    span[offset++] = (byte)'\n';
+                var span = writer.GetSpan(47);
+                span[0] = (byte)'$';
+                span[1] = (byte)'4';
+                span[2] = (byte)'0';
+                span[3] = (byte)'\r';
+                span[4] = (byte)'\n';
 
-                    writer.Advance(offset);
-                }
-                else
+                int offset = 5;
+                for (int i = 0; i < value.Length; i++)
                 {
-                    throw new InvalidOperationException("Invalid SHA1 length: " + value.Length);
+                    var b = value[i];
+                    span[offset++] = ToHexNibble(b >> 4);
+                    span[offset++] = ToHexNibble(b & 15);
                 }
+                span[offset++] = (byte)'\r';
+                span[offset++] = (byte)'\n';
+
+                writer.Advance(offset);
+            }
+            else
+            {
+                throw new InvalidOperationException("Invalid SHA1 length: " + value.Length);
             }
         }
 
