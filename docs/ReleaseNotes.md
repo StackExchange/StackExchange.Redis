@@ -10,6 +10,7 @@ Current package versions:
 
 - Fix [#2619](https://github.com/StackExchange/StackExchange.Redis/issues/2619): Type-forward `IsExternalInit` to support down-level TFMs ([#2621 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2621))
 - `InternalsVisibleTo` `PublicKey` enhancements([#2623 by WeihanLi](https://github.com/StackExchange/StackExchange.Redis/pull/2623))
+- Fix [#2576](https://github.com/StackExchange/StackExchange.Redis/issues/2576): Prevent `NullReferenceException` during shutdown of connections ([#2629 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2629))
 
 ## 2.7.10
 
