@@ -7,6 +7,9 @@ Current package versions:
 | [![StackExchange.Redis](https://img.shields.io/nuget/v/StackExchange.Redis.svg)](https://www.nuget.org/packages/StackExchange.Redis/) | [![StackExchange.Redis](https://img.shields.io/nuget/vpre/StackExchange.Redis.svg)](https://www.nuget.org/packages/StackExchange.Redis/) | [![StackExchange.Redis MyGet](https://img.shields.io/myget/stackoverflow/vpre/StackExchange.Redis.svg)](https://www.myget.org/feed/stackoverflow/package/nuget/StackExchange.Redis) |
 
 ## Unreleased
+No unreleased changes
+
+## 2.7.17
 
 - Fix [#2619](https://github.com/StackExchange/StackExchange.Redis/issues/2619): Type-forward `IsExternalInit` to support down-level TFMs ([#2621 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2621))
 - `InternalsVisibleTo` `PublicKey` enhancements([#2623 by WeihanLi](https://github.com/StackExchange/StackExchange.Redis/pull/2623))
