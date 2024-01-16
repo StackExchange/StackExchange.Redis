@@ -11,6 +11,7 @@ No unreleased changes
 
 ## 2.7.17
 
+- Fix [#2321](https://github.com/StackExchange/StackExchange.Redis/issues/2321): Honor disposition of select command in Command Map for transactions [(#2322 by slorello89)](https://github.com/StackExchange/StackExchange.Redis/pull/2322)
 - Fix [#2619](https://github.com/StackExchange/StackExchange.Redis/issues/2619): Type-forward `IsExternalInit` to support down-level TFMs ([#2621 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2621))
 - `InternalsVisibleTo` `PublicKey` enhancements([#2623 by WeihanLi](https://github.com/StackExchange/StackExchange.Redis/pull/2623))
 - Fix [#2576](https://github.com/StackExchange/StackExchange.Redis/issues/2576): Prevent `NullReferenceException` during shutdown of connections ([#2629 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2629))
@@ -82,7 +83,6 @@ No unreleased changes
 - Fix [#2249](https://github.com/StackExchange/StackExchange.Redis/issues/2249): Properly handle a `fail` state (new `ClusterNode.IsFail` property) for `CLUSTER NODES` and expose `fail?` as a property (`IsPossiblyFail`) as well ([#2288 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2288))
 - Adds: `IConnectionMultiplexer.ServerMaintenanceEvent` (was on `ConnectionMultiplexer` but not the interface) ([#2306 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2306))
 - Adds: To timeout messages, additional debug information: `Sync-Ops` (synchronous operations), `Async-Ops` (asynchronous operations), and `Server-Connected-Seconds` (how long the connection in question has been connected, or `"n/a"`) ([#2300 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2300))
-- Fix: [#2321](https://github.com/StackExchange/StackExchange.Redis/issues/2321): Honor disposition of select command in Command Map for transactions [(#2322 by slorello89)](https://github.com/StackExchange/StackExchange.Redis/pull/2322)
 
 ## 2.6.80
 
