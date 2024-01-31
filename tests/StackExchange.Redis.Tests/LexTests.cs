@@ -47,12 +47,16 @@ public class LexTests : TestBase
         set = db.SortedSetRangeByValue(key, "aaa", "g", Exclude.Stop, Order.Descending, 1, 3);
         Equate(set, set.Length, "e", "d", "c");
 
+
         set = db.SortedSetRangeByValue(key, "g", "aaa", Exclude.Start, Order.Descending, 1, 3);
         Equate(set, set.Length, "e", "d", "c");
 
         set = db.SortedSetRangeByValue(key, "e", default(RedisValue));
         count = db.SortedSetLengthByValue(key, "e", default(RedisValue));
         Equate(set, count, "e", "f", "g");
+
+        set = db.SortedSetRangeByValue(key, RedisValue.Null, RedisValue.Null, Exclude.None, Order.Descending, 0, 3);    // added to test Null-min- and max-param
+        Equate(set, set.Length, "g", "f", "e");
     }
 
     [Fact]

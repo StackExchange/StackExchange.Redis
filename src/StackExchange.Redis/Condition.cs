@@ -285,6 +285,20 @@ namespace StackExchange.Redis
         public static Condition SortedSetNotContains(RedisKey key, RedisValue member) => new ExistsCondition(key, RedisType.SortedSet, member, false);
 
         /// <summary>
+        /// Enforces that the given sorted set contains a member that ist starting with the start-sequence
+        /// </summary>
+        /// <param name="key">The key of the sorted set to check.</param>
+        /// <param name="memberStartSequence">a byte array: the set must contain at least one member, that starts with the byte-sequence.</param>
+        public static Condition SortedSetStartsWith(RedisKey key, byte[] memberStartSequence) => new StartsWithCondition(key, memberStartSequence, true);
+
+        /// <summary>
+        /// Enforces that the given sorted set does not contain a member that ist starting with the start-sequence
+        /// </summary>
+        /// <param name="key">The key of the sorted set to check.</param>
+        /// <param name="memberStartSequence">a byte array: the set must not contain any members, that start with the byte-sequence.</param>
+        public static Condition SortedSetNotStartsWith(RedisKey key, byte[] memberStartSequence) => new StartsWithCondition(key, memberStartSequence, false);
+
+        /// <summary>
         /// Enforces that the given sorted set member must have the specified score.
         /// </summary>
         /// <param name="key">The key of the sorted set to check.</param>
@@ -370,6 +384,9 @@ namespace StackExchange.Redis
             public static Message CreateMessage(Condition condition, int db, CommandFlags flags, RedisCommand command, in RedisKey key, in RedisValue value, in RedisValue value1) =>
                 new ConditionMessage(condition, db, flags, command, key, value, value1);
 
+            public static Message CreateMessage(Condition condition, int db, CommandFlags flags, RedisCommand command, in RedisKey key, in RedisValue value, in RedisValue value1, in RedisValue value2, in RedisValue value3, in RedisValue value4) =>
+                new ConditionMessage(condition, db, flags, command, key, value, value1, value2, value3, value4);
+
             [System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0071:Simplify interpolation", Justification = "Allocations (string.Concat vs. string.Format)")]
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
@@ -389,6 +406,9 @@ namespace StackExchange.Redis
                 public readonly Condition Condition;
                 private readonly RedisValue value;
                 private readonly RedisValue value1;
+                private readonly RedisValue value2;
+                private readonly RedisValue value3;
+                private readonly RedisValue value4;
 
                 public ConditionMessage(Condition condition, int db, CommandFlags flags, RedisCommand command, in RedisKey key, in RedisValue value)
                     : base(db, flags, command, key)
@@ -403,6 +423,15 @@ namespace StackExchange.Redis
                     this.value1 = value1; // note no assert here
                 }
 
+                // Message with 3 or 4 values not used, therefore not implemented
+                public ConditionMessage(Condition condition, int db, CommandFlags flags, RedisCommand command, in RedisKey key, in RedisValue value, in RedisValue value1, in RedisValue value2, in RedisValue value3, in RedisValue value4)
+                    : this(condition, db, flags, command, key, value, value1)
+                {
+                    this.value2 = value2; // note no assert here
+                    this.value3 = value3; // note no assert here
+                    this.value4 = value4; // note no assert here
+                }
+
                 protected override void WriteImpl(PhysicalConnection physical)
                 {
                     if (value.IsNull)
@@ -412,18 +441,24 @@ namespace StackExchange.Redis
                     }
                     else
                     {
-                        physical.WriteHeader(command, value1.IsNull ? 2 : 3);
+                        physical.WriteHeader(command, value1.IsNull? 2 : value2.IsNull? 3 : value3.IsNull? 4 : value4.IsNull? 5 : 6); 
                         physical.Write(Key);
                         physical.WriteBulkString(value);
                         if (!value1.IsNull)
-                        {
                             physical.WriteBulkString(value1);
-                        }
+                        if (!value2.IsNull)
+                            physical.WriteBulkString(value2);
+                        if (!value3.IsNull)
+                            physical.WriteBulkString(value3);
+                        if (!value4.IsNull)
+                            physical.WriteBulkString(value4);
                     }
                 }
-                public override int ArgCount => value.IsNull ? 1 : value1.IsNull ? 2 : 3;
+            public override int ArgCount => value.IsNull ? 1 : value1.IsNull ? 2 : value2.IsNull ? 3 : value3.IsNull ? 4 : value4.IsNull ? 5 : 6;
             }
         }
+
+
 
         internal class ExistsCondition : Condition
         {
@@ -500,6 +535,90 @@ namespace StackExchange.Redis
                 }
             }
         }
+
+        internal class StartsWithCondition : Condition
+        {
+            // only usable for RedisType.SortedSet, members of SortedSets are always byte-arrays, expectedStartValue therefore is a byte-array
+            // any Encoding and Conversion for the search-sequence has to be executed in calling application
+            // working with byte arrays should prevent any encoding within this class, that could distort the comparison
+
+            private readonly bool expectedResult;
+            private readonly RedisValue expectedStartValue;
+            private readonly RedisKey key;
+
+            internal override Condition MapKeys(Func<RedisKey, RedisKey> map) =>
+                new StartsWithCondition(map(key), expectedStartValue, expectedResult);
+
+            public StartsWithCondition(in RedisKey key, in RedisValue expectedStartValue, bool expectedResult)
+            {
+                if (key.IsNull) throw new ArgumentNullException(nameof(key));
+                if (expectedStartValue.IsNull) throw new ArgumentNullException(nameof(expectedStartValue));
+                this.key = key;
+                this.expectedStartValue = expectedStartValue;   // array with length 0 returns true condition
+                this.expectedResult = expectedResult;
+            }
+
+            public override string ToString() =>
+                (expectedStartValue.IsNull ? key.ToString() : ((string?)key) + " " + RedisType.SortedSet + " > " + expectedStartValue)
+                    + (expectedResult ? " starts with" : " does not start with");
+
+            internal override void CheckCommands(CommandMap commandMap) => commandMap.AssertAvailable(RedisCommand.ZRANGEBYLEX);
+
+            internal override IEnumerable<Message> CreateMessages(int db, IResultBox? resultBox)
+            {
+                yield return Message.Create(db, CommandFlags.None, RedisCommand.WATCH, key);
+
+#pragma warning disable CS8600, CS8604  // expectedStartValue is checked to be not null in Constructor and must be a byte[] because of API-parameters
+                var message = ConditionProcessor.CreateMessage(this, db, CommandFlags.None, RedisCommand.ZRANGEBYLEX, key,
+                        CombineBytes(91, (byte[])expectedStartValue.Box()), "+", "LIMIT", "0", "1");// prepends '[' to startValue for inclusive search in CombineBytes
+#pragma warning disable CS8600, CS8604
+                message.SetSource(ConditionProcessor.Default, resultBox);
+                yield return message;
+            }
+
+            internal override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) => serverSelectionStrategy.HashSlot(key);
+
+            internal override bool TryValidate(in RawResult result, out bool value)
+            {
+                RedisValue[]? r = result.GetItemsAsValues();
+                if (result.ItemsCount == 0) value = false;// false, if empty list -> read after end of memberlist / itemsCout > 1 is impossible due to 'LIMIT 0 1'
+#pragma warning disable CS8600, CS8604  // warnings on StartsWith can be ignored because of ItemsCount-check in then preceding command!!
+                else value = r != null && r.Length > 0 && StartsWith((byte[])r[0].Box(), expectedStartValue);
+#pragma warning disable CS8600, CS8604
+
+#pragma warning disable CS8602  // warning for r[0] can be ignored because of null-check in then same command-line !!
+                if (!expectedResult) value = !value;
+                ConnectionMultiplexer.TraceWithoutContext("actual: " + r == null ? "null" : r.Length == 0 ? "empty" : r[0].ToString()
+                                                        + "; expected: " + expectedStartValue.ToString()
+                                                        + "; wanted: " + (expectedResult ? "StartsWith" : "NotStartWith")
+                                                        + "; voting: " + value);
+#pragma warning restore CS8602  
+                return true;
+            }
+
+            private static byte[] CombineBytes(byte b1, byte[] a1)  // combines b1 and a1 to new array
+            {
+                byte[] newArray = new byte[a1.Length + 1];
+                newArray[0] = b1;
+                System.Buffer.BlockCopy(a1, 0, newArray, 1, a1.Length);
+                return newArray;
+            }
+
+            internal bool StartsWith(byte[] result, byte[] searchfor)
+            {
+                if (searchfor.Length > result.Length) return false;
+
+                for (int i = 0; i < searchfor.Length; i++)
+                {
+                    if (result[i] != searchfor[i]) return false;
+                }
+
+                return true;
+            }
+
+
+        }
+
 
         internal class EqualsCondition : Condition
         {

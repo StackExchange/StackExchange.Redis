@@ -816,6 +816,49 @@ public class TransactionTests : TestBase
         }
     }
 
+
+    [Theory]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(true, false, false)]
+    [InlineData(true, true, true)]
+    public async Task BasicTranWithSortedSetStartsWithCondition(bool demandKeyExists, bool keyExists, bool expectTranResult)
+    {
+        using var conn = Create(disabledCommands: new[] { "info", "config" });
+
+        RedisKey key = Me(), key2 = Me() + "2";
+        var db = conn.GetDatabase();
+        db.KeyDelete(key, CommandFlags.FireAndForget);
+        db.KeyDelete(key2, CommandFlags.FireAndForget);
+        RedisValue member = "value";
+        byte[] startWith = new byte[] { 118, 97, 108 };  // = "val"
+        if (keyExists) db.SortedSetAdd(key2, member, 0.0, flags: CommandFlags.FireAndForget);
+        Assert.False(db.KeyExists(key));
+        Assert.Equal(keyExists, db.SortedSetScore(key2, member).HasValue);
+
+        var tran = db.CreateTransaction();
+        var cond = tran.AddCondition(demandKeyExists ? Condition.SortedSetStartsWith(key2, startWith) : Condition.SortedSetNotStartsWith(key2, startWith));
+        var incr = tran.StringIncrementAsync(key);
+        var exec = tran.ExecuteAsync();
+        var get = db.StringGet(key);
+
+        Assert.Equal(expectTranResult, await exec);
+        if (demandKeyExists == keyExists)
+        {
+            Assert.True(await exec, "eq: exec");
+            Assert.True(cond.WasSatisfied, "eq: was satisfied");
+            Assert.Equal(1, await incr); // eq: incr
+            Assert.Equal(1, (long)get); // eq: get
+        }
+        else
+        {
+            Assert.False(await exec, "neq: exec");
+            Assert.False(cond.WasSatisfied, "neq: was satisfied");
+            Assert.Equal(TaskStatus.Canceled, SafeStatus(incr)); // neq: incr
+            Assert.Equal(0, (long)get); // neq: get
+        }
+    }
+
     [Theory]
     [InlineData(4D, 4D, true, true)]
     [InlineData(4D, 5D, true, false)]
