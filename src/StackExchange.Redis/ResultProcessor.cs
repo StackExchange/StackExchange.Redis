@@ -1108,8 +1108,16 @@ namespace StackExchange.Redis
                     case ResultType.BulkString:
                         string nodes = result.GetString()!;
                         var bridge = connection.BridgeCouldBeNull;
-                        if (bridge != null) bridge.ServerEndPoint.ServerType = ServerType.Cluster;
                         var config = Parse(connection, nodes);
+
+                        // note: some setups self-report as a cluster with a single
+                        // endpoint (in two pieces - replica+primary, same path);
+                        // don't treat that as a real cluster; see
+                        // https://github.com/StackExchange/StackExchange.Redis/issues/2642
+                        if (bridge != null && config.Nodes.Count >= 2)
+                        {
+                            bridge.ServerEndPoint.ServerType = ServerType.Cluster;
+                        }
                         SetResult(message, config);
                         return true;
                 }
