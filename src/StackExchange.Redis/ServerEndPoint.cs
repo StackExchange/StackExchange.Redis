@@ -415,6 +415,10 @@ namespace StackExchange.Redis
                 lastInfoReplicationCheckTicks = Environment.TickCount;
                 if (features.InfoSections)
                 {
+                    // note: Redis 7.0 has a multi-section usage, but we don't know
+                    // the server version at this point; we *could* use the optional
+                    // value on the config, but let's keep things simple: these
+                    // commands are suitably cheap
                     msg = Message.Create(-1, flags, RedisCommand.INFO, RedisLiterals.replication);
                     msg.SetInternalCall();
                     await WriteDirectOrQueueFireAndForgetAsync(connection, msg, autoConfigProcessor).ForAwait();

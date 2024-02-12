@@ -95,6 +95,9 @@ namespace StackExchange.Redis
             OnCreateEcho();
         }
 
+        // *definitely* multi-database; this can help identify some unusual config scenarios
+        internal bool MultiDatabasesOverride { get; set; } // switch to flags-enum if more needed later
+
         internal async Task BeginConnectAsync(ILogger? log)
         {
             var bridge = BridgeCouldBeNull;
@@ -262,6 +265,7 @@ namespace StackExchange.Redis
 
         private RedisProtocol _protocol; // note starts at **zero**, not RESP2
         public RedisProtocol? Protocol => _protocol == 0 ? null : _protocol;
+
         internal void SetProtocol(RedisProtocol value) => _protocol = value;
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:Do not dispose objects multiple times")]
