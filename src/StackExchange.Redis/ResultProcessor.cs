@@ -929,6 +929,10 @@ namespace StackExchange.Redis
                                     int dbCount = checked((int)i64);
                                     Log?.LogInformation($"{Format.ToString(server)}: Auto-configured (CONFIG) databases: " + dbCount);
                                     server.Databases = dbCount;
+                                    if (dbCount > 1)
+                                    {
+                                        connection.MultiDatabasesOverride = true;
+                                    }
                                 }
                                 else if (key.IsEqual(CommonReplies.slave_read_only) || key.IsEqual(CommonReplies.replica_read_only))
                                 {
@@ -1108,8 +1112,13 @@ namespace StackExchange.Redis
                     case ResultType.BulkString:
                         string nodes = result.GetString()!;
                         var bridge = connection.BridgeCouldBeNull;
-                        if (bridge != null) bridge.ServerEndPoint.ServerType = ServerType.Cluster;
                         var config = Parse(connection, nodes);
+
+                        // re multi-db: https://github.com/StackExchange/StackExchange.Redis/issues/2642
+                        if (bridge != null && !connection.MultiDatabasesOverride)
+                        {
+                            bridge.ServerEndPoint.ServerType = ServerType.Cluster;
+                        }
                         SetResult(message, config);
                         return true;
                 }

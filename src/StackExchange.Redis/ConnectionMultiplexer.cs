@@ -1,4 +1,7 @@
-﻿using System;
+﻿using Microsoft.Extensions.Logging;
+using Pipelines.Sockets.Unofficial;
+using StackExchange.Redis.Profiling;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -11,9 +14,6 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Logging;
-using Pipelines.Sockets.Unofficial;
-using StackExchange.Redis.Profiling;
 
 namespace StackExchange.Redis
 {
@@ -2078,19 +2078,22 @@ namespace StackExchange.Redis
 #pragma warning disable CS0618 // Type or member is obsolete
                     result = TryPushMessageToBridgeSync(message, processor, source, ref server);
 #pragma warning restore CS0618
-                    if (result != WriteResult.Success)
+                    if (!source.IsFaulted) // if we faulted while writing, we don't need to wait
                     {
-                        throw GetException(result, message, server);
-                    }
+                        if (result != WriteResult.Success)
+                        {
+                            throw GetException(result, message, server);
+                        }
 
-                    if (Monitor.Wait(source, TimeoutMilliseconds))
-                    {
-                        Trace("Timely response to " + message);
-                    }
-                    else
-                    {
-                        Trace("Timeout performing " + message);
-                        timeout = true;
+                        if (Monitor.Wait(source, TimeoutMilliseconds))
+                        {
+                            Trace("Timely response to " + message);
+                        }
+                        else
+                        {
+                            Trace("Timeout performing " + message);
+                            timeout = true;
+                        }
                     }
                 }
 
