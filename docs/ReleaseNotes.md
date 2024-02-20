@@ -7,6 +7,9 @@ Current package versions:
 | [![StackExchange.Redis](https://img.shields.io/nuget/v/StackExchange.Redis.svg)](https://www.nuget.org/packages/StackExchange.Redis/) | [![StackExchange.Redis](https://img.shields.io/nuget/vpre/StackExchange.Redis.svg)](https://www.nuget.org/packages/StackExchange.Redis/) | [![StackExchange.Redis MyGet](https://img.shields.io/myget/stackoverflow/vpre/StackExchange.Redis.svg)](https://www.myget.org/feed/stackoverflow/package/nuget/StackExchange.Redis) |
 
 ## Unreleased
+No pending unreleased changes.
+
+## 2.7.20
 
 - Fix [#2642](https://github.com/StackExchange/StackExchange.Redis/issues/2642): Detect and support multi-DB pseudo-cluster/proxy scenarios ([#2646](https://github.com/StackExchange/StackExchange.Redis/pull/2646) by mgravell)
 
