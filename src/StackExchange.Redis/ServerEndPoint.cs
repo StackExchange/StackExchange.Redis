@@ -1094,10 +1094,7 @@ namespace StackExchange.Redis
             }
         }
         internal static string ClientInfoSanitize(string? value)
-        => string.IsNullOrWhiteSpace(value) ? String.Empty : nameSanitizer.Replace(value!.Trim(), "-");
-            if (string.IsNullOrWhiteSpace(value)) return "";
-            return nameSanitizer.Replace(value!.Trim(), "-");
-        }
+            => string.IsNullOrWhiteSpace(value) ? ""  : nameSanitizer.Replace(value!.Trim(), "-");
 
         private void ClearMemoized()
         {
