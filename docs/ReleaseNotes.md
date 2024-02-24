@@ -7,7 +7,8 @@ Current package versions:
 | [![StackExchange.Redis](https://img.shields.io/nuget/v/StackExchange.Redis.svg)](https://www.nuget.org/packages/StackExchange.Redis/) | [![StackExchange.Redis](https://img.shields.io/nuget/vpre/StackExchange.Redis.svg)](https://www.nuget.org/packages/StackExchange.Redis/) | [![StackExchange.Redis MyGet](https://img.shields.io/myget/stackoverflow/vpre/StackExchange.Redis.svg)](https://www.myget.org/feed/stackoverflow/package/nuget/StackExchange.Redis) |
 
 ## Unreleased
-No pending unreleased changes.
+
+- Fix [#2653](https://github.com/StackExchange/StackExchange.Redis/issues/2653): Client library metadata should validate contents ([#2654](https://github.com/StackExchange/StackExchange.Redis/pull/2654) by mgravell)
 
 ## 2.7.20
 

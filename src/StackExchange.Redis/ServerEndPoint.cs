@@ -26,7 +26,7 @@ namespace StackExchange.Redis
     {
         internal volatile ServerEndPoint? Primary;
         internal volatile ServerEndPoint[] Replicas = Array.Empty<ServerEndPoint>();
-        private static readonly Regex nameSanitizer = new Regex("[^!-~]", RegexOptions.Compiled);
+        private static readonly Regex nameSanitizer = new Regex("[^!-~]+", RegexOptions.Compiled);
 
         private readonly Hashtable knownScripts = new Hashtable(StringComparer.Ordinal);
 
@@ -1024,6 +1024,8 @@ namespace StackExchange.Redis
                         // it, they should set SetClientLibrary to false, not set the name to empty string)
                         libName = config.Defaults.LibraryName;
                     }
+
+                    libName = ClientInfoSanitize(libName);
                     if (!string.IsNullOrWhiteSpace(libName))
                     {
                         msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.CLIENT,
@@ -1032,7 +1034,7 @@ namespace StackExchange.Redis
                         await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
                     }
 
-                    var version = Utils.GetLibVersion();
+                    var version = ClientInfoSanitize(Utils.GetLibVersion());
                     if (!string.IsNullOrWhiteSpace(version))
                     {
                         msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.CLIENT,
@@ -1091,6 +1093,8 @@ namespace StackExchange.Redis
                 Multiplexer?.ReconfigureIfNeeded(EndPoint, false, caller!);
             }
         }
+        internal static string ClientInfoSanitize(string? value)
+            => string.IsNullOrWhiteSpace(value) ? ""  : nameSanitizer.Replace(value!.Trim(), "-");
 
         private void ClearMemoized()
         {
