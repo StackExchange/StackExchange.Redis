@@ -32,6 +32,8 @@ public class DefaultOptionsTests : TestBase
         public override int ConnectRetry => 123;
         public override Version DefaultVersion => new Version(1, 2, 3, 4);
         protected override string GetDefaultClientName() => "TestPrefix-" + base.GetDefaultClientName();
+        public override bool HeartbeatConsistencyChecks => true;
+        public override TimeSpan HeartbeatInterval => TimeSpan.FromMilliseconds(500);
         public override bool IsMatch(EndPoint endpoint) => endpoint is DnsEndPoint dnsep && dnsep.Host.EndsWith(_domainSuffix);
         public override TimeSpan KeepAliveInterval => TimeSpan.FromSeconds(125);
         public override ILoggerFactory? LoggerFactory => NullLoggerFactory.Instance;
@@ -98,6 +100,9 @@ public class DefaultOptionsTests : TestBase
         Assert.Equal("TestConfigChannel", options.ConfigurationChannel);
         Assert.Equal(123, options.ConnectRetry);
         Assert.Equal(new Version(1, 2, 3, 4), options.DefaultVersion);
+
+        Assert.True(options.HeartbeatConsistencyChecks);
+        Assert.Equal(TimeSpan.FromMilliseconds(500), options.HeartbeatInterval);
 
         Assert.Equal(TimeSpan.FromSeconds(125), TimeSpan.FromSeconds(options.KeepAlive));
         Assert.Equal(NullLoggerFactory.Instance, options.LoggerFactory);

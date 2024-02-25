@@ -140,6 +140,12 @@ namespace StackExchange.Redis.Configuration
         public virtual TimeSpan HeartbeatInterval => TimeSpan.FromSeconds(1);
 
         /// <summary>
+        /// Whether to enable ECHO checks on every heartbeat to ensure network stream consistency.
+        /// This is a rare measure to react to any potential network traffic drops ASAP, terminating the connection.
+        /// </summary>
+        public virtual bool HeartbeatConsistencyChecks => false;
+
+        /// <summary>
         /// Should exceptions include identifiable details? (key names, additional .Data annotations)
         /// </summary>
         public virtual bool IncludeDetailInExceptions => true;

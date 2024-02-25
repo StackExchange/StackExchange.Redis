@@ -567,7 +567,7 @@ namespace StackExchange.Redis
 
         internal string? GetStormLog(Message message) => GetBridge(message)?.GetStormLog();
 
-        internal Message GetTracerMessage(bool assertIdentity)
+        internal Message GetTracerMessage(bool checkResponse)
         {
             // Different configurations block certain commands, as can ad-hoc local configurations, so
             //   we'll do the best with what we have available.
@@ -576,7 +576,7 @@ namespace StackExchange.Redis
             var map = Multiplexer.CommandMap;
             Message msg;
             const CommandFlags flags = CommandFlags.NoRedirect | CommandFlags.FireAndForget;
-            if (assertIdentity && map.IsAvailable(RedisCommand.ECHO))
+            if (checkResponse && map.IsAvailable(RedisCommand.ECHO))
             {
                 msg = Message.Create(-1, flags, RedisCommand.ECHO, (RedisValue)Multiplexer.UniqueId);
             }
@@ -588,7 +588,7 @@ namespace StackExchange.Redis
             {
                 msg = Message.Create(-1, flags, RedisCommand.TIME);
             }
-            else if (!assertIdentity && map.IsAvailable(RedisCommand.ECHO))
+            else if (!checkResponse && map.IsAvailable(RedisCommand.ECHO))
             {
                 // We'll use echo as a PING substitute if it is all we have (in preference to EXISTS)
                 msg = Message.Create(-1, flags, RedisCommand.ECHO, (RedisValue)Multiplexer.UniqueId);
