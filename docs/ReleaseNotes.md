@@ -12,7 +12,7 @@ No pending unreleased changes.
 ## 2.7.23
 
 - Fix [#2653](https://github.com/StackExchange/StackExchange.Redis/issues/2653): Client library metadata should validate contents ([#2654](https://github.com/StackExchange/StackExchange.Redis/pull/2654) by mgravell)
-- Add `HeartbeatConsistencyChecks` option (opt-in) to enabled per-heartbeat (defaults to once per second) checks to be sent to ensure no network stream corruption has occured ([#2656 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2656))
+- Add `HeartbeatConsistencyChecks` option (opt-in) to enabled per-heartbeat (defaults to once per second) checks to be sent to ensure no network stream corruption has occurred ([#2656 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2656))
 
 ## 2.7.20
 
