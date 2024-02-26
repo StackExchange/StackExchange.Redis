@@ -232,6 +232,8 @@ StackExchange.Redis.ConfigurationOptions.DefaultVersion.get -> System.Version!
 StackExchange.Redis.ConfigurationOptions.DefaultVersion.set -> void
 StackExchange.Redis.ConfigurationOptions.EndPoints.get -> StackExchange.Redis.EndPointCollection!
 StackExchange.Redis.ConfigurationOptions.EndPoints.init -> void
+StackExchange.Redis.ConfigurationOptions.HeartbeatConsistencyChecks.get -> bool
+StackExchange.Redis.ConfigurationOptions.HeartbeatConsistencyChecks.set -> void
 StackExchange.Redis.ConfigurationOptions.HeartbeatInterval.get -> System.TimeSpan
 StackExchange.Redis.ConfigurationOptions.HeartbeatInterval.set -> void
 StackExchange.Redis.ConfigurationOptions.HighPrioritySocketThreads.get -> bool
@@ -1797,6 +1799,7 @@ virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.DefaultVersion.
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.GetDefaultClientName() -> string!
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.GetDefaultSsl(StackExchange.Redis.EndPointCollection! endPoints) -> bool
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.GetSslHostFromEndpoints(StackExchange.Redis.EndPointCollection! endPoints) -> string?
+virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.HeartbeatConsistencyChecks.get -> bool
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.HeartbeatInterval.get -> System.TimeSpan
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.IncludeDetailInExceptions.get -> bool
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.IncludePerformanceCountersInExceptions.get -> bool

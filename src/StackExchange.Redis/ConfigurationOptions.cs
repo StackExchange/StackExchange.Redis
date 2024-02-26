@@ -154,7 +154,7 @@ namespace StackExchange.Redis
 
         private DefaultOptionsProvider? defaultOptions;
 
-        private bool? allowAdmin, abortOnConnectFail, resolveDns, ssl, checkCertificateRevocation,
+        private bool? allowAdmin, abortOnConnectFail, resolveDns, ssl, checkCertificateRevocation, heartbeatConsistencyChecks,
                       includeDetailInExceptions, includePerformanceCountersInExceptions, setClientLibrary;
 
         private string? tieBreaker, sslHost, configChannel, user, password;
@@ -401,6 +401,16 @@ namespace StackExchange.Redis
         /// Modifying it afterwards will have no effect on already-created multiplexers.
         /// </remarks>
         public EndPointCollection EndPoints { get; init; } = new EndPointCollection();
+
+        /// <summary>
+        /// Whether to enable ECHO checks on every heartbeat to ensure network stream consistency.
+        /// This is a rare measure to react to any potential network traffic drops ASAP, terminating the connection.
+        /// </summary>
+        public bool HeartbeatConsistencyChecks
+        {
+            get => heartbeatConsistencyChecks ?? Defaults.HeartbeatConsistencyChecks;
+            set => heartbeatConsistencyChecks = value;
+        }
 
         /// <summary>
         /// Controls how often the connection heartbeats. A heartbeat includes:

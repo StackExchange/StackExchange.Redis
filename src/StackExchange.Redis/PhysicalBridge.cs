@@ -359,9 +359,13 @@ namespace StackExchange.Redis
             Interlocked.Increment(ref operationCount);
         }
 
-        internal void KeepAlive()
+        /// <summary>
+        /// Sends a keepalive message (ECHO or PING) to keep connections alive and check validity of response.
+        /// </summary>
+        /// <param name="forceRun">Whether to run even then the connection isn't idle.</param>
+        internal void KeepAlive(bool forceRun = false)
         {
-            if (!(physical?.IsIdle() ?? false)) return; // don't pile on if already doing something
+            if (!forceRun && !(physical?.IsIdle() ?? false)) return; // don't pile on if already doing something
 
             var commandMap = Multiplexer.CommandMap;
             Message? msg = null;
@@ -596,6 +600,15 @@ namespace StackExchange.Redis
                                 checkConfigSeconds = ServerEndPoint.ConfigCheckSeconds;
 
                             if (state == (int)State.ConnectedEstablished && ConnectionType == ConnectionType.Interactive
+                                && tmp.BridgeCouldBeNull?.Multiplexer.RawConfig.HeartbeatConsistencyChecks == true)
+                            {
+                                // If HeartbeatConsistencyChecks are enabled, we're sending a PING (expecting PONG) or ECHO (expecting UniqueID back) every single
+                                // heartbeat as an opt-in measure to react to any network stream drop ASAP to terminate the connection as faulted.
+                                // If we don't get the expected response to that command, then the connection is terminated.
+                                // This is to prevent the case of things like 100% string command usage where a protocol error isn't otherwise encountered.
+                                KeepAlive(forceRun: true);
+                            }
+                            else if (state == (int)State.ConnectedEstablished && ConnectionType == ConnectionType.Interactive
                                 && checkConfigSeconds > 0 && ServerEndPoint.LastInfoReplicationCheckSecondsAgo >= checkConfigSeconds
                                 && ServerEndPoint.CheckInfoReplication())
                             {
@@ -614,13 +627,13 @@ namespace StackExchange.Redis
                                     tmp.Dispose(); // Cleanup the existing connection/socket if any, otherwise it will wait reading indefinitely
                                 }
                             }
-                            else if (writeEverySeconds <= 0 && tmp.IsIdle()
+                            else if (writeEverySeconds <= 0
+                                && tmp.IsIdle()
                                 && tmp.LastWriteSecondsAgo > 2
                                 && tmp.GetSentAwaitingResponseCount() != 0)
                             {
-                                // there's a chance this is a dead socket; sending data will shake that
-                                // up a bit, so if we have an empty unsent queue and a non-empty sent
-                                // queue, test the socket
+                                // There's a chance this is a dead socket; sending data will shake that up a bit,
+                                // so if we have an empty unsent queue and a non-empty sent queue, test the socket.
                                 KeepAlive();
                             }
                             else if (timedOutThisHeartbeat > 0
