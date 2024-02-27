@@ -30,8 +30,8 @@ public class ConfigTests : TestBase
     [Fact]
     public void ExpectedFields()
     {
-        // if this test fails: check that you've updated ConfigurationOptions.Clone(), then: fix the test!
-        // this is simple but pragmatic "have you considered?" check
+        // if this test fails, check that you've updated ConfigurationOptions.Clone(), then: fix the test!
+        // this is a simple but pragmatic "have you considered?" check
 
         var fields = Array.ConvertAll(typeof(ConfigurationOptions).GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance),
             x => Regex.Replace(x.Name, """<(\w+)>k__BackingField""", "$1"));
