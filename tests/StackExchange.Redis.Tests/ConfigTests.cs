@@ -1,4 +1,5 @@
-﻿using StackExchange.Redis.Configuration;
+﻿using Microsoft.Extensions.Logging.Abstractions;
+using StackExchange.Redis.Configuration;
 using System;
 using System.Globalization;
 using System.IO;
@@ -6,11 +7,12 @@ using System.IO.Pipelines;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
+using System.Reflection;
 using System.Security.Authentication;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -24,6 +26,37 @@ public class ConfigTests : TestBase
 
     public Version DefaultVersion = new (3, 0, 0);
     public Version DefaultAzureVersion = new (4, 0, 0);
+
+    [Fact]
+    public void ExpectedFields()
+    {
+        // if this test fails, check that you've updated ConfigurationOptions.Clone(), then: fix the test!
+        // this is a simple but pragmatic "have you considered?" check
+
+        var fields = Array.ConvertAll(typeof(ConfigurationOptions).GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance),
+            x => Regex.Replace(x.Name, """^<(\w+)>k__BackingField$""", "$1"));
+        Array.Sort(fields);
+        Assert.Equal(new[] {
+            "abortOnConnectFail", "allowAdmin", "asyncTimeout", "backlogPolicy", "BeforeSocketConnect",
+            "CertificateSelection", "CertificateValidation", "ChannelPrefix",
+            "checkCertificateRevocation", "ClientName", "commandMap",
+            "configChannel", "configCheckSeconds", "connectRetry",
+            "connectTimeout", "DefaultDatabase", "defaultOptions",
+            "defaultVersion", "EndPoints", "heartbeatConsistencyChecks",
+            "heartbeatInterval", "includeDetailInExceptions", "includePerformanceCountersInExceptions",
+            "keepAlive", "LibraryName", "loggerFactory",
+            "password", "Protocol", "proxy",
+            "reconnectRetryPolicy", "resolveDns", "responseTimeout",
+            "ServiceName", "setClientLibrary", "SocketManager",
+            "ssl",
+#if !NETFRAMEWORK
+            "SslClientAuthenticationOptions",
+#endif
+            "sslHost", "SslProtocols",
+            "syncTimeout", "tieBreaker", "Tunnel",
+            "user"
+            }, fields);
+    }
 
     [Fact]
     public void SslProtocols_SingleValue()

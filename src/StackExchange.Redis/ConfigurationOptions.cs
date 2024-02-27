@@ -721,6 +721,8 @@ namespace StackExchange.Redis
             setClientLibrary = setClientLibrary,
             LibraryName = LibraryName,
             Protocol = Protocol,
+            heartbeatInterval = heartbeatInterval,
+            heartbeatConsistencyChecks = heartbeatConsistencyChecks,
         };
 
         /// <summary>
