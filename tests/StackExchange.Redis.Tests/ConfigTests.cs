@@ -6,7 +6,6 @@ using System.IO;
 using System.IO.Pipelines;
 using System.Linq;
 using System.Net;
-using System.Net.Security;
 using System.Net.Sockets;
 using System.Reflection;
 using System.Security.Authentication;
@@ -35,7 +34,7 @@ public class ConfigTests : TestBase
         // this is a simple but pragmatic "have you considered?" check
 
         var fields = Array.ConvertAll(typeof(ConfigurationOptions).GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance),
-            x => Regex.Replace(x.Name, """<(\w+)>k__BackingField""", "$1"));
+            x => Regex.Replace(x.Name, """^<(\w+)>k__BackingField$""", "$1"));
         Array.Sort(fields);
         Assert.Equal(new[] {
             "abortOnConnectFail", "allowAdmin", "asyncTimeout", "backlogPolicy", "BeforeSocketConnect",
