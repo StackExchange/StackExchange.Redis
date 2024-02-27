@@ -6,6 +6,7 @@ using System.IO;
 using System.IO.Pipelines;
 using System.Linq;
 using System.Net;
+using System.Net.Security;
 using System.Net.Sockets;
 using System.Reflection;
 using System.Security.Authentication;
@@ -48,7 +49,11 @@ public class ConfigTests : TestBase
             "password", "Protocol", "proxy",
             "reconnectRetryPolicy", "resolveDns", "responseTimeout",
             "ServiceName", "setClientLibrary", "SocketManager",
-            "ssl", "sslHost", "SslProtocols",
+            "ssl",
+#if !NETFRAMEWORK
+            "SslClientAuthenticationOptions",
+#endif
+            "sslHost", "SslProtocols",
             "syncTimeout", "tieBreaker", "Tunnel",
             "user"
             }, fields);
