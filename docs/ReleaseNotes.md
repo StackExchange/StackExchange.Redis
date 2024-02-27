@@ -8,7 +8,7 @@ Current package versions:
 
 ## Unreleased
 
-- Support `HeartbeatConsistencyChecks` in `Clone()` ([#2657 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2657))
+- Support `HeartbeatConsistencyChecks` in `Clone()` ([#2658 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2658))
 
 ## 2.7.23
 
