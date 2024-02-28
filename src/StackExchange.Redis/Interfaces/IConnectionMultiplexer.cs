@@ -295,7 +295,12 @@ namespace StackExchange.Redis
         /// <param name="options">The options to use for this export.</param>
         void ExportConfiguration(Stream destination, ExportOptions options = ExportOptions.All);
 
-        /// <inheritdoc cref="ConnectionMultiplexer.AddLibraryNameSuffix(string)" />
+        /// <summary>
+        /// Append a usage-specific modifier to the advertised library name; suffixes are de-duplicated
+        /// and sorted alphabetically (so adding 'a', 'b' and 'a' will result in suffix '-a-b').
+        /// Connections will be updated as necessary (RESP2 subscription
+        /// connections will not show updates until those connections next connect).
+        /// </summary>
         void AddLibraryNameSuffix(string suffix);
     }
 }

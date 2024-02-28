@@ -11,12 +11,7 @@ public partial class ConnectionMultiplexer
     private readonly HashSet<string> _libraryNameSuffixHash = new();
     private string _libraryNameSuffixCombined = "";
 
-    /// <summary>
-    /// Append a usage-specific modifier to the advertised library name; suffixes are de-duplicated
-    /// and sorted alphabetically (so adding 'a', 'b' and 'a' will result in suffix '-a-b').
-    /// Connections will be updated as necessary (RESP2 subscription
-    /// connections will not show updates until those connections next connect).
-    /// </summary>
+    /// <inheritdoc cref="IConnectionMultiplexer.AddLibraryNameSuffix(string)" />
     public void AddLibraryNameSuffix(string suffix)
     {
         if (string.IsNullOrWhiteSpace(suffix)) return; // trivial
