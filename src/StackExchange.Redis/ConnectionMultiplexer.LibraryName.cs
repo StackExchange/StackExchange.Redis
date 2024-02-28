@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading;
@@ -7,7 +8,8 @@ namespace StackExchange.Redis;
 
 public partial class ConnectionMultiplexer
 {
-    private string[] libraryNameSuffixes = Array.Empty<string>();
+    private readonly HashSet<string> _libraryNameSuffixHash = new();
+    private string _libraryNameSuffixCombined = "";
 
     /// <summary>
     /// Append a usage-specific modifier to the advertised library name; suffixes are de-duplicated
@@ -22,20 +24,12 @@ public partial class ConnectionMultiplexer
         suffix = ServerEndPoint.ClientInfoSanitize(suffix ?? "").Trim();
         if (string.IsNullOrWhiteSpace(suffix)) return; // trivial
 
-        string[] oldValue, newValue;
-        do
+        lock (_libraryNameSuffixHash)
         {
-            oldValue = Volatile.Read(ref libraryNameSuffixes);
-            if (oldValue.Contains(suffix)) return; // already cited
+            if (!_libraryNameSuffixHash.Add(suffix)) return; // already cited; nothing to do
 
-            // otherwise, create a new extended array with the new value (sorted)
-            newValue = new string[oldValue.Length + 1];
-            oldValue.CopyTo(newValue, 0);
-            newValue[newValue.Length - 1] = suffix;
-            Array.Sort(newValue);
-
-            // swap the field (CEX), or redo from start; note this API is very low usage, and is unlikely to ever conflict
-        } while (!ReferenceEquals(Interlocked.CompareExchange(ref libraryNameSuffixes, newValue, oldValue), oldValue));
+            _libraryNameSuffixCombined = "-" + string.Join("-", _libraryNameSuffixHash.OrderBy(_ => _));
+        }
 
         // if we get here, we *actually changed something*; we can retroactively fixup the connections
         var libName = GetFullLibraryName(); // note this also checks SetClientLibrary
@@ -81,13 +75,6 @@ public partial class ConnectionMultiplexer
         // if no primary name, return nothing, even if suffixes exist
         if (string.IsNullOrWhiteSpace(libName)) return "";
 
-        // append any suffixes (note they're already sanitized)
-        var suffixes = Volatile.Read(ref libraryNameSuffixes);
-        if (suffixes is { Length: > 0 })
-        {
-            libName += "-" + string.Join("-", suffixes);
-        }
-
-        return libName;
+        return libName + Volatile.Read(ref _libraryNameSuffixCombined);
     }
 }
