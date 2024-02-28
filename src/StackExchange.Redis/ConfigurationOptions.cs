@@ -260,7 +260,7 @@ namespace StackExchange.Redis
         /// Gets or sets the library name to use for CLIENT SETINFO lib-name calls to Redis during handshake.
         /// Defaults to "SE.Redis".
         /// </summary>
-        /// <remarks>If the value is null, empty or whitespace, then the value from the options-provideer is used;
+        /// <remarks>If the value is null, empty or whitespace, then the value from the options-provider is used;
         /// to disable the library name feature, use <see cref="SetClientLibrary"/> instead.</remarks>
         public string? LibraryName { get; set; }
 

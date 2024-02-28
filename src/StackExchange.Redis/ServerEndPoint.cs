@@ -930,7 +930,7 @@ namespace StackExchange.Redis
             var config = Multiplexer.RawConfig;
             string? user = config.User;
             string password = config.Password ?? "";
-            
+
             string clientName = Multiplexer.ClientName;
             if (!string.IsNullOrWhiteSpace(clientName))
             {
@@ -1017,15 +1017,7 @@ namespace StackExchange.Redis
                     // server version, so we will use this speculatively and hope for the best
                     log?.LogInformation($"{Format.ToString(this)}: Setting client lib/ver");
 
-                    var libName = config.LibraryName;
-                    if (string.IsNullOrWhiteSpace(libName))
-                    {
-                        // defer to provider if missing (note re null vs blank; if caller wants to disable
-                        // it, they should set SetClientLibrary to false, not set the name to empty string)
-                        libName = config.Defaults.LibraryName;
-                    }
-
-                    libName = ClientInfoSanitize(libName);
+                    var libName = Multiplexer.GetFullLibraryName();
                     if (!string.IsNullOrWhiteSpace(libName))
                     {
                         msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.CLIENT,
