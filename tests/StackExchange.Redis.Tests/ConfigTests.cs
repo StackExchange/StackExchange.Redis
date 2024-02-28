@@ -280,6 +280,34 @@ public class ConfigTests : TestBase
     }
 
     [Fact]
+    public async Task ClientLibraryName()
+    {
+        using var conn = Create(allowAdmin: true, shared: false);
+        var server = GetAnyPrimary(conn);
+
+        long id = conn.GetConnectionId(server.EndPoint, ConnectionType.Interactive)!.Value;
+
+        var libName = server.ClientList().Single(x => x.Id == id).LibraryName;
+        if (libName is not null) // server-version dependent
+        {
+            Log("library name: {0}", libName);
+            Assert.Equal("SE.Redis", libName);
+
+            conn.AddLibraryNameSuffix("foo");
+            conn.AddLibraryNameSuffix("bar");
+            conn.AddLibraryNameSuffix("foo");
+
+            libName = (await server.ClientListAsync()).Single(x => x.Id == id).LibraryName;
+            Log("library name: {0}", libName);
+            Assert.Equal("SE.Redis-bar-foo", libName);
+        }
+        else
+        {
+            Log("(library name not available)");
+        }
+    }
+
+    [Fact]
     public void DefaultClientName()
     {
         using var conn = Create(allowAdmin: true, caller: "", shared: false); // force default naming to kick in

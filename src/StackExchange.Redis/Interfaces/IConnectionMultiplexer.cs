@@ -294,5 +294,8 @@ namespace StackExchange.Redis
         /// <param name="destination">The destination stream to write the export to.</param>
         /// <param name="options">The options to use for this export.</param>
         void ExportConfiguration(Stream destination, ExportOptions options = ExportOptions.All);
+
+        /// <inheritdoc cref="ConnectionMultiplexer.AddLibraryNameSuffix(string)" />
+        void AddLibraryNameSuffix(string suffix);
     }
 }

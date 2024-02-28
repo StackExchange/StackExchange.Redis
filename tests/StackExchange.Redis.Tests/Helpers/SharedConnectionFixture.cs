@@ -98,6 +98,8 @@ public class SharedConnectionFixture : IDisposable
         public int GetSubscriptionsCount() => _inner.GetSubscriptionsCount();
         public ConcurrentDictionary<RedisChannel, ConnectionMultiplexer.Subscription> GetSubscriptions() => _inner.GetSubscriptions();
 
+        public void AddLibraryNameSuffix(string suffix) => _inner.AddLibraryNameSuffix(suffix);
+
         public string ClientName => _inner.ClientName;
 
         public string Configuration => _inner.Configuration;
