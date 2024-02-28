@@ -1846,3 +1846,5 @@ static StackExchange.Redis.RedisResult.Create(StackExchange.Redis.RedisResult![]
 static StackExchange.Redis.RedisResult.Create(StackExchange.Redis.RedisValue[]! values, StackExchange.Redis.ResultType resultType) -> StackExchange.Redis.RedisResult!
 virtual StackExchange.Redis.RedisResult.Length.get -> int
 virtual StackExchange.Redis.RedisResult.this[int index].get -> StackExchange.Redis.RedisResult!
+StackExchange.Redis.ConnectionMultiplexer.AddLibraryNameSuffix(string! suffix) -> void
+StackExchange.Redis.IConnectionMultiplexer.AddLibraryNameSuffix(string! suffix) -> void
