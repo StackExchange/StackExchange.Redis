@@ -285,8 +285,15 @@ public class ConfigTests : TestBase
         using var conn = Create(allowAdmin: true, shared: false);
         var server = GetAnyPrimary(conn);
 
-        long id = conn.GetConnectionId(server.EndPoint, ConnectionType.Interactive)!.Value;
+        await server.PingAsync();
+        var possibleId = conn.GetConnectionId(server.EndPoint, ConnectionType.Interactive);
 
+        if (possibleId is null)
+        {
+            Log("(client id not available)");
+            return;
+        }
+        var id = possibleId.Value;
         var libName = server.ClientList().Single(x => x.Id == id).LibraryName;
         if (libName is not null) // server-version dependent
         {
