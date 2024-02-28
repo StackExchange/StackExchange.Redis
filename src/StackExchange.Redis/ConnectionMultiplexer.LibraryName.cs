@@ -13,7 +13,8 @@ public partial class ConnectionMultiplexer
 
     /// <summary>
     /// Append a usage-specific modifier to the advertised library name; suffixes are de-duplicated
-    /// and sorted alphabetically. Connections will be updated as necessary (RESP2 subscription
+    /// and sorted alphabetically (so adding 'a', 'b' and 'a' will result in suffix '-a-b').
+    /// Connections will be updated as necessary (RESP2 subscription
     /// connections will not show updates until those connections next connect).
     /// </summary>
     public void AddLibraryNameSuffix(string suffix)
