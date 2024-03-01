@@ -8,10 +8,12 @@ Current package versions:
 
 ## Unreleased
 
+- Add new `LoggingTunnel` API; see https://stackexchange.github.io/StackExchange.Redis/Logging [#2660 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2660)
+
 ## 2.7.27
 
 - Support `HeartbeatConsistencyChecks` and `HeartbeatInterval` in `Clone()` ([#2658 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2658))
-- Add `AddLibraryNameSuffix` to multiplexer; allows usage-specific tokens to be appended *after connect*
+- Add `AddLibraryNameSuffix` to multiplexer; allows usage-specific tokens to be appended *after connect* [#2659 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2659)
 
 ## 2.7.23
 

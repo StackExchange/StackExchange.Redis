@@ -48,6 +48,7 @@ Documentation
 - [Testing](Testing) - running the `StackExchange.Redis.Tests` suite to validate changes
 - [Timeouts](Timeouts) - guidance on dealing with timeout problems
 - [Thread Theft](ThreadTheft) - guidance on avoiding TPL threading problems
+- [RESP Logging](RespLogging) - capturing and validating RESP streams
 
 Questions and Contributions
 ---
