@@ -76,6 +76,8 @@ public abstract class LoggingTunnel : Tunnel
     /// <summary>
     /// Replay the RESP messages all the streams in a folder, invoking a callback per operation
     /// </summary>
+    /// <param name="path">The directory of captured files to replay.</param>
+    /// <param name="pair">Operation to perform per replayed message pair.</param>
     public static async Task<long> ReplayAsync(string path, Action<RedisResult, RedisResult> pair)
     {
         long total = 0;
@@ -114,6 +116,7 @@ public abstract class LoggingTunnel : Tunnel
     /// <summary>
     /// Validate a RESP stream and return the number of top-level RESP fragments.
     /// </summary>
+    /// <param name="path">The path of a single file to validate, or a directory of captured files to validate.</param>
     public static async Task<long> ValidateAsync(string path)
     {
         if (File.Exists(path))
