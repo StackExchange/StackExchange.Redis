@@ -246,12 +246,12 @@ public abstract class LoggingTunnel : Tunnel
         static bool IsArrayOutOfBand(in RawResult result)
         {
             var items = result.GetItems();
-            return (items.Length >= 3 && items[0].IsEqual(message))
+            return (items.Length >= 3 && items[0].IsEqual(message) || items[0].IsEqual(smessage))
                 || (items.Length >= 4 && items[0].IsEqual(pmessage));
 
         }
     }
-    private static readonly CommandBytes message = "message", pmessage = "pmessage";
+    private static readonly CommandBytes message = "message", pmessage = "pmessage", smessage = "smessage";
 
     /// <summary>
     /// Create a new instance of a <see cref="LoggingTunnel"/>
