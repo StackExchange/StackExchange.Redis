@@ -105,7 +105,7 @@ namespace StackExchange.Redis
         /// Internally, this is very similar to RawResult, except it is designed to be usable,
         /// outside of the IO-processing pipeline: the buffers are standalone, etc.
         /// </summary>
-        internal static bool TryCreate(PhysicalConnection connection, in RawResult result, [NotNullWhen(true)] out RedisResult? redisResult)
+        internal static bool TryCreate(PhysicalConnection? connection, in RawResult result, [NotNullWhen(true)] out RedisResult? redisResult)
         {
             try
             {

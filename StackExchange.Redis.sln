@@ -113,6 +113,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{153A10E4-E
 		docs\index.md = docs\index.md
 		docs\KeysScan.md = docs\KeysScan.md
 		docs\KeysValues.md = docs\KeysValues.md
+		Logging.md = Logging.md
 		docs\PipelinesMultiplexers.md = docs\PipelinesMultiplexers.md
 		docs\Profiling.md = docs\Profiling.md
 		docs\Profiling_v1.md = docs\Profiling_v1.md

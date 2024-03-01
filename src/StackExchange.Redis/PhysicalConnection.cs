@@ -1463,7 +1463,7 @@ namespace StackExchange.Redis
             };
         }
 
-        private static RemoteCertificateValidationCallback? GetAmbientIssuerCertificateCallback()
+        internal static RemoteCertificateValidationCallback? GetAmbientIssuerCertificateCallback()
         {
             try
             {
@@ -1476,7 +1476,7 @@ namespace StackExchange.Redis
             }
             return null;
         }
-        private static LocalCertificateSelectionCallback? GetAmbientClientCertificateCallback()
+        internal static LocalCertificateSelectionCallback? GetAmbientClientCertificateCallback()
         {
             try
             {
