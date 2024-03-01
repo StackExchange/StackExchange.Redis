@@ -8,6 +8,8 @@ Current package versions:
 
 ## Unreleased
 
+## 2.7.27
+
 - Support `HeartbeatConsistencyChecks` and `HeartbeatInterval` in `Clone()` ([#2658 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2658))
 - Add `AddLibraryNameSuffix` to multiplexer; allows usage-specific tokens to be appended *after connect*
 
