@@ -1,8 +1,8 @@
 Logging and validating the underlying RESP stream
 ===
 
-If there is some question over the validity of the RESP stream to a server (especially when using proxies
-or a "redis-like-but-not-actually-redis" server), and it is hard to know whether the *data* was bad, vs
+Sometimes (rarely) there is a question over the validity of the RESP stream from a server (especially when using proxies
+or a "redis-like-but-not-actually-redis" server), and it is hard to know whether the *data sent* was bad, vs
 the client library tripped over the data.
 
 To help with this, an experimental API exists to help log and validate RESP streams. This API is not intended
@@ -106,7 +106,7 @@ If the RESP streams are *not* valid, an exception will provide further details.
 **An exception here is strong evidence that there is a fault either in the redis server, or an intermediate proxy**.
 
 Conversely, if the library reported a protocol failure but the validation step here *does not* report an error, then
-that is strong evidence of a library error; **please report this** (with details).
+that is strong evidence of a library error; [**please report this**](https://github.com/StackExchange/StackExchange.Redis/issues/new) (with details).
 
 You can also *replay* the conversation locally, seeing the individual requests and responses:
 
