@@ -145,3 +145,6 @@ Unhandled exception. StackExchange.Redis.RedisConnectionException: Invalid bulk 
 The `-ERR` message is not a problem - that's normal and simply indicates that this is not a redis cluster; however, the
 final pair is an `ECHO` request, for which the corresponding response was invalid. This information is useful for finding
 out what happened.
+
+Emphasis: this API is not intended for common/frequent usage; it is intended only to assist validating the underlying
+RESP stream.

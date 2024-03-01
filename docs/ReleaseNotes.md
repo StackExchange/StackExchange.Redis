@@ -8,7 +8,7 @@ Current package versions:
 
 ## Unreleased
 
-- Add new `LoggingTunnel` API; see https://stackexchange.github.io/StackExchange.Redis/Logging [#2661 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2661)
+- Add new `LoggingTunnel` API; see https://stackexchange.github.io/StackExchange.Redis/Logging [#2660 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2660)
 
 ## 2.7.27
 
