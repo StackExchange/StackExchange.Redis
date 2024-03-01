@@ -39,13 +39,13 @@ public abstract class LoggingTunnel : Tunnel
         long count = 0;
         while (true)
         {
-            var sent = await ReadOneAsync(outPipe, arena, isInbound: false);
+            var sent = await ReadOneAsync(outPipe, arena, isInbound: false).ForAwait();
             ContextualRedisResult received;
             try
             {
                 do
                 {
-                    received = await ReadOneAsync(inPipe, arena, isInbound: true);
+                    received = await ReadOneAsync(inPipe, arena, isInbound: true).ForAwait();
                     if (received.IsOutOfBand && received.Result is not null)
                     {
                         // spoof an empty request for OOB messages
@@ -86,7 +86,7 @@ public abstract class LoggingTunnel : Tunnel
 
             using var outFile = File.OpenRead(outPath);
             using var inFile = File.OpenRead(inPath);
-            total += await ReplayAsync(outFile, inFile, pair);
+            total += await ReplayAsync(outFile, inFile, pair).ForAwait();
         }
         return total;
     }
@@ -119,7 +119,7 @@ public abstract class LoggingTunnel : Tunnel
         if (File.Exists(path))
         {
             using var singleFile = File.OpenRead(path);
-            return await ValidateAsync(singleFile);
+            return await ValidateAsync(singleFile).ForAwait();
         }
         else if (Directory.Exists(path))
         {
@@ -129,7 +129,7 @@ public abstract class LoggingTunnel : Tunnel
                 try
                 {
                     using var folderFile = File.OpenRead(file);
-                    total += await ValidateAsync(folderFile);
+                    total += await ValidateAsync(folderFile).ForAwait();
                 }
                 catch (Exception ex)
                 {
@@ -565,7 +565,7 @@ public abstract class LoggingTunnel : Tunnel
             if (len > 0)
             {
                 await _reads.WriteAsync(buffer, offset, len, cancellationToken).ForAwait();
-                await _reads.FlushAsync(cancellationToken);
+                await _reads.FlushAsync(cancellationToken).ForAwait();
             }
             return len;
         }
@@ -586,7 +586,7 @@ public abstract class LoggingTunnel : Tunnel
             if (len > 0)
             {
                 await _reads.WriteAsync(buffer.Slice(0, len), cancellationToken).ForAwait();
-                await _reads.FlushAsync(cancellationToken);
+                await _reads.FlushAsync(cancellationToken).ForAwait();
             }
             return len;
         }
@@ -604,8 +604,8 @@ public abstract class LoggingTunnel : Tunnel
         }
         public override async Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
         {
-            await _writes.WriteAsync(buffer, offset, count, cancellationToken);
-            await _inner.WriteAsync(buffer, offset, count, cancellationToken);
+            await _writes.WriteAsync(buffer, offset, count, cancellationToken).ForAwait();
+            await _inner.WriteAsync(buffer, offset, count, cancellationToken).ForAwait();
         }
 #if NETCOREAPP3_0_OR_GREATER
         public override void Write(ReadOnlySpan<byte> buffer)
@@ -615,8 +615,8 @@ public abstract class LoggingTunnel : Tunnel
         }
         public override async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken)
         {
-            await _writes.WriteAsync(buffer, cancellationToken);
-            await _inner.WriteAsync(buffer, cancellationToken);
+            await _writes.WriteAsync(buffer, cancellationToken).ForAwait();
+            await _inner.WriteAsync(buffer, cancellationToken).ForAwait();
         }
 #endif
     }
