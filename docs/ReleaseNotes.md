@@ -8,16 +8,16 @@ Current package versions:
 
 ## Unreleased
 
-- Add new `LoggingTunnel` API; see https://stackexchange.github.io/StackExchange.Redis/Logging [#2660 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2660)
+- Add new `LoggingTunnel` API; see https://stackexchange.github.io/StackExchange.Redis/Logging ([#2660 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2660))
 
 ## 2.7.27
 
 - Support `HeartbeatConsistencyChecks` and `HeartbeatInterval` in `Clone()` ([#2658 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2658))
-- Add `AddLibraryNameSuffix` to multiplexer; allows usage-specific tokens to be appended *after connect* [#2659 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2659)
+- Add `AddLibraryNameSuffix` to multiplexer; allows usage-specific tokens to be appended *after connect* ([#2659 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2659))
 
 ## 2.7.23
 
-- Fix [#2653](https://github.com/StackExchange/StackExchange.Redis/issues/2653): Client library metadata should validate contents ([#2654](https://github.com/StackExchange/StackExchange.Redis/pull/2654) by mgravell)
+- Fix [#2653](https://github.com/StackExchange/StackExchange.Redis/issues/2653): Client library metadata should validate contents ([#2654 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2654))
 - Add `HeartbeatConsistencyChecks` option (opt-in) to enabled per-heartbeat (defaults to once per second) checks to be sent to ensure no network stream corruption has occurred ([#2656 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2656))
 
 ## 2.7.20
