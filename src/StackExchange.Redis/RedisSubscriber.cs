@@ -181,19 +181,25 @@ namespace StackExchange.Redis
             /// </summary>
             internal Message GetMessage(RedisChannel channel, SubscriptionAction action, CommandFlags flags, bool internalCall)
             {
-                var isPattern = channel._isPatternBased;
-                var isSharded = channel._isSharded;
+                var isPattern = channel.IsPattern;
+                var isSharded = channel.IsSharded;
                 var command = action switch
                 {
-                    SubscriptionAction.Subscribe when isPattern => RedisCommand.PSUBSCRIBE,
-                    SubscriptionAction.Unsubscribe when isPattern => RedisCommand.PUNSUBSCRIBE,
-
-                    SubscriptionAction.Subscribe when isSharded => RedisCommand.SSUBSCRIBE,
-                    SubscriptionAction.Unsubscribe when isSharded => RedisCommand.SUNSUBSCRIBE,
-
-                    SubscriptionAction.Subscribe when !isPattern && !isSharded => RedisCommand.SUBSCRIBE,
-                    SubscriptionAction.Unsubscribe when !isPattern && !isSharded => RedisCommand.UNSUBSCRIBE,
-                    _ => throw new ArgumentOutOfRangeException(nameof(action), "This would be an impressive boolean feat"),
+                    SubscriptionAction.Subscribe => channel.Options switch
+                    {
+                        RedisChannel.RedisChannelOptions.None => RedisCommand.SUBSCRIBE,
+                        RedisChannel.RedisChannelOptions.Pattern => RedisCommand.PSUBSCRIBE,
+                        RedisChannel.RedisChannelOptions.Sharded => RedisCommand.SSUBSCRIBE,
+                        _ => Unknown(action, channel.Options),
+                    },
+                    SubscriptionAction.Unsubscribe => channel.Options switch
+                    {
+                        RedisChannel.RedisChannelOptions.None => RedisCommand.UNSUBSCRIBE,
+                        RedisChannel.RedisChannelOptions.Pattern => RedisCommand.PUNSUBSCRIBE,
+                        RedisChannel.RedisChannelOptions.Sharded => RedisCommand.SUNSUBSCRIBE,
+                        _ => Unknown(action, channel.Options),
+                    },
+                    _ => Unknown(action, channel.Options),
                 };
 
                 // TODO: Consider flags here - we need to pass Fire and Forget, but don't want to intermingle Primary/Replica
@@ -205,6 +211,9 @@ namespace StackExchange.Redis
                 }
                 return msg;
             }
+
+            private RedisCommand Unknown(SubscriptionAction action, RedisChannel.RedisChannelOptions options)
+                => throw new ArgumentException($"Unable to determine pub/sub operation for '{action}' against '{options}'");
 
             public void Add(Action<RedisChannel, RedisValue>? handler, ChannelMessageQueue? queue)
             {

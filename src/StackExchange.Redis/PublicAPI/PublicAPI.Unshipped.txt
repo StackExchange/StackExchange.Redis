@@ -1,1 +1,3 @@
-﻿
+﻿StackExchange.Redis.RedisChannel.PatternMode.Sharded = 4 -> StackExchange.Redis.RedisChannel.PatternMode
+static StackExchange.Redis.RedisChannel.Sharded(byte[]? value) -> StackExchange.Redis.RedisChannel
+static StackExchange.Redis.RedisChannel.Sharded(string! value) -> StackExchange.Redis.RedisChannel
