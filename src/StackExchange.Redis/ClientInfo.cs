@@ -129,9 +129,14 @@ namespace StackExchange.Redis
         public string? Name { get; private set; }
 
         /// <summary>
-        /// Number of pattern matching subscriptions.
+        /// Number of pattern-matching subscriptions.
         /// </summary>
         public int PatternSubscriptionCount { get; private set; }
+
+        /// <summary>
+        /// Number of sharded subscriptions.
+        /// </summary>
+        public int ShardedSubscriptionCount { get; private set; }
 
         /// <summary>
         /// The port of the client.
@@ -236,6 +241,7 @@ namespace StackExchange.Redis
                             case "name": client.Name = value; break;
                             case "sub": client.SubscriptionCount = Format.ParseInt32(value); break;
                             case "psub": client.PatternSubscriptionCount = Format.ParseInt32(value); break;
+                            case "ssub": client.ShardedSubscriptionCount = Format.ParseInt32(value); break;
                             case "multi": client.TransactionCommandLength = Format.ParseInt32(value); break;
                             case "cmd": client.LastCommand = value; break;
                             case "flags":
