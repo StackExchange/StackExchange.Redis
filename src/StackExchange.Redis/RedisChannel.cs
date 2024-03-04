@@ -19,6 +19,8 @@ namespace StackExchange.Redis
             Sharded = 1 << 1,
         }
 
+        internal RedisCommand PublishCommand => IsSharded ? RedisCommand.SPUBLISH : RedisCommand.PUBLISH;
+
         /// <summary>
         /// Indicates whether the channel-name is either null or a zero-length value.
         /// </summary>
