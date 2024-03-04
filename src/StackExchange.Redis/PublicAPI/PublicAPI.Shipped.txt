@@ -1,6 +1,5 @@
 ﻿#nullable enable
 abstract StackExchange.Redis.RedisResult.IsNull.get -> bool
-abstract StackExchange.Redis.RedisResult.Type.get -> StackExchange.Redis.ResultType
 override StackExchange.Redis.ChannelMessage.Equals(object? obj) -> bool
 override StackExchange.Redis.ChannelMessage.GetHashCode() -> int
 override StackExchange.Redis.ChannelMessage.ToString() -> string!
@@ -233,6 +232,8 @@ StackExchange.Redis.ConfigurationOptions.DefaultVersion.get -> System.Version!
 StackExchange.Redis.ConfigurationOptions.DefaultVersion.set -> void
 StackExchange.Redis.ConfigurationOptions.EndPoints.get -> StackExchange.Redis.EndPointCollection!
 StackExchange.Redis.ConfigurationOptions.EndPoints.init -> void
+StackExchange.Redis.ConfigurationOptions.HeartbeatConsistencyChecks.get -> bool
+StackExchange.Redis.ConfigurationOptions.HeartbeatConsistencyChecks.set -> void
 StackExchange.Redis.ConfigurationOptions.HeartbeatInterval.get -> System.TimeSpan
 StackExchange.Redis.ConfigurationOptions.HeartbeatInterval.set -> void
 StackExchange.Redis.ConfigurationOptions.HighPrioritySocketThreads.get -> bool
@@ -243,6 +244,10 @@ StackExchange.Redis.ConfigurationOptions.IncludePerformanceCountersInExceptions.
 StackExchange.Redis.ConfigurationOptions.IncludePerformanceCountersInExceptions.set -> void
 StackExchange.Redis.ConfigurationOptions.KeepAlive.get -> int
 StackExchange.Redis.ConfigurationOptions.KeepAlive.set -> void
+StackExchange.Redis.ConfigurationOptions.LibraryName.get -> string?
+StackExchange.Redis.ConfigurationOptions.LibraryName.set -> void
+StackExchange.Redis.ConfigurationOptions.LoggerFactory.get -> Microsoft.Extensions.Logging.ILoggerFactory?
+StackExchange.Redis.ConfigurationOptions.LoggerFactory.set -> void
 StackExchange.Redis.ConfigurationOptions.Password.get -> string?
 StackExchange.Redis.ConfigurationOptions.Password.set -> void
 StackExchange.Redis.ConfigurationOptions.PreserveAsyncOrder.get -> bool
@@ -1508,6 +1513,8 @@ StackExchange.Redis.StreamEntry.this[StackExchange.Redis.RedisValue fieldName].g
 StackExchange.Redis.StreamEntry.Values.get -> StackExchange.Redis.NameValueEntry[]!
 StackExchange.Redis.StreamGroupInfo
 StackExchange.Redis.StreamGroupInfo.ConsumerCount.get -> int
+StackExchange.Redis.StreamGroupInfo.EntriesRead.get -> long?
+StackExchange.Redis.StreamGroupInfo.Lag.get -> long?
 StackExchange.Redis.StreamGroupInfo.LastDeliveredId.get -> string?
 StackExchange.Redis.StreamGroupInfo.Name.get -> string!
 StackExchange.Redis.StreamGroupInfo.PendingMessageCount.get -> int
@@ -1607,6 +1614,8 @@ static StackExchange.Redis.Condition.StringLengthLessThan(StackExchange.Redis.Re
 static StackExchange.Redis.Condition.StringNotEqual(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue value) -> StackExchange.Redis.Condition!
 static StackExchange.Redis.Configuration.DefaultOptionsProvider.AddProvider(StackExchange.Redis.Configuration.DefaultOptionsProvider! provider) -> void
 static StackExchange.Redis.Configuration.DefaultOptionsProvider.ComputerName.get -> string!
+static StackExchange.Redis.Configuration.DefaultOptionsProvider.GetProvider(StackExchange.Redis.EndPointCollection! endpoints) -> StackExchange.Redis.Configuration.DefaultOptionsProvider!
+static StackExchange.Redis.Configuration.DefaultOptionsProvider.GetProvider(System.Net.EndPoint! endpoint) -> StackExchange.Redis.Configuration.DefaultOptionsProvider!
 static StackExchange.Redis.Configuration.DefaultOptionsProvider.LibraryVersion.get -> string!
 static StackExchange.Redis.ConfigurationOptions.Parse(string! configuration) -> StackExchange.Redis.ConfigurationOptions!
 static StackExchange.Redis.ConfigurationOptions.Parse(string! configuration, bool ignoreUnknown) -> StackExchange.Redis.ConfigurationOptions!
@@ -1793,12 +1802,14 @@ virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.DefaultVersion.
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.GetDefaultClientName() -> string!
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.GetDefaultSsl(StackExchange.Redis.EndPointCollection! endPoints) -> bool
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.GetSslHostFromEndpoints(StackExchange.Redis.EndPointCollection! endPoints) -> string?
+virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.HeartbeatConsistencyChecks.get -> bool
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.HeartbeatInterval.get -> System.TimeSpan
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.IncludeDetailInExceptions.get -> bool
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.IncludePerformanceCountersInExceptions.get -> bool
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.IsMatch(System.Net.EndPoint! endpoint) -> bool
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.KeepAliveInterval.get -> System.TimeSpan
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.LibraryName.get -> string!
+virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.LoggerFactory.get -> Microsoft.Extensions.Logging.ILoggerFactory?
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.Password.get -> string?
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.Proxy.get -> StackExchange.Redis.Proxy
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.ReconnectRetryPolicy.get -> StackExchange.Redis.IReconnectRetryPolicy?
@@ -1807,3 +1818,36 @@ virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.SetClientLibrar
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.SyncTimeout.get -> System.TimeSpan
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.TieBreaker.get -> string!
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.User.get -> string?
+abstract StackExchange.Redis.RedisResult.ToString(out string? type) -> string?
+override sealed StackExchange.Redis.RedisResult.ToString() -> string!
+override StackExchange.Redis.Role.Master.Replica.ToString() -> string!
+StackExchange.Redis.ClientInfo.Protocol.get -> StackExchange.Redis.RedisProtocol?
+StackExchange.Redis.ConfigurationOptions.Protocol.get -> StackExchange.Redis.RedisProtocol?
+StackExchange.Redis.ConfigurationOptions.Protocol.set -> void
+StackExchange.Redis.IServer.Protocol.get -> StackExchange.Redis.RedisProtocol
+StackExchange.Redis.RedisFeatures.ClientId.get -> bool
+StackExchange.Redis.RedisFeatures.Equals(StackExchange.Redis.RedisFeatures other) -> bool
+StackExchange.Redis.RedisFeatures.Resp3.get -> bool
+StackExchange.Redis.RedisProtocol
+StackExchange.Redis.RedisProtocol.Resp2 = 20000 -> StackExchange.Redis.RedisProtocol
+StackExchange.Redis.RedisProtocol.Resp3 = 30000 -> StackExchange.Redis.RedisProtocol
+StackExchange.Redis.RedisResult.Resp2Type.get -> StackExchange.Redis.ResultType
+StackExchange.Redis.RedisResult.Resp3Type.get -> StackExchange.Redis.ResultType
+StackExchange.Redis.RedisResult.Type.get -> StackExchange.Redis.ResultType
+StackExchange.Redis.ResultType.Array = 5 -> StackExchange.Redis.ResultType
+StackExchange.Redis.ResultType.Attribute = 29 -> StackExchange.Redis.ResultType
+StackExchange.Redis.ResultType.BigInteger = 17 -> StackExchange.Redis.ResultType
+StackExchange.Redis.ResultType.BlobError = 10 -> StackExchange.Redis.ResultType
+StackExchange.Redis.ResultType.Boolean = 11 -> StackExchange.Redis.ResultType
+StackExchange.Redis.ResultType.Double = 9 -> StackExchange.Redis.ResultType
+StackExchange.Redis.ResultType.Map = 13 -> StackExchange.Redis.ResultType
+StackExchange.Redis.ResultType.Null = 8 -> StackExchange.Redis.ResultType
+StackExchange.Redis.ResultType.Push = 37 -> StackExchange.Redis.ResultType
+StackExchange.Redis.ResultType.Set = 21 -> StackExchange.Redis.ResultType
+StackExchange.Redis.ResultType.VerbatimString = 12 -> StackExchange.Redis.ResultType
+static StackExchange.Redis.RedisResult.Create(StackExchange.Redis.RedisResult![]! values, StackExchange.Redis.ResultType resultType) -> StackExchange.Redis.RedisResult!
+static StackExchange.Redis.RedisResult.Create(StackExchange.Redis.RedisValue[]! values, StackExchange.Redis.ResultType resultType) -> StackExchange.Redis.RedisResult!
+virtual StackExchange.Redis.RedisResult.Length.get -> int
+virtual StackExchange.Redis.RedisResult.this[int index].get -> StackExchange.Redis.RedisResult!
+StackExchange.Redis.ConnectionMultiplexer.AddLibraryNameSuffix(string! suffix) -> void
+StackExchange.Redis.IConnectionMultiplexer.AddLibraryNameSuffix(string! suffix) -> void

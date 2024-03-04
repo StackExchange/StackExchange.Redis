@@ -1,8 +1,10 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using StackExchange.Redis.Maintenance;
@@ -17,7 +19,6 @@ public class SharedConnectionFixture : IDisposable
 
     public const string Key = "Shared Muxer";
     private readonly ConnectionMultiplexer _actualConnection;
-    internal IInternalConnectionMultiplexer Connection { get; }
     public string Configuration { get; }
 
     public SharedConnectionFixture()
@@ -32,12 +33,45 @@ public class SharedConnectionFixture : IDisposable
         );
         _actualConnection.InternalError += OnInternalError;
         _actualConnection.ConnectionFailed += OnConnectionFailed;
-
-        Connection = new NonDisposingConnection(_actualConnection);
     }
 
-    private class NonDisposingConnection : IInternalConnectionMultiplexer
+    private NonDisposingConnection? resp2, resp3;
+    internal IInternalConnectionMultiplexer GetConnection(TestBase obj, RedisProtocol protocol, [CallerMemberName] string caller = "")
     {
+        Version? require = protocol == RedisProtocol.Resp3 ? RedisFeatures.v6_0_0 : null;
+        lock (this)
+        {
+            ref NonDisposingConnection? field = ref protocol == RedisProtocol.Resp3 ? ref resp3 : ref resp2;
+            if (field is { IsConnected: false })
+            {   // abandon memoized connection if disconnected
+                var muxer = field.UnderlyingMultiplexer;
+                field = null;
+                muxer.Dispose();
+            }
+            return field ??= VerifyAndWrap(obj.Create(protocol: protocol, require: require, caller: caller, shared: false, allowAdmin: true), protocol);
+        }
+
+        static NonDisposingConnection VerifyAndWrap(IInternalConnectionMultiplexer muxer, RedisProtocol protocol)
+        {
+            var ep = muxer.GetEndPoints().FirstOrDefault();
+            Assert.NotNull(ep);
+            var server = muxer.GetServer(ep);
+            server.Ping();
+            var sep = muxer.GetServerEndPoint(ep);
+            if (sep.Protocol is null)
+            {
+                throw new InvalidOperationException("No RESP protocol; this means no connection?");
+            }
+            Assert.Equal(protocol, sep.Protocol);
+            Assert.Equal(protocol, server.Protocol);
+            return new NonDisposingConnection(muxer);
+        }
+    }
+
+    internal sealed class NonDisposingConnection : IInternalConnectionMultiplexer
+    {
+        public IInternalConnectionMultiplexer UnderlyingConnection => _inner;
+
         public bool AllowConnect
         {
             get => _inner.AllowConnect;
@@ -50,10 +84,21 @@ public class SharedConnectionFixture : IDisposable
             set => _inner.IgnoreConnect = value;
         }
 
+        public ServerSelectionStrategy ServerSelectionStrategy => _inner.ServerSelectionStrategy;
+
+        public ServerEndPoint GetServerEndPoint(EndPoint endpoint) => _inner.GetServerEndPoint(endpoint);
+
         public ReadOnlySpan<ServerEndPoint> GetServerSnapshot() => _inner.GetServerSnapshot();
+
+        public ConnectionMultiplexer UnderlyingMultiplexer => _inner.UnderlyingMultiplexer;
 
         private readonly IInternalConnectionMultiplexer _inner;
         public NonDisposingConnection(IInternalConnectionMultiplexer inner) => _inner = inner;
+
+        public int GetSubscriptionsCount() => _inner.GetSubscriptionsCount();
+        public ConcurrentDictionary<RedisChannel, ConnectionMultiplexer.Subscription> GetSubscriptions() => _inner.GetSubscriptions();
+
+        public void AddLibraryNameSuffix(string suffix) => _inner.AddLibraryNameSuffix(suffix);
 
         public string ClientName => _inner.ClientName;
 
@@ -183,11 +228,14 @@ public class SharedConnectionFixture : IDisposable
             => _inner.ExportConfiguration(destination, options);
 
         public override string ToString() => _inner.ToString();
+        long? IInternalConnectionMultiplexer.GetConnectionId(EndPoint endPoint, ConnectionType type)
+            => _inner.GetConnectionId(endPoint, type);
     }
 
     public void Dispose()
     {
-        _actualConnection.Dispose();
+        resp2?.UnderlyingConnection?.Dispose();
+        resp3?.UnderlyingConnection?.Dispose();
         GC.SuppressFinalize(this);
     }
 
@@ -219,7 +267,7 @@ public class SharedConnectionFixture : IDisposable
             {
                 foreach (var item in privateExceptions.Take(5))
                 {
-                    TestBase.LogNoTime(output, item);
+                    TestBase.Log(output, item);
                 }
                 privateExceptions.Clear();
             }

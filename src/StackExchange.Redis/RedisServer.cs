@@ -34,6 +34,8 @@ namespace StackExchange.Redis
         bool IServer.IsSlave => IsReplica;
         public bool IsReplica => server.IsReplica;
 
+        public RedisProtocol Protocol => server.Protocol ?? (multiplexer.RawConfig.TryResp3() ? RedisProtocol.Resp3 : RedisProtocol.Resp2);
+
         bool IServer.AllowSlaveWrites
         {
             get => AllowReplicaWrites;
@@ -406,20 +408,14 @@ namespace StackExchange.Redis
         }
 
         public void MakeMaster(ReplicationChangeOptions options, TextWriter? log = null)
-        {
-            using (var proxy = LogProxy.TryCreate(log))
-            {
-                // Do you believe in magic?
-                multiplexer.MakePrimaryAsync(server, options, proxy).Wait(60000);
-            }
+    {
+            // Do you believe in magic?
+            multiplexer.MakePrimaryAsync(server, options, log).Wait(60000);
         }
 
         public async Task MakePrimaryAsync(ReplicationChangeOptions options, TextWriter? log = null)
         {
-            using (var proxy = LogProxy.TryCreate(log))
-            {
-                await multiplexer.MakePrimaryAsync(server, options, proxy).ForAwait();
-            }
+            await multiplexer.MakePrimaryAsync(server, options, log).ForAwait();
         }
 
         public Role Role(CommandFlags flags = CommandFlags.None)
@@ -923,12 +919,12 @@ namespace StackExchange.Redis
             {
                 protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
                 {
-                    switch (result.Type)
+                    switch (result.Resp2TypeArray)
                     {
-                        case ResultType.MultiBulk:
+                        case ResultType.Array:
                             var arr = result.GetItems();
                             RawResult inner;
-                            if (arr.Length == 2 && (inner = arr[1]).Type == ResultType.MultiBulk)
+                            if (arr.Length == 2 && (inner = arr[1]).Resp2TypeArray == ResultType.Array)
                             {
                                 var items = inner.GetItems();
                                 RedisKey[] keys;

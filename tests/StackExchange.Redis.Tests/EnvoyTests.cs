@@ -25,13 +25,13 @@ public class EnvoyTests : TestBase
 
             var db = conn.GetDatabase();
 
-            const string key = "foobar";
+            var key = Me() + "foobar";
             const string value = "barfoo";
             db.StringSet(key, value);
 
             var expectedVal = db.StringGet(key);
 
-            Assert.Equal(expectedVal, value);
+            Assert.Equal(value, expectedVal);
         }
         catch (TimeoutException ex) when (ex.Message == "Connect timeout" || sb.ToString().Contains("Returned, but incorrectly"))
         {

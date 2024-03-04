@@ -70,13 +70,13 @@ public class ParseTests : TestBase
 
     private void ProcessMessages(Arena<RawResult> arena, ReadOnlySequence<byte> buffer, int expected)
     {
-        Writer.WriteLine($"chain: {buffer.Length}");
+        Log($"chain: {buffer.Length}");
         var reader = new BufferReader(buffer);
         RawResult result;
         int found = 0;
-        while (!(result = PhysicalConnection.TryParseResult(arena, buffer, ref reader, false, null, false)).IsNull)
+        while (!(result = PhysicalConnection.TryParseResult(false, arena, buffer, ref reader, false, null, false)).IsNull)
         {
-            Writer.WriteLine($"{result} - {result.GetString()}");
+            Log($"{result} - {result.GetString()}");
             found++;
         }
         Assert.Equal(expected, found);

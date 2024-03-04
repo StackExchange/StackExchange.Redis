@@ -12,6 +12,7 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
+[RunPerProtocol]
 [Collection(SharedConnectionFixture.Key)]
 public class PubSubTests : TestBase
 {
@@ -376,7 +377,7 @@ public class PubSubTests : TestBase
         const int count = 1000;
         var syncLock = new object();
 
-        Assert.True(sub.IsConnected());
+        Assert.True(sub.IsConnected(), nameof(sub.IsConnected));
         var data = new HashSet<int>();
         await sub.SubscribeAsync(channel, (_, val) =>
         {

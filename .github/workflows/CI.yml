@@ -20,7 +20,7 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v1
     - name: Install .NET SDK
-      uses: actions/setup-dotnet@v1
+      uses: actions/setup-dotnet@v3
       with:
         dotnet-version: | 
           6.0.x
@@ -53,7 +53,7 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v1
     # - name: Install .NET SDK
-    #   uses: actions/setup-dotnet@v1
+    #   uses: actions/setup-dotnet@v3
     #   with:
     #     dotnet-version: | 
     #       6.0.x

@@ -2,7 +2,6 @@
 using System.Buffers;
 using System.Collections.Generic;
 using System.Net;
-using System.Text;
 using System.Threading.Tasks;
 using Pipelines.Sockets.Unofficial.Arenas;
 
@@ -1549,12 +1548,12 @@ namespace StackExchange.Redis
 
             try
             {
-                return await ExecuteAsync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle).ConfigureAwait(false);
+                return await ExecuteAsync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle).ForAwait();
             }
             catch (RedisServerException) when (msg.IsScriptUnavailable)
             {
                 // could be a NOSCRIPT; for a sync call, we can re-issue that without problem
-                return await ExecuteAsync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle).ConfigureAwait(false);
+                return await ExecuteAsync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle).ForAwait();
             }
         }
 
@@ -3450,7 +3449,7 @@ namespace StackExchange.Redis
         {
             if (value.IsNull)
             {
-                return isStart ? RedisLiterals.MinusSymbol : RedisLiterals.PlusSumbol;
+                return isStart ? RedisLiterals.MinusSymbol : RedisLiterals.PlusSymbol;
             }
             byte[] orig = value!;
 
@@ -4702,14 +4701,14 @@ namespace StackExchange.Redis
 
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
-                switch (result.Type)
+                switch (result.Resp2TypeArray)
                 {
-                    case ResultType.MultiBulk:
+                    case ResultType.Array:
                         var arr = result.GetItems();
                         if (arr.Length == 2)
                         {
                             ref RawResult inner = ref arr[1];
-                            if (inner.Type == ResultType.MultiBulk && arr[0].TryGetInt64(out var i64))
+                            if (inner.Resp2TypeArray == ResultType.Array && arr[0].TryGetInt64(out var i64))
                             {
                                 T[]? oversized = Parse(inner, out int count);
                                 var sscanResult = new ScanEnumerable<T>.ScanResult(i64, oversized, count, true);
@@ -4761,6 +4760,7 @@ namespace StackExchange.Redis
                 }
             }
 
+            public override string CommandString => Command.ToString();
             public override string CommandAndKey => Command.ToString();
 
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
@@ -5048,7 +5048,7 @@ namespace StackExchange.Redis
             private StringGetWithExpiryProcessor() { }
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
-                switch (result.Type)
+                switch (result.Resp2TypeBulkString)
                 {
                     case ResultType.Integer:
                     case ResultType.SimpleString:

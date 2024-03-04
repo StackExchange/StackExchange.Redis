@@ -370,7 +370,7 @@ public class BasicOpsTests : TestBase
     [Fact]
     public void ShouldUseSharedMuxer()
     {
-        Writer.WriteLine($"Shared: {SharedFixtureAvailable}");
+        Log($"Shared: {SharedFixtureAvailable}");
         if (SharedFixtureAvailable)
         {
             using var a = Create();

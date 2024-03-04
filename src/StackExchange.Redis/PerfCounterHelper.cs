@@ -23,7 +23,7 @@ namespace StackExchange.Redis
             worker = $"(Busy={busyWorkerThreads},Free={freeWorkerThreads},Min={minWorkerThreads},Max={maxWorkerThreads})";
 
 #if NETCOREAPP
-            workItems = $"(Threads={ThreadPool.ThreadCount},QueuedItems={ThreadPool.PendingWorkItemCount},CompletedItems={ThreadPool.CompletedWorkItemCount})";
+            workItems = $"(Threads={ThreadPool.ThreadCount},QueuedItems={ThreadPool.PendingWorkItemCount},CompletedItems={ThreadPool.CompletedWorkItemCount},Timers={Timer.ActiveCount})";
 #else
             workItems = null;
 #endif

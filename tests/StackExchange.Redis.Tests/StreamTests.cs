@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using Xunit;
@@ -7,10 +8,14 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
+[RunPerProtocol]
 [Collection(SharedConnectionFixture.Key)]
 public class StreamTests : TestBase
 {
     public StreamTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
+
+    public override string Me([CallerFilePath] string? filePath = null, [CallerMemberName] string? caller = null) =>
+        base.Me(filePath, caller) + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
     [Fact]
     public void IsStreamType()
@@ -18,7 +23,7 @@ public class StreamTests : TestBase
         using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
-        var key = GetUniqueKey("type_check");
+        var key = Me();
         db.StreamAdd(key, "field1", "value1");
 
         var keyType = db.KeyType(key);
@@ -32,7 +37,8 @@ public class StreamTests : TestBase
         using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
-        var messageId = db.StreamAdd(GetUniqueKey("auto_id"), "field1", "value1");
+        var key = Me();
+        var messageId = db.StreamAdd(key, "field1", "value1");
 
         Assert.True(messageId != RedisValue.Null && ((string?)messageId)?.Length > 0);
     }
@@ -43,7 +49,7 @@ public class StreamTests : TestBase
         using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
-        var key = GetUniqueKey("multiple_value_pairs");
+        var key = Me();
         var fields = new[]
         {
             new NameValueEntry("field1", "value1"),
@@ -72,7 +78,7 @@ public class StreamTests : TestBase
 
         var db = conn.GetDatabase();
         const string id = "42-0";
-        var key = GetUniqueKey("manual_id");
+        var key = Me();
 
         var messageId = db.StreamAdd(key, "field1", "value1", id);
 
@@ -86,7 +92,7 @@ public class StreamTests : TestBase
 
         var db = conn.GetDatabase();
         const string id = "42-0";
-        var key = GetUniqueKey("manual_id_multiple_values");
+        var key = Me();
 
         var fields = new[]
         {
@@ -492,7 +498,7 @@ public class StreamTests : TestBase
         using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
-        var key = GetUniqueKey("group_set_id");
+        var key = Me();
         const string groupName = "test_group",
                      consumer = "consumer";
 
@@ -523,7 +529,7 @@ public class StreamTests : TestBase
         using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
-        var key = GetUniqueKey("group_with_no_consumers");
+        var key = Me();
         const string groupName = "test_group";
 
         // Create a stream
@@ -544,7 +550,7 @@ public class StreamTests : TestBase
         using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
-        var key = GetUniqueKey("group_create");
+        var key = Me();
         const string groupName = "test_group";
 
         // Create a stream
@@ -562,7 +568,7 @@ public class StreamTests : TestBase
         using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
-        var key = GetUniqueKey("group_create_before_stream");
+        var key = Me();
 
         // Ensure the key doesn't exist.
         var keyExistsBeforeCreate = db.KeyExists(key);
@@ -583,7 +589,7 @@ public class StreamTests : TestBase
         using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
-        var key = GetUniqueKey("group_create_before_stream_should_fail");
+        var key = Me();
 
         // Pass 'false' for 'createStream' to ensure that an
         // exception is thrown when the stream doesn't exist.
@@ -600,7 +606,7 @@ public class StreamTests : TestBase
         using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
-        var key = GetUniqueKey("group_create_after_stream");
+        var key = Me();
 
         db.StreamAdd(key, "f1", "v1");
 
@@ -621,7 +627,7 @@ public class StreamTests : TestBase
         using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
-        var key = GetUniqueKey("group_read");
+        var key = Me();
         const string groupName = "test_group";
 
         // Create a stream
@@ -643,7 +649,7 @@ public class StreamTests : TestBase
         using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
-        var key = GetUniqueKey("group_read_beginning");
+        var key = Me();
         const string groupName = "test_group";
 
         var id1 = db.StreamAdd(key, "field1", "value1");
@@ -664,7 +670,7 @@ public class StreamTests : TestBase
         using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
-        var key = GetUniqueKey("group_read_with_count");
+        var key = Me();
         const string groupName = "test_group";
 
         var id1 = db.StreamAdd(key, "field1", "value1");
@@ -689,7 +695,7 @@ public class StreamTests : TestBase
         using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
-        var key = GetUniqueKey("group_ack");
+        var key = Me();
         const string groupName = "test_group",
                      consumer = "test_consumer";
 
@@ -727,7 +733,7 @@ public class StreamTests : TestBase
         using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
-        var key = GetUniqueKey("group_claim");
+        var key = Me();
         const string groupName = "test_group",
                      consumer1 = "test_consumer_1",
                      consumer2 = "test_consumer_2";
@@ -774,7 +780,7 @@ public class StreamTests : TestBase
         using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
-        var key = GetUniqueKey("group_claim_view_ids");
+        var key = Me();
         const string groupName = "test_group",
                      consumer1 = "test_consumer_1",
                      consumer2 = "test_consumer_2";
@@ -826,8 +832,8 @@ public class StreamTests : TestBase
 
         var db = conn.GetDatabase();
         const string groupName = "test_group";
-        var stream1 = GetUniqueKey("stream1a");
-        var stream2 = GetUniqueKey("stream2a");
+        var stream1 = Me() + "a";
+        var stream2 = Me() + "b";
 
         db.StreamAdd(stream1, "field1-1", "value1-1");
         db.StreamAdd(stream1, "field1-2", "value1-2");
@@ -865,8 +871,8 @@ public class StreamTests : TestBase
 
         var db = conn.GetDatabase();
         const string groupName = "test_group";
-        var stream1 = GetUniqueKey("stream1b");
-        var stream2 = GetUniqueKey("stream2b");
+        var stream1 = Me() + "a";
+        var stream2 = Me() + "b";
 
         db.StreamAdd(stream1, "field1-1", "value1-1");
         db.StreamAdd(stream2, "field2-1", "value2-1");
@@ -897,8 +903,8 @@ public class StreamTests : TestBase
 
         var db = conn.GetDatabase();
         const string groupName = "test_group";
-        var stream1 = GetUniqueKey("stream1c");
-        var stream2 = GetUniqueKey("stream2c");
+        var stream1 = Me() + "a";
+        var stream2 = Me() + "b";
 
         // These messages won't be read.
         db.StreamAdd(stream1, "field1-1", "value1-1");
@@ -936,8 +942,8 @@ public class StreamTests : TestBase
 
         var db = conn.GetDatabase();
         const string groupName = "test_group";
-        var stream1 = GetUniqueKey("stream1d");
-        var stream2 = GetUniqueKey("stream2d");
+        var stream1 = Me() + "a";
+        var stream2 = Me() + "b";
 
         var id1_1 = db.StreamAdd(stream1, "field1-1", "value1-1");
         var id1_2 = db.StreamAdd(stream1, "field1-2", "value1-2");
@@ -973,7 +979,7 @@ public class StreamTests : TestBase
         using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
-        var key = GetUniqueKey("group_pending_info_no_consumers");
+        var key = Me();
         const string groupName = "test_group";
 
         db.StreamAdd(key, "field1", "value1");
@@ -995,7 +1001,7 @@ public class StreamTests : TestBase
         using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
-        var key = GetUniqueKey("group_pending_info_nothing_pending");
+        var key = Me();
         const string groupName = "test_group";
 
         db.StreamAdd(key, "field1", "value1");
@@ -1017,7 +1023,7 @@ public class StreamTests : TestBase
         using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
-        var key = GetUniqueKey("group_pending_info");
+        var key = Me();
         const string groupName = "test_group",
                      consumer1 = "test_consumer_1",
                      consumer2 = "test_consumer_2";
@@ -1055,7 +1061,7 @@ public class StreamTests : TestBase
         using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
-        var key = GetUniqueKey("group_pending_messages");
+        var key = Me();
         const string groupName = "test_group",
                      consumer1 = "test_consumer_1",
                      consumer2 = "test_consumer_2";
@@ -1092,7 +1098,7 @@ public class StreamTests : TestBase
         using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
-        var key = GetUniqueKey("group_pending_for_consumer");
+        var key = Me();
         const string groupName = "test_group",
                      consumer1 = "test_consumer_1",
                      consumer2 = "test_consumer_2";
@@ -1126,7 +1132,7 @@ public class StreamTests : TestBase
         using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
-        var key = GetUniqueKey("delete_consumer");
+        var key = Me();
         const string groupName = "test_group",
                      consumer = "test_consumer";
 
@@ -1157,7 +1163,7 @@ public class StreamTests : TestBase
         using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
-        var key = GetUniqueKey("delete_consumer_group");
+        var key = Me();
         const string groupName = "test_group",
                      consumer = "test_consumer";
 
@@ -1186,7 +1192,7 @@ public class StreamTests : TestBase
         using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
-        var key = GetUniqueKey("delete_msg");
+        var key = Me();
 
         db.StreamAdd(key, "field1", "value1");
         db.StreamAdd(key, "field2", "value2");
@@ -1206,7 +1212,7 @@ public class StreamTests : TestBase
         using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
-        var key = GetUniqueKey("delete_msgs");
+        var key = Me();
 
         db.StreamAdd(key, "field1", "value1");
         var id2 = db.StreamAdd(key, "field2", "value2");
@@ -1223,7 +1229,7 @@ public class StreamTests : TestBase
     [Fact]
     public void StreamGroupInfoGet()
     {
-        var key = GetUniqueKey("group_info");
+        var key = Me();
         const string group1 = "test_group_1",
                      group2 = "test_group_2",
                      consumer1 = "test_consumer_1",
@@ -1242,13 +1248,19 @@ public class StreamTests : TestBase
             db.StreamCreateConsumerGroup(key, group1, StreamPosition.Beginning);
             db.StreamCreateConsumerGroup(key, group2, StreamPosition.Beginning);
 
+            var groupInfoList = db.StreamGroupInfo(key);
+            Assert.Equal(0, groupInfoList[0].EntriesRead);
+            Assert.Equal(4, groupInfoList[0].Lag);
+            Assert.Equal(0, groupInfoList[0].EntriesRead);
+            Assert.Equal(4, groupInfoList[1].Lag);
+
             // Read a single message into the first consumer.
             db.StreamReadGroup(key, group1, consumer1, count: 1);
 
             // Read the remaining messages into the second consumer.
             db.StreamReadGroup(key, group2, consumer2);
 
-            var groupInfoList = db.StreamGroupInfo(key);
+            groupInfoList = db.StreamGroupInfo(key);
 
             Assert.NotNull(groupInfoList);
             Assert.Equal(2, groupInfoList.Length);
@@ -1256,10 +1268,14 @@ public class StreamTests : TestBase
             Assert.Equal(group1, groupInfoList[0].Name);
             Assert.Equal(1, groupInfoList[0].PendingMessageCount);
             Assert.True(IsMessageId(groupInfoList[0].LastDeliveredId)); // can't test actual - will vary
+            Assert.Equal(1, groupInfoList[0].EntriesRead);
+            Assert.Equal(3, groupInfoList[0].Lag);
 
             Assert.Equal(group2, groupInfoList[1].Name);
             Assert.Equal(4, groupInfoList[1].PendingMessageCount);
             Assert.True(IsMessageId(groupInfoList[1].LastDeliveredId)); // can't test actual - will vary
+            Assert.Equal(4, groupInfoList[1].EntriesRead);
+            Assert.Equal(0, groupInfoList[1].Lag);
         }
 
         static bool IsMessageId(string? value)
@@ -1275,7 +1291,7 @@ public class StreamTests : TestBase
         using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
-        var key = GetUniqueKey("group_consumer_info");
+        var key = Me();
         const string group = "test_group",
                      consumer1 = "test_consumer_1",
                      consumer2 = "test_consumer_2";
@@ -1307,7 +1323,7 @@ public class StreamTests : TestBase
         using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
-        var key = GetUniqueKey("stream_info");
+        var key = Me();
 
         var id1 = db.StreamAdd(key, "field1", "value1");
         db.StreamAdd(key, "field2", "value2");
@@ -1329,7 +1345,7 @@ public class StreamTests : TestBase
         using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
-        var key = GetUniqueKey("stream_info_empty");
+        var key = Me();
 
         // Add an entry and then delete it so the stream is empty, then run streaminfo
         // to ensure it functions properly on an empty stream. Namely, the first-entry
@@ -1352,7 +1368,7 @@ public class StreamTests : TestBase
         using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
-        var key = GetUniqueKey("stream_with_no_consumers");
+        var key = Me();
 
         db.StreamAdd(key, "field1", "value1");
 
@@ -1368,7 +1384,7 @@ public class StreamTests : TestBase
         using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
-        var key = GetUniqueKey("stream_pending_empty");
+        var key = Me();
         const string groupName = "test_group";
 
         var id = db.StreamAdd(key, "field1", "value1");
@@ -1427,7 +1443,7 @@ public class StreamTests : TestBase
         using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
-        var key = GetUniqueKey("read");
+        var key = Me();
 
         var id1 = db.StreamAdd(key, "field1", "value1");
         var id2 = db.StreamAdd(key, "field2", "value2");
@@ -1448,7 +1464,7 @@ public class StreamTests : TestBase
         using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
-        var key = GetUniqueKey("read_empty_stream");
+        var key = Me();
 
         // Write to a stream to create the key.
         var id1 = db.StreamAdd(key, "field1", "value1");
@@ -1470,8 +1486,8 @@ public class StreamTests : TestBase
         using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
-        var key1 = GetUniqueKey("read_empty_stream_1");
-        var key2 = GetUniqueKey("read_empty_stream_2");
+        var key1 = Me() + "a";
+        var key2 = Me() + "b";
 
         // Write to a stream to create the key.
         var id1 = db.StreamAdd(key1, "field1", "value1");
@@ -1515,7 +1531,7 @@ public class StreamTests : TestBase
         using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
-        var key = GetUniqueKey("read_exception_invalid_count_single");
+        var key = Me();
         Assert.Throws<ArgumentOutOfRangeException>(() => db.StreamRead(key, "0-0", 0));
     }
 
@@ -1544,8 +1560,8 @@ public class StreamTests : TestBase
         using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
-        var key1 = GetUniqueKey("read_multi_1a");
-        var key2 = GetUniqueKey("read_multi_2a");
+        var key1 = Me() + "a";
+        var key2 = Me() + "b";
 
         var id1 = db.StreamAdd(key1, "field1", "value1");
         var id2 = db.StreamAdd(key1, "field2", "value2");
@@ -1580,8 +1596,8 @@ public class StreamTests : TestBase
         using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
-        var key1 = GetUniqueKey("read_multi_count_1");
-        var key2 = GetUniqueKey("read_multi_count_2");
+        var key1 = Me() + "a";
+        var key2 = Me() + "b";
 
         var id1 = db.StreamAdd(key1, "field1", "value1");
         db.StreamAdd(key1, "field2", "value2");
@@ -1614,8 +1630,8 @@ public class StreamTests : TestBase
         using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
-        var key1 = GetUniqueKey("read_multi_1b");
-        var key2 = GetUniqueKey("read_multi_2b");
+        var key1 = Me() + "a";
+        var key2 = Me() + "b";
 
         db.StreamAdd(key1, "field1", "value1");
         db.StreamAdd(key1, "field2", "value2");
@@ -1645,8 +1661,8 @@ public class StreamTests : TestBase
         using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
-        var key1 = GetUniqueKey("read_multi_1c");
-        var key2 = GetUniqueKey("read_multi_2c");
+        var key1 = Me() + "a";
+        var key2 = Me() + "b";
 
         db.StreamAdd(key1, "field1", "value1");
         var id2 = db.StreamAdd(key1, "field2", "value2");
@@ -1672,7 +1688,7 @@ public class StreamTests : TestBase
         using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
-        var key = GetUniqueKey("read_empty");
+        var key = Me();
 
         db.StreamAdd(key, "field1", "value1");
         var id2 = db.StreamAdd(key, "field2", "value2");
@@ -1690,7 +1706,7 @@ public class StreamTests : TestBase
         using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
-        var key = GetUniqueKey("range");
+        var key = Me();
 
         var id1 = db.StreamAdd(key, "field1", "value1");
         var id2 = db.StreamAdd(key, "field2", "value2");
@@ -1708,7 +1724,7 @@ public class StreamTests : TestBase
         using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
-        var key = GetUniqueKey("range_empty");
+        var key = Me();
 
         var id1 = db.StreamAdd(key, "field1", "value1");
         var id2 = db.StreamAdd(key, "field2", "value2");
@@ -1728,7 +1744,7 @@ public class StreamTests : TestBase
         using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
-        var key = GetUniqueKey("range_count");
+        var key = Me();
 
         var id1 = db.StreamAdd(key, "field1", "value1");
         db.StreamAdd(key, "field2", "value2");
@@ -1745,7 +1761,7 @@ public class StreamTests : TestBase
         using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
-        var key = GetUniqueKey("rangerev");
+        var key = Me();
 
         var id1 = db.StreamAdd(key, "field1", "value1");
         var id2 = db.StreamAdd(key, "field2", "value2");
@@ -1763,7 +1779,7 @@ public class StreamTests : TestBase
         using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
-        var key = GetUniqueKey("rangerev_count");
+        var key = Me();
 
         var id1 = db.StreamAdd(key, "field1", "value1");
         var id2 = db.StreamAdd(key, "field2", "value2");
@@ -1780,7 +1796,7 @@ public class StreamTests : TestBase
         using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
-        var key = GetUniqueKey("read1");
+        var key = Me();
 
         var id1 = db.StreamAdd(key, "field1", "value1");
         var id2 = db.StreamAdd(key, "field2", "value2");
@@ -1799,7 +1815,7 @@ public class StreamTests : TestBase
         using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
-        var key = GetUniqueKey("read2");
+        var key = Me();
 
         var id1 = db.StreamAdd(key, "field1", "value1");
         var id2 = db.StreamAdd(key, "field2", "value2");
@@ -1820,7 +1836,7 @@ public class StreamTests : TestBase
         using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
-        var key = GetUniqueKey("trimlen");
+        var key = Me();
 
         // Add a couple items and check length.
         db.StreamAdd(key, "field1", "value1");
@@ -1841,7 +1857,7 @@ public class StreamTests : TestBase
         using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
-        var key = GetUniqueKey("len");
+        var key = Me();
 
         // Add a couple items and check length.
         db.StreamAdd(key, "field1", "value1");
@@ -1858,7 +1874,7 @@ public class StreamTests : TestBase
         using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
-        var key = GetUniqueKey("approx-async");
+        var key = Me();
         await db.StreamAddAsync(key, "field", "value", maxLength: 10, useApproximateMaxLength: true, flags: CommandFlags.None).ConfigureAwait(false);
     }
 
@@ -1868,7 +1884,7 @@ public class StreamTests : TestBase
         using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
-        var key = GetUniqueKey("approx");
+        var key = Me();
         db.StreamAdd(key, "field", "value", maxLength: 10, useApproximateMaxLength: true, flags: CommandFlags.None);
     }
 
@@ -1878,7 +1894,7 @@ public class StreamTests : TestBase
         using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
-        var key = GetUniqueKey("read_group_noack");
+        var key = Me();
         const string groupName = "test_group",
                      consumer = "consumer";
 
@@ -1904,8 +1920,8 @@ public class StreamTests : TestBase
         using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
-        var key1 = GetUniqueKey("read_group_noack1");
-        var key2 = GetUniqueKey("read_group_noack2");
+        var key1 = Me() + "a";
+        var key2 = Me() + "b";
         const string groupName = "test_group",
                      consumer = "consumer";
 
@@ -1934,15 +1950,13 @@ public class StreamTests : TestBase
         Assert.Equal(0, pending2.PendingMessageCount);
     }
 
-    private static RedisKey GetUniqueKey(string type) => $"{type}_stream_{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
-
     [Fact]
     public async Task StreamReadIndexerUsage()
     {
         using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
-        var streamName = GetUniqueKey("read-group-indexer");
+        var streamName = Me();
 
         await db.StreamAddAsync(streamName, new[] {
                 new NameValueEntry("x", "blah"),

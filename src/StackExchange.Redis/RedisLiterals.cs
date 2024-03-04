@@ -35,7 +35,14 @@ namespace StackExchange.Redis
             groups = "groups",
             lastGeneratedId = "last-generated-id",
             firstEntry = "first-entry",
-            lastEntry = "last-entry";
+            lastEntry = "last-entry",
+
+            // HELLO
+            version = "version",
+            proto = "proto",
+            role = "role",
+            mode = "mode",
+            id = "id";
     }
     internal static class RedisLiterals
     {
@@ -50,6 +57,7 @@ namespace StackExchange.Redis
             AND = "AND",
             ANY = "ANY",
             ASC = "ASC",
+            AUTH = "AUTH",
             BEFORE = "BEFORE",
             BIT = "BIT",
             BY = "BY",
@@ -61,6 +69,7 @@ namespace StackExchange.Redis
             COPY = "COPY",
             COUNT = "COUNT",
             DB = "DB",
+            @default = "default",
             DESC = "DESC",
             DOCTOR = "DOCTOR",
             ENCODING = "ENCODING",
@@ -159,7 +168,7 @@ namespace StackExchange.Redis
             sync = "sync",
 
             MinusSymbol = "-",
-            PlusSumbol = "+",
+            PlusSymbol = "+",
             Wildcard = "*",
 
             // Geo Radius/Search Literals

@@ -11,19 +11,19 @@
     <!-- Packages only used in the solution, upgrade at will -->
     <PackageVersion Include="BenchmarkDotNet" Version="0.13.1" />
     <PackageVersion Include="GitHubActionsTestLogger" Version="2.0.0-alpha" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" Version="3.3.4-beta1.22362.3" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" Version="3.3.4" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="6.0.0" />
     <PackageVersion Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.2" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.1.0" />
     <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="1.1.1" />
-    <PackageVersion Include="Moq" Version="4.17.2" />
     <PackageVersion Include="Nerdbank.GitVersioning" Version="3.4.255" />
     <PackageVersion Include="Newtonsoft.Json" Version="13.0.1" />
-    <PackageVersion Include="NSubstitute" Version="4.3.0" />
+    <PackageVersion Include="NSubstitute" Version="5.0.0" />
     <PackageVersion Include="StackExchange.Redis" Version="2.6.96" />
     <!-- For binding redirect testing, main package gets this transitively -->
     <PackageVersion Include="System.IO.Pipelines" Version="5.0.1" />
     <PackageVersion Include="System.Runtime.Caching" Version="5.0.0" />
-    <PackageVersion Include="xunit" Version="2.4.2-pre.12" />
-    <PackageVersion Include="xunit.runner.visualstudio" Version="2.4.3" />
+    <PackageVersion Include="xunit" Version="2.5.0" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="2.5.0" />
   </ItemGroup>
 </Project>

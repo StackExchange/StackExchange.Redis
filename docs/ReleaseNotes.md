@@ -8,7 +8,51 @@ Current package versions:
 
 ## Unreleased
 
+- Add new `LoggingTunnel` API; see https://stackexchange.github.io/StackExchange.Redis/Logging ([#2660 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2660))
+
+## 2.7.27
+
+- Support `HeartbeatConsistencyChecks` and `HeartbeatInterval` in `Clone()` ([#2658 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2658))
+- Add `AddLibraryNameSuffix` to multiplexer; allows usage-specific tokens to be appended *after connect* ([#2659 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2659))
+
+## 2.7.23
+
+- Fix [#2653](https://github.com/StackExchange/StackExchange.Redis/issues/2653): Client library metadata should validate contents ([#2654 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2654))
+- Add `HeartbeatConsistencyChecks` option (opt-in) to enabled per-heartbeat (defaults to once per second) checks to be sent to ensure no network stream corruption has occurred ([#2656 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2656))
+
+## 2.7.20
+
+- Fix [#2642](https://github.com/StackExchange/StackExchange.Redis/issues/2642): Detect and support multi-DB pseudo-cluster/proxy scenarios ([#2646](https://github.com/StackExchange/StackExchange.Redis/pull/2646) by mgravell)
+
+## 2.7.17
+
+- Fix [#2321](https://github.com/StackExchange/StackExchange.Redis/issues/2321): Honor disposition of select command in Command Map for transactions [(#2322 by slorello89)](https://github.com/StackExchange/StackExchange.Redis/pull/2322)
+- Fix [#2619](https://github.com/StackExchange/StackExchange.Redis/issues/2619): Type-forward `IsExternalInit` to support down-level TFMs ([#2621 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2621))
+- `InternalsVisibleTo` `PublicKey` enhancements([#2623 by WeihanLi](https://github.com/StackExchange/StackExchange.Redis/pull/2623))
+- Fix [#2576](https://github.com/StackExchange/StackExchange.Redis/issues/2576): Prevent `NullReferenceException` during shutdown of connections ([#2629 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2629))
+
+## 2.7.10
+
+- Fix [#2593](https://github.com/StackExchange/StackExchange.Redis/issues/2593): `EXPIRETIME` and `PEXPIRETIME` miscategorized as `PrimaryOnly` commands causing them to fail when issued against a read-only replica ([#2593 by slorello89](https://github.com/StackExchange/StackExchange.Redis/pull/2593))
+- Fix [#2591](https://github.com/StackExchange/StackExchange.Redis/issues/2591): Add `HELLO` to Sentinel connections so they can support RESP3 ([#2601 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2601))
+- Fix [#2595](https://github.com/StackExchange/StackExchange.Redis/issues/2595): Add detection handling for dead sockets that the OS says are okay, seen especially in Linux environments ([#2610 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2610))
+
+## 2.7.4
+
+- Adds: RESP3 support ([#2396 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2396)) - see https://stackexchange.github.io/StackExchange.Redis/Resp3
+- Fix [#2507](https://github.com/StackExchange/StackExchange.Redis/issues/2507): Pub/sub with multi-item payloads should be usable ([#2508 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2508))
+- Add: connection-id tracking (internal only, no public API) ([#2508 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2508))
+- Add: `ConfigurationOptions.LoggerFactory` for logging to an `ILoggerFactory` (e.g. `ILogger`) all connection and error events ([#2051 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2051))
+- Fix [#2467](https://github.com/StackExchange/StackExchange.Redis/issues/2467): Add StreamGroupInfo EntriesRead and Lag ([#2510 by tvdias](https://github.com/StackExchange/StackExchange.Redis/pull/2510))
+
+## 2.6.122
+
+- Change: Target net6.0 instead of net5.0, since net5.0 is end of life. ([#2497 by eerhardt](https://github.com/StackExchange/StackExchange.Redis/pull/2497))
 - Fix: Fix nullability annotation of IConnectionMultiplexer.RegisterProfiler ([#2494 by eerhardt](https://github.com/StackExchange/StackExchange.Redis/pull/2494))
+- Fix [#2520](https://github.com/StackExchange/StackExchange.Redis/issues/2520): Improve cluster connections in down scenarios by not re-pinging successful nodes ([#2525 by Matiszak](https://github.com/StackExchange/StackExchange.Redis/pull/2525))
+- Add: `Timer.ActiveCount` under `POOL` in timeout messages on .NET 6+ to help diagnose timer overload affecting timeout evaluations ([#2500 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2500))
+- Add: `LibraryName` configuration option; allows the library name to be controlled at the individual options level (in addition to the existing controls in `DefaultOptionsProvider`) ([#2502 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2502))
+- Add: `DefaultOptionsProvider.GetProvider` allows lookup of provider by endpoint ([#2502 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2502))
 
 ## 2.6.116
 
@@ -54,7 +98,6 @@ Current package versions:
 - Fix [#2249](https://github.com/StackExchange/StackExchange.Redis/issues/2249): Properly handle a `fail` state (new `ClusterNode.IsFail` property) for `CLUSTER NODES` and expose `fail?` as a property (`IsPossiblyFail`) as well ([#2288 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2288))
 - Adds: `IConnectionMultiplexer.ServerMaintenanceEvent` (was on `ConnectionMultiplexer` but not the interface) ([#2306 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2306))
 - Adds: To timeout messages, additional debug information: `Sync-Ops` (synchronous operations), `Async-Ops` (asynchronous operations), and `Server-Connected-Seconds` (how long the connection in question has been connected, or `"n/a"`) ([#2300 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2300))
-
 
 ## 2.6.80
 

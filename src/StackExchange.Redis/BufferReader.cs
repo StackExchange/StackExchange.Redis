@@ -17,6 +17,8 @@ namespace StackExchange.Redis
         public int OffsetThisSpan { get; private set; }
         public int RemainingThisSpan { get; private set; }
 
+        public long TotalConsumed => _totalConsumed;
+
         private ReadOnlySequence<byte>.Enumerator _iterator;
         private ReadOnlySpan<byte> _current;
 

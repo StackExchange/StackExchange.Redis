@@ -249,7 +249,7 @@ public class SSLTests : TestBase, IClassFixture<SSLTests.SSLServerFixture>
 
         var cert = new X509Certificate2(TestConfig.Current.RedisLabsPfxPath, "");
         Assert.NotNull(cert);
-        Writer.WriteLine("Thumbprint: " + cert.Thumbprint);
+        Log("Thumbprint: " + cert.Thumbprint);
 
         int timeout = 5000;
         if (Debugger.IsAttached) timeout *= 100;
@@ -334,7 +334,7 @@ public class SSLTests : TestBase, IClassFixture<SSLTests.SSLServerFixture>
             using var conn = ConnectionMultiplexer.Connect(options);
 
             RedisKey key = Me();
-            if (!setEnv) Assert.True(false, "Could not set environment");
+            if (!setEnv) Assert.Fail("Could not set environment");
 
             var db = conn.GetDatabase();
             db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -385,7 +385,7 @@ public class SSLTests : TestBase, IClassFixture<SSLTests.SSLServerFixture>
 
     private void Check(string name, object? x, object? y)
     {
-        Writer.WriteLine($"{name}: {(x == null ? "(null)" : x.ToString())} vs {(y == null ? "(null)" : y.ToString())}");
+        Log($"{name}: {(x == null ? "(null)" : x.ToString())} vs {(y == null ? "(null)" : y.ToString())}");
         Assert.Equal(x, y);
     }
 
@@ -396,10 +396,10 @@ public class SSLTests : TestBase, IClassFixture<SSLTests.SSLServerFixture>
         try
         {
             var all = CultureInfo.GetCultures(CultureTypes.AllCultures);
-            Writer.WriteLine($"Checking {all.Length} cultures...");
+            Log($"Checking {all.Length} cultures...");
             foreach (var ci in all)
             {
-                Writer.WriteLine("Testing: " + ci.Name);
+                Log("Testing: " + ci.Name);
                 CultureInfo.CurrentCulture = ci;
 
                 var a = ConfigurationOptions.Parse("myDNS:883,password=mypassword,connectRetry=3,connectTimeout=5000,syncTimeout=5000,defaultDatabase=0,ssl=true,abortConnect=false");
@@ -414,9 +414,9 @@ public class SSLTests : TestBase, IClassFixture<SSLTests.SSLServerFixture>
                     Ssl = true,
                     AbortOnConnectFail = false,
                 };
-                Writer.WriteLine($"computed: {b.ToString(true)}");
+                Log($"computed: {b.ToString(true)}");
 
-                Writer.WriteLine("Checking endpoints...");
+                Log("Checking endpoints...");
                 var c = a.EndPoints.Cast<DnsEndPoint>().Single();
                 var d = b.EndPoints.Cast<DnsEndPoint>().Single();
                 Check(nameof(c.Host), c.Host, d.Host);
@@ -424,7 +424,7 @@ public class SSLTests : TestBase, IClassFixture<SSLTests.SSLServerFixture>
                 Check(nameof(c.AddressFamily), c.AddressFamily, d.AddressFamily);
 
                 var fields = typeof(ConfigurationOptions).GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-                Writer.WriteLine($"Comparing {fields.Length} fields...");
+                Log($"Comparing {fields.Length} fields...");
                 Array.Sort(fields, (x, y) => string.CompareOrdinal(x.Name, y.Name));
                 foreach (var field in fields)
                 {
@@ -478,7 +478,7 @@ public class SSLTests : TestBase, IClassFixture<SSLTests.SSLServerFixture>
                     for (int i = 0; i < status.Length; i++)
                     {
                         var item = status[i];
-                        output.WriteLine($"\tstatus {i}: {item.Status}, {item.StatusInformation}");
+                        Log(output, $"\tstatus {i}: {item.Status}, {item.StatusInformation}");
                     }
                 }
             }
@@ -486,9 +486,9 @@ public class SSLTests : TestBase, IClassFixture<SSLTests.SSLServerFixture>
             {
                 if (certificate != null)
                 {
-                    output.WriteLine($"Subject: {certificate.Subject}");
+                    Log(output, $"Subject: {certificate.Subject}");
                 }
-                output.WriteLine($"Policy errors: {sslPolicyErrors}");
+                Log(output, $"Policy errors: {sslPolicyErrors}");
                 if (chain != null)
                 {
                     WriteStatus(chain.ChainStatus);
@@ -499,7 +499,7 @@ public class SSLTests : TestBase, IClassFixture<SSLTests.SSLServerFixture>
                         int index = 0;
                         foreach (var item in elements)
                         {
-                            output.WriteLine($"{index++}: {item.Certificate.Subject}; {item.Information}");
+                            Log(output, $"{index++}: {item.Certificate.Subject}; {item.Information}");
                             WriteStatus(item.ChainElementStatus);
                         }
                     }

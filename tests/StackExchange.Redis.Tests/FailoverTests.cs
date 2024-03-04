@@ -1,4 +1,5 @@
-﻿using System;
+﻿#if NET6_0_OR_GREATER
+using System;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -131,7 +132,7 @@ public class FailoverTests : TestBase, IAsyncLifetime
         {
             conn.Configure(writer);
             string log = writer.ToString();
-            Writer.WriteLine(log);
+            Log(log);
             bool isUnanimous = log.Contains("tie-break is unanimous at " + TestConfig.Current.FailoverPrimaryServerAndPort);
             if (!isUnanimous) Skip.Inconclusive("this is timing sensitive; unable to verify this time");
         }
@@ -146,33 +147,33 @@ public class FailoverTests : TestBase, IAsyncLifetime
 
         var ex = Assert.Throws<RedisConnectionException>(() => db.IdentifyEndpoint(key, CommandFlags.DemandReplica));
         Assert.StartsWith("No connection is active/available to service this operation: EXISTS " + Me(), ex.Message);
-        Writer.WriteLine("Invoking MakePrimaryAsync()...");
+        Log("Invoking MakePrimaryAsync()...");
         await primary.MakePrimaryAsync(ReplicationChangeOptions.Broadcast | ReplicationChangeOptions.ReplicateToOtherEndpoints | ReplicationChangeOptions.SetTiebreaker, Writer);
-        Writer.WriteLine("Finished MakePrimaryAsync() call.");
+        Log("Finished MakePrimaryAsync() call.");
 
         await Task.Delay(100).ConfigureAwait(false);
 
-        Writer.WriteLine("Invoking Ping() (post-primary)");
+        Log("Invoking Ping() (post-primary)");
         primary.Ping();
         secondary.Ping();
-        Writer.WriteLine("Finished Ping() (post-primary)");
+        Log("Finished Ping() (post-primary)");
 
         Assert.True(primary.IsConnected, $"{primary.EndPoint} is not connected.");
         Assert.True(secondary.IsConnected, $"{secondary.EndPoint} is not connected.");
 
-        Writer.WriteLine($"{primary.EndPoint}: {primary.ServerType}, Mode: {(primary.IsReplica ? "Replica" : "Primary")}");
-        Writer.WriteLine($"{secondary.EndPoint}: {secondary.ServerType}, Mode: {(secondary.IsReplica ? "Replica" : "Primary")}");
+        Log($"{primary.EndPoint}: {primary.ServerType}, Mode: {(primary.IsReplica ? "Replica" : "Primary")}");
+        Log($"{secondary.EndPoint}: {secondary.ServerType}, Mode: {(secondary.IsReplica ? "Replica" : "Primary")}");
 
         // Create a separate multiplexer with a valid view of the world to distinguish between failures of
         // server topology changes from failures to recognize those changes
-        Writer.WriteLine("Connecting to secondary validation connection.");
+        Log("Connecting to secondary validation connection.");
         using (var conn2 = ConnectionMultiplexer.Connect(config))
         {
             var primary2 = conn2.GetServer(TestConfig.Current.FailoverPrimaryServerAndPort);
             var secondary2 = conn2.GetServer(TestConfig.Current.FailoverReplicaServerAndPort);
 
-            Writer.WriteLine($"Check: {primary2.EndPoint}: {primary2.ServerType}, Mode: {(primary2.IsReplica ? "Replica" : "Primary")}");
-            Writer.WriteLine($"Check: {secondary2.EndPoint}: {secondary2.ServerType}, Mode: {(secondary2.IsReplica ? "Replica" : "Primary")}");
+            Log($"Check: {primary2.EndPoint}: {primary2.ServerType}, Mode: {(primary2.IsReplica ? "Replica" : "Primary")}");
+            Log($"Check: {secondary2.EndPoint}: {secondary2.ServerType}, Mode: {(secondary2.IsReplica ? "Replica" : "Primary")}");
 
             Assert.False(primary2.IsReplica, $"{primary2.EndPoint} should be a primary (verification connection).");
             Assert.True(secondary2.IsReplica, $"{secondary2.EndPoint} should be a replica (verification connection).");
@@ -200,7 +201,7 @@ public class FailoverTests : TestBase, IAsyncLifetime
     [Fact]
     public async Task SubscriptionsSurviveConnectionFailureAsync()
     {
-        using var conn = (Create(allowAdmin: true, shared: false, log: Writer, syncTimeout: 1000) as ConnectionMultiplexer)!;
+        using var conn = Create(allowAdmin: true, shared: false, log: Writer, syncTimeout: 1000);
 
         var profiler = conn.AddProfiler();
         RedisChannel channel = RedisChannel.Literal(Me());
@@ -431,9 +432,9 @@ public class FailoverTests : TestBase, IAsyncLifetime
         }
         catch
         {
-            LogNoTime("");
+            Log("");
             Log("ERROR: Something went bad - see above! Roooooolling back. Back it up. Baaaaaack it on up.");
-            LogNoTime("");
+            Log("");
             throw;
         }
         finally
@@ -449,3 +450,4 @@ public class FailoverTests : TestBase, IAsyncLifetime
     }
 #endif
 }
+#endif

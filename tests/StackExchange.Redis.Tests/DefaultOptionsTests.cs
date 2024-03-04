@@ -4,6 +4,8 @@ using System.Linq;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using StackExchange.Redis.Configuration;
 using Xunit;
 using Xunit.Abstractions;
@@ -30,8 +32,11 @@ public class DefaultOptionsTests : TestBase
         public override int ConnectRetry => 123;
         public override Version DefaultVersion => new Version(1, 2, 3, 4);
         protected override string GetDefaultClientName() => "TestPrefix-" + base.GetDefaultClientName();
+        public override bool HeartbeatConsistencyChecks => true;
+        public override TimeSpan HeartbeatInterval => TimeSpan.FromMilliseconds(500);
         public override bool IsMatch(EndPoint endpoint) => endpoint is DnsEndPoint dnsep && dnsep.Host.EndsWith(_domainSuffix);
         public override TimeSpan KeepAliveInterval => TimeSpan.FromSeconds(125);
+        public override ILoggerFactory? LoggerFactory => NullLoggerFactory.Instance;
         public override Proxy Proxy => Proxy.Twemproxy;
         public override IReconnectRetryPolicy ReconnectRetryPolicy => new TestRetryPolicy();
         public override bool ResolveDns => true;
@@ -52,11 +57,11 @@ public class DefaultOptionsTests : TestBase
         DefaultOptionsProvider.AddProvider(new TestOptionsProvider(".testdomain"));
 
         var epc = new EndPointCollection(new List<EndPoint>() { new DnsEndPoint("local.testdomain", 0) });
-        var provider = DefaultOptionsProvider.GetForEndpoints(epc);
+        var provider = DefaultOptionsProvider.GetProvider(epc);
         Assert.IsType<TestOptionsProvider>(provider);
 
         epc = new EndPointCollection(new List<EndPoint>() { new DnsEndPoint("local.nottestdomain", 0) });
-        provider = DefaultOptionsProvider.GetForEndpoints(epc);
+        provider = DefaultOptionsProvider.GetProvider(epc);
         Assert.IsType<DefaultOptionsProvider>(provider);
     }
 
@@ -96,7 +101,11 @@ public class DefaultOptionsTests : TestBase
         Assert.Equal(123, options.ConnectRetry);
         Assert.Equal(new Version(1, 2, 3, 4), options.DefaultVersion);
 
+        Assert.True(options.HeartbeatConsistencyChecks);
+        Assert.Equal(TimeSpan.FromMilliseconds(500), options.HeartbeatInterval);
+
         Assert.Equal(TimeSpan.FromSeconds(125), TimeSpan.FromSeconds(options.KeepAlive));
+        Assert.Equal(NullLoggerFactory.Instance, options.LoggerFactory);
         Assert.Equal(Proxy.Twemproxy, options.Proxy);
         Assert.IsType<TestRetryPolicy>(options.ReconnectRetryPolicy);
         Assert.True(options.ResolveDns);

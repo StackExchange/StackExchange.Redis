@@ -1,10 +1,4 @@
-﻿using System;
-using System.Buffers;
-using System.IO;
-using System.IO.Pipelines;
-using System.Runtime.InteropServices;
-
-namespace StackExchange.Redis
+﻿namespace StackExchange.Redis
 {
 #if LOGOUTPUT
     sealed class LoggingPipe : IDuplexPipe

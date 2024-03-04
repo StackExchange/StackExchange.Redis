@@ -6,9 +6,9 @@ using Xunit.Abstractions;
 namespace StackExchange.Redis.Tests;
 
 [Collection(NonParallelCollection.Name)]
-public class AggresssiveTests : TestBase
+public class AggressiveTests : TestBase
 {
-    public AggresssiveTests(ITestOutputHelper output) : base(output) { }
+    public AggressiveTests(ITestOutputHelper output) : base(output) { }
 
     [FactLongRunning]
     public async Task ParallelTransactionsWithConditions()
@@ -59,7 +59,7 @@ public class AggresssiveTests : TestBase
             }
             var actual = (int)await muxers[0].GetDatabase().StringGetAsync(hits).ForAwait();
             Assert.Equal(expectedSuccess, actual);
-            Writer.WriteLine($"success: {actual} out of {Workers * PerThread} attempts");
+            Log($"success: {actual} out of {Workers * PerThread} attempts");
         }
         finally
         {
@@ -93,7 +93,7 @@ public class AggresssiveTests : TestBase
         x.Join();
         y.Join();
 
-        Writer.WriteLine(conn.GetCounters().Interactive);
+        Log(conn.GetCounters().Interactive.ToString());
     }
 
     private void BatchRunIntegers(IDatabase db)
@@ -114,7 +114,7 @@ public class AggresssiveTests : TestBase
         }
 
         var count = (long)db.StringGet(key);
-        Writer.WriteLine($"tally: {count}");
+        Log($"tally: {count}");
     }
 
     private static void BatchRunPings(IDatabase db)
@@ -144,7 +144,7 @@ public class AggresssiveTests : TestBase
         await x;
         await y;
 
-        Writer.WriteLine(conn.GetCounters().Interactive);
+        Log(conn.GetCounters().Interactive.ToString());
     }
 
     private async Task BatchRunIntegersAsync(IDatabase db)
@@ -168,7 +168,7 @@ public class AggresssiveTests : TestBase
         }
 
         var count = (long)await db.StringGetAsync(key).ForAwait();
-        Writer.WriteLine($"tally: {count}");
+        Log($"tally: {count}");
     }
 
     private static async Task BatchRunPingsAsync(IDatabase db)
@@ -209,7 +209,7 @@ public class AggresssiveTests : TestBase
         x.Join();
         y.Join();
 
-        Writer.WriteLine(conn.GetCounters().Interactive);
+        Log(conn.GetCounters().Interactive.ToString());
     }
 
     private void TranRunIntegers(IDatabase db)
@@ -231,10 +231,10 @@ public class AggresssiveTests : TestBase
         }
 
         var count = (long)db.StringGet(key);
-        Writer.WriteLine($"tally: {count}");
+        Log($"tally: {count}");
     }
 
-    private static void TranRunPings(IDatabase db)
+    private void TranRunPings(IDatabase db)
     {
         var key = Me();
         db.KeyDelete(key);
@@ -264,7 +264,7 @@ public class AggresssiveTests : TestBase
         await x;
         await y;
 
-        Writer.WriteLine(conn.GetCounters().Interactive);
+        Log(conn.GetCounters().Interactive.ToString());
     }
 
     private async Task TranRunIntegersAsync(IDatabase db)
@@ -289,10 +289,10 @@ public class AggresssiveTests : TestBase
         }
 
         var count = (long)await db.StringGetAsync(key).ForAwait();
-        Writer.WriteLine($"tally: {count}");
+        Log($"tally: {count}");
     }
 
-    private static async Task TranRunPingsAsync(IDatabase db)
+    private async Task TranRunPingsAsync(IDatabase db)
     {
         var key = Me();
         db.KeyDelete(key);

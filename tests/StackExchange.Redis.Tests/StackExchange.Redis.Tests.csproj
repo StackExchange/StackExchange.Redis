@@ -19,7 +19,6 @@
     <ProjectReference Include="..\..\src\StackExchange.Redis\StackExchange.Redis.csproj" />
     <PackageReference Include="GitHubActionsTestLogger" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
-    <PackageReference Include="Moq" />
     <PackageReference Include="Newtonsoft.Json" />
     <PackageReference Include="NSubstitute" />
     <PackageReference Include="System.Runtime.InteropServices.RuntimeInformation" />

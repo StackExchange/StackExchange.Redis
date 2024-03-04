@@ -176,7 +176,7 @@ public class SentinelBase : TestBase, IAsyncLifetime
             if (replicaOffset == primaryOffset)
             {
                 Log($"Done waiting for primary ({primaryOffset}) / replica ({replicaOffset}) replication to be in sync");
-                LogEndpoints(primary, Log);
+                LogEndpoints(primary, m => Log(m));
                 return;
             }
 

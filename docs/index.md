@@ -39,6 +39,7 @@ Documentation
 - [Transactions](Transactions) - how atomic transactions work in redis
 - [Events](Events) - the events available for logging / information purposes
 - [Pub/Sub Message Order](PubSubOrder) - advice on sequential and concurrent processing
+- [Using RESP3](Resp3) - information on using RESP3
 - [ServerMaintenanceEvent](ServerMaintenanceEvent) - how to listen and prepare for hosted server maintenance (e.g. Azure Cache for Redis)
 - [Streams](Streams) - how to use the Stream data type
 - [Where are `KEYS` / `SCAN` / `FLUSH*`?](KeysScan) - how to use server-based commands
@@ -47,6 +48,7 @@ Documentation
 - [Testing](Testing) - running the `StackExchange.Redis.Tests` suite to validate changes
 - [Timeouts](Timeouts) - guidance on dealing with timeout problems
 - [Thread Theft](ThreadTheft) - guidance on avoiding TPL threading problems
+- [RESP Logging](RespLogging) - capturing and validating RESP streams
 
 Questions and Contributions
 ---

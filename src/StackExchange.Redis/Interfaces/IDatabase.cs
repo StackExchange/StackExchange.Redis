@@ -300,7 +300,7 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the hash.</param>
         /// <param name="hashField">The field in the hash to delete.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The number of fields that were removed.</returns>
+        /// <returns><see langword="true"/> if the field was removed.</returns>
         /// <remarks><seealso href="https://redis.io/commands/hdel"/></remarks>
         bool HashDelete(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None);
 

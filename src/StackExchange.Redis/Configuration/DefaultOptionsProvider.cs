@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Net;
 using System.Reflection;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace StackExchange.Redis.Configuration
 {
@@ -52,7 +53,7 @@ namespace StackExchange.Redis.Configuration
         /// <summary>
         /// Gets a provider for the given endpoints, falling back to <see cref="DefaultOptionsProvider"/> if nothing more specific is found.
         /// </summary>
-        internal static Func<EndPointCollection, DefaultOptionsProvider> GetForEndpoints { get; } = (endpoints) =>
+        public static DefaultOptionsProvider GetProvider(EndPointCollection endpoints)
         {
             foreach (var provider in KnownProviders)
             {
@@ -65,8 +66,23 @@ namespace StackExchange.Redis.Configuration
                 }
             }
 
-            return new DefaultOptionsProvider();
-        };
+            return new DefaultOptionsProvider(); // no memoize; allow mutability concerns (also impacts subclasses, but: pragmatism)
+        }
+
+        /// <summary>
+        /// Gets a provider for a given endpoints, falling back to <see cref="DefaultOptionsProvider"/> if nothing more specific is found.
+        /// </summary>
+        public static DefaultOptionsProvider GetProvider(EndPoint endpoint)
+        {
+            foreach (var provider in KnownProviders)
+            {
+                if (provider.IsMatch(endpoint))
+                {
+                    return provider;
+                }
+            }
+            return new DefaultOptionsProvider(); // no memoize; allow mutability concerns (also impacts subclasses, but: pragmatism)
+        }
 
         /// <summary>
         /// Gets or sets whether connect/configuration timeouts should be explicitly notified via a TimeoutException.
@@ -124,6 +140,12 @@ namespace StackExchange.Redis.Configuration
         public virtual TimeSpan HeartbeatInterval => TimeSpan.FromSeconds(1);
 
         /// <summary>
+        /// Whether to enable ECHO checks on every heartbeat to ensure network stream consistency.
+        /// This is a rare measure to react to any potential network traffic drops ASAP, terminating the connection.
+        /// </summary>
+        public virtual bool HeartbeatConsistencyChecks => false;
+
+        /// <summary>
         /// Should exceptions include identifiable details? (key names, additional .Data annotations)
         /// </summary>
         public virtual bool IncludeDetailInExceptions => true;
@@ -140,6 +162,12 @@ namespace StackExchange.Redis.Configuration
         /// Specifies the time interval at which connections should be pinged to ensure validity.
         /// </summary>
         public virtual TimeSpan KeepAliveInterval => TimeSpan.FromSeconds(60);
+
+        /// <summary>
+        /// The <see cref="ILoggerFactory"/> to get loggers for connection events.
+        /// Note: changes here only affect <see cref="ConnectionMultiplexer"/>s created after.
+        /// </summary>
+        public virtual ILoggerFactory? LoggerFactory => null;
 
         /// <summary>
         /// Type of proxy to use (if any); for example <see cref="Proxy.Twemproxy"/>.

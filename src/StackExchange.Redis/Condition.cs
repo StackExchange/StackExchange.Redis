@@ -563,7 +563,7 @@ namespace StackExchange.Redis
                         return true;
 
                     default:
-                        switch (result.Type)
+                        switch (result.Resp2TypeBulkString)
                         {
                             case ResultType.BulkString:
                             case ResultType.SimpleString:
@@ -619,7 +619,7 @@ namespace StackExchange.Redis
 
             internal override bool TryValidate(in RawResult result, out bool value)
             {
-                switch (result.Type)
+                switch (result.Resp2TypeBulkString)
                 {
                     case ResultType.BulkString:
                     case ResultType.SimpleString:
@@ -692,7 +692,7 @@ namespace StackExchange.Redis
 
             internal override bool TryValidate(in RawResult result, out bool value)
             {
-                switch (result.Type)
+                switch (result.Resp2TypeBulkString)
                 {
                     case ResultType.BulkString:
                     case ResultType.SimpleString:
@@ -749,7 +749,7 @@ namespace StackExchange.Redis
 
             internal override bool TryValidate(in RawResult result, out bool value)
             {
-                switch (result.Type)
+                switch (result.Resp2TypeBulkString)
                 {
                     case ResultType.BulkString:
                     case ResultType.SimpleString:
@@ -806,7 +806,7 @@ namespace StackExchange.Redis
 
             internal override bool TryValidate(in RawResult result, out bool value)
             {
-                switch (result.Type)
+                switch (result.Resp2TypeBulkString)
                 {
                     case ResultType.Integer:
                         var parsedValue = result.AsRedisValue();

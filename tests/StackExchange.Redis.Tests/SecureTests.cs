@@ -81,7 +81,7 @@ public class SecureTests : TestBase
         Assert.StartsWith("It was not possible to connect to the redis server(s). There was an authentication failure; check that passwords (or client certificates) are configured correctly: (RedisServerException) ", ex.Message);
 
         // This changed in some version...not sure which. For our purposes, splitting on v3 vs v6+
-        if (checkServer.Version >= RedisFeatures.v6_0_0)
+        if (checkServer.Version.IsAtLeast(RedisFeatures.v6_0_0))
         {
             Assert.EndsWith(exepctedMessage, ex.Message);
         }

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using Xunit.Abstractions;
 
@@ -17,13 +18,19 @@ public static class Extensions
 #endif
         try
         {
-            VersionInfo += "\n   Running on: " + RuntimeInformation.OSDescription;
+            VersionInfo += "\n  Running on: " + RuntimeInformation.OSDescription;
         }
         catch (Exception)
         {
-            VersionInfo += "\n   Failed to get OS version";
+            VersionInfo += "\n  Failed to get OS version";
         }
     }
 
     public static void WriteFrameworkVersion(this ITestOutputHelper output) => output.WriteLine(VersionInfo);
+
+    public static ConfigurationOptions WithoutSubscriptions(this ConfigurationOptions options)
+    {
+        options.CommandMap = CommandMap.Create(new HashSet<string>() { nameof(RedisCommand.SUBSCRIBE) }, available: false);
+        return options;
+    }
 }

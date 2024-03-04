@@ -29,7 +29,7 @@ public class ProfilingTests : TestBase
 
         conn.RegisterProfiler(() => session);
 
-        var dbId = TestConfig.GetDedicatedDB();
+        var dbId = TestConfig.GetDedicatedDB(conn);
         var db = conn.GetDatabase(dbId);
         db.StringSet(key, "world");
         var result = db.ScriptEvaluate(script, new { key = (RedisKey)key });
@@ -143,7 +143,7 @@ public class ProfilingTests : TestBase
         Assert.Contains("SET", kinds);
         if (kinds.Count == 2 && !kinds.Contains("SELECT") && !kinds.Contains("GET"))
         {
-            Assert.True(false, "Non-SET, Non-SELECT, Non-GET command seen");
+            Assert.Fail("Non-SET, Non-SELECT, Non-GET command seen");
         }
 
         Assert.Equal(16 * CountPer, relevant.Count);

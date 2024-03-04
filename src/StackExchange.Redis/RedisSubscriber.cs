@@ -5,6 +5,7 @@ using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using Pipelines.Sockets.Unofficial;
+using Pipelines.Sockets.Unofficial.Arenas;
 using static StackExchange.Redis.ConnectionMultiplexer;
 
 namespace StackExchange.Redis
@@ -17,7 +18,10 @@ namespace StackExchange.Redis
         private readonly ConcurrentDictionary<RedisChannel, Subscription> subscriptions = new();
 
         internal ConcurrentDictionary<RedisChannel, Subscription> GetSubscriptions() => subscriptions;
+        ConcurrentDictionary<RedisChannel, Subscription> IInternalConnectionMultiplexer.GetSubscriptions() => GetSubscriptions();
+
         internal int GetSubscriptionsCount() => subscriptions.Count;
+        int IInternalConnectionMultiplexer.GetSubscriptionsCount() => GetSubscriptionsCount();
 
         internal Subscription GetOrAddSubscription(in RedisChannel channel, CommandFlags flags)
         {
@@ -89,6 +93,24 @@ namespace StackExchange.Redis
             if (completable != null && !completable.TryComplete(false))
             {
                 CompleteAsWorker(completable);
+            }
+        }
+
+        internal void OnMessage(in RedisChannel subscription, in RedisChannel channel, Sequence<RawResult> payload)
+        {
+            if (payload.IsSingleSegment)
+            {
+                foreach (var message in payload.FirstSpan)
+                {
+                    OnMessage(subscription, channel, message.AsRedisValue());
+                }
+            }
+            else
+            {
+                foreach (var message in payload)
+                {
+                    OnMessage(subscription, channel, message.AsRedisValue());
+                }
             }
         }
 

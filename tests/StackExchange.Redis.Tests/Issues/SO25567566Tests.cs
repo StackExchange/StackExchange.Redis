@@ -21,7 +21,7 @@ public class SO25567566Tests : TestBase
         }
     }
 
-    private static async Task<string> DoStuff(ConnectionMultiplexer conn)
+    private async Task<string> DoStuff(ConnectionMultiplexer conn)
     {
         var db = conn.GetDatabase();
 

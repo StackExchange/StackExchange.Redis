@@ -2,8 +2,7 @@
   <PropertyGroup>
     <Nullable>enable</Nullable>
     <!-- extend the default lib targets for the main lib; mostly because of "vectors" -->
-    <!-- Note: we're NOT building for .NET 6 because the thread pool changes are not wins yet -->
-    <TargetFrameworks>net461;netstandard2.0;net472;netcoreapp3.1;net5.0</TargetFrameworks>
+    <TargetFrameworks>net461;netstandard2.0;net472;netcoreapp3.1;net6.0</TargetFrameworks>
     <Description>High performance Redis client, incorporating both synchronous and asynchronous usage.</Description>
     <AssemblyName>StackExchange.Redis</AssemblyName>
     <AssemblyTitle>StackExchange.Redis</AssemblyTitle>
@@ -17,6 +16,7 @@
 
   <ItemGroup>
     <!-- needed everywhere -->
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
     <PackageReference Include="Pipelines.Sockets.Unofficial" />
 
     <!-- built into .NET core now -->
@@ -35,11 +35,11 @@
     <AdditionalFiles Include="PublicAPI/PublicAPI.Shipped.txt" />
     <AdditionalFiles Include="PublicAPI/PublicAPI.Unshipped.txt" />
     <!-- APIs for netcoreapp3.1+ -->
-    <AdditionalFiles Include="PublicAPI/netcoreapp3.1/PublicAPI.Shipped.txt" Condition="'$(TargetFramework)' == 'netcoreapp3.1' or '$(TargetFramework)' == 'net5.0'" />
+    <AdditionalFiles Include="PublicAPI/$(TargetFramework)/PublicAPI.Shipped.txt" Condition="'$(TargetFrameworkIdentifier)' == '.NETCoreApp'" />
   </ItemGroup>
 
   <ItemGroup>
-    <InternalsVisibleTo Include="StackExchange.Redis.Server, PublicKey=00240000048000009400000006020000002400005253413100040000010001007791a689e9d8950b44a9a8886baad2ea180e7a8a854f158c9b98345ca5009cdd2362c84f368f1c3658c132b3c0f74e44ff16aeb2e5b353b6e0fe02f923a050470caeac2bde47a2238a9c7125ed7dab14f486a5a64558df96640933b9f2b6db188fc4a820f96dce963b662fa8864adbff38e5b4542343f162ecdc6dad16912fff" />
-    <InternalsVisibleTo Include="StackExchange.Redis.Tests, PublicKey=00240000048000009400000006020000002400005253413100040000010001007791a689e9d8950b44a9a8886baad2ea180e7a8a854f158c9b98345ca5009cdd2362c84f368f1c3658c132b3c0f74e44ff16aeb2e5b353b6e0fe02f923a050470caeac2bde47a2238a9c7125ed7dab14f486a5a64558df96640933b9f2b6db188fc4a820f96dce963b662fa8864adbff38e5b4542343f162ecdc6dad16912fff" />
+    <InternalsVisibleTo Include="StackExchange.Redis.Server" />
+    <InternalsVisibleTo Include="StackExchange.Redis.Tests" />
   </ItemGroup>
 </Project>

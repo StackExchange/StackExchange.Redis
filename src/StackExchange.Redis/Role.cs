@@ -62,6 +62,9 @@ namespace StackExchange.Redis
                     Port = port;
                     ReplicationOffset = offset;
                 }
+
+                /// <inheritdoc/>
+                public override string ToString() => $"{Ip}:{Port} - {ReplicationOffset}";
             }
 
             internal Master(long offset, ICollection<Replica> replicas) : base(RedisLiterals.master!)

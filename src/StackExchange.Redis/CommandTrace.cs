@@ -73,9 +73,9 @@ namespace StackExchange.Redis
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
-                switch(result.Type)
+                switch(result.Resp2TypeArray)
                 {
-                    case ResultType.MultiBulk:
+                    case ResultType.Array:
                         var parts = result.GetItems();
                         CommandTrace[] arr = new CommandTrace[parts.Length];
                         int i = 0;

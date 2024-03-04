@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
@@ -51,5 +52,52 @@ public class GarbageCollectionTests : TestBase
 //            int after = ConnectionMultiplexer.CollectedWithoutDispose;
 //            Assert.Equal(before + 1, after);
 //#endif
+    }
+
+    [Fact]
+    public async Task UnrootedBackloggedAsyncTaskIsCompletedOnTimeout()
+    {
+        // Run the test on a separate thread without keeping a reference to the task to ensure
+        // that there are no references to the variables in test task from the main thread.
+        // WithTimeout must not be used within Task.Run because timers are rooted and would keep everything alive.
+        var startGC = new TaskCompletionSource<bool>();
+        Task? completedTestTask = null;
+        _ = Task.Run(async () =>
+        {
+            using var conn = await ConnectionMultiplexer.ConnectAsync(new ConfigurationOptions()
+            {
+                BacklogPolicy = BacklogPolicy.Default,
+                AbortOnConnectFail = false,
+                ConnectTimeout = 50,
+                SyncTimeout = 1000,
+                AllowAdmin = true,
+                EndPoints = { GetConfiguration() },
+            }, Writer);
+            var db = conn.GetDatabase();
+
+            // Disconnect and don't allow re-connection
+            conn.AllowConnect = false;
+            var server = conn.GetServerSnapshot()[0];
+            server.SimulateConnectionFailure(SimulatedFailureType.All);
+            Assert.False(conn.IsConnected);
+
+            var pingTask = Assert.ThrowsAsync<RedisConnectionException>(() => db.PingAsync());
+            startGC.SetResult(true);
+            await pingTask;
+        }).ContinueWith(testTask => Volatile.Write(ref completedTestTask, testTask));
+
+        // Use sync wait and sleep to ensure a more timely GC.
+        var timeoutTask = Task.Delay(5000);
+        Task.WaitAny(startGC.Task, timeoutTask);
+        while (Volatile.Read(ref completedTestTask) == null && !timeoutTask.IsCompleted)
+        {
+            ForceGC();
+            Thread.Sleep(200);
+        }
+
+        var testTask = Volatile.Read(ref completedTestTask);
+        if (testTask == null) Assert.Fail("Timeout.");
+
+        await testTask;
     }
 }

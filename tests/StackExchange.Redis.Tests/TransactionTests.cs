@@ -5,6 +5,7 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
+[RunPerProtocol]
 [Collection(SharedConnectionFixture.Key)]
 public class TransactionTests : TestBase
 {
@@ -1218,6 +1219,22 @@ public class TransactionTests : TestBase
         Assert.Equal(30, count);
     }
 
+    [Fact]
+    public async Task TransactionWithAdHocCommandsAndSelectDisabled()
+    {
+        using var conn = Create(disabledCommands: new string[] { "SELECT" });
+        RedisKey key = Me();
+        var db = conn.GetDatabase();
+        db.KeyDelete(key, CommandFlags.FireAndForget);
+        Assert.False(db.KeyExists(key));
+
+        var tran = db.CreateTransaction("state");
+        var a = tran.ExecuteAsync("SET", "foo", "bar");
+        Assert.True(await tran.ExecuteAsync());
+        var setting = db.StringGet("foo");
+        Assert.Equal("bar",setting);
+    }
+
 #if VERBOSE
     [Fact]
     public async Task WatchAbort_StringEqual()
@@ -1298,7 +1315,7 @@ public class TransactionTests : TestBase
             }
         }
 
-        Writer.WriteLine($"hash hit: {hashHit}, miss: {hashMiss}; expire hit: {expireHit}, miss: {expireMiss}");
+        Log($"hash hit: {hashHit}, miss: {hashMiss}; expire hit: {expireHit}, miss: {expireMiss}");
         Assert.Equal(0, hashMiss);
         Assert.Equal(0, expireMiss);
     }

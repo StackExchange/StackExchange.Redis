@@ -9,17 +9,18 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
+[RunPerProtocol]
 [Collection(SharedConnectionFixture.Key)]
 public class KeyTests : TestBase
 {
-    public KeyTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base (output, fixture) { }
+    public KeyTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
 
     [Fact]
     public void TestScan()
     {
         using var conn = Create(allowAdmin: true);
 
-        var dbId = TestConfig.GetDedicatedDB();
+        var dbId = TestConfig.GetDedicatedDB(conn);
         var db = conn.GetDatabase(dbId);
         var server = GetAnyPrimary(conn);
         var prefix = Me();

@@ -7,6 +7,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 #if !NETCOREAPP
 using Pipelines.Sockets.Unofficial.Threading;
 using static Pipelines.Sockets.Unofficial.Threading.MutexSlim;
@@ -59,6 +60,8 @@ namespace StackExchange.Redis
 
         private volatile int state = (int)State.Disconnected;
 
+        internal long? ConnectionId => physical?.ConnectionId;
+
 #if NETCOREAPP
         private readonly SemaphoreSlim _singleWriterMutex = new(1,1);
 #else
@@ -66,6 +69,7 @@ namespace StackExchange.Redis
 #endif
 
         internal string? PhysicalName => physical?.ToString();
+
         public DateTime? ConnectedAt { get; private set; }
 
         public PhysicalBridge(ServerEndPoint serverEndPoint, ConnectionType type, int timeoutMilliseconds)
@@ -110,6 +114,11 @@ namespace StackExchange.Redis
         internal long OperationCount => Interlocked.Read(ref operationCount);
 
         public RedisCommand LastCommand { get; private set; }
+
+        /// <summary>
+        /// If we have a connection, report the protocol being used
+        /// </summary>
+        public RedisProtocol? Protocol => physical?.Protocol;
 
         public void Dispose()
         {
@@ -350,9 +359,13 @@ namespace StackExchange.Redis
             Interlocked.Increment(ref operationCount);
         }
 
-        internal void KeepAlive()
+        /// <summary>
+        /// Sends a keepalive message (ECHO or PING) to keep connections alive and check validity of response.
+        /// </summary>
+        /// <param name="forceRun">Whether to run even then the connection isn't idle.</param>
+        internal void KeepAlive(bool forceRun = false)
         {
-            if (!(physical?.IsIdle() ?? false)) return; // don't pile on if already doing something
+            if (!forceRun && !(physical?.IsIdle() ?? false)) return; // don't pile on if already doing something
 
             var commandMap = Multiplexer.CommandMap;
             Message? msg = null;
@@ -397,14 +410,14 @@ namespace StackExchange.Redis
             }
         }
 
-        internal async Task OnConnectedAsync(PhysicalConnection connection, LogProxy? log)
+        internal async Task OnConnectedAsync(PhysicalConnection connection, ILogger? log)
         {
             Trace("OnConnected");
             if (physical == connection && !isDisposed && ChangeState(State.Connecting, State.ConnectedEstablishing))
             {
                 ConnectedAt ??= DateTime.UtcNow;
                 await ServerEndPoint.OnEstablishingAsync(connection, log).ForAwait();
-                log?.WriteLine($"{Format.ToString(ServerEndPoint)}: OnEstablishingAsync complete");
+                log?.LogInformation($"{Format.ToString(ServerEndPoint)}: OnEstablishingAsync complete");
             }
             else
             {
@@ -426,8 +439,16 @@ namespace StackExchange.Redis
             TryConnect(null);
         }
 
-        internal void OnConnectionFailed(PhysicalConnection connection, ConnectionFailureType failureType, Exception innerException)
+        internal void OnConnectionFailed(PhysicalConnection connection, ConnectionFailureType failureType, Exception innerException, bool wasRequested)
         {
+            if (wasRequested)
+            {
+                Multiplexer.Logger?.LogInformation(innerException, innerException.Message);
+            }
+            else
+            {
+                Multiplexer.Logger?.LogError(innerException, innerException.Message);
+            }
             Trace($"OnConnectionFailed: {connection}");
             // If we're configured to, fail all pending backlogged messages
             if (Multiplexer.RawConfig.BacklogPolicy?.AbortPendingOnConnectionFailure == true)
@@ -548,7 +569,9 @@ namespace StackExchange.Redis
                         if (shouldRetry)
                         {
                             Interlocked.Increment(ref connectTimeoutRetryCount);
-                            LastException = ExceptionFactory.UnableToConnect(Multiplexer, "ConnectTimeout");
+                            var ex = ExceptionFactory.UnableToConnect(Multiplexer, "ConnectTimeout");
+                            LastException = ex;
+                            Multiplexer.Logger?.LogError(ex, ex.Message);
                             Trace("Aborting connect");
                             // abort and reconnect
                             var snapshot = physical;
@@ -572,11 +595,20 @@ namespace StackExchange.Redis
                                 Interlocked.Exchange(ref connectTimeoutRetryCount, 0);
                                 tmp.BridgeCouldBeNull?.ServerEndPoint?.ClearUnselectable(UnselectableFlags.DidNotRespond);
                             }
-                            tmp.OnBridgeHeartbeat();
+                            int timedOutThisHeartbeat = tmp.OnBridgeHeartbeat();
                             int writeEverySeconds = ServerEndPoint.WriteEverySeconds,
                                 checkConfigSeconds = ServerEndPoint.ConfigCheckSeconds;
 
                             if (state == (int)State.ConnectedEstablished && ConnectionType == ConnectionType.Interactive
+                                && tmp.BridgeCouldBeNull?.Multiplexer.RawConfig.HeartbeatConsistencyChecks == true)
+                            {
+                                // If HeartbeatConsistencyChecks are enabled, we're sending a PING (expecting PONG) or ECHO (expecting UniqueID back) every single
+                                // heartbeat as an opt-in measure to react to any network stream drop ASAP to terminate the connection as faulted.
+                                // If we don't get the expected response to that command, then the connection is terminated.
+                                // This is to prevent the case of things like 100% string command usage where a protocol error isn't otherwise encountered.
+                                KeepAlive(forceRun: true);
+                            }
+                            else if (state == (int)State.ConnectedEstablished && ConnectionType == ConnectionType.Interactive
                                 && checkConfigSeconds > 0 && ServerEndPoint.LastInfoReplicationCheckSecondsAgo >= checkConfigSeconds
                                 && ServerEndPoint.CheckInfoReplication())
                             {
@@ -595,14 +627,25 @@ namespace StackExchange.Redis
                                     tmp.Dispose(); // Cleanup the existing connection/socket if any, otherwise it will wait reading indefinitely
                                 }
                             }
-                            else if (writeEverySeconds <= 0 && tmp.IsIdle()
+                            else if (writeEverySeconds <= 0
+                                && tmp.IsIdle()
                                 && tmp.LastWriteSecondsAgo > 2
                                 && tmp.GetSentAwaitingResponseCount() != 0)
                             {
-                                // there's a chance this is a dead socket; sending data will shake that
-                                // up a bit, so if we have an empty unsent queue and a non-empty sent
-                                // queue, test the socket
+                                // There's a chance this is a dead socket; sending data will shake that up a bit,
+                                // so if we have an empty unsent queue and a non-empty sent queue, test the socket.
                                 KeepAlive();
+                            }
+                            else if (timedOutThisHeartbeat > 0
+                                && tmp.LastReadSecondsAgo * 1_000 > (tmp.BridgeCouldBeNull?.Multiplexer.AsyncTimeoutMilliseconds * 4))
+                            {
+                                // If we've received *NOTHING* on the pipe in 4 timeouts worth of time and we're timing out commands, issue a connection failure so that we reconnect
+                                // This is meant to address the scenario we see often in Linux configs where TCP retries will happen for 15 minutes.
+                                // To us as a client, we'll see the socket as green/open/fine when writing but we'll bet getting nothing back.
+                                // Since we can't depend on the pipe to fail in that case, we want to error here based on the criteria above so we reconnect broken clients much faster.
+                                tmp.BridgeCouldBeNull?.Multiplexer.Logger?.LogWarning($"Dead socket detected, no reads in {tmp.LastReadSecondsAgo} seconds with {timedOutThisHeartbeat} timeouts, issuing disconnect");
+                                OnDisconnected(ConnectionFailureType.SocketFailure, tmp, out _, out State oldState);
+                                tmp.Dispose(); // Cleanup the existing connection/socket if any, otherwise it will wait reading indefinitely
                             }
                         }
                         break;
@@ -855,10 +898,6 @@ namespace StackExchange.Redis
             {
                 _backlogStatus = BacklogStatus.Activating;
 
-#if NET6_0_OR_GREATER
-                // In .NET 6, use the thread pool stall semantics to our advantage and use a lighter-weight Task
-                Task.Run(ProcessBacklogAsync);
-#else
                 // Start the backlog processor; this is a bit unorthodox, as you would *expect* this to just
                 // be Task.Run; that would work fine when healthy, but when we're falling on our face, it is
                 // easy to get into a thread-pool-starvation "spiral of death" if we rely on the thread-pool
@@ -871,7 +910,6 @@ namespace StackExchange.Redis
                     Name = "StackExchange.Redis Backlog", // help anyone looking at thread-dumps
                 };
                 thread.Start(this);
-#endif
             }
             else
             {
@@ -989,7 +1027,7 @@ namespace StackExchange.Redis
                                 break;
                             }
                         }
-                        
+
                         var ex = ExceptionFactory.Timeout(Multiplexer, "The message was in the backlog when connection was disposed", message, ServerEndPoint, WriteResult.TimeoutBeforeWrite, this);
                         message.SetExceptionAndComplete(ex, this);
                     }
@@ -1365,7 +1403,7 @@ namespace StackExchange.Redis
             return result;
         }
 
-        public PhysicalConnection? TryConnect(LogProxy? log)
+        public PhysicalConnection? TryConnect(ILogger? log)
         {
             if (state == (int)State.Disconnected)
             {
@@ -1373,7 +1411,7 @@ namespace StackExchange.Redis
                 {
                     if (!Multiplexer.IsDisposed)
                     {
-                        log?.WriteLine($"{Name}: Connecting...");
+                        log?.LogInformation($"{Name}: Connecting...");
                         Multiplexer.Trace("Connecting...", Name);
                         if (ChangeState(State.Disconnected, State.Connecting))
                         {
@@ -1390,7 +1428,7 @@ namespace StackExchange.Redis
                 }
                 catch (Exception ex)
                 {
-                    log?.WriteLine($"{Name}: Connect failed: {ex.Message}");
+                    log?.LogError(ex, $"{Name}: Connect failed: {ex.Message}");
                     Multiplexer.Trace("Connect failed: " + ex.Message, Name);
                     ChangeState(State.Disconnected);
                     OnInternalError(ex);
@@ -1473,7 +1511,7 @@ namespace StackExchange.Redis
                     // If we are executing AUTH, it means we are still unauthenticated
                     // Setting READONLY before AUTH always fails but we think it succeeded since
                     // we run it as Fire and Forget. 
-                    if (cmd != RedisCommand.AUTH)
+                    if (cmd != RedisCommand.AUTH && cmd != RedisCommand.HELLO)
                     {
                         var readmode = connection.GetReadModeCommand(isPrimaryOnly);
                         if (readmode != null)

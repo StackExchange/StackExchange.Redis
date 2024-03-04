@@ -58,20 +58,20 @@ public class MemoryTests : TestBase
         var server = conn.GetServer(conn.GetEndPoints()[0]);
         var stats = server.MemoryStats();
         Assert.NotNull(stats);
-        Assert.Equal(ResultType.MultiBulk, stats.Type);
+        Assert.Equal(ResultType.Array, stats.Resp2Type);
 
         var parsed = stats.ToDictionary();
 
         var alloc = parsed["total.allocated"];
-        Assert.Equal(ResultType.Integer, alloc.Type);
+        Assert.Equal(ResultType.Integer, alloc.Resp2Type);
         Assert.True(alloc.AsInt64() > 0);
 
         stats = await server.MemoryStatsAsync();
         Assert.NotNull(stats);
-        Assert.Equal(ResultType.MultiBulk, stats.Type);
+        Assert.Equal(ResultType.Array, stats.Resp2Type);
 
         alloc = parsed["total.allocated"];
-        Assert.Equal(ResultType.Integer, alloc.Type);
+        Assert.Equal(ResultType.Integer, alloc.Resp2Type);
         Assert.True(alloc.AsInt64() > 0);
     }
 }

@@ -86,6 +86,7 @@ public class SentinelTests : SentinelBase
     }
 
     [Fact]
+    [RunPerProtocol]
     public void SentinelConnectTest()
     {
         var options = ServiceOptions.Clone();

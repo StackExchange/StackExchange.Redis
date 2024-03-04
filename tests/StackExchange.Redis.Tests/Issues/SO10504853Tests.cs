@@ -75,7 +75,7 @@ public class SO10504853Tests : TestBase
             try
             {
                 db.Wait(taskResult);
-                Assert.True(false, "Should throw a WRONGTYPE");
+                Assert.Fail("Should throw a WRONGTYPE");
             }
             catch (AggregateException ex)
             {

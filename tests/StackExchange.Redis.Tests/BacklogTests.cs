@@ -16,20 +16,20 @@ public class BacklogTests : TestBase
     {
         void PrintSnapshot(ConnectionMultiplexer muxer)
         {
-            Writer.WriteLine("Snapshot summary:");
+            Log("Snapshot summary:");
             foreach (var server in muxer.GetServerSnapshot())
             {
-                Writer.WriteLine($"  {server.EndPoint}: ");
-                Writer.WriteLine($"     Type: {server.ServerType}");
-                Writer.WriteLine($"     IsConnected: {server.IsConnected}");
-                Writer.WriteLine($"      IsConnecting: {server.IsConnecting}");
-                Writer.WriteLine($"      IsSelectable(allowDisconnected: true): {server.IsSelectable(RedisCommand.PING, true)}");
-                Writer.WriteLine($"      IsSelectable(allowDisconnected: false): {server.IsSelectable(RedisCommand.PING, false)}");
-                Writer.WriteLine($"      UnselectableFlags: {server.GetUnselectableFlags()}");
+                Log($"  {server.EndPoint}: ");
+                Log($"     Type: {server.ServerType}");
+                Log($"     IsConnected: {server.IsConnected}");
+                Log($"      IsConnecting: {server.IsConnecting}");
+                Log($"      IsSelectable(allowDisconnected: true): {server.IsSelectable(RedisCommand.PING, true)}");
+                Log($"      IsSelectable(allowDisconnected: false): {server.IsSelectable(RedisCommand.PING, false)}");
+                Log($"      UnselectableFlags: {server.GetUnselectableFlags()}");
                 var bridge = server.GetBridge(RedisCommand.PING, create: false);
-                Writer.WriteLine($"      GetBridge: {bridge}");
-                Writer.WriteLine($"        IsConnected: {bridge?.IsConnected}");
-                Writer.WriteLine($"        ConnectionState: {bridge?.ConnectionState}");
+                Log($"      GetBridge: {bridge}");
+                Log($"        IsConnected: {bridge?.IsConnected}");
+                Log($"        ConnectionState: {bridge?.ConnectionState}");
             }
         }
 
@@ -52,7 +52,7 @@ public class BacklogTests : TestBase
             using var conn = await ConnectionMultiplexer.ConnectAsync(options, Writer);
 
             var db = conn.GetDatabase();
-            Writer.WriteLine("Test: Initial (connected) ping");
+            Log("Test: Initial (connected) ping");
             await db.PingAsync();
 
             var server = conn.GetServerSnapshot()[0];
@@ -60,25 +60,25 @@ public class BacklogTests : TestBase
             Assert.Equal(0, stats.BacklogMessagesPending); // Everything's normal
 
             // Fail the connection
-            Writer.WriteLine("Test: Simulating failure");
+            Log("Test: Simulating failure");
             conn.AllowConnect = false;
             server.SimulateConnectionFailure(SimulatedFailureType.All);
             Assert.False(conn.IsConnected);
 
             // Queue up some commands
-            Writer.WriteLine("Test: Disconnected pings");
+            Log("Test: Disconnected pings");
             await Assert.ThrowsAsync<RedisConnectionException>(() => db.PingAsync());
 
             var disconnectedStats = server.GetBridgeStatus(ConnectionType.Interactive);
             Assert.False(conn.IsConnected);
             Assert.Equal(0, disconnectedStats.BacklogMessagesPending);
 
-            Writer.WriteLine("Test: Allowing reconnect");
+            Log("Test: Allowing reconnect");
             conn.AllowConnect = true;
-            Writer.WriteLine("Test: Awaiting reconnect");
+            Log("Test: Awaiting reconnect");
             await UntilConditionAsync(TimeSpan.FromSeconds(3), () => conn.IsConnected).ForAwait();
 
-            Writer.WriteLine("Test: Reconnecting");
+            Log("Test: Reconnecting");
             Assert.True(conn.IsConnected);
             Assert.True(server.IsConnected);
             var reconnectedStats = server.GetBridgeStatus(ConnectionType.Interactive);
@@ -129,7 +129,7 @@ public class BacklogTests : TestBase
             conn.ConnectionRestored += (s, a) => Log("Reconnected: " + EndPointCollection.ToString(a.EndPoint));
 
             var db = conn.GetDatabase();
-            Writer.WriteLine("Test: Initial (connected) ping");
+            Log("Test: Initial (connected) ping");
             await db.PingAsync();
 
             var server = conn.GetServerSnapshot()[0];
@@ -137,13 +137,13 @@ public class BacklogTests : TestBase
             Assert.Equal(0, stats.BacklogMessagesPending); // Everything's normal
 
             // Fail the connection
-            Writer.WriteLine("Test: Simulating failure");
+            Log("Test: Simulating failure");
             conn.AllowConnect = false;
             server.SimulateConnectionFailure(SimulatedFailureType.All);
             Assert.False(conn.IsConnected);
 
             // Queue up some commands
-            Writer.WriteLine("Test: Disconnected pings");
+            Log("Test: Disconnected pings");
             var ignoredA = db.PingAsync();
             var ignoredB = db.PingAsync();
             var lastPing = db.PingAsync();
@@ -154,40 +154,40 @@ public class BacklogTests : TestBase
             Assert.False(conn.IsConnected);
             Assert.True(disconnectedStats.BacklogMessagesPending >= 3, $"Expected {nameof(disconnectedStats.BacklogMessagesPending)} > 3, got {disconnectedStats.BacklogMessagesPending}");
 
-            Writer.WriteLine("Test: Allowing reconnect");
+            Log("Test: Allowing reconnect");
             conn.AllowConnect = true;
-            Writer.WriteLine("Test: Awaiting reconnect");
+            Log("Test: Awaiting reconnect");
             await UntilConditionAsync(TimeSpan.FromSeconds(3), () => conn.IsConnected).ForAwait();
 
-            Writer.WriteLine("Test: Checking reconnected 1");
+            Log("Test: Checking reconnected 1");
             Assert.True(conn.IsConnected);
 
-            Writer.WriteLine("Test: ignoredA Status: " + ignoredA.Status);
-            Writer.WriteLine("Test: ignoredB Status: " + ignoredB.Status);
-            Writer.WriteLine("Test: lastPing Status: " + lastPing.Status);
+            Log("Test: ignoredA Status: " + ignoredA.Status);
+            Log("Test: ignoredB Status: " + ignoredB.Status);
+            Log("Test: lastPing Status: " + lastPing.Status);
             var afterConnectedStats = server.GetBridgeStatus(ConnectionType.Interactive);
-            Writer.WriteLine($"Test: BacklogStatus: {afterConnectedStats.BacklogStatus}, BacklogMessagesPending: {afterConnectedStats.BacklogMessagesPending}, IsWriterActive: {afterConnectedStats.IsWriterActive}, MessagesSinceLastHeartbeat: {afterConnectedStats.MessagesSinceLastHeartbeat}, TotalBacklogMessagesQueued: {afterConnectedStats.TotalBacklogMessagesQueued}");
+            Log($"Test: BacklogStatus: {afterConnectedStats.BacklogStatus}, BacklogMessagesPending: {afterConnectedStats.BacklogMessagesPending}, IsWriterActive: {afterConnectedStats.IsWriterActive}, MessagesSinceLastHeartbeat: {afterConnectedStats.MessagesSinceLastHeartbeat}, TotalBacklogMessagesQueued: {afterConnectedStats.TotalBacklogMessagesQueued}");
 
-            Writer.WriteLine("Test: Awaiting lastPing 1");
+            Log("Test: Awaiting lastPing 1");
             await lastPing;
 
-            Writer.WriteLine("Test: Checking reconnected 2");
+            Log("Test: Checking reconnected 2");
             Assert.True(conn.IsConnected);
             var reconnectedStats = server.GetBridgeStatus(ConnectionType.Interactive);
             Assert.Equal(0, reconnectedStats.BacklogMessagesPending);
 
-            Writer.WriteLine("Test: Pinging again...");
+            Log("Test: Pinging again...");
             _ = db.PingAsync();
             _ = db.PingAsync();
-            Writer.WriteLine("Test: Last Ping issued");
+            Log("Test: Last Ping issued");
             lastPing = db.PingAsync();
 
             // We should see none queued
-            Writer.WriteLine("Test: BacklogMessagesPending check");
+            Log("Test: BacklogMessagesPending check");
             Assert.Equal(0, stats.BacklogMessagesPending);
-            Writer.WriteLine("Test: Awaiting lastPing 2");
+            Log("Test: Awaiting lastPing 2");
             await lastPing;
-            Writer.WriteLine("Test: Done");
+            Log("Test: Done");
         }
         finally
         {
@@ -221,7 +221,7 @@ public class BacklogTests : TestBase
             conn.ConnectionRestored += (s, a) => Log("Reconnected: " + EndPointCollection.ToString(a.EndPoint));
 
             var db = conn.GetDatabase();
-            Writer.WriteLine("Test: Initial (connected) ping");
+            Log("Test: Initial (connected) ping");
             await db.PingAsync();
 
             var server = conn.GetServerSnapshot()[0];
@@ -229,13 +229,13 @@ public class BacklogTests : TestBase
             Assert.Equal(0, stats.BacklogMessagesPending); // Everything's normal
 
             // Fail the connection
-            Writer.WriteLine("Test: Simulating failure");
+            Log("Test: Simulating failure");
             conn.AllowConnect = false;
             server.SimulateConnectionFailure(SimulatedFailureType.All);
             Assert.False(conn.IsConnected);
 
             // Queue up some commands
-            Writer.WriteLine("Test: Disconnected pings");
+            Log("Test: Disconnected pings");
 
             Task[] pings = new Task[3];
             pings[0] = RunBlockingSynchronousWithExtraThreadAsync(() => disconnectedPings(1));
@@ -248,7 +248,7 @@ public class BacklogTests : TestBase
                 var result = db.Ping();
                 Log($"Pinging (disconnected - {id}) - result: " + result);
             }
-            Writer.WriteLine("Test: Disconnected pings issued");
+            Log("Test: Disconnected pings issued");
 
             Assert.False(conn.IsConnected);
             // Give the tasks time to queue
@@ -258,37 +258,37 @@ public class BacklogTests : TestBase
             Log($"Test Stats: (BacklogMessagesPending: {disconnectedStats.BacklogMessagesPending}, TotalBacklogMessagesQueued: {disconnectedStats.TotalBacklogMessagesQueued})");
             Assert.True(disconnectedStats.BacklogMessagesPending >= 3, $"Expected {nameof(disconnectedStats.BacklogMessagesPending)} > 3, got {disconnectedStats.BacklogMessagesPending}");
 
-            Writer.WriteLine("Test: Allowing reconnect");
+            Log("Test: Allowing reconnect");
             conn.AllowConnect = true;
-            Writer.WriteLine("Test: Awaiting reconnect");
+            Log("Test: Awaiting reconnect");
             await UntilConditionAsync(TimeSpan.FromSeconds(3), () => conn.IsConnected).ForAwait();
 
-            Writer.WriteLine("Test: Checking reconnected 1");
+            Log("Test: Checking reconnected 1");
             Assert.True(conn.IsConnected);
 
             var afterConnectedStats = server.GetBridgeStatus(ConnectionType.Interactive);
-            Writer.WriteLine($"Test: BacklogStatus: {afterConnectedStats.BacklogStatus}, BacklogMessagesPending: {afterConnectedStats.BacklogMessagesPending}, IsWriterActive: {afterConnectedStats.IsWriterActive}, MessagesSinceLastHeartbeat: {afterConnectedStats.MessagesSinceLastHeartbeat}, TotalBacklogMessagesQueued: {afterConnectedStats.TotalBacklogMessagesQueued}");
+            Log($"Test: BacklogStatus: {afterConnectedStats.BacklogStatus}, BacklogMessagesPending: {afterConnectedStats.BacklogMessagesPending}, IsWriterActive: {afterConnectedStats.IsWriterActive}, MessagesSinceLastHeartbeat: {afterConnectedStats.MessagesSinceLastHeartbeat}, TotalBacklogMessagesQueued: {afterConnectedStats.TotalBacklogMessagesQueued}");
 
-            Writer.WriteLine("Test: Awaiting 3 pings");
+            Log("Test: Awaiting 3 pings");
             await Task.WhenAll(pings);
 
-            Writer.WriteLine("Test: Checking reconnected 2");
+            Log("Test: Checking reconnected 2");
             Assert.True(conn.IsConnected);
             var reconnectedStats = server.GetBridgeStatus(ConnectionType.Interactive);
             Assert.Equal(0, reconnectedStats.BacklogMessagesPending);
 
-            Writer.WriteLine("Test: Pinging again...");
+            Log("Test: Pinging again...");
             pings[0] = RunBlockingSynchronousWithExtraThreadAsync(() => disconnectedPings(4));
             pings[1] = RunBlockingSynchronousWithExtraThreadAsync(() => disconnectedPings(5));
             pings[2] = RunBlockingSynchronousWithExtraThreadAsync(() => disconnectedPings(6));
-            Writer.WriteLine("Test: Last Ping queued");
+            Log("Test: Last Ping queued");
 
             // We should see none queued
-            Writer.WriteLine("Test: BacklogMessagesPending check");
+            Log("Test: BacklogMessagesPending check");
             Assert.Equal(0, stats.BacklogMessagesPending);
-            Writer.WriteLine("Test: Awaiting 3 more pings");
+            Log("Test: Awaiting 3 more pings");
             await Task.WhenAll(pings);
-            Writer.WriteLine("Test: Done");
+            Log("Test: Done");
         }
         finally
         {
@@ -319,7 +319,7 @@ public class BacklogTests : TestBase
             conn.ConnectionRestored += (s, a) => Log("Reconnected: " + EndPointCollection.ToString(a.EndPoint));
 
             var db = conn.GetDatabase();
-            Writer.WriteLine("Test: Initial (connected) ping");
+            Log("Test: Initial (connected) ping");
             await db.PingAsync();
 
             RedisKey meKey = Me();
@@ -341,14 +341,14 @@ public class BacklogTests : TestBase
             }
 
             // Fail the connection
-            Writer.WriteLine("Test: Simulating failure");
+            Log("Test: Simulating failure");
             conn.AllowConnect = false;
             server.SimulateConnectionFailure(SimulatedFailureType.All);
             Assert.False(server.IsConnected); // Server isn't connected
             Assert.True(conn.IsConnected); // ...but the multiplexer is
 
             // Queue up some commands
-            Writer.WriteLine("Test: Disconnected pings");
+            Log("Test: Disconnected pings");
             var ignoredA = PingAsync(server);
             var ignoredB = PingAsync(server);
             var lastPing = PingAsync(server);
@@ -358,42 +358,42 @@ public class BacklogTests : TestBase
             Assert.True(conn.IsConnected);
             Assert.True(disconnectedStats.BacklogMessagesPending >= 3, $"Expected {nameof(disconnectedStats.BacklogMessagesPending)} > 3, got {disconnectedStats.BacklogMessagesPending}");
 
-            Writer.WriteLine("Test: Allowing reconnect");
+            Log("Test: Allowing reconnect");
             conn.AllowConnect = true;
-            Writer.WriteLine("Test: Awaiting reconnect");
+            Log("Test: Awaiting reconnect");
             await UntilConditionAsync(TimeSpan.FromSeconds(3), () => server.IsConnected).ForAwait();
 
-            Writer.WriteLine("Test: Checking reconnected 1");
+            Log("Test: Checking reconnected 1");
             Assert.True(server.IsConnected);
             Assert.True(conn.IsConnected);
 
-            Writer.WriteLine("Test: ignoredA Status: " + ignoredA.Status);
-            Writer.WriteLine("Test: ignoredB Status: " + ignoredB.Status);
-            Writer.WriteLine("Test: lastPing Status: " + lastPing.Status);
+            Log("Test: ignoredA Status: " + ignoredA.Status);
+            Log("Test: ignoredB Status: " + ignoredB.Status);
+            Log("Test: lastPing Status: " + lastPing.Status);
             var afterConnectedStats = server.GetBridgeStatus(ConnectionType.Interactive);
-            Writer.WriteLine($"Test: BacklogStatus: {afterConnectedStats.BacklogStatus}, BacklogMessagesPending: {afterConnectedStats.BacklogMessagesPending}, IsWriterActive: {afterConnectedStats.IsWriterActive}, MessagesSinceLastHeartbeat: {afterConnectedStats.MessagesSinceLastHeartbeat}, TotalBacklogMessagesQueued: {afterConnectedStats.TotalBacklogMessagesQueued}");
+            Log($"Test: BacklogStatus: {afterConnectedStats.BacklogStatus}, BacklogMessagesPending: {afterConnectedStats.BacklogMessagesPending}, IsWriterActive: {afterConnectedStats.IsWriterActive}, MessagesSinceLastHeartbeat: {afterConnectedStats.MessagesSinceLastHeartbeat}, TotalBacklogMessagesQueued: {afterConnectedStats.TotalBacklogMessagesQueued}");
 
-            Writer.WriteLine("Test: Awaiting lastPing 1");
+            Log("Test: Awaiting lastPing 1");
             await lastPing;
 
-            Writer.WriteLine("Test: Checking reconnected 2");
+            Log("Test: Checking reconnected 2");
             Assert.True(server.IsConnected);
             Assert.True(conn.IsConnected);
             var reconnectedStats = server.GetBridgeStatus(ConnectionType.Interactive);
             Assert.Equal(0, reconnectedStats.BacklogMessagesPending);
 
-            Writer.WriteLine("Test: Pinging again...");
+            Log("Test: Pinging again...");
             _ = PingAsync(server);
             _ = PingAsync(server);
-            Writer.WriteLine("Test: Last Ping issued");
+            Log("Test: Last Ping issued");
             lastPing = PingAsync(server);
 
             // We should see none queued
-            Writer.WriteLine("Test: BacklogMessagesPending check");
+            Log("Test: BacklogMessagesPending check");
             Assert.Equal(0, stats.BacklogMessagesPending);
-            Writer.WriteLine("Test: Awaiting lastPing 2");
+            Log("Test: Awaiting lastPing 2");
             await lastPing;
-            Writer.WriteLine("Test: Done");
+            Log("Test: Done");
         }
         finally
         {

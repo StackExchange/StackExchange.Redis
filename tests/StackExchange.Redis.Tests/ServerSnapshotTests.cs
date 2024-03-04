@@ -9,6 +9,8 @@ namespace StackExchange.Redis.Tests;
 public class ServerSnapshotTests
 {
     [Fact]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Assertions", "xUnit2012:Do not use boolean check to check if a value exists in a collection", Justification = "Explicit testing")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Assertions", "xUnit2013:Do not use equality check to check for collection size.", Justification = "Explicit testing")]
     public void EmptyBehaviour()
     {
         var snapshot = ServerSnapshot.Empty;
@@ -49,6 +51,7 @@ public class ServerSnapshotTests
     [InlineData(5, 0)]
     [InlineData(5, 3)]
     [InlineData(5, 5)]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Assertions", "xUnit2012:Do not use boolean check to check if a value exists in a collection", Justification = "Explicit testing")]
     public void NonEmptyBehaviour(int count, int replicaCount)
     {
         var snapshot = ServerSnapshot.Empty;

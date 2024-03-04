@@ -1,4 +1,5 @@
-﻿using StackExchange.Redis.Configuration;
+﻿using Microsoft.Extensions.Logging.Abstractions;
+using StackExchange.Redis.Configuration;
 using System;
 using System.Globalization;
 using System.IO;
@@ -6,8 +7,10 @@ using System.IO.Pipelines;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
+using System.Reflection;
 using System.Security.Authentication;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
@@ -15,12 +18,45 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
+[RunPerProtocol]
+[Collection(SharedConnectionFixture.Key)]
 public class ConfigTests : TestBase
 {
+    public ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
+
     public Version DefaultVersion = new (3, 0, 0);
     public Version DefaultAzureVersion = new (4, 0, 0);
 
-    public ConfigTests(ITestOutputHelper output) : base(output) { }
+    [Fact]
+    public void ExpectedFields()
+    {
+        // if this test fails, check that you've updated ConfigurationOptions.Clone(), then: fix the test!
+        // this is a simple but pragmatic "have you considered?" check
+
+        var fields = Array.ConvertAll(typeof(ConfigurationOptions).GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance),
+            x => Regex.Replace(x.Name, """^<(\w+)>k__BackingField$""", "$1"));
+        Array.Sort(fields);
+        Assert.Equal(new[] {
+            "abortOnConnectFail", "allowAdmin", "asyncTimeout", "backlogPolicy", "BeforeSocketConnect",
+            "CertificateSelection", "CertificateValidation", "ChannelPrefix",
+            "checkCertificateRevocation", "ClientName", "commandMap",
+            "configChannel", "configCheckSeconds", "connectRetry",
+            "connectTimeout", "DefaultDatabase", "defaultOptions",
+            "defaultVersion", "EndPoints", "heartbeatConsistencyChecks",
+            "heartbeatInterval", "includeDetailInExceptions", "includePerformanceCountersInExceptions",
+            "keepAlive", "LibraryName", "loggerFactory",
+            "password", "Protocol", "proxy",
+            "reconnectRetryPolicy", "resolveDns", "responseTimeout",
+            "ServiceName", "setClientLibrary", "SocketManager",
+            "ssl",
+#if !NETFRAMEWORK
+            "SslClientAuthenticationOptions",
+#endif
+            "sslHost", "SslProtocols",
+            "syncTimeout", "tieBreaker", "Tunnel",
+            "user"
+            }, fields);
+    }
 
     [Fact]
     public void SslProtocols_SingleValue()
@@ -185,7 +221,7 @@ public class ConfigTests : TestBase
     }
 
     [Fact]
-    public async Task TestManaulHeartbeat()
+    public async Task TestManualHeartbeat()
     {
         var options = ConfigurationOptions.Parse(GetConfiguration());
         options.HeartbeatInterval = TimeSpan.FromMilliseconds(100);
@@ -232,7 +268,7 @@ public class ConfigTests : TestBase
     [Fact]
     public void ClientName()
     {
-        using var conn = Create(clientName: "Test Rig", allowAdmin: true);
+        using var conn = Create(clientName: "Test Rig", allowAdmin: true, shared: false);
 
         Assert.Equal("Test Rig", conn.ClientName);
 
@@ -244,9 +280,44 @@ public class ConfigTests : TestBase
     }
 
     [Fact]
+    public async Task ClientLibraryName()
+    {
+        using var conn = Create(allowAdmin: true, shared: false);
+        var server = GetAnyPrimary(conn);
+
+        await server.PingAsync();
+        var possibleId = conn.GetConnectionId(server.EndPoint, ConnectionType.Interactive);
+
+        if (possibleId is null)
+        {
+            Log("(client id not available)");
+            return;
+        }
+        var id = possibleId.Value;
+        var libName = server.ClientList().Single(x => x.Id == id).LibraryName;
+        if (libName is not null) // server-version dependent
+        {
+            Log("library name: {0}", libName);
+            Assert.Equal("SE.Redis", libName);
+
+            conn.AddLibraryNameSuffix("foo");
+            conn.AddLibraryNameSuffix("bar");
+            conn.AddLibraryNameSuffix("foo");
+
+            libName = (await server.ClientListAsync()).Single(x => x.Id == id).LibraryName;
+            Log("library name: {0}", libName);
+            Assert.Equal("SE.Redis-bar-foo", libName);
+        }
+        else
+        {
+            Log("(library name not available)");
+        }
+    }
+
+    [Fact]
     public void DefaultClientName()
     {
-        using var conn = Create(allowAdmin: true, caller: null); // force default naming to kick in
+        using var conn = Create(allowAdmin: true, caller: "", shared: false); // force default naming to kick in
 
         Assert.Equal($"{Environment.MachineName}(SE.Redis-v{Utils.GetLibVersion()})", conn.ClientName);
         var db = conn.GetDatabase();
@@ -274,7 +345,10 @@ public class ConfigTests : TestBase
         Assert.True(conn.IsConnected);
         var servers = conn.GetServerSnapshot();
         Assert.True(servers[0].IsConnected);
-        Assert.False(servers[0].IsSubscriberConnected);
+        if (!Context.IsResp3)
+        {
+            Assert.False(servers[0].IsSubscriberConnected);
+        }
 
         var ex = Assert.Throws<RedisCommandException>(() => conn.GetSubscriber().Subscribe(RedisChannel.Literal(Me()), (_, _) => GC.KeepAlive(this)));
         Assert.Equal("This operation has been disabled in the command-map and cannot be used: SUBSCRIBE", ex.Message);
@@ -373,12 +447,32 @@ public class ConfigTests : TestBase
     public void GetClients()
     {
         var name = Guid.NewGuid().ToString();
-        using var conn = Create(clientName: name, allowAdmin: true);
+        using var conn = Create(clientName: name, allowAdmin: true, shared: false);
 
         var server = GetAnyPrimary(conn);
         var clients = server.ClientList();
         Assert.True(clients.Length > 0, "no clients"); // ourselves!
         Assert.True(clients.Any(x => x.Name == name), "expected: " + name);
+
+        if (server.Features.ClientId)
+        {
+            var id = conn.GetConnectionId(server.EndPoint, ConnectionType.Interactive);
+            Assert.NotNull(id);
+            Assert.True(clients.Any(x => x.Id == id), "expected: " + id);
+            id = conn.GetConnectionId(server.EndPoint, ConnectionType.Subscription);
+            Assert.NotNull(id);
+            Assert.True(clients.Any(x => x.Id == id), "expected: " + id);
+
+            var self = clients.First(x => x.Id == id);
+            if (server.Version.Major >= 7)
+            {
+                Assert.Equal(Context.Test.Protocol, self.Protocol);
+            }
+            else
+            {
+                Assert.Null(self.Protocol);
+            }
+        }
     }
 
     [Fact]
@@ -468,7 +562,7 @@ public class ConfigTests : TestBase
 
         using var conn = ConnectionMultiplexer.Connect(config);
 
-        Assert.Same(ConnectionMultiplexer.GetDefaultSocketManager().Scheduler, conn.SocketManager?.Scheduler);
+        Assert.Same(SocketManager.Shared.Scheduler, conn.SocketManager?.Scheduler);
     }
 
     [Theory]
@@ -569,6 +663,7 @@ public class ConfigTests : TestBase
     public async Task MutableOptions()
     {
         var options = ConfigurationOptions.Parse(TestConfig.Current.PrimaryServerAndPort + ",name=Details");
+        options.LoggerFactory = NullLoggerFactory.Instance;
         var originalConfigChannel = options.ConfigurationChannel = "originalConfig";
         var originalUser = options.User = "originalUser";
         var originalPassword = options.Password = "originalPassword";
@@ -617,6 +712,7 @@ public class ConfigTests : TestBase
         Assert.Equal(originalPassword, conn.RawConfig.Password);
         var newPass = options.Password = "newPassword";
         Assert.Equal(newPass, conn.RawConfig.Password);
+        Assert.Equal(options.LoggerFactory, conn.RawConfig.LoggerFactory);
     }
 
     [Theory]

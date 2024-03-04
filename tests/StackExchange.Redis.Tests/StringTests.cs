@@ -11,6 +11,7 @@ namespace StackExchange.Redis.Tests;
 /// <summary>
 /// Tests for <see href="https://redis.io/commands#string"/>.
 /// </summary>
+[RunPerProtocol]
 [Collection(SharedConnectionFixture.Key)]
 public class StringTests : TestBase
 {
@@ -67,6 +68,24 @@ public class StringTests : TestBase
 
         Assert.Equal("abc", await v1);
         Assert.Equal("def", Decode(await v2));
+    }
+
+    [Fact]
+    public async Task SetEmpty()
+    {
+        using var conn = Create();
+
+        var db = conn.GetDatabase();
+        var key = Me();
+        db.KeyDelete(key, CommandFlags.FireAndForget);
+
+        db.StringSet(key, new byte[] { });
+        var exists = await db.KeyExistsAsync(key);
+        var val = await db.StringGetAsync(key);
+
+        Assert.True(exists);
+        Log("Value: " + val);
+        Assert.Equal(0, val.Length());
     }
 
     [Fact]
