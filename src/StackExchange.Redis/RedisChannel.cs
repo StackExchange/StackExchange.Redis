@@ -248,10 +248,6 @@ namespace StackExchange.Redis
             /// Always a pattern.
             /// </summary>
             Pattern = 2,
-            /// <summary>
-            /// Never a pattern.
-            /// </summary>
-            Sharded = 4, // treat as flags here
         }
 
         /// <summary>
