@@ -6,6 +6,7 @@ using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Authentication;
+using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
@@ -325,20 +326,28 @@ namespace StackExchange.Redis
             chain.ChainPolicy.ExtraStore.Add(authority);
             // This only verifies that the chain is valid, but with AllowUnknownCertificateAuthority could trust
             // self-signed or partial chained vertificates
-            var chainIsVerified = chain.Build(certificateToValidate);
-            if (chainIsVerified)
+            try
             {
-                // Our method is "TrustIssuer", which means any intermediate cert we're being told to trust
-                // is a valid thing to trust, up until it's a root CA
-                foreach (var chainElement in chain.ChainElements)
+                var chainIsVerified = chain.Build(certificateToValidate);
+                if (chainIsVerified)
                 {
-                    using var chainCert = chainElement.Certificate;
-                    if (chainCert.RawData.SequenceEqual(authority.RawData))
+                    // Our method is "TrustIssuer", which means any intermediate cert we're being told to trust
+                    // is a valid thing to trust, up until it's a root CA
+                    foreach (var chainElement in chain.ChainElements)
                     {
-                        return true;
+                        using var chainCert = chainElement.Certificate;
+                        if (chainCert.RawData.SequenceEqual(authority.RawData))
+                        {
+                            return true;
+                        }
                     }
                 }
             }
+            catch (CryptographicException)
+            {
+                // We specifically don't want to throw during validation here and would rather exit out gracefully
+            }
+
             // If we didn't find the trusted issuer in the chain at all - we do not trust the result.
             return false;
         }
