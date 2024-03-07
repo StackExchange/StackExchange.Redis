@@ -296,15 +296,25 @@ namespace StackExchange.Redis
         {
             if (issuer == null) throw new ArgumentNullException(nameof(issuer));
 
-            return (object _, X509Certificate? certificate, X509Chain? __, SslPolicyErrors sslPolicyError)
-                => sslPolicyError == SslPolicyErrors.RemoteCertificateChainErrors
-                    && certificate is X509Certificate2 v2
-                    && CheckTrustedIssuer(v2, issuer);
+            return (object _, X509Certificate? certificate, X509Chain? __, SslPolicyErrors sslPolicyError) =>
+            {
+                // If we're already valid, there's nothing further to check
+                if (sslPolicyError == SslPolicyErrors.None)
+                {
+                    return true;
+                }
+                // If we're not valid due to chain errors - check against the trusted issuer
+                return sslPolicyError == SslPolicyErrors.RemoteCertificateChainErrors
+                       && certificate is X509Certificate2 v2
+                       && CheckTrustedIssuer(v2, issuer);
+            };
         }
 
         private static bool CheckTrustedIssuer(X509Certificate2 certificateToValidate, X509Certificate2 authority)
         {
-            // reference: https://stackoverflow.com/questions/6497040/how-do-i-validate-that-a-certificate-was-created-by-a-particular-certification-a
+            // Reference:
+            // https://stackoverflow.com/questions/6497040/how-do-i-validate-that-a-certificate-was-created-by-a-particular-certification-a
+            // https://github.com/stewartadam/dotnet-x509-certificate-verification
             X509Chain chain = new X509Chain();
             chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
             chain.ChainPolicy.RevocationFlag = X509RevocationFlag.ExcludeRoot;
@@ -313,7 +323,23 @@ namespace StackExchange.Redis
             chain.ChainPolicy.UrlRetrievalTimeout = new TimeSpan(0, 0, 0);
 
             chain.ChainPolicy.ExtraStore.Add(authority);
-            return chain.Build(certificateToValidate);
+            // This only verifies that the chain is valid, but with AllowUnknownCertificateAuthority could trust
+            // self-signed or partial chained vertificates
+            var chainIsVerfiied = chain.Build(certificateToValidate);
+            if (chainIsVerfiied)
+            {
+                // Our method is "TrustIssuer", which means any intermediate cert we're being told to trust
+                // is a valid thing to trust, up until it's a root CA
+                foreach (var chainElement in chain.ChainElements)
+                {
+                    if (chainElement.Certificate.RawData.SequenceEqual(authority.RawData))
+                    {
+                        return true;
+                    }
+                }
+            }
+            // If we didn't find the trusted issuer in the chain at all - we do not trust the result.
+            return false;
         }
 
         /// <summary>
