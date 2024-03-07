@@ -224,17 +224,17 @@ namespace StackExchange.Redis
                 this.conditions = (conditions?.Count > 0) ? conditions.ToArray() : Array.Empty<ConditionResult>();
             }
 
-            internal override void SetExceptionAndComplete(Exception exception, PhysicalBridge? bridge)
+            internal override void SetExceptionAndComplete(Exception exception, PhysicalBridge? bridge, CommandResult result)
             {
                 var inner = InnerOperations;
                 if (inner != null)
                 {
                     for(int i = 0; i < inner.Length;i++)
                     {
-                        inner[i]?.Wrapped?.SetExceptionAndComplete(exception, bridge);
+                        inner[i]?.Wrapped?.SetExceptionAndComplete(exception, bridge, result);
                     }
                 }
-                base.SetExceptionAndComplete(exception, bridge);
+                base.SetExceptionAndComplete(exception, bridge, result);
             }
 
             public bool IsAborted => command != RedisCommand.EXEC;
@@ -423,7 +423,7 @@ namespace StackExchange.Redis
                         {
                             var inner = op.Wrapped;
                             inner.Cancel();
-                            inner.Complete();
+                            inner.Complete(CommandResult.TransactionFailed);
                         }
                     }
                     connection.Trace("End of transaction: " + Command);
@@ -473,7 +473,7 @@ namespace StackExchange.Redis
                     {
                         var inner = op.Wrapped;
                         ServerFail(inner, error);
-                        inner.Complete();
+                        inner.Complete(CommandResult.TransactionFailed);
                     }
                 }
                 return base.SetResult(connection, message, result);
@@ -504,7 +504,7 @@ namespace StackExchange.Redis
                                 {
                                     var inner = op.Wrapped;
                                     inner.Cancel();
-                                    inner.Complete();
+                                    inner.Complete(CommandResult.TransactionFailed);
                                 }
                                 SetResult(message, false);
                                 return true;
@@ -522,7 +522,7 @@ namespace StackExchange.Redis
                                     {
                                         var inner = op.Wrapped;
                                         inner.Cancel();
-                                        inner.Complete();
+                                        inner.Complete(CommandResult.TransactionFailed);
                                     }
                                     SetResult(message, false);
                                     return true;
@@ -539,7 +539,7 @@ namespace StackExchange.Redis
                                         muxer?.OnTransactionLog($"> got {item} for {inner.CommandAndKey}");
                                         if (inner.ComputeResult(connection, in item))
                                         {
-                                            inner.Complete();
+                                            inner.Complete(CommandResult.Success);
                                         }
                                     }
                                     SetResult(message, true);
@@ -555,7 +555,7 @@ namespace StackExchange.Redis
                         if (op?.Wrapped is Message inner)
                         {
                             inner.Fail(ConnectionFailureType.ProtocolFailure, null, "Transaction failure", muxer);
-                            inner.Complete();
+                            inner.Complete(CommandResult.TransactionFailed);
                         }
                     }
                 }

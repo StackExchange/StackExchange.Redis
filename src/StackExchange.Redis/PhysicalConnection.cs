@@ -492,7 +492,7 @@ namespace StackExchange.Redis
                 if (next.Command == RedisCommand.QUIT && next.TrySetResult(true))
                 {
                     // fine, death of a socket is close enough
-                    next.Complete();
+                    next.Complete(CommandResult.ConnectionFailed);
                 }
                 else
                 {
@@ -502,7 +502,7 @@ namespace StackExchange.Redis
                         bridge.Trace("Failing: " + next);
                         bridge.Multiplexer?.OnMessageFaulted(next, ex, origin);
                     }
-                    next.SetExceptionAndComplete(ex!, bridge);
+                    next.SetExceptionAndComplete(ex!, bridge, CommandResult.ConnectionFailed);
                 }
             }
 
@@ -569,7 +569,7 @@ namespace StackExchange.Redis
                 // we can still process it to avoid making things worse/more complex,
                 // but: we can't reliably assume this works, so: shout now!
                 next.Cancel();
-                next.Complete();
+                next.Complete(CommandResult.MultiplexerDisposed);
             }
 
             bool wasEmpty;
@@ -727,7 +727,7 @@ namespace StackExchange.Redis
                                     ? $"Timeout awaiting response (outbound={sentDelta >> 10}KiB, inbound={receivedDelta >> 10}KiB, {elapsed}ms elapsed, timeout is {timeout}ms)"
                                     : $"Timeout awaiting response ({elapsed}ms elapsed, timeout is {timeout}ms)", msg, server);
                                 multiplexer.OnMessageFaulted(msg, timeoutEx);
-                                msg.SetExceptionAndComplete(timeoutEx, bridge); // tell the message that it is doomed
+                                msg.SetExceptionAndComplete(timeoutEx, bridge, CommandResult.TimeoutAwaitingResponse); // tell the message that it is doomed
                                 multiplexer.OnAsyncTimeout();
                             }
                         }
@@ -1641,7 +1641,7 @@ namespace StackExchange.Redis
             if (msg.ComputeResult(this, result))
             {
                 _readStatus = msg.ResultBoxIsAsync ? ReadStatus.CompletePendingMessageAsync : ReadStatus.CompletePendingMessageSync;
-                msg.Complete();
+                msg.Complete(CommandResult.Success);
             }
             _readStatus = ReadStatus.MatchResultComplete;
             _activeMessage = null;

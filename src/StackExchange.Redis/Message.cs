@@ -376,9 +376,9 @@ namespace StackExchange.Redis
 
         public void SetResponseReceived() => performance?.SetResponseReceived();
 
-        bool ICompletable.TryComplete(bool isAsync) { Complete(); return true; }
+        bool ICompletable.TryComplete(bool isAsync) { Complete(CommandResult.Success); return true; }
 
-        public void Complete()
+        public void Complete(CommandResult result)
         {
             //Ensure we can never call Complete on the same resultBox from two threads by grabbing it now
             var currBox = Interlocked.Exchange(ref resultBox, null);
@@ -386,7 +386,7 @@ namespace StackExchange.Redis
             // set the completion/performance data
             performance?.SetCompleted();
 #if NET6_0_OR_GREATER
-            metrics?.OnMessageComplete(this, currBox);
+            metrics?.OnCommandCompleted(this, currBox, _enqueuedTo?.BridgeCouldBeNull?.Name, result: result);
 #endif
 
             currBox?.ActivateContinuations();
@@ -561,10 +561,10 @@ namespace StackExchange.Redis
             resultProcessor?.ConnectionFail(this, failure, innerException, annotation, muxer);
         }
 
-        internal virtual void SetExceptionAndComplete(Exception exception, PhysicalBridge? bridge)
+        internal virtual void SetExceptionAndComplete(Exception exception, PhysicalBridge? bridge, CommandResult result)
         {
             resultBox?.SetException(exception);
-            Complete();
+            Complete(result);
         }
 
         internal bool TrySetResult<T>(T value)
