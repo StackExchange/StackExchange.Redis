@@ -48,10 +48,7 @@ public class CertValidationTests : TestBase
         Assert.False(callback(this, endpointCert, null, SslPolicyErrors.RemoteCertificateChainErrors | SslPolicyErrors.RemoteCertificateNotAvailable));
     }
 
-    private static X509Certificate2 LoadCert(string certificatePath) =>
-        new X509Certificate2(StripPEM(File.ReadAllBytes(certificatePath)));
-    private static byte[] StripPEM(byte[] pemData) =>
-        Convert.FromBase64String(Regex.Replace(Encoding.UTF8.GetString(pemData), "(-+BEGIN CERTIFICATE-+)|(-+END CERTIFICATE-+)", "").Trim());
+    private static X509Certificate2 LoadCert(string certificatePath) => new X509Certificate2(File.ReadAllBytes(certificatePath));
 
     [Fact]
     public void CheckIssuerArgs()
