@@ -330,7 +330,7 @@ namespace StackExchange.Redis
         public ServerCounters GetCounters() => server.GetCounters();
 
         private static IGrouping<string, KeyValuePair<string, string>>[] InfoDefault =>
-            Enumerable.Empty<KeyValuePair<string, string>>().GroupBy(k => k.Key).ToArray();
+            Array.Empty<IGrouping<string, KeyValuePair<string, string>>>();
 
         public IGrouping<string, KeyValuePair<string, string>>[] Info(RedisValue section = default, CommandFlags flags = CommandFlags.None)
         {
