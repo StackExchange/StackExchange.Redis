@@ -9,6 +9,7 @@ Current package versions:
 ## Unreleased
 
 - Add new `LoggingTunnel` API; see https://stackexchange.github.io/StackExchange.Redis/Logging ([#2660 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2660))
+- Fix `CheckTrustedIssuer` validation for broken chain scenarios ([#2665 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2665))
 
 ## 2.7.27
 
