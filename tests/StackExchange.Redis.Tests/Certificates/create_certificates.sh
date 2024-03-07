@@ -1,6 +1,6 @@
 #!/bin/bash
 set -eu
-# Adopted from https://github.com/stewartadam/dotnet-x509-certificate-verification/blob/main/create_certificates.sh
+# Adapted from https://github.com/stewartadam/dotnet-x509-certificate-verification/blob/main/create_certificates.sh
 
 base_dir="certificates"
 

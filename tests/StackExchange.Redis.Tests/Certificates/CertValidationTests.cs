@@ -26,6 +26,8 @@ public class CertValidationTests : TestBase
         Assert.True(callback(this, endpointCert, null, SslPolicyErrors.RemoteCertificateChainErrors));
         Assert.False(callback(this, endpointCert, null, SslPolicyErrors.RemoteCertificateNameMismatch));
         Assert.False(callback(this, endpointCert, null, SslPolicyErrors.RemoteCertificateNotAvailable));
+        Assert.False(callback(this, endpointCert, null, SslPolicyErrors.RemoteCertificateChainErrors | SslPolicyErrors.RemoteCertificateNameMismatch));
+        Assert.False(callback(this, endpointCert, null, SslPolicyErrors.RemoteCertificateChainErrors | SslPolicyErrors.RemoteCertificateNotAvailable));
 
         // Trusting the remote endpoint cert directly
         callback = ConfigurationOptions.TrustIssuerCallback(Path.Combine("Certificates", "device01.foo.com.pem"));
@@ -33,6 +35,8 @@ public class CertValidationTests : TestBase
         Assert.True(callback(this, endpointCert, null, SslPolicyErrors.RemoteCertificateChainErrors));
         Assert.False(callback(this, endpointCert, null, SslPolicyErrors.RemoteCertificateNameMismatch));
         Assert.False(callback(this, endpointCert, null, SslPolicyErrors.RemoteCertificateNotAvailable));
+        Assert.False(callback(this, endpointCert, null, SslPolicyErrors.RemoteCertificateChainErrors | SslPolicyErrors.RemoteCertificateNameMismatch));
+        Assert.False(callback(this, endpointCert, null, SslPolicyErrors.RemoteCertificateChainErrors | SslPolicyErrors.RemoteCertificateNotAvailable));
 
         // Attempting to trust another CA (mismatch)
         callback = ConfigurationOptions.TrustIssuerCallback(Path.Combine("Certificates", "ca2.foo.com.pem"));
@@ -40,6 +44,8 @@ public class CertValidationTests : TestBase
         Assert.False(callback(this, endpointCert, null, SslPolicyErrors.RemoteCertificateChainErrors));
         Assert.False(callback(this, endpointCert, null, SslPolicyErrors.RemoteCertificateNameMismatch));
         Assert.False(callback(this, endpointCert, null, SslPolicyErrors.RemoteCertificateNotAvailable));
+        Assert.False(callback(this, endpointCert, null, SslPolicyErrors.RemoteCertificateChainErrors | SslPolicyErrors.RemoteCertificateNameMismatch));
+        Assert.False(callback(this, endpointCert, null, SslPolicyErrors.RemoteCertificateChainErrors | SslPolicyErrors.RemoteCertificateNotAvailable));
     }
 
     private static X509Certificate2 LoadCert(string certificatePath) =>

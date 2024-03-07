@@ -304,6 +304,7 @@ namespace StackExchange.Redis
                     return true;
                 }
                 // If we're not valid due to chain errors - check against the trusted issuer
+                // Note that we're only proceeding at all here if the *only* issue is chain errors (not more flags in SslPolicyErrors)
                 return sslPolicyError == SslPolicyErrors.RemoteCertificateChainErrors
                        && certificate is X509Certificate2 v2
                        && CheckTrustedIssuer(v2, issuer);
@@ -325,8 +326,8 @@ namespace StackExchange.Redis
             chain.ChainPolicy.ExtraStore.Add(authority);
             // This only verifies that the chain is valid, but with AllowUnknownCertificateAuthority could trust
             // self-signed or partial chained vertificates
-            var chainIsVerfiied = chain.Build(certificateToValidate);
-            if (chainIsVerfiied)
+            var chainIsVerified = chain.Build(certificateToValidate);
+            if (chainIsVerified)
             {
                 // Our method is "TrustIssuer", which means any intermediate cert we're being told to trust
                 // is a valid thing to trust, up until it's a root CA

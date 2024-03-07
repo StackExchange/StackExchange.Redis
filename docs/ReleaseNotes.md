@@ -9,7 +9,8 @@ Current package versions:
 ## Unreleased
 
 - Add new `LoggingTunnel` API; see https://stackexchange.github.io/StackExchange.Redis/Logging ([#2660 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2660))
-- Fix `CheckTrustedIssuer` validation for broken chain scenarios ([#2665 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2665))
+- **Potentiallty Breaking**: Fix `CheckTrustedIssuer` certificate validation for broken chain scenarios ([#2665 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2665))
+  - Users inadvertently trusting a remote cert with a broken chain could not be failing custom validation before this change. This is only in play if you are using `ConfigurationOptions.TrustIssuer` at all.
 
 ## 2.7.27
 
