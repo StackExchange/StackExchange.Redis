@@ -333,7 +333,7 @@ namespace StackExchange.Redis
                 // is a valid thing to trust, up until it's a root CA
                 foreach (var chainElement in chain.ChainElements)
                 {
-                    if (chainElement.Certificate.Thumbprint == authority.Thumbprint)
+                    if (chainElement.Certificate.RawData.SequenceEqual(authority.RawData))
                     {
                         return true;
                     }
