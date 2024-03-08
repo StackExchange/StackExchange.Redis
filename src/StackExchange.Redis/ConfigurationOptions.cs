@@ -334,13 +334,14 @@ namespace StackExchange.Redis
                     // Our method is "TrustIssuer", which means any intermediate cert we're being told to trust
                     // is a valid thing to trust, up until it's a root CA
                     bool found = false;
+                    byte[] authorityData = authority.RawData;
                     foreach (var chainElement in chain.ChainElements)
                     {
 #if NET8_0_OR_GREATER
 #error TODO: use RawDataMemory (needs testing)
 #endif
                         using var chainCert = chainElement.Certificate;
-                        if (!found && chainCert.RawData.SequenceEqual(authority.RawData))
+                        if (!found && chainCert.RawData.SequenceEqual(authorityData))
                         {
                             found = true;
                         }
