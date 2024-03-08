@@ -324,10 +324,10 @@ namespace StackExchange.Redis
             chain.ChainPolicy.UrlRetrievalTimeout = new TimeSpan(0, 0, 0);
 
             chain.ChainPolicy.ExtraStore.Add(authority);
-            // This only verifies that the chain is valid, but with AllowUnknownCertificateAuthority could trust
-            // self-signed or partial chained vertificates
             try
             {
+                // This only verifies that the chain is valid, but with AllowUnknownCertificateAuthority could trust
+                // self-signed or partial chained vertificates
                 var chainIsVerified = chain.Build(certificateToValidate);
                 if (chainIsVerified)
                 {
