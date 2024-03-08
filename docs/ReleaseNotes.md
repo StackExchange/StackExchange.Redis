@@ -9,6 +9,7 @@ Current package versions:
 ## Unreleased
 
 - Add new `LoggingTunnel` API; see https://stackexchange.github.io/StackExchange.Redis/Logging ([#2660 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2660))
+- Fix [#2664](https://github.com/StackExchange/StackExchange.Redis/issues/2664): Move ProcessBacklog to fully sync to prevent thread pool hopping and blocking on awaits ([#2667 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2667))
 
 ## 2.7.27
 
