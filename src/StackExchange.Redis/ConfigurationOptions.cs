@@ -336,6 +336,9 @@ namespace StackExchange.Redis
                     bool found = false;
                     foreach (var chainElement in chain.ChainElements)
                     {
+#if NET8_0_OR_GREATER
+#error TODO: use RawDataMemory (needs testing)
+#endif
                         using var chainCert = chainElement.Certificate;
                         if (!found && chainCert.RawData.SequenceEqual(authority.RawData))
                         {
