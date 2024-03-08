@@ -333,14 +333,16 @@ namespace StackExchange.Redis
                 {
                     // Our method is "TrustIssuer", which means any intermediate cert we're being told to trust
                     // is a valid thing to trust, up until it's a root CA
+                    bool found = false;
                     foreach (var chainElement in chain.ChainElements)
                     {
                         using var chainCert = chainElement.Certificate;
-                        if (chainCert.RawData.SequenceEqual(authority.RawData))
+                        if (!found && chainCert.RawData.SequenceEqual(authority.RawData))
                         {
-                            return true;
+                            found = true;
                         }
                     }
+                    return found;
                 }
             }
             catch (CryptographicException)
