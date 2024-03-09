@@ -13,6 +13,7 @@
     <None Update="*.json" CopyToOutputDirectory="Always" />
     <EmbeddedResource Include="*Config.json" />
     <None Update="redislabs_ca.pem" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Certificates\*.pem" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
