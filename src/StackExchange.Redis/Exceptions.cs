@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Runtime.Serialization;
 
+#pragma warning disable SYSLIB0051 // Type or member is obsolete
+
 namespace StackExchange.Redis
 {
     /// <summary>
@@ -46,6 +48,9 @@ namespace StackExchange.Redis
         /// </summary>
         public CommandStatus Commandstatus { get; }
 
+#if NET8_0_OR_GREATER
+        [Obsolete]
+#endif
         private RedisTimeoutException(SerializationInfo info, StreamingContext ctx) : base(info, ctx)
         {
             Commandstatus = info.GetValue("commandStatus", typeof(CommandStatus)) as CommandStatus? ?? CommandStatus.Unknown;
@@ -55,6 +60,9 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="info">Serialization info.</param>
         /// <param name="context">Serialization context.</param>
+#if NET8_0_OR_GREATER
+        [Obsolete]
+#endif
         public override void GetObjectData(SerializationInfo info, StreamingContext context)
         {
             base.GetObjectData(info, context);
@@ -106,6 +114,9 @@ namespace StackExchange.Redis
         /// </summary>
         public CommandStatus CommandStatus { get; }
 
+#if NET8_0_OR_GREATER
+        [Obsolete]
+#endif
         private RedisConnectionException(SerializationInfo info, StreamingContext ctx) : base(info, ctx)
         {
             FailureType = (ConnectionFailureType)info.GetInt32("failureType");
@@ -116,6 +127,9 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="info">Serialization info.</param>
         /// <param name="context">Serialization context.</param>
+#if NET8_0_OR_GREATER
+        [Obsolete]
+#endif
         public override void GetObjectData(SerializationInfo info, StreamingContext context)
         {
             base.GetObjectData(info, context);

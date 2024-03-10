@@ -1,1 +1,21 @@
-﻿
+﻿abstract StackExchange.Redis.Protocol.Request.Write(ref StackExchange.Redis.Protocol.Resp2Writer writer) -> void
+const StackExchange.Redis.Protocol.Resp2Writer.MaxBytesInt32 = 17 -> int
+const StackExchange.Redis.Protocol.Resp2Writer.MaxBytesInt64 = 26 -> int
+const StackExchange.Redis.Protocol.Resp2Writer.MaxBytesSingle = 27 -> int
+StackExchange.Redis.Protocol.Request
+StackExchange.Redis.Protocol.Request.Request() -> void
+StackExchange.Redis.Protocol.Resp2Writer
+StackExchange.Redis.Protocol.Resp2Writer.Resp2Writer() -> void
+StackExchange.Redis.Protocol.Resp2Writer.WriteCommand(scoped System.ReadOnlySpan<byte> command, int argCount, int argBytesEstimate = 0) -> void
+StackExchange.Redis.Protocol.Resp2Writer.WriteCommand(scoped System.ReadOnlySpan<char> command, int argCount, int argBytesEstimate = 0) -> void
+StackExchange.Redis.Protocol.Resp2Writer.WriteCommand(string! command, int argCount, int argBytesEstimate = 0) -> void
+StackExchange.Redis.Protocol.Resp2Writer.WriteValue(scoped System.ReadOnlySpan<byte> value) -> void
+StackExchange.Redis.Protocol.Resp2Writer.WriteValue(scoped System.ReadOnlySpan<char> value) -> void
+StackExchange.Redis.Protocol.Resp2Writer.WriteValue(string! value) -> void
+static StackExchange.Redis.Protocol.Resp2Writer.EstimateSize(byte[]! value) -> int
+static StackExchange.Redis.Protocol.Resp2Writer.EstimateSize(int value) -> int
+static StackExchange.Redis.Protocol.Resp2Writer.EstimateSize(scoped System.ReadOnlySpan<byte> value) -> int
+static StackExchange.Redis.Protocol.Resp2Writer.EstimateSize(scoped System.ReadOnlySpan<char> value) -> int
+static StackExchange.Redis.Protocol.Resp2Writer.EstimateSize(string! value) -> int
+static StackExchange.Redis.Protocol.Resp2Writer.EstimateSize(uint value) -> int
+static StackExchange.Redis.Protocol.Resp2Writer.EstimateSize(ulong value) -> int

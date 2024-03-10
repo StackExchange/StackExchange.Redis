@@ -57,7 +57,13 @@ public class ServerSnapshotTests
         var snapshot = ServerSnapshot.Empty;
         for (int i = 0; i < count; i++)
         {
+#if NET8_0_OR_GREATER
+#pragma warning disable SYSLIB0050 // FormatterServices
+#endif
             var dummy = (ServerEndPoint)FormatterServices.GetSafeUninitializedObject(typeof(ServerEndPoint));
+#if NET8_0_OR_GREATER
+#pragma warning restore SYSLIB0050
+#endif
             dummy.IsReplica = i < replicaCount;
             snapshot = snapshot.Add(dummy);
         }

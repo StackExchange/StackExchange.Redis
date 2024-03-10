@@ -15,7 +15,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
-
+#if NET8_0_OR_GREATER
+#pragma warning disable SYSLIB0039 // Tls11
+#endif
 namespace StackExchange.Redis.Tests;
 
 [RunPerProtocol]

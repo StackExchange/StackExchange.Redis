@@ -203,7 +203,9 @@ public class SSLTests : TestBase, IClassFixture<SSLTests.SSLServerFixture>
                 TargetHost = host,
                 CertificateRevocationCheckMode = X509RevocationMode.NoCheck,
                 EnabledSslProtocols = protocols,
+#pragma warning disable CA1416 // CipherSuitesPolicy is linux only
                 CipherSuitesPolicy = tlsCipherSuites?.Length > 0 ? new CipherSuitesPolicy(tlsCipherSuites) : null,
+#pragma warning restore CA1416
                 RemoteCertificateValidationCallback = (sender, cert, chain, errors) =>
                 {
                     Log("  Errors: " + errors);
@@ -527,7 +529,13 @@ public class SSLTests : TestBase, IClassFixture<SSLTests.SSLServerFixture>
     [Fact]
     public void ConfigObject_Issue1407_ToStringIncludesSslProtocols()
     {
+#if NET8_0_OR_GREATER
+#pragma warning disable SYSLIB0039 // Tls
+#endif
         const SslProtocols sslProtocols = SslProtocols.Tls12 | SslProtocols.Tls;
+#if NET8_0_OR_GREATER
+#pragma warning restore SYSLIB0039
+#endif
         var sourceOptions = new ConfigurationOptions
         {
             AbortOnConnectFail = false,
