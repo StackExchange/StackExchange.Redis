@@ -1,17 +1,28 @@
-﻿abstract StackExchange.Redis.Protocol.Request.Write(ref StackExchange.Redis.Protocol.Resp2Writer writer) -> void
+﻿abstract StackExchange.Redis.Protocol.RespRequest.Write(ref StackExchange.Redis.Protocol.Resp2Writer writer) -> void
 const StackExchange.Redis.Protocol.Resp2Writer.MaxBytesInt32 = 17 -> int
 const StackExchange.Redis.Protocol.Resp2Writer.MaxBytesInt64 = 26 -> int
 const StackExchange.Redis.Protocol.Resp2Writer.MaxBytesSingle = 27 -> int
-StackExchange.Redis.Protocol.Request
-StackExchange.Redis.Protocol.Request.Request() -> void
+override StackExchange.Redis.Protocol.RespChunk.Equals(object? obj) -> bool
+override StackExchange.Redis.Protocol.RespChunk.GetHashCode() -> int
+override StackExchange.Redis.Protocol.RespChunk.ToString() -> string!
 StackExchange.Redis.Protocol.Resp2Writer
 StackExchange.Redis.Protocol.Resp2Writer.Resp2Writer() -> void
+StackExchange.Redis.Protocol.Resp2Writer.Resp2Writer(int preambleReservation) -> void
 StackExchange.Redis.Protocol.Resp2Writer.WriteCommand(scoped System.ReadOnlySpan<byte> command, int argCount, int argBytesEstimate = 0) -> void
 StackExchange.Redis.Protocol.Resp2Writer.WriteCommand(scoped System.ReadOnlySpan<char> command, int argCount, int argBytesEstimate = 0) -> void
 StackExchange.Redis.Protocol.Resp2Writer.WriteCommand(string! command, int argCount, int argBytesEstimate = 0) -> void
 StackExchange.Redis.Protocol.Resp2Writer.WriteValue(scoped System.ReadOnlySpan<byte> value) -> void
 StackExchange.Redis.Protocol.Resp2Writer.WriteValue(scoped System.ReadOnlySpan<char> value) -> void
 StackExchange.Redis.Protocol.Resp2Writer.WriteValue(string! value) -> void
+StackExchange.Redis.Protocol.RespChunk
+StackExchange.Redis.Protocol.RespChunk.Equals(StackExchange.Redis.Protocol.RespChunk other) -> bool
+StackExchange.Redis.Protocol.RespChunk.Recycle() -> void
+StackExchange.Redis.Protocol.RespChunk.RespChunk() -> void
+StackExchange.Redis.Protocol.RespChunk.TryGetSpan(out System.ReadOnlySpan<byte> span) -> bool
+StackExchange.Redis.Protocol.RespChunk.WithoutPreamble() -> StackExchange.Redis.Protocol.RespChunk
+StackExchange.Redis.Protocol.RespChunk.WithPreamble(System.ReadOnlySpan<byte> value) -> StackExchange.Redis.Protocol.RespChunk
+StackExchange.Redis.Protocol.RespRequest
+StackExchange.Redis.Protocol.RespRequest.RespRequest() -> void
 static StackExchange.Redis.Protocol.Resp2Writer.EstimateSize(byte[]! value) -> int
 static StackExchange.Redis.Protocol.Resp2Writer.EstimateSize(int value) -> int
 static StackExchange.Redis.Protocol.Resp2Writer.EstimateSize(scoped System.ReadOnlySpan<byte> value) -> int

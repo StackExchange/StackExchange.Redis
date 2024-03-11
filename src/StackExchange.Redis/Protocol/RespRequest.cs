@@ -1,68 +1,154 @@
 ﻿using System;
 using System.Buffers;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Runtime.Serialization;
 using System.Text;
 #pragma warning disable CS1591 // new API
 
 namespace StackExchange.Redis.Protocol;
 
-public abstract class Request
+[Experimental(DiagnosticID)]
+public abstract class RespRequest
 {
-    protected Request() { }
+    internal const string DiagnosticID = "SERED001";
+    protected RespRequest() { }
     public abstract void Write(ref Resp2Writer writer);
 }
 
-public ref struct Resp2Writer
+[Experimental(RespRequest.DiagnosticID)]
+[SuppressMessage("Usage", "CA2231:Overload operator equals on overriding value type Equals", Justification = "API not necessary here")]
+public readonly struct RespChunk : IEquatable<RespChunk>
 {
+    private readonly byte[] _buffer;
+    private readonly int _preambleIndex, _payloadIndex, _totalBytes;
+
     /// <summary>
-    /// Gets the data as a raw RESP payload, via UTF8
+    /// Compares 2 chunks for equality; note that this uses buffer reference equality - byte contents are not compared.
     /// </summary>
-    /// <remarks>This is intended for debugging purposes only</remarks>
-    internal new readonly string ToString()
+    public bool Equals(RespChunk other)
+        => ReferenceEquals(_buffer, other._buffer) && _payloadIndex == other._payloadIndex
+        && _preambleIndex == other._preambleIndex && _totalBytes == other._totalBytes;
+
+    /// <inheritdoc cref="Equals(RespChunk)"/>
+    public override bool Equals([NotNullWhen(true)] object? obj) => obj is RespChunk other && Equals(other);
+
+    /// <inheritdoc/>
+    public override int GetHashCode() => RuntimeHelpers.GetHashCode(_buffer) ^ _preambleIndex ^ _payloadIndex ^ _totalBytes;
+
+    private RespChunk(byte[] buffer, int preambleIndex, int payloadIndex, int totalBytes)
     {
-        var span = GetSingleSpan();
+        _buffer = buffer;
+        _preambleIndex = preambleIndex;
+        _payloadIndex = payloadIndex;
+        _totalBytes = totalBytes;
+    }
+
+    internal RespChunk(byte[] buffer, int payloadIndex, int totalBytes)
+    {
+        _buffer = buffer;
+        _preambleIndex = _payloadIndex = payloadIndex;
+        _totalBytes = totalBytes;
+    }
+
+    public bool TryGetSpan(out ReadOnlySpan<byte> span)
+    {
+        span = _totalBytes == 0 ? default : new(_buffer, _preambleIndex, _totalBytes);
+        return true;
+    }
+
+    /// <summary>
+    /// Gets a text (UTF8) representation of the RESP payload; this API is intended for debugging purposes only, and may
+    /// be misleading for non-UTF8 payloads.
+    /// </summary>
+    public override string ToString()
+    {
+        if (!TryGetSpan(out var span))
+        {
+            return nameof(RespChunk);
+        }
         if (span.Length == 0) return "";
+
 #if NETCOREAPP3_1_OR_GREATER
-        return UTF8.GetString(span);
+        return Resp2Writer.UTF8.GetString(span);
 #else
         unsafe
         {
             fixed (byte* ptr = span)
             {
-                return UTF8.GetString(ptr, span.Length);
+                return Resp2Writer.UTF8.GetString(ptr, span.Length);
             }
         }
 #endif
     }
 
-    private int _argCountIncludingCommand, _argIndexIncludingCommand;
+    /// <summary>
+    /// Releases all buffers associated with this instance.
+    /// </summary>
+    public void Recycle()
+    {
+        var buffer = _buffer;
+        // nuke self (best effort to prevent multi-release)
+        Unsafe.AsRef(in this) = default;
+        if (buffer is not null)
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
+        }
+    }
 
+    /// <summary>
+    /// Prepends the given preamble contents 
+    /// </summary>
+    public RespChunk WithPreamble(ReadOnlySpan<byte> value)
+    {
+        int length = value.Length, newStart = _preambleIndex - length;
+        if (newStart < 0) Throw();
+        value.CopyTo(new(_buffer, newStart, length));
+        return new(_buffer, newStart, _payloadIndex, _totalBytes + length); 
+
+        static void Throw() => throw new InvalidOperationException("There is insufficient capacity to add the requested preamble");
+    }
+
+    /// <summary>
+    /// Removes all preamble, reverting to just the original payload
+    /// </summary>
+    public RespChunk WithoutPreamble() => new RespChunk(_buffer, _payloadIndex, _totalBytes - (_payloadIndex - _preambleIndex));
+}
+
+[Experimental(RespRequest.DiagnosticID)]
+public ref struct Resp2Writer
+{
     private byte[] _targetArr;
+    private readonly int _preambleReservation;
+    private int _targetIndex, _targetLength, _argCountIncludingCommand, _argIndexIncludingCommand;
 
-    private int _targetIndex, _targetCount;
+    public Resp2Writer(int preambleReservation)
+    {
+        _targetIndex = _targetLength = _preambleReservation = preambleReservation;
+        _argCountIncludingCommand = _argIndexIncludingCommand = 0;
+        _targetArr = [];
+    }
 
 #if NET7_0_OR_GREATER
     private ref byte _targetArrRoot;
-    private readonly Span<byte> RemainingSpan => MemoryMarshal.CreateSpan(ref Unsafe.Add(ref _targetArrRoot, _targetIndex), _targetCount - _targetIndex);
+    private readonly Span<byte> RemainingSpan => MemoryMarshal.CreateSpan(ref Unsafe.Add(ref _targetArrRoot, _targetIndex), _targetLength - _targetIndex);
     private readonly ref byte CurrentPosition => ref Unsafe.Add(ref _targetArrRoot, _targetIndex);
     private void AppendUnsafe(char value)
     {
-        Debug.Assert(_targetIndex < _targetCount);
+        Debug.Assert(_targetIndex < _targetLength);
         Unsafe.Add(ref _targetArrRoot, _targetIndex++) = (byte)value; // caller must ensure capacity
     }
-    internal readonly ReadOnlySpan<byte> GetSingleSpan() => MemoryMarshal.CreateSpan(ref _targetArrRoot, _targetIndex);
 #else
-    private readonly Span<byte> RemainingSpan => new(_targetArr, _targetIndex, _targetCount - _targetIndex);
+    private readonly Span<byte> RemainingSpan => new(_targetArr, _targetIndex, _targetLength - _targetIndex);
     private readonly ref byte CurrentPosition => ref _targetArr[_targetIndex];
     private void AppendUnsafe(char value)
     {
-        Debug.Assert(_targetIndex < _targetCount);
+        Debug.Assert(_targetIndex < _targetLength);
         _targetArr[_targetIndex++] = (byte)value; // caller must ensure capacity
     }
-    internal readonly ReadOnlySpan<byte> GetSingleSpan() => new(_targetArr, 0, _targetIndex);
 #endif
 
 
@@ -71,15 +157,28 @@ public ref struct Resp2Writer
 
     private void EnsureAtLeast(int count)
     {
-        if (_targetIndex + count > _targetCount) AddChunkAtLeast(count);
+        if (_targetIndex == _preambleReservation) count += _preambleReservation;
+        if (_targetIndex + count > _targetLength)
+        {
+            AddChunkImpl(Math.Max(count, DEFAULT_CHUNK_SIZE));
+        }
     }
 
     private void EnsureSome(int hint)
     {
-        if (_targetIndex == _targetCount) AddChunkWithHint(hint);
+        if (_targetIndex == _targetLength)
+        {
+            if (_targetIndex == _preambleReservation) hint += _preambleReservation;
+
+#if NETCOREAPP3_1_OR_GREATER
+            AddChunkImpl(Math.Clamp(DEFAULT_CHUNK_SIZE, hint, MAX_CHUNK_SIZE));
+#else
+            AddChunkImpl(Math.Min(Math.Max(DEFAULT_CHUNK_SIZE, hint), MAX_CHUNK_SIZE));
+#endif
+        }
     }
 
-    private const int DEFAULT_CHUNK_SIZE = 1024, MAX_CHUNK_SIZE = 1024 * 1024;
+    private const int DEFAULT_CHUNK_SIZE = 1024, MAX_CHUNK_SIZE = 1024 * 1024, DEFAULT_PREAMBLE_BYTES = 64;
 
     public static int EstimateSize(int value)
         => EstimateSize(value < 0 ? (value == int.MinValue ? (uint)int.MaxValue : (uint)(-value)) : (uint)value);
@@ -162,20 +261,12 @@ public ref struct Resp2Writer
 
     private const int NullLength = 5; // $-1\r\n 
 
-    private void AddChunkAtLeast(int minSize) => AddChunkImpl(Math.Max(minSize, DEFAULT_CHUNK_SIZE));
-#if NETCOREAPP3_1_OR_GREATER
-    private void AddChunkWithHint(int size) => AddChunkImpl(Math.Clamp(DEFAULT_CHUNK_SIZE, size, MAX_CHUNK_SIZE));
-#else
-    private void AddChunkWithHint(int size) => AddChunkImpl(Math.Min(Math.Max(DEFAULT_CHUNK_SIZE, size), MAX_CHUNK_SIZE));
-#endif
-
-    internal void Release()
+    internal void Recycle()
     {
         var arr = _targetArr;
+        this = default; // nuke self to prevent multi-release
         if (arr is not null)
         {
-            _targetArr = Array.Empty<byte>();
-            _targetIndex = _targetCount = 0;
             ArrayPool<byte>.Shared.Return(arr);
         }
     }
@@ -184,25 +275,26 @@ public ref struct Resp2Writer
 
     private void AddChunkImpl(int hint)
     {
-        var newArr = ArrayPool<byte>.Shared.Rent(_targetCount + hint);
-        if (_targetIndex != 0)
+        uint totalUsed = (uint)(_targetIndex - _preambleReservation);
+        // for the first alloc, preamble is already built into the hint
+        var newArr = ArrayPool<byte>.Shared.Rent(totalUsed == 0 ? hint : (_targetLength + hint));
+        if (totalUsed != 0)
         {
-            Unsafe.CopyBlock(ref newArr[0], ref _targetArr[0], (uint)_targetIndex);
+            Unsafe.CopyBlock(ref newArr[_preambleReservation], ref _targetArr[_preambleReservation], totalUsed);
         }
         if (_targetArr is not null)
         {
             ArrayPool<byte>.Shared.Return(_targetArr);
         }
         _targetArr = newArr;
-        _targetCount = _targetArr.Length;
+        _targetLength = _targetArr.Length;
 #if NET7_0_OR_GREATER
-        _targetArrRoot = ref _targetArr[_targetIndex];
+        _targetArrRoot = ref _targetArr[0]; // always to array root; will apply index separately
+        Debug.Assert(!Unsafe.IsNullRef(ref _targetArrRoot));
 #endif
     }
 
-    private static readonly UTF8Encoding UTF8 = new(false);
-
-    
+    internal static readonly UTF8Encoding UTF8 = new(false);
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("ApiDesign", "RS0026:Do not add multiple public overloads with optional parameters", Justification = "Overloaded by type, acceptable")]
     public void WriteCommand(string command, int argCount, int argBytesEstimate = 0)
@@ -282,9 +374,9 @@ public ref struct Resp2Writer
         // get a rough estimate and allocate an initial buffer
         int argCountLenEstimate = EstimatePrefixSize((uint)(argCount + 1));
         var estimatedSize = argCountLenEstimate + EstimateSize(command) + argBytesEstimate;
-        AddChunkWithHint(estimatedSize);
-
-        Debug.Assert(RemainingSpan.Length >= argCountLenEstimate);
+        EnsureSome(estimatedSize);
+        EnsureAtLeast(argCountLenEstimate); // this will *almost always* be a no-op; would need to have a preamble in
+        // excess of MAX_CHUNK_SIZE for EnsureSome to have not allocated capacity; we will never do this, obviously
 
         // format:
         // *{totalargs}\r\n
@@ -397,5 +489,12 @@ public ref struct Resp2Writer
             WriteNullString();
         }
         else WriteValue(value.AsSpan());
+    }
+
+    internal RespChunk Commit()
+    {
+        var chunk = new RespChunk(_targetArr, _preambleReservation, _targetIndex - _preambleReservation);
+        this = default; // nuke self; transferring ownership to the chunk
+        return chunk;
     }
 }
