@@ -9,7 +9,7 @@ namespace StackExchange.Redis.Tests;
 public class ProtocolApiTests
 {
 
-    private static RespChunk CreatePingChunk(string? value, int preambleBytes)
+    private static OpaqueChunk CreatePingChunk(string? value, int preambleBytes)
     {
         var obj = new PingRequest(value);
         var writer = preambleBytes <= 0 ? new() : new Resp2Writer(preambleBytes);
@@ -32,10 +32,33 @@ public class ProtocolApiTests
     [InlineData("aaaabbbbccccddddeeeeffffgggghhhhiiiijjjjkkkkllllmmmmnnnnooooppppqqqqrrrrssssttttuuuuvvvvwwwwxxxxyyyyzzzz", "*2\r\n$4\r\nping\r\n$104\r\naaaabbbbccccddddeeeeffffgggghhhhiiiijjjjkkkkllllmmmmnnnnooooppppqqqqrrrrssssttttuuuuvvvvwwwwxxxxyyyyzzzz\r\n")]
     public void CustomPing(string? value, string expected)
     {
-        RespChunk chunk = CreatePingChunk(value, 0);
+        OpaqueChunk chunk = CreatePingChunk(value, 0);
         try
         {
             Assert.Equal(expected, chunk.ToString());
+
+            var reader = new RespReader(chunk.GetBuffer());
+            var fragment = reader.ReadNext();
+            Assert.Equal('*', fragment.Prefix);
+            var expectedLength = value is null ? 1 : 2;
+            Assert.Equal(expectedLength, fragment.Length);
+            Assert.Equal(0, fragment.Value.Length);
+
+            fragment = reader.ReadNext();
+            Assert.Equal('$', fragment.Prefix);
+            Assert.Equal(4, fragment.Length);
+            Assert.Equal(4, fragment.Value.Length);
+
+            if (value is not null)
+            {
+                fragment = reader.ReadNext();
+                Assert.Equal('$', fragment.Prefix);
+                Assert.Equal(value.Length, fragment.Length);
+                Assert.Equal(value.Length, fragment.Value.Length);
+            }
+
+            fragment = reader.ReadNext();
+            Assert.False(fragment.IsValid);
         }
         finally
         {
@@ -50,7 +73,7 @@ public class ProtocolApiTests
     [InlineData("aaaabbbbccccddddeeeeffffgggghhhhiiiijjjjkkkkllllmmmmnnnnooooppppqqqqrrrrssssttttuuuuvvvvwwwwxxxxyyyyzzzz", "*2\r\n$4\r\nping\r\n$104\r\naaaabbbbccccddddeeeeffffgggghhhhiiiijjjjkkkkllllmmmmnnnnooooppppqqqqrrrrssssttttuuuuvvvvwwwwxxxxyyyyzzzz\r\n")]
     public void CustomPingWithUnusedPreamble(string? value, string expected)
     {
-        RespChunk chunk = CreatePingChunk(value, 64);
+        OpaqueChunk chunk = CreatePingChunk(value, 64);
         try
         {
             Assert.Equal(expected, chunk.ToString());
@@ -72,7 +95,7 @@ public class ProtocolApiTests
     [InlineData("aaaabbbbccccddddeeeeffffgggghhhhiiiijjjjkkkkllllmmmmnnnnooooppppqqqqrrrrssssttttuuuuvvvvwwwwxxxxyyyyzzzz", "*2\r\n$4\r\nping\r\n$104\r\naaaabbbbccccddddeeeeffffgggghhhhiiiijjjjkkkkllllmmmmnnnnooooppppqqqqrrrrssssttttuuuuvvvvwwwwxxxxyyyyzzzz\r\n")]
     public void CustomPingWithSelectPreamble(string? value, string expected)
     {
-        RespChunk chunk = CreatePingChunk(value, 64);
+        OpaqueChunk chunk = CreatePingChunk(value, 64);
         try
         {
             // check before prepending

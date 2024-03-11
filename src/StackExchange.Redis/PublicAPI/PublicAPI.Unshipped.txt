@@ -2,9 +2,17 @@
 const StackExchange.Redis.Protocol.Resp2Writer.MaxBytesInt32 = 17 -> int
 const StackExchange.Redis.Protocol.Resp2Writer.MaxBytesInt64 = 26 -> int
 const StackExchange.Redis.Protocol.Resp2Writer.MaxBytesSingle = 27 -> int
-override StackExchange.Redis.Protocol.RespChunk.Equals(object? obj) -> bool
-override StackExchange.Redis.Protocol.RespChunk.GetHashCode() -> int
-override StackExchange.Redis.Protocol.RespChunk.ToString() -> string!
+override StackExchange.Redis.Protocol.OpaqueChunk.Equals(object? obj) -> bool
+override StackExchange.Redis.Protocol.OpaqueChunk.GetHashCode() -> int
+override StackExchange.Redis.Protocol.OpaqueChunk.ToString() -> string!
+StackExchange.Redis.Protocol.OpaqueChunk
+StackExchange.Redis.Protocol.OpaqueChunk.Equals(StackExchange.Redis.Protocol.OpaqueChunk other) -> bool
+StackExchange.Redis.Protocol.OpaqueChunk.GetBuffer() -> System.Buffers.ReadOnlySequence<byte>
+StackExchange.Redis.Protocol.OpaqueChunk.OpaqueChunk() -> void
+StackExchange.Redis.Protocol.OpaqueChunk.Recycle() -> void
+StackExchange.Redis.Protocol.OpaqueChunk.TryGetSpan(out System.ReadOnlySpan<byte> span) -> bool
+StackExchange.Redis.Protocol.OpaqueChunk.WithoutPreamble() -> StackExchange.Redis.Protocol.OpaqueChunk
+StackExchange.Redis.Protocol.OpaqueChunk.WithPreamble(System.ReadOnlySpan<byte> value) -> StackExchange.Redis.Protocol.OpaqueChunk
 StackExchange.Redis.Protocol.Resp2Writer
 StackExchange.Redis.Protocol.Resp2Writer.Resp2Writer() -> void
 StackExchange.Redis.Protocol.Resp2Writer.Resp2Writer(int preambleReservation) -> void
@@ -14,13 +22,19 @@ StackExchange.Redis.Protocol.Resp2Writer.WriteCommand(string! command, int argCo
 StackExchange.Redis.Protocol.Resp2Writer.WriteValue(scoped System.ReadOnlySpan<byte> value) -> void
 StackExchange.Redis.Protocol.Resp2Writer.WriteValue(scoped System.ReadOnlySpan<char> value) -> void
 StackExchange.Redis.Protocol.Resp2Writer.WriteValue(string! value) -> void
-StackExchange.Redis.Protocol.RespChunk
-StackExchange.Redis.Protocol.RespChunk.Equals(StackExchange.Redis.Protocol.RespChunk other) -> bool
-StackExchange.Redis.Protocol.RespChunk.Recycle() -> void
-StackExchange.Redis.Protocol.RespChunk.RespChunk() -> void
-StackExchange.Redis.Protocol.RespChunk.TryGetSpan(out System.ReadOnlySpan<byte> span) -> bool
-StackExchange.Redis.Protocol.RespChunk.WithoutPreamble() -> StackExchange.Redis.Protocol.RespChunk
-StackExchange.Redis.Protocol.RespChunk.WithPreamble(System.ReadOnlySpan<byte> value) -> StackExchange.Redis.Protocol.RespChunk
+StackExchange.Redis.Protocol.RespFragment
+StackExchange.Redis.Protocol.RespFragment.IsValid.get -> bool
+StackExchange.Redis.Protocol.RespFragment.Length.get -> long
+StackExchange.Redis.Protocol.RespFragment.Prefix.get -> char
+StackExchange.Redis.Protocol.RespFragment.RespFragment() -> void
+StackExchange.Redis.Protocol.RespFragment.RespFragment(char prefix, long length, System.Buffers.ReadOnlySequence<byte> value = default(System.Buffers.ReadOnlySequence<byte>)) -> void
+StackExchange.Redis.Protocol.RespFragment.Value.get -> System.Buffers.ReadOnlySequence<byte>
+StackExchange.Redis.Protocol.RespReader
+StackExchange.Redis.Protocol.RespReader.Position.get -> long
+StackExchange.Redis.Protocol.RespReader.ReadNext(bool withValue = true) -> StackExchange.Redis.Protocol.RespFragment
+StackExchange.Redis.Protocol.RespReader.RespReader() -> void
+StackExchange.Redis.Protocol.RespReader.RespReader(System.Buffers.ReadOnlySequence<byte> value) -> void
+StackExchange.Redis.Protocol.RespReader.RespReader(System.ReadOnlyMemory<byte> value) -> void
 StackExchange.Redis.Protocol.RespRequest
 StackExchange.Redis.Protocol.RespRequest.RespRequest() -> void
 static StackExchange.Redis.Protocol.Resp2Writer.EstimateSize(byte[]! value) -> int

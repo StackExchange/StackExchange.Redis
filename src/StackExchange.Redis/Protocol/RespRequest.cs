@@ -1,27 +1,208 @@
 ﻿using System;
 using System.Buffers;
+using System.Buffers.Text;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using System.Runtime.Serialization;
 using System.Text;
 #pragma warning disable CS1591 // new API
 
 namespace StackExchange.Redis.Protocol;
 
-[Experimental(DiagnosticID)]
+[Experimental(ExperimentalDiagnosticID)]
 public abstract class RespRequest
 {
-    internal const string DiagnosticID = "SERED001";
+    internal const string ExperimentalDiagnosticID = "SERED001";
     protected RespRequest() { }
     public abstract void Write(ref Resp2Writer writer);
 }
 
-[Experimental(RespRequest.DiagnosticID)]
+//[Experimental(RespRequest.ExperimentalDiagnosticID)]
+//public abstract class RespProcessor<T>
+//{
+//    public abstract T Parse(in RespChunk value);
+//}
+
+public readonly struct RespFragment(char prefix, long length, ReadOnlySequence<byte> value = default)
+{
+    public bool IsValid => Prefix != default;
+    public char Prefix { get; } = prefix;
+    public long Length { get; } = length;
+    public ReadOnlySequence<byte> Value { get; } = value;
+}
+
+[Experimental(RespRequest.ExperimentalDiagnosticID)]
+public ref struct RespReader
+{
+    private readonly ReadOnlySequence<byte> _full;
+    private long _positionBase;
+    private ReadOnlySequence<byte>.Enumerator _chunks;
+    private ReadOnlyMemory<byte> _currentMemory;
+    private ReadOnlySequence<byte> SlicePastPrefix(int offset, int count) => new(_currentMemory.Slice(_index + offset + 1, count));
+    private int _index, _length;
+    public long Position => _positionBase + _index;
+
+
+#if NET7_0_OR_GREATER
+    private ref byte _currentRoot;
+    private byte PeekPrefix() => Unsafe.Add(ref _currentRoot, _index);
+    private ReadOnlySpan<byte> PeekPastPrefix() => MemoryMarshal.CreateReadOnlySpan(
+        ref Unsafe.Add(ref _currentRoot, _index + 1), _length - (_index + 1));
+    private void AssertCrlfPastPrefixUnsafe(int offset)
+    {
+        if (Unsafe.ReadUnaligned<ushort>(ref Unsafe.Add(ref _currentRoot, _index + offset + 1)) != Resp2Writer.CrLf)
+            ThrowProtocolFailure();
+    }
+    private void SetCurrent(ReadOnlyMemory<byte> current)
+    {
+        _positionBase += _length; // accumulate previous length
+        _currentMemory = current;
+        _currentRoot = ref MemoryMarshal.GetReference(current.Span);
+        _index = 0;
+        _length = current.Length;
+    }
+#else
+    private ReadOnlySpan<byte> _currentSpan;
+    private byte PeekPrefix() => _currentSpan[_index];
+    private ReadOnlySpan<byte> PeekPastPrefix() => _currentSpan.Slice(_index + 1);
+    private void AssertCrlfPastPrefixUnsafe(int offset)
+    {
+        if (Unsafe.ReadUnaligned<ushort>(ref Unsafe.AsRef(in _currentSpan[_index + offset + 1])) != Resp2Writer.CrLf)
+            ThrowProtocolFailure();
+    }
+    private void SetCurrent(ReadOnlyMemory<byte> current)
+    {
+        _positionBase += _length; // accumulate previous length
+        _currentMemory = current;
+        _currentSpan = current.Span;
+        _index = 0;
+        _length = _currentSpan.Length;
+    }
+#endif
+
+    private int PastPrefixLength => (_length - _index) - 1;
+
+    public RespReader(ReadOnlyMemory<byte> value) : this(new ReadOnlySequence<byte>(value)) { }
+
+    public RespReader(ReadOnlySequence<byte> value)
+    {
+        _full = value;
+        _positionBase = _index = _length = 0;
+        _currentMemory = default;
+#if NET7_0_OR_GREATER
+        _currentRoot = ref Unsafe.NullRef<byte>();
+#else
+        _currentSpan = default;
+#endif
+        if (value.IsSingleSegment)
+        {
+            _chunks = default;
+            SetCurrent(value.First);
+        }
+        else
+        {
+            _chunks = value.GetEnumerator();
+            if (_chunks.MoveNext())
+            {
+                SetCurrent(_chunks.Current);
+            }
+        }
+    }
+
+    private static ReadOnlySpan<byte> CrLf => "\r\n"u8;
+
+    private static bool TryReadIntegerCrLf(ReadOnlySpan<byte> bytes, out int value, out int byteCount)
+    {
+        var end = bytes.IndexOf(CrLf);
+        if (end < 0)
+        {
+            byteCount = value = 0;
+            return false;
+        }
+        if (!(Utf8Parser.TryParse(bytes, out value, out byteCount) && byteCount == end))
+            ThrowProtocolFailure();
+        byteCount += 2; // include the CrLf
+        return true;
+    }
+
+    private static void ThrowProtocolFailure() => throw new InvalidOperationException(); // protocol exception?
+
+    private static bool IsNull(int length)
+    {
+        if (length < -1) ThrowProtocolFailure();
+        return length == -1;
+    }
+
+    public RespFragment ReadNext(bool withValue = true)
+    {
+        if (_index + 2 < _length) // shortest possible RESP fragment is length 3
+        {
+            char prefix;
+            switch (prefix = (char)PeekPrefix())
+            {
+                case '+': // simple string
+                case '-': // simple error
+                case ':': // integer
+                case '#': // boolean
+                case ',': // double
+                case '(': // big number
+                    // CRLF-terminated
+                    int end = PeekPastPrefix().IndexOf(CrLf);
+                    if (end < 0) break;
+                    int length = end - _index;
+                    var value = withValue ? SlicePastPrefix(0, length) : default;
+                    _index += length + 3;
+                    return new(prefix, length, value);
+                case '!': // bulk error
+                case '$': // bulk string
+                case '=': // verbatim string
+                    // length prefix with value payload
+                    if (!TryReadIntegerCrLf(PeekPastPrefix(), out length, out int consumed)) break;
+                    if (IsNull(length))
+                    {
+                        _index += consumed + 1;
+                        return new(prefix, length);
+                    }
+                    if (length + 2 > (PastPrefixLength - consumed)) break;
+                    AssertCrlfPastPrefixUnsafe(consumed + length);
+                    value = withValue ? SlicePastPrefix(consumed, length) : default;
+                    _index += consumed + length + 3;
+                    return new(prefix, length, value);
+                case '*': // array
+                case '~': // set
+                case '%': // map - watch out, count is double!
+                case '>': // push
+                    // length prefix without value payload (child values follow)
+                    if (!TryReadIntegerCrLf(PeekPastPrefix(), out length, out consumed)) break;
+                    _ = IsNull(length); // for validation/consistency
+                    _index += consumed + 1;
+                    return new(prefix, length);
+                case '_': // null
+                    // note we already checked we had 3 bytes
+                    AssertCrlfPastPrefixUnsafe(0);
+                    _index += 3;
+                    return new(prefix, -1);
+            }
+        }
+        return ReadSlow(withValue);
+    }
+
+    private RespFragment ReadSlow(bool withValue)
+    {
+        if (_length == _index && !_chunks.MoveNext())
+        {
+            // natural EOF, single chunk
+            return default;
+        }
+        throw new NotImplementedException(); // multi-segment parsing
+    }
+}
+
+[Experimental(RespRequest.ExperimentalDiagnosticID)]
 [SuppressMessage("Usage", "CA2231:Overload operator equals on overriding value type Equals", Justification = "API not necessary here")]
-public readonly struct RespChunk : IEquatable<RespChunk>
+public readonly struct OpaqueChunk : IEquatable<OpaqueChunk>
 {
     private readonly byte[] _buffer;
     private readonly int _preambleIndex, _payloadIndex, _totalBytes;
@@ -29,17 +210,17 @@ public readonly struct RespChunk : IEquatable<RespChunk>
     /// <summary>
     /// Compares 2 chunks for equality; note that this uses buffer reference equality - byte contents are not compared.
     /// </summary>
-    public bool Equals(RespChunk other)
+    public bool Equals(OpaqueChunk other)
         => ReferenceEquals(_buffer, other._buffer) && _payloadIndex == other._payloadIndex
         && _preambleIndex == other._preambleIndex && _totalBytes == other._totalBytes;
 
-    /// <inheritdoc cref="Equals(RespChunk)"/>
-    public override bool Equals([NotNullWhen(true)] object? obj) => obj is RespChunk other && Equals(other);
+    /// <inheritdoc cref="Equals(OpaqueChunk)"/>
+    public override bool Equals([NotNullWhen(true)] object? obj) => obj is OpaqueChunk other && Equals(other);
 
     /// <inheritdoc/>
     public override int GetHashCode() => RuntimeHelpers.GetHashCode(_buffer) ^ _preambleIndex ^ _payloadIndex ^ _totalBytes;
 
-    private RespChunk(byte[] buffer, int preambleIndex, int payloadIndex, int totalBytes)
+    private OpaqueChunk(byte[] buffer, int preambleIndex, int payloadIndex, int totalBytes)
     {
         _buffer = buffer;
         _preambleIndex = preambleIndex;
@@ -47,7 +228,7 @@ public readonly struct RespChunk : IEquatable<RespChunk>
         _totalBytes = totalBytes;
     }
 
-    internal RespChunk(byte[] buffer, int payloadIndex, int totalBytes)
+    internal OpaqueChunk(byte[] buffer, int payloadIndex, int totalBytes)
     {
         _buffer = buffer;
         _preambleIndex = _payloadIndex = payloadIndex;
@@ -60,6 +241,11 @@ public readonly struct RespChunk : IEquatable<RespChunk>
         return true;
     }
 
+    public ReadOnlySequence<byte> GetBuffer()
+    {
+        return _totalBytes == 0 ? default : new(_buffer, _preambleIndex, _totalBytes);
+    }
+
     /// <summary>
     /// Gets a text (UTF8) representation of the RESP payload; this API is intended for debugging purposes only, and may
     /// be misleading for non-UTF8 payloads.
@@ -68,7 +254,7 @@ public readonly struct RespChunk : IEquatable<RespChunk>
     {
         if (!TryGetSpan(out var span))
         {
-            return nameof(RespChunk);
+            return nameof(OpaqueChunk);
         }
         if (span.Length == 0) return "";
 
@@ -102,12 +288,12 @@ public readonly struct RespChunk : IEquatable<RespChunk>
     /// <summary>
     /// Prepends the given preamble contents 
     /// </summary>
-    public RespChunk WithPreamble(ReadOnlySpan<byte> value)
+    public OpaqueChunk WithPreamble(ReadOnlySpan<byte> value)
     {
         int length = value.Length, newStart = _preambleIndex - length;
         if (newStart < 0) Throw();
         value.CopyTo(new(_buffer, newStart, length));
-        return new(_buffer, newStart, _payloadIndex, _totalBytes + length); 
+        return new(_buffer, newStart, _payloadIndex, _totalBytes + length);
 
         static void Throw() => throw new InvalidOperationException("There is insufficient capacity to add the requested preamble");
     }
@@ -115,10 +301,10 @@ public readonly struct RespChunk : IEquatable<RespChunk>
     /// <summary>
     /// Removes all preamble, reverting to just the original payload
     /// </summary>
-    public RespChunk WithoutPreamble() => new RespChunk(_buffer, _payloadIndex, _totalBytes - (_payloadIndex - _preambleIndex));
+    public OpaqueChunk WithoutPreamble() => new OpaqueChunk(_buffer, _payloadIndex, _totalBytes - (_payloadIndex - _preambleIndex));
 }
 
-[Experimental(RespRequest.DiagnosticID)]
+[Experimental(RespRequest.ExperimentalDiagnosticID)]
 public ref struct Resp2Writer
 {
     private byte[] _targetArr;
@@ -458,10 +644,10 @@ public ref struct Resp2Writer
         _targetIndex += 2;
     }
 
-    private static readonly ushort Crlf = BitConverter.IsLittleEndian ? (ushort)0x0A0D : (ushort)0x0D0A;
+    internal static readonly ushort CrLf = BitConverter.IsLittleEndian ? (ushort)0x0A0D : (ushort)0x0D0A;
 
     // unsafe===caller **MUST** ensure there is capacity
-    private static void UnsafeWriteCrlf(ref byte destination) => Unsafe.WriteUnaligned(ref destination, Crlf);
+    private static void UnsafeWriteCrlf(ref byte destination) => Unsafe.WriteUnaligned(ref destination, CrLf);
 
     public void WriteValue(scoped ReadOnlySpan<char> value)
     {
@@ -491,9 +677,9 @@ public ref struct Resp2Writer
         else WriteValue(value.AsSpan());
     }
 
-    internal RespChunk Commit()
+    internal OpaqueChunk Commit()
     {
-        var chunk = new RespChunk(_targetArr, _preambleReservation, _targetIndex - _preambleReservation);
+        var chunk = new OpaqueChunk(_targetArr, _preambleReservation, _targetIndex - _preambleReservation);
         this = default; // nuke self; transferring ownership to the chunk
         return chunk;
     }
