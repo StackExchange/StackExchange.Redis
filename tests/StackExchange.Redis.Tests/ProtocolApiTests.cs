@@ -38,27 +38,26 @@ public class ProtocolApiTests
             Assert.Equal(expected, chunk.ToString());
 
             var reader = new RespReader(chunk.GetBuffer());
-            var fragment = reader.ReadNext();
-            Assert.Equal('*', fragment.Prefix);
+            Assert.True(reader.ReadNext());
+            Assert.Equal('*', reader.Prefix);
             var expectedLength = value is null ? 1 : 2;
-            Assert.Equal(expectedLength, fragment.Length);
-            Assert.Equal(0, fragment.Value.Length);
+            Assert.Equal(expectedLength, reader.Length);
 
-            fragment = reader.ReadNext();
-            Assert.Equal('$', fragment.Prefix);
-            Assert.Equal(4, fragment.Length);
-            Assert.Equal(4, fragment.Value.Length);
+            Assert.True(reader.ReadNext());
+            Assert.Equal('$', reader.Prefix);
+            Assert.Equal(4, reader.Length);
+            Assert.Equal("ping", reader.ReadString());
 
             if (value is not null)
             {
-                fragment = reader.ReadNext();
-                Assert.Equal('$', fragment.Prefix);
-                Assert.Equal(value.Length, fragment.Length);
-                Assert.Equal(value.Length, fragment.Value.Length);
+                Assert.True(reader.ReadNext());
+                Assert.Equal('$', reader.Prefix);
+                Assert.Equal(value.Length, reader.Length);
+                Assert.Equal(value, reader.ReadString());
             }
 
-            fragment = reader.ReadNext();
-            Assert.False(fragment.IsValid);
+            Assert.False(reader.ReadNext());
+            Assert.Equal(0, reader.Prefix);
         }
         finally
         {
