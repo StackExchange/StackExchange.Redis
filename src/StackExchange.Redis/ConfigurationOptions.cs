@@ -312,6 +312,8 @@ namespace StackExchange.Redis
             };
         }
 
+        private static readonly Oid _serverAuthOid = new Oid("1.3.6.1.5.5.7.3.1", "1.3.6.1.5.5.7.3.1");
+
         private static bool CheckTrustedIssuer(X509Certificate2 certificateToValidate, X509Chain? chainToValidate, X509Certificate2 authority)
         {
             // Reference:
@@ -322,6 +324,8 @@ namespace StackExchange.Redis
             chain.ChainPolicy.VerificationFlags = X509VerificationFlags.AllowUnknownCertificateAuthority;
             chain.ChainPolicy.VerificationTime = chainToValidate?.ChainPolicy?.VerificationTime ?? DateTime.Now;
             chain.ChainPolicy.UrlRetrievalTimeout = new TimeSpan(0, 0, 0);
+            // Ensure entended key usage checks are run and that we're observing a server TLS certificate
+            chain.ChainPolicy.ApplicationPolicy.Add(_serverAuthOid);
 
             chain.ChainPolicy.ExtraStore.Add(authority);
             try
