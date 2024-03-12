@@ -39,25 +39,25 @@ public class ProtocolApiTests
 
             var reader = new RespReader(chunk.GetBuffer());
             Assert.True(reader.ReadNext());
-            Assert.Equal('*', reader.Prefix);
+            Assert.Equal(RespPrefix.Array, reader.Prefix);
             var expectedLength = value is null ? 1 : 2;
             Assert.Equal(expectedLength, reader.Length);
 
             Assert.True(reader.ReadNext());
-            Assert.Equal('$', reader.Prefix);
+            Assert.Equal(RespPrefix.BulkString, reader.Prefix);
             Assert.Equal(4, reader.Length);
             Assert.Equal("ping", reader.ReadString());
 
             if (value is not null)
             {
                 Assert.True(reader.ReadNext());
-                Assert.Equal('$', reader.Prefix);
+                Assert.Equal(RespPrefix.BulkString, reader.Prefix);
                 Assert.Equal(value.Length, reader.Length);
                 Assert.Equal(value, reader.ReadString());
             }
 
             Assert.False(reader.ReadNext());
-            Assert.Equal(0, reader.Prefix);
+            Assert.Equal(RespPrefix.None, reader.Prefix);
         }
         finally
         {

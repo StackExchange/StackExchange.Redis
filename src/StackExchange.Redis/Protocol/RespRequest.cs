@@ -1,12 +1,16 @@
-﻿using System;
+﻿using Pipelines.Sockets.Unofficial.Arenas;
+using System;
 using System.Buffers;
 using System.Buffers.Text;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.IO;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 #pragma warning disable CS1591 // new API
 
 namespace StackExchange.Redis.Protocol;
@@ -19,11 +23,357 @@ public abstract class RespRequest
     public abstract void Write(ref Resp2Writer writer);
 }
 
+[Experimental(RespRequest.ExperimentalDiagnosticID)]
+public enum RespPrefix : byte
+{
+    None = 0,
+    SimpleString = (byte)'+',
+    SimpleError = (byte)'-',
+    Integer = (byte)':',
+    BulkString = (byte)'$',
+    Array = (byte)'*',
+    Null = (byte)'_',
+    Boolean = (byte)'#',
+    Double = (byte)',',
+    BigNumber = (byte)'(',
+    BulkError = (byte)'!',
+    VerbatimString = (byte)'=',
+    Map = (byte)'%',
+    Set = (byte)'~',
+    Push = (byte)'>',
+
+    // these are not actually implemented
+    // Stream = (byte)';',
+    // UnboundEnd = (byte)'.',
+    // Attribute = (byte)'|',
+}
+
 //[Experimental(RespRequest.ExperimentalDiagnosticID)]
 //public abstract class RespProcessor<T>
 //{
 //    public abstract T Parse(in RespChunk value);
 //}
+
+internal sealed class RefCountedSequenceSegment<T> : ReadOnlySequenceSegment<T>, IMemoryOwner<T>
+{
+    public override string ToString() => $"(ref-count: {RefCount}) {base.ToString()}";
+    private int _refCount;
+    internal int RefCount => Volatile.Read(ref _refCount);
+    private static void ThrowDisposed() => throw new ObjectDisposedException(nameof(RefCountedSequenceSegment<T>));
+    private sealed class DisposedMemoryManager : MemoryManager<T>
+    {
+        public static readonly ReadOnlyMemory<T> Instance = new DisposedMemoryManager().Memory;
+        private DisposedMemoryManager() { }
+
+        protected override void Dispose(bool disposing) { }
+        public override Span<T> GetSpan() { ThrowDisposed(); return default; }
+        public override Memory<T> Memory { get { ThrowDisposed(); return default; } }
+        public override MemoryHandle Pin(int elementIndex = 0) { ThrowDisposed(); return default; }
+        public override void Unpin() => ThrowDisposed();
+        protected override bool TryGetArray(out ArraySegment<T> segment)
+        {
+            ThrowDisposed();
+            segment = default;
+            return default;
+        }
+    }
+
+    public RefCountedSequenceSegment(int minSize, RefCountedSequenceSegment<T>? previous = null)
+    {
+        _refCount = 1;
+        Memory = ArrayPool<T>.Shared.Rent(minSize);
+        if (previous is not null)
+        {
+            RunningIndex = previous.RunningIndex + previous.Memory.Length;
+            previous.Next = this;
+        }
+    }
+
+    Memory<T> IMemoryOwner<T>.Memory => MemoryMarshal.AsMemory(Memory);
+
+    public void Dispose()
+    {
+        int oldCount;
+        do
+        {
+            oldCount = Volatile.Read(ref _refCount);
+            if (oldCount == 0) return; // already released
+        } while (Interlocked.CompareExchange(ref _refCount, oldCount - 1, oldCount) != oldCount);
+        if (oldCount == 0) // we killed it
+        {
+            Release();
+        }
+    }
+
+    public void AddRef()
+    {
+        int oldCount;
+        do
+        {
+            oldCount = Volatile.Read(ref _refCount);
+            if (oldCount == 0) ThrowDisposed();
+        } while (Interlocked.CompareExchange(ref _refCount, checked(oldCount + 1), oldCount) != oldCount);
+    }
+
+    private void Release()
+    {
+        var memory = Memory;
+        Memory = DisposedMemoryManager.Instance;
+        if (MemoryMarshal.TryGetArray<T>(memory, out var segment) && segment.Array is not null)
+        {
+            ArrayPool<T>.Shared.Return(segment.Array);
+        }
+    }
+}
+
+public readonly struct LeasedSequence<T> : IDisposable
+{
+    public LeasedSequence(ReadOnlySequence<T> value) => _value = value;
+    private readonly ReadOnlySequence<T> _value;
+
+    public override string ToString() => _value.ToString();
+    public long Length => _value.Length;
+    public bool IsEmpty => _value.IsEmpty;
+    public bool IsSingleSegment => _value.IsSingleSegment;
+    public SequencePosition Start => _value.Start;
+    public SequencePosition End => _value.End;
+    public SequencePosition GetPosition(long offset) => _value.GetPosition(offset);
+    public SequencePosition GetPosition(long offset, SequencePosition origin) => _value.GetPosition(offset, origin);
+
+    public ReadOnlyMemory<T> First => _value.First;
+#if NETCOREAPP3_0_OR_GREATER
+    public ReadOnlySpan<T> FirstSpan => _value.FirstSpan;
+#else
+    public ReadOnlySpan<T> FirstSpan => _value.First.Span;
+#endif
+
+    public bool TryGet(ref SequencePosition position, out ReadOnlyMemory<T> memory, bool advance = true)
+        => _value.TryGet(ref position, out memory, advance);
+    public ReadOnlySequence<T>.Enumerator GetEnumerator() => _value.GetEnumerator();
+
+    public static implicit operator ReadOnlySequence<T>(LeasedSequence<T> value) => value._value;
+
+    // we do *not* assume that slices take additional leases; usually slicing is a transient operation
+    public ReadOnlySequence<T> Slice(long start) => _value.Slice(start);
+    public ReadOnlySequence<T> Slice(SequencePosition start) => _value.Slice(start);
+    public ReadOnlySequence<T> Slice(int start, int length) => _value.Slice(start, length);
+    public ReadOnlySequence<T> Slice(int start, SequencePosition end) => _value.Slice(start, end);
+    public ReadOnlySequence<T> Slice(long start, long length) => _value.Slice(start, length);
+    public ReadOnlySequence<T> Slice(long start, SequencePosition end) => _value.Slice(start, end);
+    public ReadOnlySequence<T> Slice(SequencePosition start, int length) => _value.Slice(start, length);
+    public ReadOnlySequence<T> Slice(SequencePosition start, long length) => _value.Slice(start, length);
+    public ReadOnlySequence<T> Slice(SequencePosition start, SequencePosition end) => _value.Slice(start, end);
+
+    public void Dispose()
+    {
+        if (_value.Start.GetObject() is SequenceSegment<T> segment)
+        {
+            var end = _value.End.GetObject();
+            do
+            {
+                if (segment is IDisposable d)
+                {
+                    d.Dispose();
+                }
+            }
+            while (!ReferenceEquals(segment, end) && (segment = segment!.Next) is not null);
+        }
+    }
+
+    public void AddRef()
+    {
+        if (_value.Start.GetObject() is SequenceSegment<T> segment)
+        {
+            var end = _value.End.GetObject();
+            do
+            {
+                if (segment is RefCountedSequenceSegment<T> counted)
+                {
+                    counted.AddRef();
+                }
+            }
+            while (!ReferenceEquals(segment, end) && (segment = segment!.Next) is not null);
+        }
+    }
+}
+
+[Experimental(RespRequest.ExperimentalDiagnosticID)]
+public abstract class RespSource : IAsyncDisposable
+{
+    public static RespSource Create(Stream source)
+    {
+        if (source is null) throw new ArgumentNullException(nameof(source));
+        if (!source.CanRead) throw new ArgumentException("Source stream cannot be read", nameof(source));
+        return new StreamRespSource(source);
+    }
+    private protected RespSource() { }
+
+    /// <summary>
+    /// Reads messages (accumulating child messages), until
+    /// either the required number of messages have been read,
+    /// or until the data is exhausted; returns
+    /// the number of bytes consumed (up to the end of the
+    /// last complete message)
+    /// </summary>
+    protected static long Scan(ReadOnlySequence<byte> payload, ref int count)
+    {
+        var reader = new RespReader(payload);
+        while (count > 0 && reader.ReadNext())
+        {
+            count = count - 1 + reader.ChildCount;
+        }
+        return reader.BytesConsumed;
+    }
+
+    protected abstract ValueTask<bool> TryReadAsync(CancellationToken cancellationToken);
+
+    protected abstract long Scan(ref int count);
+    public async ValueTask<LeasedSequence<byte>> ReadNextAsync(CancellationToken cancellationToken)
+    {
+        int pending = 1;
+        long totalConsumed = 0;
+        while (pending != 0 && await TryReadAsync(cancellationToken))
+        {
+            var consumed = Scan(ref pending);
+            totalConsumed += consumed;
+        }
+        if (pending != 0) throw new EndOfStreamException();
+
+        var chunk = Take(totalConsumed);
+        if (chunk.Length != totalConsumed) Throw();
+        return chunk;
+
+        static void Throw() => throw new InvalidOperationException("Buffer length mismatch in " + nameof(ReadNextAsync));
+    }
+
+    protected abstract LeasedSequence<byte> Take(long consumed);
+
+    public virtual ValueTask DisposeAsync() => default;
+
+    private sealed class StreamRespSource : RespSource
+    {
+        private readonly Stream _source;
+        private RefCountedSequenceSegment<byte> _head, _tail;
+        private readonly int _bufferSize;
+        private int _headOffset, _tailOffset;
+        internal StreamRespSource(Stream source, int bufferSize = 64 * 1024)
+        {
+            _bufferSize = Math.Max(1024, bufferSize);
+            _source = source;
+            Expand();
+            _head = _tail;
+        }
+
+        private ReadOnlySequence<byte> GetBuffered() => new(_head, _headOffset, _tail, _tailOffset);
+
+
+#if NETCOREAPP3_1_OR_GREATER
+        public override ValueTask DisposeAsync() => _source.DisposeAsync();
+#else
+        public override ValueTask DisposeAsync()
+        {
+            _source.Dispose();
+            return default;
+        }
+#endif
+
+        [MemberNotNull(nameof(_tail))]
+        private void Expand()
+        {
+            var next = new RefCountedSequenceSegment<byte>(_bufferSize, _tail);
+            _tail = next;
+            _tailOffset = 0;
+        }
+        protected override ValueTask<bool> TryReadAsync(CancellationToken cancellationToken)
+        {
+            var readBuffer = _tail.Memory;
+            var capacity = readBuffer.Length - _tailOffset;
+            if (capacity == 0)
+            {
+                Expand();
+                readBuffer = _tail.Memory;
+                capacity = readBuffer.Length;
+            }
+#if NETCOREAPP3_1_OR_GREATER
+            if (_tailOffset != 0) readBuffer = readBuffer.Slice(_tailOffset);
+            Debug.Assert(readBuffer.Length == capacity);
+            var pending = _source.ReadAsync(MemoryMarshal.AsMemory(readBuffer), cancellationToken);
+            if (!pending.IsCompletedSuccessfully) return Awaited(this, pending);
+#else
+            // we know it is an array; happy to explode weirdly otherwise!
+            MemoryMarshal.TryGetArray(readBuffer, out var segment);
+            var pending = _source.ReadAsync(segment.Array, segment.Offset + _tailOffset, capacity, cancellationToken);
+            if (pending.Status != TaskStatus.RanToCompletion) return Awaited(this, pending);
+#endif
+
+            // synchronous happy case
+            var bytes = pending.GetAwaiter().GetResult();
+            if (bytes > 0)
+            {
+                _tailOffset += bytes;
+                return new(true);
+            }
+            return default;
+
+            static async ValueTask<bool> Awaited(StreamRespSource @this,
+#if NETCOREAPP3_1_OR_GREATER
+                ValueTask<int> pending
+#else
+                Task<int> pending
+#endif
+                )
+            {
+                var bytes = await pending;
+                if (bytes > 0)
+                {
+                    @this._tailOffset += bytes;
+                    return true;
+                }
+                return false;
+            }
+        }
+
+        protected override long Scan(ref int count) => Scan(GetBuffered(), ref count);
+        protected override LeasedSequence<byte> Take(long consumed)
+        {
+            // semantically, we're going to AddRef on all the nodes in take, and then
+            // drop (and Dispose()) all nodes that we no longer need; but this means
+            // that the only shared segment is the first one (and only if there is data left),
+            // so we can manually check that one segment, rather than walk two chains
+            var all = GetBuffered();
+            var take = all.Slice(0, consumed);
+
+            var end = take.End;
+            var endSegment = (RefCountedSequenceSegment<byte>)end.GetObject()!;
+
+            if (end.GetInteger() < endSegment.Memory.Length)
+            {
+                // there is space on the last page; increment that counter,
+                // and reset to the last page
+                endSegment.AddRef();
+                _head = endSegment;
+                _headOffset = end.GetInteger();
+            }
+            else
+            {
+                // move to the next page
+                _headOffset = 0;
+                if (endSegment.Next is null)
+                {
+                    // reset completely
+                    _head = _tail = null!;
+                    Expand();
+                    _head = _tail;
+                }
+                else
+                {
+                    _head = (RefCountedSequenceSegment<byte>)endSegment.Next;
+                }
+            }
+            return new(take);
+        }
+    }
+}
 
 [Experimental(RespRequest.ExperimentalDiagnosticID)]
 public ref struct RespReader
@@ -33,9 +383,9 @@ public ref struct RespReader
     private ReadOnlySequence<byte>.Enumerator _chunks;
     private ReadOnlyMemory<byte> _bufferMemory;
     private int _bufferIndex, _bufferLength;
-    private byte _prefix;
-    public readonly long Position => _positionBase + _bufferIndex;
-    public readonly char Prefix => (char)_prefix;
+    private RespPrefix _prefix;
+    public readonly long BytesConsumed => _positionBase + _bufferIndex;
+    public readonly RespPrefix Prefix => _prefix;
 
     private int _currentOffset, _currentLength;
 
@@ -81,7 +431,7 @@ public ref struct RespReader
 
 #if NET7_0_OR_GREATER
     private ref byte _bufferRoot;
-    private byte PeekPrefix() => Unsafe.Add(ref _bufferRoot, _bufferIndex);
+    private RespPrefix PeekPrefix() => (RespPrefix)Unsafe.Add(ref _bufferRoot, _bufferIndex);
     private ReadOnlySpan<byte> PeekPastPrefix() => MemoryMarshal.CreateReadOnlySpan(
         ref Unsafe.Add(ref _bufferRoot, _bufferIndex + 1), _bufferLength - (_bufferIndex + 1));
     private void AssertCrlfPastPrefixUnsafe(int offset)
@@ -99,7 +449,7 @@ public ref struct RespReader
     }
 #else
     private ReadOnlySpan<byte> _bufferSpan;
-    private readonly byte PeekPrefix() => _bufferSpan[_bufferIndex];
+    private readonly RespPrefix PeekPrefix() => (RespPrefix)_bufferSpan[_bufferIndex];
     private readonly ReadOnlySpan<byte> PeekPastPrefix() => _bufferSpan.Slice(_bufferIndex + 1);
     private readonly void AssertCrlfPastPrefixUnsafe(int offset)
     {
@@ -148,6 +498,13 @@ public ref struct RespReader
     public readonly int Length => _currentLength;
     public readonly long LongLength => Length;
 
+    public readonly int ChildCount => Prefix switch
+    {
+        RespPrefix.Array or RespPrefix.Set or RespPrefix.Push => Length,
+        RespPrefix.Map /* or RespPrefix.Attribute */ => 2 * Length,
+        _ => 0,
+    };
+
     private static bool TryReadIntegerCrLf(ReadOnlySpan<byte> bytes, out int value, out int byteCount)
     {
         var end = bytes.IndexOf(CrLf);
@@ -183,12 +540,12 @@ public ref struct RespReader
         {
             switch (_prefix = PeekPrefix())
             {
-                case (byte)'+': // simple string
-                case (byte)'-': // simple error
-                case (byte)':': // integer
-                case (byte)'#': // boolean
-                case (byte)',': // double
-                case (byte)'(': // big number
+                case RespPrefix.SimpleString:
+                case RespPrefix.SimpleError:
+                case RespPrefix.Integer:
+                case RespPrefix.Boolean:
+                case RespPrefix.Double:
+                case RespPrefix.BigNumber:
                     // CRLF-terminated
                     int end = PeekPastPrefix().IndexOf(CrLf);
                     if (end < 0) break;
@@ -196,9 +553,9 @@ public ref struct RespReader
                     _currentLength = end - _bufferIndex;
                     _bufferIndex += _currentLength + 3;
                     return true;
-                case (byte)'!': // bulk error
-                case (byte)'$': // bulk string
-                case (byte)'=': // verbatim string
+                case RespPrefix.BulkError:
+                case RespPrefix.BulkString:
+                case RespPrefix.VerbatimString:
                     // length prefix with value payload
                     if (!TryReadIntegerCrLf(PeekPastPrefix(), out _currentLength, out int consumed)) break;
                     _currentOffset = _bufferIndex + 1 + consumed;
@@ -211,21 +568,24 @@ public ref struct RespReader
                     AssertCrlfPastPrefixUnsafe(consumed + _currentLength);
                     _bufferIndex += consumed + _currentLength + 3;
                     return true;
-                case (byte)'*': // array
-                case (byte)'~': // set
-                case (byte)'%': // map - watch out, count is double!
-                case (byte)'>': // push
+                case RespPrefix.Array:
+                case RespPrefix.Set:
+                case RespPrefix.Map:
+                case RespPrefix.Push:
                     // length prefix without value payload (child values follow)
                     if (!TryReadIntegerCrLf(PeekPastPrefix(), out _currentLength, out consumed)) break;
                     _ = IsNull(); // for validation/consistency
                     _bufferIndex += consumed + 1;
                     return true;
-                case (byte)'_': // null
+                case RespPrefix.Null: // null
                     // note we already checked we had 3 bytes
                     AssertCrlfPastPrefixUnsafe(0);
                     _currentOffset = _bufferIndex + 1;
                     _bufferIndex += 3;
                     return true;
+                default:
+                    ThrowProtocolFailure();
+                    return false;
             }
         }
         return ReadSlow();
@@ -249,6 +609,8 @@ public readonly struct OpaqueChunk : IEquatable<OpaqueChunk>
 {
     private readonly byte[] _buffer;
     private readonly int _preambleIndex, _payloadIndex, _totalBytes;
+
+    public long Length => _totalBytes;
 
     /// <summary>
     /// Compares 2 chunks for equality; note that this uses buffer reference equality - byte contents are not compared.
@@ -366,7 +728,7 @@ public ref struct Resp2Writer
     private ref byte _targetArrRoot;
     private readonly Span<byte> RemainingSpan => MemoryMarshal.CreateSpan(ref Unsafe.Add(ref _targetArrRoot, _targetIndex), _targetLength - _targetIndex);
     private readonly ref byte CurrentPosition => ref Unsafe.Add(ref _targetArrRoot, _targetIndex);
-    private void AppendUnsafe(char value)
+    private void AppendUnsafe(RespPrefix value)
     {
         Debug.Assert(_targetIndex < _targetLength);
         Unsafe.Add(ref _targetArrRoot, _targetIndex++) = (byte)value; // caller must ensure capacity
@@ -374,7 +736,7 @@ public ref struct Resp2Writer
 #else
     private readonly Span<byte> RemainingSpan => new(_targetArr, _targetIndex, _targetLength - _targetIndex);
     private readonly ref byte CurrentPosition => ref _targetArr[_targetIndex];
-    private void AppendUnsafe(char value)
+    private void AppendUnsafe(RespPrefix value)
     {
         Debug.Assert(_targetIndex < _targetLength);
         _targetArr[_targetIndex++] = (byte)value; // caller must ensure capacity
@@ -613,7 +975,7 @@ public ref struct Resp2Writer
         // ${cmdbytes}\r\n{cmd}\r\n
         // {other args}
 
-        AppendUnsafe('*');
+        AppendUnsafe(RespPrefix.Array);
         _targetIndex += WriteCountPrefix(argCount + 1, RemainingSpan);
         WriteValue(command);
         Debug.Assert(_argIndexIncludingCommand == 1);
@@ -662,7 +1024,7 @@ public ref struct Resp2Writer
         }
 
         EnsureAtLeast(EstimatePrefixSize((uint)value.Length));
-        AppendUnsafe('$');
+        AppendUnsafe(RespPrefix.BulkString);
         _targetIndex += WriteCountPrefix(value.Length, RemainingSpan);
 
         while (!value.IsEmpty)
