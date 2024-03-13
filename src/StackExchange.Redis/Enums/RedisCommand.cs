@@ -173,6 +173,7 @@ internal enum RedisCommand
     SORT,
     SORT_RO,
     SPOP,
+    SPUBLISH,
     SRANDMEMBER,
     SREM,
     STRLEN,
@@ -180,6 +181,8 @@ internal enum RedisCommand
     SUNION,
     SUNIONSTORE,
     SSCAN,
+    SSUBSCRIBE,
+    SUNSUBSCRIBE,
     SWAPDB,
     SYNC,
 
@@ -431,10 +434,13 @@ internal static class RedisCommandExtensions
             case RedisCommand.SMEMBERS:
             case RedisCommand.SMISMEMBER:
             case RedisCommand.SORT_RO:
+            case RedisCommand.SPUBLISH:
             case RedisCommand.SRANDMEMBER:
+            case RedisCommand.SSUBSCRIBE:
             case RedisCommand.STRLEN:
             case RedisCommand.SUBSCRIBE:
             case RedisCommand.SUNION:
+            case RedisCommand.SUNSUBSCRIBE:
             case RedisCommand.SSCAN:
             case RedisCommand.SYNC:
             case RedisCommand.TIME:
