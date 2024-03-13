@@ -63,7 +63,7 @@ StackExchange.Redis.Protocol.RespReader
 StackExchange.Redis.Protocol.RespReader.BytesConsumed.get -> long
 StackExchange.Redis.Protocol.RespReader.ChildCount.get -> int
 StackExchange.Redis.Protocol.RespReader.CopyTo(System.Span<byte> target) -> System.Span<byte>
-StackExchange.Redis.Protocol.RespReader.Is(System.ReadOnlySpan<byte> readOnlySpan) -> bool
+StackExchange.Redis.Protocol.RespReader.Is(System.ReadOnlySpan<byte> value) -> bool
 StackExchange.Redis.Protocol.RespReader.IsAggregate.get -> bool
 StackExchange.Redis.Protocol.RespReader.IsNull() -> bool
 StackExchange.Redis.Protocol.RespReader.Length.get -> int
@@ -76,7 +76,7 @@ StackExchange.Redis.Protocol.RespReader.RespReader(System.ReadOnlyMemory<byte> v
 StackExchange.Redis.Protocol.RespRequest
 StackExchange.Redis.Protocol.RespRequest.RespRequest() -> void
 StackExchange.Redis.Protocol.RespSource
-StackExchange.Redis.Protocol.RespSource.ReadNextAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<StackExchange.Redis.Protocol.LeasedSequence<byte>>
+StackExchange.Redis.Protocol.RespSource.ReadNextAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<StackExchange.Redis.Protocol.LeasedSequence<byte>>
 static StackExchange.Redis.Protocol.LeasedSequence<T>.implicit operator System.Buffers.ReadOnlySequence<T>(StackExchange.Redis.Protocol.LeasedSequence<T> value) -> System.Buffers.ReadOnlySequence<T>
 static StackExchange.Redis.Protocol.RespSource.Create(System.Buffers.ReadOnlySequence<byte> payload) -> StackExchange.Redis.Protocol.RespSource!
 static StackExchange.Redis.Protocol.RespSource.Create(System.IO.Stream! source) -> StackExchange.Redis.Protocol.RespSource!

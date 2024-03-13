@@ -1,6 +1,8 @@
 ﻿using StackExchange.Redis.Protocol;
 using System;
 using System.Buffers;
+using System.Text;
+using System.Threading.Tasks;
 using Xunit;
 #pragma warning disable SERED002
 using static StackExchange.Redis.Protocol.Resp2Writer;
@@ -17,7 +19,7 @@ public class ProtocolApiTests
         {
             obj.Write(ref writer);
             writer.AssertFullyWritten();
-            return writer.Commit();
+            return writer.Detach();
         }
         finally
         {
@@ -92,7 +94,7 @@ public class ProtocolApiTests
     [InlineData("", "*2\r\n$4\r\nping\r\n$0\r\n\r\n")]
     [InlineData("abc", "*2\r\n$4\r\nping\r\n$3\r\nabc\r\n")]
     [InlineData("aaaabbbbccccddddeeeeffffgggghhhhiiiijjjjkkkkllllmmmmnnnnooooppppqqqqrrrrssssttttuuuuvvvvwwwwxxxxyyyyzzzz", "*2\r\n$4\r\nping\r\n$104\r\naaaabbbbccccddddeeeeffffgggghhhhiiiijjjjkkkkllllmmmmnnnnooooppppqqqqrrrrssssttttuuuuvvvvwwwwxxxxyyyyzzzz\r\n")]
-    public void CustomPingWithSelectPreamble(string? value, string expected)
+    public async Task CustomPingWithSelectPreamble(string? value, string expected)
     {
         RequestBuffer chunk = CreatePingChunk(value, 64);
         try
@@ -112,6 +114,25 @@ public class ProtocolApiTests
             Assert.Throws<InvalidOperationException>(() => chunk.WithPreamble(Select4));
             Assert.Equal(before, chunk); // checking no side-effects
 
+
+            await using var source = RespSource.Create(chunk.GetBuffer());
+            using (var msg = await source.ReadNextAsync()) // select 4
+            {
+                Assert.Equal("*2\r\n$6\r\nselect\r\n$1\r\n4\r\n", GetString(msg));
+            }
+            using (var msg = await source.ReadNextAsync()) // select 4
+            {
+                Assert.Equal("*2\r\n$6\r\nselect\r\n$1\r\n4\r\n", GetString(msg));
+            }
+            using (var msg = await source.ReadNextAsync()) // ping
+            {
+                Assert.Equal(expected, GetString(msg));
+            }
+            using (var msg = await source.ReadNextAsync()) // natural EOF
+            {
+                Assert.Equal("", GetString(msg));
+            }
+
             // and take it away again
             chunk = chunk.WithoutPreamble();
             Assert.Equal(expected, chunk.ToString());
@@ -122,13 +143,19 @@ public class ProtocolApiTests
         }
     }
 
-    private static string GetHex(ReadOnlySpan<byte> span)
+    private static string GetString(ReadOnlySequence<byte> data)
     {
-        var arr = ArrayPool<byte>.Shared.Rent(span.Length);
-        span.CopyTo(arr);
-        var hex = BitConverter.ToString(arr, 0, span.Length);
+#if NET6_0_OR_GREATER
+        return Resp2Writer.UTF8.GetString(data);
+#else
+        var len = checked((int)data.Length);
+        if (len == 0) return "";
+        var arr = ArrayPool<byte>.Shared.Rent(len);
+        data.CopyTo(arr);
+        var result = Resp2Writer.UTF8.GetString(arr, 0, len);
         ArrayPool<byte>.Shared.Return(arr);
-        return hex;
+        return result;
+#endif
     }
 
     public class PingRequest : RespRequest
