@@ -8,6 +8,7 @@ using System.IO;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Runtime.Serialization;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -18,7 +19,7 @@ namespace StackExchange.Redis.Protocol;
 [Experimental(ExperimentalDiagnosticID)]
 public abstract class RespRequest
 {
-    internal const string ExperimentalDiagnosticID = "SERED001";
+    internal const string ExperimentalDiagnosticID = "SERED002";
     protected RespRequest() { }
     public abstract void Write(ref Resp2Writer writer);
 }
@@ -124,6 +125,12 @@ internal sealed class RefCountedSequenceSegment<T> : ReadOnlySequenceSegment<T>,
             ArrayPool<T>.Shared.Return(segment.Array);
         }
     }
+
+    internal new RefCountedSequenceSegment<T>? Next
+    {
+        get => (RefCountedSequenceSegment<T>?)base.Next;
+        set => base.Next = value;
+    }
 }
 
 public readonly struct LeasedSequence<T> : IDisposable
@@ -197,6 +204,17 @@ public readonly struct LeasedSequence<T> : IDisposable
     }
 }
 
+/// <summary>
+/// Abstract source of streaming RESP data; the implementation is responsible
+/// for retaining a back buffer of pending bytes, and exposing those bytes via <see cref="GetBuffer"/>;
+/// additional data is requested via <see cref="TryReadAsync(CancellationToken)"/>, and
+/// is consumed via <see cref="Take(long)"/>. The data returned from <see cref="Take(long)"/>
+/// can optionally be a chain of <see cref="SequenceSegment{T}"/> that additionally
+/// implement <see cref="IDisposable"/>, in which case the <see cref="LeasedSequence{T}"/>
+/// will dispose them appropriately (allowing for buffer pool scenarios). Note also that
+/// the buffer returned from <see cref="Take"/> does not need to be the same chain as
+/// used in <see cref="GetBuffer"/> - it is permitted to copy (etc) the data when consuming.
+/// </summary>
 [Experimental(RespRequest.ExperimentalDiagnosticID)]
 public abstract class RespSource : IAsyncDisposable
 {
@@ -206,49 +224,69 @@ public abstract class RespSource : IAsyncDisposable
         if (!source.CanRead) throw new ArgumentException("Source stream cannot be read", nameof(source));
         return new StreamRespSource(source);
     }
-    private protected RespSource() { }
 
-    /// <summary>
-    /// Reads messages (accumulating child messages), until
-    /// either the required number of messages have been read,
-    /// or until the data is exhausted; returns
-    /// the number of bytes consumed (up to the end of the
-    /// last complete message)
-    /// </summary>
-    protected static long Scan(ReadOnlySequence<byte> payload, ref int count)
-    {
-        var reader = new RespReader(payload);
-        while (count > 0 && reader.ReadNext())
-        {
-            count = count - 1 + reader.ChildCount;
-        }
-        return reader.BytesConsumed;
-    }
+    protected abstract ReadOnlySequence<byte> GetBuffer();
+
+    public static RespSource Create(ReadOnlySequence<byte> payload) => new InMemoryRespSource(payload);
+    public static RespSource Create(ReadOnlyMemory<byte> payload) => new InMemoryRespSource(new(payload));
+
+    private protected RespSource() { }
 
     protected abstract ValueTask<bool> TryReadAsync(CancellationToken cancellationToken);
 
-    protected abstract long Scan(ref int count);
+    // internal abstract long Scan(long skip, ref int count);
     public async ValueTask<LeasedSequence<byte>> ReadNextAsync(CancellationToken cancellationToken)
     {
         int pending = 1;
         long totalConsumed = 0;
-        while (pending != 0 && await TryReadAsync(cancellationToken))
+        while (pending != 0)
         {
-            var consumed = Scan(ref pending);
+            var consumed = Scan(GetBuffer().Slice(totalConsumed), ref pending);
             totalConsumed += consumed;
+
+            if (pending != 0 && !(await TryReadAsync(cancellationToken)))
+            {
+                throw new EndOfStreamException();
+            }
         }
-        if (pending != 0) throw new EndOfStreamException();
 
         var chunk = Take(totalConsumed);
         if (chunk.Length != totalConsumed) Throw();
-        return chunk;
+        return new(chunk);
 
         static void Throw() => throw new InvalidOperationException("Buffer length mismatch in " + nameof(ReadNextAsync));
+
+        // can't use ref-struct in async method
+        static long Scan(ReadOnlySequence<byte> payload, ref int count)
+        {
+            var reader = new RespReader(payload);
+            while (count > 0 && reader.ReadNext())
+            {
+                count = count - 1 + reader.ChildCount;
+            }
+            return reader.BytesConsumed;
+        }
     }
 
-    protected abstract LeasedSequence<byte> Take(long consumed);
+    protected abstract ReadOnlySequence<byte> Take(long bytes);
 
     public virtual ValueTask DisposeAsync() => default;
+
+    private sealed class InMemoryRespSource : RespSource
+    {
+        private ReadOnlySequence<byte> _remaining;
+        public InMemoryRespSource(ReadOnlySequence<byte> value)
+            => _remaining = value;
+
+        protected override ReadOnlySequence<byte> GetBuffer() => _remaining;
+        protected override ReadOnlySequence<byte> Take(long bytes)
+        {
+            var take = _remaining.Slice(0, bytes);
+            _remaining = _remaining.Slice(take.End);
+            return take;
+        }
+        protected override ValueTask<bool> TryReadAsync(CancellationToken cancellationToken) => default; // nothing more to get
+    }
 
     private sealed class StreamRespSource : RespSource
     {
@@ -264,11 +302,23 @@ public abstract class RespSource : IAsyncDisposable
             _head = _tail;
         }
 
-        private ReadOnlySequence<byte> GetBuffered() => new(_head, _headOffset, _tail, _tailOffset);
+        protected override ReadOnlySequence<byte> GetBuffer() => new(_head, _headOffset, _tail, _tailOffset);
 
 
 #if NETCOREAPP3_1_OR_GREATER
-        public override ValueTask DisposeAsync() => _source.DisposeAsync();
+        public override ValueTask DisposeAsync() {
+            var node = _head;
+            _head = _tail = null!;
+            _headOffset = _tailOffset = 0;
+            while (node is not null)
+            {
+                node.Dispose(); // release the memory
+                var tmp = node.Next;
+                node.Next = null; // break the chain
+                node = tmp;
+            }
+            return _source.DisposeAsync();
+        }
 #else
         public override ValueTask DisposeAsync()
         {
@@ -333,23 +383,26 @@ public abstract class RespSource : IAsyncDisposable
             }
         }
 
-        protected override long Scan(ref int count) => Scan(GetBuffered(), ref count);
-        protected override LeasedSequence<byte> Take(long consumed)
+        protected override ReadOnlySequence<byte> Take(long bytes)
         {
             // semantically, we're going to AddRef on all the nodes in take, and then
             // drop (and Dispose()) all nodes that we no longer need; but this means
             // that the only shared segment is the first one (and only if there is data left),
             // so we can manually check that one segment, rather than walk two chains
-            var all = GetBuffered();
-            var take = all.Slice(0, consumed);
+            var all = GetBuffer();
+            var take = all.Slice(0, bytes);
 
             var end = take.End;
             var endSegment = (RefCountedSequenceSegment<byte>)end.GetObject()!;
 
-            if (end.GetInteger() < endSegment.Memory.Length)
+            var bytesLeftLastPage = endSegment.Memory.Length - end.GetInteger();
+            if (bytesLeftLastPage != 0 && (
+                bytesLeftLastPage >= 64 // worth using for the next read, regardless
+                || endSegment.Next is not null // we've already allocated another page, which means this page is full
+                || _tailOffset != end.GetInteger() // (^^ final page) & we have additional read bytes
+                ))
             {
-                // there is space on the last page; increment that counter,
-                // and reset to the last page
+                // keep sharing the last page of the outbound / first page of retained
                 endSegment.AddRef();
                 _head = endSegment;
                 _headOffset = end.GetInteger();
@@ -360,17 +413,21 @@ public abstract class RespSource : IAsyncDisposable
                 _headOffset = 0;
                 if (endSegment.Next is null)
                 {
-                    // reset completely
+                    // no next page buffered; reset completely
+                    Debug.Assert(ReferenceEquals(endSegment, _tail));
                     _head = _tail = null!;
                     Expand();
                     _head = _tail;
                 }
                 else
                 {
-                    _head = (RefCountedSequenceSegment<byte>)endSegment.Next;
+                    // start fresh from the next page
+                    var next = endSegment.Next;
+                    endSegment.Next = null; // walk never needed
+                    _head = next;
                 }
             }
-            return new(take);
+            return take;
         }
     }
 }
@@ -389,8 +446,37 @@ public ref struct RespReader
 
     private int _currentOffset, _currentLength;
 
+    /// <summary>
+    /// Returns as much data as possible into the buffer, ignoring
+    /// any data that cannot fit into <paramref name="target"/>, and
+    /// returning the segment representing copied data.
+    /// </summary>
+    public readonly Span<byte> CopyTo(Span<byte> target)
+    {
+        if (IsAggregate) return default; // only possible for scalars
+        if (TryGetValueSpan(out var source))
+        {
+            if (source.Length > target.Length)
+            {
+                source = source.Slice(0, target.Length);
+            }
+            else if (source.Length < target.Length)
+            {
+                target = target.Slice(0, source.Length);
+            }
+            source.CopyTo(target);
+            return target;
+        }
+        throw new NotImplementedException();
+    }
+
     internal readonly bool TryGetValueSpan(out ReadOnlySpan<byte> span)
     {
+        if (IsAggregate)
+        {
+            span = default;
+            return false; // only possible for scalars
+        }
         if (_currentOffset < 0) Throw();
         if (_currentLength == 0)
         {
@@ -500,9 +586,16 @@ public ref struct RespReader
 
     public readonly int ChildCount => Prefix switch
     {
+        _ when Length <= 0 => 0, // null arrays don't have -1 child-elements; might as well handle zero here too
         RespPrefix.Array or RespPrefix.Set or RespPrefix.Push => Length,
         RespPrefix.Map /* or RespPrefix.Attribute */ => 2 * Length,
         _ => 0,
+    };
+
+    public readonly bool IsAggregate => Prefix switch
+    {
+        RespPrefix.Array or RespPrefix.Set or RespPrefix.Map or RespPrefix.Push => true,
+        _ => false,
     };
 
     private static bool TryReadIntegerCrLf(ReadOnlySpan<byte> bytes, out int value, out int byteCount)
@@ -601,6 +694,9 @@ public ref struct RespReader
         }
         throw new NotImplementedException(); // multi-segment parsing
     }
+
+    /// <summary>Performs a byte-wise equality check on the payload</summary>
+    public bool Is(ReadOnlySpan<byte> readOnlySpan) => throw new NotImplementedException();
 }
 
 [Experimental(RespRequest.ExperimentalDiagnosticID)]

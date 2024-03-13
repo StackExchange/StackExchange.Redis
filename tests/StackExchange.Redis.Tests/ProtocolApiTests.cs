@@ -2,7 +2,7 @@
 using System;
 using System.Buffers;
 using Xunit;
-#pragma warning disable SERED001
+#pragma warning disable SERED002
 using static StackExchange.Redis.Protocol.Resp2Writer;
 namespace StackExchange.Redis.Tests;
 

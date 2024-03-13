@@ -68,6 +68,9 @@ StackExchange.Redis.Protocol.RespPrefix.VerbatimString = 61 -> StackExchange.Red
 StackExchange.Redis.Protocol.RespReader
 StackExchange.Redis.Protocol.RespReader.BytesConsumed.get -> long
 StackExchange.Redis.Protocol.RespReader.ChildCount.get -> int
+StackExchange.Redis.Protocol.RespReader.CopyTo(System.Span<byte> target) -> System.Span<byte>
+StackExchange.Redis.Protocol.RespReader.Is(System.ReadOnlySpan<byte> readOnlySpan) -> bool
+StackExchange.Redis.Protocol.RespReader.IsAggregate.get -> bool
 StackExchange.Redis.Protocol.RespReader.IsNull() -> bool
 StackExchange.Redis.Protocol.RespReader.Length.get -> int
 StackExchange.Redis.Protocol.RespReader.LongLength.get -> long
@@ -88,5 +91,7 @@ static StackExchange.Redis.Protocol.Resp2Writer.EstimateSize(scoped System.ReadO
 static StackExchange.Redis.Protocol.Resp2Writer.EstimateSize(string! value) -> int
 static StackExchange.Redis.Protocol.Resp2Writer.EstimateSize(uint value) -> int
 static StackExchange.Redis.Protocol.Resp2Writer.EstimateSize(ulong value) -> int
+static StackExchange.Redis.Protocol.RespSource.Create(System.Buffers.ReadOnlySequence<byte> payload) -> StackExchange.Redis.Protocol.RespSource!
 static StackExchange.Redis.Protocol.RespSource.Create(System.IO.Stream! source) -> StackExchange.Redis.Protocol.RespSource!
+static StackExchange.Redis.Protocol.RespSource.Create(System.ReadOnlyMemory<byte> payload) -> StackExchange.Redis.Protocol.RespSource!
 virtual StackExchange.Redis.Protocol.RespSource.DisposeAsync() -> System.Threading.Tasks.ValueTask
