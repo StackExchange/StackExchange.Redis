@@ -254,4 +254,118 @@ public class OverloadCompatTests : TestBase
         await db.StringSetAsync(key, val, null, When.NotExists);
         await db.StringSetAsync(key, val, null, When.NotExists, flags);
     }
+
+    [Fact]
+    public async Task ScriptEvaluate()
+    {
+        using var conn = Create();
+        var db = conn.GetDatabase();
+        var key = Me();
+
+        RedisKey[] keyArr = Array.Empty<RedisKey>();
+        ReadOnlyMemory<RedisKey> keyRom = keyArr;
+
+        RedisValue[] valueArr= Array.Empty<RedisValue>();
+        ReadOnlyMemory<RedisValue> valueRom = valueArr;
+
+        const string script = "return 0";
+
+        // sync
+
+        db.ScriptEvaluate(script);
+        db.ScriptEvaluate(script, keyArr);
+        db.ScriptEvaluate(script, keyRom);
+        // db.ScriptEvaluate(script, default); // BOOM
+        // db.ScriptEvaluate(script, null); // BOOM
+        db.ScriptEvaluate(script, (RedisKey)default);
+        db.ScriptEvaluate(script, (RedisKey[]?)null);
+        db.ScriptEvaluate(script, (ReadOnlyMemory<RedisKey>)null);
+        db.ScriptEvaluate(script, (RedisKey[]?)default);
+        db.ScriptEvaluate(script, (ReadOnlyMemory<RedisKey>)default);
+        db.ScriptEvaluate(script, (RedisKey)default);
+        db.ScriptEvaluate(script, default(RedisKey[]?));
+        db.ScriptEvaluate(script, default(RedisKey));
+        db.ScriptEvaluate(script, default(ReadOnlyMemory<RedisKey>));
+
+        db.ScriptEvaluate(script, values: valueArr);
+        db.ScriptEvaluate(script, keyArr, values: valueArr);
+        db.ScriptEvaluate(script, keyRom, values: valueArr);
+        db.ScriptEvaluate(script, null, values: valueArr);
+        db.ScriptEvaluate(script, default, values: valueArr);
+
+        db.ScriptEvaluate(script, keyArr, values: valueRom);
+        db.ScriptEvaluate(script, keyRom, values: valueRom);
+        // db.ScriptEvaluate(script, default, values: valueRom); // BOOM
+        // db.ScriptEvaluate(script, null, values: valueRom); // BOOM
+        db.ScriptEvaluate(script, (RedisKey)default, values: valueRom);
+        db.ScriptEvaluate(script, (RedisKey[]?)null, values: valueRom);
+        db.ScriptEvaluate(script, (ReadOnlyMemory<RedisKey>)null, values: valueRom);
+        db.ScriptEvaluate(script, (RedisKey[]?)default, values: valueRom);
+        db.ScriptEvaluate(script, (ReadOnlyMemory<RedisKey>)default, values: valueRom);
+        db.ScriptEvaluate(script, (RedisKey)default, values: valueRom);
+        db.ScriptEvaluate(script, default(RedisKey[]?), values: valueRom);
+        db.ScriptEvaluate(script, default(RedisKey), values: valueRom);
+        db.ScriptEvaluate(script, default(ReadOnlyMemory<RedisKey>), values: valueRom);
+
+        db.ScriptEvaluate(script, values: null);
+        db.ScriptEvaluate(script, keyArr, values: null);
+        db.ScriptEvaluate(script, keyRom, values: null);
+        db.ScriptEvaluate(script, null, values: null);
+        db.ScriptEvaluate(script, default, values: null);
+
+        db.ScriptEvaluate(script, values: default);
+        db.ScriptEvaluate(script, keyArr, values: default);
+        db.ScriptEvaluate(script, keyRom, values: default);
+        db.ScriptEvaluate(script, null, values: default);
+        db.ScriptEvaluate(script, default, values: default);
+
+        // async
+
+        await db.ScriptEvaluateAsync(script);
+        await db.ScriptEvaluateAsync(script, keyArr);
+        await db.ScriptEvaluateAsync(script, keyRom);
+        // await db.ScriptEvaluateAsync(script, default); // BOOM
+        // await db.ScriptEvaluateAsync(script, null); // BOOM
+        await db.ScriptEvaluateAsync(script, (RedisKey)default);
+        await db.ScriptEvaluateAsync(script, (RedisKey[]?)null);
+        await db.ScriptEvaluateAsync(script, (ReadOnlyMemory<RedisKey>)null);
+        await db.ScriptEvaluateAsync(script, (RedisKey[]?)default);
+        await db.ScriptEvaluateAsync(script, (ReadOnlyMemory<RedisKey>)default);
+        await db.ScriptEvaluateAsync(script, (RedisKey)default);
+        await db.ScriptEvaluateAsync(script, default(RedisKey[]?));
+        await db.ScriptEvaluateAsync(script, default(RedisKey));
+        await db.ScriptEvaluateAsync(script, default(ReadOnlyMemory<RedisKey>));
+
+        await db.ScriptEvaluateAsync(script, values: valueArr);
+        await db.ScriptEvaluateAsync(script, keyArr, values: valueArr);
+        await db.ScriptEvaluateAsync(script, keyRom, values: valueArr);
+        await db.ScriptEvaluateAsync(script, null, values: valueArr);
+        await db.ScriptEvaluateAsync(script, default, values: valueArr);
+
+        await db.ScriptEvaluateAsync(script, keyArr, values: valueRom);
+        await db.ScriptEvaluateAsync(script, keyRom, values: valueRom);
+        // await db.ScriptEvaluateAsync(script, default, values: valueRom); // BOOM
+        // await db.ScriptEvaluateAsync(script, null, values: valueRom); // BOOM
+        await db.ScriptEvaluateAsync(script, (RedisKey)default, values: valueRom);
+        await db.ScriptEvaluateAsync(script, (RedisKey[]?)null, values: valueRom);
+        await db.ScriptEvaluateAsync(script, (ReadOnlyMemory<RedisKey>)null, values: valueRom);
+        await db.ScriptEvaluateAsync(script, (RedisKey[]?)default, values: valueRom);
+        await db.ScriptEvaluateAsync(script, (ReadOnlyMemory<RedisKey>)default, values: valueRom);
+        await db.ScriptEvaluateAsync(script, (RedisKey)default, values: valueRom);
+        await db.ScriptEvaluateAsync(script, default(RedisKey[]?), values: valueRom);
+        await db.ScriptEvaluateAsync(script, default(RedisKey), values: valueRom);
+        await db.ScriptEvaluateAsync(script, default(ReadOnlyMemory<RedisKey>), values: valueRom);
+
+        await db.ScriptEvaluateAsync(script, values: null);
+        await db.ScriptEvaluateAsync(script, keyArr, values: null);
+        await db.ScriptEvaluateAsync(script, keyRom, values: null);
+        await db.ScriptEvaluateAsync(script, null, values: null);
+        await db.ScriptEvaluateAsync(script, default, values: null);
+
+        await db.ScriptEvaluateAsync(script, values: default);
+        await db.ScriptEvaluateAsync(script, keyArr, values: default);
+        await db.ScriptEvaluateAsync(script, keyRom, values: default);
+        await db.ScriptEvaluateAsync(script, null, values: default);
+        await db.ScriptEvaluateAsync(script, default, values: default);
+    }
 }

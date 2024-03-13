@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
@@ -332,9 +333,31 @@ namespace StackExchange.Redis.KeyspaceIsolation
             // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
             Inner.ScriptEvaluateAsync(hash, ToInner(keys), values, flags);
 
-        public Task<RedisResult> ScriptEvaluateAsync(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None) =>
-            // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
-            Inner.ScriptEvaluateAsync(script, ToInner(keys), values, flags);
+        public Task<RedisResult> ScriptEvaluateAsync(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
+        {   // note we may end up using the memory overloads to enable better pooling etc usage
+            if (keys is null || keys.Length == 0) return Inner.ScriptEvaluateAsync(script, keys, values, flags);
+            if (keys.Length == 1) return Inner.ScriptEvaluateAsync(script, ToInner(keys[0]), values, flags);
+            if ((flags & CommandFlags.FireAndForget) != 0) return Inner.ScriptEvaluateAsync(script, ToInnerCopy(keys), values, flags);
+            return Lease_ScriptEvaluateAsync(script, keys, values, flags);
+        }
+
+        public Task<RedisResult> ScriptEvaluateAsync(string script, RedisKey key, ReadOnlyMemory<RedisValue> values = default, CommandFlags flags = CommandFlags.None) =>
+            Inner.ScriptEvaluateAsync(script, ToInner(key), values, flags);
+
+        public Task<RedisResult> ScriptEvaluateAsync(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values = default, CommandFlags flags = CommandFlags.None)
+        {
+            if (keys.Length == 0) return Inner.ScriptEvaluateAsync(script, keys, values, flags);
+            if (keys.Length == 1) return Inner.ScriptEvaluateAsync(script, ToInner(keys.Span[0]), values, flags);
+            if ((flags & CommandFlags.FireAndForget) != 0) return Inner.ScriptEvaluateAsync(script, ToInnerCopy(keys), values, flags);
+            return Lease_ScriptEvaluateAsync(script, keys, values, flags);
+        }
+
+        private async Task<RedisResult> Lease_ScriptEvaluateAsync(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
+        {
+            var result = await Inner.ScriptEvaluateAsync(script, ToInnerLease(keys, out var lease), values, flags);
+            ArrayPool<RedisKey>.Shared.Return(lease); // happy to only recycle on success
+            return result;
+        }
 
         public Task<RedisResult> ScriptEvaluateAsync(LuaScript script, object? parameters = null, CommandFlags flags = CommandFlags.None) =>
             // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
@@ -346,11 +369,61 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public Task<RedisResult> ScriptEvaluateReadOnlyAsync(byte[] hash, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None) =>
             // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
-            Inner.ScriptEvaluateAsync(hash, ToInner(keys), values, flags);
+            Inner.ScriptEvaluateReadOnlyAsync(hash, ToInner(keys), values, flags);
 
-        public Task<RedisResult> ScriptEvaluateReadOnlyAsync(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None) =>
-            // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
-            Inner.ScriptEvaluateAsync(script, ToInner(keys), values, flags);
+        public Task<RedisResult> ScriptEvaluateReadOnlyAsync(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
+        {   // note we may end up using the memory overloads to enable better pooling etc usage
+            if (keys is null || keys.Length == 0) return Inner.ScriptEvaluateReadOnlyAsync(script, keys, values, flags);
+            if (keys.Length == 1) return Inner.ScriptEvaluateReadOnlyAsync(script, ToInner(keys[0]), values, flags);
+            if ((flags & CommandFlags.FireAndForget) != 0) return Inner.ScriptEvaluateReadOnlyAsync(script, ToInnerCopy(keys), values, flags);
+            return Lease_ScriptEvaluateReadOnlyAsync(script, keys, values, flags);
+        }
+
+        public Task<RedisResult> ScriptEvaluateReadOnlyAsync(string script, RedisKey key, ReadOnlyMemory<RedisValue> values = default, CommandFlags flags = CommandFlags.None) =>
+            Inner.ScriptEvaluateReadOnlyAsync(script, ToInner(key), values, flags);
+
+        public Task<RedisResult> ScriptEvaluateReadOnlyAsync(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values = default, CommandFlags flags = CommandFlags.None)
+        {
+            if (keys.Length == 0) return Inner.ScriptEvaluateReadOnlyAsync(script, keys, values, flags);
+            if (keys.Length == 1) return Inner.ScriptEvaluateReadOnlyAsync(script, ToInner(keys.Span[0]), values, flags);
+            if ((flags & CommandFlags.FireAndForget) != 0) return Inner.ScriptEvaluateReadOnlyAsync(script, ToInnerCopy(keys), values, flags);
+            return Lease_ScriptEvaluateReadOnlyAsync(script, keys, values, flags);
+        }
+
+        private async Task<RedisResult> Lease_ScriptEvaluateReadOnlyAsync(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags)
+        {
+            var result = await Inner.ScriptEvaluateReadOnlyAsync(script, ToInnerLease(keys, out var lease), values, flags);
+            ArrayPool<RedisKey>.Shared.Return(lease); // happy to only recycle on success
+            return result;
+        }
+
+        protected ReadOnlyMemory<RedisKey> ToInnerCopy(ReadOnlyMemory<RedisKey> keys)
+        {
+            if (keys.Length == 0) return default;
+            var arr = new RedisKey[keys.Length];
+            ToInner(keys, arr);
+            return arr;
+        }
+
+        protected ReadOnlyMemory<RedisKey> ToInnerLease(ReadOnlyMemory<RedisKey> keys, out RedisKey[] lease)
+        {
+            if (keys.Length == 0)
+            {
+                lease = Array.Empty<RedisKey>();
+                return default;
+            }
+            lease = ArrayPool<RedisKey>.Shared.Rent(keys.Length);
+            return new ReadOnlyMemory<RedisKey>(lease, 0, ToInner(keys, lease));
+        }
+        private int ToInner(ReadOnlyMemory<RedisKey> from, RedisKey[] arr)
+        {
+            int i = 0;
+            foreach (ref readonly var key in from.Span)
+            {
+                arr[i++] = ToInner(key);
+            }
+            return i;
+        }
 
         public Task<long> SetAddAsync(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None) =>
             Inner.SetAddAsync(ToInner(key), values, flags);
@@ -734,10 +807,10 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public void WaitAll(params Task[] tasks) =>
             Inner.WaitAll(tasks);
 
-        protected internal RedisKey ToInner(RedisKey outer) =>
+        protected internal RedisKey ToInner(in RedisKey outer) =>
             RedisKey.WithPrefix(Prefix, outer);
 
-        protected RedisKey ToInnerOrDefault(RedisKey outer) =>
+        protected RedisKey ToInnerOrDefault(in RedisKey outer) =>
             (outer == default(RedisKey)) ? outer : ToInner(outer);
 
         [return: NotNullIfNotNull("args")]
@@ -850,6 +923,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
         private Func<RedisKey, RedisKey>? mapFunction;
         protected Func<RedisKey, RedisKey> GetMapFunction() =>
             // create as a delegate when first required, then re-use
-            mapFunction ??= new Func<RedisKey, RedisKey>(ToInner);
+            mapFunction ??= CreateMapFunction(); // avoid inlining this because of capture scopes etc
+
+        private Func<RedisKey, RedisKey> CreateMapFunction() => ToInnerNoRef;
+        private RedisKey ToInnerNoRef(RedisKey value) => ToInner(value);
     }
 }
