@@ -291,76 +291,51 @@ public abstract class RespSource : IAsyncDisposable
     private sealed class StreamRespSource : RespSource
     {
         private readonly Stream _source;
-        private RefCountedSequenceSegment<byte> _head, _tail;
-        private readonly int _bufferSize;
-        private int _headOffset, _tailOffset;
-        internal StreamRespSource(Stream source, int bufferSize = 64 * 1024)
+
+        private RotatingBufferCore _buffer;
+        internal StreamRespSource(Stream source, int blockSize = 64 * 1024)
         {
-            _bufferSize = Math.Max(1024, bufferSize);
+            _buffer = new(Math.Max(1024, blockSize));
             _source = source;
-            Expand();
-            _head = _tail;
         }
 
-        protected override ReadOnlySequence<byte> GetBuffer() => new(_head, _headOffset, _tail, _tailOffset);
+        protected override ReadOnlySequence<byte> GetBuffer() => _buffer.GetBuffer();
 
 
 #if NETCOREAPP3_1_OR_GREATER
         public override ValueTask DisposeAsync() {
-            var node = _head;
-            _head = _tail = null!;
-            _headOffset = _tailOffset = 0;
-            while (node is not null)
-            {
-                node.Dispose(); // release the memory
-                var tmp = node.Next;
-                node.Next = null; // break the chain
-                node = tmp;
-            }
+            _buffer.Dispose();
             return _source.DisposeAsync();
         }
 #else
         public override ValueTask DisposeAsync()
         {
+            _buffer.Dispose();
             _source.Dispose();
             return default;
         }
 #endif
-
-        [MemberNotNull(nameof(_tail))]
-        private void Expand()
-        {
-            var next = new RefCountedSequenceSegment<byte>(_bufferSize, _tail);
-            _tail = next;
-            _tailOffset = 0;
-        }
         protected override ValueTask<bool> TryReadAsync(CancellationToken cancellationToken)
         {
-            var readBuffer = _tail.Memory;
-            var capacity = readBuffer.Length - _tailOffset;
-            if (capacity == 0)
-            {
-                Expand();
-                readBuffer = _tail.Memory;
-                capacity = readBuffer.Length;
-            }
+            var readBuffer = _buffer.GetWritableTail();
+            Debug.Assert(!readBuffer.IsEmpty, "should have space");
 #if NETCOREAPP3_1_OR_GREATER
-            if (_tailOffset != 0) readBuffer = readBuffer.Slice(_tailOffset);
-            Debug.Assert(readBuffer.Length == capacity);
-            var pending = _source.ReadAsync(MemoryMarshal.AsMemory(readBuffer), cancellationToken);
+            var pending = _source.ReadAsync(readBuffer, cancellationToken);
             if (!pending.IsCompletedSuccessfully) return Awaited(this, pending);
 #else
             // we know it is an array; happy to explode weirdly otherwise!
-            MemoryMarshal.TryGetArray(readBuffer, out var segment);
-            var pending = _source.ReadAsync(segment.Array, segment.Offset + _tailOffset, capacity, cancellationToken);
+            if (!MemoryMarshal.TryGetArray<byte>(readBuffer, out var segment)) ThrowNotArray();
+            var pending = _source.ReadAsync(segment.Array, segment.Offset, segment.Count, cancellationToken);
             if (pending.Status != TaskStatus.RanToCompletion) return Awaited(this, pending);
+
+            static void ThrowNotArray() => throw new InvalidOperationException("Unable to obtain array from tail buffer");
 #endif
 
             // synchronous happy case
             var bytes = pending.GetAwaiter().GetResult();
             if (bytes > 0)
             {
-                _tailOffset += bytes;
+                _buffer.Commit(bytes);
                 return new(true);
             }
             return default;
@@ -376,59 +351,14 @@ public abstract class RespSource : IAsyncDisposable
                 var bytes = await pending;
                 if (bytes > 0)
                 {
-                    @this._tailOffset += bytes;
+                    @this._buffer.Commit(bytes);
                     return true;
                 }
                 return false;
             }
         }
 
-        protected override ReadOnlySequence<byte> Take(long bytes)
-        {
-            // semantically, we're going to AddRef on all the nodes in take, and then
-            // drop (and Dispose()) all nodes that we no longer need; but this means
-            // that the only shared segment is the first one (and only if there is data left),
-            // so we can manually check that one segment, rather than walk two chains
-            var all = GetBuffer();
-            var take = all.Slice(0, bytes);
-
-            var end = take.End;
-            var endSegment = (RefCountedSequenceSegment<byte>)end.GetObject()!;
-
-            var bytesLeftLastPage = endSegment.Memory.Length - end.GetInteger();
-            if (bytesLeftLastPage != 0 && (
-                bytesLeftLastPage >= 64 // worth using for the next read, regardless
-                || endSegment.Next is not null // we've already allocated another page, which means this page is full
-                || _tailOffset != end.GetInteger() // (^^ final page) & we have additional read bytes
-                ))
-            {
-                // keep sharing the last page of the outbound / first page of retained
-                endSegment.AddRef();
-                _head = endSegment;
-                _headOffset = end.GetInteger();
-            }
-            else
-            {
-                // move to the next page
-                _headOffset = 0;
-                if (endSegment.Next is null)
-                {
-                    // no next page buffered; reset completely
-                    Debug.Assert(ReferenceEquals(endSegment, _tail));
-                    _head = _tail = null!;
-                    Expand();
-                    _head = _tail;
-                }
-                else
-                {
-                    // start fresh from the next page
-                    var next = endSegment.Next;
-                    endSegment.Next = null; // walk never needed
-                    _head = next;
-                }
-            }
-            return take;
-        }
+        protected override ReadOnlySequence<byte> Take(long bytes) => _buffer.Take(bytes);
     }
 }
 
@@ -701,51 +631,43 @@ public ref struct RespReader
 
 [Experimental(RespRequest.ExperimentalDiagnosticID)]
 [SuppressMessage("Usage", "CA2231:Overload operator equals on overriding value type Equals", Justification = "API not necessary here")]
-public readonly struct OpaqueChunk : IEquatable<OpaqueChunk>
+public readonly struct RequestBuffer
 {
-    private readonly byte[] _buffer;
-    private readonly int _preambleIndex, _payloadIndex, _totalBytes;
+    private readonly ReadOnlySequence<byte> _buffer;
+    private readonly int _preambleIndex, _payloadIndex;
 
-    public long Length => _totalBytes;
+    public long Length => _buffer.Length - _preambleIndex;
 
-    /// <summary>
-    /// Compares 2 chunks for equality; note that this uses buffer reference equality - byte contents are not compared.
-    /// </summary>
-    public bool Equals(OpaqueChunk other)
-        => ReferenceEquals(_buffer, other._buffer) && _payloadIndex == other._payloadIndex
-        && _preambleIndex == other._preambleIndex && _totalBytes == other._totalBytes;
-
-    /// <inheritdoc cref="Equals(OpaqueChunk)"/>
-    public override bool Equals([NotNullWhen(true)] object? obj) => obj is OpaqueChunk other && Equals(other);
-
-    /// <inheritdoc/>
-    public override int GetHashCode() => RuntimeHelpers.GetHashCode(_buffer) ^ _preambleIndex ^ _payloadIndex ^ _totalBytes;
-
-    private OpaqueChunk(byte[] buffer, int preambleIndex, int payloadIndex, int totalBytes)
+    private RequestBuffer(ReadOnlySequence<byte> buffer, int preambleIndex, int payloadIndex)
     {
         _buffer = buffer;
         _preambleIndex = preambleIndex;
         _payloadIndex = payloadIndex;
-        _totalBytes = totalBytes;
     }
 
-    internal OpaqueChunk(byte[] buffer, int payloadIndex, int totalBytes)
+    internal RequestBuffer(ReadOnlySequence<byte> buffer, int payloadIndex)
     {
         _buffer = buffer;
         _preambleIndex = _payloadIndex = payloadIndex;
-        _totalBytes = totalBytes;
     }
 
     public bool TryGetSpan(out ReadOnlySpan<byte> span)
     {
-        span = _totalBytes == 0 ? default : new(_buffer, _preambleIndex, _totalBytes);
-        return true;
+        var buffer = GetBuffer(); // handle preamble
+        if (buffer.IsSingleSegment)
+        {
+#if NETCOREAPP3_1_OR_GREATER
+            span = buffer.FirstSpan;
+#else
+            span = buffer.First.Span;
+#endif
+            return true;
+        }
+        span = default;
+        return false;
     }
 
-    public ReadOnlySequence<byte> GetBuffer()
-    {
-        return _totalBytes == 0 ? default : new(_buffer, _preambleIndex, _totalBytes);
-    }
+    public ReadOnlySequence<byte> GetBuffer() => _preambleIndex == 0 ? _buffer : _buffer.Slice(_preambleIndex);
 
     /// <summary>
     /// Gets a text (UTF8) representation of the RESP payload; this API is intended for debugging purposes only, and may
@@ -753,22 +675,26 @@ public readonly struct OpaqueChunk : IEquatable<OpaqueChunk>
     /// </summary>
     public override string ToString()
     {
-        if (!TryGetSpan(out var span))
+        var length = Length;
+        if (length == 0) return "";
+        if (length > 128) return $"({length} bytes)";
+        var buffer = GetBuffer();
+#if NET6_0_OR_GREATER
+        return Resp2Writer.UTF8.GetString(buffer);
+#elif NETCOREAPP3_0_OR_GREATER
+        if (buffer.IsSingleSegment)
         {
-            return nameof(OpaqueChunk);
+            return Resp2Writer.UTF8.GetString(buffer.FirstSpan);
         }
-        if (span.Length == 0) return "";
-
-#if NETCOREAPP3_1_OR_GREATER
-        return Resp2Writer.UTF8.GetString(span);
+        Span<byte> tmp = stackalloc byte[(int)length];
+        buffer.CopyTo(tmp);
+        return Resp2Writer.UTF8.GetString(tmp);
 #else
-        unsafe
-        {
-            fixed (byte* ptr = span)
-            {
-                return Resp2Writer.UTF8.GetString(ptr, span.Length);
-            }
-        }
+        var arr = ArrayPool<byte>.Shared.Rent((int)length);
+        buffer.CopyTo(arr);
+        var s = Resp2Writer.UTF8.GetString(arr, 0, (int)length);
+        ArrayPool<byte>.Shared.Return(arr);
+        return s;
 #endif
     }
 
@@ -780,232 +706,106 @@ public readonly struct OpaqueChunk : IEquatable<OpaqueChunk>
         var buffer = _buffer;
         // nuke self (best effort to prevent multi-release)
         Unsafe.AsRef(in this) = default;
-        if (buffer is not null)
-        {
-            ArrayPool<byte>.Shared.Return(buffer);
-        }
+        new LeasedSequence<byte>(buffer).Dispose();
     }
 
     /// <summary>
     /// Prepends the given preamble contents 
     /// </summary>
-    public OpaqueChunk WithPreamble(ReadOnlySpan<byte> value)
+    public RequestBuffer WithPreamble(ReadOnlySpan<byte> value)
     {
-        int length = value.Length, newStart = _preambleIndex - length;
-        if (newStart < 0) Throw();
-        value.CopyTo(new(_buffer, newStart, length));
-        return new(_buffer, newStart, _payloadIndex, _totalBytes + length);
+        if (value.IsEmpty) return this; // trivial
+
+        int length = value.Length, preambleIndex = _preambleIndex - length;
+        if (preambleIndex < 0) Throw();
+        var target = _buffer.Slice(preambleIndex, length);
+        if (target.IsSingleSegment)
+        {
+#if NETCOREAPP3_1_OR_GREATER
+            value.CopyTo(MemoryMarshal.AsMemory(target.First).Span);
+#endif
+        }
+        else
+        {
+            MultiCopy(in target, value);
+        }
+        return new(_buffer,  preambleIndex, _payloadIndex);
 
         static void Throw() => throw new InvalidOperationException("There is insufficient capacity to add the requested preamble");
+
+        static void MultiCopy(in ReadOnlySequence<byte> buffer, ReadOnlySpan<byte> source)
+        {
+            // note that we've already asserted that the source is non-trivial
+            var iter = buffer.GetEnumerator();
+            while (iter.MoveNext())
+            {
+                var target = MemoryMarshal.AsMemory(iter.Current).Span;
+                if (source.Length <= target.Length)
+                {
+                    source.CopyTo(target);
+                    return;
+                }
+                source.Slice(0, target.Length).CopyTo(target);
+                source = source.Slice(target.Length);
+                Debug.Assert(!source.IsEmpty);
+            }
+            Debug.Assert(!source.IsEmpty);
+            Throw();
+            static void Throw() => throw new InvalidOperationException("Insufficient target space");
+        }
     }
 
     /// <summary>
     /// Removes all preamble, reverting to just the original payload
     /// </summary>
-    public OpaqueChunk WithoutPreamble() => new OpaqueChunk(_buffer, _payloadIndex, _totalBytes - (_payloadIndex - _preambleIndex));
+    public RequestBuffer WithoutPreamble() => new RequestBuffer(_buffer, _payloadIndex, _payloadIndex);
 }
 
 [Experimental(RespRequest.ExperimentalDiagnosticID)]
-[SuppressMessage("CodeQuality", "IDE0064:Make readonly fields writable", Justification = "Defensive")]
 public ref struct Resp2Writer
 {
-    private byte[] _targetArr;
+    private RotatingBufferCore _buffer;
     private readonly int _preambleReservation;
-    private int _targetIndex, _targetLength, _argCountIncludingCommand, _argIndexIncludingCommand;
+    private int _argCountIncludingCommand, _argIndexIncludingCommand;
 
-    public Resp2Writer(int preambleReservation)
+    public Resp2Writer(int preambleReservation = 64, int blockSize = 1024)
     {
-        _targetIndex = _targetLength = _preambleReservation = preambleReservation;
+        _preambleReservation = preambleReservation;
         _argCountIncludingCommand = _argIndexIncludingCommand = 0;
-        _targetArr = [];
+        _buffer = new(blockSize);
     }
 
-#if NET7_0_OR_GREATER
-    private ref byte _targetArrRoot;
-    private readonly Span<byte> RemainingSpan => MemoryMarshal.CreateSpan(ref Unsafe.Add(ref _targetArrRoot, _targetIndex), _targetLength - _targetIndex);
-    private readonly ref byte CurrentPosition => ref Unsafe.Add(ref _targetArrRoot, _targetIndex);
-    private void AppendUnsafe(RespPrefix value)
-    {
-        Debug.Assert(_targetIndex < _targetLength);
-        Unsafe.Add(ref _targetArrRoot, _targetIndex++) = (byte)value; // caller must ensure capacity
-    }
-#else
-    private readonly Span<byte> RemainingSpan => new(_targetArr, _targetIndex, _targetLength - _targetIndex);
-    private readonly ref byte CurrentPosition => ref _targetArr[_targetIndex];
-    private void AppendUnsafe(RespPrefix value)
-    {
-        Debug.Assert(_targetIndex < _targetLength);
-        _targetArr[_targetIndex++] = (byte)value; // caller must ensure capacity
-    }
-#endif
-
-
-
-
-
-    private void EnsureAtLeast(int count)
-    {
-        if (_targetIndex == _preambleReservation) count += _preambleReservation;
-        if (_targetIndex + count > _targetLength)
-        {
-            AddChunkImpl(Math.Max(count, DEFAULT_CHUNK_SIZE));
-        }
-    }
-
-    private void EnsureSome(int hint)
-    {
-        if (_targetIndex == _targetLength)
-        {
-            if (_targetIndex == _preambleReservation) hint += _preambleReservation;
-
-#if NETCOREAPP3_1_OR_GREATER
-            AddChunkImpl(Math.Clamp(DEFAULT_CHUNK_SIZE, hint, MAX_CHUNK_SIZE));
-#else
-            AddChunkImpl(Math.Min(Math.Max(DEFAULT_CHUNK_SIZE, hint), MAX_CHUNK_SIZE));
-#endif
-        }
-    }
-
-    private const int DEFAULT_CHUNK_SIZE = 1024, MAX_CHUNK_SIZE = 1024 * 1024, DEFAULT_PREAMBLE_BYTES = 64;
-
-    public static int EstimateSize(int value)
-        => EstimateSize(value < 0 ? (value == int.MinValue ? (uint)int.MaxValue : (uint)(-value)) : (uint)value);
-
-#if NETCOREAPP3_1_OR_GREATER
-    [CLSCompliant(false)]
-    public static int EstimateSize(uint value)
-    // we can estimate an upper bound just using the LZCNT
-        => (32 - BitOperations.LeadingZeroCount(value)) switch
-        {
-            // 1-digit; 0-7
-            0 or 1 or 2 or 3 => 7, // $1\r\nX\r\n
-            // 2-digit; 8-63
-            4 or 5 or 6 => 8, // $2\r\nXX\r\n
-            // 3-digit; 64-511
-            7 or 8 or 9 => 9, // $3\r\nXXX\r\n
-            // 4-digit; 512-8,191
-            10 or 11 or 12 or 13 => 10, // $4\r\nXXXX\r\n
-            // 5-digit; 8,192-65,535
-            14 or 15 or 16 => 11, // $5\r\nXXXXX\r\n
-            // 6-digit; 65,536-524,287
-            17 or 18 or 19 => 12, // $6\r\nXXXXXX\r\n
-            // 7-digit; 524,288-8,388,607
-            20 or 21 or 22 or 23 => 13, // $7\r\nXXXXXXX\r\n
-            // 8-digit; 8,388,608-67,108,863
-            24 or 25 or 26 => 14, // $8\r\nXXXXXXXX\r\n
-            // 9-digit; 67,108,864-536,870,911
-            27 or 28 or 29 => 15, // $9\r\nXXXXXXXXX\r\n
-            // 10-digit; 536,870,912-4,294,967,295
-            _ => 17, // $10\r\nXXXXXXXXXX\r\n
-        };
-
-    private static int EstimatePrefixSize(uint value)
-    // we can estimate an upper bound just using the LZCNT
-    => (32 - BitOperations.LeadingZeroCount(value)) switch
-    {
-        // 1-digit; 0-7
-        0 or 1 or 2 or 3 => 4, // *X\r\n
-        // 2-digit; 8-63
-        4 or 5 or 6 => 5, // *XX\r\n
-        // 3-digit; 64-511
-        7 or 8 or 9 => 6, // *XXX\r\n
-        // 4-digit; 512-8,191
-        10 or 11 or 12 or 13 => 7, // *XXXX\r\n
-        // 5-digit; 8,192-65,535
-        14 or 15 or 16 => 8, // *XXXXX\r\n
-        // 6-digit; 65,536-524,287
-        17 or 18 or 19 => 9, // *XXXXXX\r\n
-        // 7-digit; 524,288-8,388,607
-        20 or 21 or 22 or 23 => 10, // *XXXXXXX\r\n
-        // 8-digit; 8,388,608-67,108,863
-        24 or 25 or 26 => 11, // *XXXXXXXX\r\n
-        // 9-digit; 67,108,864-536,870,911
-        27 or 28 or 29 => 12, // *XXXXXXXXX\r\n
-        // 10-digit; 536,870,912-4,294,967,295
-        _ => 13, // *XXXXXXXXXX\r\n
-    };
-#else
-    [CLSCompliant(false)]
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0060:Remove unused parameter", Justification = "Parity")]
-    public static int EstimateSize(uint value) => 17;
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0060:Remove unused parameter", Justification = "Parity")]
-    private static int EstimatePrefixSize(uint value) => 13;
-#endif
-
-    [CLSCompliant(false)]
-    public static int EstimateSize(ulong value)
-    // we can estimate an upper bound just using the LZCNT
-    => value <= uint.MaxValue ? EstimateSize((uint)value) : MaxBytesInt64;
-
-    public static int EstimateSize(string value) => value is null ? NullLength : EstimateSizeBytes((uint)value.Length * MAX_UTF8_BYTES_PER_CHAR);
-    public static int EstimateSize(scoped ReadOnlySpan<char> value) => EstimateSizeBytes((uint)value.Length * MAX_UTF8_BYTES_PER_CHAR);
-    public static int EstimateSize(byte[] value) => value is null ? NullLength : EstimateSizeBytes((uint)value.Length);
-    public static int EstimateSize(scoped ReadOnlySpan<byte> value) => EstimateSizeBytes((uint)value.Length);
-    private static int EstimateSizeBytes(uint count) => EstimatePrefixSize(count) + (int)count + 2;
-
-    public const int MaxBytesInt32 = 17, // $10\r\nX10X\r\n
+    private const int MaxBytesInt32 = 17, // $10\r\nX10X\r\n
                     MaxBytesInt64 = 26, // $19\r\nX19X\r\n
                     MaxBytesSingle = 27; // $NN\r\nX...X\r\n - note G17 format, allow 20 for payload
 
     private const int NullLength = 5; // $-1\r\n 
 
-    internal void Recycle()
-    {
-        var arr = _targetArr;
-        this = default; // nuke self to prevent multi-release
-        if (arr is not null)
-        {
-            ArrayPool<byte>.Shared.Return(arr);
-        }
-    }
-
-
-
-    private void AddChunkImpl(int hint)
-    {
-        uint totalUsed = (uint)(_targetIndex - _preambleReservation);
-        // for the first alloc, preamble is already built into the hint
-        var newArr = ArrayPool<byte>.Shared.Rent(totalUsed == 0 ? hint : (_targetLength + hint));
-        if (totalUsed != 0)
-        {
-            Unsafe.CopyBlock(ref newArr[_preambleReservation], ref _targetArr[_preambleReservation], totalUsed);
-        }
-        if (_targetArr is not null)
-        {
-            ArrayPool<byte>.Shared.Return(_targetArr);
-        }
-        _targetArr = newArr;
-        _targetLength = _targetArr.Length;
-#if NET7_0_OR_GREATER
-        _targetArrRoot = ref _targetArr[0]; // always to array root; will apply index separately
-        Debug.Assert(!Unsafe.IsNullRef(ref _targetArrRoot));
-#endif
-    }
+    internal void Recycle() => _buffer.Dispose();
 
     internal static readonly UTF8Encoding UTF8 = new(false);
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("ApiDesign", "RS0026:Do not add multiple public overloads with optional parameters", Justification = "Overloaded by type, acceptable")]
-    public void WriteCommand(string command, int argCount, int argBytesEstimate = 0)
-        => WriteCommand(command.AsSpan(), argCount, argBytesEstimate);
+    public void WriteCommand(string command, int argCount) => WriteCommand(command.AsSpan(), argCount);
 
     private const int MAX_UTF8_BYTES_PER_CHAR = 4, MAX_CHARS_FOR_STACKALLOC_ENCODE = 64,
         ENCODE_STACKALLOC_BYTES = MAX_CHARS_FOR_STACKALLOC_ENCODE * MAX_UTF8_BYTES_PER_CHAR;
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("ApiDesign", "RS0026:Do not add multiple public overloads with optional parameters", Justification = "Overloaded by type, acceptable")]
-    public void WriteCommand(scoped ReadOnlySpan<char> command, int argCount, int argBytesEstimate = 0)
+    public void WriteCommand(scoped ReadOnlySpan<char> command, int argCount)
     {
         if (command.Length <= MAX_CHARS_FOR_STACKALLOC_ENCODE)
         {
-            WriteCommand(Utf8Encode(command, stackalloc byte[ENCODE_STACKALLOC_BYTES]), argCount, argBytesEstimate);
+            WriteCommand(Utf8Encode(command, stackalloc byte[ENCODE_STACKALLOC_BYTES]), argCount);
         }
         else
         {
-            WriteCommandSlow(ref this, command, argCount, argBytesEstimate);
+            WriteCommandSlow(ref this, command, argCount);
         }
 
-        static void WriteCommandSlow(ref Resp2Writer @this, scoped ReadOnlySpan<char> command, int argCount, int argBytesEstimate)
+        static void WriteCommandSlow(ref Resp2Writer @this, scoped ReadOnlySpan<char> command, int argCount)
         {
-            @this.WriteCommand(Utf8EncodeLease(command, out var lease), argCount, argBytesEstimate);
+            @this.WriteCommand(Utf8EncodeLease(command, out var lease), argCount);
             ArrayPool<byte>.Shared.Return(lease);
         }
     }
@@ -1049,32 +849,45 @@ public ref struct Resp2Writer
         static void Throw(int count, int total) => throw new InvalidOperationException($"Not all command arguments ({count - 1} of {total - 1}) have been written");
     }
 
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("ApiDesign", "RS0026:Do not add multiple public overloads with optional parameters", Justification = "Overloaded by type, acceptable")]
-    public void WriteCommand(scoped ReadOnlySpan<byte> command, int argCount, int argBytesEstimate = 0)
+    public void WriteCommand(scoped ReadOnlySpan<byte> command, int argCount)
     {
         if (_argCountIncludingCommand > 0) ThrowCommandAlreadyWritten();
         if (command.IsEmpty) ThrowEmptyCommand();
         if (argCount < 0) ThrowNegativeArgs();
-        if (argBytesEstimate <= 0) argBytesEstimate = 32 * argCount;
         _argCountIncludingCommand = argCount + 1;
-        _argIndexIncludingCommand = 0;
+        _argIndexIncludingCommand = 1;
 
-        // get a rough estimate and allocate an initial buffer
-        int argCountLenEstimate = EstimatePrefixSize((uint)(argCount + 1));
-        var estimatedSize = argCountLenEstimate + EstimateSize(command) + argBytesEstimate;
-        EnsureSome(estimatedSize);
-        EnsureAtLeast(argCountLenEstimate); // this will *almost always* be a no-op; would need to have a preamble in
-        // excess of MAX_CHUNK_SIZE for EnsureSome to have not allocated capacity; we will never do this, obviously
+        var payloadAndFooter = command.Length + 2;
 
-        // format:
-        // *{totalargs}\r\n
-        // ${cmdbytes}\r\n{cmd}\r\n
-        // {other args}
+        // optimize for single buffer-fetch path
+        var worstCase = MaxBytesInt32 + MaxBytesInt32 + command.Length + 2;
+        if (worstCase <= _buffer.BlockSize)
+        {
+            var span = _buffer.GetWritableTail().Span;
+            if (span.Length >= worstCase)
+            {
+                ref byte head = ref MemoryMarshal.GetReference(span);
+                var header = WriteCountPrefix(RespPrefix.Array, _argCountIncludingCommand, span);
+#if NETCOREAPP3_1_OR_GREATER
+                header += WriteCountPrefix(RespPrefix.BulkString, command.Length,
+                    MemoryMarshal.CreateSpan(ref Unsafe.Add(ref head, header), MaxBytesInt32));
+                command.CopyTo(MemoryMarshal.CreateSpan(ref Unsafe.Add(ref head, header), command.Length));
+#else
+                header += WriteCountPrefix(RespPrefix.BulkString, command.Length, span.Slice(header));
+                command.CopyTo(span.Slice(header));
+#endif
 
-        AppendUnsafe(RespPrefix.Array);
-        _targetIndex += WriteCountPrefix(argCount + 1, RemainingSpan);
-        WriteValue(command);
-        Debug.Assert(_argIndexIncludingCommand == 1);
+                Unsafe.WriteUnaligned(ref Unsafe.Add(ref head, header + command.Length), CrLf);
+                _buffer.Commit(header + command.Length + 2);
+                return; // yay!
+            }
+        }
+
+        // slow path, multiple buffer fetches
+        WriteCountPrefix(RespPrefix.Array, _argCountIncludingCommand);
+        WriteCountPrefix(RespPrefix.BulkString, command.Length);
+        WriteRaw(command);
+        WriteRaw(CrlfBytes);
 
 
         static void ThrowCommandAlreadyWritten() => throw new InvalidOperationException(nameof(WriteCommand) + " can only be called once");
@@ -1082,12 +895,16 @@ public ref struct Resp2Writer
         static void ThrowNegativeArgs() => throw new ArgumentOutOfRangeException(nameof(argCount), "argCount cannot be negative");
     }
 
-    private static int WriteCountPrefix(int count, Span<byte> target)
+    private static int WriteCountPrefix(RespPrefix prefix, int count, Span<byte> target)
     {
-        var len = Format.FormatInt32(count, target);
-        Debug.Assert(target.Length >= len + 2);
-        UnsafeWriteCrlf(ref target[len]);
-        return len + 2;
+        var len = Format.FormatInt32(count, target.Slice(1)); // we only want to pay for this one slice
+        if (target.Length < len + 3) Throw();
+        ref byte head = ref MemoryMarshal.GetReference(target);
+        head = (byte)prefix;
+        Unsafe.WriteUnaligned(ref Unsafe.Add(ref head, len + 1), CrLf);
+        return len + 3;
+
+        static void Throw() => throw new InvalidOperationException("Insufficient buffer space to write count prefix");
     }
 
     private void WriteNullString() // private because I don't think this is allowed in client streams? check
@@ -1098,9 +915,24 @@ public ref struct Resp2Writer
 
     private void WriteRaw(scoped ReadOnlySpan<byte> value)
     {
-        EnsureAtLeast(value.Length);
-        value.CopyTo(RemainingSpan);
-        _targetIndex += value.Length;
+        while (!value.IsEmpty)
+        {
+            var target = _buffer.GetWritableTail().Span;
+            Debug.Assert(!target.IsEmpty, "need something!");
+
+            if (target.Length >= value.Length)
+            {
+                // it all fits
+                value.CopyTo(target);
+                _buffer.Commit(value.Length);
+                return;
+            }
+            
+            // write what we can
+            value.Slice(target.Length).CopyTo(target);
+            _buffer.Commit(target.Length);
+            value = value.Slice(target.Length);
+        }
     }
 
     private void AddArg()
@@ -1110,6 +942,7 @@ public ref struct Resp2Writer
 
         static void ThrowAllWritten(int advertised) => throw new InvalidOperationException($"All command arguments ({advertised - 1}) have already been written");
     }
+
     public void WriteValue(scoped ReadOnlySpan<byte> value)
     {
         AddArg();
@@ -1118,38 +951,42 @@ public ref struct Resp2Writer
             WriteEmptyString();
             return;
         }
-
-        EnsureAtLeast(EstimatePrefixSize((uint)value.Length));
-        AppendUnsafe(RespPrefix.BulkString);
-        _targetIndex += WriteCountPrefix(value.Length, RemainingSpan);
-
-        while (!value.IsEmpty)
+        // optimize for fitting everything into a single buffer-fetch
+        var payloadAndFooter = value.Length + 2;
+        var worstCase = MaxBytesInt32 + payloadAndFooter;
+        if (worstCase <= _buffer.BlockSize)
         {
-            EnsureSome(value.Length);
-            var buffer = RemainingSpan;
-            if (value.Length <= buffer.Length)
+            var span = _buffer.GetWritableTail().Span;
+            if (span.Length >= worstCase)
             {
-                // we can write everything
-                value.CopyTo(buffer);
-                _targetIndex += value.Length;
-                break; // done
+                ref byte head = ref MemoryMarshal.GetReference(span);
+                var header = WriteCountPrefix(RespPrefix.BulkString, value.Length, span);
+#if NETCOREAPP3_1_OR_GREATER
+                value.CopyTo(MemoryMarshal.CreateSpan(ref Unsafe.Add(ref head, header), payloadAndFooter));
+#else
+                value.CopyTo(span.Slice(header));
+#endif
+                Unsafe.WriteUnaligned(ref Unsafe.Add(ref head, header + value.Length), CrLf);
+                _buffer.Commit(header + payloadAndFooter);
+                return; // yay!
             }
-
-            // write what we can
-            value.Slice(0, buffer.Length).CopyTo(buffer);
-            _targetIndex += value.Length;
-            value = value.Slice(buffer.Length);
         }
 
-        EnsureAtLeast(2);
-        UnsafeWriteCrlf(ref CurrentPosition);
-        _targetIndex += 2;
+        // slow path - involves multiple buffer fetches
+        WriteCountPrefix(RespPrefix.BulkString, value.Length);
+        WriteRaw(value);
+        WriteRaw(CrlfBytes);
+    }
+
+    private void WriteCountPrefix(RespPrefix prefix, int count)
+    {
+        Span<byte> buffer = stackalloc byte[MaxBytesInt32];
+        WriteRaw(buffer.Slice(0, WriteCountPrefix(prefix, count, buffer)));
     }
 
     internal static readonly ushort CrLf = BitConverter.IsLittleEndian ? (ushort)0x0A0D : (ushort)0x0D0A;
 
-    // unsafe===caller **MUST** ensure there is capacity
-    private static void UnsafeWriteCrlf(ref byte destination) => Unsafe.WriteUnaligned(ref destination, CrLf);
+    internal static ReadOnlySpan<byte> CrlfBytes => "\r\n"u8;
 
     public void WriteValue(scoped ReadOnlySpan<char> value)
     {
@@ -1179,10 +1016,123 @@ public ref struct Resp2Writer
         else WriteValue(value.AsSpan());
     }
 
-    internal OpaqueChunk Commit()
+    internal RequestBuffer Commit()
     {
-        var chunk = new OpaqueChunk(_targetArr, _preambleReservation, _targetIndex - _preambleReservation);
-        this = default; // nuke self; transferring ownership to the chunk
+        var chunk = new RequestBuffer(_buffer.GetBuffer(), _preambleReservation);
+        _buffer.Dispose(); // expect one only
         return chunk;
+    }
+}
+
+internal struct RotatingBufferCore : IDisposable // note mutable struct intended to encapsulate logic as a field inside a class instance
+{
+    private RefCountedSequenceSegment<byte> _head, _tail;
+    private readonly long _maxLength;
+    private readonly int _xorBlockSize;
+    private int _headOffset, _tailOffset;
+    internal int BlockSize => _xorBlockSize ^ DEFAULT_BLOCK_SIZE; // allows default to apply on new()
+    internal long MaxLength => _maxLength;
+
+    private const int DEFAULT_BLOCK_SIZE = 1024;
+
+    public RotatingBufferCore(int blockSize, int maxLength = 0)
+    {
+        if (maxLength <= 0) maxLength = int.MaxValue;
+        _xorBlockSize = blockSize ^ DEFAULT_BLOCK_SIZE;
+        _maxLength = maxLength;
+        _headOffset = _tailOffset = 0;
+        Expand();
+    }
+
+    [MemberNotNull(nameof(_head))]
+    [MemberNotNull(nameof(_tail))]
+    private void Expand()
+    {
+        Debug.Assert(_tail is null || _tailOffset == _tail.Memory.Length, "tail page should be full");
+        if (MaxLength > 0 && (GetBuffer().Length + BlockSize) > MaxLength) ThrowQuota();
+        var next = new RefCountedSequenceSegment<byte>(BlockSize, _tail);
+        _tail = next;
+        _tailOffset = 0;
+        if (_head is null)
+        {
+            _head = next;
+            _headOffset = 0;
+        }
+
+        static void ThrowQuota() => throw new InvalidOperationException("Buffer quota exceeded");
+    }
+
+    public Memory<byte> GetWritableTail()
+    {
+        if (_tail is null) Expand();
+        var page = _tail.Memory;
+        if (page.Length > _tailOffset)
+        {
+            // definitely something available; return the gap
+            return MemoryMarshal.AsMemory(page).Slice(_tailOffset);
+        }
+        // fetch a new page and return the entirety of that
+        Expand();
+        return MemoryMarshal.AsMemory(_tail.Memory);
+    }
+    public ReadOnlySequence<byte> GetBuffer() => _head is null ? default : new(_head, _headOffset, _tail, _tailOffset);
+    internal void Commit(int bytes)
+    {
+        Debug.Assert(bytes >= 0);
+        _tailOffset += bytes;
+    }
+
+    public ReadOnlySequence<byte> Take(long bytes)
+    {
+        // semantically, we're going to AddRef on all the nodes in take, and then
+        // drop (and Dispose()) all nodes that we no longer need; but this means
+        // that the only shared segment is the first one (and only if there is data left),
+        // so we can manually check that one segment, rather than walk two chains
+        var all = GetBuffer();
+        var take = all.Slice(0, bytes);
+
+        var end = take.End;
+        var endSegment = (RefCountedSequenceSegment<byte>)end.GetObject()!;
+
+        var bytesLeftLastPage = endSegment.Memory.Length - end.GetInteger();
+        if (bytesLeftLastPage != 0 && (
+            bytesLeftLastPage >= 64 // worth using for the next read, regardless
+            || endSegment.Next is not null // we've already allocated another page, which means this page is full
+            || _tailOffset != end.GetInteger() // (^^ final page) & we have additional read bytes
+            ))
+        {
+            // keep sharing the last page of the outbound / first page of retained
+            endSegment.AddRef();
+            _head = endSegment;
+            _headOffset = end.GetInteger();
+        }
+        else
+        {
+            // move to the next page
+            _headOffset = 0;
+            if (endSegment.Next is null)
+            {
+                // no next page buffered; reset completely
+                Debug.Assert(ReferenceEquals(endSegment, _tail));
+                _head = _tail = null!;
+                Expand();
+            }
+            else
+            {
+                // start fresh from the next page
+                var next = endSegment.Next;
+                endSegment.Next = null; // walk never needed
+                _head = next;
+            }
+        }
+        return take;
+    }
+
+    public void Dispose()
+    {
+        LeasedSequence<byte> leased = new(GetBuffer());
+        _head = _tail = null!;
+        _headOffset = _tailOffset = 0;
+        leased.Dispose();
     }
 }

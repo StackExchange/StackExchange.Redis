@@ -9,7 +9,7 @@ namespace StackExchange.Redis.Tests;
 public class ProtocolApiTests
 {
 
-    private static OpaqueChunk CreatePingChunk(string? value, int preambleBytes)
+    private static RequestBuffer CreatePingChunk(string? value, int preambleBytes)
     {
         var obj = new PingRequest(value);
         var writer = preambleBytes <= 0 ? new() : new Resp2Writer(preambleBytes);
@@ -32,7 +32,7 @@ public class ProtocolApiTests
     [InlineData("aaaabbbbccccddddeeeeffffgggghhhhiiiijjjjkkkkllllmmmmnnnnooooppppqqqqrrrrssssttttuuuuvvvvwwwwxxxxyyyyzzzz", "*2\r\n$4\r\nping\r\n$104\r\naaaabbbbccccddddeeeeffffgggghhhhiiiijjjjkkkkllllmmmmnnnnooooppppqqqqrrrrssssttttuuuuvvvvwwwwxxxxyyyyzzzz\r\n")]
     public void CustomPing(string? value, string expected)
     {
-        OpaqueChunk chunk = CreatePingChunk(value, 0);
+        RequestBuffer chunk = CreatePingChunk(value, 0);
         try
         {
             Assert.Equal(expected, chunk.ToString());
@@ -72,7 +72,7 @@ public class ProtocolApiTests
     [InlineData("aaaabbbbccccddddeeeeffffgggghhhhiiiijjjjkkkkllllmmmmnnnnooooppppqqqqrrrrssssttttuuuuvvvvwwwwxxxxyyyyzzzz", "*2\r\n$4\r\nping\r\n$104\r\naaaabbbbccccddddeeeeffffgggghhhhiiiijjjjkkkkllllmmmmnnnnooooppppqqqqrrrrssssttttuuuuvvvvwwwwxxxxyyyyzzzz\r\n")]
     public void CustomPingWithUnusedPreamble(string? value, string expected)
     {
-        OpaqueChunk chunk = CreatePingChunk(value, 64);
+        RequestBuffer chunk = CreatePingChunk(value, 64);
         try
         {
             Assert.Equal(expected, chunk.ToString());
@@ -94,7 +94,7 @@ public class ProtocolApiTests
     [InlineData("aaaabbbbccccddddeeeeffffgggghhhhiiiijjjjkkkkllllmmmmnnnnooooppppqqqqrrrrssssttttuuuuvvvvwwwwxxxxyyyyzzzz", "*2\r\n$4\r\nping\r\n$104\r\naaaabbbbccccddddeeeeffffgggghhhhiiiijjjjkkkkllllmmmmnnnnooooppppqqqqrrrrssssttttuuuuvvvvwwwwxxxxyyyyzzzz\r\n")]
     public void CustomPingWithSelectPreamble(string? value, string expected)
     {
-        OpaqueChunk chunk = CreatePingChunk(value, 64);
+        RequestBuffer chunk = CreatePingChunk(value, 64);
         try
         {
             // check before prepending
@@ -140,8 +140,7 @@ public class ProtocolApiTests
         }
         public override void Write(ref Resp2Writer writer)
         {
-            writer.WriteCommand("ping"u8, _value is null ? 0 : 1,
-                _value is null ? 0 : EstimateSize(_value));
+            writer.WriteCommand("ping"u8, _value is null ? 0 : 1);
             if (_value is not null)
             {
                 writer.WriteValue(_value);
