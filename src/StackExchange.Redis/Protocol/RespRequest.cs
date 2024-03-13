@@ -520,6 +520,8 @@ public ref struct RespReader
         _ => false,
     };
 
+    public readonly bool HasValue => Prefix != 0;
+
     private static bool TryReadIntegerCrLf(ReadOnlySpan<byte> bytes, out int value, out int byteCount)
     {
         var end = bytes.IndexOf(CrLf);

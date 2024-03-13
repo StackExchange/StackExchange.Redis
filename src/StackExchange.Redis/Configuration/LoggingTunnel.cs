@@ -52,6 +52,7 @@ public abstract class LoggingTunnel : Tunnel
                     {
                         // spoof an empty request for OOB messages
                         pair(RedisResult.NullSingle, received.Result);
+                        count++;
                     }
                 } while (received.IsOutOfBand);
             }
@@ -127,6 +128,7 @@ public abstract class LoggingTunnel : Tunnel
                         // spoof an empty request for OOB messages
                         pair(default, new(received));
                         received.Dispose();
+                        count++;
                     }
                 } while (isOutOfBand);
             }
