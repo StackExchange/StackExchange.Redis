@@ -626,6 +626,27 @@ public ref struct RespReader
         }
         throw new NotImplementedException();
     }
+
+    /// <summary>
+    /// Skips all child/descendent nodes of this element, returning the number
+    /// of elements skipped
+    /// </summary>
+    public int SkipChildren()
+    {
+        int remaining = ChildCount, total = 0;
+        while (remaining > 0 && ReadNext())
+        {
+            total++;
+            remaining = remaining - 1 + ChildCount;
+        }
+        if (remaining != 0) ThrowEOF();
+        if (total != 0)
+        {
+            ResetCurrent(); // would be confusing to see the last descendent state
+        }
+        return total;
+        static void ThrowEOF() => throw new EndOfStreamException();
+    }
 }
 
 [Experimental(RespRequest.ExperimentalDiagnosticID)]
