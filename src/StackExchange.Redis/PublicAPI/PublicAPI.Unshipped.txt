@@ -63,7 +63,6 @@ StackExchange.Redis.Protocol.RespReader
 StackExchange.Redis.Protocol.RespReader.BytesConsumed.get -> long
 StackExchange.Redis.Protocol.RespReader.ChildCount.get -> int
 StackExchange.Redis.Protocol.RespReader.CopyTo(System.Span<byte> target) -> System.Span<byte>
-StackExchange.Redis.Protocol.RespReader.HasValue.get -> bool
 StackExchange.Redis.Protocol.RespReader.Is(System.ReadOnlySpan<byte> value) -> bool
 StackExchange.Redis.Protocol.RespReader.IsAggregate.get -> bool
 StackExchange.Redis.Protocol.RespReader.IsNull() -> bool

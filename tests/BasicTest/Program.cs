@@ -70,7 +70,7 @@ namespace BasicTest
             Action<RedisResult, RedisResult> callback = (req, resp) =>
             {
                 if (req is not null) Console.WriteLine("> " + LoggingTunnel.DefaultFormatCommand(req));
-                Console.WriteLine("< " + LoggingTunnel.DefaultFormatCommand(resp));
+                Console.WriteLine("< " + LoggingTunnel.DefaultFormatResponse(resp));
                 count++;
             };
 
@@ -85,7 +85,8 @@ namespace BasicTest
             int count = 0;
             LoggingTunnel.MessagePair callback = (req, resp) =>
             {
-                if (req.HasValue) Console.WriteLine("> " + LoggingTunnel.DefaultFormatCommand(ref req));
+                var s = LoggingTunnel.DefaultFormatCommand(ref req);
+                if (s is not null) Console.WriteLine("> " + s);
                 Console.WriteLine("< " + LoggingTunnel.DefaultFormatCommand(ref resp));
                 count++;
             };

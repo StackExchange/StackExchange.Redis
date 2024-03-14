@@ -485,8 +485,9 @@ public abstract class LoggingTunnel : Tunnel
     /// Get a typical text representation of a redis command
     /// </summary>
     [Experimental(RespRequest.ExperimentalDiagnosticID)]
-    public static string DefaultFormatCommand(ref RespReader value)
+    public static string? DefaultFormatCommand(ref RespReader value)
     {
+        if (!value.ReadNext()) return null;
         if (value.Prefix == RespPrefix.Array && !value.IsNull())
         {
             var count = value.ChildCount;
@@ -504,8 +505,8 @@ public abstract class LoggingTunnel : Tunnel
     /// <summary>
     /// Get a typical text representation of a redis response
     /// </summary>
-    public static string DefaultFormatResponse(ref RespReader value)
-        => GetSimpleString(ref value);
+    public static string? DefaultFormatResponse(ref RespReader value)
+        => value.ReadNext() ? GetSimpleString(ref value) : null;
 
     private static string GetSimpleString(ref RespReader value)
     {
@@ -513,16 +514,16 @@ public abstract class LoggingTunnel : Tunnel
         if (value.IsAggregate)
         {
             var kind = value.Prefix;
-            int count = value.ChildCount;
-            for (int i = 0; i < count; i++)
+            int count = value.ChildCount, pending = count;
+            while (pending > 0 && value.ReadNext())
             {
-                value.ReadNext();
+                pending = pending - 1 + value.ChildCount; // account for sub-sub-items
             }
             return $"[{kind} {count}]";
         }
 
         const int MAX_DISPLAY_BYTES = 50;
-        if (value.Length >= MAX_DISPLAY_BYTES)
+        if (value.Length <= MAX_DISPLAY_BYTES)
         {
             var blob = value.TryGetValueSpan(out var tmp) ? tmp : value.CopyTo(stackalloc byte[MAX_DISPLAY_BYTES]);
             int i;
