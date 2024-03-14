@@ -103,6 +103,42 @@ public abstract class LoggingTunnel : Tunnel
     public delegate void MessagePair(RespReader request, RespReader response);
 
     /// <summary>
+    /// Callback with a RESP message
+    /// </summary>
+    [Experimental(RespRequest.ExperimentalDiagnosticID)]
+    public delegate void Message(RespReader message);
+
+    /// <summary>
+    /// Iterate over a RESP stream invoking a callback per top-level message
+    /// </summary>
+    [Experimental(RespRequest.ExperimentalDiagnosticID)]
+    [SuppressMessage("ApiDesign", "RS0027:API with optional parameter(s) should have the most parameters amongst its public overloads", Justification = "Validated")]
+    public static async Task<long> ReplayAsync(string path, Message message, CancellationToken cancellationToken = default)
+    {
+        using var file = File.OpenRead(path);
+        return await ReplayAsync(file, message, cancellationToken);
+    }
+
+    /// <summary>
+    /// Iterate over a RESP stream invoking a callback per top-level message
+    /// </summary>
+    [SuppressMessage("ApiDesign", "RS0027:API with optional parameter(s) should have the most parameters amongst its public overloads", Justification = "Validated")]
+    [Experimental(RespRequest.ExperimentalDiagnosticID)]
+    public static async Task<long> ReplayAsync(Stream source, Message message, CancellationToken cancellationToken = default)
+    {
+        await using var resp = RespSource.Create(source);
+        long count = 0;
+        while (true)
+        {
+            LeasedSequence<byte> payload = await resp.ReadNextAsync(cancellationToken).ForAwait();
+            if (payload.IsEmpty) break; // natural EOF
+            message(new(payload));
+            count++;
+        }
+        return count;
+    }
+
+    /// <summary>
     /// Replay the RESP messages for a pair of streams, invoking a callback per operation
     /// </summary>
     [SuppressMessage("ApiDesign", "RS0026:Do not add multiple public overloads with optional parameters", Justification = "Necessary overload")]
@@ -485,7 +521,7 @@ public abstract class LoggingTunnel : Tunnel
     /// Get a typical text representation of a redis command
     /// </summary>
     [Experimental(RespRequest.ExperimentalDiagnosticID)]
-    public static string? DefaultFormatCommand(ref RespReader value)
+    public static string? DefaultFormatRequest(ref RespReader value)
     {
         if (!value.ReadNext()) return null;
         if (value.Prefix == RespPrefix.Array && !value.IsNull())
@@ -560,7 +596,7 @@ public abstract class LoggingTunnel : Tunnel
     /// <summary>
     /// Get a typical text representation of a redis command
     /// </summary>
-    public static string DefaultFormatCommand(RedisResult value)
+    public static string DefaultFormatRequest(RedisResult value)
     {
         try
         {

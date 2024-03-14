@@ -66,6 +66,7 @@ StackExchange.Redis.Protocol.RespReader.CopyTo(System.Span<byte> target) -> Syst
 StackExchange.Redis.Protocol.RespReader.Is(System.ReadOnlySpan<byte> value) -> bool
 StackExchange.Redis.Protocol.RespReader.IsAggregate.get -> bool
 StackExchange.Redis.Protocol.RespReader.IsNull() -> bool
+StackExchange.Redis.Protocol.RespReader.IsScalar.get -> bool
 StackExchange.Redis.Protocol.RespReader.Length.get -> int
 StackExchange.Redis.Protocol.RespReader.LongLength.get -> long
 StackExchange.Redis.Protocol.RespReader.Prefix.get -> StackExchange.Redis.Protocol.RespPrefix

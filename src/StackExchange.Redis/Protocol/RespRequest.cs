@@ -384,7 +384,7 @@ public ref struct RespReader
     /// </summary>
     public readonly Span<byte> CopyTo(Span<byte> target)
     {
-        if (IsAggregate) return default; // only possible for scalars
+        if (!IsScalar) return default; // only possible for scalars
         if (TryGetValueSpan(out var source))
         {
             if (source.Length > target.Length)
@@ -403,7 +403,7 @@ public ref struct RespReader
 
     internal readonly bool TryGetValueSpan(out ReadOnlySpan<byte> span)
     {
-        if (IsAggregate)
+        if (!IsScalar)
         {
             span = default;
             return false; // only possible for scalars
@@ -514,6 +514,21 @@ public ref struct RespReader
         _ => 0,
     };
 
+    /// <summary>
+    /// Indicates a type with a discreet value - string, integer, etc - <see cref="TryGetValueSpan(out ReadOnlySpan{byte})"/>,
+    /// <see cref="Is(ReadOnlySpan{byte})"/>, <see cref="CopyTo(Span{byte})"/> etc are meaningful
+    /// </summary>
+    public readonly bool IsScalar => Prefix switch
+    {
+        RespPrefix.SimpleString or RespPrefix.SimpleError or RespPrefix.Integer
+        or RespPrefix.Boolean or RespPrefix.Double or RespPrefix.BigNumber
+        or RespPrefix.BulkError or RespPrefix.BulkString or RespPrefix.VerbatimString => true,
+        _ => false,
+    };
+
+    /// <summary>
+    /// Indicates a collection type - array, set, etc - <see cref="ChildCount"/>, <see cref="SkipChildren()"/> are are meaningful
+    /// </summary>
     public readonly bool IsAggregate => Prefix switch
     {
         RespPrefix.Array or RespPrefix.Set or RespPrefix.Map or RespPrefix.Push => true,
@@ -562,10 +577,9 @@ public ref struct RespReader
                 case RespPrefix.Double:
                 case RespPrefix.BigNumber:
                     // CRLF-terminated
-                    int end = PeekPastPrefix().IndexOf(CrLf);
-                    if (end < 0) break;
+                    _currentLength = PeekPastPrefix().IndexOf(CrLf);
+                    if (_currentLength < 0) break;
                     _currentOffset = _bufferIndex + 1;
-                    _currentLength = end - _bufferIndex;
                     _bufferIndex += _currentLength + 3;
                     return true;
                 case RespPrefix.BulkError:
@@ -620,6 +634,7 @@ public ref struct RespReader
     /// <summary>Performs a byte-wise equality check on the payload</summary>
     public readonly bool Is(ReadOnlySpan<byte> value)
     {
+        if (!IsScalar) return false;
         if (TryGetValueSpan(out var span))
         {
             return span.SequenceEqual(value);

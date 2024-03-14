@@ -13,6 +13,8 @@ using Perfolizer.Mathematics.Selectors;
 using StackExchange.Redis;
 using StackExchange.Redis.Configuration;
 
+#pragma warning disable SERED001, SERED002 // Type is for evaluation purposes only
+
 namespace BasicTest
 {
     internal static class Program
@@ -20,11 +22,13 @@ namespace BasicTest
 #if DEBUG
         private static async Task Main()
         {
+            LoggingTunnel.Message callback = s => Console.WriteLine(LoggingTunnel.DefaultFormatResponse(ref s));
+            await LoggingTunnel.ReplayAsync(@"C:\Code\RedisLog\philon-aad.redis.cache.windows.net 6380 Subscription 0.inmod", callback);
             var obj = new RedisBenchmarks();
-            Console.WriteLine(await obj.LegacyParser());
-            Console.WriteLine();
-            Console.WriteLine();
-            Console.WriteLine(await obj.NewParser());
+            //Console.WriteLine(await obj.LegacyParser());
+            //Console.WriteLine();
+            //Console.WriteLine();
+            //Console.WriteLine(await obj.NewParser());
         }
 
 #else
@@ -55,7 +59,7 @@ namespace BasicTest
                 .WithWarmupCount(1)
                 .WithIterationCount(5);
     }
-#pragma warning disable SERED001, SERED002 // Type is for evaluation purposes only
+
     /// <summary>
     /// The tests
     /// </summary>
@@ -69,7 +73,7 @@ namespace BasicTest
             int count = 0;
             Action<RedisResult, RedisResult> callback = (req, resp) =>
             {
-                if (req is not null) Console.WriteLine("> " + LoggingTunnel.DefaultFormatCommand(req));
+                if (req is not null) Console.WriteLine("> " + LoggingTunnel.DefaultFormatRequest(req));
                 Console.WriteLine("< " + LoggingTunnel.DefaultFormatResponse(resp));
                 count++;
             };
@@ -85,9 +89,9 @@ namespace BasicTest
             int count = 0;
             LoggingTunnel.MessagePair callback = (req, resp) =>
             {
-                var s = LoggingTunnel.DefaultFormatCommand(ref req);
+                var s = LoggingTunnel.DefaultFormatRequest(ref req);
                 if (s is not null) Console.WriteLine("> " + s);
-                Console.WriteLine("< " + LoggingTunnel.DefaultFormatCommand(ref resp));
+                Console.WriteLine("< " + LoggingTunnel.DefaultFormatResponse(ref resp));
                 count++;
             };
 
