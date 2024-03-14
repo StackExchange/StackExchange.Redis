@@ -74,6 +74,7 @@ StackExchange.Redis.Protocol.RespReader.ReadNext() -> bool
 StackExchange.Redis.Protocol.RespReader.RespReader() -> void
 StackExchange.Redis.Protocol.RespReader.RespReader(System.Buffers.ReadOnlySequence<byte> value) -> void
 StackExchange.Redis.Protocol.RespReader.RespReader(System.ReadOnlyMemory<byte> value) -> void
+StackExchange.Redis.Protocol.RespReader.SkipChildren() -> int
 StackExchange.Redis.Protocol.RespRequest
 StackExchange.Redis.Protocol.RespRequest.RespRequest() -> void
 StackExchange.Redis.Protocol.RespSource

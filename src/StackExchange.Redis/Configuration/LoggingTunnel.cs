@@ -549,13 +549,9 @@ public abstract class LoggingTunnel : Tunnel
         if (value.IsNull()) return "(null)";
         if (value.IsAggregate)
         {
-            var kind = value.Prefix;
-            int count = value.ChildCount, pending = count;
-            while (pending > 0 && value.ReadNext())
-            {
-                pending = pending - 1 + value.ChildCount; // account for sub-sub-items
-            }
-            return $"[{kind} {count}]";
+            var s = $"[{value.Prefix} {value.ChildCount}]";
+            value.SkipChildren();
+            return s;
         }
 
         const int MAX_DISPLAY_BYTES = 50;
