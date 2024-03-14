@@ -22,13 +22,11 @@ namespace BasicTest
 #if DEBUG
         private static async Task Main()
         {
-            LoggingTunnel.Message callback = s => Console.WriteLine(LoggingTunnel.DefaultFormatResponse(ref s));
-            await LoggingTunnel.ReplayAsync(@"C:\Code\RedisLog\philon-aad.redis.cache.windows.net 6380 Subscription 0.inmod", callback);
             var obj = new RedisBenchmarks();
-            //Console.WriteLine(await obj.LegacyParser());
-            //Console.WriteLine();
-            //Console.WriteLine();
-            //Console.WriteLine(await obj.NewParser());
+            Console.WriteLine(await obj.LegacyParser());
+            Console.WriteLine();
+            Console.WriteLine();
+            Console.WriteLine(await obj.NewParser());
         }
 
 #else
