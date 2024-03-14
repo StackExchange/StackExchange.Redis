@@ -201,7 +201,7 @@ public abstract class LoggingTunnel : Tunnel
                 if (reader.Prefix == RespPrefix.Array)
                 {
                     var length = reader.Length;
-                    if (reader.ReadNext() && reader.Prefix == RespPrefix.SimpleString && length >= 3)
+                    if (length >= 3 && reader.ReadNext() && reader.Prefix == RespPrefix.BulkString && reader.Length is 7 or 8)
                     {
                         return reader.Is("message"u8) || reader.Is("smessage"u8)
                             || (length >= 4 && reader.Is("pmessage"u8));
