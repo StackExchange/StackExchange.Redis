@@ -89,8 +89,8 @@ public abstract class LoggingTunnel : Tunnel
             var inPath = Path.ChangeExtension(outPath, "in");
             if (!File.Exists(outPath)) continue;
 
-            using var outFile = File.OpenRead(outPath);
-            using var inFile = File.OpenRead(inPath);
+            using var outFile = OpenFileForRead(outPath);
+            using var inFile = OpenFileForRead(inPath);
             total += await ReplayAsync(outFile, inFile, pair).ForAwait();
         }
         return total;
@@ -115,7 +115,7 @@ public abstract class LoggingTunnel : Tunnel
     [SuppressMessage("ApiDesign", "RS0027:API with optional parameter(s) should have the most parameters amongst its public overloads", Justification = "Validated")]
     public static async Task<long> ReplayAsync(string path, Message message, CancellationToken cancellationToken = default)
     {
-        using var file = File.OpenRead(path);
+        using var file = OpenFileForRead(path);
         return await ReplayAsync(file, message, cancellationToken);
     }
 
@@ -228,12 +228,15 @@ public abstract class LoggingTunnel : Tunnel
             var inPath = Path.ChangeExtension(outPath, "in");
             if (!File.Exists(outPath)) continue;
 
-            using var outFile = File.OpenRead(outPath);
-            using var inFile = File.OpenRead(inPath);
+            using var outFile = OpenFileForRead(outPath);
+            using var inFile = OpenFileForRead(inPath);
             total += await ReplayAsync(outFile, inFile, pair, cancellationToken).ForAwait();
         }
         return total;
     }
+
+    private static FileStream OpenFileForRead(string path) => new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read,
+        1024, FileOptions.SequentialScan | FileOptions.Asynchronous);
 
     private static async ValueTask<ContextualRedisResult> ReadOneAsync(PipeReader input, Arena<RawResult> arena, bool isInbound)
     {
@@ -263,7 +266,7 @@ public abstract class LoggingTunnel : Tunnel
     {
         if (File.Exists(path))
         {
-            using var singleFile = File.OpenRead(path);
+            using var singleFile = OpenFileForRead(path);
             return await ValidateAsync(singleFile).ForAwait();
         }
         else if (Directory.Exists(path))
@@ -273,7 +276,7 @@ public abstract class LoggingTunnel : Tunnel
             {
                 try
                 {
-                    using var folderFile = File.OpenRead(file);
+                    using var folderFile = OpenFileForRead(file);
                     total += await ValidateAsync(folderFile).ForAwait();
                 }
                 catch (Exception ex)

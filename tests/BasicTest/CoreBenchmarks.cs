@@ -9,7 +9,7 @@ namespace BasicTest;
 /// The tests
 /// </summary>
 [Config(typeof(CustomConfig))]
-public class RedisBenchmarks : IDisposable
+public class CoreBenchmarks : IDisposable
 {
     private SocketManager mgr;
     private ConnectionMultiplexer connection;

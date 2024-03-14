@@ -54,25 +54,46 @@ public enum RespPrefix : byte
 //    public abstract T Parse(in RespChunk value);
 //}
 
-internal sealed class RefCountedSequenceSegment<T> : ReadOnlySequenceSegment<T>, IMemoryOwner<T>
+internal sealed partial class RefCountedSequenceSegment<T> : ReadOnlySequenceSegment<T>, IMemoryOwner<T>
 {
+#if DEBUG
+    private static long _debugTotalLeased, _debugTotalReturned;
+    internal static long DebugOutstanding => Volatile.Read(ref _debugTotalLeased) - Volatile.Read(ref _debugTotalReturned);
+    internal static long DebugTotalLeased => Volatile.Read(ref _debugTotalLeased);
+    partial void DebugIncrOutstanding() => Interlocked.Increment(ref _debugTotalLeased);
+    partial void DebugDecrOutstanding() => Interlocked.Increment(ref _debugTotalReturned);
+#endif
+
+    partial void DebugIncrOutstanding();
+    partial void DebugDecrOutstanding();
+
     public override string ToString() => $"(ref-count: {RefCount}) {base.ToString()}";
     private int _refCount;
     internal int RefCount => Volatile.Read(ref _refCount);
     private static void ThrowDisposed() => throw new ObjectDisposedException(nameof(RefCountedSequenceSegment<T>));
     private sealed class DisposedMemoryManager : MemoryManager<T>
     {
-        public static readonly ReadOnlyMemory<T> Instance = new DisposedMemoryManager().Memory;
-        private DisposedMemoryManager() { }
+        public static readonly ReadOnlyMemory<T> Instance;
+        private static readonly bool _triggered;
+        static DisposedMemoryManager()
+        {
+            // accessing .Memory touches .Span for .Length, so
+            // we need to delay making it throw
+            Instance = new DisposedMemoryManager().Memory;
+            _triggered = true;
+        }
 
         protected override void Dispose(bool disposing) { }
-        public override Span<T> GetSpan() { ThrowDisposed(); return default; }
-        public override Memory<T> Memory { get { ThrowDisposed(); return default; } }
-        public override MemoryHandle Pin(int elementIndex = 0) { ThrowDisposed(); return default; }
-        public override void Unpin() => ThrowDisposed();
+
+        // note that we deliberately spoof a non-empty length, to avoid IsEmpty short-circuits,
+        // because we *want* people to know that they're doing something wrong
+        public override Span<T> GetSpan() { if (_triggered) ThrowDisposed(); return new T[8]; }
+
+        public override MemoryHandle Pin(int elementIndex = 0) { if (_triggered) ThrowDisposed(); return default; }
+        public override void Unpin() { if (_triggered) ThrowDisposed(); }
         protected override bool TryGetArray(out ArraySegment<T> segment)
         {
-            ThrowDisposed();
+            if (_triggered) ThrowDisposed();
             segment = default;
             return default;
         }
@@ -82,6 +103,7 @@ internal sealed class RefCountedSequenceSegment<T> : ReadOnlySequenceSegment<T>,
     {
         _refCount = 1;
         Memory = ArrayPool<T>.Shared.Rent(minSize);
+        DebugIncrOutstanding();
         if (previous is not null)
         {
             RunningIndex = previous.RunningIndex + previous.Memory.Length;
@@ -99,7 +121,7 @@ internal sealed class RefCountedSequenceSegment<T> : ReadOnlySequenceSegment<T>,
             oldCount = Volatile.Read(ref _refCount);
             if (oldCount == 0) return; // already released
         } while (Interlocked.CompareExchange(ref _refCount, oldCount - 1, oldCount) != oldCount);
-        if (oldCount == 0) // we killed it
+        if (oldCount == 1) // then we killed it
         {
             Release();
         }
@@ -123,6 +145,7 @@ internal sealed class RefCountedSequenceSegment<T> : ReadOnlySequenceSegment<T>,
         {
             ArrayPool<T>.Shared.Return(segment.Array);
         }
+        DebugDecrOutstanding();
     }
 
     internal new RefCountedSequenceSegment<T>? Next
@@ -134,6 +157,13 @@ internal sealed class RefCountedSequenceSegment<T> : ReadOnlySequenceSegment<T>,
 
 public readonly struct LeasedSequence<T> : IDisposable
 {
+#if DEBUG
+    [SuppressMessage("ApiDesign", "RS0016:Add public types and members to the declared API", Justification = "Debug API")]
+    public static long DebugOutstanding => RefCountedSequenceSegment<byte>.DebugOutstanding;
+    [SuppressMessage("ApiDesign", "RS0016:Add public types and members to the declared API", Justification = "Debug API")]
+    public static long DebugTotalLeased => RefCountedSequenceSegment<byte>.DebugTotalLeased;
+#endif
+
     public LeasedSequence(ReadOnlySequence<T> value) => _value = value;
     private readonly ReadOnlySequence<T> _value;
 
@@ -172,7 +202,7 @@ public readonly struct LeasedSequence<T> : IDisposable
 
     public void Dispose()
     {
-        if (_value.Start.GetObject() is SequenceSegment<T> segment)
+        if (_value.Start.GetObject() is ReadOnlySequenceSegment<T> segment)
         {
             var end = _value.End.GetObject();
             do
@@ -182,13 +212,13 @@ public readonly struct LeasedSequence<T> : IDisposable
                     d.Dispose();
                 }
             }
-            while (!ReferenceEquals(segment, end) && (segment = segment!.Next) is not null);
+            while (!ReferenceEquals(segment, end) && (segment = segment!.Next!) is not null);
         }
     }
 
     public void AddRef()
     {
-        if (_value.Start.GetObject() is SequenceSegment<T> segment)
+        if (_value.Start.GetObject() is ReadOnlySequenceSegment<T> segment)
         {
             var end = _value.End.GetObject();
             do
@@ -198,7 +228,7 @@ public readonly struct LeasedSequence<T> : IDisposable
                     counted.AddRef();
                 }
             }
-            while (!ReferenceEquals(segment, end) && (segment = segment!.Next) is not null);
+            while (!ReferenceEquals(segment, end) && (segment = segment!.Next!) is not null);
         }
     }
 }
