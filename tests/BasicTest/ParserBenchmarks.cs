@@ -21,7 +21,7 @@ public class ParserBenchmarks
         int count = 0;
         Action<RedisResult, RedisResult> callback = (req, resp) => count++;
 
-        var total = await LoggingTunnel.ReplayAsync(@"C:\Code\RedisLog", callback);
+        var total = await LoggingTunnel.ReplayAsync("ReplayLog", callback);
         if (total != count) throw new InvalidOperationException();
         return count;
     }
@@ -32,7 +32,7 @@ public class ParserBenchmarks
         int count = 0;
         LoggingTunnel.MessagePair callback = (req, resp) => count++;
 
-        var total = await LoggingTunnel.ReplayAsync(@"C:\Code\RedisLog", callback);
+        var total = await LoggingTunnel.ReplayAsync("ReplayLog", callback);
         if (total != count) throw new InvalidOperationException();
         return count;
     }
