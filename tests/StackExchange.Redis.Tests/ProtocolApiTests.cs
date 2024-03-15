@@ -43,18 +43,18 @@ public class ProtocolApiTests
             Assert.True(reader.ReadNext());
             Assert.Equal(RespPrefix.Array, reader.Prefix);
             var expectedLength = value is null ? 1 : 2;
-            Assert.Equal(expectedLength, reader.Length);
+            Assert.Equal(expectedLength, reader.ChildCount);
 
             Assert.True(reader.ReadNext());
             Assert.Equal(RespPrefix.BulkString, reader.Prefix);
-            Assert.Equal(4, reader.Length);
+            Assert.Equal(4, reader.ScalarLength);
             Assert.Equal("ping", reader.ReadString());
 
             if (value is not null)
             {
                 Assert.True(reader.ReadNext());
                 Assert.Equal(RespPrefix.BulkString, reader.Prefix);
-                Assert.Equal(value.Length, reader.Length);
+                Assert.Equal(value.Length, reader.ScalarLength);
                 Assert.Equal(value, reader.ReadString());
             }
 

@@ -67,13 +67,12 @@ StackExchange.Redis.Protocol.RespReader.Is(System.ReadOnlySpan<byte> value) -> b
 StackExchange.Redis.Protocol.RespReader.IsAggregate.get -> bool
 StackExchange.Redis.Protocol.RespReader.IsNull() -> bool
 StackExchange.Redis.Protocol.RespReader.IsScalar.get -> bool
-StackExchange.Redis.Protocol.RespReader.Length.get -> int
-StackExchange.Redis.Protocol.RespReader.LongLength.get -> long
 StackExchange.Redis.Protocol.RespReader.Prefix.get -> StackExchange.Redis.Protocol.RespPrefix
 StackExchange.Redis.Protocol.RespReader.ReadNext() -> bool
 StackExchange.Redis.Protocol.RespReader.RespReader() -> void
 StackExchange.Redis.Protocol.RespReader.RespReader(System.Buffers.ReadOnlySequence<byte> value) -> void
 StackExchange.Redis.Protocol.RespReader.RespReader(System.ReadOnlyMemory<byte> value) -> void
+StackExchange.Redis.Protocol.RespReader.ScalarLength.get -> int
 StackExchange.Redis.Protocol.RespReader.SkipChildren() -> int
 StackExchange.Redis.Protocol.RespRequest
 StackExchange.Redis.Protocol.RespRequest.RespRequest() -> void

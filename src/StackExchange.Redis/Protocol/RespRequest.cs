@@ -23,6 +23,56 @@ public abstract class RespRequest
     public abstract void Write(ref Resp2Writer writer);
 }
 
+/*
+[Experimental(RespRequest.ExperimentalDiagnosticID)]
+public interface IWhatever
+{
+    public TResponse Execute<TRequest, TResponse>(TRequest request, RespProcessor<TRequest, TResponse> processor);
+}
+[Experimental(RespRequest.ExperimentalDiagnosticID)]
+public abstract class RespProcessor<TRequest, TResponse>
+{
+    public abstract void Write(TRequest request, ref Resp2Writer writer);
+    public abstract TResponse Read(TRequest request, ref RespReader reader);
+}
+[Experimental(RespRequest.ExperimentalDiagnosticID)]
+internal static class IWhateverExtensions
+{
+    public static TResponse Execute<TRequest, TResponse>(this IWhatever obj, TRequest request, RespWriter<TRequest> writer, RespReader<TResponse> reader)
+        => obj.Execute(new RespSplitProcessor<TRequest, TResponse>.State(request, writer, reader), RespSplitProcessor<TRequest, TResponse>.Instance);
+}
+[Experimental(RespRequest.ExperimentalDiagnosticID)]
+internal sealed class RespSplitProcessor<TRequest, TResponse> : RespProcessor<RespSplitProcessor<TRequest, TResponse>.State, TResponse>
+{
+    internal static readonly RespSplitProcessor<TRequest, TResponse> Instance = new();
+    private RespSplitProcessor() { }
+    public override TResponse Read(State request, ref RespReader reader) => request.Reader.Read(ref reader);
+    public override void Write(State request, ref Resp2Writer writer) => request.Writer.Write(request.Request, ref writer);
+    internal readonly struct State
+    {
+        public State(TRequest request, RespWriter<TRequest> writer, RespReader<TResponse> reader)
+        {
+            Request = request;
+            Writer = writer;
+            Reader = reader;
+        }
+        public readonly TRequest Request;
+        public readonly RespWriter<TRequest> Writer;
+        public readonly RespReader<TResponse> Reader;
+    }
+}
+
+[Experimental(RespRequest.ExperimentalDiagnosticID)]
+public abstract class RespWriter<TRequest>
+{
+    public abstract void Write(TRequest request, ref Resp2Writer writer);
+}
+[Experimental(RespRequest.ExperimentalDiagnosticID)]
+public abstract class RespReader<TResponse>
+{
+    public abstract TResponse Read(ref RespReader writer);
+}
+*/
 [Experimental(RespRequest.ExperimentalDiagnosticID)]
 public enum RespPrefix : byte
 {
@@ -399,13 +449,15 @@ public abstract class RespSource : IAsyncDisposable
 [Experimental(RespRequest.ExperimentalDiagnosticID)]
 public ref struct RespReader
 {
+    private readonly ReadOnlySequence<byte> _fullPayload;
+    private SequencePosition _segPos;
     private long _positionBase;
-    private int _bufferIndex, _bufferLength;
+    private int _bufferIndex; // after TryRead, this should be positioned immediately before the actual data
+    private int _bufferLength;
+    private int _length; // for null: -1; for scalars: the length of the payload; for aggregates: the child count
     private RespPrefix _prefix;
     public readonly long BytesConsumed => _positionBase + _bufferIndex;
     public readonly RespPrefix Prefix => _prefix;
-
-    private int _currentOffset, _currentLength;
 
     /// <summary>
     /// Returns as much data as possible into the buffer, ignoring
@@ -431,36 +483,43 @@ public ref struct RespReader
         throw new NotImplementedException();
     }
 
+    /// <summary>
+    /// Returns true if the value is a valid scalar value <em>that is available as a single contiguous chunk</em>;
+    /// a value could be a valid scalar but if it spans segments, this will report <c>false</c>; alternative APIs
+    /// are available to inspect the value.
+    /// </summary>
     internal readonly bool TryGetValueSpan(out ReadOnlySpan<byte> span)
     {
-        if (!IsScalar)
+        if (!IsScalar || _length < 0)
         {
             span = default;
             return false; // only possible for scalars
         }
-        if (_currentOffset < 0) Throw();
-        if (_currentLength == 0)
+        if (_length == 0)
         {
             span = default;
+            return true;
         }
-        else
+
+        if (_bufferIndex + _length <= _bufferLength)
         {
 #if NET7_0_OR_GREATER
-            span = MemoryMarshal.CreateReadOnlySpan(ref Unsafe.Add(ref _bufferRoot, _currentOffset), _currentLength);
+            span = MemoryMarshal.CreateReadOnlySpan(ref Unsafe.Add(ref _bufferRoot, _bufferIndex), _length);
 #else
-            span = _bufferSpan.Slice(_currentOffset, _currentLength);
+            span = _bufferSpan.Slice(_bufferIndex, _length);
 #endif
         }
-        return true;
 
-        static void Throw() => throw new InvalidOperationException();
+        // not available as a convenient contiguous chunk
+        span = default;
+        return false;
     }
     internal readonly string? ReadString()
     {
-        if (IsNull()) return null;
+        if (!IsScalar || _length < 0) return null;
+        if (_length == 0) return "";
         if (TryGetValueSpan(out var span))
         {
-            if (span.IsEmpty) return "";
 #if NETCOREAPP3_0_OR_GREATER
             return Resp2Writer.UTF8.GetString(span);
 #else
@@ -481,20 +540,22 @@ public ref struct RespReader
     private RespPrefix PeekPrefix() => (RespPrefix)Unsafe.Add(ref _bufferRoot, _bufferIndex);
     private ReadOnlySpan<byte> PeekPastPrefix() => MemoryMarshal.CreateReadOnlySpan(
         ref Unsafe.Add(ref _bufferRoot, _bufferIndex + 1), _bufferLength - (_bufferIndex + 1));
+    private ReadOnlySpan<byte> CurrentBuffer => MemoryMarshal.CreateReadOnlySpan(ref _bufferRoot, _bufferLength);
     private void AssertCrlfPastPrefixUnsafe(int offset)
     {
         if (Unsafe.ReadUnaligned<ushort>(ref Unsafe.Add(ref _bufferRoot, _bufferIndex + offset + 1)) != Resp2Writer.CrLf)
             ThrowProtocolFailure();
     }
-    private void SetCurrent(ReadOnlyMemory<byte> current)
+    private void SetCurrent(ReadOnlySpan<byte> current)
     {
         _positionBase += _bufferLength; // accumulate previous length
-        _bufferRoot = ref MemoryMarshal.GetReference(current.Span);
         _bufferIndex = 0;
         _bufferLength = current.Length;
+        _bufferRoot = ref MemoryMarshal.GetReference(current);
     }
 #else
     private ReadOnlySpan<byte> _bufferSpan;
+    private ReadOnlySpan<byte> CurrentBuffer => _bufferSpan;
     private readonly RespPrefix PeekPrefix() => (RespPrefix)_bufferSpan[_bufferIndex];
     private readonly ReadOnlySpan<byte> PeekPastPrefix() => _bufferSpan.Slice(_bufferIndex + 1);
     private readonly void AssertCrlfPastPrefixUnsafe(int offset)
@@ -502,12 +563,12 @@ public ref struct RespReader
         if (Unsafe.ReadUnaligned<ushort>(ref Unsafe.AsRef(in _bufferSpan[_bufferIndex + offset + 1])) != Resp2Writer.CrLf)
             ThrowProtocolFailure();
     }
-    private void SetCurrent(ReadOnlyMemory<byte> current)
+    private void SetCurrent(ReadOnlySpan<byte> current)
     {
         _positionBase += _bufferLength; // accumulate previous length
-        _bufferSpan = current.Span;
         _bufferIndex = 0;
-        _bufferLength = _bufferSpan.Length;
+        _bufferLength = current.Length;
+        _bufferSpan = current;
     }
 #endif
 
@@ -515,32 +576,35 @@ public ref struct RespReader
 
     public RespReader(ReadOnlySequence<byte> value)
     {
+        _fullPayload = value;
         _positionBase = _bufferIndex = _bufferLength = 0;
+        _length = -1;
+        _prefix = RespPrefix.None;
 #if NET7_0_OR_GREATER
         _bufferRoot = ref Unsafe.NullRef<byte>();
 #else
         _bufferSpan = default;
 #endif
-        if (value.IsSingleSegment)
+        _segPos = value.Start;
+        if (value.TryGet(ref _segPos, out var current))
         {
-            SetCurrent(value.First);
-        }
-        else
-        {
-            throw new NotImplementedException();
+            SetCurrent(current.Span);
         }
     }
 
     private static ReadOnlySpan<byte> CrLf => "\r\n"u8;
 
-    public readonly int Length => _currentLength;
-    public readonly long LongLength => Length;
+    public readonly int ScalarLength => Prefix switch {
+        RespPrefix.SimpleString or RespPrefix.SimpleError or RespPrefix.Integer
+        or RespPrefix.Boolean or RespPrefix.Double or RespPrefix.BigNumber
+        or RespPrefix.BulkError or RespPrefix.BulkString or RespPrefix.VerbatimString when _length > 0 => _length,
+        _ => 0,
+    };
 
     public readonly int ChildCount => Prefix switch
     {
-        _ when Length <= 0 => 0, // null arrays don't have -1 child-elements; might as well handle zero here too
-        RespPrefix.Array or RespPrefix.Set or RespPrefix.Push => Length,
-        RespPrefix.Map /* or RespPrefix.Attribute */ => 2 * Length,
+        RespPrefix.Array or RespPrefix.Set or RespPrefix.Push when _length > 0 => _length,
+        RespPrefix.Map when _length > 0 => 2 * _length,
         _ => 0,
     };
 
@@ -581,22 +645,48 @@ public ref struct RespReader
 
     private static void ThrowProtocolFailure() => throw new InvalidOperationException(); // protocol exception?
 
-    public readonly bool IsNull()
-    {
-        if (_currentLength < -1) ThrowProtocolFailure();
-        return _currentLength == -1;
-    }
+    public readonly bool IsNull() => _length < 0;
 
     private void ResetCurrent()
     {
-        _prefix = default;
-        _currentOffset = -1;
-        _currentLength = 0;
+        _prefix = RespPrefix.None;
+        _length = -1;
     }
+
+    private void Advance(int bytes)
+    {
+        if (_bufferIndex + _length <= _bufferLength)
+        {
+            _bufferIndex += bytes;
+        }
+        else
+        {
+            AdvanceSlow(bytes);
+        }
+    }
+    private void AdvanceSlow(int bytes)
+    {
+        while (bytes > 0)
+        {
+            var current = _bufferLength - _bufferIndex;
+            if (bytes <= current)
+            {
+                _bufferIndex += bytes;
+                return;
+            }
+            if (!_fullPayload.TryGet(ref _segPos, out var next))
+            {
+                throw new EndOfStreamException();
+            }
+            SetCurrent(next.Span);
+        }
+    }
+
     public bool ReadNext()
     {
+        if (IsScalar & _length >= 0) Advance(_length + 2); // move past payload+CRLF
         ResetCurrent();
-        if (_bufferIndex + 2 < _bufferLength) // shortest possible RESP fragment is length 3
+        if (_bufferIndex + 3 <= _bufferLength) // shortest possible RESP fragment is length 3
         {
             switch (_prefix = PeekPrefix())
             {
@@ -607,40 +697,36 @@ public ref struct RespReader
                 case RespPrefix.Double:
                 case RespPrefix.BigNumber:
                     // CRLF-terminated
-                    _currentLength = PeekPastPrefix().IndexOf(CrLf);
-                    if (_currentLength < 0) break;
-                    _currentOffset = _bufferIndex + 1;
-                    _bufferIndex += _currentLength + 3;
+                    _length = PeekPastPrefix().IndexOf(CrLf);
+                    if (_length < 0) break; // can't find, need more data
+                    _bufferIndex++; // skip past prefix (payload follows directly)
                     return true;
                 case RespPrefix.BulkError:
                 case RespPrefix.BulkString:
                 case RespPrefix.VerbatimString:
                     // length prefix with value payload
-                    if (!TryReadIntegerCrLf(PeekPastPrefix(), out _currentLength, out int consumed)) break;
-                    _currentOffset = _bufferIndex + 1 + consumed;
-                    if (IsNull())
+                    var remaining = PeekPastPrefix();
+                    if (!TryReadIntegerCrLf(remaining, out _length, out int consumed)) break;
+                    if (_length >= 0)
                     {
-                        _bufferIndex += consumed + 1;
-                        return true;
+                        // not null; still need to valid terminating CRLF
+                        if (remaining.Length < consumed + _length + 2) break; // need more data
+                        AssertCrlfPastPrefixUnsafe(consumed + _length);
                     }
-                    if (_currentLength + 2 > (((_bufferLength - _bufferIndex) - 1) - consumed)) break;
-                    AssertCrlfPastPrefixUnsafe(consumed + _currentLength);
-                    _bufferIndex += consumed + _currentLength + 3;
+                    _bufferIndex += 1 + consumed;
                     return true;
                 case RespPrefix.Array:
                 case RespPrefix.Set:
                 case RespPrefix.Map:
                 case RespPrefix.Push:
                     // length prefix without value payload (child values follow)
-                    if (!TryReadIntegerCrLf(PeekPastPrefix(), out _currentLength, out consumed)) break;
-                    _ = IsNull(); // for validation/consistency
+                    if (!TryReadIntegerCrLf(PeekPastPrefix(), out _length, out consumed)) break;
                     _bufferIndex += consumed + 1;
                     return true;
                 case RespPrefix.Null: // null
                     // note we already checked we had 3 bytes
                     AssertCrlfPastPrefixUnsafe(0);
-                    _currentOffset = _bufferIndex + 1;
-                    _bufferIndex += 3;
+                    _bufferIndex += 3; // skip prefix+terminator
                     return true;
                 default:
                     ThrowProtocolFailure();
@@ -653,12 +739,90 @@ public ref struct RespReader
     private bool ReadSlow()
     {
         ResetCurrent();
-        if (_bufferLength == _bufferIndex)
+        var reader = new SlowReader(in _fullPayload, _segPos, CurrentBuffer, _bufferIndex);
+        if (reader.IsEOF()) return false; // natural EOF
+
+
+        switch (_prefix = (RespPrefix)reader.Read())
         {
-            // natural EOF, single chunk
+            case RespPrefix.SimpleString:
+            case RespPrefix.SimpleError:
+            case RespPrefix.Integer:
+            case RespPrefix.Boolean:
+            case RespPrefix.Double:
+            case RespPrefix.BigNumber:
+                // CRLF-terminated
+                _length = reader.ReadLengthCrLf();
+                break;
+            case RespPrefix.BulkError:
+            case RespPrefix.BulkString:
+            case RespPrefix.VerbatimString:
+                // length prefix with value payload
+                _length = reader.ReadLengthCrLf();
+                reader.AssertBytesWithoutMovingCrLf(_length);
+                break;
+            case RespPrefix.Array:
+            case RespPrefix.Set:
+            case RespPrefix.Map:
+            case RespPrefix.Push:
+                // length prefix without value payload (child values follow)
+                _length = reader.ReadLengthCrLf();
+                break;
+            case RespPrefix.Null: // null
+                                  // note we already checked we had 3 bytes
+                reader.ReadCrLf();
+                break;
+            default:
+                ThrowProtocolFailure();
+                return false;
+        }
+        throw new NotImplementedException("Set next positions");
+        //return true;
+    }
+
+    private ref struct SlowReader
+    {
+        public SlowReader(in ReadOnlySequence<byte> full, SequencePosition segPos, ReadOnlySpan<byte> current, int index)
+        {
+            _full = full;
+            _segPos = segPos;
+            _current = current;
+            _index = index;
+        }
+        private bool AdvanceToData(bool throwEof = true)
+        {
+            while (_index == _current.Length)
+            {
+                if (!_full.TryGet(ref _segPos, out var next))
+                {
+                    return true;
+                }
+                _current = next.Span;
+                _index = 0;
+            }
+            if (throwEof) throw new EndOfStreamException();
             return false;
         }
-        throw new NotImplementedException(); // multi-segment parsing
+        public bool IsEOF() => AdvanceToData(throwEof: false);
+
+        public byte Read()
+        {
+            AdvanceToData();
+            return _current[_index++];
+        }
+
+        public int ReadLengthCrLf() => throw new NotImplementedException();
+
+        internal void AssertBytesWithoutMovingCrLf(int bytes) => throw new NotImplementedException();
+        internal void ReadCrLf() // assert and advance
+        {
+            if (Read() != '\r' || Read() != '\n') ThrowProtocolFailure();
+        }
+
+        private readonly ReadOnlySequence<byte> _full;
+        private SequencePosition _segPos;
+        private ReadOnlySpan<byte> _current;
+        private int _index;
     }
 
     /// <summary>Performs a byte-wise equality check on the payload</summary>
@@ -790,7 +954,7 @@ public readonly struct RequestBuffer
         {
             MultiCopy(in target, value);
         }
-        return new(_buffer,  preambleIndex, _payloadIndex);
+        return new(_buffer, preambleIndex, _payloadIndex);
 
         static void Throw() => throw new InvalidOperationException("There is insufficient capacity to add the requested preamble");
 
@@ -983,7 +1147,7 @@ public ref struct Resp2Writer
                 _buffer.Commit(value.Length);
                 return;
             }
-            
+
             // write what we can
             value.Slice(target.Length).CopyTo(target);
             _buffer.Commit(target.Length);
@@ -1127,7 +1291,7 @@ internal struct RotatingBufferCore : IDisposable, IBufferWriter<byte> // note mu
         if (minSize <= AvailableBytes) // don't pay lookup cost if impossible
         {
             span = GetWritableTail().Span;
-            return span.Length >= minSize; 
+            return span.Length >= minSize;
         }
         span = default;
         return false;

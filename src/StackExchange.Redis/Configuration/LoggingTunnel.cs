@@ -200,8 +200,8 @@ public abstract class LoggingTunnel : Tunnel
                 if (reader.Prefix == RespPrefix.Push) return true;
                 if (reader.Prefix == RespPrefix.Array)
                 {
-                    var length = reader.Length;
-                    if (length >= 3 && reader.ReadNext() && reader.Prefix == RespPrefix.BulkString && reader.Length is 7 or 8)
+                    var length = reader.ScalarLength;
+                    if (length >= 3 && reader.ReadNext() && reader.Prefix == RespPrefix.BulkString && reader.ScalarLength is 7 or 8)
                     {
                         return reader.Is("message"u8) || reader.Is("smessage"u8)
                             || (length >= 4 && reader.Is("pmessage"u8));
@@ -558,7 +558,7 @@ public abstract class LoggingTunnel : Tunnel
         }
 
         const int MAX_DISPLAY_BYTES = 50;
-        if (value.Length <= MAX_DISPLAY_BYTES)
+        if (value.ScalarLength <= MAX_DISPLAY_BYTES)
         {
             var blob = value.TryGetValueSpan(out var tmp) ? tmp : value.CopyTo(stackalloc byte[MAX_DISPLAY_BYTES]);
             int i;
@@ -589,7 +589,7 @@ public abstract class LoggingTunnel : Tunnel
                 };
             }
         }
-        return $"({value.Length} bytes)";
+        return $"({value.ScalarLength} bytes)";
     }
 
     /// <summary>
