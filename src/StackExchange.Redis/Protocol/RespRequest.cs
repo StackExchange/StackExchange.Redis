@@ -5,7 +5,6 @@ using System.Buffers.Text;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
-using System.Linq.Expressions;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -314,6 +313,21 @@ public abstract class RespSource : IAsyncDisposable
 
     protected abstract ValueTask<bool> TryReadAsync(CancellationToken cancellationToken);
 
+    [Conditional("DEBUG")]
+    private static void DebugWrite(ReadOnlySequence<byte> data)
+    {
+        try
+        {
+            var reader = new RespReader(data);
+            reader.ReadNext();
+            Debug.WriteLine(reader.ToString());
+        }
+        catch(Exception ex)
+        {
+            Debug.WriteLine(ex.Message);
+        }
+    }
+
     // internal abstract long Scan(long skip, ref int count);
     public async ValueTask<LeasedSequence<byte>> ReadNextAsync(CancellationToken cancellationToken = default)
     {
@@ -330,15 +344,16 @@ public abstract class RespSource : IAsyncDisposable
                 {
                     if (totalConsumed != 0)
                     {
+                        DebugWrite(GetBuffer().Slice(totalConsumed));
                         throw new EndOfStreamException();
                     }
                     return default;
                 }
             }
         }
-
         var chunk = Take(totalConsumed);
         if (chunk.Length != totalConsumed) Throw();
+        DebugWrite(chunk);
         return new(chunk);
 
         static void Throw() => throw new InvalidOperationException("Buffer length mismatch in " + nameof(ReadNextAsync));
@@ -831,34 +846,50 @@ public ref struct RespReader
         //return true;
     }
 
-    private ref struct SlowReader
+    private ref partial struct SlowReader
     {
         public SlowReader(in ReadOnlySequence<byte> full, SequencePosition segPos, ReadOnlySpan<byte> current, int index)
         {
+#if NET7_0_OR_GREATER
+            _full = ref full;
+#else
             _full = full;
+#endif
             _segPos = segPos;
             _current = current;
             _index = index;
+            DebugAssertValid();
         }
+
+        [Conditional("DEBUG")]
+        partial void DebugAssertValid();
+#if DEBUG
+        partial void DebugAssertValid()
+        {
+            Debug.Assert(_index >= 0 && _index <= _current.Length);
+        }
+#endif
         private bool AdvanceToData(bool throwEof = true)
         {
+            DebugAssertValid();
             while (_index == _current.Length)
             {
                 if (!_full.TryGet(ref _segPos, out var next))
                 {
+                    if (throwEof) throw new EndOfStreamException();
                     break;
                 }
                 _current = next.Span;
                 _index = 0;
             }
-            if (throwEof) throw new EndOfStreamException();
-            return false;
+            DebugAssertValid();
+            return true;
         }
         public bool IsEOF() => !AdvanceToData(throwEof: false);
 
         public byte Read()
         {
-            AdvanceToData();
+            AdvanceToData(throwEof: true);
             return _current[_index++];
         }
 
@@ -867,10 +898,22 @@ public ref struct RespReader
         internal void AssertBytesWithoutMovingCrLf(int bytes) => throw new NotImplementedException();
         internal void ReadCrLf() // assert and advance
         {
+            DebugAssertValid();
+            if (_index + 2 <= _current.Length)
+            {
+                if (Unsafe.ReadUnaligned<ushort>(ref Unsafe.AsRef(in _current[_index])) != Resp2Writer.CrLf)
+                    ThrowProtocolFailure();
+                _index += 2;
+                return;
+            }
             if (Read() != '\r' || Read() != '\n') ThrowProtocolFailure();
         }
 
+#if NET7_0_OR_GREATER
+        private readonly ref readonly ReadOnlySequence<byte> _full;
+#else
         private readonly ReadOnlySequence<byte> _full;
+#endif
         private SequencePosition _segPos;
         private ReadOnlySpan<byte> _current;
         private int _index;
