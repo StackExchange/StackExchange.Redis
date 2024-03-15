@@ -1,6 +1,7 @@
 ﻿abstract StackExchange.Redis.Protocol.RespRequest.Write(ref StackExchange.Redis.Protocol.Resp2Writer writer) -> void
 override StackExchange.Redis.Protocol.LeasedSequence<T>.ToString() -> string!
 override StackExchange.Redis.Protocol.RequestBuffer.ToString() -> string!
+override StackExchange.Redis.Protocol.RespReader.ToString() -> string!
 StackExchange.Redis.Protocol.LeasedSequence<T>
 StackExchange.Redis.Protocol.LeasedSequence<T>.AddRef() -> void
 StackExchange.Redis.Protocol.LeasedSequence<T>.Dispose() -> void
@@ -65,7 +66,7 @@ StackExchange.Redis.Protocol.RespReader.ChildCount.get -> int
 StackExchange.Redis.Protocol.RespReader.CopyTo(System.Span<byte> target) -> System.Span<byte>
 StackExchange.Redis.Protocol.RespReader.Is(System.ReadOnlySpan<byte> value) -> bool
 StackExchange.Redis.Protocol.RespReader.IsAggregate.get -> bool
-StackExchange.Redis.Protocol.RespReader.IsNull() -> bool
+StackExchange.Redis.Protocol.RespReader.IsNull.get -> bool
 StackExchange.Redis.Protocol.RespReader.IsScalar.get -> bool
 StackExchange.Redis.Protocol.RespReader.Prefix.get -> StackExchange.Redis.Protocol.RespPrefix
 StackExchange.Redis.Protocol.RespReader.ReadNext() -> bool

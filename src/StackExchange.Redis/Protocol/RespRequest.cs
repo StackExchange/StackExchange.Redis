@@ -5,6 +5,7 @@ using System.Buffers.Text;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
+using System.Linq.Expressions;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -323,10 +324,16 @@ public abstract class RespSource : IAsyncDisposable
             var consumed = Scan(GetBuffer().Slice(totalConsumed), ref pending);
             totalConsumed += consumed;
 
-            if (pending != 0 && !(await TryReadAsync(cancellationToken)))
+            if (pending != 0)
             {
-                if (totalConsumed != 0) throw new EndOfStreamException();
-                return default;
+                if (!await TryReadAsync(cancellationToken))
+                {
+                    if (totalConsumed != 0)
+                    {
+                        throw new EndOfStreamException();
+                    }
+                    return default;
+                }
             }
         }
 
@@ -387,7 +394,8 @@ public abstract class RespSource : IAsyncDisposable
 
 
 #if NETCOREAPP3_1_OR_GREATER
-        public override ValueTask DisposeAsync() {
+        public override ValueTask DisposeAsync()
+        {
             _buffer.Dispose();
             return _source.DisposeAsync();
         }
@@ -456,7 +464,11 @@ public ref struct RespReader
     private int _bufferLength;
     private int _length; // for null: -1; for scalars: the length of the payload; for aggregates: the child count
     private RespPrefix _prefix;
-    public readonly long BytesConsumed => _positionBase + _bufferIndex;
+    /// <summary>
+    /// Returns the position after the end of the current element
+    /// </summary>
+    public readonly long BytesConsumed => _positionBase + _bufferIndex + TrailingLength;
+
     public readonly RespPrefix Prefix => _prefix;
 
     /// <summary>
@@ -508,6 +520,7 @@ public ref struct RespReader
 #else
             span = _bufferSpan.Slice(_bufferIndex, _length);
 #endif
+            return true;
         }
 
         // not available as a convenient contiguous chunk
@@ -594,40 +607,57 @@ public ref struct RespReader
 
     private static ReadOnlySpan<byte> CrLf => "\r\n"u8;
 
-    public readonly int ScalarLength => Prefix switch {
-        RespPrefix.SimpleString or RespPrefix.SimpleError or RespPrefix.Integer
-        or RespPrefix.Boolean or RespPrefix.Double or RespPrefix.BigNumber
-        or RespPrefix.BulkError or RespPrefix.BulkString or RespPrefix.VerbatimString when _length > 0 => _length,
-        _ => 0,
-    };
-
-    public readonly int ChildCount => Prefix switch
+    public readonly int ScalarLength
     {
-        RespPrefix.Array or RespPrefix.Set or RespPrefix.Push when _length > 0 => _length,
-        RespPrefix.Map when _length > 0 => 2 * _length,
-        _ => 0,
-    };
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => Prefix switch
+        {
+            RespPrefix.SimpleString or RespPrefix.SimpleError or RespPrefix.Integer
+            or RespPrefix.Boolean or RespPrefix.Double or RespPrefix.BigNumber
+            or RespPrefix.BulkError or RespPrefix.BulkString or RespPrefix.VerbatimString when _length > 0 => _length,
+            _ => 0,
+        };
+    }
+
+    public readonly int ChildCount
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => Prefix switch
+        {
+            RespPrefix.Array or RespPrefix.Set or RespPrefix.Push when _length > 0 => _length,
+            RespPrefix.Map when _length > 0 => 2 * _length,
+            _ => 0,
+        };
+    }
 
     /// <summary>
     /// Indicates a type with a discreet value - string, integer, etc - <see cref="TryGetValueSpan(out ReadOnlySpan{byte})"/>,
     /// <see cref="Is(ReadOnlySpan{byte})"/>, <see cref="CopyTo(Span{byte})"/> etc are meaningful
     /// </summary>
-    public readonly bool IsScalar => Prefix switch
+    public readonly bool IsScalar
     {
-        RespPrefix.SimpleString or RespPrefix.SimpleError or RespPrefix.Integer
-        or RespPrefix.Boolean or RespPrefix.Double or RespPrefix.BigNumber
-        or RespPrefix.BulkError or RespPrefix.BulkString or RespPrefix.VerbatimString => true,
-        _ => false,
-    };
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => Prefix switch
+        {
+            RespPrefix.SimpleString or RespPrefix.SimpleError or RespPrefix.Integer
+            or RespPrefix.Boolean or RespPrefix.Double or RespPrefix.BigNumber
+            or RespPrefix.BulkError or RespPrefix.BulkString or RespPrefix.VerbatimString => true,
+            _ => false,
+        };
+    }
 
     /// <summary>
     /// Indicates a collection type - array, set, etc - <see cref="ChildCount"/>, <see cref="SkipChildren()"/> are are meaningful
     /// </summary>
-    public readonly bool IsAggregate => Prefix switch
+    public readonly bool IsAggregate
     {
-        RespPrefix.Array or RespPrefix.Set or RespPrefix.Map or RespPrefix.Push => true,
-        _ => false,
-    };
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => Prefix switch
+        {
+            RespPrefix.Array or RespPrefix.Set or RespPrefix.Map or RespPrefix.Push => true,
+            _ => false,
+        };
+    }
 
     private static bool TryReadIntegerCrLf(ReadOnlySpan<byte> bytes, out int value, out int byteCount)
     {
@@ -645,25 +675,19 @@ public ref struct RespReader
 
     private static void ThrowProtocolFailure() => throw new InvalidOperationException(); // protocol exception?
 
-    public readonly bool IsNull() => _length < 0;
+    public readonly bool IsNull
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => _length < 0;
+    }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void ResetCurrent()
     {
         _prefix = RespPrefix.None;
         _length = -1;
     }
 
-    private void Advance(int bytes)
-    {
-        if (_bufferIndex + _length <= _bufferLength)
-        {
-            _bufferIndex += bytes;
-        }
-        else
-        {
-            AdvanceSlow(bytes);
-        }
-    }
     private void AdvanceSlow(int bytes)
     {
         while (bytes > 0)
@@ -682,9 +706,27 @@ public ref struct RespReader
         }
     }
 
+    /// <summary>
+    /// Body length of scalar values, plus any terminating sentinels
+    /// </summary>
+    private readonly int TrailingLength
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => IsScalar && _length >= 0 ? _length + 2 : 0;
+    }
+
+
     public bool ReadNext()
     {
-        if (IsScalar & _length >= 0) Advance(_length + 2); // move past payload+CRLF
+        var skip = TrailingLength;
+        if (_bufferIndex + skip <= _bufferLength)
+        {
+            _bufferIndex += skip; // available in the current buffer
+        }
+        else
+        {
+            AdvanceSlow(skip);
+        }
         ResetCurrent();
         if (_bufferIndex + 3 <= _bufferLength) // shortest possible RESP fragment is length 3
         {
@@ -707,9 +749,9 @@ public ref struct RespReader
                     // length prefix with value payload
                     var remaining = PeekPastPrefix();
                     if (!TryReadIntegerCrLf(remaining, out _length, out int consumed)) break;
-                    if (_length >= 0)
+                    if (_length >= 0) // not null (nulls don't have second CRLF)
                     {
-                        // not null; still need to valid terminating CRLF
+                        // still need to valid terminating CRLF
                         if (remaining.Length < consumed + _length + 2) break; // need more data
                         AssertCrlfPastPrefixUnsafe(consumed + _length);
                     }
@@ -726,6 +768,7 @@ public ref struct RespReader
                 case RespPrefix.Null: // null
                     // note we already checked we had 3 bytes
                     AssertCrlfPastPrefixUnsafe(0);
+                    _length = -1;
                     _bufferIndex += 3; // skip prefix+terminator
                     return true;
                 default:
@@ -733,10 +776,18 @@ public ref struct RespReader
                     return false;
             }
         }
-        return ReadSlow();
+        return ReadNextSlow();
     }
 
-    private bool ReadSlow()
+    /// <inheritdoc/>
+    public override readonly string ToString()
+    {
+        if (IsScalar) return IsNull ? $"@{BytesConsumed} {Prefix}: {nameof(RespPrefix.Null)}" : $"@{BytesConsumed} {Prefix} with {ScalarLength} bytes '{ReadString()}'";
+        if (IsAggregate) return IsNull ? $"@{BytesConsumed} {Prefix}: {nameof(RespPrefix.Null)}" : $"@{BytesConsumed} {Prefix} with {ChildCount} sub-items";
+        return $"@{BytesConsumed} {Prefix}";
+    }
+
+    private bool ReadNextSlow()
     {
         ResetCurrent();
         var reader = new SlowReader(in _fullPayload, _segPos, CurrentBuffer, _bufferIndex);
@@ -795,7 +846,7 @@ public ref struct RespReader
             {
                 if (!_full.TryGet(ref _segPos, out var next))
                 {
-                    return true;
+                    break;
                 }
                 _current = next.Span;
                 _index = 0;
@@ -803,7 +854,7 @@ public ref struct RespReader
             if (throwEof) throw new EndOfStreamException();
             return false;
         }
-        public bool IsEOF() => AdvanceToData(throwEof: false);
+        public bool IsEOF() => !AdvanceToData(throwEof: false);
 
         public byte Read()
         {

@@ -527,7 +527,7 @@ public abstract class LoggingTunnel : Tunnel
     public static string? DefaultFormatRequest(ref RespReader value)
     {
         if (!value.ReadNext()) return null;
-        if (value.Prefix == RespPrefix.Array && !value.IsNull())
+        if (value.Prefix == RespPrefix.Array && !value.IsNull)
         {
             var count = value.ChildCount;
             var sb = new StringBuilder();
@@ -549,7 +549,7 @@ public abstract class LoggingTunnel : Tunnel
 
     private static string GetSimpleString(ref RespReader value)
     {
-        if (value.IsNull()) return "(null)";
+        if (value.IsNull) return "(null)";
         if (value.IsAggregate)
         {
             var s = $"[{value.Prefix} {value.ChildCount}]";
