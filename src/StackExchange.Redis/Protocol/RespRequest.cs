@@ -5,6 +5,7 @@ using System.Buffers.Text;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -364,8 +365,10 @@ public abstract class RespSource : IAsyncDisposable
             var reader = new RespReader(payload);
             while (count > 0 && reader.ReadNext())
             {
+                Debug.WriteLine(reader.ToString());
                 count = count - 1 + reader.ChildCount;
             }
+            Debug.Assert(reader.BytesConsumed <= payload.Length);
             return reader.BytesConsumed;
         }
     }
@@ -484,6 +487,8 @@ public ref struct RespReader
     /// </summary>
     public readonly long BytesConsumed => _positionBase + _bufferIndex + TrailingLength;
 
+    internal int DebugBufferIndex => _bufferIndex;
+
     public readonly RespPrefix Prefix => _prefix;
 
     /// <summary>
@@ -560,7 +565,37 @@ public ref struct RespReader
             }
 #endif
         }
-        throw new NotImplementedException();
+        return SlowReadString();
+    }
+    private readonly string SlowReadString()
+    {
+        // simple cases and pre-conditions already checked
+        // TODO: stackalloc small values
+        var arr = ArrayPool<byte>.Shared.Rent(_length);
+        var reader = new SlowReader(in this);
+        var len = reader.Fill(new Span<byte>(arr, 0, _length));
+        Debug.Assert(len == _length);
+        var s = Resp2Writer.UTF8.GetString(arr, 0, len);
+        ArrayPool<byte>.Shared.Return(arr);
+        return s;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void AssertClLfUnsafe(scoped ref byte source, int offset)
+    {
+        if (Unsafe.ReadUnaligned<ushort>(ref Unsafe.Add(ref source, offset)) != Resp2Writer.CrLf)
+        {
+            ThrowProtocolFailure("Expected CR/LF");
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void AssertClLfUnsafe(scoped ref readonly byte source)
+    {
+        if (Unsafe.ReadUnaligned<ushort>(ref Unsafe.AsRef(in source)) != Resp2Writer.CrLf)
+        {
+            ThrowProtocolFailure("Expected CR/LF");
+        }
     }
 
 #if NET7_0_OR_GREATER
@@ -569,11 +604,7 @@ public ref struct RespReader
     private ReadOnlySpan<byte> PeekPastPrefix() => MemoryMarshal.CreateReadOnlySpan(
         ref Unsafe.Add(ref _bufferRoot, _bufferIndex + 1), _bufferLength - (_bufferIndex + 1));
     private ReadOnlySpan<byte> CurrentBuffer => MemoryMarshal.CreateReadOnlySpan(ref _bufferRoot, _bufferLength);
-    private void AssertCrlfPastPrefixUnsafe(int offset)
-    {
-        if (Unsafe.ReadUnaligned<ushort>(ref Unsafe.Add(ref _bufferRoot, _bufferIndex + offset + 1)) != Resp2Writer.CrLf)
-            ThrowProtocolFailure();
-    }
+    private void AssertCrlfPastPrefixUnsafe(int offset) => AssertClLfUnsafe(ref _bufferRoot, _bufferIndex + offset + 1);
     private void SetCurrent(ReadOnlySpan<byte> current)
     {
         _positionBase += _bufferLength; // accumulate previous length
@@ -587,10 +618,7 @@ public ref struct RespReader
     private readonly RespPrefix PeekPrefix() => (RespPrefix)_bufferSpan[_bufferIndex];
     private readonly ReadOnlySpan<byte> PeekPastPrefix() => _bufferSpan.Slice(_bufferIndex + 1);
     private readonly void AssertCrlfPastPrefixUnsafe(int offset)
-    {
-        if (Unsafe.ReadUnaligned<ushort>(ref Unsafe.AsRef(in _bufferSpan[_bufferIndex + offset + 1])) != Resp2Writer.CrLf)
-            ThrowProtocolFailure();
-    }
+        => AssertClLfUnsafe(in _bufferSpan[_bufferIndex + offset + 1]);
     private void SetCurrent(ReadOnlySpan<byte> current)
     {
         _positionBase += _bufferLength; // accumulate previous length
@@ -601,7 +629,6 @@ public ref struct RespReader
 #endif
 
     public RespReader(ReadOnlyMemory<byte> value) : this(new ReadOnlySequence<byte>(value)) { }
-
     public RespReader(ReadOnlySequence<byte> value)
     {
         _fullPayload = value;
@@ -613,10 +640,21 @@ public ref struct RespReader
 #else
         _bufferSpan = default;
 #endif
-        _segPos = value.Start;
-        if (value.TryGet(ref _segPos, out var current))
+        if (value.IsSingleSegment)
         {
-            SetCurrent(current.Span);
+#if NETCOREAPP3_1_OR_GREATER
+            SetCurrent(value.FirstSpan);
+#else
+            SetCurrent(value.First.Span);
+#endif
+        }
+        else
+        {
+            _segPos = value.Start;
+            if (value.TryGet(ref _segPos, out var current))
+            {
+                SetCurrent(current.Span);
+            }
         }
     }
 
@@ -680,15 +718,20 @@ public ref struct RespReader
         if (end < 0)
         {
             byteCount = value = 0;
+            if (bytes.Length >= Resp2Writer.MaxRawBytesInt32 + 2)
+            {
+                ThrowProtocolFailure("Unterminated or over-length integer"); // should have failed; report failure to prevent infinite loop
+            }
             return false;
         }
         if (!(Utf8Parser.TryParse(bytes, out value, out byteCount) && byteCount == end))
-            ThrowProtocolFailure();
+            ThrowProtocolFailure("Unable to parse integer");
         byteCount += 2; // include the CrLf
         return true;
     }
 
-    private static void ThrowProtocolFailure() => throw new InvalidOperationException(); // protocol exception?
+    private static void ThrowProtocolFailure(string message)
+        => throw new InvalidOperationException("RESP protocol failure: " + message); // protocol exception?
 
     public readonly bool IsNull
     {
@@ -703,17 +746,18 @@ public ref struct RespReader
         _length = -1;
     }
 
-    private void AdvanceSlow(int bytes)
+    private void AdvanceSlow(long bytes)
     {
         while (bytes > 0)
         {
-            var current = _bufferLength - _bufferIndex;
-            if (bytes <= current)
+            var available = _bufferLength - _bufferIndex;
+            if (bytes <= available)
             {
-                _bufferIndex += bytes;
+                _bufferIndex += (int)bytes;
                 return;
             }
-            if (!_fullPayload.TryGet(ref _segPos, out var next))
+            bytes -= available;
+            if (_fullPayload.IsSingleSegment || !_fullPayload.TryGet(ref _segPos, out var next))
             {
                 throw new EndOfStreamException();
             }
@@ -743,6 +787,7 @@ public ref struct RespReader
             AdvanceSlow(skip);
         }
         ResetCurrent();
+        /*
         if (_bufferIndex + 3 <= _bufferLength) // shortest possible RESP fragment is length 3
         {
             switch (_prefix = PeekPrefix())
@@ -787,11 +832,12 @@ public ref struct RespReader
                     _bufferIndex += 3; // skip prefix+terminator
                     return true;
                 default:
-                    ThrowProtocolFailure();
+                    ThrowProtocolFailure("Unexpected protocol prefix: " + _prefix);
                     return false;
             }
         }
-        return ReadNextSlow();
+        */
+        return TryReadNextSlow();
     }
 
     /// <inheritdoc/>
@@ -802,14 +848,23 @@ public ref struct RespReader
         return $"@{BytesConsumed} {Prefix}";
     }
 
-    private bool ReadNextSlow()
+    private bool TryReadNextSlow()
     {
         ResetCurrent();
-        var reader = new SlowReader(in _fullPayload, _segPos, CurrentBuffer, _bufferIndex);
-        if (reader.IsEOF()) return false; // natural EOF
-
-
-        switch (_prefix = (RespPrefix)reader.Read())
+        var result = TryReadNextSlowImpl();
+        if (!result)
+        {
+            // ensure trailing count doesn't lie
+            ResetCurrent();
+        }
+        return result;
+    }
+    private bool TryReadNextSlowImpl()
+    {
+        var reader = new SlowReader(in this);
+        int next = reader.TryRead();
+        if (next < 0) return false;
+        switch (_prefix = (RespPrefix)next)
         {
             case RespPrefix.SimpleString:
             case RespPrefix.SimpleError:
@@ -818,46 +873,46 @@ public ref struct RespReader
             case RespPrefix.Double:
             case RespPrefix.BigNumber:
                 // CRLF-terminated
-                _length = reader.ReadLengthCrLf();
+                if (!reader.TryReadLengthCrLf(out _length)) return false;
                 break;
             case RespPrefix.BulkError:
             case RespPrefix.BulkString:
             case RespPrefix.VerbatimString:
                 // length prefix with value payload
-                _length = reader.ReadLengthCrLf();
-                reader.AssertBytesWithoutMovingCrLf(_length);
+                if (!reader.TryReadLengthCrLf(out _length)) return false;
+                if (!reader.TryAssertBytesWithoutMovingCrLf(_length)) return false;
                 break;
             case RespPrefix.Array:
             case RespPrefix.Set:
             case RespPrefix.Map:
             case RespPrefix.Push:
                 // length prefix without value payload (child values follow)
-                _length = reader.ReadLengthCrLf();
+                if (!reader.TryReadLengthCrLf(out _length)) return false;
                 break;
             case RespPrefix.Null: // null
-                                  // note we already checked we had 3 bytes
-                reader.ReadCrLf();
+                if (!reader.TryReadCrLf()) return false;
                 break;
             default:
-                ThrowProtocolFailure();
+                ThrowProtocolFailure("Unexpected protocol prefix: " + _prefix);
                 return false;
         }
-        throw new NotImplementedException("Set next positions");
-        //return true;
+        AdvanceSlow(reader.TotalConsumed);
+        return true;
     }
 
     private ref partial struct SlowReader
     {
-        public SlowReader(in ReadOnlySequence<byte> full, SequencePosition segPos, ReadOnlySpan<byte> current, int index)
+        public SlowReader(in RespReader reader)
         {
 #if NET7_0_OR_GREATER
-            _full = ref full;
+            _full = ref reader._fullPayload;
 #else
-            _full = full;
+            _full = reader._fullPayload;
 #endif
-            _segPos = segPos;
-            _current = current;
-            _index = index;
+            _segPos = reader._segPos;
+            _current = reader.CurrentBuffer;
+            _index = reader._bufferIndex;
+            _totalBase = -_index; // so TotalConsumed is zero initially
             DebugAssertValid();
         }
 
@@ -869,44 +924,130 @@ public ref struct RespReader
             Debug.Assert(_index >= 0 && _index <= _current.Length);
         }
 #endif
-        private bool AdvanceToData(bool throwEof = true)
+
+        private bool TryAdvanceToData()
         {
             DebugAssertValid();
-            while (_index == _current.Length)
+            while (CurrentRemainingBytes == 0)
             {
-                if (!_full.TryGet(ref _segPos, out var next))
+                if (_full.IsSingleSegment || !_full.TryGet(ref _segPos, out var next))
                 {
-                    if (throwEof) throw new EndOfStreamException();
-                    break;
+                    return false;
                 }
                 _current = next.Span;
                 _index = 0;
+                _totalBase += _current.Length; // accumulate prior
             }
             DebugAssertValid();
             return true;
         }
-        public bool IsEOF() => !AdvanceToData(throwEof: false);
 
-        public byte Read()
+        public int TryRead()
         {
-            AdvanceToData(throwEof: true);
+            if (CurrentRemainingBytes == 0 && !TryAdvanceToData()) return -1;
             return _current[_index++];
         }
 
-        public int ReadLengthCrLf() => throw new NotImplementedException();
-
-        internal void AssertBytesWithoutMovingCrLf(int bytes) => throw new NotImplementedException();
-        internal void ReadCrLf() // assert and advance
+        private int CurrentRemainingBytes
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => _current.Length - _index;
+        }
+        internal bool TryReadCrLf() // assert and advance
         {
             DebugAssertValid();
-            if (_index + 2 <= _current.Length)
+            if (CurrentRemainingBytes >= 2)
             {
-                if (Unsafe.ReadUnaligned<ushort>(ref Unsafe.AsRef(in _current[_index])) != Resp2Writer.CrLf)
-                    ThrowProtocolFailure();
+                AssertClLfUnsafe(in _current[_index]);
                 _index += 2;
-                return;
+                return true;
             }
-            if (Read() != '\r' || Read() != '\n') ThrowProtocolFailure();
+
+            var x = TryRead();
+            if (x < 0) return false;
+            if (x != '\r') ThrowProtocolFailure("Expected CR/LF");
+            x = TryRead();
+            if (x < 0) return false;
+            if (x != '\n') ThrowProtocolFailure("Expected CR/LF");
+            return true;
+        }
+
+        internal bool TryReadLengthCrLf(out int length)
+        {
+            if (CurrentRemainingBytes >= Resp2Writer.MaxRawBytesInt32 + 2)
+            {
+                if (TryReadIntegerCrLf(_current.Slice(_index), out length, out int consumed))
+                {
+                    _index += consumed;
+                    return true;
+                }
+            }
+            else
+            {
+                Span<byte> buffer = stackalloc byte[Resp2Writer.MaxRawBytesInt32 + 2];
+                SlowReader snapshot = this; // we might over-advance when filling the buffer
+                length = snapshot.Fill(buffer);
+                if (TryReadIntegerCrLf(buffer.Slice(0, length), out length, out int consumed))
+                {
+                    // we expect this to work - we just aw the bytes!
+                    if (!TryAdvance(consumed)) Throw();
+                    return true;
+
+                    static void Throw() => throw new InvalidOperationException("Unexpected failure to advance in " + nameof(TryReadLengthCrLf));
+                }
+            }
+            return false;
+        }
+
+        internal int Fill(scoped Span<byte> buffer)
+        {
+            DebugAssertValid();
+            int total = 0;
+            while (buffer.Length > 0 && TryAdvanceToData())
+            {
+                int available = CurrentRemainingBytes;
+                if (available >= buffer.Length)
+                {
+                    // we have enough to finish
+                    _current.Slice(_index, buffer.Length).CopyTo(buffer);
+                    _index += buffer.Length;
+                    total += buffer.Length;
+                    break;
+                }
+
+                // not enough; copy what we have
+                var source = _current.Slice(_index);
+                source.CopyTo(buffer);
+                _index += available;
+                total += available;
+                buffer = buffer.Slice(available);
+            }
+            DebugAssertValid();
+            return total;
+        }
+
+        private bool TryAdvance(int bytes)
+        {
+            DebugAssertValid();
+            while (bytes > 0 && TryAdvanceToData())
+            {
+                var available = CurrentRemainingBytes;
+                if (bytes <= available)
+                {
+                    _index += bytes;
+                    return true;
+                }
+                _index += available;
+                bytes -= available;
+            }
+            DebugAssertValid();
+            return bytes == 0;
+        }
+
+        internal bool TryAssertBytesWithoutMovingCrLf(int length)
+        {
+            SlowReader copy = this;
+            return copy.TryAdvance(length) && copy.TryReadCrLf();
         }
 
 #if NET7_0_OR_GREATER
@@ -917,6 +1058,9 @@ public ref struct RespReader
         private SequencePosition _segPos;
         private ReadOnlySpan<byte> _current;
         private int _index;
+        private long _totalBase;
+        public long TotalConsumed => _totalBase + _index;
+
     }
 
     /// <summary>Performs a byte-wise equality check on the payload</summary>
@@ -1095,9 +1239,13 @@ public ref struct Resp2Writer
         _buffer.Commit(preambleReservation);
     }
 
-    private const int MaxBytesInt32 = 17, // $10\r\nX10X\r\n
+    internal const int MaxRawBytesInt32 = 10,
+        MaxProtocolBytesIntegerInt32 = MaxRawBytesInt32 + 3, // ?X10X\r\n where ? could be $, *, etc - usually a length prefix
+        MaxProtocolBytesBulkStringInt32 = MaxRawBytesInt32 + 7; // $10\r\nX10X\r\n
+    /*
                     MaxBytesInt64 = 26, // $19\r\nX19X\r\n
                     MaxBytesSingle = 27; // $NN\r\nX...X\r\n - note G17 format, allow 20 for payload
+    */
 
     private const int NullLength = 5; // $-1\r\n 
 
@@ -1178,14 +1326,14 @@ public ref struct Resp2Writer
         var payloadAndFooter = command.Length + 2;
 
         // optimize for single buffer-fetch path
-        var worstCase = MaxBytesInt32 + MaxBytesInt32 + command.Length + 2;
+        var worstCase = MaxProtocolBytesIntegerInt32 + MaxProtocolBytesIntegerInt32 + command.Length + 2;
         if (_buffer.TryGetWritableSpan(worstCase, out var span))
         {
             ref byte head = ref MemoryMarshal.GetReference(span);
             var header = WriteCountPrefix(RespPrefix.Array, _argCountIncludingCommand, span);
 #if NETCOREAPP3_1_OR_GREATER
             header += WriteCountPrefix(RespPrefix.BulkString, command.Length,
-                MemoryMarshal.CreateSpan(ref Unsafe.Add(ref head, header), MaxBytesInt32));
+                MemoryMarshal.CreateSpan(ref Unsafe.Add(ref head, header), MaxProtocolBytesIntegerInt32));
             command.CopyTo(MemoryMarshal.CreateSpan(ref Unsafe.Add(ref head, header), command.Length));
 #else
             header += WriteCountPrefix(RespPrefix.BulkString, command.Length, span.Slice(header));
@@ -1267,7 +1415,7 @@ public ref struct Resp2Writer
         }
         // optimize for fitting everything into a single buffer-fetch
         var payloadAndFooter = value.Length + 2;
-        var worstCase = MaxBytesInt32 + payloadAndFooter;
+        var worstCase = MaxProtocolBytesIntegerInt32 + payloadAndFooter;
         if (_buffer.TryGetWritableSpan(worstCase, out var span))
         {
             ref byte head = ref MemoryMarshal.GetReference(span);
@@ -1290,7 +1438,7 @@ public ref struct Resp2Writer
 
     private void WriteCountPrefix(RespPrefix prefix, int count)
     {
-        Span<byte> buffer = stackalloc byte[MaxBytesInt32];
+        Span<byte> buffer = stackalloc byte[MaxProtocolBytesIntegerInt32];
         WriteRaw(buffer.Slice(0, WriteCountPrefix(prefix, count, buffer)));
     }
 
