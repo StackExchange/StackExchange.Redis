@@ -574,6 +574,10 @@ public ref struct RespReader
         var arr = ArrayPool<byte>.Shared.Rent(_length);
         var reader = new SlowReader(in this);
         var len = reader.Fill(new Span<byte>(arr, 0, _length));
+        if (len != _length)
+        {
+            Debugger.Break();
+        }
         Debug.Assert(len == _length);
         var s = Resp2Writer.UTF8.GetString(arr, 0, len);
         ArrayPool<byte>.Shared.Return(arr);
@@ -787,7 +791,7 @@ public ref struct RespReader
             AdvanceSlow(skip);
         }
         ResetCurrent();
-        /*
+
         if (_bufferIndex + 3 <= _bufferLength) // shortest possible RESP fragment is length 3
         {
             switch (_prefix = PeekPrefix())
@@ -836,7 +840,7 @@ public ref struct RespReader
                     return false;
             }
         }
-        */
+
         return TryReadNextSlow();
     }
 
