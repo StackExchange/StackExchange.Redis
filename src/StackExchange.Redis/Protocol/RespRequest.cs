@@ -883,14 +883,14 @@ public ref struct RespReader
             case RespPrefix.Double:
             case RespPrefix.BigNumber:
                 // CRLF-terminated
-                if (!reader.TryReadLengthCrLf(out _length)) return NeedMoreData();
+                if (!reader.TryFindCrLfWithoutMoving(out _length)) return NeedMoreData();
                 break;
             case RespPrefix.BulkError:
             case RespPrefix.BulkString:
             case RespPrefix.VerbatimString:
                 // length prefix with value payload
                 if (!reader.TryReadLengthCrLf(out _length)) return NeedMoreData();
-                if (!reader.TryAssertBytesWithoutMovingCrLf(_length)) return NeedMoreData();
+                if (!reader.TryAssertBytesCrLfWithoutMoving(_length)) return NeedMoreData();
                 break;
             case RespPrefix.Array:
             case RespPrefix.Set:
@@ -926,9 +926,9 @@ public ref struct RespReader
         }
 
         [Conditional("DEBUG")]
-        partial void DebugAssertValid();
+        readonly partial void DebugAssertValid();
 #if DEBUG
-        partial void DebugAssertValid()
+        readonly partial void DebugAssertValid()
         {
             Debug.Assert(_index >= 0 && _index <= _current.Length);
         }
@@ -1053,10 +1053,31 @@ public ref struct RespReader
             return bytes == 0;
         }
 
-        internal bool TryAssertBytesWithoutMovingCrLf(int length)
+        internal readonly bool TryAssertBytesCrLfWithoutMoving(int length)
         {
             SlowReader copy = this;
             return copy.TryAdvance(length) && copy.TryReadCrLf();
+        }
+
+        internal readonly bool TryFindCrLfWithoutMoving(out int length)
+        {
+            DebugAssertValid();
+            SlowReader copy = this; // don't want to advance
+            length = 0;
+            while (copy.TryAdvanceToData())
+            {
+                var index = copy._current.Slice(copy._index).IndexOf((byte)'\r');
+                if (index >= 0)
+                {
+                    length += index;
+                    if (!(copy.TryAdvance(index) && copy.TryReadCrLf())) ThrowProtocolFailure("Expected CR/LF");
+                    return true;
+                }
+                var scanned = copy.CurrentRemainingBytes;
+                length += scanned;
+                copy._index += scanned;
+            }
+            return false;
         }
 
 #if NET7_0_OR_GREATER
@@ -1499,11 +1520,14 @@ internal struct RotatingBufferCore : IDisposable, IBufferWriter<byte> // note mu
 
     public RotatingBufferCore(int blockSize, int maxLength = 0)
     {
+        if (blockSize <= 0) Throw();
         if (maxLength <= 0) maxLength = int.MaxValue;
         _xorBlockSize = blockSize ^ DEFAULT_BLOCK_SIZE;
         _maxLength = maxLength;
         _headOffset = _tailOffset = _tailSize = 0;
         Expand();
+
+        static void Throw() => throw new ArgumentOutOfRangeException(nameof(blockSize));
     }
 
     /// <summary>
