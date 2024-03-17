@@ -18,18 +18,12 @@ namespace BasicTest
 #if DEBUG
         private static async Task Main()
         {
-            var obj = new ParserBenchmarks();
-            //Console.WriteLine(await obj.LegacyParser());
-            //Console.WriteLine();
-            //Console.WriteLine();
-#pragma warning disable SERED001, SERED002, IDE0053
-            LoggingTunnel.Message callback = x =>
-            {
-                if (x.ReadNext()) Console.WriteLine(x.ToString());
-            };
-            await LoggingTunnel.ReplayAsync(@"ReplayLog\127.0.0.1 6379 Interactive 0.out", callback);
-#pragma warning restore SERED001, SERED002, IDE0053
-            //Console.WriteLine(await obj.NewParser());
+            using var obj = new ParserBenchmarks();
+            Console.WriteLine(await obj.LegacyParser());
+            Console.WriteLine();
+            Console.WriteLine(StackExchange.Redis.Protocol.LeasedSequence<byte>.DebugTotalLeased);
+            Console.WriteLine(StackExchange.Redis.Protocol.LeasedSequence<byte>.DebugOutstanding);
+            Console.WriteLine(await obj.NewParser());
             Console.WriteLine();
             Console.WriteLine(StackExchange.Redis.Protocol.LeasedSequence<byte>.DebugTotalLeased);
             Console.WriteLine(StackExchange.Redis.Protocol.LeasedSequence<byte>.DebugOutstanding);

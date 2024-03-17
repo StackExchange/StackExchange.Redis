@@ -296,7 +296,7 @@ public readonly struct LeasedSequence<T> : IDisposable
 /// used in <see cref="GetBuffer"/> - it is permitted to copy (etc) the data when consuming.
 /// </summary>
 [Experimental(RespRequest.ExperimentalDiagnosticID)]
-public abstract class RespSource : IAsyncDisposable
+public abstract partial class RespSource : IAsyncDisposable
 {
     public static RespSource Create(Stream source)
     {
@@ -315,7 +315,10 @@ public abstract class RespSource : IAsyncDisposable
     protected abstract ValueTask<bool> TryReadAsync(CancellationToken cancellationToken);
 
     [Conditional("DEBUG")]
-    private static void DebugWrite(ReadOnlySequence<byte> data)
+    static partial void DebugWrite(ReadOnlySequence<byte> data);
+
+#if DEBUG
+    static partial void DebugWrite(ReadOnlySequence<byte> data)
     {
         try
         {
@@ -328,6 +331,7 @@ public abstract class RespSource : IAsyncDisposable
             Debug.WriteLine(ex.Message);
         }
     }
+#endif
 
     // internal abstract long Scan(long skip, ref int count);
     public async ValueTask<LeasedSequence<byte>> ReadNextAsync(CancellationToken cancellationToken = default)
@@ -345,7 +349,6 @@ public abstract class RespSource : IAsyncDisposable
                 {
                     if (totalConsumed != 0)
                     {
-                        DebugWrite(GetBuffer().Slice(totalConsumed));
                         throw new EndOfStreamException();
                     }
                     return default;
@@ -354,7 +357,6 @@ public abstract class RespSource : IAsyncDisposable
         }
         var chunk = Take(totalConsumed);
         if (chunk.Length != totalConsumed) Throw();
-        DebugWrite(chunk);
         return new(chunk);
 
         static void Throw() => throw new InvalidOperationException("Buffer length mismatch in " + nameof(ReadNextAsync));
@@ -365,7 +367,6 @@ public abstract class RespSource : IAsyncDisposable
             var reader = new RespReader(payload);
             while (count > 0 && reader.ReadNext())
             {
-                Debug.WriteLine(reader.ToString());
                 count = count - 1 + reader.ChildCount;
             }
             Debug.Assert(reader.BytesConsumed <= payload.Length);
@@ -570,17 +571,24 @@ public ref struct RespReader
     private readonly string SlowReadString()
     {
         // simple cases and pre-conditions already checked
-        // TODO: stackalloc small values
-        var arr = ArrayPool<byte>.Shared.Rent(_length);
+        byte[]? lease = null;
+        Span<byte> buffer = _length <= 128 ? stackalloc byte[128] : new(lease = ArrayPool<byte>.Shared.Rent(_length), 0, _length);
         var reader = new SlowReader(in this);
-        var len = reader.Fill(new Span<byte>(arr, 0, _length));
-        if (len != _length)
-        {
-            Debugger.Break();
-        }
+        var len = reader.Fill(buffer);
         Debug.Assert(len == _length);
-        var s = Resp2Writer.UTF8.GetString(arr, 0, len);
-        ArrayPool<byte>.Shared.Return(arr);
+#if NETCOREAPP3_1_OR_GREATER
+        var s = Resp2Writer.UTF8.GetString(buffer);
+#else
+        string s;
+        unsafe
+        {
+            fixed (byte* ptr = buffer)
+            {
+                s = Resp2Writer.UTF8.GetString(ptr, buffer.Length);
+            }
+        }
+#endif
+        if (lease is not null) ArrayPool<byte>.Shared.Return(lease);
         return s;
     }
 
@@ -607,7 +615,8 @@ public ref struct RespReader
     private RespPrefix PeekPrefix() => (RespPrefix)Unsafe.Add(ref _bufferRoot, _bufferIndex);
     private ReadOnlySpan<byte> PeekPastPrefix() => MemoryMarshal.CreateReadOnlySpan(
         ref Unsafe.Add(ref _bufferRoot, _bufferIndex + 1), _bufferLength - (_bufferIndex + 1));
-    private ReadOnlySpan<byte> CurrentBuffer => MemoryMarshal.CreateReadOnlySpan(ref _bufferRoot, _bufferLength);
+    private ReadOnlySpan<byte> PeekCurrent() => MemoryMarshal.CreateReadOnlySpan(
+        ref Unsafe.Add(ref _bufferRoot, _bufferIndex), _bufferLength - _bufferIndex);
     private void AssertCrlfPastPrefixUnsafe(int offset) => AssertClLfUnsafe(ref _bufferRoot, _bufferIndex + offset + 1);
     private void SetCurrent(ReadOnlySpan<byte> current)
     {
@@ -618,8 +627,8 @@ public ref struct RespReader
     }
 #else
     private ReadOnlySpan<byte> _bufferSpan;
-    private ReadOnlySpan<byte> CurrentBuffer => _bufferSpan;
     private readonly RespPrefix PeekPrefix() => (RespPrefix)_bufferSpan[_bufferIndex];
+    private ReadOnlySpan<byte> PeekCurrent() => _bufferSpan.Slice(_bufferIndex);
     private readonly ReadOnlySpan<byte> PeekPastPrefix() => _bufferSpan.Slice(_bufferIndex + 1);
     private readonly void AssertCrlfPastPrefixUnsafe(int offset)
         => AssertClLfUnsafe(in _bufferSpan[_bufferIndex + offset + 1]);
@@ -847,27 +856,22 @@ public ref struct RespReader
     /// <inheritdoc/>
     public override readonly string ToString()
     {
-        if (IsScalar) return IsNull ? $"@{BytesConsumed} {Prefix}: {nameof(RespPrefix.Null)}" : $"@{BytesConsumed} {Prefix} with {ScalarLength} bytes '{ReadString()}'";
-        if (IsAggregate) return IsNull ? $"@{BytesConsumed} {Prefix}: {nameof(RespPrefix.Null)}" : $"@{BytesConsumed} {Prefix} with {ChildCount} sub-items";
+        if (IsScalar) return IsNull? $"@{BytesConsumed} {Prefix}: {nameof(RespPrefix.Null)}" : $"@{BytesConsumed} {Prefix} with {ScalarLength} bytes '{ReadString()}'";
+        if (IsAggregate) return IsNull? $"@{BytesConsumed} {Prefix}: {nameof(RespPrefix.Null)}" : $"@{BytesConsumed} {Prefix} with {ChildCount} sub-items";
         return $"@{BytesConsumed} {Prefix}";
     }
 
+    private bool NeedMoreData()
+    {
+        ResetCurrent();
+        return false;
+    }
     private bool TryReadNextSlow()
     {
         ResetCurrent();
-        var result = TryReadNextSlowImpl();
-        if (!result)
-        {
-            // ensure trailing count doesn't lie
-            ResetCurrent();
-        }
-        return result;
-    }
-    private bool TryReadNextSlowImpl()
-    {
         var reader = new SlowReader(in this);
         int next = reader.TryRead();
-        if (next < 0) return false;
+        if (next < 0) return NeedMoreData();
         switch (_prefix = (RespPrefix)next)
         {
             case RespPrefix.SimpleString:
@@ -877,28 +881,28 @@ public ref struct RespReader
             case RespPrefix.Double:
             case RespPrefix.BigNumber:
                 // CRLF-terminated
-                if (!reader.TryReadLengthCrLf(out _length)) return false;
+                if (!reader.TryReadLengthCrLf(out _length)) return NeedMoreData();
                 break;
             case RespPrefix.BulkError:
             case RespPrefix.BulkString:
             case RespPrefix.VerbatimString:
                 // length prefix with value payload
-                if (!reader.TryReadLengthCrLf(out _length)) return false;
-                if (!reader.TryAssertBytesWithoutMovingCrLf(_length)) return false;
+                if (!reader.TryReadLengthCrLf(out _length)) return NeedMoreData();
+                if (!reader.TryAssertBytesWithoutMovingCrLf(_length)) return NeedMoreData();
                 break;
             case RespPrefix.Array:
             case RespPrefix.Set:
             case RespPrefix.Map:
             case RespPrefix.Push:
                 // length prefix without value payload (child values follow)
-                if (!reader.TryReadLengthCrLf(out _length)) return false;
+                if (!reader.TryReadLengthCrLf(out _length)) return NeedMoreData();
                 break;
             case RespPrefix.Null: // null
-                if (!reader.TryReadCrLf()) return false;
+                if (!reader.TryReadCrLf()) return NeedMoreData();
                 break;
             default:
                 ThrowProtocolFailure("Unexpected protocol prefix: " + _prefix);
-                return false;
+                return NeedMoreData();
         }
         AdvanceSlow(reader.TotalConsumed);
         return true;
@@ -914,9 +918,8 @@ public ref struct RespReader
             _full = reader._fullPayload;
 #endif
             _segPos = reader._segPos;
-            _current = reader.CurrentBuffer;
-            _index = reader._bufferIndex;
-            _totalBase = -_index; // so TotalConsumed is zero initially
+            _current = reader.PeekCurrent();
+            _totalBase = _index = 0;
             DebugAssertValid();
         }
 
@@ -938,9 +941,9 @@ public ref struct RespReader
                 {
                     return false;
                 }
+                _totalBase += _current.Length; // accumulate prior
                 _current = next.Span;
                 _index = 0;
-                _totalBase += _current.Length; // accumulate prior
             }
             DebugAssertValid();
             return true;

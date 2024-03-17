@@ -292,6 +292,27 @@ public abstract class LoggingTunnel : Tunnel
         }
     }
 
+
+    /// <summary>
+    /// Iterate over a RESP stream invoking a callback per top-level message
+    /// </summary>
+    [SuppressMessage("ApiDesign", "RS0027:API with optional parameter(s) should have the most parameters amongst its public overloads", Justification = "Validated")]
+    [Experimental(RespRequest.ExperimentalDiagnosticID)]
+    public static async Task<long> ReplayAsync(Stream source, Action<RedisResult> message, CancellationToken cancellationToken = default)
+    {
+        using var arena = new Arena<RawResult>();
+        var input = StreamConnection.GetReader(source);
+        long count = 0;
+        while (true)
+        {
+            var msg = await ReadOneAsync(input, arena, isInbound: false).ForAwait();
+            if (msg.Result is null) break;
+            message(msg.Result);
+            count++;
+        }
+        return count;
+    }
+
     /// <summary>
     /// Validate a RESP stream and return the number of top-level RESP fragments.
     /// </summary>
