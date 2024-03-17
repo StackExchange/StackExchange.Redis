@@ -20,9 +20,8 @@ namespace BasicTest
         {
             using var obj = new ParserBenchmarks();
             Console.WriteLine(await obj.LegacyParser());
-            Console.WriteLine();
-            Console.WriteLine(StackExchange.Redis.Protocol.LeasedSequence<byte>.DebugTotalLeased);
-            Console.WriteLine(StackExchange.Redis.Protocol.LeasedSequence<byte>.DebugOutstanding);
+            Console.WriteLine(await obj.NewParser());
+            Console.WriteLine(await obj.LegacyParser());
             Console.WriteLine(await obj.NewParser());
             Console.WriteLine();
             Console.WriteLine(StackExchange.Redis.Protocol.LeasedSequence<byte>.DebugTotalLeased);

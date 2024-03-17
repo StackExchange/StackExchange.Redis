@@ -81,6 +81,6 @@ StackExchange.Redis.Protocol.RespSource
 StackExchange.Redis.Protocol.RespSource.ReadNextAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<StackExchange.Redis.Protocol.LeasedSequence<byte>>
 static StackExchange.Redis.Protocol.LeasedSequence<T>.implicit operator System.Buffers.ReadOnlySequence<T>(StackExchange.Redis.Protocol.LeasedSequence<T> value) -> System.Buffers.ReadOnlySequence<T>
 static StackExchange.Redis.Protocol.RespSource.Create(System.Buffers.ReadOnlySequence<byte> payload) -> StackExchange.Redis.Protocol.RespSource!
-static StackExchange.Redis.Protocol.RespSource.Create(System.IO.Stream! source) -> StackExchange.Redis.Protocol.RespSource!
+static StackExchange.Redis.Protocol.RespSource.Create(System.IO.Stream! source, bool closeStream = false) -> StackExchange.Redis.Protocol.RespSource!
 static StackExchange.Redis.Protocol.RespSource.Create(System.ReadOnlyMemory<byte> payload) -> StackExchange.Redis.Protocol.RespSource!
 virtual StackExchange.Redis.Protocol.RespSource.DisposeAsync() -> System.Threading.Tasks.ValueTask

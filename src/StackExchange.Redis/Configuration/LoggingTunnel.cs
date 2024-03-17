@@ -116,7 +116,7 @@ public abstract class LoggingTunnel : Tunnel
     public static async Task<long> ReplayAsync(string path, Message message, CancellationToken cancellationToken = default)
     {
         using var file = OpenFileForRead(path);
-        return await ReplayAsync(file, message, cancellationToken);
+        return await ReplayAsync(file, message, false, cancellationToken);
     }
 
     /// <summary>
@@ -124,9 +124,10 @@ public abstract class LoggingTunnel : Tunnel
     /// </summary>
     [SuppressMessage("ApiDesign", "RS0027:API with optional parameter(s) should have the most parameters amongst its public overloads", Justification = "Validated")]
     [Experimental(RespRequest.ExperimentalDiagnosticID)]
-    public static async Task<long> ReplayAsync(Stream source, Message message, CancellationToken cancellationToken = default)
+    [SuppressMessage("ApiDesign", "RS0026:Do not add multiple public overloads with optional parameters", Justification = "Validated")]
+    public static async Task<long> ReplayAsync(Stream source, Message message, bool closeStream = false, CancellationToken cancellationToken = default)
     {
-        await using var resp = RespSource.Create(source);
+        await using var resp = RespSource.Create(source, closeStream);
         long count = 0;
         while (true)
         {

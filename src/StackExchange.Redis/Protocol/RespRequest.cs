@@ -298,11 +298,11 @@ public readonly struct LeasedSequence<T> : IDisposable
 [Experimental(RespRequest.ExperimentalDiagnosticID)]
 public abstract partial class RespSource : IAsyncDisposable
 {
-    public static RespSource Create(Stream source)
+    public static RespSource Create(Stream source, bool closeStream = false)
     {
         if (source is null) throw new ArgumentNullException(nameof(source));
         if (!source.CanRead) throw new ArgumentException("Source stream cannot be read", nameof(source));
-        return new StreamRespSource(source);
+        return new StreamRespSource(source, closeStream);
     }
 
     protected abstract ReadOnlySequence<byte> GetBuffer();
@@ -401,12 +401,14 @@ public abstract partial class RespSource : IAsyncDisposable
     private sealed class StreamRespSource : RespSource
     {
         private readonly Stream _source;
+        private readonly bool _closeStream;
 
         private RotatingBufferCore _buffer;
-        internal StreamRespSource(Stream source, int blockSize = 64 * 1024)
+        internal StreamRespSource(Stream source, bool closeStream, int blockSize = 64 * 1024)
         {
             _buffer = new(Math.Max(1024, blockSize));
             _source = source;
+            _closeStream = closeStream;
         }
 
         protected override ReadOnlySequence<byte> GetBuffer() => _buffer.GetBuffer();
@@ -416,13 +418,13 @@ public abstract partial class RespSource : IAsyncDisposable
         public override ValueTask DisposeAsync()
         {
             _buffer.Dispose();
-            return _source.DisposeAsync();
+            return _closeStream ? _source.DisposeAsync() : default;
         }
 #else
         public override ValueTask DisposeAsync()
         {
             _buffer.Dispose();
-            _source.Dispose();
+            if (_closeStream) _source.Dispose();
             return default;
         }
 #endif
