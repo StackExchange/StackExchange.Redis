@@ -1,20 +1,20 @@
 ﻿using StackExchange.Redis.Protocol;
 using System;
 using System.Buffers;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using Xunit;
 #pragma warning disable SERED002
-using static StackExchange.Redis.Protocol.Resp2Writer;
 namespace StackExchange.Redis.Tests;
 
 public class ProtocolApiTests
 {
 
-    private static RequestBuffer CreatePingChunk(string? value, int preambleBytes)
+    private static RequestBuffer CreatePingChunk(string? value, int preambleBytes, SlabManager? slabManager = null)
     {
         var obj = new PingRequest(value);
-        var writer = preambleBytes <= 0 ? new() : new Resp2Writer(preambleBytes);
+        var writer = Resp2Writer.Create(slabManager, preambleReservation: preambleBytes);
         try
         {
             obj.Write(ref writer);
@@ -25,6 +25,59 @@ public class ProtocolApiTests
         {
             writer.Recycle();
         }
+    }
+
+
+    [Fact]
+    public void SlabManagerTests()
+    {
+        var mgr = new SlabManager();
+        var memory = new Memory<byte>[30];
+        var handles = new IDisposable[memory.Length];
+        for (int i = 0; i < 30; i++)
+        {
+            handles[i] = mgr.GetChunk(out memory[i]);
+        }
+        Assert.True(mgr.TryExpandChunk(handles[29], ref memory[29]));
+        Assert.True(mgr.TryExpandChunk(handles[29], ref memory[29]));
+        Assert.False(mgr.TryExpandChunk(handles[29], ref memory[29]));
+
+        // we expect 64k in 4k chunks
+        Assert.True(Assert.IsType<SlabManager.Slab>(handles[0]).IsAlive);
+        Assert.True(MemoryMarshal.TryGetArray<byte>(memory[0], out var firstSegment));
+        Assert.NotNull(firstSegment.Array);
+        for (int i = 0; i < 16; i++)
+        {
+            Assert.Same(handles[0], handles[i]);
+            Assert.True(MemoryMarshal.TryGetArray<byte>(memory[i], out var next));
+            Assert.Same(firstSegment.Array, next.Array);
+            Assert.Equal(i * 4096, next.Offset);
+            Assert.Equal(4096, next.Count);
+            handles[i].Dispose();
+        }
+        Assert.True(Assert.IsType<SlabManager.Slab>(handles[16]).IsAlive);
+        Assert.NotSame(handles[0], handles[16]);
+        Assert.True(MemoryMarshal.TryGetArray<byte>(memory[16], out var secondSegment));
+        Assert.NotNull(secondSegment.Array);
+        for (int i = 16; i < 30; i++)
+        {
+            Assert.Same(handles[16], handles[i]);
+            Assert.True(MemoryMarshal.TryGetArray<byte>(memory[i], out var next));
+            Assert.Same(secondSegment.Array, next.Array);
+            Assert.Equal((i - 16) * 4096, next.Offset);
+            Assert.Equal(i == 29 ? 4096 * 3 : 4096, next.Count);
+            handles[i].Dispose();
+        }
+
+        Assert.False(Assert.IsType<SlabManager.Slab>(handles[0]).IsAlive);
+        Assert.True(Assert.IsType<SlabManager.Slab>(handles[16]).IsAlive);
+
+        mgr.Dispose();
+
+        Assert.False(Assert.IsType<SlabManager.Slab>(handles[0]).IsAlive);
+        Assert.False(Assert.IsType<SlabManager.Slab>(handles[16]).IsAlive);
+
+        Assert.Throws<ObjectDisposedException>(() => mgr.GetChunk(out _));
     }
 
     [Theory]
@@ -74,7 +127,7 @@ public class ProtocolApiTests
     [InlineData("aaaabbbbccccddddeeeeffffgggghhhhiiiijjjjkkkkllllmmmmnnnnooooppppqqqqrrrrssssttttuuuuvvvvwwwwxxxxyyyyzzzz", "*2\r\n$4\r\nping\r\n$104\r\naaaabbbbccccddddeeeeffffgggghhhhiiiijjjjkkkkllllmmmmnnnnooooppppqqqqrrrrssssttttuuuuvvvvwwwwxxxxyyyyzzzz\r\n")]
     public void CustomPingWithUnusedPreamble(string? value, string expected)
     {
-        RequestBuffer chunk = CreatePingChunk(value, 64);
+        RequestBuffer chunk = CreatePingChunk(value, 128);
         try
         {
             Assert.Equal(expected, chunk.ToString());
@@ -96,7 +149,8 @@ public class ProtocolApiTests
     [InlineData("aaaabbbbccccddddeeeeffffgggghhhhiiiijjjjkkkkllllmmmmnnnnooooppppqqqqrrrrssssttttuuuuvvvvwwwwxxxxyyyyzzzz", "*2\r\n$4\r\nping\r\n$104\r\naaaabbbbccccddddeeeeffffgggghhhhiiiijjjjkkkkllllmmmmnnnnooooppppqqqqrrrrssssttttuuuuvvvvwwwwxxxxyyyyzzzz\r\n")]
     public async Task CustomPingWithSelectPreamble(string? value, string expected)
     {
-        RequestBuffer chunk = CreatePingChunk(value, 64);
+        using var mgr = new SlabManager();
+        RequestBuffer chunk = CreatePingChunk(value, 64, mgr);
         try
         {
             // check before prepending

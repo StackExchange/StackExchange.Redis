@@ -108,18 +108,24 @@ public enum RespPrefix : byte
 internal sealed partial class RefCountedSequenceSegment<T> : ReadOnlySequenceSegment<T>, IMemoryOwner<T>
 {
 #if DEBUG
+    private readonly long _id = Interlocked.Increment(ref _debugTotalLeased);
     private static long _debugTotalLeased, _debugTotalReturned;
     internal static long DebugOutstanding => Volatile.Read(ref _debugTotalLeased) - Volatile.Read(ref _debugTotalReturned);
     internal static long DebugTotalLeased => Volatile.Read(ref _debugTotalLeased);
-    partial void DebugIncrOutstanding() => Interlocked.Increment(ref _debugTotalLeased);
-    partial void DebugDecrOutstanding() => Interlocked.Increment(ref _debugTotalReturned);
+    partial void DebugDecrOutstanding()
+    {
+        Interlocked.Increment(ref _debugTotalReturned);
+    }
+    partial void DebugMessage(string message) => Debug.WriteLine($"[{_id}@{Volatile.Read(ref _refCount)}]: {message}");
 #endif
-
-    partial void DebugIncrOutstanding();
+    [Conditional("DEBUG")]
+    partial void DebugMessage([CallerMemberName] string message = "");
+    [Conditional("DEBUG")]
     partial void DebugDecrOutstanding();
 
     public override string ToString() => $"(ref-count: {RefCount}) {base.ToString()}";
     private int _refCount;
+    private readonly IDisposable _handle;
     internal int RefCount => Volatile.Read(ref _refCount);
     private static void ThrowDisposed() => throw new ObjectDisposedException(nameof(RefCountedSequenceSegment<T>));
     private sealed class DisposedMemoryManager : MemoryManager<T>
@@ -150,16 +156,17 @@ internal sealed partial class RefCountedSequenceSegment<T> : ReadOnlySequenceSeg
         }
     }
 
-    public RefCountedSequenceSegment(int minSize, RefCountedSequenceSegment<T>? previous = null)
+    public RefCountedSequenceSegment(IDisposable handle, Memory<T> memory, RefCountedSequenceSegment<T>? previous = null)
     {
+        _handle = handle;
         _refCount = 1;
-        Memory = ArrayPool<T>.Shared.Rent(minSize);
-        DebugIncrOutstanding();
+        Memory = memory;
         if (previous is not null)
         {
             RunningIndex = previous.RunningIndex + previous.Memory.Length;
             previous.Next = this;
         }
+        DebugMessage();
     }
 
     Memory<T> IMemoryOwner<T>.Memory => MemoryMarshal.AsMemory(Memory);
@@ -172,6 +179,7 @@ internal sealed partial class RefCountedSequenceSegment<T> : ReadOnlySequenceSeg
             oldCount = Volatile.Read(ref _refCount);
             if (oldCount == 0) return; // already released
         } while (Interlocked.CompareExchange(ref _refCount, oldCount - 1, oldCount) != oldCount);
+        DebugMessage();
         if (oldCount == 1) // then we killed it
         {
             Release();
@@ -186,17 +194,16 @@ internal sealed partial class RefCountedSequenceSegment<T> : ReadOnlySequenceSeg
             oldCount = Volatile.Read(ref _refCount);
             if (oldCount == 0) ThrowDisposed();
         } while (Interlocked.CompareExchange(ref _refCount, checked(oldCount + 1), oldCount) != oldCount);
+        DebugMessage();
     }
 
     private void Release()
     {
         var memory = Memory;
         Memory = DisposedMemoryManager.Instance;
-        if (MemoryMarshal.TryGetArray<T>(memory, out var segment) && segment.Array is not null)
-        {
-            ArrayPool<T>.Shared.Return(segment.Array);
-        }
+        _handle.Dispose();
         DebugDecrOutstanding();
+        DebugMessage();
     }
 
     internal new RefCountedSequenceSegment<T>? Next
@@ -393,6 +400,7 @@ public abstract partial class RespSource : IAsyncDisposable
         {
             var take = _remaining.Slice(0, bytes);
             _remaining = _remaining.Slice(take.End);
+            new LeasedSequence<byte>(take).AddRef();
             return take;
         }
         protected override ValueTask<bool> TryReadAsync(CancellationToken cancellationToken) => default; // nothing more to get
@@ -402,11 +410,10 @@ public abstract partial class RespSource : IAsyncDisposable
     {
         private readonly Stream _source;
         private readonly bool _closeStream;
-
         private RotatingBufferCore _buffer;
-        internal StreamRespSource(Stream source, bool closeStream, int blockSize = 64 * 1024)
+        internal StreamRespSource(Stream source, bool closeStream)
         {
-            _buffer = new(Math.Max(1024, blockSize));
+            _buffer = new(new SlabManager());
             _source = source;
             _closeStream = closeStream;
         }
@@ -418,12 +425,14 @@ public abstract partial class RespSource : IAsyncDisposable
         public override ValueTask DisposeAsync()
         {
             _buffer.Dispose();
+            _buffer.SlabManager.Dispose();
             return _closeStream ? _source.DisposeAsync() : default;
         }
 #else
         public override ValueTask DisposeAsync()
         {
             _buffer.Dispose();
+            _buffer.SlabManager.Dispose();
             if (_closeStream) _source.Dispose();
             return default;
         }
@@ -1261,11 +1270,14 @@ public ref struct Resp2Writer
     private readonly int _preambleReservation;
     private int _argCountIncludingCommand, _argIndexIncludingCommand;
 
-    public Resp2Writer(int preambleReservation = 64, int blockSize = 1024)
+    internal static Resp2Writer Create(SlabManager? slabManager = null, int preambleReservation = 64)
+        => new(slabManager ?? SlabManager.Ambient, preambleReservation);
+
+    private Resp2Writer(SlabManager slabManager, int preambleReservation)
     {
         _preambleReservation = preambleReservation;
         _argCountIncludingCommand = _argIndexIncludingCommand = 0;
-        _buffer = new(blockSize);
+        _buffer = new(slabManager);
         _buffer.Commit(preambleReservation);
     }
 
@@ -1509,25 +1521,20 @@ public ref struct Resp2Writer
 
 internal struct RotatingBufferCore : IDisposable, IBufferWriter<byte> // note mutable struct intended to encapsulate logic as a field inside a class instance
 {
+    private readonly SlabManager _slabManager;
     private RefCountedSequenceSegment<byte> _head, _tail;
     private readonly long _maxLength;
-    private readonly int _xorBlockSize;
     private int _headOffset, _tailOffset, _tailSize;
-    internal readonly int BlockSize => _xorBlockSize ^ DEFAULT_BLOCK_SIZE; // allows default to apply on new()
     internal readonly long MaxLength => _maxLength;
 
-    private const int DEFAULT_BLOCK_SIZE = 1024;
-
-    public RotatingBufferCore(int blockSize, int maxLength = 0)
+    public SlabManager SlabManager => _slabManager;
+    public RotatingBufferCore(SlabManager slabManager, int maxLength = 0)
     {
-        if (blockSize <= 0) Throw();
         if (maxLength <= 0) maxLength = int.MaxValue;
-        _xorBlockSize = blockSize ^ DEFAULT_BLOCK_SIZE;
         _maxLength = maxLength;
         _headOffset = _tailOffset = _tailSize = 0;
+        _slabManager = slabManager;
         Expand();
-
-        static void Throw() => throw new ArgumentOutOfRangeException(nameof(blockSize));
     }
 
     /// <summary>
@@ -1538,7 +1545,7 @@ internal struct RotatingBufferCore : IDisposable, IBufferWriter<byte> // note mu
         get
         {
             var remaining = _tailSize - _tailOffset;
-            return remaining == 0 ? BlockSize : remaining;
+            return remaining == 0 ? _slabManager.ChunkSize : remaining;
         }
     }
 
@@ -1547,8 +1554,9 @@ internal struct RotatingBufferCore : IDisposable, IBufferWriter<byte> // note mu
     private void Expand()
     {
         Debug.Assert(_tail is null || _tailOffset == _tail.Memory.Length, "tail page should be full");
-        if (MaxLength > 0 && (GetBuffer().Length + BlockSize) > MaxLength) ThrowQuota();
-        var next = new RefCountedSequenceSegment<byte>(BlockSize, _tail);
+        if (MaxLength > 0 && (GetBuffer().Length + _slabManager.ChunkSize) > MaxLength) ThrowQuota();
+
+        var next = new RefCountedSequenceSegment<byte>(_slabManager.GetChunk(out var chunk), chunk, _tail);
         _tail = next;
         _tailOffset = 0;
         _tailSize = next.Memory.Length;

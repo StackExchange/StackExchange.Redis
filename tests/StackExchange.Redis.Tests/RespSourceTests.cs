@@ -21,7 +21,8 @@ public class RespSourceTests
         var beforeOutstanding = RefCountedSequenceSegment<byte>.DebugOutstanding;
         var beforeTotal = RefCountedSequenceSegment<byte>.DebugTotalLeased;
 #endif
-        await using (DebugRespSource source = new(16))
+        using var slabManager = new SlabManager(slabSize: 1024, chunkSize: 16);
+        await using (DebugRespSource source = new(slabManager))
         {
             source.Add("*1\r\n$4\r\nPING\r\n+PONG\r\n*2\r\n$4\r\nPING\r\n$6\r\ncustom\r\n+custom\r\n"u8);
 
@@ -123,7 +124,7 @@ public class RespSourceTests
                 data = data.Slice(available.Length);
             }
         }
-        public DebugRespSource(int blockSize) => _buffer = new(blockSize);
+        internal DebugRespSource(SlabManager? slabManager = null) => _buffer = new(slabManager ?? SlabManager.Ambient);
         private RotatingBufferCore _buffer;
         protected override ReadOnlySequence<byte> Take(long bytes) => _buffer.DetachRotating(bytes);
         public override ValueTask DisposeAsync()

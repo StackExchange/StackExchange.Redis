@@ -37,7 +37,6 @@ StackExchange.Redis.Protocol.RequestBuffer.WithoutPreamble() -> StackExchange.Re
 StackExchange.Redis.Protocol.RequestBuffer.WithPreamble(System.ReadOnlySpan<byte> value) -> StackExchange.Redis.Protocol.RequestBuffer
 StackExchange.Redis.Protocol.Resp2Writer
 StackExchange.Redis.Protocol.Resp2Writer.Resp2Writer() -> void
-StackExchange.Redis.Protocol.Resp2Writer.Resp2Writer(int preambleReservation = 64, int blockSize = 1024) -> void
 StackExchange.Redis.Protocol.Resp2Writer.WriteCommand(scoped System.ReadOnlySpan<byte> command, int argCount) -> void
 StackExchange.Redis.Protocol.Resp2Writer.WriteCommand(scoped System.ReadOnlySpan<char> command, int argCount) -> void
 StackExchange.Redis.Protocol.Resp2Writer.WriteCommand(string! command, int argCount) -> void
