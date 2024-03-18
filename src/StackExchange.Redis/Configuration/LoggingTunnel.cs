@@ -134,6 +134,7 @@ public abstract class LoggingTunnel : Tunnel
             LeasedSequence<byte> payload = await resp.ReadNextAsync(cancellationToken).ForAwait();
             if (payload.IsEmpty) break; // natural EOF
             message(new(payload));
+            payload.Dispose();
             count++;
         }
         return count;
