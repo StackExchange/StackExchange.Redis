@@ -309,6 +309,12 @@ public abstract partial class RespSource : IAsyncDisposable
     {
         if (source is null) throw new ArgumentNullException(nameof(source));
         if (!source.CanRead) throw new ArgumentException("Source stream cannot be read", nameof(source));
+
+        if (source is MemoryStream ms && ms.TryGetBuffer(out var segment) && segment.Array is not null)
+        {
+            return Create(new ReadOnlySequence<byte>(segment.Array, segment.Offset, segment.Count));
+        }
+
         return new StreamRespSource(source, closeStream);
     }
 
