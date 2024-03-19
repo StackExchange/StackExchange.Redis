@@ -705,8 +705,17 @@ namespace StackExchange.Redis
                 // note that task has timeouts internally, so it might take *just over* the regular timeout
                 var task = muxer.ReconfigureAsync(first: true, reconfigureAll: false, log, null, "connect");
 
-                if (!task.Wait(muxer.SyncConnectTimeout(true)))
+                if (task.Wait(muxer.SyncConnectTimeout(true)))
                 {
+                    // completed promptly - we can check the outcome; hard failures
+                    // (such as password problems) should be reported promptly - it
+                    // won't magically start working
+                    if (!task.Result) throw ExceptionFactory.UnableToConnect(muxer, muxer.failureMessage);
+                }
+                else
+                {
+                    // incomplete - most likely slow initial connection; optionally
+                    // allow a soft failure mode
                     task.ObserveErrors();
                     if (muxer.RawConfig.AbortOnConnectFail)
                     {
@@ -720,7 +729,6 @@ namespace StackExchange.Redis
                     }
                 }
 
-                if (!task.Result) throw ExceptionFactory.UnableToConnect(muxer, muxer.failureMessage);
                 killMe = null;
                 Interlocked.Increment(ref muxer._connectCompletedCount);
 

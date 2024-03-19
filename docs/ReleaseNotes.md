@@ -8,6 +8,7 @@ Current package versions:
 
 ## Unreleased
 - TLS certificate/`TrustIssuer`: Check EKU in X509 chain checks when validating cerificates ([#2670 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2670))
+- Fix #2679 - blocking call in long-running connects
 
 ## 2.7.33
 
