@@ -19,7 +19,7 @@ public class ParserBenchmarks : IDisposable
     public ParserBenchmarks()
     {
         var data = File.ReadAllBytes(@"ReplayLog\127.0.0.1 6379 Interactive 0.out");
-        _source = new MemoryStream(data);
+        _source = new MemoryStream(data, 0, data.Length, false, true);
     }
 
     public void Dispose() => _source.Dispose();
