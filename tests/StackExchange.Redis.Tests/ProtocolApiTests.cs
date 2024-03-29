@@ -11,6 +11,23 @@ namespace StackExchange.Redis.Tests;
 public class ProtocolApiTests
 {
 
+    [Fact]
+    public void ApiUsageTest()
+    {
+        var cmdMap = NewCommandMap.Default;
+        IRespWriter writer = cmdMap.RawCommands.Ping;
+
+        var target = Resp2Writer.Create();
+        writer.Write(ref target);
+        var payload = target.Detach();
+
+        payload.DebugValidateCommand();
+        Assert.Equal("ping", payload.GetCommand());
+        payload.Recycle();
+    }
+
+
+
     private static RequestBuffer CreatePingChunk(string? value, int preambleBytes, SlabManager? slabManager = null)
     {
         var obj = new PingRequest(value);

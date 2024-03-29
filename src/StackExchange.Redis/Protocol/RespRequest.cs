@@ -2,6 +2,7 @@
 using System;
 using System.Buffers;
 using System.Buffers.Text;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
@@ -40,23 +41,49 @@ public static class RespReaders
 }
 
 [Experimental(RespRequest.ExperimentalDiagnosticID)]
-internal abstract class RawMessageWriter : IRespWriter<Empty>
+internal class NewCommandMap
 {
-    protected abstract ReadOnlySpan<byte> Payload { get; }
-    public void Write(in Empty request, ref Resp2Writer writer) => writer.WriteRaw(Payload);
-
-    internal sealed class PingMessageWriter : RawMessageWriter
+    public static NewCommandMap Default { get; } = new();
+    internal readonly ParameterlessCommands RawCommands = ParameterlessCommands.Default;
+    internal readonly struct ParameterlessCommands
     {
-        protected override ReadOnlySpan<byte> Payload => "*1\r\n$4\r\nping\r\n"u8;
+        public static readonly ParameterlessCommands Default = new(true);
+        public readonly IRespWriter Ping;
+        public readonly IRespWriter Quit;
+
+
+        private ParameterlessCommands(bool dummy)
+        {
+            _ = dummy;
+            Ping = new RawUnsafeFixedMessageWriter("*1\r\n$4\r\nping\r\n"u8);
+            Quit = new RawUnsafeFixedMessageWriter("*1\r\n$4\r\nquit\r\n"u8);
+        }
     }
+}
+
+[Experimental(RespRequest.ExperimentalDiagnosticID)]
+internal unsafe sealed class RawUnsafeFixedMessageWriter : IRespWriter
+{
+    private readonly void* _ptr;
+    private readonly int _length;
+    public RawUnsafeFixedMessageWriter(ReadOnlySpan<byte> fixedMessage) // caller **must** use a fixed span; "..."u8 satisfies this
+    {
+        _length = fixedMessage.Length;
+        _ptr = Unsafe.AsPointer(ref MemoryMarshal.GetReference(fixedMessage));
+    }
+
+    public void Write(ref Resp2Writer writer) => writer.WriteRaw(new ReadOnlySpan<byte>(_ptr, _length));
 }
 
 [Experimental(RespRequest.ExperimentalDiagnosticID)]
 [SuppressMessage("ApiDesign", "RS0016:Add public types and members to the declared API", Justification = "Experimental")]
 public interface IWhatever
 {
+    TResponse Execute<TResponse>(IRespWriter writer, IRespReader<TResponse> reader);
     TResponse Execute<TRequest, TResponse>(in TRequest request, IRespWriter<TRequest> writer, IRespReader<TResponse> reader);
     TResponse Execute<TRequest, TResponse>(in TRequest request, IRespWriter<TRequest> writer, IRespReader<TRequest, TResponse> reader);
+
+    Task<TResponse> ExecuteAsync<TResponse>(IRespWriter writer, IRespReader<TResponse> reader);
     Task<TResponse> ExecuteAsync<TRequest, TResponse>(in TRequest request, IRespWriter<TRequest> writer, IRespReader<TResponse> reader);
     Task<TResponse> ExecuteAsync<TRequest, TResponse>(in TRequest request, IRespWriter<TRequest> writer, IRespReader<TRequest, TResponse> reader);
 }
@@ -73,12 +100,23 @@ public static class WhateverExtensions
 [Experimental(RespRequest.ExperimentalDiagnosticID)]
 internal class Whatever : IWhatever
 {
+    private static RequestBuffer WriteToLease(IRespWriter writer)
+    {
+        var target = Resp2Writer.Create();
+        writer.Write(ref target);
+        var buffer = target.Detach();
+        buffer.DebugValidateCommand();
+        return buffer;
+    }
     private static RequestBuffer WriteToLease<TRequest>(IRespWriter<TRequest> writer, in TRequest request)
     {
         var target = Resp2Writer.Create();
         writer.Write(in request, ref target);
-        return target.Detach();
+        var buffer = target.Detach();
+        buffer.DebugValidateCommand();
+        return buffer;
     }
+
     TResponse IWhatever.Execute<TRequest, TResponse>(in TRequest request, IRespWriter<TRequest> writer, IRespReader<TResponse> reader)
     {
         var payload = WriteToLease(writer, in request);
@@ -115,6 +153,24 @@ internal class Whatever : IWhatever
     {
         var payload = WriteToLease(writer, in request);
         var msg = MessageAsyncPlaceholder<TResponse>.Create(payload, request, reader);
+        Enqueue(msg);
+        return msg.Task;
+    }
+
+    TResponse IWhatever.Execute<TResponse>(IRespWriter writer, IRespReader<TResponse> reader)
+    {
+        var payload = WriteToLease(writer);
+        var msg = MessageSyncPlaceholder<TResponse>.Create(payload, reader);
+        lock (msg.SyncLock)
+        {
+            Enqueue(msg);
+            return msg.WaitLocked();
+        }
+    }
+    Task<TResponse> IWhatever.ExecuteAsync<TResponse>(IRespWriter writer, IRespReader<TResponse> reader)
+    {
+        var payload = WriteToLease(writer);
+        var msg = MessageAsyncPlaceholder<TResponse>.Create(payload, reader);
         Enqueue(msg);
         return msg.Task;
     }
@@ -288,7 +344,14 @@ internal abstract class MessageAsyncPlaceholder<TResponse> : TaskCompletionSourc
 
 [Experimental(RespRequest.ExperimentalDiagnosticID)]
 [SuppressMessage("ApiDesign", "RS0016:Add public types and members to the declared API", Justification = "Experimental")]
-public interface IRespWriter<TRequest> // base-class for reusable writers
+public interface IRespWriter // base-class for reusable writers that do not need input state
+{
+    void Write(ref Resp2Writer writer);
+}
+
+[Experimental(RespRequest.ExperimentalDiagnosticID)]
+[SuppressMessage("ApiDesign", "RS0016:Add public types and members to the declared API", Justification = "Experimental")]
+public interface IRespWriter<TRequest> // base-class for reusable writers that need input state
 {
     void Write(in TRequest request, ref Resp2Writer writer);
 }
@@ -450,7 +513,6 @@ internal sealed partial class RefCountedSequenceSegment<T> : ReadOnlySequenceSeg
     }
 }
 
-internal struct Empty { }
 public readonly struct LeasedSequence<T> : IDisposable
 {
 #if DEBUG
@@ -743,7 +805,7 @@ public ref struct RespReader
     /// </summary>
     public readonly long BytesConsumed => _positionBase + _bufferIndex + TrailingLength;
 
-    internal int DebugBufferIndex => _bufferIndex;
+    //internal int DebugBufferIndex => _bufferIndex;
 
     public readonly RespPrefix Prefix => _prefix;
 
@@ -1524,6 +1586,59 @@ public readonly struct RequestBuffer
     /// Removes all preamble, reverting to just the original payload
     /// </summary>
     public RequestBuffer WithoutPreamble() => new RequestBuffer(_buffer, _payloadIndex, _payloadIndex);
+    internal string GetCommand()
+    {
+        var buffer = WithoutPreamble().GetBuffer();
+        var reader = new RespReader(in buffer);
+        if (reader.ReadNext() && reader.Prefix == RespPrefix.Array && reader.ChildCount > 0
+            && reader.ReadNext() && reader.Prefix == RespPrefix.BulkString)
+        {
+            return reader.ReadString() ?? "";
+        }
+        else
+        {
+            return "(unexpected RESP)";
+        }
+    }
+
+    [Conditional("DEBUG")]
+    internal void DebugValidateGenericFragment()
+    {
+#if DEBUG
+        var buffer = WithoutPreamble().GetBuffer();
+        Debug.Assert(!buffer.IsEmpty, "buffer should not be empty");
+        var reader = new RespReader(in buffer);
+        int remaining = 1;
+        while (remaining > 0)
+        {
+            if (!reader.ReadNext()) RespReader.ThrowEOF();
+            remaining = remaining - 1 + reader.ChildCount;
+        }
+        Debug.Assert(remaining == 0, "should have zero outstanding RESP fragments");
+        Debug.Assert(reader.BytesConsumed == buffer.Length, "should be fully consumed");
+#endif
+    }
+
+    [Conditional("DEBUG")]
+    internal void DebugValidateCommand()
+    {
+#if DEBUG
+        var buffer = WithoutPreamble().GetBuffer();
+        Debug.Assert(!buffer.IsEmpty, "buffer should not be empty");
+        var reader = new RespReader(in buffer);
+        if (!reader.ReadNext()) RespReader.ThrowEOF();
+        Debug.Assert(reader.Prefix == RespPrefix.Array, "root must be an array");
+        Debug.Assert(reader.ChildCount > 0, "must have at least one element");
+        int count = reader.ChildCount;
+        for (int i = 0; i < count; i++)
+        {
+            if (!reader.ReadNext()) RespReader.ThrowEOF();
+            Debug.Assert(reader.Prefix == RespPrefix.BulkString, "all parameters must be bulk strings");
+        }
+        Debug.Assert(!reader.ReadNext(), "should be nothing left");
+        Debug.Assert(reader.BytesConsumed == buffer.Length, "should be fully consumed");
+#endif
+    }
 }
 
 [Experimental(RespRequest.ExperimentalDiagnosticID)]
