@@ -69,6 +69,8 @@ StackExchange.Redis.Protocol.RespReader.IsNull.get -> bool
 StackExchange.Redis.Protocol.RespReader.IsScalar.get -> bool
 StackExchange.Redis.Protocol.RespReader.Prefix.get -> StackExchange.Redis.Protocol.RespPrefix
 StackExchange.Redis.Protocol.RespReader.ReadNext() -> bool
+StackExchange.Redis.Protocol.RespReader.ReadNextChecked() -> void
+StackExchange.Redis.Protocol.RespReader.ReadString() -> string?
 StackExchange.Redis.Protocol.RespReader.RespReader() -> void
 StackExchange.Redis.Protocol.RespReader.RespReader(System.Buffers.ReadOnlySequence<byte> value) -> void
 StackExchange.Redis.Protocol.RespReader.RespReader(System.ReadOnlyMemory<byte> value) -> void

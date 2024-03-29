@@ -5,7 +5,6 @@ using System.Buffers.Text;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
-using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -24,56 +23,242 @@ public abstract class RespRequest
     public abstract void Write(ref Resp2Writer writer);
 }
 
-/*
 [Experimental(RespRequest.ExperimentalDiagnosticID)]
+[SuppressMessage("ApiDesign", "RS0016:Add public types and members to the declared API", Justification = "Experimental")]
+public static class RespReaders
+{
+    private static readonly Impl common = new();
+    public static IRespReader<string?> String => common;
+    internal sealed class Impl : IRespReader<string?>
+    {
+        public string? Read(ref RespReader reader)
+        {
+            reader.ReadNext();
+            return reader.ReadString();
+        }
+    }
+
+}
+
+
+[Experimental(RespRequest.ExperimentalDiagnosticID)]
+[SuppressMessage("ApiDesign", "RS0016:Add public types and members to the declared API", Justification = "Experimental")]
 public interface IWhatever
 {
-    public TResponse Execute<TRequest, TResponse>(TRequest request, RespProcessor<TRequest, TResponse> processor);
+    TResponse Execute<TRequest, TResponse>(in TRequest request, IRespWriter<TRequest> writer, IRespReader<TResponse> reader);
+    TResponse Execute<TRequest, TResponse>(in TRequest request, IRespWriter<TRequest> writer, IRespReader<TRequest, TResponse> reader);
+    Task<TResponse> ExecuteAsync<TRequest, TResponse>(in TRequest request, IRespWriter<TRequest> writer, IRespReader<TResponse> reader);
+    Task<TResponse> ExecuteAsync<TRequest, TResponse>(in TRequest request, IRespWriter<TRequest> writer, IRespReader<TRequest, TResponse> reader);
 }
 [Experimental(RespRequest.ExperimentalDiagnosticID)]
-public abstract class RespProcessor<TRequest, TResponse>
+[SuppressMessage("ApiDesign", "RS0016:Add public types and members to the declared API", Justification = "Experimental")]
+public static class WhateverExtensions
 {
-    public abstract void Write(TRequest request, ref Resp2Writer writer);
-    public abstract TResponse Read(TRequest request, ref RespReader reader);
-}
-[Experimental(RespRequest.ExperimentalDiagnosticID)]
-internal static class IWhateverExtensions
-{
-    public static TResponse Execute<TRequest, TResponse>(this IWhatever obj, TRequest request, RespWriter<TRequest> writer, RespReader<TResponse> reader)
-        => obj.Execute(new RespSplitProcessor<TRequest, TResponse>.State(request, writer, reader), RespSplitProcessor<TRequest, TResponse>.Instance);
-}
-[Experimental(RespRequest.ExperimentalDiagnosticID)]
-internal sealed class RespSplitProcessor<TRequest, TResponse> : RespProcessor<RespSplitProcessor<TRequest, TResponse>.State, TResponse>
-{
-    internal static readonly RespSplitProcessor<TRequest, TResponse> Instance = new();
-    private RespSplitProcessor() { }
-    public override TResponse Read(State request, ref RespReader reader) => request.Reader.Read(ref reader);
-    public override void Write(State request, ref Resp2Writer writer) => request.Writer.Write(request.Request, ref writer);
-    internal readonly struct State
-    {
-        public State(TRequest request, RespWriter<TRequest> writer, RespReader<TResponse> reader)
-        {
-            Request = request;
-            Writer = writer;
-            Reader = reader;
-        }
-        public readonly TRequest Request;
-        public readonly RespWriter<TRequest> Writer;
-        public readonly RespReader<TResponse> Reader;
-    }
+    public static TResponse Execute<TRequest, TResponse>(this IWhatever whatever, in TRequest request, IRespProcessor<TRequest, TResponse> processor)
+        => whatever.Execute<TRequest, TResponse>(request, processor, processor);
+    public static Task<TResponse> ExecuteAsync<TRequest, TResponse>(this IWhatever whatever, in TRequest request, IRespProcessor<TRequest, TResponse> processor)
+        => whatever.ExecuteAsync<TRequest, TResponse>(request, processor, processor);
 }
 
 [Experimental(RespRequest.ExperimentalDiagnosticID)]
-public abstract class RespWriter<TRequest>
+internal class Whatever : IWhatever
 {
-    public abstract void Write(TRequest request, ref Resp2Writer writer);
+    private static RequestBuffer WriteToLease<TRequest>(IRespWriter<TRequest> writer, in TRequest request)
+    {
+        var target = Resp2Writer.Create();
+        writer.Write(in request, ref target);
+        return target.Detach();
+    }
+    TResponse IWhatever.Execute<TRequest, TResponse>(in TRequest request, IRespWriter<TRequest> writer, IRespReader<TResponse> reader)
+    {
+        var payload = WriteToLease(writer, in request);
+        var msg = MessageSyncPlaceholder<TResponse>.Create(payload, reader);
+        lock (msg.SyncLock)
+        {
+            Enqueue(msg);
+            Monitor.Wait(msg.SyncLock);
+            return msg.WaitLocked();
+        }
+    }
+
+    private void Enqueue(IMessage msg) => throw new NotImplementedException();
+
+    TResponse IWhatever.Execute<TRequest, TResponse>(in TRequest request, IRespWriter<TRequest> writer, IRespReader<TRequest, TResponse> reader)
+    {
+        var payload = WriteToLease(writer, request);
+        var msg = MessageSyncPlaceholder<TResponse>.Create(payload, request, reader);
+        lock (msg.SyncLock)
+        {
+            Enqueue(msg);
+            return msg.WaitLocked();
+        }
+    }
+
+    Task<TResponse> IWhatever.ExecuteAsync<TRequest, TResponse>(in TRequest request, IRespWriter<TRequest> writer, IRespReader<TResponse> reader)
+    {
+        var payload = WriteToLease(writer, in request);
+        var msg = MessageAsyncPlaceholder<TResponse>.Create(payload, reader);
+        Enqueue(msg);
+        return msg.Task;
+    }
+    Task<TResponse> IWhatever.ExecuteAsync<TRequest, TResponse>(in TRequest request, IRespWriter<TRequest> writer, IRespReader<TRequest, TResponse> reader)
+    {
+        var payload = WriteToLease(writer, in request);
+        var msg = MessageAsyncPlaceholder<TResponse>.Create(payload, request, reader);
+        Enqueue(msg);
+        return msg.Task;
+    }
+}
+
+internal interface IMessage // nongeneric API for the message queue
+{
+    bool TrySetException(Exception fault);
+    bool TrySetResult<T>(T result);
+    bool TrySetCanceled(CancellationToken token);
+    void Recycle();
 }
 [Experimental(RespRequest.ExperimentalDiagnosticID)]
-public abstract class RespReader<TResponse>
+[SuppressMessage("ApiDesign", "RS0016:Add public types and members to the declared API", Justification = "Experimental")]
+internal abstract class MessageSyncPlaceholder<TResponse> : IMessage
 {
-    public abstract TResponse Read(ref RespReader writer);
+    public virtual void Recycle() => _payload.Recycle();
+    private readonly RequestBuffer _payload;
+    protected MessageSyncPlaceholder(in RequestBuffer payload)
+        => _payload = payload;
+
+    public bool TrySetException(Exception fault)
+    {
+        lock (SyncLock)
+        {
+            if (_fault is not null) return false;
+            _fault = fault;
+            Monitor.PulseAll(SyncLock);
+            return true;
+        }
+    }
+    bool IMessage.TrySetResult<T>(T result)
+    {
+        if (typeof(T) != typeof(TResponse)) return SetInvalidResponse();
+        lock (SyncLock)
+        {
+            if (_fault is not null) return false;
+            _result = Unsafe.As<T, TResponse>(ref result);
+            Monitor.PulseAll(SyncLock);
+            return true;
+        }
+    }
+    private bool SetInvalidResponse() => TrySetException(new InvalidOperationException("Incorrect response type provided"));
+
+    public static MessageSyncPlaceholder<TResponse> Create(in RequestBuffer payload, IRespReader<TResponse> reader) => new StatelessMessage(payload, reader);
+    public static MessageSyncPlaceholder<TResponse> Create<TRequest>(in RequestBuffer payload, in TRequest request, IRespReader<TRequest, TResponse> reader)
+        => new StatefulMessage<TRequest>(payload, request, reader);
+    public object SyncLock => this;
+    private Exception? _fault;
+    private TResponse? _result;
+    public TResponse WaitLocked()
+    {
+        Monitor.Wait(SyncLock);
+        if (_fault is not null) throw _fault;
+        return _result!;
+    }
+
+    bool IMessage.TrySetCanceled(CancellationToken token) => TrySetException(new OperationCanceledException(token));
+
+    private sealed class StatelessMessage : MessageSyncPlaceholder<TResponse>
+    {
+        private readonly IRespReader<TResponse> _reader;
+        public StatelessMessage(in RequestBuffer payload, IRespReader<TResponse> reader) : base(payload)
+        {
+            _reader = reader;
+        }
+    }
+    private sealed class StatefulMessage<TRequest> : MessageSyncPlaceholder<TResponse>
+    {
+        private readonly TRequest _request;
+        private readonly IRespReader<TRequest, TResponse> _reader;
+        public StatefulMessage(in RequestBuffer payload, in TRequest request, IRespReader<TRequest, TResponse> reader) : base(payload)
+        {
+            _request = request;
+            _reader = reader;
+        }
+        public override void Recycle()
+        {
+            base.Recycle();
+            Unsafe.AsRef(in _request) = default!;
+        }
+    }
 }
-*/
+[Experimental(RespRequest.ExperimentalDiagnosticID)]
+[SuppressMessage("ApiDesign", "RS0016:Add public types and members to the declared API", Justification = "Experimental")]
+internal abstract class MessageAsyncPlaceholder<TResponse> : TaskCompletionSource<TResponse>, IMessage
+{
+    public virtual void Recycle() => _payload.Recycle();
+    private readonly RequestBuffer _payload;
+    protected MessageAsyncPlaceholder(in RequestBuffer payload) : base(TaskCreationOptions.RunContinuationsAsynchronously)
+        => _payload = payload;
+
+    public static MessageAsyncPlaceholder<TResponse> Create(in RequestBuffer payload, IRespReader<TResponse> reader) => new StatelessMessage(payload, reader);
+    public static MessageAsyncPlaceholder<TResponse> Create<TRequest>(in RequestBuffer payload, in TRequest request, IRespReader<TRequest, TResponse> reader)
+        => new StatefulMessage<TRequest>(payload, request, reader);
+    bool IMessage.TrySetResult<T>(T result)
+    {
+        if (typeof(T) != typeof(TResponse)) return SetInvalidResponse();
+        return TrySetResult(Unsafe.As<T, TResponse>(ref result));
+    }
+    private bool SetInvalidResponse() => TrySetException(new InvalidOperationException("Incorrect response type provided"));
+
+    private sealed class StatelessMessage : MessageAsyncPlaceholder<TResponse>
+    {
+        private readonly IRespReader<TResponse> _reader;
+        public StatelessMessage(in RequestBuffer payload, IRespReader<TResponse> reader) : base(payload)
+        {
+            _reader = reader;
+        }
+    }
+    private sealed class StatefulMessage<TRequest> : MessageAsyncPlaceholder<TResponse>
+    {
+        private readonly TRequest _request;
+        private readonly IRespReader<TRequest, TResponse> _reader;
+        public StatefulMessage(in RequestBuffer payload, in TRequest request, IRespReader<TRequest, TResponse> reader) : base(payload)
+        {
+            _request = request;
+            _reader = reader;
+        }
+
+        public override void Recycle()
+        {
+            base.Recycle();
+            Unsafe.AsRef(in _request) = default!;
+        }
+    }
+}
+
+
+[Experimental(RespRequest.ExperimentalDiagnosticID)]
+[SuppressMessage("ApiDesign", "RS0016:Add public types and members to the declared API", Justification = "Experimental")]
+public interface IRespWriter<TRequest> // base-class for reusable writers
+{
+    void Write(in TRequest request, ref Resp2Writer writer);
+}
+[Experimental(RespRequest.ExperimentalDiagnosticID)]
+[SuppressMessage("ApiDesign", "RS0016:Add public types and members to the declared API", Justification = "Experimental")]
+public interface IRespReader<TResponse> // base-class for reusable parsers that don't need input state
+{
+    TResponse Read(ref RespReader reader);
+}
+[Experimental(RespRequest.ExperimentalDiagnosticID)]
+[SuppressMessage("ApiDesign", "RS0016:Add public types and members to the declared API", Justification = "Experimental")]
+public interface IRespReader<TRequest, TResponse> // base-class for reusable parsers that need input state
+{
+    TResponse Read(in TRequest request, ref RespReader reader);
+}
+[Experimental(RespRequest.ExperimentalDiagnosticID)]
+[SuppressMessage("ApiDesign", "RS0016:Add public types and members to the declared API", Justification = "Experimental")]
+public interface IRespProcessor<TRequest, TResponse>
+    : IRespWriter<TRequest>, IRespReader<TRequest, TResponse>
+{
+}
+
 [Experimental(RespRequest.ExperimentalDiagnosticID)]
 public enum RespPrefix : byte
 {
@@ -565,7 +750,7 @@ public ref struct RespReader
         span = default;
         return false;
     }
-    internal readonly string? ReadString()
+    public readonly string? ReadString()
     {
         if (!IsScalar || _length < 0) return null;
         if (_length == 0) return "";
@@ -804,7 +989,18 @@ public ref struct RespReader
         get => IsScalar && _length >= 0 ? _length + 2 : 0;
     }
 
-
+    public void ReadNextChecked()
+    {
+        if (!ReadNext()) ThrowEOF();
+        switch (Prefix)
+        {
+            case RespPrefix.SimpleError:
+            case RespPrefix.BulkError:
+                Throw(ReadString());
+                break;
+        }
+        static void Throw(string? error) => throw new RedisServerException(error ?? "");
+    }
     public bool ReadNext()
     {
         var skip = TrailingLength;
@@ -873,8 +1069,8 @@ public ref struct RespReader
     /// <inheritdoc/>
     public override readonly string ToString()
     {
-        if (IsScalar) return IsNull? $"@{BytesConsumed} {Prefix}: {nameof(RespPrefix.Null)}" : $"@{BytesConsumed} {Prefix} with {ScalarLength} bytes '{ReadString()}'";
-        if (IsAggregate) return IsNull? $"@{BytesConsumed} {Prefix}: {nameof(RespPrefix.Null)}" : $"@{BytesConsumed} {Prefix} with {ChildCount} sub-items";
+        if (IsScalar) return IsNull ? $"@{BytesConsumed} {Prefix}: {nameof(RespPrefix.Null)}" : $"@{BytesConsumed} {Prefix} with {ScalarLength} bytes '{ReadString()}'";
+        if (IsAggregate) return IsNull ? $"@{BytesConsumed} {Prefix}: {nameof(RespPrefix.Null)}" : $"@{BytesConsumed} {Prefix} with {ChildCount} sub-items";
         return $"@{BytesConsumed} {Prefix}";
     }
 
@@ -1137,8 +1333,9 @@ public ref struct RespReader
             ResetCurrent(); // would be confusing to see the last descendent state
         }
         return total;
-        static void ThrowEOF() => throw new EndOfStreamException();
     }
+    [DoesNotReturn]
+    private static void ThrowEOF() => throw new EndOfStreamException();
 }
 
 [Experimental(RespRequest.ExperimentalDiagnosticID)]
