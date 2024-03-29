@@ -356,7 +356,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal static string GetString(ReadOnlySequence<byte> buffer)
+        internal static string GetString(in ReadOnlySequence<byte> buffer)
         {
             if (buffer.IsSingleSegment) return GetString(buffer.First.Span);
 

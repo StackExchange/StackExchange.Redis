@@ -197,7 +197,7 @@ public class ProtocolApiTests
         }
     }
 
-    private static string GetString(ReadOnlySequence<byte> data)
+    private static string GetString(in ReadOnlySequence<byte> data)
     {
 #if NET6_0_OR_GREATER
         return Resp2Writer.UTF8.GetString(data);

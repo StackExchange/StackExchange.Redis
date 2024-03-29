@@ -37,9 +37,19 @@ public static class RespReaders
             return reader.ReadString();
         }
     }
-
 }
 
+[Experimental(RespRequest.ExperimentalDiagnosticID)]
+internal abstract class RawMessageWriter : IRespWriter<Empty>
+{
+    protected abstract ReadOnlySpan<byte> Payload { get; }
+    public void Write(in Empty request, ref Resp2Writer writer) => writer.WriteRaw(Payload);
+
+    internal sealed class PingMessageWriter : RawMessageWriter
+    {
+        protected override ReadOnlySpan<byte> Payload => "*1\r\n$4\r\nping\r\n"u8;
+    }
+}
 
 [Experimental(RespRequest.ExperimentalDiagnosticID)]
 [SuppressMessage("ApiDesign", "RS0016:Add public types and members to the declared API", Justification = "Experimental")]
@@ -113,9 +123,9 @@ internal class Whatever : IWhatever
 internal interface IMessage // nongeneric API for the message queue
 {
     bool TrySetException(Exception fault);
-    bool TrySetResult<T>(T result);
     bool TrySetCanceled(CancellationToken token);
     void Recycle();
+    void TrySetResult(in ReadOnlySequence<byte> result);
 }
 [Experimental(RespRequest.ExperimentalDiagnosticID)]
 [SuppressMessage("ApiDesign", "RS0016:Add public types and members to the declared API", Justification = "Experimental")]
@@ -125,6 +135,29 @@ internal abstract class MessageSyncPlaceholder<TResponse> : IMessage
     private readonly RequestBuffer _payload;
     protected MessageSyncPlaceholder(in RequestBuffer payload)
         => _payload = payload;
+
+    public void TrySetResult(in ReadOnlySequence<byte> payload)
+    {
+        try
+        {
+            var reader = new RespReader(in payload);
+            if (!reader.ReadNext()) RespReader.ThrowEOF();
+            if (reader.IsError)
+            {
+                TrySetException(reader.ReadError());
+            }
+            else
+            {
+                TrySetResult(Parse(ref reader));
+            }
+            Debug.Assert(!reader.ReadNext(), "not fully consumed");
+        }
+        catch(Exception ex)
+        {
+            TrySetException(ex);
+        }
+    }
+    protected abstract TResponse Parse(ref RespReader reader);
 
     public bool TrySetException(Exception fault)
     {
@@ -136,19 +169,17 @@ internal abstract class MessageSyncPlaceholder<TResponse> : IMessage
             return true;
         }
     }
-    bool IMessage.TrySetResult<T>(T result)
+    public bool TrySetResult(TResponse result)
     {
-        if (typeof(T) != typeof(TResponse)) return SetInvalidResponse();
         lock (SyncLock)
         {
             if (_fault is not null) return false;
-            _result = Unsafe.As<T, TResponse>(ref result);
+            _result = result;
             Monitor.PulseAll(SyncLock);
             return true;
         }
     }
-    private bool SetInvalidResponse() => TrySetException(new InvalidOperationException("Incorrect response type provided"));
-
+    
     public static MessageSyncPlaceholder<TResponse> Create(in RequestBuffer payload, IRespReader<TResponse> reader) => new StatelessMessage(payload, reader);
     public static MessageSyncPlaceholder<TResponse> Create<TRequest>(in RequestBuffer payload, in TRequest request, IRespReader<TRequest, TResponse> reader)
         => new StatefulMessage<TRequest>(payload, request, reader);
@@ -167,6 +198,7 @@ internal abstract class MessageSyncPlaceholder<TResponse> : IMessage
     private sealed class StatelessMessage : MessageSyncPlaceholder<TResponse>
     {
         private readonly IRespReader<TResponse> _reader;
+        protected override TResponse Parse(ref RespReader reader) => _reader.Read(ref reader);
         public StatelessMessage(in RequestBuffer payload, IRespReader<TResponse> reader) : base(payload)
         {
             _reader = reader;
@@ -176,6 +208,8 @@ internal abstract class MessageSyncPlaceholder<TResponse> : IMessage
     {
         private readonly TRequest _request;
         private readonly IRespReader<TRequest, TResponse> _reader;
+        protected override TResponse Parse(ref RespReader reader) => _reader.Read(in _request, ref reader);
+
         public StatefulMessage(in RequestBuffer payload, in TRequest request, IRespReader<TRequest, TResponse> reader) : base(payload)
         {
             _request = request;
@@ -200,16 +234,33 @@ internal abstract class MessageAsyncPlaceholder<TResponse> : TaskCompletionSourc
     public static MessageAsyncPlaceholder<TResponse> Create(in RequestBuffer payload, IRespReader<TResponse> reader) => new StatelessMessage(payload, reader);
     public static MessageAsyncPlaceholder<TResponse> Create<TRequest>(in RequestBuffer payload, in TRequest request, IRespReader<TRequest, TResponse> reader)
         => new StatefulMessage<TRequest>(payload, request, reader);
-    bool IMessage.TrySetResult<T>(T result)
+    public void TrySetResult(in ReadOnlySequence<byte> payload)
     {
-        if (typeof(T) != typeof(TResponse)) return SetInvalidResponse();
-        return TrySetResult(Unsafe.As<T, TResponse>(ref result));
+        try
+        {
+            var reader = new RespReader(in payload);
+            if (!reader.ReadNext()) RespReader.ThrowEOF();
+            if (reader.IsError)
+            {
+                TrySetException(reader.ReadError());
+            }
+            else
+            {
+                TrySetResult(Parse(ref reader));
+            }
+            Debug.Assert(!reader.ReadNext(), "not fully consumed");
+        }
+        catch (Exception ex)
+        {
+            TrySetException(ex);
+        }
     }
-    private bool SetInvalidResponse() => TrySetException(new InvalidOperationException("Incorrect response type provided"));
-
+    protected abstract TResponse Parse(ref RespReader reader);
+    
     private sealed class StatelessMessage : MessageAsyncPlaceholder<TResponse>
     {
         private readonly IRespReader<TResponse> _reader;
+        protected override TResponse Parse(ref RespReader reader) => _reader.Read(ref reader);
         public StatelessMessage(in RequestBuffer payload, IRespReader<TResponse> reader) : base(payload)
         {
             _reader = reader;
@@ -219,6 +270,7 @@ internal abstract class MessageAsyncPlaceholder<TResponse> : TaskCompletionSourc
     {
         private readonly TRequest _request;
         private readonly IRespReader<TRequest, TResponse> _reader;
+        protected override TResponse Parse(ref RespReader reader) => _reader.Read(in _request, ref reader);
         public StatefulMessage(in RequestBuffer payload, in TRequest request, IRespReader<TRequest, TResponse> reader) : base(payload)
         {
             _request = request;
@@ -398,6 +450,7 @@ internal sealed partial class RefCountedSequenceSegment<T> : ReadOnlySequenceSeg
     }
 }
 
+internal struct Empty { }
 public readonly struct LeasedSequence<T> : IDisposable
 {
 #if DEBUG
@@ -407,7 +460,7 @@ public readonly struct LeasedSequence<T> : IDisposable
     public static long DebugTotalLeased => RefCountedSequenceSegment<byte>.DebugTotalLeased;
 #endif
 
-    public LeasedSequence(ReadOnlySequence<T> value) => _value = value;
+    public LeasedSequence(scoped in ReadOnlySequence<T> value) => _value = value;
     private readonly ReadOnlySequence<T> _value;
 
     public override string ToString() => _value.ToString();
@@ -505,7 +558,7 @@ public abstract partial class RespSource : IAsyncDisposable
 
     protected abstract ReadOnlySequence<byte> GetBuffer();
 
-    public static RespSource Create(ReadOnlySequence<byte> payload) => new InMemoryRespSource(payload);
+    public static RespSource Create(in ReadOnlySequence<byte> payload) => new InMemoryRespSource(payload);
     public static RespSource Create(ReadOnlyMemory<byte> payload) => new InMemoryRespSource(new(payload));
 
     private protected RespSource() { }
@@ -513,10 +566,10 @@ public abstract partial class RespSource : IAsyncDisposable
     protected abstract ValueTask<bool> TryReadAsync(CancellationToken cancellationToken);
 
     [Conditional("DEBUG")]
-    static partial void DebugWrite(ReadOnlySequence<byte> data);
+    static partial void DebugWrite(in ReadOnlySequence<byte> data);
 
 #if DEBUG
-    static partial void DebugWrite(ReadOnlySequence<byte> data)
+    static partial void DebugWrite(in ReadOnlySequence<byte> data)
     {
         try
         {
@@ -560,9 +613,9 @@ public abstract partial class RespSource : IAsyncDisposable
         static void Throw() => throw new InvalidOperationException("Buffer length mismatch in " + nameof(ReadNextAsync));
 
         // can't use ref-struct in async method
-        static long Scan(ReadOnlySequence<byte> payload, ref int count)
+        static long Scan(in ReadOnlySequence<byte> payload, ref int count)
         {
-            var reader = new RespReader(payload);
+            var reader = new RespReader(in payload);
             while (count > 0 && reader.ReadNext())
             {
                 count = count - 1 + reader.ChildCount;
@@ -583,7 +636,7 @@ public abstract partial class RespSource : IAsyncDisposable
     private sealed class InMemoryRespSource : RespSource
     {
         private ReadOnlySequence<byte> _remaining;
-        public InMemoryRespSource(ReadOnlySequence<byte> value)
+        public InMemoryRespSource(in ReadOnlySequence<byte> value)
             => _remaining = value;
 
         protected override ReadOnlySequence<byte> GetBuffer() => _remaining;
@@ -843,8 +896,14 @@ public ref struct RespReader
     }
 #endif
 
-    public RespReader(ReadOnlyMemory<byte> value) : this(new ReadOnlySequence<byte>(value)) { }
-    public RespReader(ReadOnlySequence<byte> value)
+    public static RespReader Create(ReadOnlyMemory<byte> value)
+    {
+        var ros = new ReadOnlySequence<byte>(value);
+        return new(in ros);
+    }
+
+    public static RespReader Create(in ReadOnlySequence<byte> value) => new(in value);
+    internal RespReader(scoped in ReadOnlySequence<byte> value)
     {
         _fullPayload = value;
         _positionBase = _bufferIndex = _bufferLength = 0;
@@ -912,6 +971,19 @@ public ref struct RespReader
             or RespPrefix.BulkError or RespPrefix.BulkString or RespPrefix.VerbatimString => true,
             _ => false,
         };
+    }
+
+    public readonly bool IsError
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => Prefix is RespPrefix.BulkError or RespPrefix.SimpleError;
+    }
+
+    internal readonly Exception ReadError()
+    {
+        var message = ReadString();
+        if (string.IsNullOrWhiteSpace(message)) message = "unknown RESP error";
+        return new RedisServerException(message!);
     }
 
     /// <summary>
@@ -989,18 +1061,6 @@ public ref struct RespReader
         get => IsScalar && _length >= 0 ? _length + 2 : 0;
     }
 
-    public void ReadNextChecked()
-    {
-        if (!ReadNext()) ThrowEOF();
-        switch (Prefix)
-        {
-            case RespPrefix.SimpleError:
-            case RespPrefix.BulkError:
-                Throw(ReadString());
-                break;
-        }
-        static void Throw(string? error) => throw new RedisServerException(error ?? "");
-    }
     public bool ReadNext()
     {
         var skip = TrailingLength;
@@ -1335,7 +1395,7 @@ public ref struct RespReader
         return total;
     }
     [DoesNotReturn]
-    private static void ThrowEOF() => throw new EndOfStreamException();
+    internal static void ThrowEOF() => throw new EndOfStreamException();
 }
 
 [Experimental(RespRequest.ExperimentalDiagnosticID)]
@@ -1347,14 +1407,14 @@ public readonly struct RequestBuffer
 
     public long Length => _buffer.Length - _preambleIndex;
 
-    private RequestBuffer(ReadOnlySequence<byte> buffer, int preambleIndex, int payloadIndex)
+    private RequestBuffer(in ReadOnlySequence<byte> buffer, int preambleIndex, int payloadIndex)
     {
         _buffer = buffer;
         _preambleIndex = preambleIndex;
         _payloadIndex = payloadIndex;
     }
 
-    internal RequestBuffer(ReadOnlySequence<byte> buffer, int payloadIndex)
+    internal RequestBuffer(in ReadOnlySequence<byte> buffer, int payloadIndex)
     {
         _buffer = buffer;
         _preambleIndex = _payloadIndex = payloadIndex;
@@ -1559,7 +1619,6 @@ public ref struct Resp2Writer
 
         static void Throw(int count, int total) => throw new InvalidOperationException($"Not all command arguments ({count - 1} of {total - 1}) have been written");
     }
-
     public void WriteCommand(scoped ReadOnlySpan<byte> command, int argCount)
     {
         if (_argCountIncludingCommand > 0) ThrowCommandAlreadyWritten();
@@ -1620,7 +1679,7 @@ public ref struct Resp2Writer
     private void WriteEmptyString() // private because I don't think this is allowed in client streams? check
         => WriteRaw("$0\r\n\r\n"u8);
 
-    private void WriteRaw(scoped ReadOnlySpan<byte> value)
+    internal void WriteRaw(scoped ReadOnlySpan<byte> value)
     {
         while (!value.IsEmpty)
         {

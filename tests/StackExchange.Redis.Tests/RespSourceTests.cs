@@ -75,7 +75,7 @@ public class RespSourceTests
     }
 
 
-    private void AssertChunks(ReadOnlySequence<byte> value, params int[] expected)
+    private void AssertChunks(in ReadOnlySequence<byte> value, params int[] expected)
     {
         int index = 0;
         foreach (var chunk in value)
@@ -84,7 +84,7 @@ public class RespSourceTests
         }
         Assert.Equal(expected.Length, index);
     }
-    private static string GetString(ReadOnlySequence<byte> value)
+    private static string GetString(in ReadOnlySequence<byte> value)
     {
         // don't care about efficiency
         var len = checked((int)value.Length);
