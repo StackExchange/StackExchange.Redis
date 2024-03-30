@@ -594,13 +594,13 @@ public abstract class LoggingTunnel : Tunnel
             {
                 string content;
 #if NETCOREAPP3_1_OR_GREATER
-                content = Resp2Writer.UTF8.GetString(blob);
+                content = RespWriter.UTF8.GetString(blob);
 #else
                 unsafe
                 {
                     fixed(byte* ptr = blob)
                     {
-                        content = Resp2Writer.UTF8.GetString(ptr, blob.Length);
+                        content = RespWriter.UTF8.GetString(ptr, blob.Length);
                     }
                 }
 #endif

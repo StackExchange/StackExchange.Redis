@@ -1,6 +1,7 @@
 ﻿using StackExchange.Redis.Protocol;
 using System;
 using System.Buffers;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
@@ -15,15 +16,88 @@ public class ProtocolApiTests
     public void ApiUsageTest()
     {
         var cmdMap = NewCommandMap.Default;
-        IRespWriter writer = cmdMap.RawCommands.Ping;
+        var writer = cmdMap.RawCommands.Ping;
+        Assert.NotNull(writer);
 
-        var target = Resp2Writer.Create();
+        var target = RespWriter.Create();
         writer.Write(ref target);
         var payload = target.Detach();
 
         payload.DebugValidateCommand();
-        Assert.Equal("ping", payload.GetCommand());
+        Assert.Equal("PING", payload.GetCommand());
         payload.Recycle();
+    }
+
+    [Theory]
+    [InlineData("ping", "PING")]
+    [InlineData("PING", "PING")]
+    [InlineData("PING ", "PING")]
+    [InlineData("blah", "BLAH")]
+    [InlineData("BLAH", "BLAH")]
+    [InlineData("", null)]
+    [InlineData(" ", null)]
+    [InlineData(null, null)]
+    public void ApiUsageTestMapped(string? mapped, string? expected)
+    {
+        var map = new Dictionary<string, string?> { { "pInG", mapped } };
+        var cmdMap = NewCommandMap.Create(map);
+        var writer = cmdMap.RawCommands.Ping;
+        if (string.IsNullOrWhiteSpace(mapped))
+        {
+            Assert.Null(expected);
+            Assert.Null(writer);
+            Assert.Null(cmdMap.Normalize("pInG", out var known));
+            Assert.Equal(RedisCommand.PING, known);
+        }
+        else
+        {
+            Assert.NotNull(writer);
+            Assert.NotNull(expected);
+
+            var target = RespWriter.Create();
+            writer.Write(ref target);
+            var payload = target.Detach();
+
+            payload.DebugValidateCommand();
+            Assert.Equal(expected, payload.GetCommand());
+            payload.Recycle();
+
+            var first = cmdMap.Normalize("pInG", out var known);
+            Assert.Equal(RedisCommand.PING, known);
+            Assert.Equal(expected, first);
+            Assert.Same(first, cmdMap.Normalize("pInG", out _)); // assert non-allocating
+        }
+    }
+
+    [Theory]
+    [InlineData("flibble", "fLiBBle")] // not actually remapped, so: GiGo (avoids alloc per normalize)
+    [InlineData("FLIBBLE", "fLiBBle")] // not actually remapped, so: GiGo (avoids alloc per normalize)
+    [InlineData("FLIBBLE ", "fLiBBle")] // not actually remapped, so: GiGo (avoids alloc per normalize)
+    [InlineData("flibble2", "FLIBBLE2")] // remapped, so: cased during map
+    [InlineData("FLIBBLE2", "FLIBBLE2")] // remapped, so: cased during map
+    [InlineData("FLIBBLE2 ", "FLIBBLE2")] // remapped, so: cased during map
+    [InlineData("", null)]
+    [InlineData(" ", null)]
+    [InlineData(null, null)]
+    public void ApiUsageTestUnknownMapped(string? mapped, string? expected)
+    {
+        var map = new Dictionary<string, string?> { { "fLiBBle", mapped } };
+        var cmdMap = NewCommandMap.Create(map);
+        if (string.IsNullOrWhiteSpace(mapped))
+        {
+            Assert.Null(expected);
+            Assert.Null(cmdMap.Normalize("fLiBBle", out var known));
+            Assert.Equal(RedisCommand.UNKNOWN, known);
+        }
+        else
+        {
+            Assert.NotNull(expected);
+
+            var first = cmdMap.Normalize("fLiBBle", out var known);
+            Assert.Equal(RedisCommand.UNKNOWN, known);
+            Assert.Equal(expected, first);
+            Assert.Same(first, cmdMap.Normalize("fLiBBle", out _)); // assert non-allocating
+        }
     }
 
 
@@ -31,7 +105,7 @@ public class ProtocolApiTests
     private static RequestBuffer CreatePingChunk(string? value, int preambleBytes, SlabManager? slabManager = null)
     {
         var obj = new PingRequest(value);
-        var writer = Resp2Writer.Create(slabManager, preambleReservation: preambleBytes);
+        var writer = RespWriter.Create(slabManager, preambleReservation: preambleBytes);
         try
         {
             obj.Write(ref writer);
@@ -217,13 +291,13 @@ public class ProtocolApiTests
     private static string GetString(in ReadOnlySequence<byte> data)
     {
 #if NET6_0_OR_GREATER
-        return Resp2Writer.UTF8.GetString(data);
+        return RespWriter.UTF8.GetString(data);
 #else
         var len = checked((int)data.Length);
         if (len == 0) return "";
         var arr = ArrayPool<byte>.Shared.Rent(len);
         data.CopyTo(arr);
-        var result = Resp2Writer.UTF8.GetString(arr, 0, len);
+        var result = RespWriter.UTF8.GetString(arr, 0, len);
         ArrayPool<byte>.Shared.Return(arr);
         return result;
 #endif
@@ -236,7 +310,7 @@ public class ProtocolApiTests
         {
             _value = value;
         }
-        public override void Write(ref Resp2Writer writer)
+        public override void Write(ref RespWriter writer)
         {
             writer.WriteCommand("ping"u8, _value is null ? 0 : 1);
             if (_value is not null)

@@ -16,8 +16,8 @@ internal sealed class SlabManager : IDisposable
     // number of slab managers, and hand them out based on the thread-id
     // dedicated slab managers can be more aggressive - probably "read", so be generous with buffers;
     // for default (thread-ambient) managers, assume "write", which can be quite small
-    private static readonly SlabManager?[] s_Ambient = new SlabManager[8];
-    public static SlabManager Ambient => s_Ambient[Environment.CurrentManagedThreadId & 7] ??= new(false, 16 * 1024, 128);
+    private static readonly SlabManager?[] s_Ambient = new SlabManager[Environment.ProcessorCount];
+    public static SlabManager Ambient => s_Ambient[((uint)Environment.CurrentManagedThreadId) % s_Ambient.Length] ??= new(false, 16 * 1024, 128);
 
     public SlabManager(int slabSize = 64 * 1024, int chunkSize = 4096) : this(true, slabSize, chunkSize) { }
     private SlabManager(bool dedicated, int slabSize, int chunkSize)

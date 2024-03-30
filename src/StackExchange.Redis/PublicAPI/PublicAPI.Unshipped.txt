@@ -1,4 +1,4 @@
-﻿abstract StackExchange.Redis.Protocol.RespRequest.Write(ref StackExchange.Redis.Protocol.Resp2Writer writer) -> void
+﻿abstract StackExchange.Redis.Protocol.RespRequest.Write(ref StackExchange.Redis.Protocol.RespWriter writer) -> void
 override StackExchange.Redis.Protocol.LeasedSequence<T>.ToString() -> string!
 override StackExchange.Redis.Protocol.RequestBuffer.ToString() -> string!
 override StackExchange.Redis.Protocol.RespReader.ToString() -> string!
@@ -35,14 +35,14 @@ StackExchange.Redis.Protocol.RequestBuffer.RequestBuffer() -> void
 StackExchange.Redis.Protocol.RequestBuffer.TryGetSpan(out System.ReadOnlySpan<byte> span) -> bool
 StackExchange.Redis.Protocol.RequestBuffer.WithoutPreamble() -> StackExchange.Redis.Protocol.RequestBuffer
 StackExchange.Redis.Protocol.RequestBuffer.WithPreamble(System.ReadOnlySpan<byte> value) -> StackExchange.Redis.Protocol.RequestBuffer
-StackExchange.Redis.Protocol.Resp2Writer
-StackExchange.Redis.Protocol.Resp2Writer.Resp2Writer() -> void
-StackExchange.Redis.Protocol.Resp2Writer.WriteCommand(scoped System.ReadOnlySpan<byte> command, int argCount) -> void
-StackExchange.Redis.Protocol.Resp2Writer.WriteCommand(scoped System.ReadOnlySpan<char> command, int argCount) -> void
-StackExchange.Redis.Protocol.Resp2Writer.WriteCommand(string! command, int argCount) -> void
-StackExchange.Redis.Protocol.Resp2Writer.WriteValue(scoped System.ReadOnlySpan<byte> value) -> void
-StackExchange.Redis.Protocol.Resp2Writer.WriteValue(scoped System.ReadOnlySpan<char> value) -> void
-StackExchange.Redis.Protocol.Resp2Writer.WriteValue(string! value) -> void
+StackExchange.Redis.Protocol.RespWriter
+StackExchange.Redis.Protocol.RespWriter.RespWriter() -> void
+StackExchange.Redis.Protocol.RespWriter.WriteCommand(scoped System.ReadOnlySpan<byte> command, int argCount) -> void
+StackExchange.Redis.Protocol.RespWriter.WriteCommand(scoped System.ReadOnlySpan<char> command, int argCount) -> void
+StackExchange.Redis.Protocol.RespWriter.WriteCommand(string! command, int argCount) -> void
+StackExchange.Redis.Protocol.RespWriter.WriteValue(scoped System.ReadOnlySpan<byte> value) -> void
+StackExchange.Redis.Protocol.RespWriter.WriteValue(scoped System.ReadOnlySpan<char> value) -> void
+StackExchange.Redis.Protocol.RespWriter.WriteValue(string! value) -> void
 StackExchange.Redis.Protocol.RespPrefix
 StackExchange.Redis.Protocol.RespPrefix.Array = 42 -> StackExchange.Redis.Protocol.RespPrefix
 StackExchange.Redis.Protocol.RespPrefix.BigNumber = 40 -> StackExchange.Redis.Protocol.RespPrefix

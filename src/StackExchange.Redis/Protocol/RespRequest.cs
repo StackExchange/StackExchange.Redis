@@ -2,10 +2,15 @@
 using System;
 using System.Buffers;
 using System.Buffers.Text;
+#if NET8_0_OR_GREATER
+using System.Collections.Frozen;
+#endif
 using System.Collections.Generic;
+using System.Data.Common;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -21,7 +26,7 @@ public abstract class RespRequest
 {
     internal const string ExperimentalDiagnosticID = "SERED002";
     protected RespRequest() { }
-    public abstract void Write(ref Resp2Writer writer);
+    public abstract void Write(ref RespWriter writer);
 }
 
 [Experimental(RespRequest.ExperimentalDiagnosticID)]
@@ -43,20 +48,96 @@ public static class RespReaders
 [Experimental(RespRequest.ExperimentalDiagnosticID)]
 internal class NewCommandMap
 {
-    public static NewCommandMap Default { get; } = new();
-    internal readonly ParameterlessCommands RawCommands = ParameterlessCommands.Default;
-    internal readonly struct ParameterlessCommands
+    public static NewCommandMap Create(Dictionary<string, string?> overrides)
     {
-        public static readonly ParameterlessCommands Default = new(true);
-        public readonly IRespWriter Ping;
-        public readonly IRespWriter Quit;
+        if (overrides is { Count: > 0 })
+        {
+            IDictionary<string, string?> typed = overrides;
+            PreparedRespWriters prepared = new(in PreparedRespWriters.Default, ref typed);
+            if (overrides.Count > 0)
+            {
+                return new(typed, prepared);
+            }
+        }
+        return Default;
+    }
 
+    public static NewCommandMap Default { get; } = new(null, PreparedRespWriters.Default);
 
-        private ParameterlessCommands(bool dummy)
+    private readonly PreparedRespWriters _commands;
+    internal ref readonly PreparedRespWriters RawCommands => ref _commands; // avoid stack copies; this is large
+
+    private NewCommandMap(IDictionary<string, string?>? overrides, in PreparedRespWriters commands)
+    {
+        _commands = commands;
+#if NET8_0_OR_GREATER
+        _overrides = ((FrozenDictionary<string, string?>?)overrides) ?? FrozenDictionary<string, string?>.Empty;
+#else
+        _overrides = ((Dictionary<string, string?>?)overrides) ?? SharedEmpty;
+#endif
+    }
+
+    internal string? Normalize(string command, out RedisCommand known)
+    {
+        if (string.IsNullOrWhiteSpace(command))
+        {
+            known = RedisCommand.UNKNOWN;
+            return null;
+        }
+        if (!Enum.TryParse(command, true, out known) || known == RedisCommand.NONE)
+        {
+            known = RedisCommand.UNKNOWN;
+        }
+        if (_overrides.TryGetValue(command, out var mapped)) return mapped;
+
+        if (known != RedisCommand.UNKNOWN)
+        {
+            // normalize case (this is non-allocating for known enum values)
+            command = known.ToString(); 
+        }
+        return command;
+    }
+
+#if NET8_0_OR_GREATER
+    private readonly FrozenDictionary<string, string?> _overrides;
+#else
+    private readonly Dictionary<string, string?> _overrides;
+    private static readonly Dictionary<string, string?> SharedEmpty = new();
+#endif
+
+    internal readonly struct PreparedRespWriters
+    {
+        private static readonly PreparedRespWriters _default = new(true);
+        public static ref readonly PreparedRespWriters Default => ref _default; // avoid stack copies; this is large
+
+        public readonly IRespWriter? Ping;
+        public readonly IRespWriter? Quit;
+
+        internal PreparedRespWriters(in PreparedRespWriters template, ref IDictionary<string, string?> overrides)
+        {
+            this = template;
+            // we want a defensive copy of the overrides (for Execute etc); make sure it is case-insensitive, ignore X=X, and UC
+            var deltas = from pair in overrides
+                         let value = string.IsNullOrWhiteSpace(pair.Value) ? null : pair.Value.Trim().ToUpperInvariant()
+                         where !string.IsNullOrWhiteSpace(pair.Key) // ignore "" etc
+                            && pair.Key.Trim() == pair.Key // ignore " PING" etc - this is a no-op for valid data
+                            && !StringComparer.OrdinalIgnoreCase.Equals(pair.Key, value) // ignore "PING=PING"
+                         select new KeyValuePair<string,string?>(pair.Key, value); // upper-casify
+#if NET8_0_OR_GREATER
+            overrides = FrozenDictionary.ToFrozenDictionary(deltas, StringComparer.OrdinalIgnoreCase);
+#else
+            overrides = new Dictionary<string, string?>(overrides.Count, StringComparer.OrdinalIgnoreCase);
+            foreach (var pair in deltas) overrides.Add(pair.Key, pair.Value);
+#endif
+            if (overrides.TryGetValue("ping", out string? cmd)) Ping = RawFixedMessageWriter.Create(cmd);
+            if (overrides.TryGetValue("quit", out cmd)) Quit = RawFixedMessageWriter.Create(cmd);
+
+        }
+        private PreparedRespWriters(bool dummy)
         {
             _ = dummy;
-            Ping = new RawUnsafeFixedMessageWriter("*1\r\n$4\r\nping\r\n"u8);
-            Quit = new RawUnsafeFixedMessageWriter("*1\r\n$4\r\nquit\r\n"u8);
+            Ping = new RawUnsafeFixedMessageWriter("*1\r\n$4\r\nPING\r\n"u8);
+            Quit = new RawUnsafeFixedMessageWriter("*1\r\n$4\r\nQUIT\r\n"u8);
         }
     }
 }
@@ -72,7 +153,24 @@ internal unsafe sealed class RawUnsafeFixedMessageWriter : IRespWriter
         _ptr = Unsafe.AsPointer(ref MemoryMarshal.GetReference(fixedMessage));
     }
 
-    public void Write(ref Resp2Writer writer) => writer.WriteRaw(new ReadOnlySpan<byte>(_ptr, _length));
+    public void Write(ref RespWriter writer) => writer.WriteRaw(new ReadOnlySpan<byte>(_ptr, _length));
+}
+[Experimental(RespRequest.ExperimentalDiagnosticID)]
+internal sealed class RawFixedMessageWriter : IRespWriter
+{
+    private readonly byte[] _prepared;
+    public static RawFixedMessageWriter? Create(string? command)
+        => string.IsNullOrWhiteSpace(command) ? null : new(command!);
+    private RawFixedMessageWriter(string command)
+    {
+        var buffer = RespWriter.Create(preambleReservation: 0);
+        buffer.WriteCommand(command, 0);
+        var leased = buffer.Detach();
+        _prepared = leased.GetBuffer().ToArray();
+        leased.Recycle();
+    }
+
+    public void Write(ref RespWriter writer) => writer.WriteRaw(_prepared);
 }
 
 [Experimental(RespRequest.ExperimentalDiagnosticID)]
@@ -102,7 +200,7 @@ internal class Whatever : IWhatever
 {
     private static RequestBuffer WriteToLease(IRespWriter writer)
     {
-        var target = Resp2Writer.Create();
+        var target = RespWriter.Create();
         writer.Write(ref target);
         var buffer = target.Detach();
         buffer.DebugValidateCommand();
@@ -110,7 +208,7 @@ internal class Whatever : IWhatever
     }
     private static RequestBuffer WriteToLease<TRequest>(IRespWriter<TRequest> writer, in TRequest request)
     {
-        var target = Resp2Writer.Create();
+        var target = RespWriter.Create();
         writer.Write(in request, ref target);
         var buffer = target.Detach();
         buffer.DebugValidateCommand();
@@ -346,14 +444,14 @@ internal abstract class MessageAsyncPlaceholder<TResponse> : TaskCompletionSourc
 [SuppressMessage("ApiDesign", "RS0016:Add public types and members to the declared API", Justification = "Experimental")]
 public interface IRespWriter // base-class for reusable writers that do not need input state
 {
-    void Write(ref Resp2Writer writer);
+    void Write(ref RespWriter writer);
 }
 
 [Experimental(RespRequest.ExperimentalDiagnosticID)]
 [SuppressMessage("ApiDesign", "RS0016:Add public types and members to the declared API", Justification = "Experimental")]
 public interface IRespWriter<TRequest> // base-class for reusable writers that need input state
 {
-    void Write(in TRequest request, ref Resp2Writer writer);
+    void Write(in TRequest request, ref RespWriter writer);
 }
 [Experimental(RespRequest.ExperimentalDiagnosticID)]
 [SuppressMessage("ApiDesign", "RS0016:Add public types and members to the declared API", Justification = "Experimental")]
@@ -872,13 +970,13 @@ public ref struct RespReader
         if (TryGetValueSpan(out var span))
         {
 #if NETCOREAPP3_0_OR_GREATER
-            return Resp2Writer.UTF8.GetString(span);
+            return RespWriter.UTF8.GetString(span);
 #else
             unsafe
             {
                 fixed (byte* ptr = span)
                 {
-                    return Resp2Writer.UTF8.GetString(ptr, span.Length);
+                    return RespWriter.UTF8.GetString(ptr, span.Length);
                 }
             }
 #endif
@@ -894,14 +992,14 @@ public ref struct RespReader
         var len = reader.Fill(buffer);
         Debug.Assert(len == _length);
 #if NETCOREAPP3_1_OR_GREATER
-        var s = Resp2Writer.UTF8.GetString(buffer);
+        var s = RespWriter.UTF8.GetString(buffer);
 #else
         string s;
         unsafe
         {
             fixed (byte* ptr = buffer)
             {
-                s = Resp2Writer.UTF8.GetString(ptr, buffer.Length);
+                s = RespWriter.UTF8.GetString(ptr, buffer.Length);
             }
         }
 #endif
@@ -912,7 +1010,7 @@ public ref struct RespReader
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void AssertClLfUnsafe(scoped ref byte source, int offset)
     {
-        if (Unsafe.ReadUnaligned<ushort>(ref Unsafe.Add(ref source, offset)) != Resp2Writer.CrLf)
+        if (Unsafe.ReadUnaligned<ushort>(ref Unsafe.Add(ref source, offset)) != RespWriter.CrLf)
         {
             ThrowProtocolFailure("Expected CR/LF");
         }
@@ -921,7 +1019,7 @@ public ref struct RespReader
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void AssertClLfUnsafe(scoped ref readonly byte source)
     {
-        if (Unsafe.ReadUnaligned<ushort>(ref Unsafe.AsRef(in source)) != Resp2Writer.CrLf)
+        if (Unsafe.ReadUnaligned<ushort>(ref Unsafe.AsRef(in source)) != RespWriter.CrLf)
         {
             ThrowProtocolFailure("Expected CR/LF");
         }
@@ -1067,7 +1165,7 @@ public ref struct RespReader
         if (end < 0)
         {
             byteCount = value = 0;
-            if (bytes.Length >= Resp2Writer.MaxRawBytesInt32 + 2)
+            if (bytes.Length >= RespWriter.MaxRawBytesInt32 + 2)
             {
                 ThrowProtocolFailure("Unterminated or over-length integer"); // should have failed; report failure to prevent infinite loop
             }
@@ -1316,7 +1414,7 @@ public ref struct RespReader
 
         internal bool TryReadLengthCrLf(out int length)
         {
-            if (CurrentRemainingBytes >= Resp2Writer.MaxRawBytesInt32 + 2)
+            if (CurrentRemainingBytes >= RespWriter.MaxRawBytesInt32 + 2)
             {
                 if (TryReadIntegerCrLf(_current.Slice(_index), out length, out int consumed))
                 {
@@ -1326,7 +1424,7 @@ public ref struct RespReader
             }
             else
             {
-                Span<byte> buffer = stackalloc byte[Resp2Writer.MaxRawBytesInt32 + 2];
+                Span<byte> buffer = stackalloc byte[RespWriter.MaxRawBytesInt32 + 2];
                 SlowReader snapshot = this; // we might over-advance when filling the buffer
                 length = snapshot.Fill(buffer);
                 if (TryReadIntegerCrLf(buffer.Slice(0, length), out length, out int consumed))
@@ -1511,17 +1609,17 @@ public readonly struct RequestBuffer
         if (length > 1024) return $"({length} bytes)";
         var buffer = GetBuffer();
 #if NET6_0_OR_GREATER
-        return Resp2Writer.UTF8.GetString(buffer);
+        return RespWriter.UTF8.GetString(buffer);
 #else
 #if NETCOREAPP3_0_OR_GREATER
         if (buffer.IsSingleSegment)
         {
-            return Resp2Writer.UTF8.GetString(buffer.FirstSpan);
+            return RespWriter.UTF8.GetString(buffer.FirstSpan);
         }
 #endif
         var arr = ArrayPool<byte>.Shared.Rent((int)length);
         buffer.CopyTo(arr);
-        var s = Resp2Writer.UTF8.GetString(arr, 0, (int)length);
+        var s = RespWriter.UTF8.GetString(arr, 0, (int)length);
         ArrayPool<byte>.Shared.Return(arr);
         return s;
 #endif
@@ -1642,16 +1740,16 @@ public readonly struct RequestBuffer
 }
 
 [Experimental(RespRequest.ExperimentalDiagnosticID)]
-public ref struct Resp2Writer
+public ref struct RespWriter
 {
     private RotatingBufferCore _buffer;
     private readonly int _preambleReservation;
     private int _argCountIncludingCommand, _argIndexIncludingCommand;
 
-    internal static Resp2Writer Create(SlabManager? slabManager = null, int preambleReservation = 64)
+    internal static RespWriter Create(SlabManager? slabManager = null, int preambleReservation = 64)
         => new(slabManager ?? SlabManager.Ambient, preambleReservation);
 
-    private Resp2Writer(SlabManager slabManager, int preambleReservation)
+    private RespWriter(SlabManager slabManager, int preambleReservation)
     {
         _preambleReservation = preambleReservation;
         _argCountIncludingCommand = _argIndexIncludingCommand = 0;
@@ -1689,7 +1787,7 @@ public ref struct Resp2Writer
             WriteCommandSlow(ref this, command, argCount);
         }
 
-        static void WriteCommandSlow(ref Resp2Writer @this, scoped ReadOnlySpan<char> command, int argCount)
+        static void WriteCommandSlow(ref RespWriter @this, scoped ReadOnlySpan<char> command, int argCount)
         {
             @this.WriteCommand(Utf8EncodeLease(command, out var lease), argCount);
             ArrayPool<byte>.Shared.Return(lease);
