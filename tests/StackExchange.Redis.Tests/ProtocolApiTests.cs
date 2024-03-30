@@ -100,6 +100,58 @@ public class ProtocolApiTests
         }
     }
 
+    [Fact]
+    public void ExpectOK()
+    {
+        var reader = RespReaders.OK;
+        var resp = new RespReader("+OK\r\n"u8);
+        Assert.True(resp.ReadNext());
+
+        // test simple reader facts
+        Assert.Equal(RespPrefix.SimpleString, resp.Prefix);
+        Assert.True(resp.IsError); // just a prefix check
+        Assert.True(resp.IsScalar); // just a prefix check
+        Assert.False(resp.IsAggregate); // just a prefix check
+        Assert.Equal(2, resp.ScalarLength); // prefix/length
+        Assert.Equal(0, resp.ChildCount); // prefix/length
+
+        // test pre-written validator
+        reader.Read(ref resp);
+
+        // should be fully consumed
+        Assert.False(resp.ReadNext() && resp.BytesConsumed == 5);
+    }
+
+    [Fact]
+    public void ReadError()
+    {
+        var resp = new RespReader("-ERR boom!\r\n"u8);
+        Assert.True(resp.ReadNext() && resp.IsError);
+        var ex = resp.ReadError();
+        Assert.IsType<RedisServerException>(ex);
+        Assert.Equal("ERR boom!", ex.Message);
+        Assert.False(resp.ReadNext());
+    }
+
+    [Fact]
+    public void ExpectOK_GotKO()
+    {
+        var reader = RespReaders.OK;
+        var resp = new RespReader("+KO\r\n"u8);
+        Assert.True(resp.ReadNext() && !resp.IsError);
+        try
+        {
+            reader.Read(ref resp);
+            Assert.Fail(); // can't use Assert.Throws because ref-struct / capture
+        }
+        catch (Exception ex)
+        {
+            Assert.IsType<InvalidOperationException>(ex);
+            Assert.Equal("Did not receive expected response: '+OK'", ex.Message);
+        }
+        Assert.False(resp.ReadNext());
+    }
+
 
 
     private static RequestBuffer CreatePingChunk(string? value, int preambleBytes, SlabManager? slabManager = null)

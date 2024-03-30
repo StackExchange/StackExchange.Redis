@@ -177,7 +177,7 @@ public abstract class LoggingTunnel : Tunnel
                 if (!sent.IsEmpty)
                 {
                     var spoofed = Encoding.ASCII.GetBytes("-ERR (managed) " + ex.Message);
-                    pair(new(sent), RespReader.Create(new(spoofed)));
+                    pair(new(sent), new(spoofed));
                 }
                 throw; // still surface the original exception
             }

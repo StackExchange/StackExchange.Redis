@@ -43,7 +43,43 @@ public static class RespReaders
             return reader.ReadString();
         }
     }
+
+    public static IRespReader OK = new UnsafeFixedSimpleResponse("OK"u8);
 }
+
+[Experimental(RespRequest.ExperimentalDiagnosticID)]
+internal sealed class SimpleOKResponse : IRespReader
+{
+    void IRespReader.Read(ref RespReader reader)
+    {
+        if (!reader.IsOK()) Throw();
+        static void Throw()
+        => throw new InvalidOperationException("Did not receive expected response: '+OK'");
+    }
+}
+[Experimental(RespRequest.ExperimentalDiagnosticID)]
+internal unsafe sealed class UnsafeFixedSimpleResponse : IRespReader
+{
+    private readonly byte* _ptr;
+    private readonly int _length;
+    private string? _message;
+    public UnsafeFixedSimpleResponse(ReadOnlySpan<byte> fixedMessage) // caller **must** use a fixed span; "..."u8 satisfies this
+    {
+        _length = fixedMessage.Length;
+        _ptr = (byte*)Unsafe.AsPointer(ref MemoryMarshal.GetReference(fixedMessage));
+    }
+
+    void IRespReader.Read(ref RespReader reader)
+    {
+        if (!(reader.Prefix == RespPrefix.SimpleString && reader.Is(new(_ptr, _length)))) Throw();
+
+    }
+    [DoesNotReturn]
+    private void Throw() => throw new InvalidOperationException(Message);
+    private string Message => _message ??= $"Did not receive expected response: '+{Encoding.ASCII.GetString(_ptr, _length)}'";
+}
+
+
 
 [Experimental(RespRequest.ExperimentalDiagnosticID)]
 internal class NewCommandMap
@@ -145,12 +181,12 @@ internal class NewCommandMap
 [Experimental(RespRequest.ExperimentalDiagnosticID)]
 internal unsafe sealed class RawUnsafeFixedMessageWriter : IRespWriter
 {
-    private readonly void* _ptr;
+    private readonly byte* _ptr;
     private readonly int _length;
     public RawUnsafeFixedMessageWriter(ReadOnlySpan<byte> fixedMessage) // caller **must** use a fixed span; "..."u8 satisfies this
     {
         _length = fixedMessage.Length;
-        _ptr = Unsafe.AsPointer(ref MemoryMarshal.GetReference(fixedMessage));
+        _ptr = (byte*)Unsafe.AsPointer(ref MemoryMarshal.GetReference(fixedMessage));
     }
 
     public void Write(ref RespWriter writer) => writer.WriteRaw(new ReadOnlySpan<byte>(_ptr, _length));
@@ -180,10 +216,14 @@ public interface IWhatever
     TResponse Execute<TResponse>(IRespWriter writer, IRespReader<TResponse> reader);
     TResponse Execute<TRequest, TResponse>(in TRequest request, IRespWriter<TRequest> writer, IRespReader<TResponse> reader);
     TResponse Execute<TRequest, TResponse>(in TRequest request, IRespWriter<TRequest> writer, IRespReader<TRequest, TResponse> reader);
+    void Execute<TRequest>(in TRequest request, IRespWriter<TRequest> writer, IRespReader reader);
+    void Execute(IRespWriter writer, IRespReader reader);
 
     Task<TResponse> ExecuteAsync<TResponse>(IRespWriter writer, IRespReader<TResponse> reader);
     Task<TResponse> ExecuteAsync<TRequest, TResponse>(in TRequest request, IRespWriter<TRequest> writer, IRespReader<TResponse> reader);
     Task<TResponse> ExecuteAsync<TRequest, TResponse>(in TRequest request, IRespWriter<TRequest> writer, IRespReader<TRequest, TResponse> reader);
+    Task ExecuteAsync<TRequest>(in TRequest request, IRespWriter<TRequest> writer, IRespReader reader);
+    Task ExecuteAsync(IRespWriter writer, IRespReader reader);
 }
 [Experimental(RespRequest.ExperimentalDiagnosticID)]
 [SuppressMessage("ApiDesign", "RS0016:Add public types and members to the declared API", Justification = "Experimental")]
@@ -240,6 +280,27 @@ internal class Whatever : IWhatever
         }
     }
 
+    void IWhatever.Execute<TRequest>(in TRequest request, IRespWriter<TRequest> writer, IRespReader reader)
+    {
+        var payload = WriteToLease(writer, request);
+        var msg = MessageSyncPlaceholder.Create(payload, reader);
+        lock (msg.SyncLock)
+        {
+            Enqueue(msg);
+            msg.WaitLocked();
+        }
+    }
+    void IWhatever.Execute(IRespWriter writer, IRespReader reader)
+    {
+        var payload = WriteToLease(writer);
+        var msg = MessageSyncPlaceholder.Create(payload, reader);
+        lock (msg.SyncLock)
+        {
+            Enqueue(msg);
+            msg.WaitLocked();
+        }
+    }
+
     Task<TResponse> IWhatever.ExecuteAsync<TRequest, TResponse>(in TRequest request, IRespWriter<TRequest> writer, IRespReader<TResponse> reader)
     {
         var payload = WriteToLease(writer, in request);
@@ -272,6 +333,21 @@ internal class Whatever : IWhatever
         Enqueue(msg);
         return msg.Task;
     }
+
+    Task IWhatever.ExecuteAsync<TRequest>(in TRequest request, IRespWriter<TRequest> writer, IRespReader reader)
+    {
+        var payload = WriteToLease(writer, request);
+        var msg = MessageAsyncPlaceholder.Create(payload, reader);
+        Enqueue(msg);
+        return msg.Task;
+    }
+    Task IWhatever.ExecuteAsync(IRespWriter writer, IRespReader reader)
+    {
+        var payload = WriteToLease(writer);
+        var msg = MessageAsyncPlaceholder.Create(payload, reader);
+        Enqueue(msg);
+        return msg.Task;
+    }
 }
 
 internal interface IMessage // nongeneric API for the message queue
@@ -281,6 +357,7 @@ internal interface IMessage // nongeneric API for the message queue
     void Recycle();
     void TrySetResult(in ReadOnlySequence<byte> result);
 }
+
 [Experimental(RespRequest.ExperimentalDiagnosticID)]
 [SuppressMessage("ApiDesign", "RS0016:Add public types and members to the declared API", Justification = "Experimental")]
 internal abstract class MessageSyncPlaceholder<TResponse> : IMessage
@@ -333,7 +410,7 @@ internal abstract class MessageSyncPlaceholder<TResponse> : IMessage
             return true;
         }
     }
-    
+
     public static MessageSyncPlaceholder<TResponse> Create(in RequestBuffer payload, IRespReader<TResponse> reader) => new StatelessMessage(payload, reader);
     public static MessageSyncPlaceholder<TResponse> Create<TRequest>(in RequestBuffer payload, in TRequest request, IRespReader<TRequest, TResponse> reader)
         => new StatefulMessage<TRequest>(payload, request, reader);
@@ -376,8 +453,74 @@ internal abstract class MessageSyncPlaceholder<TResponse> : IMessage
         }
     }
 }
+
 [Experimental(RespRequest.ExperimentalDiagnosticID)]
-[SuppressMessage("ApiDesign", "RS0016:Add public types and members to the declared API", Justification = "Experimental")]
+internal sealed class MessageSyncPlaceholder : IMessage
+{
+    public void Recycle() => _payload.Recycle();
+    private readonly RequestBuffer _payload;
+    private readonly IRespReader _reader;
+    private MessageSyncPlaceholder(in RequestBuffer payload, IRespReader reader)
+    {
+        _payload = payload;
+        _reader = reader;
+    }
+    public void TrySetResult(in ReadOnlySequence<byte> payload)
+    {
+        try
+        {
+            var reader = new RespReader(in payload);
+            if (!reader.ReadNext()) RespReader.ThrowEOF();
+            if (reader.IsError)
+            {
+                TrySetException(reader.ReadError());
+            }
+            else
+            {
+                _reader.Read(ref reader);
+                TrySetResult();
+            }
+            Debug.Assert(!reader.ReadNext(), "not fully consumed");
+        }
+        catch (Exception ex)
+        {
+            TrySetException(ex);
+        }
+    }
+
+    public bool TrySetException(Exception fault)
+    {
+        lock (SyncLock)
+        {
+            if (_fault is not null) return false;
+            _fault = fault;
+            Monitor.PulseAll(SyncLock);
+            return true;
+        }
+    }
+    public bool TrySetResult()
+    {
+        lock (SyncLock)
+        {
+            if (_fault is not null) return false;
+            Monitor.PulseAll(SyncLock);
+            return true;
+        }
+    }
+
+    public static MessageSyncPlaceholder Create(in RequestBuffer payload, IRespReader reader) => new(payload, reader);
+    public object SyncLock => this;
+    private Exception? _fault;
+    public void WaitLocked()
+    {
+        Monitor.Wait(SyncLock);
+        if (_fault is not null) throw _fault;
+    }
+
+    bool IMessage.TrySetCanceled(CancellationToken token) => TrySetException(new OperationCanceledException(token));
+}
+
+[Experimental(RespRequest.ExperimentalDiagnosticID)]
 internal abstract class MessageAsyncPlaceholder<TResponse> : TaskCompletionSource<TResponse>, IMessage
 {
     public virtual void Recycle() => _payload.Recycle();
@@ -439,6 +582,52 @@ internal abstract class MessageAsyncPlaceholder<TResponse> : TaskCompletionSourc
     }
 }
 
+[Experimental(RespRequest.ExperimentalDiagnosticID)]
+internal sealed class MessageAsyncPlaceholder :
+#if NET5_0_OR_GREATER
+    TaskCompletionSource, IMessage
+#else
+    TaskCompletionSource<bool>, IMessage
+#endif
+{
+    public void Recycle() => _payload.Recycle();
+    private readonly RequestBuffer _payload;
+    private readonly IRespReader _reader;
+    internal MessageAsyncPlaceholder(in RequestBuffer payload, IRespReader reader) : base(TaskCreationOptions.RunContinuationsAsynchronously)
+    {
+        _payload = payload;
+        _reader = reader;
+    }
+
+    public static MessageAsyncPlaceholder Create(in RequestBuffer payload, IRespReader reader) => new(payload, reader);
+    public void TrySetResult(in ReadOnlySequence<byte> payload)
+    {
+        try
+        {
+            var reader = new RespReader(in payload);
+            if (!reader.ReadNext()) RespReader.ThrowEOF();
+            if (reader.IsError)
+            {
+                TrySetException(reader.ReadError());
+            }
+            else
+            {
+                _reader.Read(ref reader);
+#if NET5_0_OR_GREATER
+                TrySetResult();
+#else
+                TrySetResult(true);
+#endif
+            }
+            Debug.Assert(!reader.ReadNext(), "not fully consumed");
+        }
+        catch (Exception ex)
+        {
+            TrySetException(ex);
+        }
+    }
+}
+
 
 [Experimental(RespRequest.ExperimentalDiagnosticID)]
 [SuppressMessage("ApiDesign", "RS0016:Add public types and members to the declared API", Justification = "Experimental")]
@@ -458,6 +647,12 @@ public interface IRespWriter<TRequest> // base-class for reusable writers that n
 public interface IRespReader<TResponse> // base-class for reusable parsers that don't need input state
 {
     TResponse Read(ref RespReader reader);
+}
+[Experimental(RespRequest.ExperimentalDiagnosticID)]
+[SuppressMessage("ApiDesign", "RS0016:Add public types and members to the declared API", Justification = "Experimental")]
+public interface IRespReader // base-class for reusable parsers that don't need input state or return a value
+{
+    void Read(ref RespReader reader);
 }
 [Experimental(RespRequest.ExperimentalDiagnosticID)]
 [SuppressMessage("ApiDesign", "RS0016:Add public types and members to the declared API", Justification = "Experimental")]
@@ -491,7 +686,8 @@ public enum RespPrefix : byte
     Set = (byte)'~',
     Push = (byte)'>',
 
-    // these are not actually implemented
+    // these are not actually implemented by any server; no
+    // longer part of RESP3?
     // Stream = (byte)';',
     // UnboundEnd = (byte)'.',
     // Attribute = (byte)'|',
@@ -905,7 +1101,11 @@ public ref struct RespReader
 
     //internal int DebugBufferIndex => _bufferIndex;
 
-    public readonly RespPrefix Prefix => _prefix;
+    public readonly RespPrefix Prefix
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => _prefix;
+    }
 
     /// <summary>
     /// Returns as much data as possible into the buffer, ignoring
@@ -1027,12 +1227,13 @@ public ref struct RespReader
 
 #if NET7_0_OR_GREATER
     private ref byte _bufferRoot;
-    private RespPrefix PeekPrefix() => (RespPrefix)Unsafe.Add(ref _bufferRoot, _bufferIndex);
-    private ReadOnlySpan<byte> PeekPastPrefix() => MemoryMarshal.CreateReadOnlySpan(
+    private readonly ref byte CurrentUnsafe => ref Unsafe.Add(ref _bufferRoot, _bufferIndex);
+    private readonly RespPrefix PeekPrefix() => (RespPrefix)Unsafe.Add(ref _bufferRoot, _bufferIndex);
+    private readonly ReadOnlySpan<byte> PeekPastPrefix() => MemoryMarshal.CreateReadOnlySpan(
         ref Unsafe.Add(ref _bufferRoot, _bufferIndex + 1), _bufferLength - (_bufferIndex + 1));
-    private ReadOnlySpan<byte> PeekCurrent() => MemoryMarshal.CreateReadOnlySpan(
+    private readonly ReadOnlySpan<byte> PeekCurrent() => MemoryMarshal.CreateReadOnlySpan(
         ref Unsafe.Add(ref _bufferRoot, _bufferIndex), _bufferLength - _bufferIndex);
-    private void AssertCrlfPastPrefixUnsafe(int offset) => AssertClLfUnsafe(ref _bufferRoot, _bufferIndex + offset + 1);
+    private readonly void AssertCrlfPastPrefixUnsafe(int offset) => AssertClLfUnsafe(ref _bufferRoot, _bufferIndex + offset + 1);
     private void SetCurrent(ReadOnlySpan<byte> current)
     {
         _positionBase += _bufferLength; // accumulate previous length
@@ -1042,8 +1243,9 @@ public ref struct RespReader
     }
 #else
     private ReadOnlySpan<byte> _bufferSpan;
+    private readonly ref byte CurrentUnsafe => ref Unsafe.AsRef(in _bufferSpan[_bufferIndex]);
     private readonly RespPrefix PeekPrefix() => (RespPrefix)_bufferSpan[_bufferIndex];
-    private ReadOnlySpan<byte> PeekCurrent() => _bufferSpan.Slice(_bufferIndex);
+    private readonly ReadOnlySpan<byte> PeekCurrent() => _bufferSpan.Slice(_bufferIndex);
     private readonly ReadOnlySpan<byte> PeekPastPrefix() => _bufferSpan.Slice(_bufferIndex + 1);
     private readonly void AssertCrlfPastPrefixUnsafe(int offset)
         => AssertClLfUnsafe(in _bufferSpan[_bufferIndex + offset + 1]);
@@ -1056,14 +1258,23 @@ public ref struct RespReader
     }
 #endif
 
-    public static RespReader Create(ReadOnlyMemory<byte> value)
+    public RespReader(byte[] value) : this(new ReadOnlySpan<byte>(value)) { }
+    public RespReader(ReadOnlyMemory<byte> value) : this(value.Span) { }
+    public RespReader(ReadOnlySpan<byte> value)
     {
-        var ros = new ReadOnlySequence<byte>(value);
-        return new(in ros);
+        _fullPayload = default;
+        _positionBase = _bufferIndex = _bufferLength = 0;
+        _length = -1;
+        _prefix = RespPrefix.None;
+#if NET7_0_OR_GREATER
+        _bufferRoot = ref Unsafe.NullRef<byte>();
+#else
+        _bufferSpan = default;
+#endif
+        _segPos = default;
+        SetCurrent(value);
     }
-
-    public static RespReader Create(in ReadOnlySequence<byte> value) => new(in value);
-    internal RespReader(scoped in ReadOnlySequence<byte> value)
+    public RespReader(scoped in ReadOnlySequence<byte> value)
     {
         _fullPayload = value;
         _positionBase = _bufferIndex = _bufferLength = 0;
@@ -1076,6 +1287,7 @@ public ref struct RespReader
 #endif
         if (value.IsSingleSegment)
         {
+            _segPos = default;
 #if NETCOREAPP3_1_OR_GREATER
             SetCurrent(value.FirstSpan);
 #else
@@ -1527,13 +1739,29 @@ public ref struct RespReader
     /// <summary>Performs a byte-wise equality check on the payload</summary>
     public readonly bool Is(ReadOnlySpan<byte> value)
     {
-        if (!IsScalar) return false;
+        if (!(IsScalar && value.Length == _length)) return false;
         if (TryGetValueSpan(out var span))
         {
             return span.SequenceEqual(value);
         }
+        return IsSlow(value);
+    }
+    private readonly bool IsSlow(ReadOnlySpan<byte> value)
+    {
+        // TODO: multi-segment IsSlow
         throw new NotImplementedException();
     }
+
+    internal readonly bool IsOK() // go mad with this, because it is used so often
+        => _length == 2 & _bufferIndex + 2 <= _bufferLength // single-buffer fast path - can we safely read 2 bytes?
+        ? Prefix == RespPrefix.SimpleString & Unsafe.ReadUnaligned<ushort>(ref CurrentUnsafe) == OK
+        : IsOKSlow();
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private readonly bool IsOKSlow() => _length == 2 && Prefix == RespPrefix.SimpleString && IsSlow("OK"u8);
+
+    // note this should be treated as "const" by modern JIT
+    private static readonly ushort OK = BitConverter.IsLittleEndian ? (ushort)0x4F4B : (ushort)0x4B4F; // see: ASCII
 
     /// <summary>
     /// Skips all child/descendent nodes of this element, returning the number
@@ -1959,7 +2187,7 @@ public ref struct RespWriter
         WriteRaw(buffer.Slice(0, WriteCountPrefix(prefix, count, buffer)));
     }
 
-    internal static readonly ushort CrLf = BitConverter.IsLittleEndian ? (ushort)0x0A0D : (ushort)0x0D0A;
+    internal static readonly ushort CrLf = BitConverter.IsLittleEndian ? (ushort)0x0A0D : (ushort)0x0D0A; // see: ASCII
 
     internal static ReadOnlySpan<byte> CrlfBytes => "\r\n"u8;
 
