@@ -35,6 +35,7 @@ StackExchange.Redis.Protocol.RequestBuffer.RequestBuffer() -> void
 StackExchange.Redis.Protocol.RequestBuffer.TryGetSpan(out System.ReadOnlySpan<byte> span) -> bool
 StackExchange.Redis.Protocol.RequestBuffer.WithoutPreamble() -> StackExchange.Redis.Protocol.RequestBuffer
 StackExchange.Redis.Protocol.RequestBuffer.WithPreamble(System.ReadOnlySpan<byte> value) -> StackExchange.Redis.Protocol.RequestBuffer
+StackExchange.Redis.Protocol.RespReader.ReadInt32() -> int
 StackExchange.Redis.Protocol.RespReader.RespReader(byte[]! value) -> void
 StackExchange.Redis.Protocol.RespReader.RespReader(scoped in System.Buffers.ReadOnlySequence<byte> value) -> void
 StackExchange.Redis.Protocol.RespReader.RespReader(System.ReadOnlyMemory<byte> value) -> void

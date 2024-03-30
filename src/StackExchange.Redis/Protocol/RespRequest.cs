@@ -6,7 +6,6 @@ using System.Buffers.Text;
 using System.Collections.Frozen;
 #endif
 using System.Collections.Generic;
-using System.Data.Common;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
@@ -35,28 +34,21 @@ public static class RespReaders
 {
     private static readonly Impl common = new();
     public static IRespReader<string?> String => common;
-    internal sealed class Impl : IRespReader<string?>
+    public static IRespReader<int> Int32 => common;
+    public static IRespReader OK => common;
+    internal sealed class Impl : IRespReader, IRespReader<string?>, IRespReader<int>
     {
-        public string? Read(ref RespReader reader)
+        string? IRespReader<string?>.Read(ref RespReader reader) => reader.ReadString();
+        void IRespReader.Read(ref RespReader reader)
         {
-            reader.ReadNext();
-            return reader.ReadString();
+            if (!reader.IsOK()) Throw();
+            static void Throw()
+            => throw new InvalidOperationException("Did not receive expected response: '+OK'");
         }
-    }
-
-    public static IRespReader OK { get; } = new SimpleOKResponse();
-}
-
-[Experimental(RespRequest.ExperimentalDiagnosticID)]
-internal sealed class SimpleOKResponse : IRespReader
-{
-    void IRespReader.Read(ref RespReader reader)
-    {
-        if (!reader.IsOK()) Throw();
-        static void Throw()
-        => throw new InvalidOperationException("Did not receive expected response: '+OK'");
+        int IRespReader<int>.Read(ref RespReader reader) => reader.ReadInt32();
     }
 }
+
 [Experimental(RespRequest.ExperimentalDiagnosticID)]
 internal unsafe sealed class UnsafeFixedSimpleResponse : IRespReader
 {
@@ -1138,7 +1130,7 @@ public ref struct RespReader
     /// </summary>
     internal readonly bool TryGetValueSpan(out ReadOnlySpan<byte> span)
     {
-        if (!IsScalar || _length < 0)
+        if (!IsScalar | _length < 0)
         {
             span = default;
             return false; // only possible for scalars
@@ -1163,9 +1155,44 @@ public ref struct RespReader
         span = default;
         return false;
     }
+
+    public readonly int ReadInt32()
+    {
+        DemandScalar();
+        if (_length > RespWriter.MaxRawBytesInt32) ThrowFormatException();
+        if (TryGetValueSpan(out var span))
+        {
+            if (!(Utf8Parser.TryParse(span, out int value, out int bytes) & bytes == span.Length))
+            {
+                ThrowFormatException();
+            }
+            return value;
+        }
+        return ReadInt32Slow();
+    }
+
+    private readonly int ReadInt32Slow()
+    {
+        Span<byte> buffer = stackalloc byte[_length]; // we already checked vs MaxRawBytesInt32
+        if (new SlowReader(in this).Fill(buffer) != _length) ThrowEOF();
+        if (!(Utf8Parser.TryParse(buffer.Slice(0, _length), out int value, out int bytes) & bytes == _length))
+        {
+            ThrowFormatException();
+        }
+        return value;
+    }
+
+    private static void ThrowFormatException() => throw new FormatException();
+
+    private readonly void DemandScalar()
+    {
+        if (!IsScalar) Throw(Prefix);
+        static void Throw(RespPrefix prefix) => throw new InvalidOperationException($"Scalar value expected; got {prefix}");
+    }
     public readonly string? ReadString()
     {
-        if (!IsScalar || _length < 0) return null;
+        DemandScalar();
+        if (_length < 0) return null;
         if (_length == 0) return "";
         if (TryGetValueSpan(out var span))
         {

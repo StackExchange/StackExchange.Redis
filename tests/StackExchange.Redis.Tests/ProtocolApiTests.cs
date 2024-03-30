@@ -122,6 +122,74 @@ public class ProtocolApiTests
         Assert.False(resp.ReadNext() && resp.BytesConsumed == 5);
     }
 
+    private static ReadOnlySequence<byte> Shatter(ReadOnlySpan<byte> payload) => Shatter(payload.ToArray());
+    private static ReadOnlySequence<byte> Shatter(string payload) => Shatter(Encoding.UTF8.GetBytes(payload));
+    private static ReadOnlySequence<byte> Shatter(byte[] payload)
+    {
+        if (payload.Length < 2) return new ReadOnlySequence<byte>(payload);
+        Fragment last = new(payload, 0), first = last;
+        for(int i = 1; i < payload.Length; i++)
+        {
+            last = new(payload, i, last);
+        }
+        return new ReadOnlySequence<byte>(first, 0, last, 1);
+    }
+    private sealed class Fragment : ReadOnlySequenceSegment<byte>
+    {
+        public Fragment(byte[] value, int offset, Fragment? previous = null)
+        {
+            Memory = new ReadOnlyMemory<byte>(value, offset, 1);
+            if (previous is not null)
+            {
+                previous.Next = this;
+                RunningIndex = previous.RunningIndex + previous.Memory.Length;
+            }
+            else
+            {
+                RunningIndex = 0;
+            }
+        }
+    }
+
+    private static RespReader CreateReader(string payload, bool shattered)
+        => shattered ? new(Shatter(payload)) : new(Encoding.ASCII.GetBytes(payload));
+
+    [Theory]
+    [InlineData(":42\r\n", 42, false)]
+    [InlineData("+42\r\n", 42, false)]
+    [InlineData("$3\r\n-42\r\n", -42, false)]
+    [InlineData(":42\r\n", 42, true)]
+    [InlineData("+42\r\n", 42, true)]
+    [InlineData("$3\r\n-42\r\n", -42, true)]
+    public void ReadInt32(string payload, int expected, bool shattered)
+    {
+        var reader = RespReaders.Int32;
+        var resp = CreateReader(payload, shattered);
+        Assert.True(resp.ReadNext());
+        Assert.Equal(expected, reader.Read(ref resp));
+        Assert.False(resp.ReadNext() && resp.BytesConsumed == 5);
+    }
+
+    [Theory]
+    [InlineData(":4a2\r\n", false)]
+    [InlineData("+42 \r\n", false)]
+    [InlineData("$3\r\n4-2\r\n", false)]
+    [InlineData(":4a2\r\n", true)]
+    [InlineData("+42 \r\n", true)]
+    [InlineData("$3\r\n4-2\r\n", true)]
+    public void ReadInt32_BadFormat(string payload, bool shattered)
+    {
+        var reader = RespReaders.Int32;
+        var resp = CreateReader(payload, shattered);
+        Assert.True(resp.ReadNext());
+        try
+        {
+            reader.Read(ref resp);
+            Assert.Fail();
+        }
+        catch (FormatException) { }
+    }
+
     [Fact]
     public void ReadError()
     {
