@@ -1285,7 +1285,7 @@ public ref struct RespReader
     }
 #endif
 
-    public RespReader(byte[] value) : this(new ReadOnlySpan<byte>(value)) { }
+    public RespReader(byte[] value, int start = 0, int length = -1) : this(new ReadOnlySpan<byte>(value, start, length < 0 ? value.Length - start : length)) { }
     public RespReader(ReadOnlyMemory<byte> value) : this(value.Span) { }
     public RespReader(ReadOnlySpan<byte> value)
     {
