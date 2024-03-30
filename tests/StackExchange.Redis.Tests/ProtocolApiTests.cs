@@ -109,7 +109,7 @@ public class ProtocolApiTests
 
         // test simple reader facts
         Assert.Equal(RespPrefix.SimpleString, resp.Prefix);
-        Assert.True(resp.IsError); // just a prefix check
+        Assert.False(resp.IsError); // just a prefix check
         Assert.True(resp.IsScalar); // just a prefix check
         Assert.False(resp.IsAggregate); // just a prefix check
         Assert.Equal(2, resp.ScalarLength); // prefix/length

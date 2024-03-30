@@ -44,7 +44,7 @@ public static class RespReaders
         }
     }
 
-    public static IRespReader OK = new UnsafeFixedSimpleResponse("OK"u8);
+    public static IRespReader OK { get; } = new SimpleOKResponse();
 }
 
 [Experimental(RespRequest.ExperimentalDiagnosticID)]
@@ -1761,7 +1761,7 @@ public ref struct RespReader
     private readonly bool IsOKSlow() => _length == 2 && Prefix == RespPrefix.SimpleString && IsSlow("OK"u8);
 
     // note this should be treated as "const" by modern JIT
-    private static readonly ushort OK = BitConverter.IsLittleEndian ? (ushort)0x4F4B : (ushort)0x4B4F; // see: ASCII
+    private static readonly ushort OK = BitConverter.IsLittleEndian ? (ushort)0x4B4F : (ushort)0x4F4B; // see: ASCII
 
     /// <summary>
     /// Skips all child/descendent nodes of this element, returning the number
