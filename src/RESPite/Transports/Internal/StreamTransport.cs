@@ -91,10 +91,7 @@ internal sealed class StreamTransport : IByteTransport
         return false;
     }
 
-    public void Advance(long bytes)
-    {
-        throw new NotImplementedException();
-    }
+    public void Advance(long bytes) => _buffer.Advance(bytes);
 
     void ISyncByteTransport.Write(in ReadOnlySequence<byte> buffer)
     {

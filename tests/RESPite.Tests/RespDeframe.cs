@@ -18,8 +18,7 @@ public class RespDeframe
     {
         using var transport = CreateTransport("+pong\r\n*2\r\n+hi\r\n-lo\r\n"u8);
         Assert.Equal("+pong\r\n", transport.Send(Empty.Value, CommonWriters.Empty, CommonReaders.StringUtf8));
-        Assert.Equal("+*2\r\n+hi\r\n-lo\r\n", transport.Send(Empty.Value, CommonWriters.Empty, CommonReaders.StringUtf8));
-
+        Assert.Equal("*2\r\n+hi\r\n-lo\r\n", transport.Send(Empty.Value, CommonWriters.Empty, CommonReaders.StringUtf8));
         Assert.Throws<EndOfStreamException>(() => transport.Send(Empty.Value, CommonWriters.Empty, CommonReaders.StringUtf8));
     }
 }

@@ -38,7 +38,7 @@ public struct BufferCore<T>
     /// <summary>
     /// The immediately available contiguous bytes in the current buffer (or next buffer, if none)
     /// </summary>
-    public readonly int AvailableBytes
+    public readonly int AvailableWriteBytes
     {
         get
         {
@@ -72,7 +72,7 @@ public struct BufferCore<T>
     /// </summary>
     public bool TryGetWritableSpan(int minSize, out Span<T> span)
     {
-        if (minSize <= AvailableBytes) // don't pay lookup cost if impossible
+        if (minSize <= AvailableWriteBytes) // don't pay lookup cost if impossible
         {
             span = GetWritableTail().Span;
             return span.Length >= minSize;
@@ -129,6 +129,41 @@ public struct BufferCore<T>
                 Expand(); // need more
             }
             bytes -= space;
+        }
+    }
+
+    /// <summary>
+    /// Drops data from the head of the buffer
+    /// </summary>
+    public void Advance(long bytes)
+    {
+        static void Throw() => throw new ArgumentOutOfRangeException(nameof(bytes));
+        if (bytes < 0) Throw();
+        while (bytes > 0 && _head is not null)
+        {
+            var mem = _head.Memory;
+            var available = mem.Length - _headOffset;
+
+            if (bytes < available) // fits entirely inside the current page; just increment a conter
+            {
+                _headOffset += (int)bytes;
+                return;
+            }
+
+            // otherwise, we need to lose that page (accounting for the delta)
+            bytes -= available;
+            _head.Release();
+            _head = _head.Next!;
+            _headOffset = 0;
+        }
+
+        if (bytes != 0) Throw(); // and oops, we've destroyed everything
+
+        if (_head is null) // did we throw away everything? if so: reset
+        {
+            _tail = null!;
+            _tailOffset = _tailSize = 0;
+            Expand();
         }
     }
 
