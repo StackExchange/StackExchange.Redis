@@ -2,7 +2,6 @@
 using System.Buffers;
 using System.IO;
 using System.Runtime.InteropServices;
-using System.Runtime.InteropServices.ComTypes;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -156,6 +155,22 @@ internal static class RuntimeShims
         fixed (byte* bPtr = target)
         {
             return encoding.GetBytes(cPtr, source.Length, bPtr, target.Length);
+        }
+    }
+    public static unsafe int GetByteCount(this UTF8Encoding encoding, ReadOnlySpan<char> source)
+    {
+        if (source.IsEmpty) return 0;
+        fixed (char* cPtr = source)
+        {
+            return encoding.GetByteCount(cPtr, source.Length);
+        }
+    }
+    public static unsafe void Convert(this Encoder encoder, ReadOnlySpan<char> source, ReadOnlySpan<byte> target, bool flush, out int charsUsed, out int bytesUsed, out bool completed)
+    {
+        fixed (char* cPtr = source)
+        fixed (byte* bPtr = target)
+        {
+            encoder.Convert(cPtr, source.Length, bPtr, target.Length, flush, out charsUsed, out bytesUsed, out completed);
         }
     }
 #endif

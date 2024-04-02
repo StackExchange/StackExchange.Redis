@@ -1,9 +1,11 @@
-﻿using System;
+﻿using RESPite.Internal;
+using System;
 using System.Buffers;
 using System.Buffers.Text;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Text;
 using static RESPite.Internal.Constants;
 namespace RESPite.Resp;
 
@@ -117,14 +119,16 @@ public ref struct RespWriter
     {
         if (Available == 0)
         {
+            const int MIN_BUFFER = 1024;
             _index = 0;
 #if NET7_0_OR_GREATER
-            var span = _target.GetSpan(sizeHint);
+            var span = _target.GetSpan(Math.Max(sizeHint, MIN_BUFFER));
             BufferLength = span.Length;
             StartOfBuffer = ref MemoryMarshal.GetReference(span);
 #else
-            _buffer = _target.GetSpan(sizeHint);
+            _buffer = _target.GetSpan(Math.Max(sizeHint, MIN_BUFFER));
 #endif
+            Debug.Assert(Available > 0);
         }
     }
 
@@ -341,16 +345,81 @@ public ref struct RespWriter
     /// Write a payload as a bulk string
     /// </summary>
     /// <param name="value">The payload to write</param>
-    public void WriteBulkString(ReadOnlySpan<char> value)
+    public void WriteBulkString(scoped ReadOnlySpan<char> value)
     {
+        const int MAX_HINT = 64 * 1024;
         if (value.Length == 0)
         {
             WriteRaw("$0\r\n\r\n"u8);
         }
         else
         {
-            var len = Ut
-            throw new NotImplementedException();
+            var byteCount = UTF8.GetByteCount(value);
+            WritePrefixedInteger(RespPrefix.BulkString, byteCount);
+            if (Available >= 2 + byteCount)
+            {
+                var actual = UTF8.GetBytes(value, Tail);
+                Debug.Assert(actual == byteCount);
+                _index += actual;
+                WriteCrLfUnsafe();
+            }
+            else
+            {
+                FlushAndGetBuffer(Math.Min(byteCount, MAX_HINT));
+                if (Available >= byteCount)
+                {
+                    // that'll work
+                    var actual = UTF8.GetBytes(value, Tail);
+                    Debug.Assert(actual == byteCount);
+                    _index += actual;
+                }
+                else
+                {
+                    WriteUtf8Slow(ref this, value, byteCount);
+                }
+                WriteCrLf();
+            }
+        }
+
+        static void WriteUtf8Slow(ref RespWriter writer, scoped ReadOnlySpan<char> value, int remaining)
+        {
+            var enc = s_PerThreadEncoder;
+            if (enc is null)
+            {
+                enc = s_PerThreadEncoder = UTF8.GetEncoder();
+            }
+            else
+            {
+                enc.Reset();
+            }
+            //EncodingExtensions.GetBytes
+            bool completed;
+            int charsUsed, bytesUsed;
+            do
+            {
+                enc.Convert(value, writer.Tail, false, out charsUsed, out bytesUsed, out completed);
+                value = value.Slice(charsUsed);
+                writer._index += bytesUsed;
+                remaining -= bytesUsed;
+                writer.FlushAndGetBuffer(Math.Min(remaining, MAX_HINT));
+            }
+            while (!completed);
+
+            if (remaining != 0)
+            {
+                // any trailing data?
+                writer.FlushAndGetBuffer(Math.Min(remaining, MAX_HINT));
+                enc.Convert(value, writer.Tail, true, out charsUsed, out bytesUsed, out completed);
+                Debug.Assert(charsUsed == 0);
+                writer._index += bytesUsed;
+                remaining -= bytesUsed;
+            }
+            enc.Reset();
+            Debug.Assert(remaining == 0);
         }
     }
+
+
+    [ThreadStatic]
+    private static Encoder? s_PerThreadEncoder;
 }
