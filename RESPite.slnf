@@ -1,0 +1,12 @@
+{
+  "solution": {
+    "path": "StackExchange.Redis.sln",
+    "projects": [
+      "src\\RESPite.Resp\\RESPite.Resp.csproj",
+      "src\\RESPite\\RESPite.csproj",
+      "src\\StackExchange.Redis\\StackExchange.Redis.csproj",
+      "tests\\BasicTest\\BasicTest.csproj",
+      "tests\\RESPite.Tests\\RESPite.Tests.csproj"
+    ]
+  }
+}

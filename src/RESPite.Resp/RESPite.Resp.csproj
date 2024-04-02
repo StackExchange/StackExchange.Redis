@@ -1,0 +1,28 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Nullable>enable</Nullable>
+    <TargetFrameworks>net461;netstandard2.0;net472;netcoreapp3.1;net6.0;net8.0</TargetFrameworks>
+    <Description>Low level RESP primitives.</Description>
+    <AssemblyName>RESPite.Resp</AssemblyName>
+    <AssemblyTitle>RESPite.Resp</AssemblyTitle>
+    <RootNamespace>RESPite.Resp</RootNamespace>
+    <PackageId>RESPite.Resp</PackageId>
+    <PackageTags>RESP</PackageTags>
+    <SignAssembly>true</SignAssembly>
+    <PublicSign Condition=" '$(OS)' != 'Windows_NT' ">true</PublicSign>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Remove="Microsoft.CodeAnalysis.PublicApiAnalyzers" />
+
+    <ProjectReference Include="..\RESPite\RESPite.csproj" />
+
+    <Compile Include="..\RESPite\Internal\Constants.cs" Link="Internal\Constants.cs" />
+
+    <Compile Include="..\RESPite\Internal\RuntimeShims.cs" Link="Internal\RuntimeShims.cs" />
+    <Compile Include="..\StackExchange.Redis\NullableHacks.cs" Link="NullableHacks.cs" />
+    <Compile Include="..\StackExchange.Redis\SkipLocalsInit.cs" Link="SkipLocalsInit.cs" />
+  </ItemGroup>
+
+</Project>

@@ -99,19 +99,16 @@ public abstract class LoggingTunnel : Tunnel
     /// <summary>
     /// Callback with a request/response RESP pair
     /// </summary>
-    [Experimental(RespRequest.ExperimentalDiagnosticID)]
     public delegate void MessagePair(RespReader request, RespReader response);
 
     /// <summary>
     /// Callback with a RESP message
     /// </summary>
-    [Experimental(RespRequest.ExperimentalDiagnosticID)]
     public delegate void Message(RespReader message);
 
     /// <summary>
     /// Iterate over a RESP stream invoking a callback per top-level message
     /// </summary>
-    [Experimental(RespRequest.ExperimentalDiagnosticID)]
     [SuppressMessage("ApiDesign", "RS0027:API with optional parameter(s) should have the most parameters amongst its public overloads", Justification = "Validated")]
     public static async Task<long> ReplayAsync(string path, Message message, CancellationToken cancellationToken = default)
     {
@@ -123,7 +120,6 @@ public abstract class LoggingTunnel : Tunnel
     /// Iterate over a RESP stream invoking a callback per top-level message
     /// </summary>
     [SuppressMessage("ApiDesign", "RS0027:API with optional parameter(s) should have the most parameters amongst its public overloads", Justification = "Validated")]
-    [Experimental(RespRequest.ExperimentalDiagnosticID)]
     [SuppressMessage("ApiDesign", "RS0026:Do not add multiple public overloads with optional parameters", Justification = "Validated")]
     public static async Task<long> ReplayAsync(Stream source, Message message, bool closeStream = false, CancellationToken cancellationToken = default)
     {

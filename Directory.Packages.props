@@ -4,6 +4,7 @@
     <PackageVersion Include="Microsoft.Bcl.AsyncInterfaces" Version="5.0.0" />
     <PackageVersion Include="Pipelines.Sockets.Unofficial" Version="2.2.8" />
     <PackageVersion Include="System.Diagnostics.PerformanceCounter" Version="5.0.0" />
+    <PackageVersion Include="System.Memory" Version="4.5.4" />
     <PackageVersion Include="System.Threading.Channels" Version="5.0.0" />
     <PackageVersion Include="System.Runtime.InteropServices.RuntimeInformation" Version="4.3.0" />
     <PackageVersion Include="System.IO.Compression" Version="4.3.0" />
