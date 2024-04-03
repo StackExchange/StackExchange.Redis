@@ -66,22 +66,3 @@ public struct FrameScanInfo
     /// </summary>
     public bool IsOutOfBand { get; set; }
 }
-/// <summary>
-/// Specifies how discarded data should be handled
-/// </summary>
-public enum DataDiscardMode
-{
-    /// <summary>
-    /// No data will be discarded
-    /// </summary>
-    None = 0,
-    /// <summary>
-    /// Skipped data will be retained for use in the frame,
-    /// but will not be presented to the frame scanner again.
-    /// </summary>
-    Retain = 1,
-    /// <summary>
-    /// Skipped data will be permanently discarded.
-    /// </summary>
-    Discard = 2,
-}
