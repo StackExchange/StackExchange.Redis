@@ -7,9 +7,9 @@ using RESPite.Transports.Internal;
 using System;
 using System.Buffers;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
-using System.Net.NetworkInformation;
+using System.Net;
+using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -41,6 +41,18 @@ public static class TransportExtensions
     /// </summary>
     public static ISyncRequestResponseTransport RequestResponse<TState>(this ISyncByteTransport gateway, IFrameScanner<TState> frameScanner)
         => new SyncRequestResponseTransport<TState>(gateway, frameScanner);
+
+    /// <summary>
+    /// Uses <see cref="Monitor"/> to synchronize access to the underlying transport
+    /// </summary>
+    public static ISyncRequestResponseTransport WithMonitorSynchronization<TState>(this ISyncRequestResponseTransport transport)
+        => new MonitorTransportDecorator(transport);
+
+    /// <summary>
+    /// Uses <see cref="Monitor"/> to synchronize access to the underlying transport
+    /// </summary>
+    public static ISyncRequestResponseTransport WithMonitorSynchronization<TState>(this ISyncRequestResponseTransport transport, TimeSpan timeout)
+        => new MonitorTransportDecorator(transport, timeout);
 
     private class Scratch : IBufferWriter<byte>
     {
@@ -261,11 +273,30 @@ public static class TransportExtensions
     /// Create a RESP transport over a duplex stream
     /// </summary>
     public static IByteTransport CreateTransport(this Stream duplex, bool closeStream = true)
-        => new StreamTransport(duplex, duplex, closeStream);
+        => new StreamTransport(duplex, closeStream);
 
     /// <summary>
     /// Create a RESP transport over a pair of streams
     /// </summary>
     public static IByteTransport CreateTransport(this Stream source, Stream target, bool closeStreams = true)
         => new StreamTransport(source, target, closeStreams);
+
+    /// <summary>
+    /// Create a RESP transport over a socket
+    /// </summary>
+    public static IByteTransport CreateTransport(this Socket socket, bool closeStreams = true)
+        => new StreamTransport(new NetworkStream(socket), closeStreams);
+
+    /// <summary>
+    /// Create a RESP transport over a socket
+    /// </summary>
+    public static IByteTransport CreateTransport(this EndPoint remoteEndpoint, bool closeStreams = true)
+    {
+        var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp)
+        {
+            NoDelay = true
+        };
+        socket.Connect(remoteEndpoint);
+        return new NetworkStream(socket, closeStreams).CreateTransport(closeStreams);
+    }
 }

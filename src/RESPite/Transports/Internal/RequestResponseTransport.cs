@@ -29,8 +29,6 @@ internal abstract class RequestResponseBase<TState> : IRequestResponseBase
 
     public ValueTask DisposeAsync() => _transport is IAsyncDisposable d ? d.DisposeAsync() : default;
 
-    [DoesNotReturn]
-    private void ThrowNotSupported([CallerMemberName] string caller = "") => throw new NotSupportedException(caller);
     public RequestResponseBase(IByteTransportBase transport, IFrameScanner<TState> scanner)
     {
         _transport = transport;
@@ -39,6 +37,9 @@ internal abstract class RequestResponseBase<TState> : IRequestResponseBase
         if (transport is IAsyncByteTransport) _support |= SUPPORT_ASYNC;
         if (scanner is IFrameScannerLifetime<TState>) _support |= SUPPORT_LIFETIME;
     }
+
+    [DoesNotReturn]
+    private void ThrowNotSupported([CallerMemberName] string caller = "") => throw new NotSupportedException(caller);
     private IAsyncByteTransport AsAsync([CallerMemberName] string caller = "")
     {
         if ((_support & SUPPORT_ASYNC) == 0) ThrowNotSupported(caller);
@@ -49,6 +50,7 @@ internal abstract class RequestResponseBase<TState> : IRequestResponseBase
         if ((_support & SUPPORT_SYNC) == 0) ThrowNotSupported(caller);
         return Unsafe.As<ISyncByteTransport>(_transport); // type-tested in .ctor
     }
+
     private IAsyncByteTransport AsAsyncPrechecked() => Unsafe.As<IAsyncByteTransport>(_transport);
     private bool WithLifetime => (_support & SUPPORT_LIFETIME) != 0;
 

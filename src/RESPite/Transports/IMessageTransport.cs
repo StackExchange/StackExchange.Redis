@@ -17,7 +17,7 @@ public interface IMessageTransport : ISyncMessageTransport, IAsyncMessageTranspo
 /// <summary>
 /// Message transport that supports asynchronous calling
 /// </summary>
-public interface IAsyncMessageTransport : IMessageTransportBase
+public interface IAsyncMessageTransport : IMessageTransportBase, IAsyncDisposable
 {
     /// <summary>
     /// Send a message and await the response.
@@ -32,7 +32,7 @@ public interface IAsyncMessageTransport : IMessageTransportBase
 /// <summary>
 /// Message transport that supports synchronous calling
 /// </summary>
-public interface ISyncMessageTransport : IMessageTransportBase
+public interface ISyncMessageTransport : IMessageTransportBase, IDisposable
 {
     /// <summary>
     /// Send a message and wait for the response.

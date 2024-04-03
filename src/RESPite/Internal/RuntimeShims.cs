@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Buffers;
 using System.IO;
+using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
@@ -15,7 +16,67 @@ internal static class RuntimeShims
         => stream.Write(buffer.Span);
     public static int Read(this Stream stream, Memory<byte> buffer)
         => stream.Read(buffer.Span);
+
+    public static int Receive(this Socket socket, Memory<byte> buffer, SocketFlags flags)
+        => socket.Receive(buffer.Span, flags);
+    public static int Send(this Socket socket, ReadOnlyMemory<byte> buffer, SocketFlags flags)
+        => socket.Send(buffer.Span, flags);
+
 #else
+
+    //public static async ValueTask<int> ReceiveAsync(this Socket socket, Memory<byte> buffer, SocketFlags flags, CancellationToken cancellationToken = default)
+    //{
+    //    var arr = LeaseForReceive(buffer, out var lease);
+    //    int count = await socket.ReceiveAsync(arr.Array, arr.Offset, arr.Count, flags, cancellationToken);
+    //    new Span<byte>(arr.Array, arr.Offset, count).CopyTo(buffer.Span);
+    //    Return(lease);
+    //    return count;
+    //}
+    //public static ValueTask<int> SendAsync(this Socket socket, ReadOnlyMemory<byte> buffer, SocketFlags flags, CancellationToken cancellationToken = default)
+    //{
+    //    return default;
+    //}
+    //public static int Receive(this Socket socket, Memory<byte> buffer, SocketFlags flags)
+    //{
+    //    var arr = LeaseForReceive(buffer, out var lease);
+    //    int count = socket.Receive(arr.Array, arr.Offset, arr.Count, flags);
+    //    new Span<byte>(arr.Array, arr.Offset, count).CopyTo(buffer.Span);
+    //    Return(lease);
+    //    return count;
+    //}
+    //public static int Send(this Socket socket, ReadOnlyMemory<byte> buffer, SocketFlags flags)
+    //{
+    //    if (MemoryMarshal.TryGetArray<byte>(buffer, out var segment))
+    //        return socket.Send(segment.Array, segment.Offset, segment.Count, flags);
+    //    return default;
+    //}
+    //private static void Return(byte[]? lease)
+    //{
+    //    if (lease is not null) ArrayPool<byte>.Shared.Return(lease);
+    //}
+    //private static ArraySegment<byte> LeaseForReceive(ReadOnlyMemory<byte> buffer, out byte[]? lease)
+    //{
+    //    if (MemoryMarshal.TryGetArray<byte>(buffer, out var segment))
+    //    {
+    //        lease = null;
+    //        return segment;
+    //    }
+    //    lease = ArrayPool<byte>.Shared.Rent(buffer.Length);
+    //    return new(lease, 0, buffer.Length);
+    //}
+    //private static ArraySegment<byte> LeaseForSend(Memory<byte> buffer, out byte[]? lease)
+    //{
+    //    if (MemoryMarshal.TryGetArray<byte>(buffer, out var segment))
+    //    {
+    //        lease = null;
+    //        return segment;
+    //    }
+    //    lease = ArrayPool<byte>.Shared.Rent(buffer.Length);
+    //    buffer.CopyTo(lease);
+    //    return new(lease, 0, buffer.Length);
+    //}
+
+
     public static void Write(this Stream stream, ReadOnlySpan<byte> buffer)
     {
         if (buffer.IsEmpty)

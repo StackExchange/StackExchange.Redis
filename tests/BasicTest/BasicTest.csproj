@@ -12,6 +12,7 @@
   <ItemGroup>
     <PackageReference Include="BenchmarkDotNet" />
     <ProjectReference Include="..\..\src\StackExchange.Redis\StackExchange.Redis.csproj" />
+    <ProjectReference Include="..\RESPite.Tests\RESPite.Tests.csproj" />
   </ItemGroup>
 
   <ItemGroup>
