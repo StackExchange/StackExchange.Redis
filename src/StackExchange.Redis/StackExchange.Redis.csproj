@@ -42,4 +42,8 @@
     <InternalsVisibleTo Include="StackExchange.Redis.Server" />
     <InternalsVisibleTo Include="StackExchange.Redis.Tests" />
   </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\RESPite.Resp\RESPite.Resp.csproj" />
+  </ItemGroup>
 </Project>

@@ -1,6 +1,5 @@
 ﻿using Pipelines.Sockets.Unofficial;
 using Pipelines.Sockets.Unofficial.Arenas;
-using StackExchange.Redis.Protocol;
 using System;
 using System.Buffers;
 using System.Diagnostics;
@@ -96,142 +95,142 @@ public abstract class LoggingTunnel : Tunnel
         return total;
     }
 
-    /// <summary>
-    /// Callback with a request/response RESP pair
-    /// </summary>
-    public delegate void MessagePair(RespReader request, RespReader response);
+    ///// <summary>
+    ///// Callback with a request/response RESP pair
+    ///// </summary>
+    //public delegate void MessagePair(RespReader request, RespReader response);
 
-    /// <summary>
-    /// Callback with a RESP message
-    /// </summary>
-    public delegate void Message(RespReader message);
+    ///// <summary>
+    ///// Callback with a RESP message
+    ///// </summary>
+    //public delegate void Message(RespReader message);
 
-    /// <summary>
-    /// Iterate over a RESP stream invoking a callback per top-level message
-    /// </summary>
-    [SuppressMessage("ApiDesign", "RS0027:API with optional parameter(s) should have the most parameters amongst its public overloads", Justification = "Validated")]
-    public static async Task<long> ReplayAsync(string path, Message message, CancellationToken cancellationToken = default)
-    {
-        using var file = OpenFileForRead(path);
-        return await ReplayAsync(file, message, false, cancellationToken);
-    }
+    ///// <summary>
+    ///// Iterate over a RESP stream invoking a callback per top-level message
+    ///// </summary>
+    //[SuppressMessage("ApiDesign", "RS0027:API with optional parameter(s) should have the most parameters amongst its public overloads", Justification = "Validated")]
+    //public static async Task<long> ReplayAsync(string path, Message message, CancellationToken cancellationToken = default)
+    //{
+    //    using var file = OpenFileForRead(path);
+    //    return await ReplayAsync(file, message, false, cancellationToken);
+    //}
 
-    /// <summary>
-    /// Iterate over a RESP stream invoking a callback per top-level message
-    /// </summary>
-    [SuppressMessage("ApiDesign", "RS0027:API with optional parameter(s) should have the most parameters amongst its public overloads", Justification = "Validated")]
-    [SuppressMessage("ApiDesign", "RS0026:Do not add multiple public overloads with optional parameters", Justification = "Validated")]
-    public static async Task<long> ReplayAsync(Stream source, Message message, bool closeStream = false, CancellationToken cancellationToken = default)
-    {
-        await using var resp = RespSource.Create(source, closeStream);
-        long count = 0;
-        while (true)
-        {
-            LeasedSequence<byte> payload = await resp.ReadNextAsync(cancellationToken).ForAwait();
-            if (payload.IsEmpty) break; // natural EOF
-            message(new(payload));
-            payload.Dispose();
-            count++;
-        }
-        return count;
-    }
+    ///// <summary>
+    ///// Iterate over a RESP stream invoking a callback per top-level message
+    ///// </summary>
+    //[SuppressMessage("ApiDesign", "RS0027:API with optional parameter(s) should have the most parameters amongst its public overloads", Justification = "Validated")]
+    //[SuppressMessage("ApiDesign", "RS0026:Do not add multiple public overloads with optional parameters", Justification = "Validated")]
+    //public static async Task<long> ReplayAsync(Stream source, Message message, bool closeStream = false, CancellationToken cancellationToken = default)
+    //{
+    //    await using var resp = RespSource.Create(source, closeStream);
+    //    long count = 0;
+    //    while (true)
+    //    {
+    //        LeasedSequence<byte> payload = await resp.ReadNextAsync(cancellationToken).ForAwait();
+    //        if (payload.IsEmpty) break; // natural EOF
+    //        message(new(payload));
+    //        payload.Dispose();
+    //        count++;
+    //    }
+    //    return count;
+    //}
 
-    /// <summary>
-    /// Replay the RESP messages for a pair of streams, invoking a callback per operation
-    /// </summary>
-    [SuppressMessage("ApiDesign", "RS0026:Do not add multiple public overloads with optional parameters", Justification = "Necessary overload")]
-    [Experimental(RespRequest.ExperimentalDiagnosticID)]
-    public static async Task<long> ReplayAsync(Stream @out, Stream @in, MessagePair pair, CancellationToken cancellationToken = default)
-    {
-        await using var outSource = RespSource.Create(@out);
-        await using var inSource = RespSource.Create(@in);
+    ///// <summary>
+    ///// Replay the RESP messages for a pair of streams, invoking a callback per operation
+    ///// </summary>
+    //[SuppressMessage("ApiDesign", "RS0026:Do not add multiple public overloads with optional parameters", Justification = "Necessary overload")]
+    //[Experimental(RespRequest.ExperimentalDiagnosticID)]
+    //public static async Task<long> ReplayAsync(Stream @out, Stream @in, MessagePair pair, CancellationToken cancellationToken = default)
+    //{
+    //    await using var outSource = RespSource.Create(@out);
+    //    await using var inSource = RespSource.Create(@in);
 
-        long count = 0;
-        while (true)
-        {
-            LeasedSequence<byte> sent = await outSource.ReadNextAsync(cancellationToken).ForAwait(), received;
-            try
-            {
-                bool isOutOfBand;
-                do
-                {
-                    received = await inSource.ReadNextAsync(cancellationToken).ForAwait();
-                    isOutOfBand = IsOutOfBand(received);
-                    if (isOutOfBand)
-                    {
-                        // spoof an empty request for OOB messages
-                        pair(default, new(received));
-                        received.Dispose();
-                        count++;
-                    }
-                } while (isOutOfBand);
-            }
-            catch (Exception ex)
-            {
-                // if we got an exception following a command, spoof that as a pair,
-                // so we see the message that had a corrupted reply
-                if (!sent.IsEmpty)
-                {
-                    var spoofed = Encoding.ASCII.GetBytes("-ERR (managed) " + ex.Message);
-                    pair(new(sent), new(spoofed));
-                }
-                throw; // still surface the original exception
-            }
+    //    long count = 0;
+    //    while (true)
+    //    {
+    //        LeasedSequence<byte> sent = await outSource.ReadNextAsync(cancellationToken).ForAwait(), received;
+    //        try
+    //        {
+    //            bool isOutOfBand;
+    //            do
+    //            {
+    //                received = await inSource.ReadNextAsync(cancellationToken).ForAwait();
+    //                isOutOfBand = IsOutOfBand(received);
+    //                if (isOutOfBand)
+    //                {
+    //                    // spoof an empty request for OOB messages
+    //                    pair(default, new(received));
+    //                    received.Dispose();
+    //                    count++;
+    //                }
+    //            } while (isOutOfBand);
+    //        }
+    //        catch (Exception ex)
+    //        {
+    //            // if we got an exception following a command, spoof that as a pair,
+    //            // so we see the message that had a corrupted reply
+    //            if (!sent.IsEmpty)
+    //            {
+    //                var spoofed = Encoding.ASCII.GetBytes("-ERR (managed) " + ex.Message);
+    //                pair(new(sent), new(spoofed));
+    //            }
+    //            throw; // still surface the original exception
+    //        }
 
-            bool invalid = sent.IsEmpty || received.IsEmpty; // no more paired messages
-            if (!invalid)
-            {
-                pair(new(sent), new(received));
-            }
-            sent.Dispose();
-            received.Dispose();
-            if (invalid) break;
-            count++;
-        }
-        return count;
+    //        bool invalid = sent.IsEmpty || received.IsEmpty; // no more paired messages
+    //        if (!invalid)
+    //        {
+    //            pair(new(sent), new(received));
+    //        }
+    //        sent.Dispose();
+    //        received.Dispose();
+    //        if (invalid) break;
+    //        count++;
+    //    }
+    //    return count;
 
-        static bool IsOutOfBand(in LeasedSequence<byte> received)
-        {
-            var reader = new RespReader(received);
-            if (reader.ReadNext())
-            {
-                if (reader.Prefix == RespPrefix.Push) return true;
-                if (reader.Prefix == RespPrefix.Array)
-                {
-                    var length = reader.ScalarLength;
-                    if (length >= 3 && reader.ReadNext() && reader.Prefix == RespPrefix.BulkString && reader.ScalarLength is 7 or 8)
-                    {
-                        return reader.Is("message"u8) || reader.Is("smessage"u8)
-                            || (length >= 4 && reader.Is("pmessage"u8));
-                    }
-                }
-            }
-            return false;
-        }
-    }
+    //    static bool IsOutOfBand(in LeasedSequence<byte> received)
+    //    {
+    //        var reader = new RespReader(received);
+    //        if (reader.ReadNext())
+    //        {
+    //            if (reader.Prefix == RespPrefix.Push) return true;
+    //            if (reader.Prefix == RespPrefix.Array)
+    //            {
+    //                var length = reader.ScalarLength;
+    //                if (length >= 3 && reader.ReadNext() && reader.Prefix == RespPrefix.BulkString && reader.ScalarLength is 7 or 8)
+    //                {
+    //                    return reader.Is("message"u8) || reader.Is("smessage"u8)
+    //                        || (length >= 4 && reader.Is("pmessage"u8));
+    //                }
+    //            }
+    //        }
+    //        return false;
+    //    }
+    //}
 
-    /// <summary>
-    /// Replay the RESP messages all the streams in a folder, invoking a callback per operation
-    /// </summary>
-    /// <param name="path">The directory of captured files to replay.</param>
-    /// <param name="pair">Operation to perform per replayed message pair.</param>
-    /// <param name="cancellationToken">Optional cancellation</param>
-    [SuppressMessage("ApiDesign", "RS0027:API with optional parameter(s) should have the most parameters amongst its public overloads", Justification = "Necessary overload")]
-    [Experimental(RespRequest.ExperimentalDiagnosticID)]
-    public static async Task<long> ReplayAsync(string path, MessagePair pair, CancellationToken cancellationToken = default)
-    {
-        long total = 0;
-        foreach (var outPath in Directory.EnumerateFiles(path, "*.out"))
-        {
-            var inPath = Path.ChangeExtension(outPath, "in");
-            if (!File.Exists(outPath)) continue;
+    ///// <summary>
+    ///// Replay the RESP messages all the streams in a folder, invoking a callback per operation
+    ///// </summary>
+    ///// <param name="path">The directory of captured files to replay.</param>
+    ///// <param name="pair">Operation to perform per replayed message pair.</param>
+    ///// <param name="cancellationToken">Optional cancellation</param>
+    //[SuppressMessage("ApiDesign", "RS0027:API with optional parameter(s) should have the most parameters amongst its public overloads", Justification = "Necessary overload")]
+    ////[Experimental(RespRequest.ExperimentalDiagnosticID)]
+    //public static async Task<long> ReplayAsync(string path, MessagePair pair, CancellationToken cancellationToken = default)
+    //{
+    //    long total = 0;
+    //    foreach (var outPath in Directory.EnumerateFiles(path, "*.out"))
+    //    {
+    //        var inPath = Path.ChangeExtension(outPath, "in");
+    //        if (!File.Exists(outPath)) continue;
 
-            using var outFile = OpenFileForRead(outPath);
-            using var inFile = OpenFileForRead(inPath);
-            total += await ReplayAsync(outFile, inFile, pair, cancellationToken).ForAwait();
-        }
-        return total;
-    }
+    //        using var outFile = OpenFileForRead(outPath);
+    //        using var inFile = OpenFileForRead(inPath);
+    //        total += await ReplayAsync(outFile, inFile, pair, cancellationToken).ForAwait();
+    //    }
+    //    return total;
+    //}
 
     private static FileStream OpenFileForRead(string path) => new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read,
         1024, FileOptions.SequentialScan | FileOptions.Asynchronous);
@@ -295,7 +294,7 @@ public abstract class LoggingTunnel : Tunnel
     /// Iterate over a RESP stream invoking a callback per top-level message
     /// </summary>
     [SuppressMessage("ApiDesign", "RS0027:API with optional parameter(s) should have the most parameters amongst its public overloads", Justification = "Validated")]
-    [Experimental(RespRequest.ExperimentalDiagnosticID)]
+    //[Experimental(RespRequest.ExperimentalDiagnosticID)]
     public static async Task<long> ReplayAsync(Stream source, Action<RedisResult> message, CancellationToken cancellationToken = default)
     {
         using var arena = new Arena<RawResult>();
@@ -539,77 +538,77 @@ public abstract class LoggingTunnel : Tunnel
         return ssl;
     }
 
-    /// <summary>
-    /// Get a typical text representation of a redis command
-    /// </summary>
-    [Experimental(RespRequest.ExperimentalDiagnosticID)]
-    public static string? DefaultFormatRequest(ref RespReader value)
-    {
-        if (!value.ReadNext()) return null;
-        if (value.Prefix == RespPrefix.Array && !value.IsNull)
-        {
-            var count = value.ChildCount;
-            var sb = new StringBuilder();
-            for (int i = 0; i < count && value.ReadNext(); i++)
-            {
-                if (i != 0) sb.Append(' ');
-                sb.Append(GetSimpleString(ref value));
-            }
-            return sb.ToString();
-        }
-        return GetSimpleString(ref value);
-    }
+//    /// <summary>
+//    /// Get a typical text representation of a redis command
+//    /// </summary>
+//    //[Experimental(RespRequest.ExperimentalDiagnosticID)]
+//    public static string? DefaultFormatRequest(ref RespReader value)
+//    {
+//        if (!value.ReadNext()) return null;
+//        if (value.Prefix == RespPrefix.Array && !value.IsNull)
+//        {
+//            var count = value.ChildCount;
+//            var sb = new StringBuilder();
+//            for (int i = 0; i < count && value.ReadNext(); i++)
+//            {
+//                if (i != 0) sb.Append(' ');
+//                sb.Append(GetSimpleString(ref value));
+//            }
+//            return sb.ToString();
+//        }
+//        return GetSimpleString(ref value);
+//    }
 
-    /// <summary>
-    /// Get a typical text representation of a redis response
-    /// </summary>
-    public static string? DefaultFormatResponse(ref RespReader value)
-        => value.ReadNext() ? GetSimpleString(ref value) : null;
+//    /// <summary>
+//    /// Get a typical text representation of a redis response
+//    /// </summary>
+//    public static string? DefaultFormatResponse(ref RespReader value)
+//        => value.ReadNext() ? GetSimpleString(ref value) : null;
 
-    private static string GetSimpleString(ref RespReader value)
-    {
-        if (value.IsNull) return "(null)";
-        if (value.IsAggregate)
-        {
-            var s = $"[{value.Prefix} {value.ChildCount}]";
-            value.SkipChildren();
-            return s;
-        }
+//    private static string GetSimpleString(ref RespReader value)
+//    {
+//        if (value.IsNull) return "(null)";
+//        if (value.IsAggregate)
+//        {
+//            var s = $"[{value.Prefix} {value.ChildCount}]";
+//            value.SkipChildren();
+//            return s;
+//        }
 
-        const int MAX_DISPLAY_BYTES = 50;
-        if (value.ScalarLength <= MAX_DISPLAY_BYTES)
-        {
-            var blob = value.TryGetValueSpan(out var tmp) ? tmp : value.CopyTo(stackalloc byte[MAX_DISPLAY_BYTES]);
-            int i;
-            for (i = 0; i < blob.Length; i++)
-            {
-                char c = (char)blob[i];
-                if (c < ' ' || c > '~') break;
-            }
-            if (i == blob.Length) // did we check it all?
-            {
-                string content;
-#if NETCOREAPP3_1_OR_GREATER
-                content = RespWriter.UTF8.GetString(blob);
-#else
-                unsafe
-                {
-                    fixed(byte* ptr = blob)
-                    {
-                        content = RespWriter.UTF8.GetString(ptr, blob.Length);
-                    }
-                }
-#endif
+//        const int MAX_DISPLAY_BYTES = 50;
+//        if (value.ScalarLength <= MAX_DISPLAY_BYTES)
+//        {
+//            var blob = value.TryGetValueSpan(out var tmp) ? tmp : value.CopyTo(stackalloc byte[MAX_DISPLAY_BYTES]);
+//            int i;
+//            for (i = 0; i < blob.Length; i++)
+//            {
+//                char c = (char)blob[i];
+//                if (c < ' ' || c > '~') break;
+//            }
+//            if (i == blob.Length) // did we check it all?
+//            {
+//                string content;
+//#if NETCOREAPP3_1_OR_GREATER
+//                content = RespWriter.UTF8.GetString(blob);
+//#else
+//                unsafe
+//                {
+//                    fixed(byte* ptr = blob)
+//                    {
+//                        content = RespWriter.UTF8.GetString(ptr, blob.Length);
+//                    }
+//                }
+//#endif
 
-                return value.Prefix switch
-                {
-                    RespPrefix.SimpleError or RespPrefix.BulkError => "-" + content,
-                    _ => content,
-                };
-            }
-        }
-        return $"({value.ScalarLength} bytes)";
-    }
+//                return value.Prefix switch
+//                {
+//                    RespPrefix.SimpleError or RespPrefix.BulkError => "-" + content,
+//                    _ => content,
+//                };
+//            }
+//        }
+//        return $"({value.ScalarLength} bytes)";
+//    }
 
     /// <summary>
     /// Get a typical text representation of a redis command

@@ -37,15 +37,15 @@ public class ParserBenchmarks : IDisposable
         return count;
     }
 
-    [Benchmark]
-    public async Task<int> NewParser()
-    {
-        _source.Position = 0;
-        int count = 0;
-        LoggingTunnel.Message callback = msg => count++;
+    //[Benchmark]
+    //public async Task<int> NewParser()
+    //{
+    //    _source.Position = 0;
+    //    int count = 0;
+    //    LoggingTunnel.Message callback = msg => count++;
 
-        var total = await LoggingTunnel.ReplayAsync(_source, callback);
-        if (total != count) throw new InvalidOperationException();
-        return count;
-    }
+    //    var total = await LoggingTunnel.ReplayAsync(_source, callback);
+    //    if (total != count) throw new InvalidOperationException();
+    //    return count;
+    //}
 }

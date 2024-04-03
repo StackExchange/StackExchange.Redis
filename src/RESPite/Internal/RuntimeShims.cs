@@ -17,10 +17,10 @@ internal static class RuntimeShims
     public static int Read(this Stream stream, Memory<byte> buffer)
         => stream.Read(buffer.Span);
 
-    public static int Receive(this Socket socket, Memory<byte> buffer, SocketFlags flags)
-        => socket.Receive(buffer.Span, flags);
-    public static int Send(this Socket socket, ReadOnlyMemory<byte> buffer, SocketFlags flags)
-        => socket.Send(buffer.Span, flags);
+    //public static int Receive(this Socket socket, Memory<byte> buffer, SocketFlags flags)
+    //    => socket.Receive(buffer.Span, flags);
+    //public static int Send(this Socket socket, ReadOnlyMemory<byte> buffer, SocketFlags flags)
+    //    => socket.Send(buffer.Span, flags);
 
 #else
 

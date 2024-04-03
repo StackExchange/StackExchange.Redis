@@ -18,14 +18,12 @@ namespace BasicTest
 #if DEBUG
         private static async Task Main()
         {
-            using var obj = new ParserBenchmarks();
-            Console.WriteLine(await obj.LegacyParser());
-            Console.WriteLine(await obj.NewParser());
-            Console.WriteLine(await obj.LegacyParser());
-            Console.WriteLine(await obj.NewParser());
-            Console.WriteLine();
-            Console.WriteLine(StackExchange.Redis.Protocol.LeasedSequence<byte>.DebugTotalLeased);
-            Console.WriteLine(StackExchange.Redis.Protocol.LeasedSequence<byte>.DebugOutstanding);
+            var obj = new RespiteBenchmarks();
+            obj.Setup();
+            Console.WriteLine(obj.RESpite());
+            Console.WriteLine(obj.SERedis());
+            Console.WriteLine(await obj.RESpiteAsync());
+            Console.WriteLine(await obj.SERedisAsync());
         }
 
 #else
