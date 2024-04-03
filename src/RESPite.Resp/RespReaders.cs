@@ -69,16 +69,44 @@ public static class RespReaders
 #else
                 var span = content.First.Span;
 #endif
-                if (span.Length == 4)
+                switch (span.Length)
                 {
-                    if ((UnsafeCpuUInt32(span) & SingleCharScalarMask) == SingleDigitInteger)
-                    {
-                        var value = UnsafeCpuByte(span, 1) - '0';
-                        if (value < 0 | value > 9) Throw();
-                        return value;
-                    }
+                    case 4: // :N\r\n
+                        if ((UnsafeCpuUInt32(span) & SingleCharScalarMask) == SingleDigitInteger)
+                        {
+                            return Digit(UnsafeCpuByte(span, 1));
+                        }
+                        break;
+                    case 5: // :NN\r\n
+                        if ((UnsafeCpuUInt32(span) & DoubleCharScalarMask) == DoubleDigitInteger
+                            & UnsafeCpuByte(span, 4) == (byte)'\n')
+                        {
+                            return (10 * Digit(UnsafeCpuByte(span, 1)))
+                                + Digit(UnsafeCpuByte(span, 2));
+                        }
+                        break;
+                    case 7: // $1\r\nN\r\n
+                        if (UnsafeCpuUInt32(span) == BulkSingleDigitPrefix
+                            && UnsafeCpuUInt16(span, 5) == CrLfUInt16)
+                        {
+                            return Digit(UnsafeCpuByte(span, 4));
+                        }
+                        break;
+                    case 8: // $2\r\nNN\r\n
+                        if (UnsafeCpuUInt32(span) == BulkDoubleDigitPrefix
+                            && UnsafeCpuUInt16(span, 6) == CrLfUInt16)
+                        {
+                            return (10 * Digit(UnsafeCpuByte(span, 4)))
+                                + Digit(UnsafeCpuByte(span, 5));
+                        }
+                        break;
                 }
-                
+                static int Digit(byte value)
+                {
+                    var i = value - '0';
+                    if (i < 0 | i > 9) Throw();
+                    return i;
+                }
             }
             var reader = new RespReader(in content);
             if (!(reader.TryReadNext() && reader.IsScalar)) Throw();
@@ -86,8 +114,15 @@ public static class RespReaders
 
             static void Throw() => throw new FormatException();
         }
-        private static readonly uint SingleCharScalarMask = CpuUInt32(0xFF00FFFF),
-                SingleDigitInteger = UnsafeCpuUInt32(":\0\r\n"u8);
+        private static readonly uint
+                SingleCharScalarMask = CpuUInt32(0xFF00FFFF),
+                DoubleCharScalarMask = CpuUInt32(0xFF0000FF),
+                SingleDigitInteger = UnsafeCpuUInt32(":\0\r\n"u8),
+                DoubleDigitInteger = UnsafeCpuUInt32(":\0\0\r"u8),
+                BulkSingleDigitPrefix = UnsafeCpuUInt32("$1\r\n"u8),
+                BulkDoubleDigitPrefix = UnsafeCpuUInt32("$2\r\n"u8);
+
+
     }
     /// <summary>
     /// Reads PONG responses
