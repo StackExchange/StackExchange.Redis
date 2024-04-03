@@ -147,7 +147,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "RESPite", "src\RESPite\RESP
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "RESPite.Tests", "tests\RESPite.Tests\RESPite.Tests.csproj", "{E3946D35-85A3-43CB-BA3A-1BD06031DF14}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RESPite.Resp", "src\RESPite.Resp\RESPite.Resp.csproj", "{46A1EDC1-BF33-43AD-9BE0-635D01C04F5D}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "RESPite.Resp", "src\RESPite.Resp\RESPite.Resp.csproj", "{46A1EDC1-BF33-43AD-9BE0-635D01C04F5D}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
