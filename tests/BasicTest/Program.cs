@@ -27,6 +27,25 @@ namespace BasicTest
             Console.WriteLine(await obj.SERedis_Get_Async());
             Console.WriteLine(obj.RESPite_Get());
             Console.WriteLine(await obj.RESPite_Get_Async());
+
+            obj.RESPite_Set();
+            long i = 0, snapshotCount = 0;
+            var snapshotTime = DateTime.Now;
+            while (true)
+            {
+                obj.RESPite_Get();
+                if ((++i % 1000) == 0)
+                {
+                    var now = DateTime.Now;
+                    var delta = now - snapshotTime;
+                    if (delta.TotalSeconds != 0)
+                    {
+                        Console.WriteLine($"{i}: {(i - snapshotCount) / delta.TotalSeconds:###,##0} ops/s");
+                        snapshotTime = now;
+                        snapshotCount = i;
+                    }
+                }
+            }
         }
 
 #else
@@ -35,7 +54,7 @@ namespace BasicTest
 
         private static void Main(string[] args) => BenchmarkRunner.Run<RESPiteBenchmarks>(args: args);
 #endif
-        }
+    }
     internal class CustomConfig : ManualConfig
     {
         protected virtual Job Configure(Job j)

@@ -35,10 +35,10 @@ public class RESPiteBenchmarks
     }
     private const string Key = "mykey";
 
-    //[Benchmark, Category("Sequential")]
+    [Benchmark, Category("Sequential")]
     public void SERedis_Set() => _db.StringSet(Key, _blob);
 
-    //[Benchmark, Category("Sequential")]
+    [Benchmark, Category("Sequential")]
     public Task SERedis_Set_Async() => _db.StringSetAsync(Key, _blob);
 
     [Benchmark, Category("Sequential")]
@@ -63,10 +63,10 @@ public class RESPiteBenchmarks
         return lease.Length;
     }
 
-    [Benchmark, Category("Sequential")]
+    //[Benchmark, Category("Sequential")]
     public int RESPite_Get() => _respite.Send(Key, RespWriters.Get, CustomHandler.Instance);
 
-    [Benchmark, Category("Sequential")]
+    //[Benchmark, Category("Sequential")]
     public ValueTask<int> RESPite_Get_Async() => _respite.SendAsync(Key, RespWriters.Get, CustomHandler.Instance);
 
     private class CustomHandler : RespReaderBase<int>
