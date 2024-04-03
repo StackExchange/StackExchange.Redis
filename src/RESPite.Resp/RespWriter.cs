@@ -56,6 +56,8 @@ public ref struct RespWriter
         get => MemoryMarshal.CreateSpan(ref Unsafe.Add(ref StartOfBuffer, _index), BufferLength - _index);
     }
     private void WriteRawUnsafe(byte value) => Unsafe.Add(ref StartOfBuffer, _index++) = (byte)value;
+
+    private ReadOnlySpan<byte> WrittenLocalBuffer => MemoryMarshal.CreateReadOnlySpan(ref StartOfBuffer, _index);
 #else
     private Span<byte> _buffer;
     private int BufferLength => _buffer.Length;
@@ -71,7 +73,11 @@ public ref struct RespWriter
     }
     private Span<byte> Tail => _buffer.Slice(_index);
     private void WriteRawUnsafe(byte value) => _buffer[_index++] = value;
+
+    private ReadOnlySpan<byte> WrittenLocalBuffer => _buffer.Slice(0, _index);
 #endif
+
+    internal string DebugBuffer() => UTF8.GetString(WrittenLocalBuffer);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void WriteCrLfUnsafe()
@@ -291,9 +297,12 @@ public ref struct RespWriter
             {
                 WriteRawUnsafe((byte)(length + '0'));
             }
-            else if (!Utf8Formatter.TryFormat(length, Tail, out int bytesWritten))
+            else
             {
-                ThrowFormatException();
+                if (!Utf8Formatter.TryFormat(length, Tail, out var bytesWritten))
+                {
+                    ThrowFormatException();
+                }
                 _index += bytesWritten;
             }
             WriteCrLfUnsafe();

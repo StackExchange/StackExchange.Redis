@@ -34,11 +34,20 @@ public static class RespWriters
     /// <summary>
     /// Sets key/value pairs
     /// </summary>
-    public sealed class SetWriter : IWriter<(string key, int value)>
+    public sealed class SetWriter : IWriter<(string key, int value)>, IWriter<(string key, byte[] value)>
     {
         internal SetWriter() { }
 
         void IWriter<(string key, int value)>.Write(in (string key, int value) request, IBufferWriter<byte> target)
+        {
+            var writer = new RespWriter(target);
+            writer.WriteRaw("*3\r\n$3\r\nSET\r\n"u8);
+            writer.WriteBulkString(request.key);
+            writer.WriteBulkString(request.value);
+            writer.Flush();
+        }
+
+        void IWriter<(string key, byte[] value)>.Write(in (string key, byte[] value) request, IBufferWriter<byte> target)
         {
             var writer = new RespWriter(target);
             writer.WriteRaw("*3\r\n$3\r\nSET\r\n"u8);

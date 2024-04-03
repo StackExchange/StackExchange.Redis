@@ -20,10 +20,10 @@ namespace BasicTest
         {
             var obj = new RespiteBenchmarks();
             obj.Setup();
-            Console.WriteLine(obj.RESpite());
-            Console.WriteLine(obj.SERedis());
-            Console.WriteLine(await obj.RESpiteAsync());
-            Console.WriteLine(await obj.SERedisAsync());
+            obj.SERedis_Set();
+            await obj.SERedis_Set_Async();
+            obj.RESpite_Set();
+            await obj.RESpite_Set_Async();
         }
 
 #else

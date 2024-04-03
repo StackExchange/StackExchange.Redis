@@ -11,6 +11,7 @@ using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -45,14 +46,50 @@ public static class TransportExtensions
     /// <summary>
     /// Uses <see cref="Monitor"/> to synchronize access to the underlying transport
     /// </summary>
-    public static ISyncRequestResponseTransport WithMonitorSynchronization<TState>(this ISyncRequestResponseTransport transport)
+    public static ISyncRequestResponseTransport WithMonitorSynchronization(this ISyncRequestResponseTransport transport)
         => new MonitorTransportDecorator(transport);
 
     /// <summary>
     /// Uses <see cref="Monitor"/> to synchronize access to the underlying transport
     /// </summary>
-    public static ISyncRequestResponseTransport WithMonitorSynchronization<TState>(this ISyncRequestResponseTransport transport, TimeSpan timeout)
+    public static ISyncRequestResponseTransport WithMonitorSynchronization(this ISyncRequestResponseTransport transport, TimeSpan timeout)
         => new MonitorTransportDecorator(transport, timeout);
+
+    /// <summary>
+    /// Uses <see cref="SemaphoreSlim"/> to synchronize access to the underlying transport
+    /// </summary>
+    public static IRequestResponseTransport WithSemaphoreSlimSynchronization(this IRequestResponseTransport transport)
+        => new SemaphoreSlimTransportDecorator(transport);
+
+    /// <summary>
+    /// Uses <see cref="SemaphoreSlim"/> to synchronize access to the underlying transport
+    /// </summary>
+    public static IRequestResponseTransport WithSemaphoreSlimSynchronization(this IRequestResponseTransport transport, TimeSpan timeout)
+        => new SemaphoreSlimTransportDecorator(transport, timeout);
+
+    /// <summary>
+    /// Uses <see cref="SemaphoreSlim"/> to synchronize access to the underlying transport
+    /// </summary>
+    public static ISyncRequestResponseTransport WithSemaphoreSlimSynchronization(this ISyncRequestResponseTransport transport)
+        => new SemaphoreSlimTransportDecorator(transport);
+
+    /// <summary>
+    /// Uses <see cref="SemaphoreSlim"/> to synchronize access to the underlying transport
+    /// </summary>
+    public static ISyncRequestResponseTransport WithSemaphoreSlimSynchronization(this ISyncRequestResponseTransport transport, TimeSpan timeout)
+        => new SemaphoreSlimTransportDecorator(transport, timeout);
+
+    /// <summary>
+    /// Uses <see cref="SemaphoreSlim"/> to synchronize access to the underlying transport
+    /// </summary>
+    public static IAsyncRequestResponseTransport WithSemaphoreSlimSynchronization(this IAsyncRequestResponseTransport transport)
+        => new SemaphoreSlimTransportDecorator(transport);
+
+    /// <summary>
+    /// Uses <see cref="SemaphoreSlim"/> to synchronize access to the underlying transport
+    /// </summary>
+    public static IAsyncRequestResponseTransport WithSemaphoreSlimSynchronization(this IAsyncRequestResponseTransport transport, TimeSpan timeout)
+        => new SemaphoreSlimTransportDecorator(transport, timeout);
 
     private class Scratch : IBufferWriter<byte>
     {
