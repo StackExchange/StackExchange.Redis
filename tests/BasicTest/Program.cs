@@ -27,7 +27,10 @@ namespace BasicTest
         }
 
 #else
-        private static void Main(string[] args) => BenchmarkSwitcher.FromAssembly(typeof(Program).GetTypeInfo().Assembly).Run(args);
+        //private static void Main(string[] args) => BenchmarkSwitcher.FromAssembly(typeof(Program).GetTypeInfo().Assembly).Run(args);
+
+
+        private static void Main(string[] args) => BenchmarkRunner.Run<RespiteBenchmarks>(args: args);
 #endif
     }
     internal class CustomConfig : ManualConfig

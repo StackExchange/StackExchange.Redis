@@ -23,14 +23,31 @@ public class RespiteBenchmarks
             EndPoints = { ep }
         });
         _db = _muxer.GetDatabase();
+        _db.KeyDelete(Key);
     }
     private const string Key = "mykey";
     [Benchmark]
-    public long SERedis() => _db.StringIncrement(Key);
+    public long SERedis()
+    {
+        _db.StringIncrement(Key);
+        return _db.StringDecrement(Key);
+    }
     [Benchmark]
-    public Task<long> SERedisAsync() => _db.StringIncrementAsync(Key);
+    public async Task<long> SERedisAsync()
+    {
+        await _db.StringIncrementAsync(Key);
+        return await _db.StringDecrementAsync(Key);
+    }
     [Benchmark]
-    public int RESpite() => _respite.Send(Key, RespWriters.Incr, RespReaders.Int32);
+    public int RESpite()
+    {
+        _respite.Send(Key, RespWriters.Incr, RespReaders.Int32);
+        return _respite.Send(Key, RespWriters.Decr, RespReaders.Int32);
+    }
     [Benchmark]
-    public ValueTask<int> RESpiteAsync() => _respite.SendAsync(Key, RespWriters.Incr, RespReaders.Int32);
+    public async ValueTask<int> RESpiteAsync()
+    {
+        await _respite.SendAsync(Key, RespWriters.Incr, RespReaders.Int32);
+        return await _respite.SendAsync(Key, RespWriters.Decr, RespReaders.Int32);
+    }
 }

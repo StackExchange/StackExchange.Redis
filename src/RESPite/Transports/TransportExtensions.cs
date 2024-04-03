@@ -255,10 +255,73 @@ public static class TransportExtensions
         }
     }
 
-    internal static ValueTask<RefCountedBuffer<byte>> ReadOneAsync<TState>(this IAsyncByteTransport transport,
+    internal static async ValueTask<RefCountedBuffer<byte>> ReadOneAsync<TState>(this IAsyncByteTransport transport,
         IFrameScanner<TState> scanner, Action<ReadOnlySequence<byte>>? outOfBandData, CancellationToken token)
     {
-        throw new NotImplementedException();
+        TState? scanState;
+        var lifetime = scanner as IFrameScannerLifetime<TState>;
+        if (lifetime is null)
+        {
+            scanState = default;
+        }
+        else
+        {
+            lifetime.OnInitialize(out scanState);
+        }
+        try
+        {
+            FrameScanInfo scanInfo = default;
+            scanner.OnBeforeFrame(ref scanState, ref scanInfo);
+            while (true)
+            {
+                // we can pass partial fragments to an incremental scanner, but we need the entire fragment
+                // for deframe; as such, "skip" is our progress into the current frame for an incremental scanner
+                var entireBuffer = transport.GetBuffer();
+                var workingBuffer = scanInfo.BytesRead == 0 ? entireBuffer : entireBuffer.Slice(scanInfo.BytesRead);
+                var status = workingBuffer.IsEmpty ? OperationStatus.NeedMoreData : scanner.TryRead(ref scanState, in workingBuffer, ref scanInfo);
+                switch (status)
+                {
+                    case OperationStatus.InvalidData:
+                        // we always call advance as a courtesy for backends that need per-read advance
+                        transport.Advance(0);
+                        ThrowInvalidData();
+                        break;
+                    case OperationStatus.NeedMoreData:
+                        transport.Advance(0);
+                        if (!await transport.TryReadAsync(Math.Max(scanInfo.ReadHint, 1))) ThrowEOF();
+                        continue;
+                    case OperationStatus.Done when scanInfo.BytesRead <= 0:
+                        // if we're not making progress, we'd loop forever
+                        transport.Advance(0);
+                        ThrowEmptyFrame();
+                        break;
+                    case OperationStatus.Done:
+                        long bytesRead = scanInfo.BytesRead; // snapshot for our final advance
+                        workingBuffer = entireBuffer.Slice(0, bytesRead); // includes head and trail data
+                        scanner.Trim(ref scanState, ref workingBuffer, ref scanInfo); // contains just the payload
+                        if (scanInfo.IsOutOfBand)
+                        {
+                            outOfBandData?.Invoke(workingBuffer);
+                            transport.Advance(bytesRead);
+                            // prepare for next frame
+                            scanInfo = default;
+                            scanner.OnBeforeFrame(ref scanState, ref scanInfo);
+                            continue;
+                        }
+                        var retained = workingBuffer.Retain();
+                        transport.Advance(bytesRead);
+                        return retained;
+                    default:
+                        transport.Advance(0);
+                        ThrowInvalidOperationStatus(status);
+                        break;
+                }
+            }
+        }
+        finally
+        {
+            lifetime?.OnComplete(ref scanState);
+        }
     }
 
 
