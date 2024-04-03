@@ -5,10 +5,7 @@ using BenchmarkDotNet.Environments;
 using BenchmarkDotNet.Jobs;
 using BenchmarkDotNet.Running;
 using BenchmarkDotNet.Validators;
-using StackExchange.Redis;
-using StackExchange.Redis.Configuration;
 using System;
-using System.Reflection;
 using System.Threading.Tasks;
 
 namespace BasicTest
@@ -18,19 +15,25 @@ namespace BasicTest
 #if DEBUG
         private static async Task Main()
         {
-            var obj = new RespiteBenchmarks();
+            var obj = new RESPiteBenchmarks();
             obj.Setup();
             obj.SERedis_Set();
             await obj.SERedis_Set_Async();
-            obj.RESpite_Set();
-            await obj.RESpite_Set_Async();
+            obj.RESPite_Set();
+            await obj.RESPite_Set_Async();
+
+
+            Console.WriteLine(obj.SERedis_Get());
+            Console.WriteLine(await obj.SERedis_Get_Async());
+            Console.WriteLine(obj.RESPite_Get());
+            Console.WriteLine(await obj.RESPite_Get_Async());
         }
 
 #else
         //private static void Main(string[] args) => BenchmarkSwitcher.FromAssembly(typeof(Program).GetTypeInfo().Assembly).Run(args);
 
 
-        private static void Main(string[] args) => BenchmarkRunner.Run<RespiteBenchmarks>(args: args);
+        private static void Main(string[] args) => BenchmarkRunner.Run<RESPiteBenchmarks>(args: args);
 #endif
     }
     internal class CustomConfig : ManualConfig
