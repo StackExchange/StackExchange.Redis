@@ -9,8 +9,59 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using static RESPite.Internal.Constants;
-
+using System.Text;
+using RESPite.Messages;
 namespace RESPite.Resp;
+
+
+/// <summary>
+/// Base implementation for RESP writers that do not depend on the request parameter
+/// </summary>
+public abstract class RespReaderBase<TResponse> : IReader<Empty, TResponse>
+{
+    TResponse IReader<Empty, TResponse>.Read(in Empty request, in ReadOnlySequence<byte> content)
+        => Read(content);
+
+    /// <summary>
+    /// Read a raw RESP payload
+    /// </summary>
+    public virtual TResponse Read(scoped in ReadOnlySequence<byte> content)
+    {
+        var reader = new RespReader(in content);
+        if (!reader.TryReadNext()) RespReader.ThrowEOF();
+        if (reader.IsError) throw reader.ReadError();
+        return Read(ref reader);
+    }
+
+    /// <summary>
+    /// Read a RESP payload via the <see cref="RespReader"/> API
+    /// </summary>
+    public virtual TResponse Read(ref RespReader reader)
+        => throw new NotSupportedException("A " + nameof(Read) + " overload must be overridden");
+}
+
+/// <summary>
+/// Base implementation for RESP writers that do depend on the request parameter
+/// </summary>
+public abstract class RespReaderBase<TRequest, TResponse> : IReader<TRequest, TResponse>
+{
+    /// <summary>
+    /// Read a raw RESP payload
+    /// </summary>
+    public virtual TResponse Read(in TRequest request, in ReadOnlySequence<byte> content)
+    {
+        var reader = new RespReader(in content);
+        if (!reader.TryReadNext()) RespReader.ThrowEOF();
+        if (reader.IsError) throw reader.ReadError();
+        return Read(in request, ref reader);
+    }
+
+    /// <summary>
+    /// Read a RESP payload via the <see cref="RespReader"/> API
+    /// </summary>
+    public virtual TResponse Read(in TRequest request, ref RespReader reader)
+        => throw new NotSupportedException("A " + nameof(Read) + " overload must be overridden");
+}
 
 /// <summary>
 /// Low-level RESP reading API
@@ -707,7 +758,7 @@ public ref struct RespReader
                 if (index >= 0)
                 {
                     length += index;
-                    if (!(copy.TryAdvance(index) && copy.TryReadCrLf())) ThrowProtocolFailure("Expected CR/LF");
+                    if (!(copy.TryAdvance(index) && copy.TryReadCrLf())) return false;
                     return true;
                 }
                 var scanned = copy.CurrentRemainingBytes;
@@ -728,6 +779,26 @@ public ref struct RespReader
         private long _totalBase;
         public long TotalConsumed => _totalBase + _index;
 
+        internal bool StartsWith(scoped ReadOnlySpan<byte> value)
+        {
+            while (value.Length > 0 && TryAdvanceToData())
+            {
+                int available = CurrentRemainingBytes;
+                if (available >= value.Length)
+                {
+                    // we have enough to finish
+                    return _current.StartsWith(value);
+                }
+
+                // not enough; test what we have
+                var source = _current.Slice(_index);
+                if (!source.SequenceEqual(value.Slice(0, available)))
+                    return false;
+                _index += available;
+                value = value.Slice(available);
+            }
+            return value.IsEmpty;
+        }
     }
 
     /// <summary>Performs a byte-wise equality check on the payload</summary>
@@ -740,11 +811,7 @@ public ref struct RespReader
         }
         return IsSlow(value);
     }
-    private readonly bool IsSlow(ReadOnlySpan<byte> value)
-    {
-        // TODO: multi-segment IsSlow
-        throw new NotImplementedException();
-    }
+    private readonly bool IsSlow(ReadOnlySpan<byte> value) => value.Length == ScalarLength && new SlowReader(in this).StartsWith(value);
 
     internal readonly bool IsOK() // go mad with this, because it is used so often
         => _length == 2 & _bufferIndex + 2 <= _bufferLength // single-buffer fast path - can we safely read 2 bytes?

@@ -35,7 +35,7 @@ namespace BasicTest
 
         private static void Main(string[] args) => BenchmarkRunner.Run<RESPiteBenchmarks>(args: args);
 #endif
-    }
+        }
     internal class CustomConfig : ManualConfig
     {
         protected virtual Job Configure(Job j)

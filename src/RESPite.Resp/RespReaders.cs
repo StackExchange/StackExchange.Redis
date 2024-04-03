@@ -1,7 +1,10 @@
 ﻿using RESPite.Messages;
+using RESPite.Internal;
 using System;
 using System.Buffers;
+using System.Text;
 using static RESPite.Internal.Constants;
+using System.Runtime.CompilerServices;
 
 namespace RESPite.Resp;
 
@@ -28,6 +31,17 @@ public static class RespReaders
     /// Reads PONG responses
     /// </summary>
     public static PongReader Pong { get; } = new();
+
+
+    internal static void ThrowMissingExpected(in ReadOnlySequence<byte> content, string expected, [CallerMemberName] string caller = "")
+    {
+#if DEBUG
+        throw new InvalidOperationException($"Did not receive expected response: '{expected}'; got '{UTF8.GetString(content)}' from {caller}");
+#else
+        throw new InvalidOperationException($"Did not receive expected response: '{expected}'");
+#endif
+    }
+
     internal sealed class Impl : IReader<Empty, Empty>, IReader<Empty, string?>, IReader<Empty, int>
     {
         private static readonly uint OK_HiNibble = UnsafeCpuUInt32("+OK\r"u8);
@@ -40,7 +54,7 @@ public static class RespReaders
 #else
                 var span = content.First.Span;
 #endif
-                if (span.Length != 5 || !(UnsafeCpuUInt32(span) == OK_HiNibble & UnsafeCpuByte(span, 4) == (byte)'\n')) Throw();
+                if (span.Length != 5 || !(UnsafeCpuUInt32(span) == OK_HiNibble & UnsafeCpuByte(span, 4) == (byte)'\n')) ThrowMissingExpected(content, "+OK");
             }
             else
             {
@@ -48,11 +62,10 @@ public static class RespReaders
             }
             return default;
 
-            static void Throw() => throw new InvalidOperationException("Did not receive expected response: '+OK'");
             static Empty Slower(scoped in ReadOnlySequence<byte> content)
             {
                 var reader = new RespReader(content);
-                if (!(reader.TryReadNext(RespPrefix.SimpleString) && reader.IsOK())) Throw();
+                if (!(reader.TryReadNext(RespPrefix.SimpleString) && reader.IsOK())) ThrowMissingExpected(content, "+OK");
                 return default;
             }
         }
@@ -133,14 +146,13 @@ public static class RespReaders
         Empty IReader<Empty, Empty>.Read(in Empty request, in ReadOnlySequence<byte> content)
         {
             var reader = new RespReader(content);
-            if (!(reader.TryReadNext(RespPrefix.SimpleString) && reader.Is("PONG"u8))) Throw();
+            if (!(reader.TryReadNext(RespPrefix.SimpleString) && reader.Is("PONG"u8))) ThrowMissingExpected(in content, "PONG");
             return default;
         }
-        private static void Throw() => throw new InvalidOperationException("Did not receive expected response: 'PONG'");
         string IReader<string, string>.Read(in string request, in ReadOnlySequence<byte> content)
         {
             var reader = new RespReader(content);
-            if (!reader.TryReadNext(RespPrefix.BulkString)) Throw();
+            if (!reader.TryReadNext(RespPrefix.BulkString)) ThrowMissingExpected(in content, "PONG");
             return reader.ReadString()!;
         }
         //string IReader<Empty, string>.Read(in Empty request, in ReadOnlySequence<byte> content)

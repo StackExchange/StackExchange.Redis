@@ -30,7 +30,7 @@ public abstract class RespWriterBase<TRequest> : IWriter<TRequest>
     /// Write a RESP payload via the <see cref="RespWriter"/> API
     /// </summary>
     public virtual void Write(ref RespWriter writer)
-        => throw new NotImplementedException("A " + nameof(Write) + " overload must be overridden");
+        => throw new NotSupportedException("A " + nameof(Write) + " overload must be overridden");
 }
 
 

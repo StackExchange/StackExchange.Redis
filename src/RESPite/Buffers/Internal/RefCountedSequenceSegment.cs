@@ -9,7 +9,7 @@ namespace RESPite.Buffers.Internal;
 
 internal sealed partial class RefCountedSequenceSegment<T> : ReadOnlySequenceSegment<T>, IMemoryOwner<T>
 {
-#if DEBUG
+#if DEBUGTRACE
     private readonly long _id = Interlocked.Increment(ref _debugTotalLeased);
     private static long _debugTotalLeased, _debugTotalReturned;
     internal static long DebugOutstanding => Volatile.Read(ref _debugTotalLeased) - Volatile.Read(ref _debugTotalReturned);
@@ -20,9 +20,9 @@ internal sealed partial class RefCountedSequenceSegment<T> : ReadOnlySequenceSeg
     }
     partial void DebugMessage(string message) => Debug.WriteLine($"[{_id}@{Volatile.Read(ref _refCount)}]: {message}");
 #endif
-    [Conditional("DEBUG")]
+    [Conditional("DEBUGTRACE")]
     partial void DebugMessage([CallerMemberName] string message = "");
-    [Conditional("DEBUG")]
+    [Conditional("DEBUGTRACE")]
     partial void DebugDecrOutstanding();
 
     public override string ToString() => $"(ref-count: {RefCount}) {base.ToString()}";

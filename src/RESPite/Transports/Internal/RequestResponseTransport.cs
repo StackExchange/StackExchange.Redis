@@ -164,28 +164,4 @@ internal abstract class RequestResponseBase<TState> : IRequestResponseBase
     }
 
     public event Action<ReadOnlySequence<byte>>? OutOfBandData;
-    /*
-    TResponse ISyncMessageTransport.Send<TRequest, TResponse>(in TRequest request, IWriter<TRequest> writer, IReader<TRequest, TResponse> reader)
-    {
-
-    }
-
-    TResponse ISyncMessageTransport.Send<TRequest, TResponse>(in TRequest request, IWriter<TRequest> writer, IReader<Empty, TResponse> reader)
-    {
-        var sync = AsSync();
-        var leased = writer.Serialize(in request);
-        sync.Write(leased.Content);
-        leased.Release();
-
-        leased = sync.ReadOne(Scanner, OutOfBandData);
-        var response = reader.Read(in Empty.Value, leased.Content);
-        leased.Release();
-        return response;
-    }
-
-    ValueTask<TResponse> IAsyncMessageTransport.SendAsync<TRequest, TResponse>(in TRequest request, CancellationToken token)
-    {
-        throw new NotImplementedException();
-    }
-    */
 }

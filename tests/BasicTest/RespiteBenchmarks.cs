@@ -35,10 +35,10 @@ public class RESPiteBenchmarks
     }
     private const string Key = "mykey";
 
-    [Benchmark, Category("Sequential")]
+    //[Benchmark, Category("Sequential")]
     public void SERedis_Set() => _db.StringSet(Key, _blob);
 
-    [Benchmark, Category("Sequential")]
+    //[Benchmark, Category("Sequential")]
     public Task SERedis_Set_Async() => _db.StringSetAsync(Key, _blob);
 
     [Benchmark, Category("Sequential")]
@@ -69,14 +69,9 @@ public class RESPiteBenchmarks
     [Benchmark, Category("Sequential")]
     public ValueTask<int> RESPite_Get_Async() => _respite.SendAsync(Key, RespWriters.Get, CustomHandler.Instance);
 
-    private class CustomHandler : IReader<Empty, int>
+    private class CustomHandler : RespReaderBase<int>
     {
         public static CustomHandler Instance { get; } = new();
-        private CustomHandler() { }
-        public int Read(in Empty request, in ReadOnlySequence<byte> content)
-        {
-            var reader = new RespReader(content);
-            return reader.TryReadNext(RespPrefix.BulkString) ? reader.ScalarLength : -1;
-        }
+        public override int Read(ref RespReader reader) => reader.IsNull ? -1 : reader.ScalarLength;
     }
 }
