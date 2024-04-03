@@ -410,6 +410,21 @@ public ref struct RespReader
     }
 
     /// <summary>
+    /// Attempt to move to the next RESP element, and assert that the prefix matches
+    /// </summary>
+    public bool TryReadNext(RespPrefix demand)
+    {
+        if (TryReadNext())
+        {
+            if (Prefix != demand) Throw(demand, Prefix);
+            return true;
+        }
+        return false;
+        static void Throw(RespPrefix expected, RespPrefix actual)
+            => throw new InvalidOperationException($"Expected {expected}, got {actual}");
+    }
+
+    /// <summary>
     /// Attempt to move to the next RESP element
     /// </summary>
     public bool TryReadNext()
@@ -740,7 +755,7 @@ public ref struct RespReader
     private readonly bool IsOKSlow() => _length == 2 && Prefix == RespPrefix.SimpleString && IsSlow("OK"u8);
 
     // note this should be treated as "const" by modern JIT
-    private static readonly ushort OK = BitConverter.IsLittleEndian ? (ushort)0x4B4F : (ushort)0x4F4B; // see: ASCII
+    private static readonly ushort OK = UnsafeCpuUInt16("OK"u8);
 
     /// <summary>
     /// Skips all child/descendent nodes of this element, returning the number

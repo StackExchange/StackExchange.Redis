@@ -1,5 +1,4 @@
 ﻿using System.Buffers;
-using System.Text;
 
 namespace RESPite.Messages;
 
@@ -16,6 +15,6 @@ public static class CommonWriters
     public static IWriter<Empty> Empty => shared;
     private sealed class Core : IWriter<Empty>
     {
-        void IWriter<Empty>.Write<TTarget>(in Empty request, ref TTarget target) { }
+        void IWriter<Empty>.Write(in Empty request, IBufferWriter<byte> target) { }
     }
 }

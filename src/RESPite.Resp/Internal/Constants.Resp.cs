@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Buffers.Binary;
-using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
@@ -8,8 +7,6 @@ namespace RESPite.Internal;
 
 internal static partial class Constants
 {
-    //public static readonly ushort CrLfUInt16 = BitConverter.IsLittleEndian ? (ushort)0x0A0D : (ushort)0x0D0A; // see: ASCII
-
     public static ReadOnlySpan<byte> CrlfBytes => "\r\n"u8;
 
     public static readonly ushort CrLfUInt16 = UnsafeCpuUInt16(CrlfBytes);

@@ -13,14 +13,20 @@ namespace RESPite.Gateways.Internal;
 internal sealed class StreamTransport : IByteTransport
 {
 
-    private readonly Stream _stream;
-    private readonly bool _closeStream;
+    private readonly Stream _source, _target;
+    private readonly bool _closeStreams;
     private BufferCore<byte> _buffer;
-    internal StreamTransport(Stream source, bool closeStream)
+
+    internal StreamTransport(Stream source, Stream target, bool closeStreams)
     {
+        if (source is null) throw new ArgumentNullException(nameof(source));
+        if (target is null) throw new ArgumentNullException(nameof(target));
+        if (!source.CanRead) throw new ArgumentException("Source must allow read", nameof(source));
+        if (!target.CanWrite) throw new ArgumentException("Target must allow read", nameof(target));
         _buffer = new(new SlabManager<byte>());
-        _stream = source;
-        _closeStream = closeStream;
+        _source = source;
+        _target = target;
+        _closeStreams = closeStreams;
     }
 
     ReadOnlySequence<byte> IByteTransportBase.GetBuffer() => _buffer.GetBuffer();
@@ -31,7 +37,21 @@ internal sealed class StreamTransport : IByteTransport
     {
         _buffer.Dispose();
         _buffer.SlabManager.Dispose();
-        return _closeStream ? _stream.DisposeAsync() : default;
+        if (_closeStreams)
+        {
+            var pending = _source.DisposeAsync();
+            if (ReferenceEquals(_source, _target)) return pending;
+            if (!pending.IsCompletedSuccessfully) return Awaited(pending, _target);
+            pending.GetAwaiter().GetResult();
+            return _target.DisposeAsync();
+        }
+        return default;
+
+        static async ValueTask Awaited(ValueTask pending, Stream target)
+        {
+            await pending;
+            await target.DisposeAsync();
+        }
     }
 #else
     public ValueTask DisposeAsync()
@@ -45,7 +65,11 @@ internal sealed class StreamTransport : IByteTransport
     {
         _buffer.Dispose();
         _buffer.SlabManager.Dispose();
-        if (_closeStream) _stream.Dispose();
+        if (_closeStreams)
+        {
+            _source.Dispose();
+            if (!ReferenceEquals(_source, _target)) _target.Dispose();
+        }
     }
 
     public ValueTask<bool> TryReadAsync(int hint, CancellationToken cancellationToken)
@@ -53,7 +77,7 @@ internal sealed class StreamTransport : IByteTransport
         var readBuffer = _buffer.GetWritableTail();
         Debug.Assert(!readBuffer.IsEmpty, "should have space");
 
-        var pending = _stream.ReadAsync(readBuffer, cancellationToken);
+        var pending = _source.ReadAsync(readBuffer, cancellationToken);
         if (!pending.IsCompletedSuccessfully) return Awaited(this, pending);
 
         // synchronous happy case
@@ -81,7 +105,7 @@ internal sealed class StreamTransport : IByteTransport
     {
         var readBuffer = _buffer.GetWritableTail();
         Debug.Assert(!readBuffer.IsEmpty, "should have space");
-        var bytes = _stream.Read(readBuffer);
+        var bytes = _source.Read(readBuffer);
 
         if (bytes > 0)
         {
@@ -97,11 +121,11 @@ internal sealed class StreamTransport : IByteTransport
     {
         if (buffer.IsSingleSegment)
         {
-            _stream.Write(buffer.First);
+            _target.Write(buffer.First);
         }
         else
         {
-            WriteMultiSegment(_stream, buffer);
+            WriteMultiSegment(_target, buffer);
 
             static void WriteMultiSegment(Stream stream, in ReadOnlySequence<byte> buffer)
             {
@@ -118,11 +142,11 @@ internal sealed class StreamTransport : IByteTransport
     {
         if (buffer.IsSingleSegment)
         {
-            return _stream.WriteAsync(buffer.First, token);
+            return _target.WriteAsync(buffer.First, token);
         }
         else
         {
-            return WriteMultiSegment(_stream, buffer, token);
+            return WriteMultiSegment(_target, buffer, token);
 
             static async ValueTask WriteMultiSegment(Stream stream, ReadOnlySequence<byte> buffer, CancellationToken token)
             {

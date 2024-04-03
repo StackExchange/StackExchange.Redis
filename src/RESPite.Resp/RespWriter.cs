@@ -1,4 +1,5 @@
 ﻿using RESPite.Internal;
+using RESPite.Messages;
 using System;
 using System.Buffers;
 using System.Buffers.Text;
@@ -8,6 +9,30 @@ using System.Runtime.InteropServices;
 using System.Text;
 using static RESPite.Internal.Constants;
 namespace RESPite.Resp;
+
+
+/// <summary>
+/// Base implementation for RESP writers
+/// </summary>
+public abstract class RespWriterBase<TRequest> : IWriter<TRequest>
+{
+    /// <summary>
+    /// Write a raw RESP payload
+    /// </summary>
+    public virtual void Write(in TRequest request, IBufferWriter<byte> target)
+    {
+        var writer = new RespWriter(target);
+        Write(ref writer);
+        writer.Flush();
+    }
+
+    /// <summary>
+    /// Write a RESP payload via the <see cref="RespWriter"/> API
+    /// </summary>
+    public virtual void Write(ref RespWriter writer)
+        => throw new NotImplementedException("A " + nameof(Write) + " overload must be overridden");
+}
+
 
 /// <summary>
 /// Provides low-level RESP formatting operations
@@ -78,7 +103,7 @@ public ref struct RespWriter
     /// <summary>
     /// Create a new RESP writer over the provided target
     /// </summary>
-    public RespWriter(IBufferWriter<byte> target)
+    public RespWriter(in IBufferWriter<byte> target)
     {
         _target = target;
         _index = 0;
@@ -155,10 +180,7 @@ public ref struct RespWriter
     /// Write an array header
     /// </summary>
     /// <param name="count">The number of elements in the array</param>
-    public void WriteArray(int count)
-    {
-
-    }
+    public void WriteArray(int count) => WritePrefixedInteger(RespPrefix.Array, count);
 
     /// <summary>
     /// Write a payload as a bulk string
@@ -237,7 +259,8 @@ public ref struct RespWriter
             var target = Tail.Slice(singleDigit ? 3 : 4); // N\r\n or NN\r\n
             if (!Utf8Formatter.TryFormat(value, target, out var valueBytes))
                 ThrowFormatException();
-            Debug.Assert(valueBytes > 0 && singleDigit ? (valueBytes < 10) : (valueBytes == 10));
+            
+            Debug.Assert(valueBytes > 0 && singleDigit ? (valueBytes < 10) : (valueBytes is 10 or 11));
             if (!Utf8Formatter.TryFormat(valueBytes, Tail, out var prefixBytes))
                 ThrowFormatException();
             Debug.Assert(prefixBytes == (singleDigit ? 1 : 2));

@@ -12,7 +12,7 @@ namespace RESPite.Internal;
 /// Handles buffer management; intended for use as the private implementation layer of a transport
 /// </summary>
 public struct BufferCore<T>
-    : IDisposable, IBufferWriter<T> // note mutable struct intended to encapsulate logic as a field inside a class instance
+    : IDisposable // note mutable struct intended to encapsulate logic as a field inside a class instance
 {
     private readonly SlabManager<T> _slabManager;
     private RefCountedSequenceSegment<T> _head, _tail;
@@ -245,8 +245,4 @@ public struct BufferCore<T>
 
     /// <see cref="IDisposable.Dispose"/>
     public void Dispose() => Detach().Release();
-
-    void IBufferWriter<T>.Advance(int count) => Commit(count);
-    Memory<T> IBufferWriter<T>.GetMemory(int sizeHint) => GetWritableTail();
-    Span<T> IBufferWriter<T>.GetSpan(int sizeHint) => GetWritableTail().Span;
 }

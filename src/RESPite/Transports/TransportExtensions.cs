@@ -1,4 +1,5 @@
 ﻿using RESPite.Buffers;
+using RESPite.Buffers.Internal;
 using RESPite.Gateways.Internal;
 using RESPite.Internal;
 using RESPite.Messages;
@@ -41,11 +42,35 @@ public static class TransportExtensions
     public static ISyncRequestResponseTransport RequestResponse<TState>(this ISyncByteTransport gateway, IFrameScanner<TState> frameScanner)
         => new SyncRequestResponseTransport<TState>(gateway, frameScanner);
 
+    private class Scratch : IBufferWriter<byte>
+    {
+        [ThreadStatic]
+        private static Scratch? perThread;
+        public static Scratch Create()
+        {
+            var obj = perThread ?? new();
+            perThread = null;
+            obj.buffer = new(SlabManager<byte>.Ambient);
+            return obj;
+        }
+        private Scratch() { }
+        private BufferCore<byte> buffer;
+        public void Advance(int count) => buffer.Commit(count);
+        public Memory<byte> GetMemory(int sizeHint = 0) => buffer.GetWritableTail();
+        public Span<byte> GetSpan(int sizeHint = 0) => buffer.GetWritableTail().Span;
+        public RefCountedBuffer<byte> DetachAndRecycle()
+        {
+            var result = buffer.Detach();
+            buffer = default;
+            perThread = this;
+            return result;
+        }
+    }
     internal static RefCountedBuffer<byte> Serialize<TRequest>(this IWriter<TRequest> writer, in TRequest request)
     {
-        BufferCore<byte> buffer = new();
-        writer.Write(in request, ref buffer);
-        return buffer.Detach();
+        var buffer = Scratch.Create();
+        writer.Write(in request, buffer);
+        return buffer.DetachAndRecycle();
     }
 
     private static void ThrowEmptyFrame() => throw new InvalidOperationException("Frames must have positive length");
@@ -233,13 +258,14 @@ public static class TransportExtensions
         => throw new NotImplementedException();
 
     /// <summary>
-    /// Create a RESP transport over a stream
+    /// Create a RESP transport over a duplex stream
     /// </summary>
     public static IByteTransport CreateTransport(this Stream duplex, bool closeStream = true)
-    {
-        if (duplex is null) throw new ArgumentNullException(nameof(duplex));
-        if (!(duplex.CanRead && duplex.CanWrite)) throw new ArgumentException("Stream must allow read and write", nameof(duplex));
+        => new StreamTransport(duplex, duplex, closeStream);
 
-        return new StreamTransport(duplex, closeStream);
-    }
+    /// <summary>
+    /// Create a RESP transport over a pair of streams
+    /// </summary>
+    public static IByteTransport CreateTransport(this Stream source, Stream target, bool closeStreams = true)
+        => new StreamTransport(source, target, closeStreams);
 }
