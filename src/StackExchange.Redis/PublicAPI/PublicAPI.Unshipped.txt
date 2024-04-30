@@ -1,1 +1,48 @@
-﻿
+﻿StackExchange.Redis.IDatabase.SetDiff(StackExchange.Redis.RedisKey first, StackExchange.Redis.RedisKey second) -> StackExchange.Redis.RedisValue[]!
+StackExchange.Redis.IDatabase.SetDiff(StackExchange.Redis.RedisKey first, StackExchange.Redis.RedisKey second, StackExchange.Redis.CommandFlags flags) -> StackExchange.Redis.RedisValue[]!
+StackExchange.Redis.IDatabase.SetDiff(StackExchange.Redis.RedisKey[]! keys) -> StackExchange.Redis.RedisValue[]!
+StackExchange.Redis.IDatabase.SetDiff(StackExchange.Redis.RedisKey[]! keys, StackExchange.Redis.CommandFlags flags) -> StackExchange.Redis.RedisValue[]!
+StackExchange.Redis.IDatabase.SetDiffAndStore(StackExchange.Redis.RedisKey destination, StackExchange.Redis.RedisKey first, StackExchange.Redis.RedisKey second) -> long
+StackExchange.Redis.IDatabase.SetDiffAndStore(StackExchange.Redis.RedisKey destination, StackExchange.Redis.RedisKey first, StackExchange.Redis.RedisKey second, StackExchange.Redis.CommandFlags flags) -> long
+StackExchange.Redis.IDatabase.SetDiffAndStore(StackExchange.Redis.RedisKey destination, StackExchange.Redis.RedisKey[]! keys) -> long
+StackExchange.Redis.IDatabase.SetDiffAndStore(StackExchange.Redis.RedisKey destination, StackExchange.Redis.RedisKey[]! keys, StackExchange.Redis.CommandFlags flags) -> long
+StackExchange.Redis.IDatabase.SetIntersect(StackExchange.Redis.RedisKey first, StackExchange.Redis.RedisKey second) -> StackExchange.Redis.RedisValue[]!
+StackExchange.Redis.IDatabase.SetIntersect(StackExchange.Redis.RedisKey first, StackExchange.Redis.RedisKey second, StackExchange.Redis.CommandFlags flags) -> StackExchange.Redis.RedisValue[]!
+StackExchange.Redis.IDatabase.SetIntersect(StackExchange.Redis.RedisKey[]! keys) -> StackExchange.Redis.RedisValue[]!
+StackExchange.Redis.IDatabase.SetIntersect(StackExchange.Redis.RedisKey[]! keys, StackExchange.Redis.CommandFlags flags) -> StackExchange.Redis.RedisValue[]!
+StackExchange.Redis.IDatabase.SetIntersectAndStore(StackExchange.Redis.RedisKey destination, StackExchange.Redis.RedisKey first, StackExchange.Redis.RedisKey second) -> long
+StackExchange.Redis.IDatabase.SetIntersectAndStore(StackExchange.Redis.RedisKey destination, StackExchange.Redis.RedisKey first, StackExchange.Redis.RedisKey second, StackExchange.Redis.CommandFlags flags) -> long
+StackExchange.Redis.IDatabase.SetIntersectAndStore(StackExchange.Redis.RedisKey destination, StackExchange.Redis.RedisKey[]! keys) -> long
+StackExchange.Redis.IDatabase.SetIntersectAndStore(StackExchange.Redis.RedisKey destination, StackExchange.Redis.RedisKey[]! keys, StackExchange.Redis.CommandFlags flags) -> long
+StackExchange.Redis.IDatabase.SetUnion(StackExchange.Redis.RedisKey first, StackExchange.Redis.RedisKey second) -> StackExchange.Redis.RedisValue[]!
+StackExchange.Redis.IDatabase.SetUnion(StackExchange.Redis.RedisKey first, StackExchange.Redis.RedisKey second, StackExchange.Redis.CommandFlags flags) -> StackExchange.Redis.RedisValue[]!
+StackExchange.Redis.IDatabase.SetUnion(StackExchange.Redis.RedisKey[]! keys) -> StackExchange.Redis.RedisValue[]!
+StackExchange.Redis.IDatabase.SetUnion(StackExchange.Redis.RedisKey[]! keys, StackExchange.Redis.CommandFlags flags) -> StackExchange.Redis.RedisValue[]!
+StackExchange.Redis.IDatabase.SetUnionAndStore(StackExchange.Redis.RedisKey destination, StackExchange.Redis.RedisKey first, StackExchange.Redis.RedisKey second) -> long
+StackExchange.Redis.IDatabase.SetUnionAndStore(StackExchange.Redis.RedisKey destination, StackExchange.Redis.RedisKey first, StackExchange.Redis.RedisKey second, StackExchange.Redis.CommandFlags flags) -> long
+StackExchange.Redis.IDatabase.SetUnionAndStore(StackExchange.Redis.RedisKey destination, StackExchange.Redis.RedisKey[]! keys) -> long
+StackExchange.Redis.IDatabase.SetUnionAndStore(StackExchange.Redis.RedisKey destination, StackExchange.Redis.RedisKey[]! keys, StackExchange.Redis.CommandFlags flags) -> long
+StackExchange.Redis.IDatabaseAsync.SetDiffAndStoreAsync(StackExchange.Redis.RedisKey destination, StackExchange.Redis.RedisKey first, StackExchange.Redis.RedisKey second) -> System.Threading.Tasks.Task<long>!
+StackExchange.Redis.IDatabaseAsync.SetDiffAndStoreAsync(StackExchange.Redis.RedisKey destination, StackExchange.Redis.RedisKey first, StackExchange.Redis.RedisKey second, StackExchange.Redis.CommandFlags flags) -> System.Threading.Tasks.Task<long>!
+StackExchange.Redis.IDatabaseAsync.SetDiffAndStoreAsync(StackExchange.Redis.RedisKey destination, StackExchange.Redis.RedisKey[]! keys) -> System.Threading.Tasks.Task<long>!
+StackExchange.Redis.IDatabaseAsync.SetDiffAndStoreAsync(StackExchange.Redis.RedisKey destination, StackExchange.Redis.RedisKey[]! keys, StackExchange.Redis.CommandFlags flags) -> System.Threading.Tasks.Task<long>!
+StackExchange.Redis.IDatabaseAsync.SetDiffAsync(StackExchange.Redis.RedisKey first, StackExchange.Redis.RedisKey second) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue[]!>!
+StackExchange.Redis.IDatabaseAsync.SetDiffAsync(StackExchange.Redis.RedisKey first, StackExchange.Redis.RedisKey second, StackExchange.Redis.CommandFlags flags) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue[]!>!
+StackExchange.Redis.IDatabaseAsync.SetDiffAsync(StackExchange.Redis.RedisKey[]! keys) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue[]!>!
+StackExchange.Redis.IDatabaseAsync.SetDiffAsync(StackExchange.Redis.RedisKey[]! keys, StackExchange.Redis.CommandFlags flags) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue[]!>!
+StackExchange.Redis.IDatabaseAsync.SetIntersectAndStoreAsync(StackExchange.Redis.RedisKey destination, StackExchange.Redis.RedisKey first, StackExchange.Redis.RedisKey second) -> System.Threading.Tasks.Task<long>!
+StackExchange.Redis.IDatabaseAsync.SetIntersectAndStoreAsync(StackExchange.Redis.RedisKey destination, StackExchange.Redis.RedisKey first, StackExchange.Redis.RedisKey second, StackExchange.Redis.CommandFlags flags) -> System.Threading.Tasks.Task<long>!
+StackExchange.Redis.IDatabaseAsync.SetIntersectAndStoreAsync(StackExchange.Redis.RedisKey destination, StackExchange.Redis.RedisKey[]! keys) -> System.Threading.Tasks.Task<long>!
+StackExchange.Redis.IDatabaseAsync.SetIntersectAndStoreAsync(StackExchange.Redis.RedisKey destination, StackExchange.Redis.RedisKey[]! keys, StackExchange.Redis.CommandFlags flags) -> System.Threading.Tasks.Task<long>!
+StackExchange.Redis.IDatabaseAsync.SetIntersectAsync(StackExchange.Redis.RedisKey first, StackExchange.Redis.RedisKey second) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue[]!>!
+StackExchange.Redis.IDatabaseAsync.SetIntersectAsync(StackExchange.Redis.RedisKey first, StackExchange.Redis.RedisKey second, StackExchange.Redis.CommandFlags flags) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue[]!>!
+StackExchange.Redis.IDatabaseAsync.SetIntersectAsync(StackExchange.Redis.RedisKey[]! keys) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue[]!>!
+StackExchange.Redis.IDatabaseAsync.SetIntersectAsync(StackExchange.Redis.RedisKey[]! keys, StackExchange.Redis.CommandFlags flags) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue[]!>!
+StackExchange.Redis.IDatabaseAsync.SetUnionAndStoreAsync(StackExchange.Redis.RedisKey destination, StackExchange.Redis.RedisKey first, StackExchange.Redis.RedisKey second) -> System.Threading.Tasks.Task<long>!
+StackExchange.Redis.IDatabaseAsync.SetUnionAndStoreAsync(StackExchange.Redis.RedisKey destination, StackExchange.Redis.RedisKey first, StackExchange.Redis.RedisKey second, StackExchange.Redis.CommandFlags flags) -> System.Threading.Tasks.Task<long>!
+StackExchange.Redis.IDatabaseAsync.SetUnionAndStoreAsync(StackExchange.Redis.RedisKey destination, StackExchange.Redis.RedisKey[]! keys) -> System.Threading.Tasks.Task<long>!
+StackExchange.Redis.IDatabaseAsync.SetUnionAndStoreAsync(StackExchange.Redis.RedisKey destination, StackExchange.Redis.RedisKey[]! keys, StackExchange.Redis.CommandFlags flags) -> System.Threading.Tasks.Task<long>!
+StackExchange.Redis.IDatabaseAsync.SetUnionAsync(StackExchange.Redis.RedisKey first, StackExchange.Redis.RedisKey second) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue[]!>!
+StackExchange.Redis.IDatabaseAsync.SetUnionAsync(StackExchange.Redis.RedisKey first, StackExchange.Redis.RedisKey second, StackExchange.Redis.CommandFlags flags) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue[]!>!
+StackExchange.Redis.IDatabaseAsync.SetUnionAsync(StackExchange.Redis.RedisKey[]! keys) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue[]!>!
+StackExchange.Redis.IDatabaseAsync.SetUnionAsync(StackExchange.Redis.RedisKey[]! keys, StackExchange.Redis.CommandFlags flags) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue[]!>!

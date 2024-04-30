@@ -1328,6 +1328,343 @@ namespace StackExchange.Redis
         Task<long> SetAddAsync(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Returns the members of the set resulting from the union operation against the given sets.
+        /// </summary>
+        /// <param name="first">The key of the first set.</param>
+        /// <param name="second">The key of the second set.</param>
+        /// <returns>List with members of the resulting set.</returns>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/sunion"/>,
+        /// <seealso href="https://redis.io/commands/sinter"/>,
+        /// <seealso href="https://redis.io/commands/sdiff"/>
+        /// </remarks>
+        /// 
+        Task<RedisValue[]> SetUnionAsync(RedisKey first, RedisKey second);
+
+        /// <summary>
+        /// Returns the members of the set resulting from the union operation against the given sets.
+        /// </summary>
+        /// <param name="first">The key of the first set.</param>
+        /// <param name="second">The key of the second set.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>List with members of the resulting set.</returns>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/sunion"/>,
+        /// <seealso href="https://redis.io/commands/sinter"/>,
+        /// <seealso href="https://redis.io/commands/sdiff"/>
+        /// </remarks>
+        Task<RedisValue[]> SetUnionAsync(RedisKey first, RedisKey second, CommandFlags flags);
+
+        /// <summary>
+        /// Returns the members of the set resulting from the union operation against the given sets.
+        /// </summary>
+        /// <param name="keys">The keys of the sets to union.</param>
+        /// <returns>List with members of the resulting set.</returns>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/sunion"/>,
+        /// <seealso href="https://redis.io/commands/sinter"/>,
+        /// <seealso href="https://redis.io/commands/sdiff"/>
+        /// </remarks>
+        Task<RedisValue[]> SetUnionAsync(RedisKey[] keys);
+
+        /// <summary>
+        /// Returns the members of the set resulting from the union operation against the given sets.
+        /// </summary>
+        /// <param name="keys">The keys of the sets to union.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>List with members of the resulting set.</returns>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/sunion"/>,
+        /// <seealso href="https://redis.io/commands/sinter"/>,
+        /// <seealso href="https://redis.io/commands/sdiff"/>
+        /// </remarks>
+        Task<RedisValue[]> SetUnionAsync(RedisKey[] keys, CommandFlags flags);
+
+        /// <summary>
+        /// This command is equal to SetUnion, but instead of returning the resulting set, it is stored in destination.
+        /// If destination already exists, it is overwritten.
+        /// </summary>
+        /// <param name="destination">The key of the destination set.</param>
+        /// <param name="first">The key of the first set.</param>
+        /// <param name="second">The key of the second set.</param>
+        /// <returns>The number of elements in the resulting set.</returns>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/sunionstore"/>,
+        /// <seealso href="https://redis.io/commands/sinterstore"/>,
+        /// <seealso href="https://redis.io/commands/sdiffstore"/>
+        /// </remarks>
+        Task<long> SetUnionAndStoreAsync(RedisKey destination, RedisKey first, RedisKey second);
+
+        /// <summary>
+        /// This command is equal to SetUnion, but instead of returning the resulting set, it is stored in destination.
+        /// If destination already exists, it is overwritten.
+        /// </summary>
+        /// <param name="destination">The key of the destination set.</param>
+        /// <param name="first">The key of the first set.</param>
+        /// <param name="second">The key of the second set.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The number of elements in the resulting set.</returns>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/sunionstore"/>,
+        /// <seealso href="https://redis.io/commands/sinterstore"/>,
+        /// <seealso href="https://redis.io/commands/sdiffstore"/>
+        /// </remarks>
+        Task<long> SetUnionAndStoreAsync(RedisKey destination, RedisKey first, RedisKey second, CommandFlags flags);
+
+        /// <summary>
+        /// This command is equal to SetUnion, but instead of returning the resulting set, it is stored in destination.
+        /// If destination already exists, it is overwritten.
+        /// </summary>
+        /// <param name="destination">The key of the destination set.</param>
+        /// <param name="keys">The keys of the sets to operate on.</param>
+        /// <returns>The number of elements in the resulting set.</returns>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/sunionstore"/>,
+        /// <seealso href="https://redis.io/commands/sinterstore"/>,
+        /// <seealso href="https://redis.io/commands/sdiffstore"/>
+        /// </remarks>
+        Task<long> SetUnionAndStoreAsync(RedisKey destination, RedisKey[] keys);
+
+        /// <summary>
+        /// This command is equal to SetUnion, but instead of returning the resulting set, it is stored in destination.
+        /// If destination already exists, it is overwritten.
+        /// </summary>
+        /// <param name="destination">The key of the destination set.</param>
+        /// <param name="keys">The keys of the sets to operate on.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The number of elements in the resulting set.</returns>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/sunionstore"/>,
+        /// <seealso href="https://redis.io/commands/sinterstore"/>,
+        /// <seealso href="https://redis.io/commands/sdiffstore"/>
+        /// </remarks>
+        Task<long> SetUnionAndStoreAsync(RedisKey destination, RedisKey[] keys, CommandFlags flags);
+
+        /// <summary>
+        /// Returns the members of the set resulting from the intersection operation against the given sets.
+        /// </summary>
+        /// <param name="first">The key of the first set.</param>
+        /// <param name="second">The key of the second set.</param>
+        /// <returns>List with members of the resulting set.</returns>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/sunion"/>,
+        /// <seealso href="https://redis.io/commands/sinter"/>,
+        /// <seealso href="https://redis.io/commands/sdiff"/>
+        /// </remarks>
+        Task<RedisValue[]> SetIntersectAsync(RedisKey first, RedisKey second);
+
+        /// <summary>
+        /// Returns the members of the set resulting from the intersection operation against the given sets.
+        /// </summary>
+        /// <param name="first">The key of the first set.</param>
+        /// <param name="second">The key of the second set.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>List with members of the resulting set.</returns>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/sunion"/>,
+        /// <seealso href="https://redis.io/commands/sinter"/>,
+        /// <seealso href="https://redis.io/commands/sdiff"/>
+        /// </remarks>
+        Task<RedisValue[]> SetIntersectAsync(RedisKey first, RedisKey second, CommandFlags flags);
+
+        /// <summary>
+        /// Returns the members of the set resulting from the intersection operation against the given sets.
+        /// </summary>
+        /// <param name="keys">The keys of the sets to intersect.</param>
+        /// <returns>List with members of the resulting set.</returns>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/sunion"/>,
+        /// <seealso href="https://redis.io/commands/sinter"/>,
+        /// <seealso href="https://redis.io/commands/sdiff"/>
+        /// </remarks>
+        Task<RedisValue[]> SetIntersectAsync(RedisKey[] keys);
+
+        /// <summary>
+        /// Returns the members of the set resulting from the intersection operation against the given sets.
+        /// </summary>
+        /// <param name="keys">The keys of the sets to intersect.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>List with members of the resulting set.</returns>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/sunion"/>,
+        /// <seealso href="https://redis.io/commands/sinter"/>,
+        /// <seealso href="https://redis.io/commands/sdiff"/>
+        /// </remarks>
+        Task<RedisValue[]> SetIntersectAsync(RedisKey[] keys, CommandFlags flags);
+
+        /// <summary>
+        /// This command is equal to SetIntersect, but instead of returning the resulting set, it is stored in destination.
+        /// If destination already exists, it is overwritten.
+        /// </summary>
+        /// <param name="destination">The key of the destination set.</param>
+        /// <param name="first">The key of the first set.</param>
+        /// <param name="second">The key of the second set.</param>
+        /// <returns>The number of elements in the resulting set.</returns>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/sunionstore"/>,
+        /// <seealso href="https://redis.io/commands/sinterstore"/>,
+        /// <seealso href="https://redis.io/commands/sdiffstore"/>
+        /// </remarks>
+        Task<long> SetIntersectAndStoreAsync(RedisKey destination, RedisKey first, RedisKey second);
+
+        /// <summary>
+        /// This command is equal to SetIntersect, but instead of returning the resulting set, it is stored in destination.
+        /// If destination already exists, it is overwritten.
+        /// </summary>
+        /// <param name="destination">The key of the destination set.</param>
+        /// <param name="first">The key of the first set.</param>
+        /// <param name="second">The key of the second set.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The number of elements in the resulting set.</returns>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/sunionstore"/>,
+        /// <seealso href="https://redis.io/commands/sinterstore"/>,
+        /// <seealso href="https://redis.io/commands/sdiffstore"/>
+        /// </remarks>
+        Task<long> SetIntersectAndStoreAsync(RedisKey destination, RedisKey first, RedisKey second, CommandFlags flags);
+
+        /// <summary>
+        /// This command is equal to SetIntersect, but instead of returning the resulting set, it is stored in destination.
+        /// If destination already exists, it is overwritten.
+        /// </summary>
+        /// <param name="destination">The key of the destination set.</param>
+        /// <param name="keys">The keys of the sets to operate on.</param>
+        /// <returns>The number of elements in the resulting set.</returns>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/sunionstore"/>,
+        /// <seealso href="https://redis.io/commands/sinterstore"/>,
+        /// <seealso href="https://redis.io/commands/sdiffstore"/>
+        /// </remarks>
+        Task<long> SetIntersectAndStoreAsync(RedisKey destination, RedisKey[] keys);
+
+        /// <summary>
+        /// This command is equal to SetIntersect, but instead of returning the resulting set, it is stored in destination.
+        /// If destination already exists, it is overwritten.
+        /// </summary>
+        /// <param name="destination">The key of the destination set.</param>
+        /// <param name="keys">The keys of the sets to operate on.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The number of elements in the resulting set.</returns>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/sunionstore"/>,
+        /// <seealso href="https://redis.io/commands/sinterstore"/>,
+        /// <seealso href="https://redis.io/commands/sdiffstore"/>
+        /// </remarks>
+        Task<long> SetIntersectAndStoreAsync(RedisKey destination, RedisKey[] keys, CommandFlags flags);
+
+        /// <summary>
+        /// Returns the members of the set resulting from the diff operation against the given sets.
+        /// </summary>
+        /// <param name="first">The key of the first set.</param>
+        /// <param name="second">The key of the second set.</param>
+        /// <returns>List with members of the resulting set.</returns>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/sunion"/>,
+        /// <seealso href="https://redis.io/commands/sinter"/>,
+        /// <seealso href="https://redis.io/commands/sdiff"/>
+        /// </remarks>
+        Task<RedisValue[]> SetDiffAsync(RedisKey first, RedisKey second);
+
+        /// <summary>
+        /// Returns the members of the set resulting from the diff operation against the given sets.
+        /// </summary>
+        /// <param name="first">The key of the first set.</param>
+        /// <param name="second">The key of the second set.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>List with members of the resulting set.</returns>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/sunion"/>,
+        /// <seealso href="https://redis.io/commands/sinter"/>,
+        /// <seealso href="https://redis.io/commands/sdiff"/>
+        /// </remarks>
+        Task<RedisValue[]> SetDiffAsync(RedisKey first, RedisKey second, CommandFlags flags);
+
+        /// <summary>
+        /// Returns the members of the set resulting from the diff operation against the given sets.
+        /// </summary>
+        /// <param name="keys">The keys of the sets to diff.</param>
+        /// <returns>List with members of the resulting set.</returns>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/sunion"/>,
+        /// <seealso href="https://redis.io/commands/sinter"/>,
+        /// <seealso href="https://redis.io/commands/sdiff"/>
+        /// </remarks>
+        Task<RedisValue[]> SetDiffAsync(RedisKey[] keys);
+
+        /// <summary>
+        /// Returns the members of the set resulting from the diff operation against the given sets.
+        /// </summary>
+        /// <param name="keys">The keys of the sets to diff.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>List with members of the resulting set.</returns>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/sunion"/>,
+        /// <seealso href="https://redis.io/commands/sinter"/>,
+        /// <seealso href="https://redis.io/commands/sdiff"/>
+        /// </remarks>
+        Task<RedisValue[]> SetDiffAsync(RedisKey[] keys, CommandFlags flags);
+
+        /// <summary>
+        /// This command is equal to SetDiff, but instead of returning the resulting set, it is stored in destination.
+        /// If destination already exists, it is overwritten.
+        /// </summary>
+        /// <param name="destination">The key of the destination set.</param>
+        /// <param name="first">The key of the first set.</param>
+        /// <param name="second">The key of the second set.</param>
+        /// <returns>The number of elements in the resulting set.</returns>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/sunionstore"/>,
+        /// <seealso href="https://redis.io/commands/sinterstore"/>,
+        /// <seealso href="https://redis.io/commands/sdiffstore"/>
+        /// </remarks>
+        Task<long> SetDiffAndStoreAsync(RedisKey destination, RedisKey first, RedisKey second);
+
+        /// <summary>
+        /// This command is equal to SetDiff, but instead of returning the resulting set, it is stored in destination.
+        /// If destination already exists, it is overwritten.
+        /// </summary>
+        /// <param name="destination">The key of the destination set.</param>
+        /// <param name="first">The key of the first set.</param>
+        /// <param name="second">The key of the second set.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The number of elements in the resulting set.</returns>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/sunionstore"/>,
+        /// <seealso href="https://redis.io/commands/sinterstore"/>,
+        /// <seealso href="https://redis.io/commands/sdiffstore"/>
+        /// </remarks>
+        Task<long> SetDiffAndStoreAsync(RedisKey destination, RedisKey first, RedisKey second, CommandFlags flags);
+
+        /// <summary>
+        /// This command is equal to SetDiff, but instead of returning the resulting set, it is stored in destination.
+        /// If destination already exists, it is overwritten.
+        /// </summary>
+        /// <param name="destination">The key of the destination set.</param>
+        /// <param name="keys">The keys of the sets to operate on.</param>
+        /// <returns>The number of elements in the resulting set.</returns>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/sunionstore"/>,
+        /// <seealso href="https://redis.io/commands/sinterstore"/>,
+        /// <seealso href="https://redis.io/commands/sdiffstore"/>
+        /// </remarks>
+        Task<long> SetDiffAndStoreAsync(RedisKey destination, RedisKey[] keys);
+
+        /// <summary>
+        /// This command is equal to SetDiff, but instead of returning the resulting set, it is stored in destination.
+        /// If destination already exists, it is overwritten.
+        /// </summary>
+        /// <param name="destination">The key of the destination set.</param>
+        /// <param name="keys">The keys of the sets to operate on.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The number of elements in the resulting set.</returns>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/sunionstore"/>,
+        /// <seealso href="https://redis.io/commands/sinterstore"/>,
+        /// <seealso href="https://redis.io/commands/sdiffstore"/>
+        /// </remarks>
+        Task<long> SetDiffAndStoreAsync(RedisKey destination, RedisKey[] keys, CommandFlags flags);
+
+        /// <summary>
         /// Returns the members of the set resulting from the specified operation against the given sets.
         /// </summary>
         /// <param name="operation">The operation to perform.</param>

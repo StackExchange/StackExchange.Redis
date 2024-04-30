@@ -1633,6 +1633,246 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
+        public RedisValue[] SetUnion(RedisKey first, RedisKey second)
+        {
+            return SetCombine(SetOperation.Union, first, second);
+        }
+
+        public RedisValue[] SetUnion(RedisKey first, RedisKey second, CommandFlags flags)
+        {
+            return SetCombine(SetOperation.Union, first, second, flags);
+        }
+
+        public RedisValue[] SetUnion(RedisKey[] keys)
+        {
+            return SetCombine(SetOperation.Union, keys);
+        }
+
+        public RedisValue[] SetUnion(RedisKey[] keys, CommandFlags flags)
+        {
+            return SetCombine(SetOperation.Union, keys, flags);
+        }
+
+        public long SetUnionAndStore(RedisKey destination, RedisKey first, RedisKey second)
+        {
+            return SetCombineAndStore(SetOperation.Union, destination, first, second);
+        }
+
+        public long SetUnionAndStore(RedisKey destination, RedisKey first, RedisKey second, CommandFlags flags)
+        {
+            return SetCombineAndStore(SetOperation.Union, destination, first, second, flags);
+        }
+
+        public long SetUnionAndStore(RedisKey destination, RedisKey[] keys)
+        {
+            return SetCombineAndStore(SetOperation.Union, destination, keys);
+        }
+
+        public long SetUnionAndStore(RedisKey destination, RedisKey[] keys, CommandFlags flags)
+        {
+            return SetCombineAndStore(SetOperation.Union, destination, keys, flags);
+        }
+
+        public Task<RedisValue[]> SetUnionAsync(RedisKey first, RedisKey second)
+        {
+            return SetCombineAsync(SetOperation.Union, first, second);
+        }
+
+        public Task<RedisValue[]> SetUnionAsync(RedisKey first, RedisKey second, CommandFlags flags)
+        {
+            return SetCombineAsync(SetOperation.Union, first, second, flags);
+        }
+
+        public Task<RedisValue[]> SetUnionAsync(RedisKey[] keys)
+        {
+            return SetCombineAsync(SetOperation.Union, keys);
+        }
+
+        public Task<RedisValue[]> SetUnionAsync(RedisKey[] keys, CommandFlags flags)
+        {
+            return SetCombineAsync(SetOperation.Union, keys, flags);
+        }
+
+        public Task<long> SetUnionAndStoreAsync(RedisKey destination, RedisKey first, RedisKey second)
+        {
+            return SetCombineAndStoreAsync(SetOperation.Union, destination, first, second);
+        }
+
+        public Task<long> SetUnionAndStoreAsync(RedisKey destination, RedisKey first, RedisKey second, CommandFlags flags)
+        {
+            return SetCombineAndStoreAsync(SetOperation.Union, destination, first, second, flags);
+        }
+
+        public Task<long> SetUnionAndStoreAsync(RedisKey destination, RedisKey[] keys)
+        {
+            return SetCombineAndStoreAsync(SetOperation.Union, destination, keys);
+        }
+
+        public Task<long> SetUnionAndStoreAsync(RedisKey destination, RedisKey[] keys, CommandFlags flags)
+        {
+            return SetCombineAndStoreAsync(SetOperation.Union, destination, keys, flags);
+        }
+
+        public RedisValue[] SetIntersect(RedisKey first, RedisKey second)
+        {
+            return SetCombine(SetOperation.Intersect, first, second);
+        }
+
+        public RedisValue[] SetIntersect(RedisKey first, RedisKey second, CommandFlags flags)
+        {
+            return SetCombine(SetOperation.Intersect, first, second, flags);
+        }
+
+        public RedisValue[] SetIntersect(RedisKey[] keys)
+        {
+            return SetCombine(SetOperation.Intersect, keys);
+        }
+
+        public RedisValue[] SetIntersect(RedisKey[] keys, CommandFlags flags)
+        {
+            return SetCombine(SetOperation.Intersect, keys, flags);
+        }
+
+        public long SetIntersectAndStore(RedisKey destination, RedisKey first, RedisKey second)
+        {
+            return SetCombineAndStore(SetOperation.Intersect, destination, first, second);
+        }
+
+        public long SetIntersectAndStore(RedisKey destination, RedisKey first, RedisKey second, CommandFlags flags)
+        {
+            return SetCombineAndStore(SetOperation.Intersect, destination, first, second, flags);
+        }
+
+        public long SetIntersectAndStore(RedisKey destination, RedisKey[] keys)
+        {
+            return SetCombineAndStore(SetOperation.Intersect, destination, keys);
+        }
+
+        public long SetIntersectAndStore(RedisKey destination, RedisKey[] keys, CommandFlags flags)
+        {
+            return SetCombineAndStore(SetOperation.Intersect, destination, keys, flags);
+        }
+
+        public Task<RedisValue[]> SetIntersectAsync(RedisKey first, RedisKey second)
+        {
+            return SetCombineAsync(SetOperation.Intersect, first, second);
+        }
+
+        public Task<RedisValue[]> SetIntersectAsync(RedisKey first, RedisKey second, CommandFlags flags)
+        {
+            return SetCombineAsync(SetOperation.Intersect, first, second, flags);
+        }
+
+        public Task<RedisValue[]> SetIntersectAsync(RedisKey[] keys)
+        {
+            return SetCombineAsync(SetOperation.Intersect, keys);
+        }
+
+        public Task<RedisValue[]> SetIntersectAsync(RedisKey[] keys, CommandFlags flags)
+        {
+            return SetCombineAsync(SetOperation.Intersect, keys, flags);
+        }
+
+        public Task<long> SetIntersectAndStoreAsync(RedisKey destination, RedisKey first, RedisKey second)
+        {
+            return SetCombineAndStoreAsync(SetOperation.Intersect, destination, first, second);
+        }
+
+        public Task<long> SetIntersectAndStoreAsync(RedisKey destination, RedisKey first, RedisKey second, CommandFlags flags)
+        {
+            return SetCombineAndStoreAsync(SetOperation.Intersect, destination, first, second, flags);
+        }
+
+        public Task<long> SetIntersectAndStoreAsync(RedisKey destination, RedisKey[] keys)
+        {
+            return SetCombineAndStoreAsync(SetOperation.Intersect, destination, keys);
+        }
+
+        public Task<long> SetIntersectAndStoreAsync(RedisKey destination, RedisKey[] keys, CommandFlags flags)
+        {
+            return SetCombineAndStoreAsync(SetOperation.Intersect, destination, keys, flags);
+        }
+
+        public RedisValue[] SetDiff(RedisKey first, RedisKey second)
+        {
+            return SetCombine(SetOperation.Difference, first, second);
+        }
+
+        public RedisValue[] SetDiff(RedisKey first, RedisKey second, CommandFlags flags)
+        {
+            return SetCombine(SetOperation.Difference, first, second, flags);
+        }
+
+        public RedisValue[] SetDiff(RedisKey[] keys)
+        {
+            return SetCombine(SetOperation.Difference, keys);
+        }
+
+        public RedisValue[] SetDiff(RedisKey[] keys, CommandFlags flags)
+        {
+            return SetCombine(SetOperation.Difference, keys, flags);
+        }
+
+        public long SetDiffAndStore(RedisKey destination, RedisKey first, RedisKey second)
+        {
+            return SetCombineAndStore(SetOperation.Difference, destination, first, second);
+        }
+
+        public long SetDiffAndStore(RedisKey destination, RedisKey first, RedisKey second, CommandFlags flags)
+        {
+            return SetCombineAndStore(SetOperation.Difference, destination, first, second, flags);
+        }
+
+        public long SetDiffAndStore(RedisKey destination, RedisKey[] keys)
+        {
+            return SetCombineAndStore(SetOperation.Difference, destination, keys);
+        }
+
+        public long SetDiffAndStore(RedisKey destination, RedisKey[] keys, CommandFlags flags)
+        {
+            return SetCombineAndStore(SetOperation.Difference, destination, keys, flags);
+        }
+
+        public Task<RedisValue[]> SetDiffAsync(RedisKey first, RedisKey second)
+        {
+            return SetCombineAsync(SetOperation.Difference, first, second);
+        }
+
+        public Task<RedisValue[]> SetDiffAsync(RedisKey first, RedisKey second, CommandFlags flags)
+        {
+            return SetCombineAsync(SetOperation.Difference, first, second, flags);
+        }
+
+        public Task<RedisValue[]> SetDiffAsync(RedisKey[] keys)
+        {
+            return SetCombineAsync(SetOperation.Difference, keys);
+        }
+
+        public Task<RedisValue[]> SetDiffAsync(RedisKey[] keys, CommandFlags flags)
+        {
+            return SetCombineAsync(SetOperation.Difference, keys, flags);
+        }
+
+        public Task<long> SetDiffAndStoreAsync(RedisKey destination, RedisKey first, RedisKey second)
+        {
+            return SetCombineAndStoreAsync(SetOperation.Difference, destination, first, second);
+        }
+
+        public Task<long> SetDiffAndStoreAsync(RedisKey destination, RedisKey first, RedisKey second, CommandFlags flags)
+        {
+            return SetCombineAndStoreAsync(SetOperation.Difference, destination, first, second, flags);
+        }
+
+        public Task<long> SetDiffAndStoreAsync(RedisKey destination, RedisKey[] keys)
+        {
+            return SetCombineAndStoreAsync(SetOperation.Difference, destination, keys);
+        }
+
+        public Task<long> SetDiffAndStoreAsync(RedisKey destination, RedisKey[] keys, CommandFlags flags)
+        {
+            return SetCombineAndStoreAsync(SetOperation.Difference, destination, keys, flags);
+        }
+
         public RedisValue[] SetCombine(SetOperation operation, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, SetOperationCommand(operation, false), first, second);
