@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Net;
+using System.Threading.Tasks;
 
 namespace StackExchange.Redis.KeyspaceIsolation
 {
@@ -346,6 +347,78 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public bool SetAdd(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None) =>
             Inner.SetAdd(ToInner(key), value, flags);
+
+        public RedisValue[] SetUnion(RedisKey first, RedisKey second) =>
+            Inner.SetUnion(ToInner(first), ToInner(second));
+
+        public RedisValue[] SetUnion(RedisKey first, RedisKey second, CommandFlags flags) =>
+            Inner.SetUnion(ToInner(first), ToInner(second), flags);
+
+        public RedisValue[] SetUnion(RedisKey[] keys) =>
+            Inner.SetUnion(ToInner(keys));
+
+        public RedisValue[] SetUnion(RedisKey[] keys, CommandFlags flags) =>
+            Inner.SetUnion(ToInner(keys), flags);
+
+        public long SetUnionAndStore(RedisKey destination, RedisKey first, RedisKey second) =>
+            Inner.SetUnionAndStore(ToInner(destination), ToInner(first), ToInner(second));
+
+        public long SetUnionAndStore(RedisKey destination, RedisKey first, RedisKey second, CommandFlags flags) =>
+            Inner.SetUnionAndStore(ToInner(destination), ToInner(first), ToInner(second), flags);
+
+        public long SetUnionAndStore(RedisKey destination, RedisKey[] keys) =>
+            Inner.SetUnionAndStore(ToInner(destination), ToInner(keys));
+
+        public long SetUnionAndStore(RedisKey destination, RedisKey[] keys, CommandFlags flags) =>
+            Inner.SetUnionAndStore(ToInner(destination), ToInner(keys), flags);
+
+        public RedisValue[] SetIntersect(RedisKey first, RedisKey second) =>
+            Inner.SetIntersect(ToInner(first), ToInner(second));
+
+        public RedisValue[] SetIntersect(RedisKey first, RedisKey second, CommandFlags flags) =>
+            Inner.SetIntersect(ToInner(first), ToInner(second), flags);
+
+        public RedisValue[] SetIntersect(RedisKey[] keys) =>
+            Inner.SetIntersect(ToInner(keys));
+
+        public RedisValue[] SetIntersect(RedisKey[] keys, CommandFlags flags) =>
+            Inner.SetIntersect(ToInner(keys), flags);
+
+        public long SetIntersectAndStore(RedisKey destination, RedisKey first, RedisKey second) =>
+            Inner.SetIntersectAndStore(ToInner(destination), ToInner(first), ToInner(second));
+
+        public long SetIntersectAndStore(RedisKey destination, RedisKey first, RedisKey second, CommandFlags flags) =>
+            Inner.SetIntersectAndStore(ToInner(destination), ToInner(first), ToInner(second), flags);
+
+        public long SetIntersectAndStore(RedisKey destination, RedisKey[] keys) =>
+            Inner.SetIntersectAndStore(ToInner(destination), ToInner(keys));
+
+        public long SetIntersectAndStore(RedisKey destination, RedisKey[] keys, CommandFlags flags) =>
+            Inner.SetIntersectAndStore(ToInner(destination), ToInner(keys), flags);
+
+        public RedisValue[] SetDiff(RedisKey first, RedisKey second) =>
+            Inner.SetDiff(ToInner(first), ToInner(second));
+
+        public RedisValue[] SetDiff(RedisKey first, RedisKey second, CommandFlags flags) =>
+            Inner.SetDiff(ToInner(first), ToInner(second), flags);
+
+        public RedisValue[] SetDiff(RedisKey[] keys) =>
+            Inner.SetDiff(ToInner(keys));
+
+        public RedisValue[] SetDiff(RedisKey[] keys, CommandFlags flags) =>
+            Inner.SetDiff(ToInner(keys), flags);
+
+        public long SetDiffAndStore(RedisKey destination, RedisKey first, RedisKey second) =>
+            Inner.SetDiffAndStore(ToInner(destination), ToInner(first), ToInner(second));
+
+        public long SetDiffAndStore(RedisKey destination, RedisKey first, RedisKey second, CommandFlags flags) =>
+            Inner.SetDiffAndStore(ToInner(destination), ToInner(first), ToInner(second), flags);
+
+        public long SetDiffAndStore(RedisKey destination, RedisKey[] keys) =>
+            Inner.SetDiffAndStore(ToInner(destination), ToInner(keys));
+
+        public long SetDiffAndStore(RedisKey destination, RedisKey[] keys, CommandFlags flags) =>
+            Inner.SetDiffAndStore(ToInner(destination), ToInner(keys), flags);
 
         public long SetCombineAndStore(SetOperation operation, RedisKey destination, RedisKey[] keys, CommandFlags flags = CommandFlags.None) =>
             Inner.SetCombineAndStore(operation, ToInner(destination), ToInner(keys), flags);

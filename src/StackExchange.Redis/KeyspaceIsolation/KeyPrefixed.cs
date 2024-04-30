@@ -358,6 +358,78 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<bool> SetAddAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None) =>
             Inner.SetAddAsync(ToInner(key), value, flags);
 
+        public Task<RedisValue[]> SetUnionAsync(RedisKey first, RedisKey second) =>
+            Inner.SetUnionAsync(ToInner(first), ToInner(second));
+
+        public Task<RedisValue[]> SetUnionAsync(RedisKey first, RedisKey second, CommandFlags flags) =>
+            Inner.SetUnionAsync(ToInner(first), ToInner(second), flags);
+
+        public Task<RedisValue[]> SetUnionAsync(RedisKey[] keys) =>
+            Inner.SetUnionAsync(ToInner(keys));
+
+        public Task<RedisValue[]> SetUnionAsync(RedisKey[] keys, CommandFlags flags) =>
+            Inner.SetUnionAsync(ToInner(keys), flags);
+
+        public Task<long> SetUnionAndStoreAsync(RedisKey destination, RedisKey first, RedisKey second) =>
+            Inner.SetUnionAndStoreAsync(ToInner(destination), ToInner(first), ToInner(second));
+
+        public Task<long> SetUnionAndStoreAsync(RedisKey destination, RedisKey first, RedisKey second, CommandFlags flags) =>
+            Inner.SetUnionAndStoreAsync(ToInner(destination), ToInner(first), ToInner(second), flags);
+
+        public Task<long> SetUnionAndStoreAsync(RedisKey destination, RedisKey[] keys) =>
+            Inner.SetUnionAndStoreAsync(ToInner(destination), ToInner(keys));
+
+        public Task<long> SetUnionAndStoreAsync(RedisKey destination, RedisKey[] keys, CommandFlags flags) =>
+            Inner.SetUnionAndStoreAsync(ToInner(destination), ToInner(keys), flags);
+
+        public Task<RedisValue[]> SetIntersectAsync(RedisKey first, RedisKey second) =>
+            Inner.SetIntersectAsync(ToInner(first), ToInner(second));
+
+        public Task<RedisValue[]> SetIntersectAsync(RedisKey first, RedisKey second, CommandFlags flags) =>
+            Inner.SetIntersectAsync(ToInner(first), ToInner(second), flags);
+
+        public Task<RedisValue[]> SetIntersectAsync(RedisKey[] keys) =>
+            Inner.SetIntersectAsync(ToInner(keys));
+
+        public Task<RedisValue[]> SetIntersectAsync(RedisKey[] keys, CommandFlags flags) =>
+            Inner.SetIntersectAsync(ToInner(keys), flags);
+
+        public Task<long> SetIntersectAndStoreAsync(RedisKey destination, RedisKey first, RedisKey second) =>
+            Inner.SetIntersectAndStoreAsync(ToInner(destination), ToInner(first), ToInner(second));
+
+        public Task<long> SetIntersectAndStoreAsync(RedisKey destination, RedisKey first, RedisKey second, CommandFlags flags) =>
+            Inner.SetIntersectAndStoreAsync(ToInner(destination), ToInner(first), ToInner(second), flags);
+
+        public Task<long> SetIntersectAndStoreAsync(RedisKey destination, RedisKey[] keys) =>
+            Inner.SetIntersectAndStoreAsync(ToInner(destination), ToInner(keys));
+
+        public Task<long> SetIntersectAndStoreAsync(RedisKey destination, RedisKey[] keys, CommandFlags flags) =>
+            Inner.SetIntersectAndStoreAsync(ToInner(destination), ToInner(keys), flags);
+
+        public Task<RedisValue[]> SetDiffAsync(RedisKey first, RedisKey second) =>
+            Inner.SetDiffAsync(ToInner(first), ToInner(second));
+
+        public Task<RedisValue[]> SetDiffAsync(RedisKey first, RedisKey second, CommandFlags flags) =>
+            Inner.SetDiffAsync(ToInner(first), ToInner(second), flags);
+
+        public Task<RedisValue[]> SetDiffAsync(RedisKey[] keys) =>
+            Inner.SetDiffAsync(ToInner(keys));
+
+        public Task<RedisValue[]> SetDiffAsync(RedisKey[] keys, CommandFlags flags) =>
+            Inner.SetDiffAsync(ToInner(keys), flags);
+
+        public Task<long> SetDiffAndStoreAsync(RedisKey destination, RedisKey first, RedisKey second) =>
+            Inner.SetDiffAndStoreAsync(ToInner(destination), ToInner(first), ToInner(second));
+
+        public Task<long> SetDiffAndStoreAsync(RedisKey destination, RedisKey first, RedisKey second, CommandFlags flags) =>
+            Inner.SetDiffAndStoreAsync(ToInner(destination), ToInner(first), ToInner(second), flags);
+
+        public Task<long> SetDiffAndStoreAsync(RedisKey destination, RedisKey[] keys) =>
+            Inner.SetDiffAndStoreAsync(ToInner(destination), ToInner(keys));
+
+        public Task<long> SetDiffAndStoreAsync(RedisKey destination, RedisKey[] keys, CommandFlags flags) =>
+            Inner.SetDiffAndStoreAsync(ToInner(destination), ToInner(keys), flags);
+
         public Task<long> SetCombineAndStoreAsync(SetOperation operation, RedisKey destination, RedisKey[] keys, CommandFlags flags = CommandFlags.None) =>
             Inner.SetCombineAndStoreAsync(operation, ToInner(destination), ToInner(keys), flags);
 
