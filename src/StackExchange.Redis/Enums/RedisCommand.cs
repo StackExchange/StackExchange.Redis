@@ -66,6 +66,8 @@ internal enum RedisCommand
     HDEL,
     HELLO,
     HEXISTS,
+    HEXPIRE,
+    HEXPIREAT,
     HGET,
     HGETALL,
     HINCRBY,
@@ -74,6 +76,8 @@ internal enum RedisCommand
     HLEN,
     HMGET,
     HMSET,
+    HPEXPIRE,
+    HPEXPIREAT,
     HRANDFIELD,
     HSCAN,
     HSET,
@@ -279,9 +283,13 @@ internal static class RedisCommandExtensions
             case RedisCommand.GETEX:
             case RedisCommand.GETSET:
             case RedisCommand.HDEL:
+            case RedisCommand.HEXPIRE:
+            case RedisCommand.HEXPIREAT:
             case RedisCommand.HINCRBY:
             case RedisCommand.HINCRBYFLOAT:
             case RedisCommand.HMSET:
+            case RedisCommand.HPEXPIRE:
+            case RedisCommand.HPEXPIREAT:
             case RedisCommand.HSET:
             case RedisCommand.HSETNX:
             case RedisCommand.INCR:

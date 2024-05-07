@@ -81,6 +81,18 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public bool HashExists(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None) =>
             Inner.HashExists(ToInner(key), hashField, flags);
 
+        public ExpireResult? HashFieldExpire(RedisKey key, RedisValue hashField, TimeSpan expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None) =>
+            Inner.HashFieldExpire(ToInner(key), hashField, expiry, when, flags);
+
+        public ExpireResult[]? HashFieldExpire(RedisKey key, RedisValue[] hashFields, TimeSpan expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None) =>
+            Inner.HashFieldExpire(ToInner(key), hashFields, expiry, when, flags);
+
+        public ExpireResult? HashFieldExpire(RedisKey key, RedisValue hashField, DateTime expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None) =>
+            Inner.HashFieldExpire(ToInner(key), hashField, expiry, when, flags);
+
+        public ExpireResult[]? HashFieldExpire(RedisKey key, RedisValue[] hashFields, DateTime expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None) =>
+            Inner.HashFieldExpire(ToInner(key), hashFields, expiry, when, flags);
+
         public HashEntry[] HashGetAll(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.HashGetAll(ToInner(key), flags);
 

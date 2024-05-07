@@ -84,6 +84,18 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<bool> HashExistsAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None) =>
             Inner.HashExistsAsync(ToInner(key), hashField, flags);
 
+        public Task<ExpireResult?> HashFieldExpireAsync(RedisKey key, RedisValue hashField, TimeSpan expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None) =>
+            Inner.HashFieldExpireAsync(ToInner(key), hashField, expiry, when, flags);
+
+        public Task<ExpireResult[]?> HashFieldExpireAsync(RedisKey key, RedisValue[] hashFields, TimeSpan expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None) =>
+            Inner.HashFieldExpireAsync(ToInner(key), hashFields, expiry, when, flags);
+
+        public Task<ExpireResult?> HashFieldExpireAsync(RedisKey key, RedisValue hashField, DateTime expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None) =>
+            Inner.HashFieldExpireAsync(ToInner(key), hashField, expiry, when, flags);
+
+        public Task<ExpireResult[]?> HashFieldExpireAsync(RedisKey key, RedisValue[] hashFields, DateTime expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None) =>
+            Inner.HashFieldExpireAsync(ToInner(key), hashFields, expiry, when, flags);
+
         public Task<HashEntry[]> HashGetAllAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.HashGetAllAsync(ToInner(key), flags);
 

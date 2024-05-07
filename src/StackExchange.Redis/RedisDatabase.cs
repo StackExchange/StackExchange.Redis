@@ -387,6 +387,90 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Boolean);
         }
 
+        public ExpireResult? HashFieldExpire(RedisKey key, RedisValue hashField, TimeSpan expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None)
+        {
+            long milliseconds = expiry.Ticks / TimeSpan.TicksPerMillisecond;
+            return HashFieldExpireExecute(key, milliseconds, when, PickExpireCommandByPrecision, SyncExpireResultExecutor, flags, hashField);
+        }
+
+        public ExpireResult[]? HashFieldExpire(RedisKey key, RedisValue[] hashFields, TimeSpan expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None)
+        {
+            long milliseconds = expiry.Ticks / TimeSpan.TicksPerMillisecond;
+            return HashFieldExpireExecute(key, milliseconds, when, PickExpireCommandByPrecision, SyncExpireResultArrayExecutor, flags, hashFields);
+        }
+
+        public ExpireResult? HashFieldExpire(RedisKey key, RedisValue hashField, DateTime expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None)
+        {
+            long milliseconds = GetMillisecondsUntil(expiry);
+            return HashFieldExpireExecute(key, milliseconds, when, PickExpireAtCommandByPrecision, SyncExpireResultExecutor, flags, hashField);
+        }
+
+        public ExpireResult[]? HashFieldExpire(RedisKey key, RedisValue[] hashFields, DateTime expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None)
+        {
+            long milliseconds = GetMillisecondsUntil(expiry);
+            return HashFieldExpireExecute(key, milliseconds, when, PickExpireAtCommandByPrecision, SyncExpireResultArrayExecutor, flags, hashFields);
+        }
+
+        public Task<ExpireResult?> HashFieldExpireAsync(RedisKey key, RedisValue hashField, TimeSpan expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None)
+        {
+            long milliseconds = expiry.Ticks / TimeSpan.TicksPerMillisecond;
+            return HashFieldExpireExecute(key, milliseconds, when, PickExpireCommandByPrecision, AsyncExpireResultExecutor, flags, hashField);
+        }
+
+        public Task<ExpireResult[]?> HashFieldExpireAsync(RedisKey key, RedisValue[] hashFields, TimeSpan expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None)
+        {
+            long milliseconds = expiry.Ticks / TimeSpan.TicksPerMillisecond;
+            return HashFieldExpireExecute(key, milliseconds, when, PickExpireCommandByPrecision, AsyncExpireResultArrayExecutor, flags, hashFields);
+        }
+
+        public Task<ExpireResult?> HashFieldExpireAsync(RedisKey key, RedisValue hashField, DateTime expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None)
+        {
+            long milliseconds = GetMillisecondsUntil(expiry);
+            return HashFieldExpireExecute(key, milliseconds, when, PickExpireAtCommandByPrecision, AsyncExpireResultExecutor, flags, hashField);
+        }
+
+        public Task<ExpireResult[]?> HashFieldExpireAsync(RedisKey key, RedisValue[] hashFields, DateTime expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None)
+        {
+            long milliseconds = GetMillisecondsUntil(expiry);
+            return HashFieldExpireExecute(key, milliseconds, when, PickExpireAtCommandByPrecision, AsyncExpireResultArrayExecutor, flags, hashFields);
+        }
+
+        #region private for HFE 
+        private T HashFieldExpireExecute<T>(RedisKey key, long milliseconds, ExpireWhen when, Func<bool, RedisCommand> getCmd, Executor<T> executor, CommandFlags flags, params RedisValue[] hashFields)
+        {
+            if (hashFields == null) throw new ArgumentNullException(nameof(hashFields));
+            var useSeconds = milliseconds % 1000 == 0;
+            var cmd = getCmd(useSeconds);
+            long expiry = useSeconds ? (milliseconds / 1000) : milliseconds;
+
+            var values = when switch
+            {
+                ExpireWhen.Always => new List<RedisValue> { expiry, hashFields.Length },
+                _ => new List<RedisValue> { expiry, when.ToLiteral(), hashFields.Length },
+            };
+            values.AddRange(hashFields);
+            RedisFeatures features = GetFeatures(key, flags, cmd, out ServerEndPoint? server);
+            var msg = Message.Create(Database, flags, cmd, key, values.ToArray());
+            return executor(msg, server);
+        }
+
+        private RedisCommand PickExpireCommandByPrecision(bool useSeconds) => useSeconds ? RedisCommand.HEXPIRE : RedisCommand.HPEXPIRE;
+
+        private RedisCommand PickExpireAtCommandByPrecision(bool useSeconds) => useSeconds ? RedisCommand.HEXPIREAT : RedisCommand.HPEXPIREAT;
+
+        private delegate T Executor<T>(Message msg, ServerEndPoint? server);
+
+        private ExpireResult? SyncExpireResultExecutor(Message msg, ServerEndPoint? server) => ExecuteSync(msg, ResultProcessor.ExpireResult, server);
+
+        private ExpireResult[]? SyncExpireResultArrayExecutor(Message msg, ServerEndPoint? server) => ExecuteSync<ExpireResult[]?>(msg, ResultProcessor.ExpireResultArray, server);
+
+        private Task<ExpireResult?> AsyncExpireResultExecutor(Message msg, ServerEndPoint? server) => ExecuteAsync(msg, ResultProcessor.ExpireResult, server);
+
+        private Task<ExpireResult[]?> AsyncExpireResultArrayExecutor(Message msg, ServerEndPoint? server) => ExecuteAsync<ExpireResult[]?>(msg, ResultProcessor.ExpireResultArray, server);
+
+        #endregion helper stuff for HFE
+
+
         public RedisValue HashGet(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.HGET, key, hashField);
