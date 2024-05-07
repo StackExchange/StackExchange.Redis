@@ -331,7 +331,7 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the hash.</param>
         /// <param name="hashField">The field in the hash to get.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The value associated with field, or nil when field is not present in the hash or key does not exist.</returns>
+        /// <returns>The value associated with field, or <see cref="RedisValue.Null"/> when field is not present in the hash or key does not exist.</returns>
         /// <remarks><seealso href="https://redis.io/commands/hget"/></remarks>
         RedisValue HashGet(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None);
 
@@ -341,13 +341,14 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the hash.</param>
         /// <param name="hashField">The field in the hash to get.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The value associated with field, or nil when field is not present in the hash or key does not exist.</returns>
+        /// <returns>The value associated with field, or <see langword="null"/> when field is not present in the hash or key does not exist.</returns>
         /// <remarks><seealso href="https://redis.io/commands/hget"/></remarks>
         Lease<byte>? HashGetLease(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Returns the values associated with the specified fields in the hash stored at key.
-        /// For every field that does not exist in the hash, a nil value is returned.Because a non-existing keys are treated as empty hashes, running HMGET against a non-existing key will return a list of nil values.
+        /// For every field that does not exist in the hash, a <see langword="RedisValue.Null"/> value is returned.
+        /// Because non-existing keys are treated as empty hashes, running HMGET against a non-existing key will return a list of <see langword="RedisValue.Null"/> values.
         /// </summary>
         /// <param name="key">The key of the hash.</param>
         /// <param name="hashFields">The fields in the hash to get.</param>
@@ -802,7 +803,7 @@ namespace StackExchange.Redis
         /// Return a random key from the currently selected database.
         /// </summary>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The random key, or nil when the database is empty.</returns>
+        /// <returns>The random key, or <see cref="RedisKey.Null"/> when the database is empty.</returns>
         /// <remarks><seealso href="https://redis.io/commands/randomkey"/></remarks>
         RedisKey KeyRandom(CommandFlags flags = CommandFlags.None);
 
@@ -847,7 +848,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="key">The key to check.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>TTL, or nil when key does not exist or does not have a timeout.</returns>
+        /// <returns>TTL, or <see langword="null"/> when key does not exist or does not have a timeout.</returns>
         /// <remarks><seealso href="https://redis.io/commands/ttl"/></remarks>
         TimeSpan? KeyTimeToLive(RedisKey key, CommandFlags flags = CommandFlags.None);
 
@@ -888,7 +889,7 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the list.</param>
         /// <param name="index">The index position to get the value at.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The requested element, or nil when index is out of range.</returns>
+        /// <returns>The requested element, or <see cref="RedisValue.Null"/> when index is out of range.</returns>
         /// <remarks><seealso href="https://redis.io/commands/lindex"/></remarks>
         RedisValue ListGetByIndex(RedisKey key, long index, CommandFlags flags = CommandFlags.None);
 
@@ -921,7 +922,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="key">The key of the list.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The value of the first element, or nil when key does not exist.</returns>
+        /// <returns>The value of the first element, or <see cref="RedisValue.Null"/> when key does not exist.</returns>
         /// <remarks><seealso href="https://redis.io/commands/lpop"/></remarks>
         RedisValue ListLeftPop(RedisKey key, CommandFlags flags = CommandFlags.None);
 
@@ -932,7 +933,7 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the list.</param>
         /// <param name="count">The number of elements to remove</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>Array of values that were popped, or nil if the key doesn't exist.</returns>
+        /// <returns>Array of values that were popped, or <see langword="null"/> if the key doesn't exist.</returns>
         /// <remarks><seealso href="https://redis.io/commands/lpop"/></remarks>
         RedisValue[] ListLeftPop(RedisKey key, long count, CommandFlags flags = CommandFlags.None);
 
@@ -1075,7 +1076,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="key">The key of the list.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The element being popped.</returns>
+        /// <returns>The element being popped, or <see cref="RedisValue.Null"/> when key does not exist..</returns>
         /// <remarks><seealso href="https://redis.io/commands/rpop"/></remarks>
         RedisValue ListRightPop(RedisKey key, CommandFlags flags = CommandFlags.None);
 
@@ -1086,7 +1087,7 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the list.</param>
         /// <param name="count">The number of elements to pop</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>Array of values that were popped, or nil if the key doesn't exist.</returns>
+        /// <returns>Array of values that were popped, or <see langword="null"/> if the key doesn't exist.</returns>
         /// <remarks><seealso href="https://redis.io/commands/rpop"/></remarks>
         RedisValue[] ListRightPop(RedisKey key, long count, CommandFlags flags = CommandFlags.None);
 
@@ -1494,7 +1495,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="key">The key of the set.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The removed element, or nil when key does not exist.</returns>
+        /// <returns>The removed element, or <see cref="RedisValue.Null"/> when key does not exist.</returns>
         /// <remarks><seealso href="https://redis.io/commands/spop"/></remarks>
         RedisValue SetPop(RedisKey key, CommandFlags flags = CommandFlags.None);
 
@@ -2122,7 +2123,7 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// Returns the score of member in the sorted set at key.
-        /// If member does not exist in the sorted set, or key does not exist, nil is returned.
+        /// If member does not exist in the sorted set, or key does not exist, <see langword="null"/> is returned.
         /// </summary>
         /// <param name="key">The key of the sorted set.</param>
         /// <param name="member">The member to get a score for.</param>
@@ -2151,7 +2152,7 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the sorted set.</param>
         /// <param name="order">The order to sort by (defaults to ascending).</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The removed element, or nil when key does not exist.</returns>
+        /// <returns>The removed element, or <see langword="null"/> when key does not exist.</returns>
         /// <remarks>
         /// <seealso href="https://redis.io/commands/zpopmin"/>,
         /// <seealso href="https://redis.io/commands/zpopmax"/>
@@ -2674,32 +2675,32 @@ namespace StackExchange.Redis
         double StringDecrement(RedisKey key, double value, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Get the value of key. If the key does not exist the special value nil is returned.
+        /// Get the value of key. If the key does not exist the special value <see cref="RedisValue.Null"/> is returned.
         /// An error is returned if the value stored at key is not a string, because GET only handles string values.
         /// </summary>
         /// <param name="key">The key of the string.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The value of key, or nil when key does not exist.</returns>
+        /// <returns>The value of key, or <see cref="RedisValue.Null"/> when key does not exist.</returns>
         /// <remarks><seealso href="https://redis.io/commands/get"/></remarks>
         RedisValue StringGet(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Returns the values of all specified keys.
-        /// For every key that does not hold a string value or does not exist, the special value nil is returned.
+        /// For every key that does not hold a string value or does not exist, the special value <see cref="RedisValue.Null"/> is returned.
         /// </summary>
         /// <param name="keys">The keys of the strings.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The values of the strings with nil for keys do not exist.</returns>
+        /// <returns>The values of the strings with <see cref="RedisValue.Null"/> for keys do not exist.</returns>
         /// <remarks><seealso href="https://redis.io/commands/mget"/></remarks>
         RedisValue[] StringGet(RedisKey[] keys, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Get the value of key. If the key does not exist the special value nil is returned.
+        /// Get the value of key. If the key does not exist the special value <see langword="null"/> is returned.
         /// An error is returned if the value stored at key is not a string, because GET only handles string values.
         /// </summary>
         /// <param name="key">The key of the string.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The value of key, or nil when key does not exist.</returns>
+        /// <returns>The value of key, or <see langword="null"/> when key does not exist.</returns>
         /// <remarks><seealso href="https://redis.io/commands/get"/></remarks>
         Lease<byte>? StringGetLease(RedisKey key, CommandFlags flags = CommandFlags.None);
 
@@ -2733,7 +2734,7 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the string.</param>
         /// <param name="value">The value to replace the existing value with.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The old value stored at key, or nil when key did not exist.</returns>
+        /// <returns>The old value stored at key, or <see cref="RedisValue.Null"/> when key did not exist.</returns>
         /// <remarks><seealso href="https://redis.io/commands/getset"/></remarks>
         RedisValue StringGetSet(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None);
 
@@ -2744,7 +2745,7 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the string.</param>
         /// <param name="expiry">The expiry to set. <see langword="null"/> will remove expiry.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The value of key, or nil when key does not exist.</returns>
+        /// <returns>The value of key, or <see cref="RedisValue.Null"/> when key does not exist.</returns>
         /// <remarks><seealso href="https://redis.io/commands/getex"/></remarks>
         RedisValue StringGetSetExpiry(RedisKey key, TimeSpan? expiry, CommandFlags flags = CommandFlags.None);
 
@@ -2755,29 +2756,29 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the string.</param>
         /// <param name="expiry">The exact date and time to expire at. <see cref="DateTime.MaxValue"/> will remove expiry.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The value of key, or nil when key does not exist.</returns>
+        /// <returns>The value of key, or <see cref="RedisValue.Null"/> when key does not exist.</returns>
         /// <remarks><seealso href="https://redis.io/commands/getex"/></remarks>
         RedisValue StringGetSetExpiry(RedisKey key, DateTime expiry, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Get the value of key and delete the key.
-        /// If the key does not exist the special value nil is returned.
+        /// If the key does not exist the special value <see cref="RedisValue.Null"/> is returned.
         /// An error is returned if the value stored at key is not a string, because GET only handles string values.
         /// </summary>
         /// <param name="key">The key of the string.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The value of key, or nil when key does not exist.</returns>
+        /// <returns>The value of key, or <see cref="RedisValue.Null"/> when key does not exist.</returns>
         /// <remarks><seealso href="https://redis.io/commands/getdelete"/></remarks>
         RedisValue StringGetDelete(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Get the value of key.
-        /// If the key does not exist the special value nil is returned.
+        /// If the key does not exist the special value <see langword="default"/> is returned.
         /// An error is returned if the value stored at key is not a string, because GET only handles string values.
         /// </summary>
         /// <param name="key">The key of the string.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The value of key and its expiry, or nil when key does not exist.</returns>
+        /// <returns>The value of key and its expiry, or <see langword="default"/> when key does not exist.</returns>
         /// <remarks><seealso href="https://redis.io/commands/get"/></remarks>
         RedisValueWithExpiry StringGetWithExpiry(RedisKey key, CommandFlags flags = CommandFlags.None);
 
@@ -2901,7 +2902,7 @@ namespace StackExchange.Redis
         /// <param name="expiry">The expiry to set.</param>
         /// <param name="when">Which condition to set the value under (defaults to <see cref="When.Always"/>).</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The previous value stored at <paramref name="key"/>, or nil when key did not exist.</returns>
+        /// <returns>The previous value stored at <paramref name="key"/>, or <see cref="RedisValue.Null"/> when key did not exist.</returns>
         /// <remarks>
         /// <para>This method uses the <c>SET</c> command with the <c>GET</c> option introduced in Redis 6.2.0 instead of the deprecated <c>GETSET</c> command.</para>
         /// <para><seealso href="https://redis.io/commands/set"/></para>
@@ -2917,7 +2918,7 @@ namespace StackExchange.Redis
         /// <param name="keepTtl">Whether to maintain the existing key's TTL (KEEPTTL flag).</param>
         /// <param name="when">Which condition to set the value under (defaults to <see cref="When.Always"/>).</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The previous value stored at <paramref name="key"/>, or nil when key did not exist.</returns>
+        /// <returns>The previous value stored at <paramref name="key"/>, or <see cref="RedisValue.Null"/> when key did not exist.</returns>
         /// <remarks>This method uses the SET command with the GET option introduced in Redis 6.2.0 instead of the deprecated GETSET command.</remarks>
         /// <remarks><seealso href="https://redis.io/commands/set"/></remarks>
         RedisValue StringSetAndGet(RedisKey key, RedisValue value, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None);
