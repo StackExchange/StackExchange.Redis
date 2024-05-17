@@ -80,6 +80,7 @@ namespace StackExchange.Redis
             FILTERBY = "FILTERBY",
             FLUSH = "FLUSH",
             FREQ = "FREQ",
+            FVS = "FVS",
             GET = "GET",
             GETKEYS = "GETKEYS",
             GETNAME = "GETNAME",

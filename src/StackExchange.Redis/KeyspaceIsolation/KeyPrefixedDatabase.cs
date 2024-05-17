@@ -33,7 +33,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public bool GeoRemove(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None) =>
             Inner.GeoRemove(ToInner(key), member, flags);
 
-        public double? GeoDistance(RedisKey key, RedisValue member1, RedisValue member2, GeoUnit unit = GeoUnit.Meters,CommandFlags flags = CommandFlags.None) =>
+        public double? GeoDistance(RedisKey key, RedisValue member1, RedisValue member2, GeoUnit unit = GeoUnit.Meters, CommandFlags flags = CommandFlags.None) =>
             Inner.GeoDistance(ToInner(key), member1, member2, unit, flags);
 
         public string?[] GeoHash(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None) =>
@@ -48,7 +48,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public GeoPosition? GeoPosition(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None) =>
             Inner.GeoPosition(ToInner(key), member, flags);
 
-        public GeoRadiusResult[] GeoRadius(RedisKey key, RedisValue member, double radius, GeoUnit unit = GeoUnit.Meters, int count = -1, Order? order = null,GeoRadiusOptions options = GeoRadiusOptions.Default, CommandFlags flags = CommandFlags.None) =>
+        public GeoRadiusResult[] GeoRadius(RedisKey key, RedisValue member, double radius, GeoUnit unit = GeoUnit.Meters, int count = -1, Order? order = null, GeoRadiusOptions options = GeoRadiusOptions.Default, CommandFlags flags = CommandFlags.None) =>
             Inner.GeoRadius(ToInner(key), member, radius, unit, count, order, options, flags);
 
         public GeoRadiusResult[] GeoRadius(RedisKey key, double longitude, double latitude, double radius, GeoUnit unit = GeoUnit.Meters, int count = -1, Order? order = null, GeoRadiusOptions options = GeoRadiusOptions.Default, CommandFlags flags = CommandFlags.None) =>
@@ -93,6 +93,24 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public ExpireResult[]? HashFieldExpire(RedisKey key, RedisValue[] hashFields, DateTime expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None) =>
             Inner.HashFieldExpire(ToInner(key), hashFields, expiry, when, flags);
 
+        public long? HashFieldExpireTime(RedisKey key, RedisValue hashField, CommandFlags flags) =>
+            Inner.HashFieldExpireTime(ToInner(key), hashField, flags);
+
+        public long[]? HashFieldExpireTime(RedisKey key, RedisValue[] hashFields, CommandFlags flags) =>
+            Inner.HashFieldExpireTime(ToInner(key), hashFields, flags);
+
+        public long? HashFieldPersist(RedisKey key, RedisValue hashField, CommandFlags flags) =>
+            Inner.HashFieldPersist(ToInner(key), hashField, flags);
+
+        public long[]? HashFieldPersist(RedisKey key, RedisValue[] hashFields, CommandFlags flags) =>
+            Inner.HashFieldPersist(ToInner(key), hashFields, flags);
+
+        public long? HashFieldTimeToLive(RedisKey key, RedisValue hashField, CommandFlags flags) =>
+            Inner.HashFieldTimeToLive(ToInner(key), hashField, flags);
+
+        public long[]? HashFieldTimeToLive(RedisKey key, RedisValue[] hashFields, CommandFlags flags) =>
+            Inner.HashFieldTimeToLive(ToInner(key), hashFields, flags);
+
         public HashEntry[] HashGetAll(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.HashGetAll(ToInner(key), flags);
 
@@ -101,6 +119,24 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public RedisValue HashGet(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None) =>
             Inner.HashGet(ToInner(key), hashField, flags);
+
+        public RedisValue[]? HashGet(RedisKey key, RedisValue[] hashFields, TimeSpan expireDuration, ExpireWhen when, CommandFlags flags) =>
+            Inner.HashGet(ToInner(key), hashFields, expireDuration, when, flags);
+
+        public RedisValue[]? HashGet(RedisKey key, RedisValue[] hashFields, DateTime expireTime, ExpireWhen when, CommandFlags flags) =>
+            Inner.HashGet(ToInner(key), hashFields, expireTime, when, flags);
+
+        public RedisValue[]? HashGetPersistFields(RedisKey key, RedisValue[] hashFields, CommandFlags flags) =>
+            Inner.HashGetPersistFields(ToInner(key), hashFields, flags);
+
+        public RedisValue[]? HashSet(RedisKey key, HashEntry[] hashFields, bool keepExpiry, HashFieldFlags fieldFlags, CommandFlags flags) =>
+            Inner.HashSet(ToInner(key), hashFields, keepExpiry, fieldFlags, flags);
+
+        public RedisValue[]? HashSet(RedisKey key, HashEntry[] hashFields, TimeSpan expireDuration, ExpireWhen when, HashFieldFlags fieldFlags, CommandFlags flags) =>
+            Inner.HashSet(ToInner(key), hashFields, expireDuration, when, fieldFlags, flags);
+
+        public RedisValue[]? HashSet(RedisKey key, HashEntry[] hashFields, DateTime expireTime, ExpireWhen when, HashFieldFlags fieldFlags, CommandFlags flags) =>
+            Inner.HashSet(ToInner(key), hashFields, expireTime, when, fieldFlags, flags);
 
         public Lease<byte>? HashGetLease(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None) =>
             Inner.HashGetLease(ToInner(key), hashField, flags);
@@ -419,7 +455,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public long SortedSetAdd(RedisKey key, SortedSetEntry[] values, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetAdd(ToInner(key), values, when, flags);
 
-        public long SortedSetAdd(RedisKey key, SortedSetEntry[] values,SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None) =>
+        public long SortedSetAdd(RedisKey key, SortedSetEntry[] values, SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetAdd(ToInner(key), values, when, flags);
 
         public bool SortedSetAdd(RedisKey key, RedisValue member, double score, CommandFlags flags) =>
@@ -522,7 +558,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public double?[] SortedSetScores(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetScores(ToInner(key), members, flags);
 
-        public long SortedSetUpdate(RedisKey key, SortedSetEntry[] values,SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None) =>
+        public long SortedSetUpdate(RedisKey key, SortedSetEntry[] values, SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetUpdate(ToInner(key), values, when, flags);
 
         public bool SortedSetUpdate(RedisKey key, RedisValue member, double score, SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None) =>
@@ -719,7 +755,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
             => Inner.HashScan(ToInner(key), pattern, pageSize, cursor, pageOffset, flags);
 
         IEnumerable<RedisValue> IDatabase.SetScan(RedisKey key, RedisValue pattern, int pageSize, CommandFlags flags)
-            =>  Inner.SetScan(ToInner(key), pattern, pageSize, flags);
+            => Inner.SetScan(ToInner(key), pattern, pageSize, flags);
 
         IEnumerable<RedisValue> IDatabase.SetScan(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags)
             => Inner.SetScan(ToInner(key), pattern, pageSize, cursor, pageOffset, flags);
@@ -735,5 +771,6 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public long KeyTouch(RedisKey[] keys, CommandFlags flags = CommandFlags.None) =>
             Inner.KeyTouch(ToInner(keys), flags);
+
     }
 }

@@ -381,6 +381,198 @@ namespace StackExchange.Redis
         Task<ExpireResult[]?> HashFieldExpireAsync(RedisKey key, RedisValue[] hashFields, DateTime expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// For specified field, it gets the expiration time as a Unix timestamp in milliseconds (milliseconds since the Unix epoch)
+        /// </summary>
+        /// <param name="key">The key of the hash.</param>
+        /// <param name="hashField">The field in the hash to get expire time.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>null if the key does not exist. Otherwise returns the result of operation for given field
+        ///     expiration time: as a UNIX timestamp in milliseconds
+        ///     -1: if field has no associated expiration time 
+        ///     -2: no such field
+        /// </returns>
+        Task<long?> HashFieldExpireTimeAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// For each specified field, it gets the expiration time as a Unix timestamp in milliseconds (milliseconds since the Unix epoch)
+        /// </summary>
+        /// <param name="key">The key of the hash.</param>
+        /// <param name="hashFields">The fields in the hash to get expire time.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>null if the key does not exist. Otherwise returns the result of operation for given fields
+        ///     expiration time: as a UNIX timestamp in milliseconds
+        ///     -1: if field has no associated expiration time 
+        ///     -2: no such field
+        /// </returns>
+        Task<long[]?> HashFieldExpireTimeAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// For specified field, it removes the expiration time
+        /// </summary>
+        /// <param name="key">The key of the hash.</param>
+        /// <param name="hashField">The field in the hash to remove expire time.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>null if the key does not exist. Otherwise returns the result of operation for given field
+        ///     1: if the expiration time was removed
+        ///     -1: if field has no associated expiration time 
+        ///     -2: no such field
+        /// </returns>
+        Task<long?> HashFieldPersistAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// For each specified field, it removes the expiration time
+        /// </summary>
+        /// <param name="key">The key of the hash.</param>
+        /// <param name="hashFields">The fields in the hash to remove expire time.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>null if the key does not exist. Otherwise returns the result of operation for given fields
+        ///     1: if the expiration time was removed
+        ///     -1: if field has no associated expiration time 
+        ///     -2: no such field
+        /// </returns>
+        Task<long[]?> HashFieldPersistAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// For specified field, it gets the remaining time to live in milliseconds
+        /// </summary>
+        /// <param name="key">The key of the hash.</param>
+        /// <param name="hashField">The field in the hash to get expire time.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>null if the key does not exist. Otherwise returns the result of operation for given field
+        ///      time to live: in milliseconds
+        ///     -1: if field has no associated expiration time 
+        ///     -2: no such field
+        /// </returns>
+        Task<long?> HashFieldTimeToLiveAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// For each specified field, it gets the remaining time to live in milliseconds
+        /// </summary>
+        /// <param name="key">The key of the hash.</param>
+        /// <param name="hashFields">The fields in the hash to get expire time.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>null if the key does not exist. Otherwise returns the result of operation for given fields
+        ///      time to live: in milliseconds
+        ///     -1: if field has no associated expiration time 
+        ///     -2: no such field
+        /// </returns>
+        Task<long[]?> HashFieldTimeToLiveAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// For each specified field, it gets the value and sets the field's remaining time to live 
+        /// </summary>
+        /// <param name="key">The key of the hash.</param>
+        /// <param name="hashFields">The fields in the hash for this operation.</param>
+        /// <param name="expireDuration">The time out to set in milliseconds</param>
+        /// <param name="when">under which condition the expiration will be set using <see cref="ExpireWhen"/>.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>null if the key does not exist. Otherwise returns the result of operation for given fields
+        ///      value: value of field
+        ///      nil: if no such field exists
+        /// </returns>
+        Task<RedisValue[]?> HashGetAsync(RedisKey key, RedisValue[] hashFields, TimeSpan expireDuration, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// For each specified field, it gets the value and sets the field's expiration timestamp
+        /// </summary>
+        /// <param name="key">The key of the hash.</param>
+        /// <param name="hashFields">The fields in the hash for this operation.</param>
+        /// <param name="expireTime">The exact date to expiry to set.</param>
+        /// <param name="when">under which condition the expiration will be set using <see cref="ExpireWhen"/>.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>null if the key does not exist. Otherwise returns the result of operation for given fields
+        ///      value: value of field
+        ///      nil: if no such field exists
+        /// </returns>
+        Task<RedisValue[]?> HashGetAsync(RedisKey key, RedisValue[] hashFields, DateTime expireTime, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// For each specified field, it gets the value and removes the field's expiration
+        /// </summary>
+        /// <param name="key">The key of the hash.</param>
+        /// <param name="hashFields">The fields in the hash for this operation.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>null if the key does not exist. Otherwise returns the result of operation for given fields
+        ///      value: value of field
+        ///      nil: if no such field exists
+        /// </returns>
+        Task<RedisValue[]?> HashGetPersistFieldsAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// For each specified field, it sets the value and optionally sets the fields expiration
+        /// Depending on HashFieldFlags it creates the hash key or its fields in case they dont exist
+        ///         - When DC is not specified: if key does not exist: create key
+        ///         - When DC (“Don’t Create”) is specified: if key does not exist: do nothing (don’t create key)  
+        ///         - When neither DCF nor DOF are specified: for each specified field: if such field does not exist: create field; set all fields' value and expiration time 
+        ///         - When DCF (“Don’t Create Fields”) is specified: for each specified field: if the field already exists: set the field's value and expiration time; ignore fields that do not exist
+        ///         - When DOF (“Don’t Overwrite Fields”) is specified: for each specified field: if such field does not exist: create field and set its value and expiration time; ignore fields that already exists  
+        /// </summary>
+        /// <param name="key">The key of the hash.</param>
+        /// <param name="hashFields">The fields in the hash for this operation.</param>
+        /// <param name="keepExpiry">Whether to maintain the existing expiration.</param>
+        /// <param name="fieldFlags"></param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>null if the key does not exist. Otherwise returns the result of operation for given fields
+        ///     return value depends on the HashFieldFlags (GETNEW/GETOLD) 
+        ///      if GETNEW is specified: the value of field after command execution 
+        ///      if GETOLD is specified: the value of field before command execution
+        ///      if GETNEW or GETOLD is not specified: a + b where 
+        ///                         a: 1 if the field's value was set or 0 if not (DCF/DOF met)
+        ///                         b: 2 if the field's expiration time was set/discarded or 0 if not (DCF/DOF met, NX/XX/GT/LT not met)
+        /// </returns>
+        Task<RedisValue[]?> HashSetAsync(RedisKey key, HashEntry[] hashFields, bool keepExpiry, HashFieldFlags fieldFlags = HashFieldFlags.None, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// For each specified field, it sets the value and optionally sets the fields expiration
+        /// Depending on HashFieldFlags it creates the hash key or its fields in case they dont exist
+        ///         - When DC is not specified: if key does not exist: create key
+        ///         - When DC (“Don’t Create”) is specified: if key does not exist: do nothing (don’t create key)  
+        ///         - When neither DCF nor DOF are specified: for each specified field: if such field does not exist: create field; set all fields' value and expiration time 
+        ///         - When DCF (“Don’t Create Fields”) is specified: for each specified field: if the field already exists: set the field's value and expiration time; ignore fields that do not exist
+        ///         - When DOF (“Don’t Overwrite Fields”) is specified: for each specified field: if such field does not exist: create field and set its value and expiration time; ignore fields that already exists  
+        /// </summary>
+        /// <param name="key">The key of the hash.</param>
+        /// <param name="hashFields">The fields in the hash for this operation.</param>
+        /// <param name="expireDuration">The time out to set in milliseconds</param>
+        /// <param name="when">under which condition the expiration will be set using <see cref="ExpireWhen"/>.</param>
+        /// <param name="fieldFlags"></param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>null if the key does not exist. Otherwise returns the result of operation for given fields
+        ///     return value depends on the HashFieldFlags (GETNEW/GETOLD) 
+        ///      if GETNEW is specified: the value of field after command execution 
+        ///      if GETOLD is specified: the value of field before command execution
+        ///      if GETNEW or GETOLD is not specified: a + b where 
+        ///                         a: 1 if the field's value was set or 0 if not (DCF/DOF met)
+        ///                         b: 2 if the field's expiration time was set/discarded or 0 if not (DCF/DOF met, NX/XX/GT/LT not met)
+        /// </returns>
+        Task<RedisValue[]?> HashSetAsync(RedisKey key, HashEntry[] hashFields, TimeSpan expireDuration, ExpireWhen when = ExpireWhen.Always, HashFieldFlags fieldFlags = HashFieldFlags.None, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// For each specified field, it sets the value and optionally sets the fields expiration
+        /// Depending on HashFieldFlags it creates the hash key or its fields in case they dont exist
+        ///         - When DC is not specified: if key does not exist: create key
+        ///         - When DC (“Don’t Create”) is specified: if key does not exist: do nothing (don’t create key)  
+        ///         - When neither DCF nor DOF are specified: for each specified field: if such field does not exist: create field; set all fields' value and expiration time 
+        ///         - When DCF (“Don’t Create Fields”) is specified: for each specified field: if the field already exists: set the field's value and expiration time; ignore fields that do not exist
+        ///         - When DOF (“Don’t Overwrite Fields”) is specified: for each specified field: if such field does not exist: create field and set its value and expiration time; ignore fields that already exists  
+        /// </summary>
+        /// <param name="key">The key of the hash.</param>
+        /// <param name="hashFields">The fields in the hash for this operation.</param>
+        /// <param name="expireTime">The exact date to expiry to set.</param>
+        /// <param name="when">under which condition the expiration will be set using <see cref="ExpireWhen"/>.</param>
+        /// <param name="fieldFlags"></param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>null if the key does not exist. Otherwise returns the result of operation for given fields
+        ///     return value depends on the HashFieldFlags (GETNEW/GETOLD) 
+        ///      if GETNEW is specified: the value of field after command execution 
+        ///      if GETOLD is specified: the value of field before command execution
+        ///      if GETNEW or GETOLD is not specified: a + b where 
+        ///                         a: 1 if the field's value was set or 0 if not (DCF/DOF met)
+        ///                         b: 2 if the field's expiration time was set/discarded or 0 if not (DCF/DOF met, NX/XX/GT/LT not met)
+        /// </returns>
+        Task<RedisValue[]?> HashSetAsync(RedisKey key, HashEntry[] hashFields, DateTime expireTime, ExpireWhen when = ExpireWhen.Always, HashFieldFlags fieldFlags = HashFieldFlags.None, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Returns the value associated with field in the hash stored at key.
         /// </summary>
         /// <param name="key">The key of the hash.</param>
