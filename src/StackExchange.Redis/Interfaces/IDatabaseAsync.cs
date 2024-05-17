@@ -470,7 +470,7 @@ namespace StackExchange.Redis
         ///      value: value of field
         ///      nil: if no such field exists
         /// </returns>
-        Task<RedisValue[]?> HashGetAsync(RedisKey key, RedisValue[] hashFields, TimeSpan expireDuration, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None);
+        Task<RedisValue[]?> HashGetAndSetExpiryAsync(RedisKey key, RedisValue[] hashFields, TimeSpan expireDuration, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// For each specified field, it gets the value and sets the field's expiration timestamp
@@ -484,7 +484,7 @@ namespace StackExchange.Redis
         ///      value: value of field
         ///      nil: if no such field exists
         /// </returns>
-        Task<RedisValue[]?> HashGetAsync(RedisKey key, RedisValue[] hashFields, DateTime expireTime, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None);
+        Task<RedisValue[]?> HashGetAndSetExpiryAsync(RedisKey key, RedisValue[] hashFields, DateTime expireTime, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// For each specified field, it gets the value and removes the field's expiration
@@ -496,7 +496,7 @@ namespace StackExchange.Redis
         ///      value: value of field
         ///      nil: if no such field exists
         /// </returns>
-        Task<RedisValue[]?> HashGetPersistFieldsAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None);
+        Task<RedisValue[]?> HashGetAndPersistFieldsAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// For each specified field, it sets the value and optionally sets the fields expiration
@@ -520,7 +520,7 @@ namespace StackExchange.Redis
         ///                         a: 1 if the field's value was set or 0 if not (DCF/DOF met)
         ///                         b: 2 if the field's expiration time was set/discarded or 0 if not (DCF/DOF met, NX/XX/GT/LT not met)
         /// </returns>
-        Task<RedisValue[]?> HashSetAsync(RedisKey key, HashEntry[] hashFields, bool keepExpiry, HashFieldFlags fieldFlags = HashFieldFlags.None, CommandFlags flags = CommandFlags.None);
+        Task<RedisValue[]?> HashSetAndSetExpiryAsync(RedisKey key, HashEntry[] hashFields, bool keepExpiry, HashFieldFlags fieldFlags = HashFieldFlags.None, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// For each specified field, it sets the value and optionally sets the fields expiration
@@ -545,7 +545,7 @@ namespace StackExchange.Redis
         ///                         a: 1 if the field's value was set or 0 if not (DCF/DOF met)
         ///                         b: 2 if the field's expiration time was set/discarded or 0 if not (DCF/DOF met, NX/XX/GT/LT not met)
         /// </returns>
-        Task<RedisValue[]?> HashSetAsync(RedisKey key, HashEntry[] hashFields, TimeSpan expireDuration, ExpireWhen when = ExpireWhen.Always, HashFieldFlags fieldFlags = HashFieldFlags.None, CommandFlags flags = CommandFlags.None);
+        Task<RedisValue[]?> HashSetAndSetExpiryAsync(RedisKey key, HashEntry[] hashFields, TimeSpan expireDuration, ExpireWhen when = ExpireWhen.Always, HashFieldFlags fieldFlags = HashFieldFlags.None, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// For each specified field, it sets the value and optionally sets the fields expiration
@@ -570,7 +570,7 @@ namespace StackExchange.Redis
         ///                         a: 1 if the field's value was set or 0 if not (DCF/DOF met)
         ///                         b: 2 if the field's expiration time was set/discarded or 0 if not (DCF/DOF met, NX/XX/GT/LT not met)
         /// </returns>
-        Task<RedisValue[]?> HashSetAsync(RedisKey key, HashEntry[] hashFields, DateTime expireTime, ExpireWhen when = ExpireWhen.Always, HashFieldFlags fieldFlags = HashFieldFlags.None, CommandFlags flags = CommandFlags.None);
+        Task<RedisValue[]?> HashSetAndSetExpiryAsync(RedisKey key, HashEntry[] hashFields, DateTime expireTime, ExpireWhen when = ExpireWhen.Always, HashFieldFlags fieldFlags = HashFieldFlags.None, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Returns the value associated with field in the hash stored at key.

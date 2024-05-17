@@ -362,7 +362,7 @@ public class HashFieldTests : TestBase
         var hashKey = Me();
         db.HashSet(hashKey, entries);
 
-        var fieldsResult = db.HashGet(hashKey, fields, oneYearInMs);
+        var fieldsResult = db.HashGetAndSetExpiry(hashKey, fields, oneYearInMs);
         Assert.Equal(entries.Select(i => i.Value).ToArray(), fieldsResult);
 
         var ttlResults = db.HashFieldTimeToLive(hashKey, fields);
@@ -370,7 +370,7 @@ public class HashFieldTests : TestBase
         Assert.True(ttlResults.Length > 0);
         Assert.True(ttlResults.All(x => x > 0));
 
-        fieldsResult = db.HashGet(hashKey, fields, nextCentury);
+        fieldsResult = db.HashGetAndSetExpiry(hashKey, fields, nextCentury);
         Assert.Equal(entries.Select(i => i.Value).ToArray(), fieldsResult);
 
         var expireDates = db.HashFieldExpireTime(hashKey, fields);
@@ -378,7 +378,7 @@ public class HashFieldTests : TestBase
         Assert.Equal(new[] { ms, ms }, expireDates);
 
 
-        fieldsResult = db.HashGetPersistFields(hashKey, fields);
+        fieldsResult = db.HashGetAndPersistFields(hashKey, fields);
         Assert.Equal(entries.Select(i => i.Value).ToArray(), fieldsResult);
 
         var fieldsNoExpireDates = db.HashFieldExpireTime(hashKey, fields);
@@ -392,7 +392,7 @@ public class HashFieldTests : TestBase
         var hashKey = Me();
         db.HashSet(hashKey, entries);
 
-        var fieldsResult = db.HashGet(hashKey, fields, oneYearInMs, ExpireWhen.HasNoExpiry);
+        var fieldsResult = db.HashGetAndSetExpiry(hashKey, fields, oneYearInMs, ExpireWhen.HasNoExpiry);
         Assert.Equal(entries.Select(i => i.Value).ToArray(), fieldsResult);
 
         var ttlResults = db.HashFieldTimeToLive(hashKey, fields);
@@ -400,7 +400,7 @@ public class HashFieldTests : TestBase
         Assert.True(ttlResults.Length > 0);
         Assert.True(ttlResults.All(x => x > 0));
 
-        fieldsResult = db.HashGet(hashKey, fields, nextCentury, ExpireWhen.HasNoExpiry);
+        fieldsResult = db.HashGetAndSetExpiry(hashKey, fields, nextCentury, ExpireWhen.HasNoExpiry);
         Assert.Equal(entries.Select(i => i.Value).ToArray(), fieldsResult);
 
         var expireDates = db.HashFieldExpireTime(hashKey, fields);
@@ -408,7 +408,7 @@ public class HashFieldTests : TestBase
         Assert.NotEqual(new[] { ms, ms }, expireDates);
 
 
-        fieldsResult = db.HashGetPersistFields(hashKey, fields);
+        fieldsResult = db.HashGetAndPersistFields(hashKey, fields);
         Assert.Equal(entries.Select(i => i.Value).ToArray(), fieldsResult);
 
         var fieldsNoExpireDates = db.HashFieldExpireTime(hashKey, fields);
@@ -421,10 +421,10 @@ public class HashFieldTests : TestBase
         var db = Create(require: RedisFeatures.v7_2_0_rc1).GetDatabase();
         var hashKey = Me();
 
-        var fieldsResult = db.HashGet(hashKey, fields, oneYearInMs);
+        var fieldsResult = db.HashGetAndSetExpiry(hashKey, fields, oneYearInMs);
         Assert.Null(fieldsResult);
 
-        fieldsResult = db.HashGet(hashKey, fields, nextCentury);
+        fieldsResult = db.HashGetAndSetExpiry(hashKey, fields, nextCentury);
         Assert.Null(fieldsResult);
     }
 
@@ -436,11 +436,11 @@ public class HashFieldTests : TestBase
         db.HashSet(hashKey, entries);
         db.HashFieldExpire(hashKey, fields, oneYearInMs);
 
-        var fieldsResult = db.HashGet(hashKey, new RedisValue[] { "notExistingField1", "notExistingField2" }, oneYearInMs);
+        var fieldsResult = db.HashGetAndSetExpiry(hashKey, new RedisValue[] { "notExistingField1", "notExistingField2" }, oneYearInMs);
         Assert.NotNull(fieldsResult);
         Assert.Equal(new RedisValue[] { RedisValue.Null, RedisValue.Null }, fieldsResult);
 
-        fieldsResult = db.HashGet(hashKey, new RedisValue[] { "notExistingField1", "notExistingField2" }, nextCentury);
+        fieldsResult = db.HashGetAndSetExpiry(hashKey, new RedisValue[] { "notExistingField1", "notExistingField2" }, nextCentury);
         Assert.NotNull(fieldsResult);
         Assert.Equal(new RedisValue[] { RedisValue.Null, RedisValue.Null }, fieldsResult);
     }
@@ -452,7 +452,7 @@ public class HashFieldTests : TestBase
         var hashKey = Me();
         db.HashSet(hashKey, entries);
 
-        var fieldsResult = db.HashSet(hashKey, new[] { new HashEntry("f1", 1), new HashEntry("f2", 2) }, oneYearInMs);
+        var fieldsResult = db.HashSetAndSetExpiry(hashKey, new[] { new HashEntry("f1", 1), new HashEntry("f2", 2) }, oneYearInMs);
         Assert.Equal(new RedisValue[] { 3, 3 }, fieldsResult);
 
         var ttlResults = db.HashFieldTimeToLive(hashKey, fields);
@@ -460,14 +460,14 @@ public class HashFieldTests : TestBase
         Assert.True(ttlResults.Length > 0);
         Assert.True(ttlResults.All(x => x > 0));
 
-        fieldsResult = db.HashSet(hashKey, entries, nextCentury);
+        fieldsResult = db.HashSetAndSetExpiry(hashKey, entries, nextCentury);
         Assert.Equal(new RedisValue[] { 3, 3 }, fieldsResult);
 
         var expireDates = db.HashFieldExpireTime(hashKey, fields);
         long ms = new DateTimeOffset(nextCentury).ToUnixTimeMilliseconds();
         Assert.Equal(new[] { ms, ms }, expireDates);
 
-        fieldsResult = db.HashSet(hashKey, entries, false);
+        fieldsResult = db.HashSetAndSetExpiry(hashKey, entries, false);
         Assert.Equal(new RedisValue[] { 3, 3 }, fieldsResult);
 
         var fieldsNoExpireDates = db.HashFieldExpireTime(hashKey, fields);
@@ -480,10 +480,10 @@ public class HashFieldTests : TestBase
         var db = Create(require: RedisFeatures.v7_2_0_rc1).GetDatabase();
         var hashKey = Me();
 
-        var fieldsResult = db.HashSet(hashKey, entries, oneYearInMs);
+        var fieldsResult = db.HashSetAndSetExpiry(hashKey, entries, oneYearInMs);
         Assert.Equal(new RedisValue[] { 3, 3 }, fieldsResult);
 
-        fieldsResult = db.HashSet(hashKey, entries, nextCentury);
+        fieldsResult = db.HashSetAndSetExpiry(hashKey, entries, nextCentury);
         Assert.Equal(new RedisValue[] { 3, 3 }, fieldsResult);
     }
 
@@ -495,11 +495,11 @@ public class HashFieldTests : TestBase
         db.HashSet(hashKey, entries);
         db.HashFieldExpire(hashKey, fields, oneYearInMs);
 
-        var fieldsResult = db.HashSet(hashKey, new[] { new HashEntry("notExistingField1", 1), new HashEntry("notExistingField2", 2) }, oneYearInMs);
+        var fieldsResult = db.HashSetAndSetExpiry(hashKey, new[] { new HashEntry("notExistingField1", 1), new HashEntry("notExistingField2", 2) }, oneYearInMs);
         Assert.NotNull(fieldsResult);
         Assert.Equal(new RedisValue[] { 3, 3 }, fieldsResult);
 
-        fieldsResult = db.HashSet(hashKey, new[] { new HashEntry("notExistingField1", 1), new HashEntry("notExistingField2", 2) }, nextCentury);
+        fieldsResult = db.HashSetAndSetExpiry(hashKey, new[] { new HashEntry("notExistingField1", 1), new HashEntry("notExistingField2", 2) }, nextCentury);
         Assert.NotNull(fieldsResult);
         Assert.Equal(new RedisValue[] { 3, 3 }, fieldsResult);
     }
@@ -508,10 +508,9 @@ public class HashFieldTests : TestBase
     public void HashFieldSetWithExpireConditions()
     {
         var db = Create(require: RedisFeatures.v7_2_0_rc1).GetDatabase();
-        var hashKey = Me(); 
-        db.KeyDelete(hashKey);
+        var hashKey = Me();
 
-        var fieldsResult = db.HashSet(hashKey, entries, oneYearInMs, ExpireWhen.HasNoExpiry);
+        var fieldsResult = db.HashSetAndSetExpiry(hashKey, entries, oneYearInMs, ExpireWhen.HasNoExpiry);
         Assert.Equal(new RedisValue[] { 3, 3 }, fieldsResult);
 
         var ttlResults = db.HashFieldTimeToLive(hashKey, fields);
@@ -519,14 +518,14 @@ public class HashFieldTests : TestBase
         Assert.True(ttlResults.Length > 0);
         Assert.True(ttlResults.All(x => x > 0));
 
-        fieldsResult = db.HashSet(hashKey, entries, nextCentury, ExpireWhen.HasNoExpiry);
+        fieldsResult = db.HashSetAndSetExpiry(hashKey, entries, nextCentury, ExpireWhen.HasNoExpiry);
         Assert.Equal(new RedisValue[] { 1, 1, }, fieldsResult);
 
         var expireDates = db.HashFieldExpireTime(hashKey, fields);
         long ms = new DateTimeOffset(nextCentury).ToUnixTimeMilliseconds();
         Assert.NotEqual(new[] { ms, ms }, expireDates);
 
-        fieldsResult = db.HashSet(hashKey, entries, false);
+        fieldsResult = db.HashSetAndSetExpiry(hashKey, entries, false);
         Assert.Equal(new RedisValue[] { 3, 3 }, fieldsResult);
 
         var fieldsNoExpireDates = db.HashFieldExpireTime(hashKey, fields);
@@ -540,13 +539,13 @@ public class HashFieldTests : TestBase
         var hashKey = Me();
         db.KeyDelete(hashKey);
 
-        var fieldsResult = db.HashSet(hashKey, entries, oneYearInMs, ExpireWhen.HasNoExpiry, HashFieldFlags.DC);
+        var fieldsResult = db.HashSetAndSetExpiry(hashKey, entries, oneYearInMs, ExpireWhen.HasNoExpiry, HashFieldFlags.DC);
         Assert.Null(fieldsResult);
 
-        fieldsResult = db.HashSet(hashKey, entries, oneYearInMs, ExpireWhen.HasNoExpiry, HashFieldFlags.DCF);
+        fieldsResult = db.HashSetAndSetExpiry(hashKey, entries, oneYearInMs, ExpireWhen.HasNoExpiry, HashFieldFlags.DCF);
         Assert.Null(fieldsResult);
 
-        fieldsResult = db.HashSet(hashKey, entries, oneYearInMs, ExpireWhen.HasNoExpiry, HashFieldFlags.DOF);
+        fieldsResult = db.HashSetAndSetExpiry(hashKey, entries, oneYearInMs, ExpireWhen.HasNoExpiry, HashFieldFlags.DOF);
         Assert.Equal(new RedisValue[] { 3, 3 }, fieldsResult);
 
         var ttlResults = db.HashFieldTimeToLive(hashKey, fields);
@@ -554,7 +553,7 @@ public class HashFieldTests : TestBase
         Assert.True(ttlResults.Length > 0);
         Assert.True(ttlResults.All(x => x > 0));
 
-        fieldsResult = db.HashSet(hashKey, new HashEntry[] { new("f1", "a"), new("f2", "b") }, nextCentury, ExpireWhen.HasNoExpiry, HashFieldFlags.GETOLD);
+        fieldsResult = db.HashSetAndSetExpiry(hashKey, new HashEntry[] { new("f1", "a"), new("f2", "b") }, nextCentury, ExpireWhen.HasNoExpiry, HashFieldFlags.GETOLD);
         Assert.Equal(entries.Select(i => i.Value).ToArray(), fieldsResult);
 
         var expireDates = db.HashFieldExpireTime(hashKey, fields);
@@ -562,7 +561,7 @@ public class HashFieldTests : TestBase
         Assert.NotEqual(new[] { ms, ms }, expireDates);
 
 
-        fieldsResult = db.HashSet(hashKey, new HashEntry[] { new("f1", "x"), new("f2", "y") }, false, HashFieldFlags.GETNEW);
+        fieldsResult = db.HashSetAndSetExpiry(hashKey, new HashEntry[] { new("f1", "x"), new("f2", "y") }, false, HashFieldFlags.GETNEW);
         Assert.Equal(new RedisValue[] { "x", "y" }, fieldsResult);
 
         var fieldsNoExpireDates = db.HashFieldExpireTime(hashKey, fields);

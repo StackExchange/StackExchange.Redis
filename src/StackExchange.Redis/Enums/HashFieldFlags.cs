@@ -56,8 +56,18 @@ internal static class HashFieldFlagsExtensions
     internal static bool isGETOLD(this HashFieldFlags flags) =>
         flags.HasFlag(HashFieldFlags.GETOLD);
 
-    internal static List<RedisValue> ToRedisValueList(this HashFieldFlags flags) =>
-        flags.isNone() ? new List<RedisValue>() : flags.ToString().Split(',').Select(v => (RedisValue)v).ToList();
+    internal static List<RedisValue> ToRedisValueList(this HashFieldFlags flags)
+    {
+        List<RedisValue> values = new();
+        if (flags.isNone()) return values;
+        if (flags.isDC()) values.Add(HashFieldFlags.DC.ToString());
+        if (flags.isDCF()) values.Add(HashFieldFlags.DCF.ToString());
+        if (flags.isDOF()) values.Add(HashFieldFlags.DOF.ToString());
+        if (flags.isGETNEW()) values.Add(HashFieldFlags.GETNEW.ToString());
+        if (flags.isGETOLD()) values.Add(HashFieldFlags.GETOLD.ToString());
+        return values;
+
+    }
 
 }
 
