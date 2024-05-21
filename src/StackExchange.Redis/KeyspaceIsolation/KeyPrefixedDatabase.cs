@@ -93,23 +93,23 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public ExpireResult[]? HashFieldExpire(RedisKey key, RedisValue[] hashFields, DateTime expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None) =>
             Inner.HashFieldExpire(ToInner(key), hashFields, expiry, when, flags);
 
-        public long? HashFieldExpireTime(RedisKey key, RedisValue hashField, CommandFlags flags) =>
-            Inner.HashFieldExpireTime(ToInner(key), hashField, flags);
+        public long? HashFieldGetExpireDateTime(RedisKey key, RedisValue hashField, CommandFlags flags) =>
+            Inner.HashFieldGetExpireDateTime(ToInner(key), hashField, flags);
 
-        public long[]? HashFieldExpireTime(RedisKey key, RedisValue[] hashFields, CommandFlags flags) =>
-            Inner.HashFieldExpireTime(ToInner(key), hashFields, flags);
+        public long[]? HashFieldGetExpireDateTime(RedisKey key, RedisValue[] hashFields, CommandFlags flags) =>
+            Inner.HashFieldGetExpireDateTime(ToInner(key), hashFields, flags);
 
-        public long? HashFieldPersist(RedisKey key, RedisValue hashField, CommandFlags flags) =>
+        public PersistResult? HashFieldPersist(RedisKey key, RedisValue hashField, CommandFlags flags) =>
             Inner.HashFieldPersist(ToInner(key), hashField, flags);
 
-        public long[]? HashFieldPersist(RedisKey key, RedisValue[] hashFields, CommandFlags flags) =>
+        public PersistResult[]? HashFieldPersist(RedisKey key, RedisValue[] hashFields, CommandFlags flags) =>
             Inner.HashFieldPersist(ToInner(key), hashFields, flags);
 
-        public long? HashFieldTimeToLive(RedisKey key, RedisValue hashField, CommandFlags flags) =>
-            Inner.HashFieldTimeToLive(ToInner(key), hashField, flags);
+        public long? HashFieldGetTimeToLive(RedisKey key, RedisValue hashField, CommandFlags flags) =>
+            Inner.HashFieldGetTimeToLive(ToInner(key), hashField, flags);
 
-        public long[]? HashFieldTimeToLive(RedisKey key, RedisValue[] hashFields, CommandFlags flags) =>
-            Inner.HashFieldTimeToLive(ToInner(key), hashFields, flags);
+        public long[]? HashFieldGetTimeToLive(RedisKey key, RedisValue[] hashFields, CommandFlags flags) =>
+            Inner.HashFieldGetTimeToLive(ToInner(key), hashFields, flags);
 
         public HashEntry[] HashGetAll(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.HashGetAll(ToInner(key), flags);

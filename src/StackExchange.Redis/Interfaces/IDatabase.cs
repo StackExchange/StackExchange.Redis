@@ -405,7 +405,7 @@ namespace StackExchange.Redis
         ///     -1: if field has no associated expiration time 
         ///     -2: no such field
         /// </returns>
-        long? HashFieldExpireTime(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None);
+        long? HashFieldGetExpireDateTime(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// For each specified field, it gets the expiration time as a Unix timestamp in milliseconds (milliseconds since the Unix epoch)
@@ -418,7 +418,7 @@ namespace StackExchange.Redis
         ///     -1: if field has no associated expiration time 
         ///     -2: no such field
         /// </returns>
-        long[]? HashFieldExpireTime(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None);
+        long[]? HashFieldGetExpireDateTime(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// For specified field, it removes the expiration time
@@ -431,7 +431,7 @@ namespace StackExchange.Redis
         ///     -1: if field has no associated expiration time 
         ///     -2: no such field
         /// </returns>
-        long? HashFieldPersist(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None);
+        PersistResult? HashFieldPersist(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// For each specified field, it removes the expiration time
@@ -444,7 +444,7 @@ namespace StackExchange.Redis
         ///     -1: if field has no associated expiration time 
         ///     -2: no such field
         /// </returns>
-        long[]? HashFieldPersist(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None);
+        PersistResult[]? HashFieldPersist(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// For specified field, it gets the remaining time to live in milliseconds
@@ -457,7 +457,7 @@ namespace StackExchange.Redis
         ///     -1: if field has no associated expiration time 
         ///     -2: no such field
         /// </returns>
-        long? HashFieldTimeToLive(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None);
+        long? HashFieldGetTimeToLive(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// For each specified field, it gets the remaining time to live in milliseconds
@@ -470,7 +470,7 @@ namespace StackExchange.Redis
         ///     -1: if field has no associated expiration time 
         ///     -2: no such field
         /// </returns>
-        long[]? HashFieldTimeToLive(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None);
+        long[]? HashFieldGetTimeToLive(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Returns the value associated with field in the hash stored at key.

@@ -391,7 +391,7 @@ namespace StackExchange.Redis
         ///     -1: if field has no associated expiration time 
         ///     -2: no such field
         /// </returns>
-        Task<long?> HashFieldExpireTimeAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None);
+        Task<long?> HashFieldGetExpireDateTimeAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// For each specified field, it gets the expiration time as a Unix timestamp in milliseconds (milliseconds since the Unix epoch)
@@ -404,7 +404,7 @@ namespace StackExchange.Redis
         ///     -1: if field has no associated expiration time 
         ///     -2: no such field
         /// </returns>
-        Task<long[]?> HashFieldExpireTimeAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None);
+        Task<long[]?> HashFieldGetExpireDateTimeAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// For specified field, it removes the expiration time
@@ -417,7 +417,7 @@ namespace StackExchange.Redis
         ///     -1: if field has no associated expiration time 
         ///     -2: no such field
         /// </returns>
-        Task<long?> HashFieldPersistAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None);
+        Task<PersistResult?> HashFieldPersistAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// For each specified field, it removes the expiration time
@@ -430,7 +430,7 @@ namespace StackExchange.Redis
         ///     -1: if field has no associated expiration time 
         ///     -2: no such field
         /// </returns>
-        Task<long[]?> HashFieldPersistAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None);
+        Task<PersistResult[]?> HashFieldPersistAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// For specified field, it gets the remaining time to live in milliseconds
@@ -443,7 +443,7 @@ namespace StackExchange.Redis
         ///     -1: if field has no associated expiration time 
         ///     -2: no such field
         /// </returns>
-        Task<long?> HashFieldTimeToLiveAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None);
+        Task<long?> HashFieldGetTimeToLiveAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// For each specified field, it gets the remaining time to live in milliseconds
@@ -456,7 +456,7 @@ namespace StackExchange.Redis
         ///     -1: if field has no associated expiration time 
         ///     -2: no such field
         /// </returns>
-        Task<long[]?> HashFieldTimeToLiveAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None);
+        Task<long[]?> HashFieldGetTimeToLiveAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// For each specified field, it gets the value and sets the field's remaining time to live 

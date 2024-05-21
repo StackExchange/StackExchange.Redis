@@ -463,11 +463,11 @@ StackExchange.Redis.HashEntry.Key.get -> StackExchange.Redis.RedisValue
 StackExchange.Redis.HashEntry.Name.get -> StackExchange.Redis.RedisValue
 StackExchange.Redis.HashEntry.Value.get -> StackExchange.Redis.RedisValue
 StackExchange.Redis.HashFieldFlags
-StackExchange.Redis.HashFieldFlags.DC = 1 -> StackExchange.Redis.HashFieldFlags
-StackExchange.Redis.HashFieldFlags.DCF = 2 -> StackExchange.Redis.HashFieldFlags
-StackExchange.Redis.HashFieldFlags.DOF = 4 -> StackExchange.Redis.HashFieldFlags
-StackExchange.Redis.HashFieldFlags.GETNEW = 8 -> StackExchange.Redis.HashFieldFlags
-StackExchange.Redis.HashFieldFlags.GETOLD = 16 -> StackExchange.Redis.HashFieldFlags
+StackExchange.Redis.HashFieldFlags.DontCreate = 1 -> StackExchange.Redis.HashFieldFlags
+StackExchange.Redis.HashFieldFlags.DontCreateFields = 2 -> StackExchange.Redis.HashFieldFlags
+StackExchange.Redis.HashFieldFlags.DontOverwriteFields = 4 -> StackExchange.Redis.HashFieldFlags
+StackExchange.Redis.HashFieldFlags.GetNew = 8 -> StackExchange.Redis.HashFieldFlags
+StackExchange.Redis.HashFieldFlags.GetOld = 16 -> StackExchange.Redis.HashFieldFlags
 StackExchange.Redis.HashFieldFlags.None = 0 -> StackExchange.Redis.HashFieldFlags
 StackExchange.Redis.HashSlotMovedEventArgs
 StackExchange.Redis.HashSlotMovedEventArgs.HashSlot.get -> int
@@ -555,12 +555,12 @@ StackExchange.Redis.IDatabase.HashFieldExpire(StackExchange.Redis.RedisKey key, 
 StackExchange.Redis.IDatabase.HashFieldExpire(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue hashField, System.TimeSpan expiry, StackExchange.Redis.ExpireWhen when = StackExchange.Redis.ExpireWhen.Always, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.ExpireResult?
 StackExchange.Redis.IDatabase.HashFieldExpire(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue[]! hashFields, System.DateTime expiry, StackExchange.Redis.ExpireWhen when = StackExchange.Redis.ExpireWhen.Always, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.ExpireResult[]?
 StackExchange.Redis.IDatabase.HashFieldExpire(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue[]! hashFields, System.TimeSpan expiry, StackExchange.Redis.ExpireWhen when = StackExchange.Redis.ExpireWhen.Always, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.ExpireResult[]?
-StackExchange.Redis.IDatabase.HashFieldExpireTime(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue hashField, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long?
-StackExchange.Redis.IDatabase.HashFieldExpireTime(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue[]! hashFields, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long[]?
-StackExchange.Redis.IDatabase.HashFieldPersist(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue hashField, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long?
-StackExchange.Redis.IDatabase.HashFieldPersist(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue[]! hashFields, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long[]?
-StackExchange.Redis.IDatabase.HashFieldTimeToLive(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue hashField, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long?
-StackExchange.Redis.IDatabase.HashFieldTimeToLive(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue[]! hashFields, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long[]?
+StackExchange.Redis.IDatabase.HashFieldGetExpireDateTime(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue hashField, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long?
+StackExchange.Redis.IDatabase.HashFieldGetExpireDateTime(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue[]! hashFields, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long[]?
+StackExchange.Redis.IDatabase.HashFieldPersist(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue hashField, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.PersistResult?
+StackExchange.Redis.IDatabase.HashFieldPersist(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue[]! hashFields, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.PersistResult[]?
+StackExchange.Redis.IDatabase.HashFieldGetTimeToLive(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue hashField, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long?
+StackExchange.Redis.IDatabase.HashFieldGetTimeToLive(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue[]! hashFields, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long[]?
 StackExchange.Redis.IDatabase.HashGet(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue hashField, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue
 StackExchange.Redis.IDatabase.HashGet(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue[]! hashFields, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue[]!
 StackExchange.Redis.IDatabase.HashGetAndSetExpiry(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue[]! hashFields, System.DateTime expireTime, StackExchange.Redis.ExpireWhen when = StackExchange.Redis.ExpireWhen.Always, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue[]?
@@ -802,12 +802,12 @@ StackExchange.Redis.IDatabaseAsync.HashFieldExpireAsync(StackExchange.Redis.Redi
 StackExchange.Redis.IDatabaseAsync.HashFieldExpireAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue hashField, System.TimeSpan expiry, StackExchange.Redis.ExpireWhen when = StackExchange.Redis.ExpireWhen.Always, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.ExpireResult?>!
 StackExchange.Redis.IDatabaseAsync.HashFieldExpireAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue[]! hashFields, System.DateTime expiry, StackExchange.Redis.ExpireWhen when = StackExchange.Redis.ExpireWhen.Always, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.ExpireResult[]?>!
 StackExchange.Redis.IDatabaseAsync.HashFieldExpireAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue[]! hashFields, System.TimeSpan expiry, StackExchange.Redis.ExpireWhen when = StackExchange.Redis.ExpireWhen.Always, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.ExpireResult[]?>!
-StackExchange.Redis.IDatabaseAsync.HashFieldExpireTimeAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue hashField, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long?>!
-StackExchange.Redis.IDatabaseAsync.HashFieldExpireTimeAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue[]! hashFields, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long[]?>!
-StackExchange.Redis.IDatabaseAsync.HashFieldPersistAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue hashField, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long?>!
-StackExchange.Redis.IDatabaseAsync.HashFieldPersistAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue[]! hashFields, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long[]?>!
-StackExchange.Redis.IDatabaseAsync.HashFieldTimeToLiveAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue hashField, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long?>!
-StackExchange.Redis.IDatabaseAsync.HashFieldTimeToLiveAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue[]! hashFields, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long[]?>!
+StackExchange.Redis.IDatabaseAsync.HashFieldGetExpireDateTimeAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue hashField, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long?>!
+StackExchange.Redis.IDatabaseAsync.HashFieldGetExpireDateTimeAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue[]! hashFields, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long[]?>!
+StackExchange.Redis.IDatabaseAsync.HashFieldPersistAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue hashField, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.PersistResult?>!
+StackExchange.Redis.IDatabaseAsync.HashFieldPersistAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue[]! hashFields, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.PersistResult[]?>!
+StackExchange.Redis.IDatabaseAsync.HashFieldGetTimeToLiveAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue hashField, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long?>!
+StackExchange.Redis.IDatabaseAsync.HashFieldGetTimeToLiveAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue[]! hashFields, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long[]?>!
 StackExchange.Redis.IDatabaseAsync.HashGetAllAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.HashEntry[]!>!
 StackExchange.Redis.IDatabaseAsync.HashGetAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue hashField, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue>!
 StackExchange.Redis.IDatabaseAsync.HashGetAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue[]! hashFields, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue[]!>!
@@ -1271,6 +1271,10 @@ StackExchange.Redis.NameValueEntry.Value.get -> StackExchange.Redis.RedisValue
 StackExchange.Redis.Order
 StackExchange.Redis.Order.Ascending = 0 -> StackExchange.Redis.Order
 StackExchange.Redis.Order.Descending = 1 -> StackExchange.Redis.Order
+StackExchange.Redis.PersistResult
+StackExchange.Redis.PersistResult.ConditionNotMet = -1 -> StackExchange.Redis.PersistResult
+StackExchange.Redis.PersistResult.NoSuchField = -2 -> StackExchange.Redis.PersistResult
+StackExchange.Redis.PersistResult.Success = 1 -> StackExchange.Redis.PersistResult
 StackExchange.Redis.Profiling.IProfiledCommand
 StackExchange.Redis.Profiling.IProfiledCommand.Command.get -> string!
 StackExchange.Redis.Profiling.IProfiledCommand.CommandCreated.get -> System.DateTime

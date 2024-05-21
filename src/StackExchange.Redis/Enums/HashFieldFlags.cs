@@ -15,59 +15,46 @@ public enum HashFieldFlags
     /// No options specified.
     /// </summary>
     None = 0,
+
     /// <summary>
     /// When DC (“Don’t Create”) is specified: if key does not exist: do nothing (don’t create key)  
     /// </summary>
-    DC = 1,
+    DontCreate = 1,
+
     /// <summary>
     ///  When DCF (“Don’t Create Fields”) is specified: for each specified field: if the field already exists: set the field's value and expiration time; ignore fields that do not exist
     /// </summary>
-    DCF = 2,
+    DontCreateFields = 2,
+
     /// <summary>
     ///   When DOF (“Don’t Overwrite Fields”) is specified: for each specified field: if such field does not exist: create field and set its value and expiration time; ignore fields that already exists  
     /// </summary>
-    DOF = 4,
+    DontOverwriteFields = 4,
+
     /// <summary>
     /// When GETNEW is specified: returns the new value of given fields  
     /// </summary>
-    GETNEW = 8,
+    GetNew = 8,
+
     /// <summary>
     /// When GETOLD is specified: returns the old value of given fields  
     /// </summary>
-    GETOLD = 16,
+    GetOld = 16,
 }
 
 internal static class HashFieldFlagsExtensions
 {
-    internal static bool isNone(this HashFieldFlags flags) =>
-        flags == HashFieldFlags.None;
-    internal static bool isDC(this HashFieldFlags flags) =>
-        flags.HasFlag(HashFieldFlags.DC);
-
-    internal static bool isDCF(this HashFieldFlags flags) =>
-        flags.HasFlag(HashFieldFlags.DCF);
-
-    internal static bool isDOF(this HashFieldFlags flags) =>
-        flags.HasFlag(HashFieldFlags.DOF);
-
-    internal static bool isGETNEW(this HashFieldFlags flags) =>
-        flags.HasFlag(HashFieldFlags.GETNEW);
-
-    internal static bool isGETOLD(this HashFieldFlags flags) =>
-        flags.HasFlag(HashFieldFlags.GETOLD);
-
+    internal static bool HasAny(this HashFieldFlags value, HashFieldFlags flag) => (value & flag) != 0;
     internal static List<RedisValue> ToRedisValueList(this HashFieldFlags flags)
     {
         List<RedisValue> values = new();
-        if (flags.isNone()) return values;
-        if (flags.isDC()) values.Add(HashFieldFlags.DC.ToString());
-        if (flags.isDCF()) values.Add(HashFieldFlags.DCF.ToString());
-        if (flags.isDOF()) values.Add(HashFieldFlags.DOF.ToString());
-        if (flags.isGETNEW()) values.Add(HashFieldFlags.GETNEW.ToString());
-        if (flags.isGETOLD()) values.Add(HashFieldFlags.GETOLD.ToString());
+        if (flags == HashFieldFlags.None) return values;
+        if (flags.HasAny(HashFieldFlags.DontCreate)) values.Add(RedisLiterals.DC);
+        if (flags.HasAny(HashFieldFlags.DontCreateFields)) values.Add(RedisLiterals.DCF);
+        if (flags.HasAny(HashFieldFlags.DontOverwriteFields)) values.Add(RedisLiterals.DOF);
+        if (flags.HasAny(HashFieldFlags.GetNew)) values.Add(RedisLiterals.GETNEW);
+        if (flags.HasAny(HashFieldFlags.GetOld)) values.Add(RedisLiterals.GETOLD);
         return values;
-
     }
-
 }
 

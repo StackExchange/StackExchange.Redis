@@ -3,24 +3,24 @@
 namespace StackExchange.Redis;
 
 /// <summary>
-/// Specifies when to set the expiry for a key.
+/// Specifies the result of operation to set expire time.
 /// </summary>
 public enum ExpireResult
 {
     /// <summary>
-    /// Set expiry whether or not there is an existing expiry.
+    /// Field deleted because the specified expiration time is due,
     /// </summary>
     Due = 2,
     /// <summary>
-    /// Set expiry only when the new expiry is greater than current one.
+    /// Expiration time/duration updated successfully
     /// </summary>
     Success = 1,
     /// <summary>
-    /// Set expiry only when the key has an existing expiry.
+    /// Expiration not set because of a specified NX | XX | GT | LT condition not met
     /// </summary>
     ConditionNotMet = 0,
     /// <summary>
-    /// Set expiry only when the key has no expiry.
+    /// No such field.
     /// </summary>
     NoSuchField = -2,
 

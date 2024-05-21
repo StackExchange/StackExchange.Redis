@@ -479,62 +479,62 @@ namespace StackExchange.Redis
 
         #endregion helper stuff for HFE
 
-        public long? HashFieldExpireTime(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
+        public long? HashFieldGetExpireDateTime(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
         {
             return HashFieldExecute(RedisCommand.HPEXPIRETIME, key, SyncCustomExecutor<long?, ResultProcessor<long?>>, ResultProcessor.NullableInt64, flags, hashField);
         }
 
-        public long[]? HashFieldExpireTime(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None)
+        public long[]? HashFieldGetExpireDateTime(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None)
         {
             return HashFieldExecute(RedisCommand.HPEXPIRETIME, key, SyncCustomArrExecutor<long, ResultProcessor<long[]?>>, ResultProcessor.Int64NullableArray, flags, hashFields);
         }
 
-        public Task<long?> HashFieldExpireTimeAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
+        public Task<long?> HashFieldGetExpireDateTimeAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
         {
             return HashFieldExecute(RedisCommand.HPEXPIRETIME, key, AsyncCustomExecutor<long?, ResultProcessor<long?>>, ResultProcessor.NullableInt64, flags, hashField);
         }
 
-        public Task<long[]?> HashFieldExpireTimeAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None)
+        public Task<long[]?> HashFieldGetExpireDateTimeAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None)
         {
             return HashFieldExecute(RedisCommand.HPEXPIRETIME, key, AsyncCustomArrExecutor<long, ResultProcessor<long[]?>>, ResultProcessor.Int64NullableArray, flags, hashFields);
         }
 
-        public long? HashFieldPersist(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
+        public PersistResult? HashFieldPersist(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
         {
-            return HashFieldExecute(RedisCommand.HPERSIST, key, SyncCustomExecutor<long?, ResultProcessor<long?>>, ResultProcessor.NullableInt64, flags, hashField);
+            return HashFieldExecute(RedisCommand.HPERSIST, key, SyncCustomExecutor<PersistResult?, ResultProcessor<PersistResult?>>, ResultProcessor.PersistResult, flags, hashField);
         }
 
-        public long[]? HashFieldPersist(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None)
+        public PersistResult[]? HashFieldPersist(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None)
         {
-            return HashFieldExecute(RedisCommand.HPERSIST, key, SyncCustomArrExecutor<long, ResultProcessor<long[]?>>, ResultProcessor.Int64NullableArray, flags, hashFields);
+            return HashFieldExecute(RedisCommand.HPERSIST, key, SyncCustomArrExecutor<PersistResult, ResultProcessor<PersistResult[]?>>, ResultProcessor.PersistResultArray, flags, hashFields);
         }
 
-        public Task<long?> HashFieldPersistAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
+        public Task<PersistResult?> HashFieldPersistAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
         {
-            return HashFieldExecute(RedisCommand.HPERSIST, key, AsyncCustomExecutor<long?, ResultProcessor<long?>>, ResultProcessor.NullableInt64, flags, hashField);
+            return HashFieldExecute(RedisCommand.HPERSIST, key, AsyncCustomExecutor<PersistResult?, ResultProcessor<PersistResult?>>, ResultProcessor.PersistResult, flags, hashField);
         }
 
-        public Task<long[]?> HashFieldPersistAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None)
+        public Task<PersistResult[]?> HashFieldPersistAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None)
         {
-            return HashFieldExecute(RedisCommand.HPERSIST, key, AsyncCustomArrExecutor<long, ResultProcessor<long[]?>>, ResultProcessor.Int64NullableArray, flags, hashFields);
+            return HashFieldExecute(RedisCommand.HPERSIST, key, AsyncCustomArrExecutor<PersistResult, ResultProcessor<PersistResult[]?>>, ResultProcessor.PersistResultArray, flags, hashFields);
         }
 
-        public long? HashFieldTimeToLive(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
+        public long? HashFieldGetTimeToLive(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
         {
             return HashFieldExecute(RedisCommand.HPTTL, key, SyncCustomExecutor<long?, ResultProcessor<long?>>, ResultProcessor.NullableInt64, flags, hashField);
         }
 
-        public long[]? HashFieldTimeToLive(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None)
+        public long[]? HashFieldGetTimeToLive(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None)
         {
             return HashFieldExecute(RedisCommand.HPTTL, key, SyncCustomArrExecutor<long, ResultProcessor<long[]?>>, ResultProcessor.Int64NullableArray, flags, hashFields);
         }
 
-        public Task<long?> HashFieldTimeToLiveAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
+        public Task<long?> HashFieldGetTimeToLiveAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
         {
             return HashFieldExecute(RedisCommand.HPTTL, key, AsyncCustomExecutor<long?, ResultProcessor<long?>>, ResultProcessor.NullableInt64, flags, hashField);
         }
 
-        public Task<long[]?> HashFieldTimeToLiveAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None)
+        public Task<long[]?> HashFieldGetTimeToLiveAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None)
         {
             return HashFieldExecute(RedisCommand.HPTTL, key, AsyncCustomArrExecutor<long, ResultProcessor<long[]?>>, ResultProcessor.Int64NullableArray, flags, hashFields);
         }

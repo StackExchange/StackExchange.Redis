@@ -72,6 +72,10 @@ namespace StackExchange.Redis
 
         public static readonly ResultProcessor<ExpireResult[]?> ExpireResultArray = new ExpireResultArrayProcessor();
 
+        public static readonly ResultProcessor<PersistResult?> PersistResult = new PersistResultProcessor();
+
+        public static readonly ResultProcessor<PersistResult[]?> PersistResultArray = new PersistResultArrayProcessor();
+
         public static readonly ResultProcessor<RedisChannel[]>
             RedisChannelArrayLiteral = new RedisChannelArrayProcessor(RedisChannel.PatternMode.Literal);
 
@@ -911,7 +915,7 @@ namespace StackExchange.Redis
                         if (message?.Command == RedisCommand.CONFIG)
                         {
                             var iter = result.GetItems().GetEnumerator();
-                            while(iter.MoveNext())
+                            while (iter.MoveNext())
                             {
                                 ref RawResult key = ref iter.Current;
                                 if (!iter.MoveNext()) break;
@@ -1505,6 +1509,53 @@ namespace StackExchange.Redis
                 if (result.Resp2TypeArray == ResultType.Array || result.IsNull)
                 {
                     var arr = result.ToArray((in RawResult x) => (ExpireResult)(long)x.AsRedisValue())!;
+
+                    SetResult(message, arr);
+                    return true;
+                }
+                return false;
+            }
+        }
+
+
+        private sealed class PersistResultProcessor : ResultProcessor<PersistResult?>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                switch (result.Resp2TypeBulkString)
+                {
+                    case ResultType.BulkString:
+                        if (result.IsNull)
+                        {
+                            SetResult(message, null);
+                            return true;
+                        }
+                        break;
+                    case ResultType.Array:
+                        var items = result.GetItems();
+                        if (items.Length == 1)
+                        { // treat an array of 1 like a single reply (for example, SCRIPT EXISTS)
+                            if (items[0].TryGetInt64(out long value))
+                            {
+                                SetResult(message, (PersistResult)value);
+                                return true;
+                            }
+                        }
+                        break;
+                }
+                return false;
+
+            }
+        }
+
+
+        private sealed class PersistResultArrayProcessor : ResultProcessor<PersistResult[]?>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                if (result.Resp2TypeArray == ResultType.Array || result.IsNull)
+                {
+                    var arr = result.ToArray((in RawResult x) => (PersistResult)(long)x.AsRedisValue())!;
 
                     SetResult(message, arr);
                     return true;
@@ -2341,7 +2392,7 @@ The coordinates as a two items x,y array (longitude,latitude).
             internal static bool TryRead(Sequence<RawResult> pairs, in CommandBytes key, ref int value)
             {
                 long tmp = default;
-                if(TryRead(pairs, key, ref tmp))
+                if (TryRead(pairs, key, ref tmp))
                 {
                     value = checked((int)tmp);
                     return true;
