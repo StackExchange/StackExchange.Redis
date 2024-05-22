@@ -1587,7 +1587,11 @@ public class StreamTests : TestBase
         var id4 = db.StreamAdd(key2, "field4", "value4");
 
         // Read from both streams at the same time.
-        var streamList = new[] { new StreamPosition(key1, "0-0"), new StreamPosition(key2, "0-0") };
+        var streamList = new[]
+        {
+                new StreamPosition(key1, "0-0"),
+                new StreamPosition(key2, "0-0")
+            };
 
         var streams = db.StreamRead(streamList);
 
