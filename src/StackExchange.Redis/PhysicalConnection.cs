@@ -28,7 +28,7 @@ namespace StackExchange.Redis
 
         private const int DefaultRedisDatabaseCount = 16;
 
-        private static readonly CommandBytes message = "message", pmessage = "pmessage";
+        private static readonly CommandBytes message = "message", pmessage = "pmessage", @async = "async";
 
         private static readonly Message[] ReusableChangeDatabaseCommands = Enumerable.Range(0, DefaultRedisDatabaseCount).Select(
             i => Message.Create(i, CommandFlags.FireAndForget, RedisCommand.SELECT)).ToArray();
@@ -510,7 +510,7 @@ namespace StackExchange.Redis
                 bridge?.Trace(_writtenAwaitingResponse.Count != 0, "Failing outstanding messages: " + _writtenAwaitingResponse.Count);
             }
 
-            while (TryDequeueLocked(_writtenAwaitingResponse, out var next))
+            while (TryDequeueLocked(this, out var next))
             {
                 if (next.Command == RedisCommand.QUIT && next.TrySetResult(true))
                 {
@@ -529,15 +529,52 @@ namespace StackExchange.Redis
                 }
             }
 
+            while (TryDequeueAsyncLocked(this, out var next))
+            {
+                if (next.Command == RedisCommand.QUIT && next.TrySetResult(true))
+                {
+                    // fine, death of a socket is close enough
+                    next.Complete();
+                }
+                else
+                {
+                    var ex = innerException is RedisException ? innerException : outerException;
+                    if (bridge != null)
+                    {
+                        bridge.Trace("Failing: " + next);
+                        bridge.Multiplexer?.OnMessageFaulted(next, ex, origin);
+                    }
+                    next.SetExceptionAndComplete(ex!, bridge);
+                }
+            }
+
+
+
             // burn the socket
             Shutdown();
 
-            static bool TryDequeueLocked(Queue<Message> queue, [NotNullWhen(true)] out Message? message)
+            static bool TryDequeueLocked(PhysicalConnection @this, [NotNullWhen(true)] out Message? message)
             {
-                lock (queue)
+                lock (@this._writtenAwaitingResponse)
                 {
-                    return queue.TryDequeue(out message);
+                    return @this._writtenAwaitingResponse.TryDequeue(out message);
                 }
+            }
+
+            static bool TryDequeueAsyncLocked(PhysicalConnection @this, [NotNullWhen(true)] out Message? message)
+            {
+                lock (@this._writtenAwaitingResponse)
+                {
+                    if (@this._asyncPending is { Count:>0} asyncPending)
+                    {
+                        var first = asyncPending.First();
+                        asyncPending.Remove(first.Key);
+                        message = first.Value;
+                        return true;
+                    }
+                }
+                message = null;
+                return false;
             }
         }
 
@@ -1601,6 +1638,68 @@ namespace StackExchange.Redis
             }
         }
 
+        private Dictionary<RedisValue, Message>? _asyncPending;
+
+        private void MatchAsyncResult(in RawResult id, in RawResult result)
+        {
+            Trace("Matching async result...");
+            Message? msg;
+            _readStatus = ReadStatus.DequeueResult;
+            lock (_writtenAwaitingResponse)
+            {
+                if (_asyncPending is { Count: > 0 })
+                {
+                    var idValue = id.AsRedisValue();
+                    if (!_asyncPending.TryGetValue(idValue, out msg))
+                    {
+                        msg = null;
+                    }
+                }
+                else
+                {
+                    msg = null;
+                }
+            }
+
+            if (msg is null)
+            {
+                Trace("Async identifier not known: " + id);
+                return;
+            }
+
+            _activeMessage = msg;
+            Trace("Async response to: " + msg);
+            _readStatus = ReadStatus.ComputeResult;
+            if (msg.ComputeResult(this, result))
+            {
+                _readStatus = msg.ResultBoxIsAsync ? ReadStatus.CompletePendingMessageAsync : ReadStatus.CompletePendingMessageSync;
+                msg.Complete();
+            }
+            _readStatus = ReadStatus.MatchResultComplete;
+            _activeMessage = null;
+        }
+
+        private bool DeferAsyncResult(in RawResult result, Message message)
+        {
+            // calling code has already asserted StartWith, so we know it is a value with a valid length
+            Debug.Assert(result.StartsWith(CommonReplies.ASYNC) && CommonReplies.ASYNC.Length == 6); // just to prove our slice
+            RedisValue id = result.Payload.Slice(start: 6).ToArray();
+            lock (_writtenAwaitingResponse)
+            {
+#if NETCOREAPP3_1_OR_GREATER
+                return (_asyncPending ??= new()).TryAdd(id, message);
+#else
+                var map = _asyncPending ??= new();
+                if (!map.ContainsKey(id))
+                {
+                    map.Add(id, message);
+                    return true;
+                }
+                return false;
+#endif
+            }
+        }
+
         private void MatchResult(in RawResult result)
         {
             // check to see if it could be an out-of-band pubsub message
@@ -1677,10 +1776,19 @@ namespace StackExchange.Redis
                     return; // AND STOP PROCESSING!
                 }
 
+                if (result.Resp3Type == ResultType.Push)
+                {
+                    if (items.Length == 3 && items[0].IsEqual(@async))
+                    {
+                        MatchAsyncResult(in items[1], in items[2]);
+                    }
+                    return; // "push" message don't map to the FIFO queue
+                }
                 // if it didn't look like "[p]message", then we still need to process the pending queue
             }
-            Trace("Matching result...");
+
             Message? msg;
+            Trace("Matching result...");
             _readStatus = ReadStatus.DequeueResult;
             lock (_writtenAwaitingResponse)
             {
@@ -1692,6 +1800,12 @@ namespace StackExchange.Redis
             _activeMessage = msg;
 
             Trace("Response to: " + msg);
+            if (result.IsError && result.StartsWith(CommonReplies.ASYNC)
+                && DeferAsyncResult(result, msg))
+            {
+                return; // handled
+            }
+
             _readStatus = ReadStatus.ComputeResult;
             if (msg.ComputeResult(this, result))
             {

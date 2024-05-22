@@ -6,6 +6,7 @@ namespace StackExchange.Redis
     {
         public static readonly CommandBytes
             ASK = "ASK ",
+            ASYNC = "ASYNC ",
             authFail_trimmed = CommandBytes.TrimToFit("ERR operation not permitted"),
             backgroundSavingStarted_trimmed = CommandBytes.TrimToFit("Background saving started"),
             backgroundSavingAOFStarted_trimmed = CommandBytes.TrimToFit("Background append only file rewriting started"),
