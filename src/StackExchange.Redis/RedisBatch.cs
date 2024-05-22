@@ -112,7 +112,7 @@ namespace StackExchange.Redis
         internal override T ExecuteSync<T>(Message? message, ResultProcessor<T>? processor, ServerEndPoint? server = null, T? defaultValue = default) where T : default =>
             throw new NotSupportedException("ExecuteSync cannot be used inside a batch");
 
-        private static void FailNoServer(ConnectionMultiplexer muxer, List<Message> messages)
+        private static void FailNoServer(ConnectionMultiplexer muxer, List<Message>? messages)
         {
             if (messages == null) return;
             foreach(var msg in messages)
