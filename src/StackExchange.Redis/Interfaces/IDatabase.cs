@@ -470,6 +470,31 @@ namespace StackExchange.Redis
         IEnumerable<HashEntry> HashScan(RedisKey key, RedisValue pattern = default, int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// The HSCAN command is used to incrementally iterate over a hash and return only field names.
+        /// </summary>
+        /// <param name="key">The key of the hash.</param>
+        /// <param name="pattern">The pattern of keys to get entries for.</param>
+        /// <param name="pageSize">The page size to iterate by.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>Yields all elements of the hash matching the pattern.</returns>
+        /// <remarks><seealso href="https://redis.io/commands/hscan"/></remarks>
+        IEnumerable<RedisValue> HashScanNoValues(RedisKey key, RedisValue pattern, int pageSize, CommandFlags flags);
+
+        /// <summary>
+        /// The HSCAN command is used to incrementally iterate over a hash and return only field names.
+        /// Note: to resume an iteration via <i>cursor</i>, cast the original enumerable or enumerator to <see cref="IScanningCursor"/>.
+        /// </summary>
+        /// <param name="key">The key of the hash.</param>
+        /// <param name="pattern">The pattern of keys to get entries for.</param>
+        /// <param name="pageSize">The page size to iterate by.</param>
+        /// <param name="cursor">The cursor position to start at.</param>
+        /// <param name="pageOffset">The page offset to start at.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>Yields all elements of the hash matching the pattern.</returns>
+        /// <remarks><seealso href="https://redis.io/commands/hscan"/></remarks>
+        IEnumerable<RedisValue> HashScanNoValues(RedisKey key, RedisValue pattern = default, int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Sets the specified fields to their respective values in the hash stored at key.
         /// This command overwrites any specified fields that already exist in the hash, leaving other unspecified fields untouched.
         /// If key does not exist, a new key holding a hash is created.
@@ -1628,7 +1653,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc cref="SortedSetAdd(RedisKey, RedisValue, double, SortedSetWhen, CommandFlags)" />
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
-        bool SortedSetAdd(RedisKey key, RedisValue member, double score, When when, CommandFlags flags= CommandFlags.None);
+        bool SortedSetAdd(RedisKey key, RedisValue member, double score, When when, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Adds the specified member with the specified score to the sorted set stored at key.
