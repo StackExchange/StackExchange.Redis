@@ -65,17 +65,29 @@ namespace StackExchange.Redis
 
         public long ClientKill(long? id = null, ClientType? clientType = null, EndPoint? endpoint = null, bool skipMe = true, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetClientKillMessage(endpoint, id, clientType, skipMe, flags);
+            var msg = GetClientKillMessage(endpoint, id, clientType, skipMe, null, flags);
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
         public Task<long> ClientKillAsync(long? id = null, ClientType? clientType = null, EndPoint? endpoint = null, bool skipMe = true, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetClientKillMessage(endpoint, id, clientType, skipMe, flags);
+            var msg = GetClientKillMessage(endpoint, id, clientType, skipMe, null, flags);
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
-        private Message GetClientKillMessage(EndPoint? endpoint, long? id, ClientType? clientType, bool skipMe, CommandFlags flags)
+        public long ClientKill(ClientKillFilter filter, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetClientKillMessage(filter.Endpoint, filter.Id, filter.ClientType, filter.SkipMe, filter.MaxAgeInSeconds, flags);
+            return ExecuteSync(msg, ResultProcessor.Int64);
+        }
+
+        public Task<long> ClientKillAsync(ClientKillFilter filter, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetClientKillMessage(filter.Endpoint, filter.Id, filter.ClientType, filter.SkipMe, filter.MaxAgeInSeconds, flags);
+            return ExecuteAsync(msg, ResultProcessor.Int64);
+        }
+
+        private Message GetClientKillMessage(EndPoint? endpoint, long? id, ClientType? clientType, bool skipMe, long? maxAgeInSeconds, CommandFlags flags)
         {
             var parts = new List<RedisValue>(9)
             {
@@ -113,6 +125,11 @@ namespace StackExchange.Redis
             {
                 parts.Add(RedisLiterals.SKIPME);
                 parts.Add(RedisLiterals.no);
+            }
+            if (maxAgeInSeconds != null)
+            {
+                parts.Add(RedisLiterals.MAXAGE);
+                parts.Add(maxAgeInSeconds);
             }
             return Message.Create(-1, flags, RedisCommand.CLIENT, parts);
         }
@@ -408,7 +425,7 @@ namespace StackExchange.Redis
         }
 
         public void MakeMaster(ReplicationChangeOptions options, TextWriter? log = null)
-    {
+        {
             // Do you believe in magic?
             multiplexer.MakePrimaryAsync(server, options, log).Wait(60000);
         }
