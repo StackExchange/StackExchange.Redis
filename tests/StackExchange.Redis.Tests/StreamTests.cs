@@ -1514,7 +1514,7 @@ public class StreamTests : TestBase
     [Fact]
     public void StreamReadLastMessage()
     {
-        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+        using var conn = Create(require: RedisFeatures.v7_4_0_rc1);
         var db = conn.GetDatabase();
         var key1 = Me();
 
@@ -1611,7 +1611,7 @@ public class StreamTests : TestBase
     [Fact]
     public void StreamReadMultipleStreamsLastMessage()
     {
-        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+        using var conn = Create(require: RedisFeatures.v7_4_0_rc1);
 
         var db = conn.GetDatabase();
         var key1 = Me() + "a";
