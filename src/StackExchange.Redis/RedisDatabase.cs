@@ -388,52 +388,28 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Boolean);
         }
 
-        public ExpireResult? HashFieldExpire(RedisKey key, RedisValue hashField, TimeSpan expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None)
+        public ExpireResult[] HashFieldExpire(RedisKey key, RedisValue[] hashFields, TimeSpan expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None)
         {
             long milliseconds = expiry.Ticks / TimeSpan.TicksPerMillisecond;
-            return HashFieldExpireExecute(key, milliseconds, when, PickExpireCommandByPrecision, SyncCustomExecutor<ExpireResult?, ResultProcessor<ExpireResult?>>, ResultProcessor.ExpireResult, flags, hashField);
+            return HashFieldExpireExecute(key, milliseconds, when, PickExpireCommandByPrecision, SyncCustomArrExecutor<ExpireResult, ResultProcessor<ExpireResult[]>>, ResultProcessor.ExpireResultArray, flags, hashFields);
         }
 
-        public ExpireResult[]? HashFieldExpire(RedisKey key, RedisValue[] hashFields, TimeSpan expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None)
+        public ExpireResult[] HashFieldExpire(RedisKey key, RedisValue[] hashFields, DateTime expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None)
+        {
+            long milliseconds = GetMillisecondsUntil(expiry);
+            return HashFieldExpireExecute(key, milliseconds, when, PickExpireAtCommandByPrecision, SyncCustomArrExecutor<ExpireResult, ResultProcessor<ExpireResult[]>>, ResultProcessor.ExpireResultArray, flags, hashFields);
+        }
+
+        public Task<ExpireResult[]> HashFieldExpireAsync(RedisKey key, RedisValue[] hashFields, TimeSpan expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None)
         {
             long milliseconds = expiry.Ticks / TimeSpan.TicksPerMillisecond;
-            return HashFieldExpireExecute(key, milliseconds, when, PickExpireCommandByPrecision, SyncCustomArrExecutor<ExpireResult, ResultProcessor<ExpireResult[]?>>, ResultProcessor.ExpireResultArray, flags, hashFields);
+            return HashFieldExpireExecute(key, milliseconds, when, PickExpireCommandByPrecision, AsyncCustomArrExecutor<ExpireResult, ResultProcessor<ExpireResult[]>>, ResultProcessor.ExpireResultArray, flags, hashFields);
         }
 
-        public ExpireResult? HashFieldExpire(RedisKey key, RedisValue hashField, DateTime expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None)
+        public Task<ExpireResult[]> HashFieldExpireAsync(RedisKey key, RedisValue[] hashFields, DateTime expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None)
         {
             long milliseconds = GetMillisecondsUntil(expiry);
-            return HashFieldExpireExecute(key, milliseconds, when, PickExpireAtCommandByPrecision, SyncCustomExecutor<ExpireResult?, ResultProcessor<ExpireResult?>>, ResultProcessor.ExpireResult, flags, hashField);
-        }
-
-        public ExpireResult[]? HashFieldExpire(RedisKey key, RedisValue[] hashFields, DateTime expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None)
-        {
-            long milliseconds = GetMillisecondsUntil(expiry);
-            return HashFieldExpireExecute(key, milliseconds, when, PickExpireAtCommandByPrecision, SyncCustomArrExecutor<ExpireResult, ResultProcessor<ExpireResult[]?>>, ResultProcessor.ExpireResultArray, flags, hashFields);
-        }
-
-        public Task<ExpireResult?> HashFieldExpireAsync(RedisKey key, RedisValue hashField, TimeSpan expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None)
-        {
-            long milliseconds = expiry.Ticks / TimeSpan.TicksPerMillisecond;
-            return HashFieldExpireExecute(key, milliseconds, when, PickExpireCommandByPrecision, AsyncCustomExecutor<ExpireResult?, ResultProcessor<ExpireResult?>>, ResultProcessor.ExpireResult, flags, hashField);
-        }
-
-        public Task<ExpireResult[]?> HashFieldExpireAsync(RedisKey key, RedisValue[] hashFields, TimeSpan expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None)
-        {
-            long milliseconds = expiry.Ticks / TimeSpan.TicksPerMillisecond;
-            return HashFieldExpireExecute(key, milliseconds, when, PickExpireCommandByPrecision, AsyncCustomArrExecutor<ExpireResult, ResultProcessor<ExpireResult[]?>>, ResultProcessor.ExpireResultArray, flags, hashFields);
-        }
-
-        public Task<ExpireResult?> HashFieldExpireAsync(RedisKey key, RedisValue hashField, DateTime expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None)
-        {
-            long milliseconds = GetMillisecondsUntil(expiry);
-            return HashFieldExpireExecute(key, milliseconds, when, PickExpireAtCommandByPrecision, AsyncCustomExecutor<ExpireResult?, ResultProcessor<ExpireResult?>>, ResultProcessor.ExpireResult, flags, hashField);
-        }
-
-        public Task<ExpireResult[]?> HashFieldExpireAsync(RedisKey key, RedisValue[] hashFields, DateTime expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None)
-        {
-            long milliseconds = GetMillisecondsUntil(expiry);
-            return HashFieldExpireExecute(key, milliseconds, when, PickExpireAtCommandByPrecision, AsyncCustomArrExecutor<ExpireResult, ResultProcessor<ExpireResult[]?>>, ResultProcessor.ExpireResultArray, flags, hashFields);
+            return HashFieldExpireExecute(key, milliseconds, when, PickExpireAtCommandByPrecision, AsyncCustomArrExecutor<ExpireResult, ResultProcessor<ExpireResult[]>>, ResultProcessor.ExpireResultArray, flags, hashFields);
         }
 
         #region private for HFE 
@@ -468,75 +444,40 @@ namespace StackExchange.Redis
 
         private delegate T CustomExecutor<T, P>(Message msg, P processor);
 
+        private T[] SyncCustomArrExecutor<T, P>(Message msg, P processor) where P : ResultProcessor<T[]> { return ExecuteSync<T[]>(msg, processor)!; }
 
-        private T? SyncCustomExecutor<T, P>(Message msg, P processor) where P : ResultProcessor<T> { return ExecuteSync<T>(msg, processor); }
-
-        private T[]? SyncCustomArrExecutor<T, P>(Message msg, P processor) where P : ResultProcessor<T[]?> { return ExecuteSync<T[]?>(msg, processor); }
-
-        private Task<T?> AsyncCustomExecutor<T, P>(Message msg, P processor) where P : ResultProcessor<T> { return ExecuteAsync<T>(msg, processor); }
-
-        private Task<T[]?> AsyncCustomArrExecutor<T, P>(Message msg, P processor) where P : ResultProcessor<T[]?> { return ExecuteAsync<T[]?>(msg, processor); }
+        private Task<T[]> AsyncCustomArrExecutor<T, P>(Message msg, P processor) where P : ResultProcessor<T[]> { return ExecuteAsync<T[]>(msg, processor)!; }
 
         #endregion helper stuff for HFE
 
-        public long? HashFieldGetExpireDateTime(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
+        public long[] HashFieldGetExpireDateTime(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None)
         {
-            return HashFieldExecute(RedisCommand.HPEXPIRETIME, key, SyncCustomExecutor<long?, ResultProcessor<long?>>, ResultProcessor.NullableInt64, flags, hashField);
+            return HashFieldExecute(RedisCommand.HPEXPIRETIME, key, SyncCustomArrExecutor<long, ResultProcessor<long[]>>, ResultProcessor.Int64Array, flags, hashFields);
         }
 
-        public long[]? HashFieldGetExpireDateTime(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None)
+        public Task<long[]> HashFieldGetExpireDateTimeAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None)
         {
-            return HashFieldExecute(RedisCommand.HPEXPIRETIME, key, SyncCustomArrExecutor<long, ResultProcessor<long[]?>>, ResultProcessor.Int64NullableArray, flags, hashFields);
+            return HashFieldExecute(RedisCommand.HPEXPIRETIME, key, AsyncCustomArrExecutor<long, ResultProcessor<long[]>>, ResultProcessor.Int64Array, flags, hashFields);
         }
 
-        public Task<long?> HashFieldGetExpireDateTimeAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
+        public PersistResult[] HashFieldPersist(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None)
         {
-            return HashFieldExecute(RedisCommand.HPEXPIRETIME, key, AsyncCustomExecutor<long?, ResultProcessor<long?>>, ResultProcessor.NullableInt64, flags, hashField);
+            return HashFieldExecute(RedisCommand.HPERSIST, key, SyncCustomArrExecutor<PersistResult, ResultProcessor<PersistResult[]>>, ResultProcessor.PersistResultArray, flags, hashFields);
         }
 
-        public Task<long[]?> HashFieldGetExpireDateTimeAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None)
+        public Task<PersistResult[]> HashFieldPersistAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None)
         {
-            return HashFieldExecute(RedisCommand.HPEXPIRETIME, key, AsyncCustomArrExecutor<long, ResultProcessor<long[]?>>, ResultProcessor.Int64NullableArray, flags, hashFields);
+            return HashFieldExecute(RedisCommand.HPERSIST, key, AsyncCustomArrExecutor<PersistResult, ResultProcessor<PersistResult[]>>, ResultProcessor.PersistResultArray, flags, hashFields);
         }
 
-        public PersistResult? HashFieldPersist(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
+        public long[] HashFieldGetTimeToLive(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None)
         {
-            return HashFieldExecute(RedisCommand.HPERSIST, key, SyncCustomExecutor<PersistResult?, ResultProcessor<PersistResult?>>, ResultProcessor.PersistResult, flags, hashField);
+            return HashFieldExecute(RedisCommand.HPTTL, key, SyncCustomArrExecutor<long, ResultProcessor<long[]>>, ResultProcessor.Int64Array, flags, hashFields);
         }
 
-        public PersistResult[]? HashFieldPersist(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None)
+        public Task<long[]> HashFieldGetTimeToLiveAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None)
         {
-            return HashFieldExecute(RedisCommand.HPERSIST, key, SyncCustomArrExecutor<PersistResult, ResultProcessor<PersistResult[]?>>, ResultProcessor.PersistResultArray, flags, hashFields);
-        }
-
-        public Task<PersistResult?> HashFieldPersistAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
-        {
-            return HashFieldExecute(RedisCommand.HPERSIST, key, AsyncCustomExecutor<PersistResult?, ResultProcessor<PersistResult?>>, ResultProcessor.PersistResult, flags, hashField);
-        }
-
-        public Task<PersistResult[]?> HashFieldPersistAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None)
-        {
-            return HashFieldExecute(RedisCommand.HPERSIST, key, AsyncCustomArrExecutor<PersistResult, ResultProcessor<PersistResult[]?>>, ResultProcessor.PersistResultArray, flags, hashFields);
-        }
-
-        public long? HashFieldGetTimeToLive(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
-        {
-            return HashFieldExecute(RedisCommand.HPTTL, key, SyncCustomExecutor<long?, ResultProcessor<long?>>, ResultProcessor.NullableInt64, flags, hashField);
-        }
-
-        public long[]? HashFieldGetTimeToLive(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None)
-        {
-            return HashFieldExecute(RedisCommand.HPTTL, key, SyncCustomArrExecutor<long, ResultProcessor<long[]?>>, ResultProcessor.Int64NullableArray, flags, hashFields);
-        }
-
-        public Task<long?> HashFieldGetTimeToLiveAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
-        {
-            return HashFieldExecute(RedisCommand.HPTTL, key, AsyncCustomExecutor<long?, ResultProcessor<long?>>, ResultProcessor.NullableInt64, flags, hashField);
-        }
-
-        public Task<long[]?> HashFieldGetTimeToLiveAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None)
-        {
-            return HashFieldExecute(RedisCommand.HPTTL, key, AsyncCustomArrExecutor<long, ResultProcessor<long[]?>>, ResultProcessor.Int64NullableArray, flags, hashFields);
+            return HashFieldExecute(RedisCommand.HPTTL, key, AsyncCustomArrExecutor<long, ResultProcessor<long[]>>, ResultProcessor.Int64Array, flags, hashFields);
         }
 
         public RedisValue HashGet(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)

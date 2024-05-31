@@ -313,23 +313,6 @@ namespace StackExchange.Redis
         Task<bool> HashExistsAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Set the remaining time to live in milliseconds for a field of hash
-        /// After the timeout has expired, the field of the hash will automatically be deleted.
-        /// </summary>
-        /// <param name="key">The key of the hash.</param>
-        /// <param name="hashField">The field in the hash to set expire time.</param>
-        /// <param name="expiry">The timeout to set.</param>
-        /// <param name="when">under which condition the expiration will be set using <see cref="ExpireWhen"/>.</param>
-        /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns> null if the key does not exist. Otherwise returns the result of operation for given field;
-        ///		2: field deleted because the specified expiration time is due
-        ///		1: expiration time set/updated
-        /// 	0: expiration time is not set/update (a specified ExpireWhen condition is not met)
-        ///		-2 : no such field
-        /// </returns>
-        Task<ExpireResult?> HashFieldExpireAsync(RedisKey key, RedisValue hashField, TimeSpan expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None);
-
-        /// <summary>
         /// Set the remaining time to live in milliseconds for the given set of fields of hash
         /// After the timeout has expired, the field of the hash will automatically be deleted.
         /// </summary>
@@ -344,24 +327,7 @@ namespace StackExchange.Redis
         /// 	0: expiration time is not set/update (a specified ExpireWhen condition is not met)
         ///		-2 : no such field
         /// </returns>
-        Task<ExpireResult[]?> HashFieldExpireAsync(RedisKey key, RedisValue[] hashFields, TimeSpan expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None);
-
-        /// <summary>
-        /// Set the time out on a field of hash
-        /// After the timeout has expired, the field of the hash will automatically be deleted.
-        /// </summary>
-        /// <param name="key">The key of the hash.</param>
-        /// <param name="hashField">The field in the hash to set expire time.</param>
-        /// <param name="expiry">The exact date to expiry to set.</param>
-        /// <param name="when">under which condition the expiration will be set using <see cref="ExpireWhen"/>.</param>
-        /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns> null if the key does not exist. Otherwise returns the result of operation for given field;
-        ///		2: field deleted because the specified expiration time is due
-        ///		1: expiration time set/updated
-        /// 	0: expiration time is not set/update (a specified ExpireWhen condition is not met)
-        ///		-2 : no such field
-        /// </returns>
-        Task<ExpireResult?> HashFieldExpireAsync(RedisKey key, RedisValue hashField, DateTime expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None);
+        Task<ExpireResult[]> HashFieldExpireAsync(RedisKey key, RedisValue[] hashFields, TimeSpan expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         ///	Set the time out on a field of the given set of fields of hash
@@ -378,20 +344,7 @@ namespace StackExchange.Redis
         /// 	0: expiration time is not set/update (a specified ExpireWhen condition is not met)
         ///		-2 : no such field
         /// </returns>
-        Task<ExpireResult[]?> HashFieldExpireAsync(RedisKey key, RedisValue[] hashFields, DateTime expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None);
-
-        /// <summary>
-        /// For specified field, it gets the expiration time as a Unix timestamp in milliseconds (milliseconds since the Unix epoch)
-        /// </summary>
-        /// <param name="key">The key of the hash.</param>
-        /// <param name="hashField">The field in the hash to get expire time.</param>
-        /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>null if the key does not exist. Otherwise returns the result of operation for given field
-        ///     expiration time: as a UNIX timestamp in milliseconds
-        ///     -1: if field has no associated expiration time 
-        ///     -2: no such field
-        /// </returns>
-        Task<long?> HashFieldGetExpireDateTimeAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None);
+        Task<ExpireResult[]> HashFieldExpireAsync(RedisKey key, RedisValue[] hashFields, DateTime expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// For each specified field, it gets the expiration time as a Unix timestamp in milliseconds (milliseconds since the Unix epoch)
@@ -404,20 +357,7 @@ namespace StackExchange.Redis
         ///     -1: if field has no associated expiration time 
         ///     -2: no such field
         /// </returns>
-        Task<long[]?> HashFieldGetExpireDateTimeAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None);
-
-        /// <summary>
-        /// For specified field, it removes the expiration time
-        /// </summary>
-        /// <param name="key">The key of the hash.</param>
-        /// <param name="hashField">The field in the hash to remove expire time.</param>
-        /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>null if the key does not exist. Otherwise returns the result of operation for given field
-        ///     1: if the expiration time was removed
-        ///     -1: if field has no associated expiration time 
-        ///     -2: no such field
-        /// </returns>
-        Task<PersistResult?> HashFieldPersistAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None);
+        Task<long[]> HashFieldGetExpireDateTimeAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// For each specified field, it removes the expiration time
@@ -430,20 +370,7 @@ namespace StackExchange.Redis
         ///     -1: if field has no associated expiration time 
         ///     -2: no such field
         /// </returns>
-        Task<PersistResult[]?> HashFieldPersistAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None);
-
-        /// <summary>
-        /// For specified field, it gets the remaining time to live in milliseconds
-        /// </summary>
-        /// <param name="key">The key of the hash.</param>
-        /// <param name="hashField">The field in the hash to get expire time.</param>
-        /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>null if the key does not exist. Otherwise returns the result of operation for given field
-        ///      time to live: in milliseconds
-        ///     -1: if field has no associated expiration time 
-        ///     -2: no such field
-        /// </returns>
-        Task<long?> HashFieldGetTimeToLiveAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None);
+        Task<PersistResult[]> HashFieldPersistAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// For each specified field, it gets the remaining time to live in milliseconds
@@ -456,7 +383,7 @@ namespace StackExchange.Redis
         ///     -1: if field has no associated expiration time 
         ///     -2: no such field
         /// </returns>
-        Task<long[]?> HashFieldGetTimeToLiveAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None);
+        Task<long[]> HashFieldGetTimeToLiveAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Returns the value associated with field in the hash stored at key.

@@ -84,34 +84,19 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<bool> HashExistsAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None) =>
             Inner.HashExistsAsync(ToInner(key), hashField, flags);
 
-        public Task<ExpireResult?> HashFieldExpireAsync(RedisKey key, RedisValue hashField, TimeSpan expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None) =>
-            Inner.HashFieldExpireAsync(ToInner(key), hashField, expiry, when, flags);
-
-        public Task<ExpireResult[]?> HashFieldExpireAsync(RedisKey key, RedisValue[] hashFields, TimeSpan expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None) =>
+        public Task<ExpireResult[]> HashFieldExpireAsync(RedisKey key, RedisValue[] hashFields, TimeSpan expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None) =>
             Inner.HashFieldExpireAsync(ToInner(key), hashFields, expiry, when, flags);
 
-        public Task<ExpireResult?> HashFieldExpireAsync(RedisKey key, RedisValue hashField, DateTime expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None) =>
-            Inner.HashFieldExpireAsync(ToInner(key), hashField, expiry, when, flags);
-
-        public Task<ExpireResult[]?> HashFieldExpireAsync(RedisKey key, RedisValue[] hashFields, DateTime expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None) =>
+        public Task<ExpireResult[]> HashFieldExpireAsync(RedisKey key, RedisValue[] hashFields, DateTime expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None) =>
             Inner.HashFieldExpireAsync(ToInner(key), hashFields, expiry, when, flags);
 
-        public Task<long?> HashFieldGetExpireDateTimeAsync(RedisKey key, RedisValue hashField, CommandFlags flags) =>
-            Inner.HashFieldGetExpireDateTimeAsync(ToInner(key), hashField, flags);
-
-        public Task<long[]?> HashFieldGetExpireDateTimeAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags) =>
+        public Task<long[]> HashFieldGetExpireDateTimeAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags) =>
             Inner.HashFieldGetExpireDateTimeAsync(ToInner(key), hashFields, flags);
 
-        public Task<PersistResult?> HashFieldPersistAsync(RedisKey key, RedisValue hashField, CommandFlags flags) =>
-            Inner.HashFieldPersistAsync(ToInner(key), hashField, flags);
-
-        public Task<PersistResult[]?> HashFieldPersistAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags) =>
+        public Task<PersistResult[]> HashFieldPersistAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags) =>
             Inner.HashFieldPersistAsync(ToInner(key), hashFields, flags);
 
-        public Task<long?> HashFieldGetTimeToLiveAsync(RedisKey key, RedisValue hashField, CommandFlags flags) =>
-            Inner.HashFieldGetTimeToLiveAsync(ToInner(key), hashField, flags);
-
-        public Task<long[]?> HashFieldGetTimeToLiveAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags) =>
+        public Task<long[]> HashFieldGetTimeToLiveAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags) =>
             Inner.HashFieldGetTimeToLiveAsync(ToInner(key), hashFields, flags);
 
         public Task<HashEntry[]> HashGetAllAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>

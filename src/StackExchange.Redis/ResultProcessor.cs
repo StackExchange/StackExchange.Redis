@@ -68,13 +68,9 @@ namespace StackExchange.Redis
         public static readonly ResultProcessor<long?>
             NullableInt64 = new NullableInt64Processor();
 
-        public static readonly ResultProcessor<ExpireResult?> ExpireResult = new ExpireResultProcessor();
+        public static readonly ResultProcessor<ExpireResult[]> ExpireResultArray = new ExpireResultArrayProcessor();
 
-        public static readonly ResultProcessor<ExpireResult[]?> ExpireResultArray = new ExpireResultArrayProcessor();
-
-        public static readonly ResultProcessor<PersistResult?> PersistResult = new PersistResultProcessor();
-
-        public static readonly ResultProcessor<PersistResult[]?> PersistResultArray = new PersistResultArrayProcessor();
+        public static readonly ResultProcessor<PersistResult[]> PersistResultArray = new PersistResultArrayProcessor();
 
         public static readonly ResultProcessor<RedisChannel[]>
             RedisChannelArrayLiteral = new RedisChannelArrayProcessor(RedisChannel.PatternMode.Literal);
@@ -98,14 +94,8 @@ namespace StackExchange.Redis
             RedisValueArray = new RedisValueArrayProcessor();
 
 
-        public static readonly ResultProcessor<RedisValue[]?>
-            NullableRedisValueArray = new NullableRedisValueArrayProcessor();
-
         public static readonly ResultProcessor<long[]>
             Int64Array = new Int64ArrayProcessor();
-
-        public static readonly ResultProcessor<long[]?>
-            Int64NullableArray = new Int64NullableArrayProcessor();
 
         public static readonly ResultProcessor<string?[]>
             NullableStringArray = new NullableStringArrayProcessor();
@@ -1471,38 +1461,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private sealed class ExpireResultProcessor : ResultProcessor<ExpireResult?>
-        {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
-            {
-                switch (result.Resp2TypeBulkString)
-                {
-                    case ResultType.BulkString:
-                        if (result.IsNull)
-                        {
-                            SetResult(message, null);
-                            return true;
-                        }
-                        break;
-                    case ResultType.Array:
-                        var items = result.GetItems();
-                        if (items.Length == 1)
-                        { // treat an array of 1 like a single reply (for example, SCRIPT EXISTS)
-                            if (items[0].TryGetInt64(out long value))
-                            {
-                                SetResult(message, (ExpireResult)value);
-                                return true;
-                            }
-                        }
-                        break;
-                }
-                return false;
-
-            }
-        }
-
-
-        private sealed class ExpireResultArrayProcessor : ResultProcessor<ExpireResult[]?>
+        private sealed class ExpireResultArrayProcessor : ResultProcessor<ExpireResult[]>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
@@ -1517,39 +1476,7 @@ namespace StackExchange.Redis
             }
         }
 
-
-        private sealed class PersistResultProcessor : ResultProcessor<PersistResult?>
-        {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
-            {
-                switch (result.Resp2TypeBulkString)
-                {
-                    case ResultType.BulkString:
-                        if (result.IsNull)
-                        {
-                            SetResult(message, null);
-                            return true;
-                        }
-                        break;
-                    case ResultType.Array:
-                        var items = result.GetItems();
-                        if (items.Length == 1)
-                        { // treat an array of 1 like a single reply (for example, SCRIPT EXISTS)
-                            if (items[0].TryGetInt64(out long value))
-                            {
-                                SetResult(message, (PersistResult)value);
-                                return true;
-                            }
-                        }
-                        break;
-                }
-                return false;
-
-            }
-        }
-
-
-        private sealed class PersistResultArrayProcessor : ResultProcessor<PersistResult[]?>
+        private sealed class PersistResultArrayProcessor : ResultProcessor<PersistResult[]>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
@@ -1671,49 +1598,12 @@ namespace StackExchange.Redis
             }
         }
 
-        private sealed class NullableRedisValueArrayProcessor : ResultProcessor<RedisValue[]?>
-        {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
-            {
-                switch (result.Resp2TypeBulkString)
-                {
-                    // allow a single item to pass explicitly pretending to be an array
-                    case ResultType.BulkString:
-                        // If the result is nil, the result should be an empty array
-                        var arr = result.IsNull
-                            ? null
-                            : new[] { result.AsRedisValue() };
-                        SetResult(message, arr);
-                        return true;
-                    case ResultType.Array:
-                        arr = result.GetItemsAsValues()!;
-                        SetResult(message, arr);
-                        return true;
-                }
-                return false;
-            }
-        }
 
         private sealed class Int64ArrayProcessor : ResultProcessor<long[]>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
                 if (result.Resp2TypeArray == ResultType.Array && !result.IsNull)
-                {
-                    var arr = result.ToArray((in RawResult x) => (long)x.AsRedisValue())!;
-                    SetResult(message, arr);
-                    return true;
-                }
-
-                return false;
-            }
-        }
-
-        private sealed class Int64NullableArrayProcessor : ResultProcessor<long[]?>
-        {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
-            {
-                if (result.Resp2TypeArray == ResultType.Array || result.IsNull)
                 {
                     var arr = result.ToArray((in RawResult x) => (long)x.AsRedisValue())!;
                     SetResult(message, arr);
