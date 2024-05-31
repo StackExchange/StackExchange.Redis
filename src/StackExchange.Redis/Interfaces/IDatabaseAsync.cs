@@ -321,7 +321,7 @@ namespace StackExchange.Redis
         /// <param name="expiry">The timeout to set.</param>
         /// <param name="when">under which condition the expiration will be set using <see cref="ExpireWhen"/>.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns> null if the key does not exist. Otherwise returns an array where each item is the result of operation for given fields;
+        /// <returns> Empty array if the key does not exist. Otherwise returns an array where each item is the result of operation for given fields;
         ///		2: field deleted because the specified expiration time is due
         ///		1: expiration time set/updated
         /// 	0: expiration time is not set/update (a specified ExpireWhen condition is not met)
@@ -338,7 +338,7 @@ namespace StackExchange.Redis
         /// <param name="expiry">The exact date to expiry to set.</param>
         /// <param name="when">under which condition the expiration will be set using <see cref="ExpireWhen"/>.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns> null if the key does not exist. Otherwise returns an array where each item is the result of operation for given fields;
+        /// <returns> Empty array if the key does not exist. Otherwise returns an array where each item is the result of operation for given fields;
         ///		2: field deleted because the specified expiration time is due
         ///		1: expiration time set/updated
         /// 	0: expiration time is not set/update (a specified ExpireWhen condition is not met)
@@ -352,7 +352,7 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the hash.</param>
         /// <param name="hashFields">The fields in the hash to get expire time.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>null if the key does not exist. Otherwise returns the result of operation for given fields
+        /// <returns>Empty array if the key does not exist. Otherwise returns the result of operation for given fields
         ///     expiration time: as a UNIX timestamp in milliseconds
         ///     -1: if field has no associated expiration time 
         ///     -2: no such field
@@ -365,7 +365,7 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the hash.</param>
         /// <param name="hashFields">The fields in the hash to remove expire time.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>null if the key does not exist. Otherwise returns the result of operation for given fields
+        /// <returns>Empty array if the key does not exist. Otherwise returns the result of operation for given fields
         ///     1: if the expiration time was removed
         ///     -1: if field has no associated expiration time 
         ///     -2: no such field
@@ -378,7 +378,7 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the hash.</param>
         /// <param name="hashFields">The fields in the hash to get expire time.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>null if the key does not exist. Otherwise returns the result of operation for given fields
+        /// <returns>Empty array if the key does not exist. Otherwise returns the result of operation for given fields
         ///      time to live: in milliseconds
         ///     -1: if field has no associated expiration time 
         ///     -2: no such field
