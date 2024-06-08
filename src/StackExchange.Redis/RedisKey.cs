@@ -42,6 +42,9 @@ namespace StackExchange.Redis
         internal byte[]? KeyPrefix { get; }
         internal object? KeyValue { get; }
 
+        /// <summary>Gets an empty chunk of keys as a "memory"</summary>
+        public static ReadOnlyMemory<RedisKey> EmptyKeys => default;
+
         /// <summary>
         /// Indicate whether two keys are not equal.
         /// </summary>
@@ -314,7 +317,7 @@ namespace StackExchange.Redis
         public static RedisKey operator +(RedisKey x, RedisKey y) =>
             new RedisKey(ConcatenateBytes(x.KeyPrefix, x.KeyValue, y.KeyPrefix), y.KeyValue);
 
-        internal static RedisKey WithPrefix(byte[]? prefix, RedisKey value)
+        internal static RedisKey WithPrefix(byte[]? prefix, in RedisKey value)
         {
             if (prefix == null || prefix.Length == 0) return value;
             if (value.KeyPrefix == null) return new RedisKey(prefix, value.KeyValue);

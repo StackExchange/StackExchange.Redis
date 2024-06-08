@@ -22,7 +22,7 @@ namespace StackExchange.Redis
         private readonly ReadOnlyMemory<byte> _memory;
         private readonly long _overlappedBits64;
 
-        private RedisValue(long overlappedValue64, ReadOnlyMemory<byte> memory, object? objectOrSentinel)
+        internal RedisValue(long overlappedValue64, ReadOnlyMemory<byte> memory, object? objectOrSentinel)
         {
             _overlappedBits64 = overlappedValue64;
             _memory = memory;
@@ -46,6 +46,8 @@ namespace StackExchange.Redis
         internal object? DirectObject => _objectOrSentinel;
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Roslynator", "RCS1085:Use auto-implemented property.", Justification = "Intentional field ref")]
         internal long DirectOverlappedBits64 => _overlappedBits64;
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Roslynator", "RCS1085:Use auto-implemented property.", Justification = "Intentional field ref")]
+        internal ReadOnlyMemory<byte> DirectMemory => _memory;
 
         private static readonly object Sentinel_SignedInteger = new();
         private static readonly object Sentinel_UnsignedInteger = new();

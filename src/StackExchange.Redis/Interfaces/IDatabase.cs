@@ -1266,6 +1266,36 @@ namespace StackExchange.Redis
         RedisResult ScriptEvaluate(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Execute a Lua script against the server.
+        /// </summary>
+        /// <param name="script">The script to execute.</param>
+        /// <param name="key">The key to execute against.</param>
+        /// <param name="values">The values to execute against.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>A dynamic representation of the script's result.</returns>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/eval"/>,
+        /// <seealso href="https://redis.io/commands/evalsha"/>
+        /// </remarks>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("ApiDesign", "RS0026:Do not add multiple public overloads with optional parameters", Justification = "Not ambiguous due to type delta")]
+        RedisResult ScriptEvaluate(string script, RedisKey key, ReadOnlyMemory<RedisValue> values = default, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Execute a Lua script against the server.
+        /// </summary>
+        /// <param name="script">The script to execute.</param>
+        /// <param name="keys">The keys to execute against.</param>
+        /// <param name="values">The values to execute against.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>A dynamic representation of the script's result.</returns>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/eval"/>,
+        /// <seealso href="https://redis.io/commands/evalsha"/>
+        /// </remarks>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("ApiDesign", "RS0026:Do not add multiple public overloads with optional parameters", Justification = "Not ambiguous due to type delta")]
+        RedisResult ScriptEvaluate(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values = default, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Execute a Lua script against the server using just the SHA1 hash.
         /// </summary>
         /// <param name="hash">The hash of the script to execute.</param>
@@ -1316,6 +1346,36 @@ namespace StackExchange.Redis
         /// <seealso href="https://redis.io/commands/evalsha_ro"/>
         /// </remarks>
         RedisResult ScriptEvaluateReadOnly(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Read-only variant of the EVAL command that cannot execute commands that modify data, Execute a Lua script against the server.
+        /// </summary>
+        /// <param name="script">The script to execute.</param>
+        /// <param name="key">The key to execute against.</param>
+        /// <param name="values">The values to execute against.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>A dynamic representation of the script's result.</returns>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/eval_ro"/>,
+        /// <seealso href="https://redis.io/commands/evalsha_ro"/>
+        /// </remarks>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("ApiDesign", "RS0026:Do not add multiple public overloads with optional parameters", Justification = "Not ambiguous due to type delta")]
+        RedisResult ScriptEvaluateReadOnly(string script, RedisKey key, ReadOnlyMemory<RedisValue> values = default, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Read-only variant of the EVAL command that cannot execute commands that modify data, Execute a Lua script against the server.
+        /// </summary>
+        /// <param name="script">The script to execute.</param>
+        /// <param name="keys">The keys to execute against.</param>
+        /// <param name="values">The values to execute against.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>A dynamic representation of the script's result.</returns>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/eval_ro"/>,
+        /// <seealso href="https://redis.io/commands/evalsha_ro"/>
+        /// </remarks>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("ApiDesign", "RS0026:Do not add multiple public overloads with optional parameters", Justification = "Not ambiguous due to type delta")]
+        RedisResult ScriptEvaluateReadOnly(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values = default, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Read-only variant of the EVALSHA command that cannot execute commands that modify data, Execute a Lua script against the server using just the SHA1 hash.
