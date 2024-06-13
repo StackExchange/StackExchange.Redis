@@ -31,7 +31,7 @@ public abstract class TestBase : IDisposable
 
     private readonly SharedConnectionFixture? _fixture;
 
-    protected bool SharedFixtureAvailable => _fixture != null && _fixture.IsEnabled;
+    protected bool SharedFixtureAvailable => _fixture != null && _fixture.IsEnabled && !HighIntegrity;
 
     protected TestBase(ITestOutputHelper output, SharedConnectionFixture? fixture = null)
     {
@@ -236,6 +236,8 @@ public abstract class TestBase : IDisposable
         throw new InvalidOperationException("Requires a primary endpoint (found none)");
     }
 
+    internal virtual bool HighIntegrity => false;
+
     internal virtual IInternalConnectionMultiplexer Create(
         string? clientName = null,
         int? syncTimeout = null,
@@ -271,9 +273,10 @@ public abstract class TestBase : IDisposable
         protocol ??= Context.Test.Protocol;
 
         // Share a connection if instructed to and we can - many specifics mean no sharing
+        bool highIntegrity = HighIntegrity;
         if (shared && expectedFailCount == 0
             && _fixture != null && _fixture.IsEnabled
-            && CanShare(allowAdmin, password, tieBreaker, fail, disabledCommands, enabledCommands, channelPrefix, proxy, configuration, defaultDatabase, backlogPolicy))
+            && CanShare(allowAdmin, password, tieBreaker, fail, disabledCommands, enabledCommands, channelPrefix, proxy, configuration, defaultDatabase, backlogPolicy, highIntegrity))
         {
             configuration = GetConfiguration();
             var fixtureConn = _fixture.GetConnection(this, protocol.Value, caller: caller);
@@ -296,7 +299,7 @@ public abstract class TestBase : IDisposable
             checkConnect, failMessage,
             channelPrefix, proxy,
             logTransactionData, defaultDatabase,
-            backlogPolicy, protocol,
+            backlogPolicy, protocol, highIntegrity,
             caller);
 
         ThrowIfIncorrectProtocol(conn, protocol);
@@ -319,7 +322,8 @@ public abstract class TestBase : IDisposable
         Proxy? proxy,
         string? configuration,
         int? defaultDatabase,
-        BacklogPolicy? backlogPolicy
+        BacklogPolicy? backlogPolicy,
+        bool highIntegrity
         )
         => enabledCommands == null
             && disabledCommands == null
@@ -331,7 +335,8 @@ public abstract class TestBase : IDisposable
             && tieBreaker == null
             && defaultDatabase == null
             && (allowAdmin == null || allowAdmin == true)
-            && backlogPolicy == null;
+            && backlogPolicy == null
+            && !highIntegrity;
 
     internal void ThrowIfIncorrectProtocol(IInternalConnectionMultiplexer conn, RedisProtocol? requiredProtocol)
     {
@@ -389,7 +394,7 @@ public abstract class TestBase : IDisposable
         bool logTransactionData = true,
         int? defaultDatabase = null,
         BacklogPolicy? backlogPolicy = null,
-        RedisProtocol? protocol = null,
+        RedisProtocol? protocol = null, bool highIntegrity = false,
         [CallerMemberName] string caller = "")
     {
         StringWriter? localLog = null;
@@ -425,6 +430,7 @@ public abstract class TestBase : IDisposable
             if (defaultDatabase is not null) config.DefaultDatabase = defaultDatabase.Value;
             if (backlogPolicy is not null) config.BacklogPolicy = backlogPolicy;
             if (protocol is not null) config.Protocol = protocol;
+            if (highIntegrity) config.HighIntegrity = highIntegrity;
             var watch = Stopwatch.StartNew();
             var task = ConnectionMultiplexer.ConnectAsync(config, log);
             if (!task.Wait(config.ConnectTimeout >= (int.MaxValue / 2) ? int.MaxValue : config.ConnectTimeout * 2))

@@ -8,9 +8,17 @@ using Xunit.Abstractions;
 namespace StackExchange.Redis.Tests;
 
 [Collection(SharedConnectionFixture.Key)]
+public class HighIntegrityBasicOpsTests : BasicOpsTests
+{
+    public HighIntegrityBasicOpsTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
+
+    internal override bool HighIntegrity => true;
+}
+
+[Collection(SharedConnectionFixture.Key)]
 public class BasicOpsTests : TestBase
 {
-    public BasicOpsTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base (output, fixture) { }
+    public BasicOpsTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
 
     [Fact]
     public async Task PingOnce()

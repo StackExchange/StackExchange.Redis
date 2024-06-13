@@ -70,6 +70,8 @@ namespace StackExchange.Redis
 
         internal string? PhysicalName => physical?.ToString();
 
+        private readonly Random? _highIntegrityEntropy = null;
+
         public DateTime? ConnectedAt { get; private set; }
 
         public PhysicalBridge(ServerEndPoint serverEndPoint, ConnectionType type, int timeoutMilliseconds)
@@ -82,6 +84,10 @@ namespace StackExchange.Redis
 #if !NETCOREAPP
             _singleWriterMutex = new MutexSlim(timeoutMilliseconds: timeoutMilliseconds);
 #endif
+            if (type == ConnectionType.Interactive && Multiplexer.RawConfig.HighIntegrity)
+            {
+                _highIntegrityEntropy = new Random();
+            }
         }
 
         private readonly int TimeoutMilliseconds;
@@ -1546,9 +1552,26 @@ namespace StackExchange.Redis
                         break;
                 }
 
+                if (_highIntegrityEntropy is not null && !connection.TransactionActive)
+                {
+                    // make sure this value exists early to avoid a race condition
+                    // if the response comes back super quickly
+                    message.WithHighIntegrity(_highIntegrityEntropy);
+                    Debug.Assert(message.IsHighIntegrity, "message should be high integrity");
+                }
+                else
+                {
+                    Debug.Assert(!message.IsHighIntegrity, "prior high integrity message found during transaction?");
+                }
                 connection.EnqueueInsideWriteLock(message);
                 isQueued = true;
                 message.WriteTo(connection);
+
+                if (message.IsHighIntegrity)
+                {
+                    message.WriteHighIntegrityChecksumRequest(connection);
+                    IncrementOpCount();
+                }
 
                 message.SetRequestSent();
                 IncrementOpCount();

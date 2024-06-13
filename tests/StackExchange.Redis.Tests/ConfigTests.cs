@@ -43,7 +43,7 @@ public class ConfigTests : TestBase
             "configChannel", "configCheckSeconds", "connectRetry",
             "connectTimeout", "DefaultDatabase", "defaultOptions",
             "defaultVersion", "EndPoints", "heartbeatConsistencyChecks",
-            "heartbeatInterval", "includeDetailInExceptions", "includePerformanceCountersInExceptions",
+            "heartbeatInterval", "highIntegrity", "includeDetailInExceptions", "includePerformanceCountersInExceptions",
             "keepAlive", "LibraryName", "loggerFactory",
             "password", "Protocol", "proxy",
             "reconnectRetryPolicy", "resolveDns", "responseTimeout",
