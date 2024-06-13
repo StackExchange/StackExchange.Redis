@@ -126,7 +126,6 @@ public class HashTests : TestBase
         Assert.Equal("ghi=jkl", string.Join(",", v4.Select(pair => pair.Name + "=" + pair.Value)));
     }
 
-
     [Fact]
     public async Task ScanNoValuesAsync()
     {

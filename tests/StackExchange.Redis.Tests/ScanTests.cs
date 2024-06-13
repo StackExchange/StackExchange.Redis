@@ -342,7 +342,7 @@ public class ScanTests : TestBase
     {
         string[]? disabledCommands = supported ? null : new[] { "hscan" };
 
-        using var conn = Create(disabledCommands: disabledCommands);
+        using var conn = Create(require: RedisFeatures.v7_4_0_rc1, disabledCommands: disabledCommands);
 
         RedisKey key = Me();
         var db = conn.GetDatabase();
@@ -372,7 +372,7 @@ public class ScanTests : TestBase
     [InlineData(10000)]
     public void HashScanNoValuesLarge(int pageSize)
     {
-        using var conn = Create();
+        using var conn = Create(require: RedisFeatures.v7_4_0_rc1);
 
         RedisKey key = Me() + pageSize;
         var db = conn.GetDatabase();
