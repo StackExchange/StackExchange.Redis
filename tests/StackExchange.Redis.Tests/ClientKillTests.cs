@@ -36,7 +36,7 @@ public class ClientKillTests : TestBase
 
         using var conn = Create(allowAdmin: true, shared: false, backlogPolicy: BacklogPolicy.FailFast);
         var server = conn.GetServer(conn.GetEndPoints()[0]);
-        var filter = new ClientKillFilter() { Id = id.AsInt64(), MaxAgeInSeconds = 1, SkipMe = true };
+        var filter = new ClientKillFilter().WithId(id.AsInt64()).WithMaxAgeInSeconds(1).WithSkipMe(true);
         long result = server.ClientKill(filter, CommandFlags.DemandMaster);
         Assert.Equal(1, result);
     }

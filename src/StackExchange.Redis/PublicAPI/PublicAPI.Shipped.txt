@@ -127,24 +127,21 @@ StackExchange.Redis.ClientInfo.Raw.get -> string?
 StackExchange.Redis.ClientInfo.SubscriptionCount.get -> int
 StackExchange.Redis.ClientInfo.TransactionCommandLength.get -> int
 StackExchange.Redis.ClientKillFilter
-StackExchange.Redis.ClientKillFilter.ClientKillFilter(bool skipMe, int? maxAgeInSeconds) -> void
-StackExchange.Redis.ClientKillFilter.ClientKillFilter(long? id, int? maxAgeInSeconds) -> void
-StackExchange.Redis.ClientKillFilter.ClientKillFilter(long? id, StackExchange.Redis.ClientType? clientType, int? maxAgeInSeconds) -> void
-StackExchange.Redis.ClientKillFilter.ClientKillFilter(long? id, StackExchange.Redis.ClientType? clientType, System.Net.EndPoint? endpoint, bool skipMe, int? maxAgeInSeconds) -> void
-StackExchange.Redis.ClientKillFilter.ClientKillFilter(long? id, StackExchange.Redis.ClientType? clientType, System.Net.EndPoint? endpoint, int? maxAgeInSeconds) -> void
-StackExchange.Redis.ClientKillFilter.ClientKillFilter(StackExchange.Redis.ClientType? clientType, int? maxAgeInSeconds) -> void
-StackExchange.Redis.ClientKillFilter.ClientKillFilter(System.Net.EndPoint? endpoint, int? maxAgeInSeconds) -> void
 StackExchange.Redis.ClientKillFilter.ClientKillFilter() -> void
 StackExchange.Redis.ClientKillFilter.ClientType.get -> StackExchange.Redis.ClientType?
-StackExchange.Redis.ClientKillFilter.ClientType.set -> void
 StackExchange.Redis.ClientKillFilter.Endpoint.get -> System.Net.EndPoint?
-StackExchange.Redis.ClientKillFilter.Endpoint.set -> void
 StackExchange.Redis.ClientKillFilter.Id.get -> long?
-StackExchange.Redis.ClientKillFilter.Id.set -> void
 StackExchange.Redis.ClientKillFilter.MaxAgeInSeconds.get -> long?
-StackExchange.Redis.ClientKillFilter.MaxAgeInSeconds.set -> void
-StackExchange.Redis.ClientKillFilter.SkipMe.get -> bool
-StackExchange.Redis.ClientKillFilter.SkipMe.set -> void
+StackExchange.Redis.ClientKillFilter.ServerEndpoint.get -> System.Net.EndPoint?
+StackExchange.Redis.ClientKillFilter.SkipMe.get -> bool?
+StackExchange.Redis.ClientKillFilter.Username.get -> string?
+StackExchange.Redis.ClientKillFilter.WithClientType(StackExchange.Redis.ClientType clientType) -> StackExchange.Redis.ClientKillFilter!
+StackExchange.Redis.ClientKillFilter.WithEndpoint(System.Net.EndPoint! endpoint) -> StackExchange.Redis.ClientKillFilter!
+StackExchange.Redis.ClientKillFilter.WithId(long id) -> StackExchange.Redis.ClientKillFilter!
+StackExchange.Redis.ClientKillFilter.WithMaxAgeInSeconds(long maxAgeInSeconds) -> StackExchange.Redis.ClientKillFilter!
+StackExchange.Redis.ClientKillFilter.WithServerEndpoint(System.Net.EndPoint! serverEndpoint) -> StackExchange.Redis.ClientKillFilter!
+StackExchange.Redis.ClientKillFilter.WithSkipMe(bool skipMe) -> StackExchange.Redis.ClientKillFilter!
+StackExchange.Redis.ClientKillFilter.WithUsername(string! username) -> StackExchange.Redis.ClientKillFilter!
 StackExchange.Redis.ClientType
 StackExchange.Redis.ClientType.Normal = 0 -> StackExchange.Redis.ClientType
 StackExchange.Redis.ClientType.PubSub = 2 -> StackExchange.Redis.ClientType

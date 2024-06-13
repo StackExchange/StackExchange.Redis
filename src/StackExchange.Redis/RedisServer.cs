@@ -87,7 +87,7 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
-        private Message GetClientKillMessage(EndPoint? endpoint, long? id, ClientType? clientType, bool skipMe, long? maxAgeInSeconds, CommandFlags flags)
+        private Message GetClientKillMessage(EndPoint? endpoint, long? id, ClientType? clientType, bool? skipMe, long? maxAgeInSeconds, CommandFlags flags)
         {
             var parts = new List<RedisValue>(9)
             {
@@ -121,7 +121,7 @@ namespace StackExchange.Redis
                 parts.Add(RedisLiterals.ADDR);
                 parts.Add((RedisValue)Format.ToString(endpoint));
             }
-            if (!skipMe)
+            if (skipMe != null)
             {
                 parts.Add(RedisLiterals.SKIPME);
                 parts.Add(RedisLiterals.no);
