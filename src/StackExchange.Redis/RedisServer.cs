@@ -124,7 +124,7 @@ namespace StackExchange.Redis
             if (skipMe != null)
             {
                 parts.Add(RedisLiterals.SKIPME);
-                parts.Add(RedisLiterals.no);
+                parts.Add(skipMe.Value ? RedisLiterals.yes : RedisLiterals.no);
             }
             if (maxAgeInSeconds != null)
             {
