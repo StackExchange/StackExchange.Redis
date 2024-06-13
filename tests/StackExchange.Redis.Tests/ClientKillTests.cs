@@ -16,6 +16,8 @@ public class ClientKillTests : TestBase
     [Fact]
     public void ClientKill()
     {
+        var db = Create(require: RedisFeatures.v7_4_0_rc1).GetDatabase();
+
         SetExpectedAmbientFailureCount(-1);
         using var otherConnection = Create(allowAdmin: true, shared: false, backlogPolicy: BacklogPolicy.FailFast);
         var id = otherConnection.GetDatabase().Execute(RedisCommand.CLIENT.ToString(), RedisLiterals.ID);
@@ -29,6 +31,8 @@ public class ClientKillTests : TestBase
     [Fact]
     public void ClientKillWithMaxAge()
     {
+        var db = Create(require: RedisFeatures.v7_4_0_rc1).GetDatabase();
+
         SetExpectedAmbientFailureCount(-1);
         using var otherConnection = Create(allowAdmin: true, shared: false, backlogPolicy: BacklogPolicy.FailFast);
         var id = otherConnection.GetDatabase().Execute(RedisCommand.CLIENT.ToString(), RedisLiterals.ID);
