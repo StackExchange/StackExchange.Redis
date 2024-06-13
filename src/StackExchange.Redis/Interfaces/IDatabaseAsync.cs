@@ -459,7 +459,6 @@ namespace StackExchange.Redis
         /// <remarks><seealso href="https://redis.io/commands/hscan"/></remarks>
         IAsyncEnumerable<RedisValue> HashScanNoValuesAsync(RedisKey key, RedisValue pattern = default, int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None);
 
-
         /// <summary>
         /// Sets the specified fields to their respective values in the hash stored at key.
         /// This command overwrites any specified fields that already exist in the hash, leaving other unspecified fields untouched.
