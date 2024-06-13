@@ -130,7 +130,7 @@ public class HashTests : TestBase
     [Fact]
     public async Task ScanNoValuesAsync()
     {
-        using var conn = Create(require: RedisFeatures.v2_8_0);
+        using var conn = Create(require: RedisFeatures.v7_4_0_rc1);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -176,7 +176,7 @@ public class HashTests : TestBase
     [Fact]
     public void ScanNoValues()
     {
-        using var conn = Create(require: RedisFeatures.v2_8_0);
+        using var conn = Create(require: RedisFeatures.v7_4_0_rc1);
 
         var db = conn.GetDatabase();
 
@@ -211,7 +211,6 @@ public class HashTests : TestBase
         Assert.Equal(new RedisValue[] { "abc", "ghi", "mno" }, v3);
         Assert.Equal(new RedisValue[] { "ghi" }, v4);
     }
-
 
     [Fact]
     public void TestIncrementOnHashThatDoesntExist()

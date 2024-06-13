@@ -4681,7 +4681,7 @@ namespace StackExchange.Redis
                 {
                     if (CursorUtils.IsNil(pattern) && pageSize == CursorUtils.DefaultRedisPageSize) return Message.Create(db, flags, command, key, cursor, RedisLiterals.NOVALUES);
                     if (CursorUtils.IsNil(pattern)) return Message.Create(db, flags, command, key, cursor, RedisLiterals.COUNT, pageSize, RedisLiterals.NOVALUES);
-                    return Message.Create(db, flags, command, key, new RedisValue[] { cursor, RedisLiterals.MATCH, pattern, RedisLiterals.COUNT, pageSize, RedisLiterals.NOVALUES });
+                    return Message.Create(db, flags, command, key, cursor, RedisLiterals.MATCH, pattern, RedisLiterals.COUNT, pageSize, RedisLiterals.NOVALUES);
                 }
 
                 if (CursorUtils.IsNil(pattern))

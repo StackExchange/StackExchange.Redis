@@ -379,7 +379,9 @@ public class ScanTests : TestBase
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
         for (int i = 0; i < 2000; i++)
+        {
             db.HashSet(key, "k" + i, "v" + i, flags: CommandFlags.FireAndForget);
+        }
 
         int count = db.HashScanNoValues(key, pageSize: pageSize).Count();
         Assert.Equal(2000, count);
