@@ -43,7 +43,6 @@ namespace StackExchange.Redis
                                          v7_2_0_rc1 = new Version(7, 1, 240), // 7.2 RC1 is version 7.1.240        
                                          v7_4_0_rc1 = new Version(7, 3, 240); // 7.4 RC1 is version 7.3.240
 
-
         private readonly Version version;
 
         /// <summary>
