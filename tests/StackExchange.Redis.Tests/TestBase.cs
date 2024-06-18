@@ -394,7 +394,8 @@ public abstract class TestBase : IDisposable
         bool logTransactionData = true,
         int? defaultDatabase = null,
         BacklogPolicy? backlogPolicy = null,
-        RedisProtocol? protocol = null, bool highIntegrity = false,
+        RedisProtocol? protocol = null,
+        bool highIntegrity = false,
         [CallerMemberName] string caller = "")
     {
         StringWriter? localLog = null;
