@@ -285,9 +285,11 @@ namespace StackExchange.Redis
         /// A Boolean value that specifies whether to use per-command validation of strict protocol validity.
         /// This sends an additional command after EVERY command which incurs measurable overhead.
         /// </summary>
-        /// <remarks>The regular RESP protocol does not include correlation identifiers between requests and responses; in exceptional
+        /// <remarks>
+        /// The regular RESP protocol does not include correlation identifiers between requests and responses; in exceptional
         /// scenarios, protocol desynchronization can occur, which may not be noticed immediately; this option adds additional data
-        /// to ensure that this cannot occur, at the cost of some (small) additional bandwidth usage.</remarks>
+        /// to ensure that this cannot occur, at the cost of some (small) additional bandwidth usage.
+        /// </remarks>
         public bool HighIntegrity
         {
             get => highIntegrity ?? Defaults.HighIntegrity;
