@@ -1,3 +1,1 @@
-﻿StackExchange.Redis.ConfigurationOptions.HighIntegrity.get -> bool
-StackExchange.Redis.ConfigurationOptions.HighIntegrity.set -> void
-virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.HighIntegrity.get -> bool
+﻿

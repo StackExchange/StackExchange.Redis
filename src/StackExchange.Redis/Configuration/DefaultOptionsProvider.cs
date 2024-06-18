@@ -105,7 +105,8 @@ namespace StackExchange.Redis.Configuration
         public virtual bool CheckCertificateRevocation => true;
 
         /// <summary>
-        /// A Boolean value that specifies whether to use per-command validation of strict protocol validity
+        /// A Boolean value that specifies whether to use per-command validation of strict protocol validity.
+        /// This sends an additional command after EVERY command which incurs measurable overhead.
         /// </summary>
         /// <remarks>The regular RESP protocol does not include correlation identifiers between requests and responses; in exceptional
         /// scenarios, protocol desynchronization can occur, which may not be noticed immediately; this option adds additional data
