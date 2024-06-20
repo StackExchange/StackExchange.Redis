@@ -1512,6 +1512,24 @@ public class StreamTests : TestBase
     }
 
     [Fact]
+    public void StreamReadLastMessage()
+    {
+        using var conn = Create(require: RedisFeatures.v7_4_0_rc1);
+        var db = conn.GetDatabase();
+        var key1 = Me();
+
+        // Read the entire stream from the beginning.
+        db.StreamRead(key1, "0-0");
+        db.StreamAdd(key1, "field2", "value2");
+        db.StreamAdd(key1, "fieldLast", "valueLast");
+        var entries = db.StreamRead(key1, "+");
+
+        Assert.NotNull(entries);
+        Assert.True(entries.Length > 0);
+        Assert.Equal(new[] { new NameValueEntry("fieldLast", "valueLast") }, entries[0].Values);
+    }
+
+    [Fact]
     public void StreamReadExpectedExceptionInvalidCountMultipleStream()
     {
         using var conn = Create(require: RedisFeatures.v5_0_0);
@@ -1589,6 +1607,49 @@ public class StreamTests : TestBase
         Assert.Equal(id3, streams[1].Entries[0].Id);
         Assert.Equal(id4, streams[1].Entries[1].Id);
     }
+
+    [Fact]
+    public void StreamReadMultipleStreamsLastMessage()
+    {
+        using var conn = Create(require: RedisFeatures.v7_4_0_rc1);
+
+        var db = conn.GetDatabase();
+        var key1 = Me() + "a";
+        var key2 = Me() + "b";
+
+        var id1 = db.StreamAdd(key1, "field1", "value1");
+        var id2 = db.StreamAdd(key1, "field2", "value2");
+        var id3 = db.StreamAdd(key2, "field3", "value3");
+        var id4 = db.StreamAdd(key2, "field4", "value4");
+
+        var streamList = new[] { new StreamPosition(key1, "0-0"), new StreamPosition(key2, "0-0") };
+        db.StreamRead(streamList);
+
+        var streams = db.StreamRead(streamList);
+
+        db.StreamAdd(key1, "field5", "value5");
+        db.StreamAdd(key1, "field6", "value6");
+        db.StreamAdd(key2, "field7", "value7");
+        db.StreamAdd(key2, "field8", "value8");
+
+        streamList = new[] { new StreamPosition(key1, "+"), new StreamPosition(key2, "+") };
+
+        streams = db.StreamRead(streamList);
+
+        Assert.NotNull(streams);
+        Assert.True(streams.Length == 2);
+
+        var stream1 = streams.Where(e => e.Key == key1).First();
+        Assert.NotNull(stream1.Entries);
+        Assert.True(stream1.Entries.Length > 0);
+        Assert.Equal(new[] { new NameValueEntry("field6", "value6") }, stream1.Entries[0].Values);
+
+        var stream2 = streams.Where(e => e.Key == key2).First();
+        Assert.NotNull(stream2.Entries);
+        Assert.True(stream2.Entries.Length > 0);
+        Assert.Equal(new[] { new NameValueEntry("field8", "value8") }, stream2.Entries[0].Values);
+    }
+
 
     [Fact]
     public void StreamReadMultipleStreamsWithCount()
