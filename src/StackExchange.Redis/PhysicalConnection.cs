@@ -45,7 +45,7 @@ namespace StackExchange.Redis
         // things sent to this physical, but not yet received
         private readonly Queue<Message> _writtenAwaitingResponse = new Queue<Message>();
 
-        private Message? _awaitingChecksum;
+        private Message? _awaitingToken;
 
         private readonly string _physicalName;
 
@@ -517,7 +517,7 @@ namespace StackExchange.Redis
 
             var ex = innerException is RedisException ? innerException : outerException;
 
-            nextMessage = Interlocked.Exchange(ref _awaitingChecksum, null);
+            nextMessage = Interlocked.Exchange(ref _awaitingToken, null);
             if (nextMessage is not null)
             {
                 RecordMessageFailed(nextMessage, ex, origin, bridge);
@@ -1702,10 +1702,10 @@ namespace StackExchange.Redis
 
             Message? msg = null;
             // check whether we're waiting for a high-integrity mode post-response checksum (using cheap null-check first)
-            if (_awaitingChecksum is not null && (msg = Interlocked.Exchange(ref _awaitingChecksum, null)) is not null)
+            if (_awaitingToken is not null && (msg = Interlocked.Exchange(ref _awaitingToken, null)) is not null)
             {
                 _readStatus = ReadStatus.ResponseChecksum;
-                ProcessHighIntegrityResponseChecksum(msg, in result, BridgeCouldBeNull);
+                ProcessHighIntegrityResponseToken(msg, in result, BridgeCouldBeNull);
                 return;
             }
 
@@ -1714,7 +1714,7 @@ namespace StackExchange.Redis
             {
                 if (msg is not null)
                 {
-                    _awaitingChecksum = null;
+                    _awaitingToken = null;
                 }
 
                 if (!_writtenAwaitingResponse.TryDequeue(out msg))
@@ -1738,14 +1738,14 @@ namespace StackExchange.Redis
             if (msg.IsHighIntegrity)
             {
                 // stash this for the next non-OOB response
-                Volatile.Write(ref _awaitingChecksum, msg);
+                Volatile.Write(ref _awaitingToken, msg);
             }
 
 
             _readStatus = ReadStatus.MatchResultComplete;
             _activeMessage = null;
 
-            static void ProcessHighIntegrityResponseChecksum(Message message, in RawResult result, PhysicalBridge? bridge)
+            static void ProcessHighIntegrityResponseToken(Message message, in RawResult result, PhysicalBridge? bridge)
             {
                 bool isValid = false;
                 if (result.Resp2TypeBulkString == ResultType.BulkString)
@@ -1753,18 +1753,18 @@ namespace StackExchange.Redis
                     var payload = result.Payload;
                     if (payload.Length == 4)
                     {
-                        int interpreted;
+                        uint interpreted;
                         if (payload.IsSingleSegment)
                         {
-                            interpreted = BinaryPrimitives.ReadInt32LittleEndian(payload.First.Span);
+                            interpreted = BinaryPrimitives.ReadUInt32LittleEndian(payload.First.Span);
                         }
                         else
                         {
                             Span<byte> span = stackalloc byte[4];
                             payload.CopyTo(span);
-                            interpreted = BinaryPrimitives.ReadInt32LittleEndian(payload.First.Span);
+                            interpreted = BinaryPrimitives.ReadUInt32LittleEndian(payload.First.Span);
                         }
-                        isValid = interpreted == message.HighIntegrityChecksum;
+                        isValid = interpreted == message.HighIntegrityToken;
                     }
                 }
                 if (isValid)

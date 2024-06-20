@@ -477,4 +477,42 @@ public class BasicOpsTests : TestBase
         int count = (int)conn.GetDatabase().StringGet("abc" + key);
         Assert.Equal(3, count);
     }
+
+    [Fact]
+    public void TransactionSync()
+    {
+        using var conn = Create();
+        var db = conn.GetDatabase();
+
+        RedisKey key = Me();
+
+        var tran = db.CreateTransaction();
+        _ = db.KeyDeleteAsync(key);
+        var x = tran.StringIncrementAsync(Me());
+        var y = tran.StringIncrementAsync(Me());
+        var z = tran.StringIncrementAsync(Me());
+        Assert.True(tran.Execute());
+        Assert.Equal(1, x.Result);
+        Assert.Equal(2, y.Result);
+        Assert.Equal(3, z.Result);
+    }
+
+    [Fact]
+    public async Task TransactionAsync()
+    {
+        await using var conn = Create();
+        var db = conn.GetDatabase();
+
+        RedisKey key = Me();
+
+        var tran = db.CreateTransaction();
+        _ = db.KeyDeleteAsync(key);
+        var x = tran.StringIncrementAsync(Me());
+        var y = tran.StringIncrementAsync(Me());
+        var z = tran.StringIncrementAsync(Me());
+        Assert.True(await tran.ExecuteAsync());
+        Assert.Equal(1, await x);
+        Assert.Equal(2, await y);
+        Assert.Equal(3, await z);
+    }
 }

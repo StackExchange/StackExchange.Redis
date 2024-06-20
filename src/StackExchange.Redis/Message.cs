@@ -53,7 +53,7 @@ namespace StackExchange.Redis
     {
         public readonly int Db;
 
-        private int _highIntegrityChecksum;
+        private uint _highIntegrityToken;
 
         internal const CommandFlags InternalCallFlag = (CommandFlags)128;
 
@@ -201,17 +201,12 @@ namespace StackExchange.Redis
 
         public bool IsAsking => (Flags & AskingFlag) != 0;
 
-        public bool IsHighIntegrity => _highIntegrityChecksum != 0;
-        public int HighIntegrityChecksum => _highIntegrityChecksum;
+        public bool IsHighIntegrity => _highIntegrityToken != 0;
 
-        internal void WithHighIntegrity(Random rng)
-        {
-            // create a required value if needed; avoid sentinel zero
-            while (_highIntegrityChecksum is 0)
-            {
-                _highIntegrityChecksum = rng.Next();
-            }
-        }
+        public uint HighIntegrityToken => _highIntegrityToken;
+
+        internal void WithHighIntegrity(uint value)
+            => _highIntegrityToken = value;
 
         internal bool IsScriptUnavailable => (Flags & ScriptUnavailableFlag) != 0;
 
@@ -737,7 +732,7 @@ namespace StackExchange.Redis
                 Span<byte> chk = stackalloc byte[10];
                 Debug.Assert(ChecksumTemplate.Length == chk.Length, "checksum template length error");
                 ChecksumTemplate.CopyTo(chk);
-                BinaryPrimitives.WriteInt32LittleEndian(chk.Slice(4, 4), _highIntegrityChecksum);
+                BinaryPrimitives.WriteUInt32LittleEndian(chk.Slice(4, 4), _highIntegrityToken);
                 physical.WriteRaw(chk);
             }
             catch (Exception ex)
