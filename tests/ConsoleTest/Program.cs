@@ -6,13 +6,24 @@ Stopwatch stopwatch = new Stopwatch();
 stopwatch.Start();
 
 var options = ConfigurationOptions.Parse("localhost");
+#if !SEREDIS_BASELINE
+options.HighIntegrity = false; // as needed
+Console.WriteLine($"{nameof(options.HighIntegrity)}: {options.HighIntegrity}");
+#endif
+
 //options.SocketManager = SocketManager.ThreadPool;
 var connection = ConnectionMultiplexer.Connect(options);
+connection.ConnectionFailed += Connection_ConnectionFailed;
+
+void Connection_ConnectionFailed(object? sender, ConnectionFailedEventArgs e)
+{
+    Console.Error.WriteLine($"CONNECTION FAILED: {e.ConnectionType}, {e.FailureType}, {e.Exception}");
+}
 
 var startTime = DateTime.UtcNow;
 var startCpuUsage = Process.GetCurrentProcess().TotalProcessorTime;
 
-var scenario = args?.Length > 0 ? args[0] : "parallel";
+var scenario = args?.Length > 0 ? args[0] : "mass-insert";
 
 switch (scenario)
 {

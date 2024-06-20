@@ -321,6 +321,7 @@ StackExchange.Redis.ConnectionFailureType.ProtocolFailure = 4 -> StackExchange.R
 StackExchange.Redis.ConnectionFailureType.SocketClosed = 6 -> StackExchange.Redis.ConnectionFailureType
 StackExchange.Redis.ConnectionFailureType.SocketFailure = 2 -> StackExchange.Redis.ConnectionFailureType
 StackExchange.Redis.ConnectionFailureType.UnableToConnect = 9 -> StackExchange.Redis.ConnectionFailureType
+StackExchange.Redis.ConnectionFailureType.ResponseIntegrityFailure = 10 -> StackExchange.Redis.ConnectionFailureType
 StackExchange.Redis.ConnectionFailureType.UnableToResolvePhysicalConnection = 1 -> StackExchange.Redis.ConnectionFailureType
 StackExchange.Redis.ConnectionMultiplexer
 StackExchange.Redis.ConnectionMultiplexer.ClientName.get -> string!

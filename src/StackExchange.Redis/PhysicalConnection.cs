@@ -1705,7 +1705,10 @@ namespace StackExchange.Redis
             if (_awaitingToken is not null && (msg = Interlocked.Exchange(ref _awaitingToken, null)) is not null)
             {
                 _readStatus = ReadStatus.ResponseSequenceCheck;
-                ProcessHighIntegrityResponseToken(msg, in result, BridgeCouldBeNull);
+                if (!ProcessHighIntegrityResponseToken(msg, in result, BridgeCouldBeNull))
+                {
+                    RecordConnectionFailed(ConnectionFailureType.ResponseIntegrityFailure, origin: nameof(ReadStatus.ResponseSequenceCheck));
+                }
                 return;
             }
 
@@ -1745,7 +1748,7 @@ namespace StackExchange.Redis
             _readStatus = ReadStatus.MatchResultComplete;
             _activeMessage = null;
 
-            static void ProcessHighIntegrityResponseToken(Message message, in RawResult result, PhysicalBridge? bridge)
+            static bool ProcessHighIntegrityResponseToken(Message message, in RawResult result, PhysicalBridge? bridge)
             {
                 bool isValid = false;
                 if (result.Resp2TypeBulkString == ResultType.BulkString)
@@ -1762,7 +1765,7 @@ namespace StackExchange.Redis
                         {
                             Span<byte> span = stackalloc byte[4];
                             payload.CopyTo(span);
-                            interpreted = BinaryPrimitives.ReadUInt32LittleEndian(payload.First.Span);
+                            interpreted = BinaryPrimitives.ReadUInt32LittleEndian(span);
                         }
                         isValid = interpreted == message.HighIntegrityToken;
                     }
@@ -1770,12 +1773,13 @@ namespace StackExchange.Redis
                 if (isValid)
                 {
                     message.Complete();
+                    return true;
                 }
                 else
                 {
                     message.SetExceptionAndComplete(new InvalidOperationException("High-integrity mode detected possible protocol de-sync"), bridge);
+                    return false;
                 }
-                
             }
 
             static bool TryGetPubSubPayload(in RawResult value, out RedisValue parsed, bool allowArraySingleton = true)
