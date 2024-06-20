@@ -45,14 +45,14 @@ public class HashFieldTests : TestBase
     [Fact]
     public void HashFieldExpireNoKey()
     {
-        var db = Create(require: RedisFeatures.v7_4_0_rc1).GetDatabase();
+        var db = Create(require: RedisFeatures.v7_4_0_rc2).GetDatabase();
         var hashKey = Me();
 
         var fieldsResult = db.HashFieldExpire(hashKey, fields, oneYearInMs);
-        Assert.Equal(Array.Empty<ExpireResult>(), fieldsResult);
+        Assert.Equal(new[] { ExpireResult.NoSuchField, ExpireResult.NoSuchField }, fieldsResult);
 
         fieldsResult = db.HashFieldExpire(hashKey, fields, nextCentury);
-        Assert.Equal(Array.Empty<ExpireResult>(), fieldsResult);
+        Assert.Equal(new[] { ExpireResult.NoSuchField, ExpireResult.NoSuchField }, fieldsResult);
     }
 
     [Fact]
@@ -72,14 +72,14 @@ public class HashFieldTests : TestBase
     [Fact]
     public async void HashFieldExpireAsyncNoKey()
     {
-        var db = Create(require: RedisFeatures.v7_4_0_rc1).GetDatabase();
+        var db = Create(require: RedisFeatures.v7_4_0_rc2).GetDatabase();
         var hashKey = Me();
 
         var fieldsResult = await db.HashFieldExpireAsync(hashKey, fields, oneYearInMs);
-        Assert.Equal(Array.Empty<ExpireResult>(), fieldsResult);
+        Assert.Equal(new[] { ExpireResult.NoSuchField, ExpireResult.NoSuchField }, fieldsResult);
 
         fieldsResult = await db.HashFieldExpireAsync(hashKey, fields, nextCentury);
-        Assert.Equal(Array.Empty<ExpireResult>(), fieldsResult);
+        Assert.Equal(new[] { ExpireResult.NoSuchField, ExpireResult.NoSuchField }, fieldsResult);
     }
 
     [Fact]
@@ -185,11 +185,11 @@ public class HashFieldTests : TestBase
     [Fact]
     public void HashFieldGetExpireDateTimeNoKey()
     {
-        var db = Create(require: RedisFeatures.v7_4_0_rc1).GetDatabase();
+        var db = Create(require: RedisFeatures.v7_4_0_rc2).GetDatabase();
         var hashKey = Me();
 
         var fieldsResult = db.HashFieldGetExpireDateTime(hashKey, fields);
-        Assert.Equal(Array.Empty<long>(), fieldsResult);
+        Assert.Equal(new long[] { -2, -2, }, fieldsResult);
     }
 
     [Fact]
@@ -238,11 +238,11 @@ public class HashFieldTests : TestBase
     [Fact]
     public void HashFieldGetTimeToLiveNoKey()
     {
-        var db = Create(require: RedisFeatures.v7_4_0_rc1).GetDatabase();
+        var db = Create(require: RedisFeatures.v7_4_0_rc2).GetDatabase();
         var hashKey = Me();
 
         var fieldsResult = db.HashFieldGetTimeToLive(hashKey, fields);
-        Assert.Equal(Array.Empty<long>(), fieldsResult);
+        Assert.Equal(new long[] { -2, -2, }, fieldsResult);
     }
 
     [Fact]
@@ -289,11 +289,11 @@ public class HashFieldTests : TestBase
     [Fact]
     public void HashFieldPersistNoKey()
     {
-        var db = Create(require: RedisFeatures.v7_4_0_rc1).GetDatabase();
+        var db = Create(require: RedisFeatures.v7_4_0_rc2).GetDatabase();
         var hashKey = Me();
 
         var fieldsResult = db.HashFieldPersist(hashKey, fields);
-        Assert.Equal(Array.Empty<PersistResult>(), fieldsResult);
+        Assert.Equal(new[] { PersistResult.NoSuchField, PersistResult.NoSuchField }, fieldsResult);
     }
 
     [Fact]
