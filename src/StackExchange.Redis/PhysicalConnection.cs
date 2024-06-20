@@ -1704,7 +1704,7 @@ namespace StackExchange.Redis
             // check whether we're waiting for a high-integrity mode post-response checksum (using cheap null-check first)
             if (_awaitingToken is not null && (msg = Interlocked.Exchange(ref _awaitingToken, null)) is not null)
             {
-                _readStatus = ReadStatus.ResponseChecksum;
+                _readStatus = ReadStatus.ResponseSequenceCheck;
                 ProcessHighIntegrityResponseToken(msg, in result, BridgeCouldBeNull);
                 return;
             }
@@ -2109,7 +2109,7 @@ namespace StackExchange.Redis
             PubSubPMessage,
             Reconfigure,
             InvokePubSub,
-            ResponseChecksum, // high-integrity mode only
+            ResponseSequenceCheck, // high-integrity mode only
             DequeueResult,
             ComputeResult,
             CompletePendingMessageSync,
