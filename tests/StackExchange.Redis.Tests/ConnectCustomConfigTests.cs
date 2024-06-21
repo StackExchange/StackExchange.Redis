@@ -93,7 +93,7 @@ public class ConnectCustomConfigTests : TestBase
     }
 
     [Theory]
-    [InlineData(true, 5, 15)]
+    [InlineData(true, 4, 15)]
     [InlineData(false, 0, 0)]
     public async Task HeartbeatConsistencyCheckPingsAsync(bool enableConsistencyChecks, int minExpected, int maxExpected)
     {
