@@ -110,7 +110,8 @@ namespace StackExchange.Redis
                 CheckCertificateRevocation = "checkCertificateRevocation",
                 Tunnel = "tunnel",
                 SetClientLibrary = "setlib",
-                Protocol = "protocol";
+                Protocol = "protocol",
+                HighIntegrity = "highIntegrity";
 
             private static readonly Dictionary<string, string> normalizedOptions = new[]
             {
@@ -141,6 +142,7 @@ namespace StackExchange.Redis
                 WriteBuffer,
                 CheckCertificateRevocation,
                 Protocol,
+                HighIntegrity,
             }.ToDictionary(x => x, StringComparer.OrdinalIgnoreCase);
 
             public static string TryNormalize(string value)
@@ -156,7 +158,7 @@ namespace StackExchange.Redis
         private DefaultOptionsProvider? defaultOptions;
 
         private bool? allowAdmin, abortOnConnectFail, resolveDns, ssl, checkCertificateRevocation, heartbeatConsistencyChecks,
-                      includeDetailInExceptions, includePerformanceCountersInExceptions, setClientLibrary;
+                      includeDetailInExceptions, includePerformanceCountersInExceptions, setClientLibrary, highIntegrity;
 
         private string? tieBreaker, sslHost, configChannel, user, password;
 
@@ -277,6 +279,21 @@ namespace StackExchange.Redis
         {
             get => checkCertificateRevocation ?? Defaults.CheckCertificateRevocation;
             set => checkCertificateRevocation = value;
+        }
+
+        /// <summary>
+        /// A Boolean value that specifies whether to use per-command validation of strict protocol validity.
+        /// This sends an additional command after EVERY command which incurs measurable overhead.
+        /// </summary>
+        /// <remarks>
+        /// The regular RESP protocol does not include correlation identifiers between requests and responses; in exceptional
+        /// scenarios, protocol desynchronization can occur, which may not be noticed immediately; this option adds additional data
+        /// to ensure that this cannot occur, at the cost of some (small) additional bandwidth usage.
+        /// </remarks>
+        public bool HighIntegrity
+        {
+            get => highIntegrity ?? Defaults.HighIntegrity;
+            set => highIntegrity = value;
         }
 
         /// <summary>
@@ -769,6 +786,7 @@ namespace StackExchange.Redis
             Protocol = Protocol,
             heartbeatInterval = heartbeatInterval,
             heartbeatConsistencyChecks = heartbeatConsistencyChecks,
+            highIntegrity = highIntegrity,
         };
 
         /// <summary>
@@ -849,6 +867,7 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.ResponseTimeout, responseTimeout);
             Append(sb, OptionKeys.DefaultDatabase, DefaultDatabase);
             Append(sb, OptionKeys.SetClientLibrary, setClientLibrary);
+            Append(sb, OptionKeys.HighIntegrity, highIntegrity);
             Append(sb, OptionKeys.Protocol, FormatProtocol(Protocol));
             if (Tunnel is { IsInbuilt: true } tunnel)
             {
@@ -894,7 +913,7 @@ namespace StackExchange.Redis
         {
             ClientName = ServiceName = user = password = tieBreaker = sslHost = configChannel = null;
             keepAlive = syncTimeout = asyncTimeout = connectTimeout = connectRetry = configCheckSeconds = DefaultDatabase = null;
-            allowAdmin = abortOnConnectFail = resolveDns = ssl = setClientLibrary = null;
+            allowAdmin = abortOnConnectFail = resolveDns = ssl = setClientLibrary = highIntegrity = null;
             SslProtocols = null;
             defaultVersion = null;
             EndPoints.Clear();
@@ -1012,6 +1031,9 @@ namespace StackExchange.Redis
                             break;
                         case OptionKeys.SetClientLibrary:
                             SetClientLibrary = OptionKeys.ParseBoolean(key, value);
+                            break;
+                        case OptionKeys.HighIntegrity:
+                            HighIntegrity = OptionKeys.ParseBoolean(key, value);
                             break;
                         case OptionKeys.Tunnel:
                             if (value.IsNullOrWhiteSpace())

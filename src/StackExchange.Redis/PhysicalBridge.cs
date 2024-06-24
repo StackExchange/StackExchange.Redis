@@ -70,6 +70,8 @@ namespace StackExchange.Redis
 
         internal string? PhysicalName => physical?.ToString();
 
+        private uint _nextHighIntegrityToken; // zero means not enabled
+
         public DateTime? ConnectedAt { get; private set; }
 
         public PhysicalBridge(ServerEndPoint serverEndPoint, ConnectionType type, int timeoutMilliseconds)
@@ -82,6 +84,11 @@ namespace StackExchange.Redis
 #if !NETCOREAPP
             _singleWriterMutex = new MutexSlim(timeoutMilliseconds: timeoutMilliseconds);
 #endif
+            if (type == ConnectionType.Interactive && Multiplexer.RawConfig.HighIntegrity)
+            {
+                // we just need this to be non-zero to enable tracking
+                _nextHighIntegrityToken = 1;
+            }
         }
 
         private readonly int TimeoutMilliseconds;
@@ -1546,9 +1553,29 @@ namespace StackExchange.Redis
                         break;
                 }
 
+                if (_nextHighIntegrityToken is not 0
+                    && !connection.TransactionActive // validated in the UNWATCH/EXEC/DISCARD
+                    && message.Command is not RedisCommand.AUTH or RedisCommand.HELLO // if auth fails, ECHO may also fail; avoid confusion
+                    )
+                {
+                    // make sure this value exists early to avoid a race condition
+                    // if the response comes back super quickly
+                    message.WithHighIntegrity(NextHighIntegrityTokenInsideLock());
+                    Debug.Assert(message.IsHighIntegrity, "message should be high integrity");
+                }
+                else
+                {
+                    Debug.Assert(!message.IsHighIntegrity, "prior high integrity message found during transaction?");
+                }
                 connection.EnqueueInsideWriteLock(message);
                 isQueued = true;
                 message.WriteTo(connection);
+
+                if (message.IsHighIntegrity)
+                {
+                    message.WriteHighIntegrityChecksumRequest(connection);
+                    IncrementOpCount();
+                }
 
                 message.SetRequestSent();
                 IncrementOpCount();
@@ -1599,6 +1626,21 @@ namespace StackExchange.Redis
                 // We're not sure *what* happened here - probably an IOException; kill the connection
                 connection?.RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
                 return WriteResult.WriteFailure;
+            }
+        }
+
+        private uint NextHighIntegrityTokenInsideLock()
+        {
+            // inside lock: no concurrency concerns here
+            switch (_nextHighIntegrityToken)
+            {
+                case 0: return 0; // disabled
+                case uint.MaxValue:
+                    // avoid leaving the value at zero due to wrap-around
+                    _nextHighIntegrityToken = 1;
+                    return ushort.MaxValue;
+                default:
+                    return _nextHighIntegrityToken++;
             }
         }
 
