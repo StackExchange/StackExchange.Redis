@@ -760,4 +760,25 @@ public class ConfigTests : TestBase
         Assert.Equal(setlib, options.SetClientLibrary);
         Assert.Equal(configurationString, options.ToString());
     }
+
+    [Theory]
+    [InlineData(null, false, "dummy")]
+    [InlineData(false, false, "dummy,highIntegrity=False")]
+    [InlineData(true, true, "dummy,highIntegrity=True")]
+    public void CheckHighIntegrity(bool? assigned, bool expected, string cs)
+    {
+        var options = ConfigurationOptions.Parse("dummy");
+        if (assigned.HasValue) options.HighIntegrity = assigned.Value;
+
+        Assert.Equal(expected, options.HighIntegrity);
+        Assert.Equal(cs, options.ToString());
+
+        var clone = options.Clone();
+        Assert.Equal(expected, clone.HighIntegrity);
+        Assert.Equal(cs, clone.ToString());
+
+        var parsed = ConfigurationOptions.Parse(cs);
+        Assert.Equal(expected, options.HighIntegrity);
+
+    }
 }
