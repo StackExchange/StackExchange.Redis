@@ -33,7 +33,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public bool GeoRemove(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None) =>
             Inner.GeoRemove(ToInner(key), member, flags);
 
-        public double? GeoDistance(RedisKey key, RedisValue member1, RedisValue member2, GeoUnit unit = GeoUnit.Meters,CommandFlags flags = CommandFlags.None) =>
+        public double? GeoDistance(RedisKey key, RedisValue member1, RedisValue member2, GeoUnit unit = GeoUnit.Meters, CommandFlags flags = CommandFlags.None) =>
             Inner.GeoDistance(ToInner(key), member1, member2, unit, flags);
 
         public string?[] GeoHash(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None) =>
@@ -48,7 +48,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public GeoPosition? GeoPosition(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None) =>
             Inner.GeoPosition(ToInner(key), member, flags);
 
-        public GeoRadiusResult[] GeoRadius(RedisKey key, RedisValue member, double radius, GeoUnit unit = GeoUnit.Meters, int count = -1, Order? order = null,GeoRadiusOptions options = GeoRadiusOptions.Default, CommandFlags flags = CommandFlags.None) =>
+        public GeoRadiusResult[] GeoRadius(RedisKey key, RedisValue member, double radius, GeoUnit unit = GeoUnit.Meters, int count = -1, Order? order = null, GeoRadiusOptions options = GeoRadiusOptions.Default, CommandFlags flags = CommandFlags.None) =>
             Inner.GeoRadius(ToInner(key), member, radius, unit, count, order, options, flags);
 
         public GeoRadiusResult[] GeoRadius(RedisKey key, double longitude, double latitude, double radius, GeoUnit unit = GeoUnit.Meters, int count = -1, Order? order = null, GeoRadiusOptions options = GeoRadiusOptions.Default, CommandFlags flags = CommandFlags.None) =>
@@ -407,7 +407,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public long SortedSetAdd(RedisKey key, SortedSetEntry[] values, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetAdd(ToInner(key), values, when, flags);
 
-        public long SortedSetAdd(RedisKey key, SortedSetEntry[] values,SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None) =>
+        public long SortedSetAdd(RedisKey key, SortedSetEntry[] values, SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetAdd(ToInner(key), values, when, flags);
 
         public bool SortedSetAdd(RedisKey key, RedisValue member, double score, CommandFlags flags) =>
@@ -510,7 +510,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public double?[] SortedSetScores(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetScores(ToInner(key), members, flags);
 
-        public long SortedSetUpdate(RedisKey key, SortedSetEntry[] values,SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None) =>
+        public long SortedSetUpdate(RedisKey key, SortedSetEntry[] values, SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetUpdate(ToInner(key), values, when, flags);
 
         public bool SortedSetUpdate(RedisKey key, RedisValue member, double score, SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None) =>
@@ -706,8 +706,14 @@ namespace StackExchange.Redis.KeyspaceIsolation
         IEnumerable<HashEntry> IDatabase.HashScan(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags)
             => Inner.HashScan(ToInner(key), pattern, pageSize, cursor, pageOffset, flags);
 
+        IEnumerable<RedisValue> IDatabase.HashScanNoValues(RedisKey key, RedisValue pattern, int pageSize, CommandFlags flags)
+            => Inner.HashScanNoValues(ToInner(key), pattern, pageSize, flags);
+
+        IEnumerable<RedisValue> IDatabase.HashScanNoValues(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags)
+            => Inner.HashScanNoValues(ToInner(key), pattern, pageSize, cursor, pageOffset, flags);
+
         IEnumerable<RedisValue> IDatabase.SetScan(RedisKey key, RedisValue pattern, int pageSize, CommandFlags flags)
-            =>  Inner.SetScan(ToInner(key), pattern, pageSize, flags);
+            => Inner.SetScan(ToInner(key), pattern, pageSize, flags);
 
         IEnumerable<RedisValue> IDatabase.SetScan(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags)
             => Inner.SetScan(ToInner(key), pattern, pageSize, cursor, pageOffset, flags);
