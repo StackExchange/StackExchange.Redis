@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Logging;
 using StackExchange.Redis.Profiling;
 using System;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -51,6 +52,8 @@ namespace StackExchange.Redis
     internal abstract class Message : ICompletable
     {
         public readonly int Db;
+
+        private uint _highIntegrityToken;
 
         internal const CommandFlags InternalCallFlag = (CommandFlags)128;
 
@@ -197,6 +200,13 @@ namespace StackExchange.Redis
         }
 
         public bool IsAsking => (Flags & AskingFlag) != 0;
+
+        public bool IsHighIntegrity => _highIntegrityToken != 0;
+
+        public uint HighIntegrityToken => _highIntegrityToken;
+
+        internal void WithHighIntegrity(uint value)
+            => _highIntegrityToken = value;
 
         internal bool IsScriptUnavailable => (Flags & ScriptUnavailableFlag) != 0;
 
@@ -704,6 +714,28 @@ namespace StackExchange.Redis
                 WriteImpl(physical);
             }
             catch (Exception ex) when (ex is not RedisCommandException) // these have specific meaning; don't wrap
+            {
+                physical?.OnInternalError(ex);
+                Fail(ConnectionFailureType.InternalFailure, ex, null, physical?.BridgeCouldBeNull?.Multiplexer);
+            }
+        }
+
+        private static ReadOnlySpan<byte> ChecksumTemplate => "$4\r\nXXXX\r\n"u8;
+
+        internal void WriteHighIntegrityChecksumRequest(PhysicalConnection physical)
+        {
+            Debug.Assert(IsHighIntegrity, "should only be used for high-integrity");
+            try
+            {
+                physical.WriteHeader(RedisCommand.ECHO, 1); // use WriteHeader to allow command-rewrite
+
+                Span<byte> chk = stackalloc byte[10];
+                Debug.Assert(ChecksumTemplate.Length == chk.Length, "checksum template length error");
+                ChecksumTemplate.CopyTo(chk);
+                BinaryPrimitives.WriteUInt32LittleEndian(chk.Slice(4, 4), _highIntegrityToken);
+                physical.WriteRaw(chk);
+            }
+            catch (Exception ex)
             {
                 physical?.OnInternalError(ex);
                 Fail(ConnectionFailureType.InternalFailure, ex, null, physical?.BridgeCouldBeNull?.Multiplexer);
