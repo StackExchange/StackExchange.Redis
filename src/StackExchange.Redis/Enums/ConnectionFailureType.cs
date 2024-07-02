@@ -44,6 +44,10 @@
         /// <summary>
         /// It has not been possible to create an initial connection to the redis server(s).
         /// </summary>
-        UnableToConnect
+        UnableToConnect,
+        /// <summary>
+        /// High-integrity mode was enabled, and a failure was detected
+        /// </summary>
+        ResponseIntegrityFailure,
     }
 }

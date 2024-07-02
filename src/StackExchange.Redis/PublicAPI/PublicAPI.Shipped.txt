@@ -252,6 +252,8 @@ StackExchange.Redis.ConfigurationOptions.HeartbeatConsistencyChecks.get -> bool
 StackExchange.Redis.ConfigurationOptions.HeartbeatConsistencyChecks.set -> void
 StackExchange.Redis.ConfigurationOptions.HeartbeatInterval.get -> System.TimeSpan
 StackExchange.Redis.ConfigurationOptions.HeartbeatInterval.set -> void
+StackExchange.Redis.ConfigurationOptions.HighIntegrity.get -> bool
+StackExchange.Redis.ConfigurationOptions.HighIntegrity.set -> void
 StackExchange.Redis.ConfigurationOptions.HighPrioritySocketThreads.get -> bool
 StackExchange.Redis.ConfigurationOptions.HighPrioritySocketThreads.set -> void
 StackExchange.Redis.ConfigurationOptions.IncludeDetailInExceptions.get -> bool
@@ -335,6 +337,7 @@ StackExchange.Redis.ConnectionFailureType.ProtocolFailure = 4 -> StackExchange.R
 StackExchange.Redis.ConnectionFailureType.SocketClosed = 6 -> StackExchange.Redis.ConnectionFailureType
 StackExchange.Redis.ConnectionFailureType.SocketFailure = 2 -> StackExchange.Redis.ConnectionFailureType
 StackExchange.Redis.ConnectionFailureType.UnableToConnect = 9 -> StackExchange.Redis.ConnectionFailureType
+StackExchange.Redis.ConnectionFailureType.ResponseIntegrityFailure = 10 -> StackExchange.Redis.ConnectionFailureType
 StackExchange.Redis.ConnectionFailureType.UnableToResolvePhysicalConnection = 1 -> StackExchange.Redis.ConnectionFailureType
 StackExchange.Redis.ConnectionMultiplexer
 StackExchange.Redis.ConnectionMultiplexer.ClientName.get -> string!
@@ -1819,6 +1822,7 @@ virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.GetDefaultSsl(S
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.GetSslHostFromEndpoints(StackExchange.Redis.EndPointCollection! endPoints) -> string?
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.HeartbeatConsistencyChecks.get -> bool
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.HeartbeatInterval.get -> System.TimeSpan
+virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.HighIntegrity.get -> bool
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.IncludeDetailInExceptions.get -> bool
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.IncludePerformanceCountersInExceptions.get -> bool
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.IsMatch(System.Net.EndPoint! endpoint) -> bool

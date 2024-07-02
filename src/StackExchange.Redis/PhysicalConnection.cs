@@ -19,6 +19,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using static StackExchange.Redis.Message;
+using System.Buffers.Binary;
 
 namespace StackExchange.Redis
 {
@@ -43,6 +44,8 @@ namespace StackExchange.Redis
 
         // things sent to this physical, but not yet received
         private readonly Queue<Message> _writtenAwaitingResponse = new Queue<Message>();
+
+        private Message? _awaitingToken;
 
         private readonly string _physicalName;
 
@@ -388,6 +391,8 @@ namespace StackExchange.Redis
             Exception? outerException = innerException;
             IdentifyFailureType(innerException, ref failureType);
             var bridge = BridgeCouldBeNull;
+            Message? nextMessage;
+
             if (_ioPipe != null || isInitialConnect) // if *we* didn't burn the pipe: flag it
             {
                 if (failureType == ConnectionFailureType.InternalFailure && innerException is not null)
@@ -419,9 +424,9 @@ namespace StackExchange.Redis
                     lock (_writtenAwaitingResponse)
                     {
                         // find oldest message awaiting a response
-                        if (_writtenAwaitingResponse.TryPeek(out var next))
+                        if (_writtenAwaitingResponse.TryPeek(out nextMessage))
                         {
-                            unansweredWriteTime = next.GetWriteTime();
+                            unansweredWriteTime = nextMessage.GetWriteTime();
                         }
                     }
 
@@ -510,23 +515,17 @@ namespace StackExchange.Redis
                 bridge?.Trace(_writtenAwaitingResponse.Count != 0, "Failing outstanding messages: " + _writtenAwaitingResponse.Count);
             }
 
-            while (TryDequeueLocked(_writtenAwaitingResponse, out var next))
+            var ex = innerException is RedisException ? innerException : outerException;
+
+            nextMessage = Interlocked.Exchange(ref _awaitingToken, null);
+            if (nextMessage is not null)
             {
-                if (next.Command == RedisCommand.QUIT && next.TrySetResult(true))
-                {
-                    // fine, death of a socket is close enough
-                    next.Complete();
-                }
-                else
-                {
-                    var ex = innerException is RedisException ? innerException : outerException;
-                    if (bridge != null)
-                    {
-                        bridge.Trace("Failing: " + next);
-                        bridge.Multiplexer?.OnMessageFaulted(next, ex, origin);
-                    }
-                    next.SetExceptionAndComplete(ex!, bridge);
-                }
+                RecordMessageFailed(nextMessage, ex, origin, bridge);
+            }
+
+            while (TryDequeueLocked(_writtenAwaitingResponse, out nextMessage))
+            {
+                RecordMessageFailed(nextMessage, ex, origin, bridge);
             }
 
             // burn the socket
@@ -538,6 +537,24 @@ namespace StackExchange.Redis
                 {
                     return queue.TryDequeue(out message);
                 }
+            }
+        }
+
+        private void RecordMessageFailed(Message next, Exception? ex, string? origin, PhysicalBridge? bridge)
+        {
+            if (next.Command == RedisCommand.QUIT && next.TrySetResult(true))
+            {
+                // fine, death of a socket is close enough
+                next.Complete();
+            }
+            else
+            {
+                if (bridge != null)
+                {
+                    bridge.Trace("Failing: " + next);
+                    bridge.Multiplexer?.OnMessageFaulted(next, ex, origin);
+                }
+                next.SetExceptionAndComplete(ex!, bridge);
             }
         }
 
@@ -879,6 +896,8 @@ namespace StackExchange.Redis
 
             writer.Advance(offset);
         }
+
+        internal void WriteRaw(ReadOnlySpan<byte> bytes) => _ioPipe?.Output?.Write(bytes);
 
         internal void RecordQuit() // don't blame redis if we fired the first shot
             => (_ioPipe as SocketConnection)?.TrySetProtocolShutdown(PipeShutdownKind.ProtocolExitClient);
@@ -1680,10 +1699,27 @@ namespace StackExchange.Redis
                 // if it didn't look like "[p]message", then we still need to process the pending queue
             }
             Trace("Matching result...");
-            Message? msg;
+
+            Message? msg = null;
+            // check whether we're waiting for a high-integrity mode post-response checksum (using cheap null-check first)
+            if (_awaitingToken is not null && (msg = Interlocked.Exchange(ref _awaitingToken, null)) is not null)
+            {
+                _readStatus = ReadStatus.ResponseSequenceCheck;
+                if (!ProcessHighIntegrityResponseToken(msg, in result, BridgeCouldBeNull))
+                {
+                    RecordConnectionFailed(ConnectionFailureType.ResponseIntegrityFailure, origin: nameof(ReadStatus.ResponseSequenceCheck));
+                }
+                return;
+            }
+
             _readStatus = ReadStatus.DequeueResult;
             lock (_writtenAwaitingResponse)
             {
+                if (msg is not null)
+                {
+                    _awaitingToken = null;
+                }
+
                 if (!_writtenAwaitingResponse.TryDequeue(out msg))
                 {
                     throw new InvalidOperationException("Received response with no message waiting: " + result.ToString());
@@ -1696,10 +1732,55 @@ namespace StackExchange.Redis
             if (msg.ComputeResult(this, result))
             {
                 _readStatus = msg.ResultBoxIsAsync ? ReadStatus.CompletePendingMessageAsync : ReadStatus.CompletePendingMessageSync;
-                msg.Complete();
+                if (!msg.IsHighIntegrity)
+                {
+                    // can't complete yet if needs checksum
+                    msg.Complete();
+                }
             }
+            if (msg.IsHighIntegrity)
+            {
+                // stash this for the next non-OOB response
+                Volatile.Write(ref _awaitingToken, msg);
+            }
+
+
             _readStatus = ReadStatus.MatchResultComplete;
             _activeMessage = null;
+
+            static bool ProcessHighIntegrityResponseToken(Message message, in RawResult result, PhysicalBridge? bridge)
+            {
+                bool isValid = false;
+                if (result.Resp2TypeBulkString == ResultType.BulkString)
+                {
+                    var payload = result.Payload;
+                    if (payload.Length == 4)
+                    {
+                        uint interpreted;
+                        if (payload.IsSingleSegment)
+                        {
+                            interpreted = BinaryPrimitives.ReadUInt32LittleEndian(payload.First.Span);
+                        }
+                        else
+                        {
+                            Span<byte> span = stackalloc byte[4];
+                            payload.CopyTo(span);
+                            interpreted = BinaryPrimitives.ReadUInt32LittleEndian(span);
+                        }
+                        isValid = interpreted == message.HighIntegrityToken;
+                    }
+                }
+                if (isValid)
+                {
+                    message.Complete();
+                    return true;
+                }
+                else
+                {
+                    message.SetExceptionAndComplete(new InvalidOperationException("High-integrity mode detected possible protocol de-sync"), bridge);
+                    return false;
+                }
+            }
 
             static bool TryGetPubSubPayload(in RawResult value, out RedisValue parsed, bool allowArraySingleton = true)
             {
@@ -2032,6 +2113,7 @@ namespace StackExchange.Redis
             PubSubPMessage,
             Reconfigure,
             InvokePubSub,
+            ResponseSequenceCheck, // high-integrity mode only
             DequeueResult,
             ComputeResult,
             CompletePendingMessageSync,
