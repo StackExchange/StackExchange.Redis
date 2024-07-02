@@ -68,6 +68,10 @@ namespace StackExchange.Redis
         public static readonly ResultProcessor<long?>
             NullableInt64 = new NullableInt64Processor();
 
+        public static readonly ResultProcessor<ExpireResult[]> ExpireResultArray = new ExpireResultArrayProcessor();
+
+        public static readonly ResultProcessor<PersistResult[]> PersistResultArray = new PersistResultArrayProcessor();
+
         public static readonly ResultProcessor<RedisChannel[]>
             RedisChannelArrayLiteral = new RedisChannelArrayProcessor(RedisChannel.PatternMode.Literal);
 
@@ -88,6 +92,7 @@ namespace StackExchange.Redis
 
         public static readonly ResultProcessor<RedisValue[]>
             RedisValueArray = new RedisValueArrayProcessor();
+
 
         public static readonly ResultProcessor<long[]>
             Int64Array = new Int64ArrayProcessor();
@@ -900,7 +905,7 @@ namespace StackExchange.Redis
                         if (message?.Command == RedisCommand.CONFIG)
                         {
                             var iter = result.GetItems().GetEnumerator();
-                            while(iter.MoveNext())
+                            while (iter.MoveNext())
                             {
                                 ref RawResult key = ref iter.Current;
                                 if (!iter.MoveNext()) break;
@@ -1275,7 +1280,7 @@ namespace StackExchange.Redis
                     SetResult(message, true);
                     return true;
                 }
-                if(message.Command == RedisCommand.AUTH) connection?.BridgeCouldBeNull?.Multiplexer?.SetAuthSuspect(new RedisException("Unknown AUTH exception"));
+                if (message.Command == RedisCommand.AUTH) connection?.BridgeCouldBeNull?.Multiplexer?.SetAuthSuspect(new RedisException("Unknown AUTH exception"));
                 return false;
             }
         }
@@ -1440,6 +1445,47 @@ namespace StackExchange.Redis
                             return true;
                         }
                         break;
+                    case ResultType.Array:
+                        var items = result.GetItems();
+                        if (items.Length == 1)
+                        { // treat an array of 1 like a single reply
+                            if (items[0].TryGetInt64(out long value))
+                            {
+                                SetResult(message, value);
+                                return true;
+                            }
+                        }
+                        break;
+                }
+                return false;
+            }
+        }
+
+        private sealed class ExpireResultArrayProcessor : ResultProcessor<ExpireResult[]>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                if (result.Resp2TypeArray == ResultType.Array || result.IsNull)
+                {
+                    var arr = result.ToArray((in RawResult x) => (ExpireResult)(long)x.AsRedisValue())!;
+
+                    SetResult(message, arr);
+                    return true;
+                }
+                return false;
+            }
+        }
+
+        private sealed class PersistResultArrayProcessor : ResultProcessor<PersistResult[]>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                if (result.Resp2TypeArray == ResultType.Array || result.IsNull)
+                {
+                    var arr = result.ToArray((in RawResult x) => (PersistResult)(long)x.AsRedisValue())!;
+
+                    SetResult(message, arr);
+                    return true;
                 }
                 return false;
             }
@@ -1551,6 +1597,7 @@ namespace StackExchange.Redis
                 return false;
             }
         }
+
 
         private sealed class Int64ArrayProcessor : ResultProcessor<long[]>
         {
@@ -2235,7 +2282,8 @@ The coordinates as a two items x,y array (longitude,latitude).
             internal static bool TryRead(Sequence<RawResult> pairs, in CommandBytes key, ref int value)
             {
                 long tmp = default;
-                if(TryRead(pairs, key, ref tmp)) {
+                if (TryRead(pairs, key, ref tmp))
+                {
                     value = checked((int)tmp);
                     return true;
                 }
@@ -2361,13 +2409,13 @@ The coordinates as a two items x,y array (longitude,latitude).
                 var lastGeneratedId = Redis.RedisValue.Null;
                 StreamEntry firstEntry = StreamEntry.Null, lastEntry = StreamEntry.Null;
                 var iter = arr.GetEnumerator();
-                for(int i = 0; i < max; i++)
+                for (int i = 0; i < max; i++)
                 {
                     ref RawResult key = ref iter.GetNext(), value = ref iter.GetNext();
                     if (key.Payload.Length > CommandBytes.MaxLength) continue;
 
                     var keyBytes = new CommandBytes(key.Payload);
-                    if(keyBytes.Equals(CommonReplies.length))
+                    if (keyBytes.Equals(CommonReplies.length))
                     {
                         if (!value.TryGetInt64(out length)) return false;
                     }
@@ -2457,8 +2505,8 @@ The coordinates as a two items x,y array (longitude,latitude).
                     lowestId: arr[1].AsRedisValue(),
                     highestId: arr[2].AsRedisValue(),
                     consumers: consumers ?? Array.Empty<StreamConsumer>());
-                    // ^^^^^
-                    // Should we bother allocating an empty array only to prevent the need for a null check?
+                // ^^^^^
+                // Should we bother allocating an empty array only to prevent the need for a null check?
 
                 SetResult(message, pendingInfo);
                 return true;
@@ -2845,7 +2893,7 @@ The coordinates as a two items x,y array (longitude,latitude).
     {
         protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
         {
-            switch(result.Resp2TypeArray)
+            switch (result.Resp2TypeArray)
             {
                 case ResultType.Array:
                     var items = result.GetItems();
