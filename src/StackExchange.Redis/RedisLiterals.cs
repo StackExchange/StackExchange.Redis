@@ -101,6 +101,7 @@ namespace StackExchange.Redis
             MATCH = "MATCH",
             MALLOC_STATS = "MALLOC-STATS",
             MAX = "MAX",
+            MAXAGE = "MAXAGE",
             MAXLEN = "MAXLEN",
             MIN = "MIN",
             MINMATCHLEN = "MINMATCHLEN",
