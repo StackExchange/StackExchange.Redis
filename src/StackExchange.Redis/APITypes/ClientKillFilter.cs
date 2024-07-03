@@ -1,4 +1,6 @@
-﻿using System.Net;
+﻿using System;
+using System.Collections.Generic;
+using System.Net;
 
 namespace StackExchange.Redis;
 
@@ -52,7 +54,7 @@ public class ClientKillFilter
     /// Sets client id filter.
     /// </summary>
     /// <param name="id">Id of the client to kill.</param>
-    public ClientKillFilter WithId(long id)
+    public ClientKillFilter WithId(long? id)
     {
         Id = id;
         return this;
@@ -62,7 +64,7 @@ public class ClientKillFilter
     /// Sets client type filter.
     /// </summary>
     /// <param name="clientType">The type of the client.</param>
-    public ClientKillFilter WithClientType(ClientType clientType)
+    public ClientKillFilter WithClientType(ClientType? clientType)
     {
         ClientType = clientType;
         return this;
@@ -72,7 +74,7 @@ public class ClientKillFilter
     /// Sets the username filter.
     /// </summary>
     /// <param name="username">Authenticated ACL username.</param>
-    public ClientKillFilter WithUsername(string username)
+    public ClientKillFilter WithUsername(string? username)
     {
         Username = username;
         return this;
@@ -82,7 +84,7 @@ public class ClientKillFilter
     /// Set the endpoint filter.
     /// </summary>
     /// <param name="endpoint">The endpoint to kill.</param>
-    public ClientKillFilter WithEndpoint(EndPoint endpoint)
+    public ClientKillFilter WithEndpoint(EndPoint? endpoint)
     {
         Endpoint = endpoint;
         return this;
@@ -92,7 +94,7 @@ public class ClientKillFilter
     /// Set the server endpoint filter.
     /// </summary>
     /// <param name="serverEndpoint">The server endpoint to kill.</param>
-    public ClientKillFilter WithServerEndpoint(EndPoint serverEndpoint)
+    public ClientKillFilter WithServerEndpoint(EndPoint? serverEndpoint)
     {
         ServerEndpoint = serverEndpoint;
         return this;
@@ -102,7 +104,7 @@ public class ClientKillFilter
     /// Set the skipMe filter (whether to skip the current connection).
     /// </summary>
     /// <param name="skipMe">Whether to skip the current connection.</param>
-    public ClientKillFilter WithSkipMe(bool skipMe)
+    public ClientKillFilter WithSkipMe(bool? skipMe)
     {
         SkipMe = skipMe;
         return this;
@@ -112,9 +114,66 @@ public class ClientKillFilter
     /// Set the MaxAgeInSeconds filter.
     /// </summary>
     /// <param name="maxAgeInSeconds">Age of connection in seconds</param>
-    public ClientKillFilter WithMaxAgeInSeconds(long maxAgeInSeconds)
+    public ClientKillFilter WithMaxAgeInSeconds(long? maxAgeInSeconds)
     {
         MaxAgeInSeconds = maxAgeInSeconds;
         return this;
+    }
+
+    internal List<RedisValue> ToList(bool withReplicaCommands)
+    {
+        var parts = new List<RedisValue>(15)
+            {
+                RedisLiterals.KILL
+            };
+        if (Id != null)
+        {
+            parts.Add(RedisLiterals.ID);
+            parts.Add(Id.Value);
+        }
+        if (ClientType != null)
+        {
+            parts.Add(RedisLiterals.TYPE);
+            switch (ClientType.Value)
+            {
+                case Redis.ClientType.Normal:
+                    parts.Add(RedisLiterals.normal);
+                    break;
+                case Redis.ClientType.Replica:
+                    parts.Add(withReplicaCommands ? RedisLiterals.replica : RedisLiterals.slave);
+                    break;
+                case Redis.ClientType.PubSub:
+                    parts.Add(RedisLiterals.pubsub);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(ClientType));
+            }
+        }
+        if (Username != null)
+        {
+            parts.Add(RedisLiterals.USERNAME);
+            parts.Add(Username);
+        }
+        if (Endpoint != null)
+        {
+            parts.Add(RedisLiterals.ADDR);
+            parts.Add((RedisValue)Format.ToString(Endpoint));
+        }
+        if (ServerEndpoint != null)
+        {
+            parts.Add(RedisLiterals.LADDR);
+            parts.Add((RedisValue)Format.ToString(ServerEndpoint));
+        }
+        if (SkipMe != null)
+        {
+            parts.Add(RedisLiterals.SKIPME);
+            parts.Add(SkipMe.Value ? RedisLiterals.yes : RedisLiterals.no);
+        }
+        if (MaxAgeInSeconds != null)
+        {
+            parts.Add(RedisLiterals.MAXAGE);
+            parts.Add(MaxAgeInSeconds);
+        }
+        return parts;
     }
 }

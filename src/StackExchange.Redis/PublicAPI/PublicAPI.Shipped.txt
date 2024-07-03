@@ -135,13 +135,13 @@ StackExchange.Redis.ClientKillFilter.MaxAgeInSeconds.get -> long?
 StackExchange.Redis.ClientKillFilter.ServerEndpoint.get -> System.Net.EndPoint?
 StackExchange.Redis.ClientKillFilter.SkipMe.get -> bool?
 StackExchange.Redis.ClientKillFilter.Username.get -> string?
-StackExchange.Redis.ClientKillFilter.WithClientType(StackExchange.Redis.ClientType clientType) -> StackExchange.Redis.ClientKillFilter!
-StackExchange.Redis.ClientKillFilter.WithEndpoint(System.Net.EndPoint! endpoint) -> StackExchange.Redis.ClientKillFilter!
-StackExchange.Redis.ClientKillFilter.WithId(long id) -> StackExchange.Redis.ClientKillFilter!
-StackExchange.Redis.ClientKillFilter.WithMaxAgeInSeconds(long maxAgeInSeconds) -> StackExchange.Redis.ClientKillFilter!
-StackExchange.Redis.ClientKillFilter.WithServerEndpoint(System.Net.EndPoint! serverEndpoint) -> StackExchange.Redis.ClientKillFilter!
-StackExchange.Redis.ClientKillFilter.WithSkipMe(bool skipMe) -> StackExchange.Redis.ClientKillFilter!
-StackExchange.Redis.ClientKillFilter.WithUsername(string! username) -> StackExchange.Redis.ClientKillFilter!
+StackExchange.Redis.ClientKillFilter.WithClientType(StackExchange.Redis.ClientType? clientType) -> StackExchange.Redis.ClientKillFilter!
+StackExchange.Redis.ClientKillFilter.WithEndpoint(System.Net.EndPoint? endpoint) -> StackExchange.Redis.ClientKillFilter!
+StackExchange.Redis.ClientKillFilter.WithId(long? id) -> StackExchange.Redis.ClientKillFilter!
+StackExchange.Redis.ClientKillFilter.WithMaxAgeInSeconds(long? maxAgeInSeconds) -> StackExchange.Redis.ClientKillFilter!
+StackExchange.Redis.ClientKillFilter.WithServerEndpoint(System.Net.EndPoint? serverEndpoint) -> StackExchange.Redis.ClientKillFilter!
+StackExchange.Redis.ClientKillFilter.WithSkipMe(bool? skipMe) -> StackExchange.Redis.ClientKillFilter!
+StackExchange.Redis.ClientKillFilter.WithUsername(string? username) -> StackExchange.Redis.ClientKillFilter!
 StackExchange.Redis.ClientType
 StackExchange.Redis.ClientType.Normal = 0 -> StackExchange.Redis.ClientType
 StackExchange.Redis.ClientType.PubSub = 2 -> StackExchange.Redis.ClientType
