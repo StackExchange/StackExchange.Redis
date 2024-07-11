@@ -2,9 +2,9 @@
 
 namespace StackExchange.Redis.Tests.Issues;
 
-public class Issue6Tests :  TestBase
+public class Issue6Tests : TestBase
 {
-    public Issue6Tests(ITestOutputHelper output) : base (output) { }
+    public Issue6Tests(ITestOutputHelper output) : base(output) { }
 
     [Fact]
     public void ShouldWorkWithoutEchoOrPing()

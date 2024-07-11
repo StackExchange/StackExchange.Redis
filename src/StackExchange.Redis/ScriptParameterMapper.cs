@@ -154,7 +154,7 @@ namespace StackExchange.Redis
             typeof(bool?),
 
             typeof(RedisKey),
-            typeof(RedisValue)
+            typeof(RedisValue),
         };
 
         /// <summary>
@@ -252,20 +252,18 @@ namespace StackExchange.Redis
             else
             {
                 var needsKeyPrefix = Expression.Property(keyPrefix, nameof(Nullable<RedisKey>.HasValue));
-                var keyPrefixValueArr = new[] { Expression.Call(keyPrefix,
-                    nameof(Nullable<RedisKey>.GetValueOrDefault), null, null) };
-                var prepend = typeof(RedisKey).GetMethod(nameof(RedisKey.Prepend),
-                    BindingFlags.Public | BindingFlags.Instance)!;
-                asRedisValue = typeof(RedisKey).GetMethod(nameof(RedisKey.AsRedisValue),
-                    BindingFlags.NonPublic | BindingFlags.Instance)!;
+                var keyPrefixValueArr = new[]
+                {
+                    Expression.Call(keyPrefix, nameof(Nullable<RedisKey>.GetValueOrDefault), null, null),
+                };
+                var prepend = typeof(RedisKey).GetMethod(nameof(RedisKey.Prepend), BindingFlags.Public | BindingFlags.Instance)!;
+                asRedisValue = typeof(RedisKey).GetMethod(nameof(RedisKey.AsRedisValue), BindingFlags.NonPublic | BindingFlags.Instance)!;
 
                 keysResultArr = new Expression[keys.Count];
                 for (int i = 0; i < keysResultArr.Length; i++)
                 {
                     var member = GetMember(objTyped, keys[i]);
-                    keysResultArr[i] = Expression.Condition(needsKeyPrefix,
-                        Expression.Call(member, prepend, keyPrefixValueArr),
-                        member);
+                    keysResultArr[i] = Expression.Condition(needsKeyPrefix, Expression.Call(member, prepend, keyPrefixValueArr), member);
                 }
                 keysResult = Expression.NewArrayInit(typeof(RedisKey), keysResultArr);
             }
@@ -294,8 +292,7 @@ namespace StackExchange.Redis
             }
 
             var body = Expression.Lambda<Func<object, RedisKey?, ScriptParameters>>(
-                Expression.New(ScriptParameters.Cons, keysResult, valuesResult),
-                objUntyped, keyPrefix);
+                Expression.New(ScriptParameters.Cons, keysResult, valuesResult), objUntyped, keyPrefix);
             return body.Compile();
         }
     }

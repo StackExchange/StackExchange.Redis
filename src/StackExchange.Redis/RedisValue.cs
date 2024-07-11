@@ -30,7 +30,8 @@ namespace StackExchange.Redis
         }
 
         internal RedisValue(object obj, long overlappedBits)
-        {   // this creates a bodged RedisValue which should **never**
+        {
+            // this creates a bodged RedisValue which should **never**
             // be seen directly; the contents are ... unexpected
             _overlappedBits64 = overlappedBits;
             _objectOrSentinel = obj;
@@ -53,7 +54,7 @@ namespace StackExchange.Redis
         private static readonly object Sentinel_Double = new();
 
         /// <summary>
-        /// Obtain this value as an object - to be used alongside Unbox
+        /// Obtain this value as an object - to be used alongside Unbox.
         /// </summary>
         public object? Box()
         {
@@ -244,7 +245,7 @@ namespace StackExchange.Redis
                 StorageType.Null => -1,
                 StorageType.Double => x.OverlappedValueDouble.GetHashCode(),
                 StorageType.Int64 or StorageType.UInt64 => x._overlappedBits64.GetHashCode(),
-                StorageType.Raw => ((string)x!).GetHashCode(),// to match equality
+                StorageType.Raw => ((string)x!).GetHashCode(), // to match equality
                 _ => x._objectOrSentinel!.GetHashCode(),
             };
         }
@@ -291,13 +292,13 @@ namespace StackExchange.Redis
                 for (int i = 0; i < span64.Length; i++)
                 {
                     var val = span64[i];
-                    int valHash = (((int)val) ^ ((int)(val >> 32)));
-                    acc = (((acc << 5) + acc) ^ valHash);
+                    int valHash = ((int)val) ^ ((int)(val >> 32));
+                    acc = ((acc << 5) + acc) ^ valHash;
                 }
                 int spare = len % 8, offset = len - spare;
                 while (spare-- != 0)
                 {
-                    acc = (((acc << 5) + acc) ^ span[offset++]);
+                    acc = ((acc << 5) + acc) ^ span[offset++];
                 }
                 return acc;
             }
@@ -310,7 +311,12 @@ namespace StackExchange.Redis
 
         internal enum StorageType
         {
-            Null, Int64, UInt64, Double, Raw, String,
+            Null,
+            Int64,
+            UInt64,
+            Double,
+            Raw,
+            String,
         }
 
         internal StorageType Type
@@ -330,7 +336,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Get the size of this value in bytes
+        /// Get the size of this value in bytes.
         /// </summary>
         public long Length() => Type switch
         {
@@ -527,6 +533,7 @@ namespace StackExchange.Redis
             if (value.Length == 0) return EmptyString;
             return new RedisValue(0, value, Sentinel_Raw);
         }
+
         /// <summary>
         /// Creates a new <see cref="RedisValue"/> from a <see cref="T:Memory{byte}"/>.
         /// </summary>
@@ -594,9 +601,9 @@ namespace StackExchange.Redis
             value = value.Simplify();
             return value.Type switch
             {
-                StorageType.Null => 0,// in redis, an arithmetic zero is kinda the same thing as not-exists (think "incr")
+                StorageType.Null => 0, // in redis, an arithmetic zero is kinda the same thing as not-exists (think "incr")
                 StorageType.Int64 => value.OverlappedValueInt64,
-                StorageType.UInt64 => checked((long)value.OverlappedValueUInt64),// this will throw since unsigned is always 64-bit
+                StorageType.UInt64 => checked((long)value.OverlappedValueUInt64), // this will throw since unsigned is always 64-bit
                 _ => throw new InvalidCastException($"Unable to cast from {value.Type} to long: '{value}'"),
             };
         }
@@ -611,7 +618,7 @@ namespace StackExchange.Redis
             value = value.Simplify();
             return value.Type switch
             {
-                StorageType.Null => 0,// in redis, an arithmetic zero is kinda the same thing as not-exists (think "incr")
+                StorageType.Null => 0, // in redis, an arithmetic zero is kinda the same thing as not-exists (think "incr")
                 StorageType.Int64 => checked((uint)value.OverlappedValueInt64),
                 StorageType.UInt64 => checked((uint)value.OverlappedValueUInt64),
                 _ => throw new InvalidCastException($"Unable to cast from {value.Type} to uint: '{value}'"),
@@ -628,8 +635,8 @@ namespace StackExchange.Redis
             value = value.Simplify();
             return value.Type switch
             {
-                StorageType.Null => 0,// in redis, an arithmetic zero is kinda the same thing as not-exists (think "incr")
-                StorageType.Int64 => checked((ulong)value.OverlappedValueInt64),// throw if negative
+                StorageType.Null => 0, // in redis, an arithmetic zero is kinda the same thing as not-exists (think "incr")
+                StorageType.Int64 => checked((ulong)value.OverlappedValueInt64), // throw if negative
                 StorageType.UInt64 => value.OverlappedValueUInt64,
                 _ => throw new InvalidCastException($"Unable to cast from {value.Type} to ulong: '{value}'"),
             };
@@ -644,7 +651,7 @@ namespace StackExchange.Redis
             value = value.Simplify();
             return value.Type switch
             {
-                StorageType.Null => 0,// in redis, an arithmetic zero is kinda the same thing as not-exists (think "incr")
+                StorageType.Null => 0, // in redis, an arithmetic zero is kinda the same thing as not-exists (think "incr")
                 StorageType.Int64 => value.OverlappedValueInt64,
                 StorageType.UInt64 => value.OverlappedValueUInt64,
                 StorageType.Double => value.OverlappedValueDouble,
@@ -661,7 +668,7 @@ namespace StackExchange.Redis
             value = value.Simplify();
             return value.Type switch
             {
-                StorageType.Null => 0,// in redis, an arithmetic zero is kinda the same thing as not-exists (think "incr")
+                StorageType.Null => 0, // in redis, an arithmetic zero is kinda the same thing as not-exists (think "incr")
                 StorageType.Int64 => value.OverlappedValueInt64,
                 StorageType.UInt64 => value.OverlappedValueUInt64,
                 StorageType.Double => (decimal)value.OverlappedValueDouble,
@@ -678,7 +685,7 @@ namespace StackExchange.Redis
             value = value.Simplify();
             return value.Type switch
             {
-                StorageType.Null => 0,// in redis, an arithmetic zero is kinda the same thing as not-exists (think "incr")
+                StorageType.Null => 0, // in redis, an arithmetic zero is kinda the same thing as not-exists (think "incr")
                 StorageType.Int64 => value.OverlappedValueInt64,
                 StorageType.UInt64 => value.OverlappedValueUInt64,
                 StorageType.Double => (float)value.OverlappedValueDouble,
@@ -908,7 +915,7 @@ namespace StackExchange.Redis
         /// but more importantly b: because it can change values - for example, if they start
         /// with "123.000", it should **stay** as "123.000", not become 123L; this could be
         /// a hash key or similar - we don't want to break it; RedisConnection uses
-        /// the storage type, not the "does it look like a long?" - for this reason
+        /// the storage type, not the "does it look like a long?" - for this reason.
         /// </summary>
         internal RedisValue Simplify()
         {
@@ -965,8 +972,15 @@ namespace StackExchange.Redis
                     return Format.TryParseInt64(_memory.Span, out val);
                 case StorageType.Double:
                     var d = OverlappedValueDouble;
-                    try { val = (long)d; }
-                    catch { val = default; return false; }
+                    try
+                    {
+                        val = (long)d;
+                    }
+                    catch
+                    {
+                        val = default;
+                        return false;
+                    }
                     return val == d;
                 case StorageType.Null:
                     // in redis-land 0 approx. equal null; so roll with it
@@ -1083,8 +1097,8 @@ namespace StackExchange.Redis
                 switch (thisType)
                 {
                     case StorageType.String:
-                        var sThis = ((string)_objectOrSentinel!);
-                        var sOther = ((string)value._objectOrSentinel!);
+                        var sThis = (string)_objectOrSentinel!;
+                        var sOther = (string)value._objectOrSentinel!;
                         return sThis.StartsWith(sOther, StringComparison.Ordinal);
                     case StorageType.Raw:
                         rawThis = _memory;

@@ -26,17 +26,20 @@ namespace KestrelRedisServer
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env, IHostApplicationLifetime lifetime)
         {
-            _server.Shutdown.ContinueWith((t, s) =>
-            {
-                try
-                {   // if the resp server is shutdown by a client: stop the kestrel server too
-                    if (t.Result == RespServer.ShutdownReason.ClientInitiated)
+            _server.Shutdown.ContinueWith(
+                (t, s) =>
+                {
+                    try
                     {
-                        ((IHostApplicationLifetime)s).StopApplication();
+                        // if the resp server is shutdown by a client: stop the kestrel server too
+                        if (t.Result == RespServer.ShutdownReason.ClientInitiated)
+                        {
+                            ((IHostApplicationLifetime)s).StopApplication();
+                        }
                     }
-                }
-                catch { /* Don't go boom on shutdown */ }
-            }, lifetime);
+                    catch { /* Don't go boom on shutdown */ }
+                },
+                lifetime);
 
             if (env.IsDevelopment()) app.UseDeveloperExceptionPage();
             app.Run(context => context.Response.WriteAsync(_server.GetStats()));

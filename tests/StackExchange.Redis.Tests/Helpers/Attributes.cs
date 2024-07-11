@@ -101,7 +101,7 @@ public class SkippableTestCase : XunitTestCase, IRedisTest
     {
         RedisProtocol.Resp2 => "RESP2",
         RedisProtocol.Resp3 => "RESP3",
-        _ => "UnknownProtocolFixMeeeeee"
+        _ => "UnknownProtocolFixMeeeeee",
     };
 
     protected override string GetUniqueID() => base.GetUniqueID() + ProtocolString;

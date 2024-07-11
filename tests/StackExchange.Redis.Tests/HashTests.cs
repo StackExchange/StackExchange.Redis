@@ -1,10 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Text;
 using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
-using System.Threading.Tasks;
 
 namespace StackExchange.Redis.Tests;
 
@@ -576,10 +576,11 @@ public class HashTests : TestBase
 
         var result0 = db.HashGetAllAsync(hashkey);
 
-        var data = new[] {
-                new HashEntry("foo", Encoding.UTF8.GetBytes("abc")),
-                new HashEntry("bar", Encoding.UTF8.GetBytes("def"))
-            };
+        var data = new[]
+        {
+            new HashEntry("foo", Encoding.UTF8.GetBytes("abc")),
+            new HashEntry("bar", Encoding.UTF8.GetBytes("def")),
+        };
         db.HashSetAsync(hashkey, data).ForAwait();
 
         var result1 = db.Wait(db.HashGetAllAsync(hashkey));

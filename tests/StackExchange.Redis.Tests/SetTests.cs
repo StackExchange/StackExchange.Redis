@@ -90,9 +90,9 @@ public class SetTests : TestBase
         db.KeyDelete(key2, CommandFlags.FireAndForget);
         db.SetAdd(key2, new RedisValue[] { 1, 2, 3, 4, 5 }, CommandFlags.FireAndForget);
 
-        Assert.Equal(4, db.SetIntersectionLength(new RedisKey[]{ key1, key2}));
+        Assert.Equal(4, db.SetIntersectionLength(new RedisKey[] { key1, key2 }));
         // with limit
-        Assert.Equal(3, db.SetIntersectionLength(new RedisKey[]{ key1, key2}, 3));
+        Assert.Equal(3, db.SetIntersectionLength(new RedisKey[] { key1, key2 }, 3));
 
         // Missing keys should be 0
         var key3 = Me() + "3";
@@ -116,9 +116,9 @@ public class SetTests : TestBase
         db.KeyDelete(key2, CommandFlags.FireAndForget);
         db.SetAdd(key2, new RedisValue[] { 1, 2, 3, 4, 5 }, CommandFlags.FireAndForget);
 
-        Assert.Equal(4, await db.SetIntersectionLengthAsync(new RedisKey[]{ key1, key2}));
+        Assert.Equal(4, await db.SetIntersectionLengthAsync(new RedisKey[] { key1, key2 }));
         // with limit
-        Assert.Equal(3, await db.SetIntersectionLengthAsync(new RedisKey[]{ key1, key2}, 3));
+        Assert.Equal(3, await db.SetIntersectionLengthAsync(new RedisKey[] { key1, key2 }, 3));
 
         // Missing keys should be 0
         var key3 = Me() + "3";
@@ -356,10 +356,10 @@ public class SetTests : TestBase
 
         var random = new Random();
         var items = Enumerable.Repeat(0, 200).Select(_ => random.Next()).ToList();
-        await db.SetAddAsync(key, items.Select(x=>(RedisValue)x).ToArray());
+        await db.SetAddAsync(key, items.Select(x => (RedisValue)x).ToArray());
         items.Sort();
 
-        var result = db.Sort(key).Select(x=>(int)x);
+        var result = db.Sort(key).Select(x => (int)x);
         Assert.Equal(items, result);
 
         result = (await db.SortAsync(key)).Select(x => (int)x);
@@ -377,7 +377,7 @@ public class SetTests : TestBase
 
         var random = new Random();
         var items = Enumerable.Repeat(0, 200).Select(_ => random.Next()).ToList();
-        await db.SetAddAsync(key, items.Select(x=>(RedisValue)x).ToArray());
+        await db.SetAddAsync(key, items.Select(x => (RedisValue)x).ToArray());
 
         using var readonlyConn = Create(configuration: TestConfig.Current.ReplicaServerAndPort, require: RedisFeatures.v7_0_0_rc1);
         var readonlyDb = conn.GetDatabase();

@@ -41,7 +41,7 @@ namespace StackExchange.Redis
 
             RedisCommand.BGREWRITEAOF, RedisCommand.BGSAVE, RedisCommand.CLIENT, RedisCommand.CLUSTER, RedisCommand.CONFIG, RedisCommand.DBSIZE,
             RedisCommand.DEBUG, RedisCommand.FLUSHALL, RedisCommand.FLUSHDB, RedisCommand.INFO, RedisCommand.LASTSAVE, RedisCommand.MONITOR, RedisCommand.REPLICAOF,
-            RedisCommand.SAVE, RedisCommand.SHUTDOWN, RedisCommand.SLAVEOF, RedisCommand.SLOWLOG, RedisCommand.SYNC, RedisCommand.TIME
+            RedisCommand.SAVE, RedisCommand.SHUTDOWN, RedisCommand.SLAVEOF, RedisCommand.SLOWLOG, RedisCommand.SYNC, RedisCommand.TIME,
         });
 
         /// <summary>
@@ -80,20 +80,27 @@ namespace StackExchange.Redis
         /// The commands available to <a href="https://ssdb.io/">SSDB</a>.
         /// </summary>
         /// <remarks><seealso href="https://ssdb.io/docs/redis-to-ssdb.html"/></remarks>
-        public static CommandMap SSDB { get; } = Create(new HashSet<string> {
-            "ping",
-            "get", "set", "del", "incr", "incrby", "mget", "mset", "keys", "getset", "setnx",
-            "hget", "hset", "hdel", "hincrby", "hkeys", "hvals", "hmget", "hmset", "hlen",
-            "zscore", "zadd", "zrem", "zrange", "zrangebyscore", "zincrby", "zdecrby", "zcard",
-            "llen", "lpush", "rpush", "lpop", "rpop", "lrange", "lindex"
-        }, true);
+        public static CommandMap SSDB { get; } = Create(
+            new HashSet<string>
+            {
+                "ping",
+                "get", "set", "del", "incr", "incrby", "mget", "mset", "keys", "getset", "setnx",
+                "hget", "hset", "hdel", "hincrby", "hkeys", "hvals", "hmget", "hmset", "hlen",
+                "zscore", "zadd", "zrem", "zrange", "zrangebyscore", "zincrby", "zdecrby", "zcard",
+                "llen", "lpush", "rpush", "lpop", "rpop", "lrange", "lindex",
+            },
+            true);
 
         /// <summary>
         /// The commands available to <a href="https://redis.io/topics/sentinel">Sentinel</a>.
         /// </summary>
         /// <remarks><seealso href="https://redis.io/topics/sentinel"/></remarks>
-        public static CommandMap Sentinel { get; } = Create(new HashSet<string> {
-            "auth", "hello", "ping", "info", "role", "sentinel", "subscribe", "shutdown", "psubscribe", "unsubscribe", "punsubscribe" }, true);
+        public static CommandMap Sentinel { get; } = Create(
+            new HashSet<string>
+            {
+                "auth", "hello", "ping", "info", "role", "sentinel", "subscribe", "shutdown", "psubscribe", "unsubscribe", "punsubscribe",
+            },
+            true);
 
         /// <summary>
         /// Create a new <see cref="CommandMap"/>, customizing some commands.
@@ -195,8 +202,9 @@ namespace StackExchange.Redis
         internal CommandBytes GetBytes(string command)
         {
             if (command == null) return default;
-            if(Enum.TryParse(command, true, out RedisCommand cmd))
-            {   // we know that one!
+            if (Enum.TryParse(command, true, out RedisCommand cmd))
+            {
+                // we know that one!
                 return map[(int)cmd];
             }
             return new CommandBytes(command);

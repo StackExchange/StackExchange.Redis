@@ -13,7 +13,7 @@ namespace KestrelRedisServer
                 .UseKestrel(options =>
                 {
                     // Moved to SocketTransportOptions.UnsafePreferInlineScheduling = true;
-                    //options.ApplicationSchedulingMode = SchedulingMode.Inline;
+                    // options.ApplicationSchedulingMode = SchedulingMode.Inline;
 
                     // HTTP 5000
                     options.ListenLocalhost(5000);

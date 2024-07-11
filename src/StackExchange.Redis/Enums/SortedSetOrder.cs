@@ -16,7 +16,7 @@ public enum SortedSetOrder
     ByScore,
 
     /// <summary>
-    /// Bases ordering off of lexicographical order, this is only appropriate in an instance where all the members of your sorted set are given the same score
+    /// Bases ordering off of lexicographical order, this is only appropriate in an instance where all the members of your sorted set are given the same score.
     /// </summary>
     ByLex,
 }
@@ -27,6 +27,6 @@ internal static class SortedSetOrderByExtensions
     {
         SortedSetOrder.ByLex => RedisLiterals.BYLEX,
         SortedSetOrder.ByScore => RedisLiterals.BYSCORE,
-        _ => RedisValue.Null
+        _ => RedisValue.Null,
     };
 }

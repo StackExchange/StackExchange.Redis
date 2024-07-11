@@ -8,7 +8,7 @@ namespace StackExchange.Redis.Tests;
 
 public class ConnectingFailDetectionTests : TestBase
 {
-    public ConnectingFailDetectionTests(ITestOutputHelper output) : base (output) { }
+    public ConnectingFailDetectionTests(ITestOutputHelper output) : base(output) { }
 
     protected override string GetConfiguration() => TestConfig.Current.PrimaryServerAndPort + "," + TestConfig.Current.ReplicaServerAndPort;
 

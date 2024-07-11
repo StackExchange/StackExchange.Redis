@@ -7,7 +7,7 @@ namespace StackExchange.Redis.Tests;
 [Collection(SharedConnectionFixture.Key)]
 public class BitTests : TestBase
 {
-    public BitTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base (output, fixture) { }
+    public BitTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
 
     [Fact]
     public void BasicOps()

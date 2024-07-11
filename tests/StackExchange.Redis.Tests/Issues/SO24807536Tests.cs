@@ -7,7 +7,7 @@ namespace StackExchange.Redis.Tests.Issues;
 
 public class SO24807536Tests : TestBase
 {
-    public SO24807536Tests(ITestOutputHelper output) : base (output) { }
+    public SO24807536Tests(ITestOutputHelper output) : base(output) { }
 
     [Fact]
     public async Task Exec()

@@ -7,7 +7,7 @@ namespace StackExchange.Redis.Tests;
 public class InfoReplicationCheckTests : TestBase
 {
     protected override string GetConfiguration() => base.GetConfiguration() + ",configCheckSeconds=2";
-    public InfoReplicationCheckTests(ITestOutputHelper output) : base (output) { }
+    public InfoReplicationCheckTests(ITestOutputHelper output) : base(output) { }
 
     [Fact]
     public async Task Exec()

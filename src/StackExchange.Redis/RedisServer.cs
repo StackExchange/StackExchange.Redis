@@ -79,7 +79,7 @@ namespace StackExchange.Redis
         {
             var parts = new List<RedisValue>(9)
             {
-                RedisLiterals.KILL
+                RedisLiterals.KILL,
             };
             if (id != null)
             {
@@ -248,24 +248,22 @@ namespace StackExchange.Redis
             {
                 return Message.Create(-1, flags, RedisCommand.COMMAND, RedisLiterals.LIST);
             }
-
             else if (moduleName != null && category == null && pattern == null)
             {
                 return Message.Create(-1, flags, RedisCommand.COMMAND, MakeArray(RedisLiterals.LIST, RedisLiterals.FILTERBY, RedisLiterals.MODULE, (RedisValue)moduleName));
             }
-
             else if (moduleName == null && category != null && pattern == null)
             {
                 return Message.Create(-1, flags, RedisCommand.COMMAND, MakeArray(RedisLiterals.LIST, RedisLiterals.FILTERBY, RedisLiterals.ACLCAT, (RedisValue)category));
             }
-
             else if (moduleName == null && category == null && pattern != null)
             {
                 return Message.Create(-1, flags, RedisCommand.COMMAND, MakeArray(RedisLiterals.LIST, RedisLiterals.FILTERBY, RedisLiterals.PATTERN, (RedisValue)pattern));
             }
-
             else
+            {
                 throw new ArgumentException("More then one filter is not allowed");
+            }
         }
 
         private RedisValue[] AddValueToArray(RedisValue val, RedisValue[] arr)
@@ -277,7 +275,7 @@ namespace StackExchange.Redis
             return result;
         }
 
-        private RedisValue[] MakeArray(params RedisValue[] redisValues) { return redisValues; }
+        private RedisValue[] MakeArray(params RedisValue[] redisValues) => redisValues;
 
         public long DatabaseSize(int database = -1, CommandFlags flags = CommandFlags.None)
         {
@@ -1072,7 +1070,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// For testing only
+        /// For testing only.
         /// </summary>
         internal void SimulateConnectionFailure(SimulatedFailureType failureType) => server.SimulateConnectionFailure(failureType);
 

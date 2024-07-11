@@ -35,9 +35,9 @@ public class GarbageCollectionTests : TestBase
 
         ForceGC();
 
-//#if DEBUG // this counter only exists in debug
+// #if DEBUG // this counter only exists in debug
 //            int before = ConnectionMultiplexer.CollectedWithoutDispose;
-//#endif
+// #endif
         var wr = new WeakReference(conn);
         conn = null;
 
@@ -48,10 +48,10 @@ public class GarbageCollectionTests : TestBase
         // should be collectable
         Assert.Null(wr.Target);
 
-//#if DEBUG // this counter only exists in debug
+// #if DEBUG // this counter only exists in debug
 //            int after = ConnectionMultiplexer.CollectedWithoutDispose;
 //            Assert.Equal(before + 1, after);
-//#endif
+// #endif
     }
 
     [Fact]
@@ -64,15 +64,17 @@ public class GarbageCollectionTests : TestBase
         Task? completedTestTask = null;
         _ = Task.Run(async () =>
         {
-            using var conn = await ConnectionMultiplexer.ConnectAsync(new ConfigurationOptions()
-            {
-                BacklogPolicy = BacklogPolicy.Default,
-                AbortOnConnectFail = false,
-                ConnectTimeout = 50,
-                SyncTimeout = 1000,
-                AllowAdmin = true,
-                EndPoints = { GetConfiguration() },
-            }, Writer);
+            using var conn = await ConnectionMultiplexer.ConnectAsync(
+                new ConfigurationOptions()
+                {
+                    BacklogPolicy = BacklogPolicy.Default,
+                    AbortOnConnectFail = false,
+                    ConnectTimeout = 50,
+                    SyncTimeout = 1000,
+                    AllowAdmin = true,
+                    EndPoints = { GetConfiguration() },
+                },
+                Writer);
             var db = conn.GetDatabase();
 
             // Disconnect and don't allow re-connection

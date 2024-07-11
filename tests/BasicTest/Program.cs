@@ -21,7 +21,7 @@ namespace BasicTest
     {
         protected virtual Job Configure(Job j)
             => j.WithGcMode(new GcMode { Force = true })
-                //.With(InProcessToolchain.Instance)
+                // .With(InProcessToolchain.Instance)
                 ;
 
         public CustomConfig()
@@ -41,9 +41,7 @@ namespace BasicTest
                 .WithWarmupCount(1)
                 .WithIterationCount(5);
     }
-    /// <summary>
-    /// The tests
-    /// </summary>
+
     [Config(typeof(CustomConfig))]
     public class RedisBenchmarks : IDisposable
     {
@@ -51,14 +49,10 @@ namespace BasicTest
         private ConnectionMultiplexer connection;
         private IDatabase db;
 
-        /// <summary>
-        /// Create
-        /// </summary>
         [GlobalSetup]
         public void Setup()
         {
             // Pipelines.Sockets.Unofficial.SocketConnection.AssertDependencies();
-
             var options = ConfigurationOptions.Parse("127.0.0.1:6379");
             connection = ConnectionMultiplexer.Connect(options);
             db = connection.GetDatabase(3);
@@ -88,10 +82,9 @@ namespace BasicTest
         private const int COUNT = 50;
 
         /// <summary>
-        /// Run INCRBY lots of times
+        /// Run INCRBY lots of times.
         /// </summary>
         // [Benchmark(Description = "INCRBY/s", OperationsPerInvoke = COUNT)]
-
         public int ExecuteIncrBy()
         {
             var rand = new Random(12345);
@@ -110,7 +103,7 @@ namespace BasicTest
         }
 
         /// <summary>
-        /// Run INCRBY lots of times
+        /// Run INCRBY lots of times.
         /// </summary>
         // [Benchmark(Description = "INCRBY/a", OperationsPerInvoke = COUNT)]
         public async Task<int> ExecuteIncrByAsync()
@@ -131,7 +124,7 @@ namespace BasicTest
         }
 
         /// <summary>
-        /// Run GEORADIUS lots of times
+        /// Run GEORADIUS lots of times.
         /// </summary>
         // [Benchmark(Description = "GEORADIUS/s", OperationsPerInvoke = COUNT)]
         public int ExecuteGeoRadius()
@@ -139,15 +132,14 @@ namespace BasicTest
             int total = 0;
             for (int i = 0; i < COUNT; i++)
             {
-                var results = db.GeoRadius(GeoKey, 15, 37, 200, GeoUnit.Kilometers,
-                    options: GeoRadiusOptions.WithCoordinates | GeoRadiusOptions.WithDistance | GeoRadiusOptions.WithGeoHash);
+                var results = db.GeoRadius(GeoKey, 15, 37, 200, GeoUnit.Kilometers, options: GeoRadiusOptions.WithCoordinates | GeoRadiusOptions.WithDistance | GeoRadiusOptions.WithGeoHash);
                 total += results.Length;
             }
             return total;
         }
 
         /// <summary>
-        /// Run GEORADIUS lots of times
+        /// Run GEORADIUS lots of times.
         /// </summary>
         // [Benchmark(Description = "GEORADIUS/a", OperationsPerInvoke = COUNT)]
         public async Task<int> ExecuteGeoRadiusAsync()
@@ -155,15 +147,14 @@ namespace BasicTest
             int total = 0;
             for (int i = 0; i < COUNT; i++)
             {
-                var results = await db.GeoRadiusAsync(GeoKey, 15, 37, 200, GeoUnit.Kilometers,
-                    options: GeoRadiusOptions.WithCoordinates | GeoRadiusOptions.WithDistance | GeoRadiusOptions.WithGeoHash).ConfigureAwait(false);
+                var results = await db.GeoRadiusAsync(GeoKey, 15, 37, 200, GeoUnit.Kilometers, options: GeoRadiusOptions.WithCoordinates | GeoRadiusOptions.WithDistance | GeoRadiusOptions.WithGeoHash).ConfigureAwait(false);
                 total += results.Length;
             }
             return total;
         }
 
         /// <summary>
-        /// Run StringSet lots of times
+        /// Run StringSet lots of times.
         /// </summary>
         [Benchmark(Description = "StringSet/s", OperationsPerInvoke = COUNT)]
         public void StringSet()
@@ -175,7 +166,7 @@ namespace BasicTest
         }
 
         /// <summary>
-        /// Run StringGet lots of times
+        /// Run StringGet lots of times.
         /// </summary>
         [Benchmark(Description = "StringGet/s", OperationsPerInvoke = COUNT)]
         public void StringGet()
@@ -187,7 +178,7 @@ namespace BasicTest
         }
 
         /// <summary>
-        /// Run HashGetAll lots of times
+        /// Run HashGetAll lots of times.
         /// </summary>
         [Benchmark(Description = "HashGetAll F+F/s", OperationsPerInvoke = COUNT)]
         public void HashGetAll_FAF()
@@ -200,7 +191,7 @@ namespace BasicTest
         }
 
         /// <summary>
-        /// Run HashGetAll lots of times
+        /// Run HashGetAll lots of times.
         /// </summary>
         [Benchmark(Description = "HashGetAll F+F/a", OperationsPerInvoke = COUNT)]
 

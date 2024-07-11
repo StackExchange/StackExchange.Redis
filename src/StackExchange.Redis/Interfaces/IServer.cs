@@ -34,7 +34,7 @@ namespace StackExchange.Redis
         bool IsConnected { get; }
 
         /// <summary>
-        /// The protocol being used to communicate with this server (if not connected/known, then the anticipated protocol from the configuration is returned, assuming success)
+        /// The protocol being used to communicate with this server (if not connected/known, then the anticipated protocol from the configuration is returned, assuming success).
         /// </summary>
         RedisProtocol Protocol { get; }
 
@@ -338,8 +338,9 @@ namespace StackExchange.Redis
         /// <remarks>
         /// <para>Warning: consider KEYS as a command that should only be used in production environments with extreme care.</para>
         /// <para>
+        /// See
         /// <seealso href="https://redis.io/commands/keys"/>,
-        /// <seealso href="https://redis.io/commands/scan"/>
+        /// <seealso href="https://redis.io/commands/scan"/>.
         /// </para>
         /// </remarks>
         IEnumerable<RedisKey> Keys(int database = -1, RedisValue pattern = default, int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None);
@@ -388,10 +389,11 @@ namespace StackExchange.Redis
         /// <param name="type">The method of the save (e.g. background or foreground).</param>
         /// <param name="flags">The command flags to use.</param>
         /// <remarks>
+        /// See
         /// <seealso href="https://redis.io/commands/bgrewriteaof"/>,
         /// <seealso href="https://redis.io/commands/bgsave"/>,
         /// <seealso href="https://redis.io/commands/save"/>,
-        /// <seealso href="https://redis.io/topics/persistence"/>
+        /// <seealso href="https://redis.io/topics/persistence"/>.
         /// </remarks>
         void Save(SaveType type, CommandFlags flags = CommandFlags.None);
 
@@ -577,8 +579,9 @@ namespace StackExchange.Redis
         /// </summary>
         /// <returns>The full text result of latency doctor.</returns>
         /// <remarks>
+        /// See
         /// <seealso href="https://redis.io/topics/latency-monitor"/>,
-        /// <seealso href="https://redis.io/commands/latency-doctor"/>
+        /// <seealso href="https://redis.io/commands/latency-doctor"/>.
         /// </remarks>
         string LatencyDoctor(CommandFlags flags = CommandFlags.None);
 
@@ -590,8 +593,9 @@ namespace StackExchange.Redis
         /// </summary>
         /// <returns>The number of events that were reset.</returns>
         /// <remarks>
+        /// See
         /// <seealso href="https://redis.io/topics/latency-monitor"/>,
-        /// <seealso href="https://redis.io/commands/latency-reset"/>
+        /// <seealso href="https://redis.io/commands/latency-reset"/>.
         /// </remarks>
         long LatencyReset(string[]? eventNames = null, CommandFlags flags = CommandFlags.None);
 
@@ -603,8 +607,9 @@ namespace StackExchange.Redis
         /// </summary>
         /// <returns>An array of latency history entries.</returns>
         /// <remarks>
+        /// See
         /// <seealso href="https://redis.io/topics/latency-monitor"/>,
-        /// <seealso href="https://redis.io/commands/latency-history"/>
+        /// <seealso href="https://redis.io/commands/latency-history"/>.
         /// </remarks>
         LatencyHistoryEntry[] LatencyHistory(string eventName, CommandFlags flags = CommandFlags.None);
 
@@ -616,8 +621,9 @@ namespace StackExchange.Redis
         /// </summary>
         /// <returns>An array of the latest latency history entries.</returns>
         /// <remarks>
+        /// See
         /// <seealso href="https://redis.io/topics/latency-monitor"/>,
-        /// <seealso href="https://redis.io/commands/latency-latest"/>
+        /// <seealso href="https://redis.io/commands/latency-latest"/>.
         /// </remarks>
         LatencyLatestEntry[] LatencyLatest(CommandFlags flags = CommandFlags.None);
 
@@ -772,7 +778,7 @@ namespace StackExchange.Redis
     internal static class IServerExtensions
     {
         /// <summary>
-        /// For testing only: Break the connection without mercy or thought
+        /// For testing only: Break the connection without mercy or thought.
         /// </summary>
         /// <param name="server">The server to simulate failure on.</param>
         /// <param name="failureType">The type of failure(s) to simulate.</param>

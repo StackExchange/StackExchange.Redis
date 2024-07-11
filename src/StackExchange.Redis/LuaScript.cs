@@ -189,7 +189,7 @@ namespace StackExchange.Redis
         /// Loads this LuaScript into the given IServer so it can be run with it's SHA1 hash, instead of
         /// using the implicit SHA1 hash that's calculated after the script is sent to the server for the first time.
         /// </para>
-        /// <para>Note: the FireAndForget command flag cannot be set</para>
+        /// <para>Note: the FireAndForget command flag cannot be set.</para>
         /// </summary>
         /// <param name="server">The server to load the script on.</param>
         /// <param name="flags">The command flags to use.</param>

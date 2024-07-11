@@ -5,7 +5,7 @@ namespace StackExchange.Redis.Tests;
 
 public class SSDBTests : TestBase
 {
-    public SSDBTests(ITestOutputHelper output) : base (output) { }
+    public SSDBTests(ITestOutputHelper output) : base(output) { }
 
     [Fact]
     public void ConnectToSSDB()
@@ -15,7 +15,7 @@ public class SSDBTests : TestBase
         using var conn = ConnectionMultiplexer.Connect(new ConfigurationOptions
         {
             EndPoints = { { TestConfig.Current.SSDBServer, TestConfig.Current.SSDBPort } },
-            CommandMap = CommandMap.SSDB
+            CommandMap = CommandMap.SSDB,
         });
 
         RedisKey key = Me();

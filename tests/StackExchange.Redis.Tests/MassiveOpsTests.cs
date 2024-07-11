@@ -38,7 +38,7 @@ public class MassiveOpsTests : TestBase
         RedisKey key = Me();
         var db = conn.GetDatabase();
         await db.PingAsync().ForAwait();
-        static void nonTrivial(Task _)
+        static void NonTrivial(Task unused)
         {
             Thread.SpinWait(5);
         }
@@ -49,13 +49,12 @@ public class MassiveOpsTests : TestBase
             if (withContinuation)
             {
                 // Intentionally unawaited
-                _ = t.ContinueWith(nonTrivial);
+                _ = t.ContinueWith(NonTrivial);
             }
         }
         Assert.Equal(AsyncOpsQty, await db.StringGetAsync(key).ForAwait());
         watch.Stop();
-        Log("{2}: Time for {0} ops: {1}ms ({3}, any order); ops/s: {4}", AsyncOpsQty, watch.ElapsedMilliseconds, Me(),
-            withContinuation ? "with continuation" : "no continuation", AsyncOpsQty / watch.Elapsed.TotalSeconds);
+        Log($"{Me()}: Time for {AsyncOpsQty} ops: {watch.ElapsedMilliseconds}ms ({(withContinuation ? "with continuation" : "no continuation")}, any order); ops/s: {AsyncOpsQty / watch.Elapsed.TotalSeconds}");
     }
 
     [TheoryLongRunning]
@@ -71,18 +70,19 @@ public class MassiveOpsTests : TestBase
         var db = conn.GetDatabase();
         db.KeyDelete(key, CommandFlags.FireAndForget);
         int workPerThread = SyncOpsQty / threads;
-        var timeTaken = RunConcurrent(delegate
-        {
-            for (int i = 0; i < workPerThread; i++)
+        var timeTaken = RunConcurrent(
+            () =>
             {
-                db.StringIncrement(key, flags: CommandFlags.FireAndForget);
-            }
-        }, threads);
+                for (int i = 0; i < workPerThread; i++)
+                {
+                    db.StringIncrement(key, flags: CommandFlags.FireAndForget);
+                }
+            },
+            threads);
 
         int val = (int)db.StringGet(key);
         Assert.Equal(workPerThread * threads, val);
-        Log("{2}: Time for {0} ops on {3} threads: {1}ms (any order); ops/s: {4}",
-            threads * workPerThread, timeTaken.TotalMilliseconds, Me(), threads, (workPerThread * threads) / timeTaken.TotalSeconds);
+        Log($"{Me()}: Time for {threads * workPerThread} ops on {threads} threads: {timeTaken.TotalMilliseconds}ms (any order); ops/s: {(workPerThread * threads) / timeTaken.TotalSeconds}");
     }
 
     [Theory]
@@ -98,19 +98,19 @@ public class MassiveOpsTests : TestBase
 
         db.KeyDelete(key, CommandFlags.FireAndForget);
         int perThread = AsyncOpsQty / threads;
-        var elapsed = RunConcurrent(delegate
-        {
-            for (int i = 0; i < perThread; i++)
+        var elapsed = RunConcurrent(
+            () =>
             {
-                db.StringIncrement(key, flags: CommandFlags.FireAndForget);
-            }
-            db.Ping();
-        }, threads);
+                for (int i = 0; i < perThread; i++)
+                {
+                    db.StringIncrement(key, flags: CommandFlags.FireAndForget);
+                }
+                db.Ping();
+            },
+            threads);
         var val = (long)db.StringGet(key);
         Assert.Equal(perThread * threads, val);
 
-        Log("{2}: Time for {0} ops over {4} threads: {1:###,###}ms (any order); ops/s: {3:###,###,##0}",
-            val, elapsed.TotalMilliseconds, Me(),
-            val / elapsed.TotalSeconds, threads);
+        Log($"{Me()}: Time for {val} ops over {threads} threads: {elapsed.TotalMilliseconds:###,###}ms (any order); ops/s: {val / elapsed.TotalSeconds:###,###,##0}");
     }
 }

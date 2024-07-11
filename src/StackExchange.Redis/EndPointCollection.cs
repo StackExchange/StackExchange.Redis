@@ -1,10 +1,10 @@
-﻿using Microsoft.Extensions.Logging;
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Net;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace StackExchange.Redis
 {
@@ -23,13 +23,13 @@ namespace StackExchange.Redis
         /// <summary>
         /// Create a new <see cref="EndPointCollection"/>.
         /// </summary>
-        public EndPointCollection() {}
+        public EndPointCollection() { }
 
         /// <summary>
         /// Create a new <see cref="EndPointCollection"/>.
         /// </summary>
         /// <param name="endpoints">The endpoints to add to the collection.</param>
-        public EndPointCollection(IList<EndPoint> endpoints) : base(endpoints) {}
+        public EndPointCollection(IList<EndPoint> endpoints) : base(endpoints) { }
 
         /// <summary>
         /// Format an <see cref="EndPoint"/>.
@@ -165,7 +165,7 @@ namespace StackExchange.Redis
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
         IEnumerator<EndPoint> IEnumerable<EndPoint>.GetEnumerator() => GetEnumerator();
 
-        /// <inheritdoc/>
+        /// <inheritdoc cref="Collection{EndPoint}.GetEnumerator"/>
         public new IEnumerator<EndPoint> GetEnumerator()
         {
             // this does *not* need to handle all threading scenarios; but we do

@@ -1,11 +1,11 @@
-﻿using StackExchange.Redis.Maintenance;
-using StackExchange.Redis.Profiling;
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.IO;
 using System.Net;
 using System.Threading.Tasks;
+using StackExchange.Redis.Maintenance;
+using StackExchange.Redis.Profiling;
 using static StackExchange.Redis.ConnectionMultiplexer;
 
 namespace StackExchange.Redis
