@@ -108,6 +108,18 @@ namespace StackExchange.Redis
         Task<long> ClientKillAsync(long? id = null, ClientType? clientType = null, EndPoint? endpoint = null, bool skipMe = true, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// The CLIENT KILL command closes multiple connections that match the specified filters.
+        /// </summary>
+        /// <param name="filter"></param>
+        /// <param name="flags"></param>
+        /// <returns></returns>
+        long ClientKill(ClientKillFilter filter, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="ClientKill(ClientKillFilter, CommandFlags)"/>
+        Task<long> ClientKillAsync(ClientKillFilter filter, CommandFlags flags = CommandFlags.None);
+
+
+        /// <summary>
         /// The <c>CLIENT LIST</c> command returns information and statistics about the client connections server in a mostly human readable format.
         /// </summary>
         /// <param name="flags">The command flags to use.</param>

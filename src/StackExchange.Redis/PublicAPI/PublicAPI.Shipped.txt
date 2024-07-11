@@ -126,6 +126,22 @@ StackExchange.Redis.ClientInfo.ProtocolVersion.get -> string?
 StackExchange.Redis.ClientInfo.Raw.get -> string?
 StackExchange.Redis.ClientInfo.SubscriptionCount.get -> int
 StackExchange.Redis.ClientInfo.TransactionCommandLength.get -> int
+StackExchange.Redis.ClientKillFilter
+StackExchange.Redis.ClientKillFilter.ClientKillFilter() -> void
+StackExchange.Redis.ClientKillFilter.ClientType.get -> StackExchange.Redis.ClientType?
+StackExchange.Redis.ClientKillFilter.Endpoint.get -> System.Net.EndPoint?
+StackExchange.Redis.ClientKillFilter.Id.get -> long?
+StackExchange.Redis.ClientKillFilter.MaxAgeInSeconds.get -> long?
+StackExchange.Redis.ClientKillFilter.ServerEndpoint.get -> System.Net.EndPoint?
+StackExchange.Redis.ClientKillFilter.SkipMe.get -> bool?
+StackExchange.Redis.ClientKillFilter.Username.get -> string?
+StackExchange.Redis.ClientKillFilter.WithClientType(StackExchange.Redis.ClientType? clientType) -> StackExchange.Redis.ClientKillFilter!
+StackExchange.Redis.ClientKillFilter.WithEndpoint(System.Net.EndPoint? endpoint) -> StackExchange.Redis.ClientKillFilter!
+StackExchange.Redis.ClientKillFilter.WithId(long? id) -> StackExchange.Redis.ClientKillFilter!
+StackExchange.Redis.ClientKillFilter.WithMaxAgeInSeconds(long? maxAgeInSeconds) -> StackExchange.Redis.ClientKillFilter!
+StackExchange.Redis.ClientKillFilter.WithServerEndpoint(System.Net.EndPoint? serverEndpoint) -> StackExchange.Redis.ClientKillFilter!
+StackExchange.Redis.ClientKillFilter.WithSkipMe(bool? skipMe) -> StackExchange.Redis.ClientKillFilter!
+StackExchange.Redis.ClientKillFilter.WithUsername(string? username) -> StackExchange.Redis.ClientKillFilter!
 StackExchange.Redis.ClientType
 StackExchange.Redis.ClientType.Normal = 0 -> StackExchange.Redis.ClientType
 StackExchange.Redis.ClientType.PubSub = 2 -> StackExchange.Redis.ClientType
@@ -1006,8 +1022,10 @@ StackExchange.Redis.IServer.AllowSlaveWrites.get -> bool
 StackExchange.Redis.IServer.AllowSlaveWrites.set -> void
 StackExchange.Redis.IServer.ClientKill(long? id = null, StackExchange.Redis.ClientType? clientType = null, System.Net.EndPoint? endpoint = null, bool skipMe = true, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
 StackExchange.Redis.IServer.ClientKill(System.Net.EndPoint! endpoint, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> void
+StackExchange.Redis.IServer.ClientKill(StackExchange.Redis.ClientKillFilter! filter, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
 StackExchange.Redis.IServer.ClientKillAsync(long? id = null, StackExchange.Redis.ClientType? clientType = null, System.Net.EndPoint? endpoint = null, bool skipMe = true, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
 StackExchange.Redis.IServer.ClientKillAsync(System.Net.EndPoint! endpoint, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task!
+StackExchange.Redis.IServer.ClientKillAsync(StackExchange.Redis.ClientKillFilter! filter, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
 StackExchange.Redis.IServer.ClientList(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.ClientInfo![]!
 StackExchange.Redis.IServer.ClientListAsync(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.ClientInfo![]!>!
 StackExchange.Redis.IServer.ClusterConfiguration.get -> StackExchange.Redis.ClusterConfiguration?
@@ -1852,3 +1870,4 @@ virtual StackExchange.Redis.RedisResult.Length.get -> int
 virtual StackExchange.Redis.RedisResult.this[int index].get -> StackExchange.Redis.RedisResult!
 StackExchange.Redis.ConnectionMultiplexer.AddLibraryNameSuffix(string! suffix) -> void
 StackExchange.Redis.IConnectionMultiplexer.AddLibraryNameSuffix(string! suffix) -> void
+
