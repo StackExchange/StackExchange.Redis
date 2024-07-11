@@ -113,7 +113,7 @@ public class ClientKillFilter
     /// <summary>
     /// Set the MaxAgeInSeconds filter.
     /// </summary>
-    /// <param name="maxAgeInSeconds">Age of connection in seconds</param>
+    /// <param name="maxAgeInSeconds">Age of connection in seconds.</param>
     public ClientKillFilter WithMaxAgeInSeconds(long? maxAgeInSeconds)
     {
         MaxAgeInSeconds = maxAgeInSeconds;
@@ -123,9 +123,9 @@ public class ClientKillFilter
     internal List<RedisValue> ToList(bool withReplicaCommands)
     {
         var parts = new List<RedisValue>(15)
-            {
-                RedisLiterals.KILL
-            };
+        {
+            RedisLiterals.KILL,
+        };
         if (Id != null)
         {
             parts.Add(RedisLiterals.ID);

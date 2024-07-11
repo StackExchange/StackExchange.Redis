@@ -110,14 +110,13 @@ namespace StackExchange.Redis
         /// <summary>
         /// The CLIENT KILL command closes multiple connections that match the specified filters.
         /// </summary>
-        /// <param name="filter"></param>
-        /// <param name="flags"></param>
-        /// <returns></returns>
+        /// <param name="filter">The filter to use in choosing which clients to kill.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>the number of clients killed.</returns>
         long ClientKill(ClientKillFilter filter, CommandFlags flags = CommandFlags.None);
 
         /// <inheritdoc cref="ClientKill(ClientKillFilter, CommandFlags)"/>
         Task<long> ClientKillAsync(ClientKillFilter filter, CommandFlags flags = CommandFlags.None);
-
 
         /// <summary>
         /// The <c>CLIENT LIST</c> command returns information and statistics about the client connections server in a mostly human readable format.

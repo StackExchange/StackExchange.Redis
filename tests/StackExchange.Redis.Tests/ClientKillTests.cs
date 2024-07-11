@@ -52,14 +52,14 @@ public class ClientKillTests : TestBase
         ClientType type = ClientType.Normal;
         string userName = "user1";
         EndPoint endpoint = new IPEndPoint(IPAddress.Parse("127.0.0.1"), 1234);
-        EndPoint serverEndpoint = new IPEndPoint(IPAddress.Parse("198.0.0.1"), 6379); ;
+        EndPoint serverEndpoint = new IPEndPoint(IPAddress.Parse("198.0.0.1"), 6379);
         bool skipMe = true;
         long maxAge = 102;
 
         var filter = new ClientKillFilter().WithId(id).WithClientType(type).WithUsername(userName).WithEndpoint(endpoint).WithServerEndpoint(serverEndpoint).WithSkipMe(skipMe).WithMaxAgeInSeconds(maxAge);
         List<RedisValue> expected = new List<RedisValue>()
         {
-            "KILL", "ID", "101", "TYPE", "normal", "USERNAME", "user1", "ADDR", "127.0.0.1:1234", "LADDR", "198.0.0.1:6379", "SKIPME", "yes", "MAXAGE", "102"
+            "KILL", "ID", "101", "TYPE", "normal", "USERNAME", "user1", "ADDR", "127.0.0.1:1234", "LADDR", "198.0.0.1:6379", "SKIPME", "yes", "MAXAGE", "102",
         };
         Assert.Equal(expected, filter.ToList(true));
     }
