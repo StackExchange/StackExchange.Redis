@@ -1,7 +1,9 @@
-﻿using Pipelines.Sockets.Unofficial;
+﻿using Microsoft.Extensions.Logging;
+using Pipelines.Sockets.Unofficial;
 using Pipelines.Sockets.Unofficial.Arenas;
 using System;
 using System.Buffers;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -17,9 +19,7 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Logging;
 using static StackExchange.Redis.Message;
-using System.Buffers.Binary;
 
 namespace StackExchange.Redis
 {
@@ -91,7 +91,7 @@ namespace StackExchange.Redis
             connectionType = bridge.ConnectionType;
             _bridge = new WeakReference(bridge);
             ChannelPrefix = bridge.Multiplexer.RawConfig.ChannelPrefix;
-            if (ChannelPrefix?.Length == 0) ChannelPrefix = null; // null tests are easier than null+empty
+            if (ChannelPrefix == null || ChannelPrefix.Length == 0) ChannelPrefix = null; // null tests are easier than null+empty
             var endpoint = bridge.ServerEndPoint.EndPoint;
             _physicalName = connectionType + "#" + Interlocked.Increment(ref totalCount) + "@" + Format.ToString(endpoint);
 

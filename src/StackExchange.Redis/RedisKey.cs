@@ -13,7 +13,7 @@ namespace StackExchange.Redis
     {
         internal RedisKey(byte[]? keyPrefix, object? keyValue)
         {
-            KeyPrefix = keyPrefix?.Length == 0 ? null : keyPrefix;
+            KeyPrefix = keyPrefix == null || keyPrefix.Length == 0 ? null : keyPrefix;
             KeyValue = keyValue;
         }
 
@@ -253,7 +253,7 @@ namespace StackExchange.Redis
         /// Obtain the <see cref="RedisKey"/> as a <see cref="T:byte[]"/>.
         /// </summary>
         /// <param name="key">The key to get a byte array for.</param>
-        public static implicit operator byte[]? (RedisKey key)
+        public static implicit operator byte[]?(RedisKey key)
         {
             if (key.IsNull) return null;
             if (key.TryGetSimpleBuffer(out var arr)) return arr;
@@ -270,7 +270,7 @@ namespace StackExchange.Redis
         /// Obtain the key as a <see cref="string"/>.
         /// </summary>
         /// <param name="key">The key to get a string for.</param>
-        public static implicit operator string? (RedisKey key)
+        public static implicit operator string?(RedisKey key)
         {
             if (key.KeyPrefix is null)
             {

@@ -401,7 +401,7 @@ namespace StackExchange.Redis
                     : Array.ConvertAll(_value, x => x.AsByteArray()!);
 
             private bool IsSingleton => _value?.Length == 1;
-            private bool IsEmpty => _value?.Length == 0;
+            private bool IsEmpty => _value == null || _value.Length == 0;
             internal override double AsDouble()
             {
                 if (IsSingleton) return _value![0].AsDouble();
