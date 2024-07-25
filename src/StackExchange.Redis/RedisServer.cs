@@ -75,46 +75,22 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
-        private Message GetClientKillMessage(EndPoint? endpoint, long? id, ClientType? clientType, bool skipMe, CommandFlags flags)
+        public long ClientKill(ClientKillFilter filter, CommandFlags flags = CommandFlags.None)
         {
-            var parts = new List<RedisValue>(9)
-            {
-                RedisLiterals.KILL
-            };
-            if (id != null)
-            {
-                parts.Add(RedisLiterals.ID);
-                parts.Add(id.Value);
-            }
-            if (clientType != null)
-            {
-                parts.Add(RedisLiterals.TYPE);
-                switch (clientType.Value)
-                {
-                    case ClientType.Normal:
-                        parts.Add(RedisLiterals.normal);
-                        break;
-                    case ClientType.Replica:
-                        parts.Add(Features.ReplicaCommands ? RedisLiterals.replica : RedisLiterals.slave);
-                        break;
-                    case ClientType.PubSub:
-                        parts.Add(RedisLiterals.pubsub);
-                        break;
-                    default:
-                        throw new ArgumentOutOfRangeException(nameof(clientType));
-                }
-            }
-            if (endpoint != null)
-            {
-                parts.Add(RedisLiterals.ADDR);
-                parts.Add((RedisValue)Format.ToString(endpoint));
-            }
-            if (!skipMe)
-            {
-                parts.Add(RedisLiterals.SKIPME);
-                parts.Add(RedisLiterals.no);
-            }
-            return Message.Create(-1, flags, RedisCommand.CLIENT, parts);
+            var msg = Message.Create(-1, flags, RedisCommand.CLIENT, filter.ToList(Features.ReplicaCommands));
+            return ExecuteSync(msg, ResultProcessor.Int64);
+        }
+
+        public Task<long> ClientKillAsync(ClientKillFilter filter, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.CLIENT, filter.ToList(Features.ReplicaCommands));
+            return ExecuteAsync(msg, ResultProcessor.Int64);
+        }
+
+        private Message GetClientKillMessage(EndPoint? endpoint, long? id, ClientType? clientType, bool? skipMe, CommandFlags flags)
+        {
+            var args = new ClientKillFilter().WithId(id).WithClientType(clientType).WithEndpoint(endpoint).WithSkipMe(skipMe).ToList(Features.ReplicaCommands);
+            return Message.Create(-1, flags, RedisCommand.CLIENT, args);
         }
 
         public ClientInfo[] ClientList(CommandFlags flags = CommandFlags.None)
@@ -408,7 +384,7 @@ namespace StackExchange.Redis
         }
 
         public void MakeMaster(ReplicationChangeOptions options, TextWriter? log = null)
-    {
+        {
             // Do you believe in magic?
             multiplexer.MakePrimaryAsync(server, options, log).Wait(60000);
         }
