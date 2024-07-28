@@ -287,7 +287,7 @@ public abstract class LoggingTunnel : Tunnel
             : base(options, tail)
         {
             this.path = path;
-            if (!Directory.Exists(path)) throw new InvalidOperationException("Directly does not exist: " + path);
+            if (!Directory.Exists(path)) throw new InvalidOperationException("Directory does not exist: " + path);
         }
 
         protected override Stream Log(Stream stream, EndPoint endpoint, ConnectionType connectionType)
