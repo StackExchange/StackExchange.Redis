@@ -326,6 +326,165 @@ namespace StackExchange.Redis
         bool HashExists(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Set the remaining time to live in milliseconds for the given set of fields of hash
+        /// After the timeout has expired, the field of the hash will automatically be deleted.
+        /// </summary>
+        /// <param name="key">The key of the hash.</param>
+        /// <param name="hashFields">The fields in the hash to set expire time.</param>
+        /// <param name="expiry">The timeout to set.</param>
+        /// <param name="when">under which condition the expiration will be set using <see cref="ExpireWhen"/>.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>
+        /// Empty array if the key does not exist. Otherwise returns an array where each item is the result of operation for given fields:
+        /// <list type="table">
+        ///   <listheader>
+        ///     <term>Result</term>
+        ///     <description>Description</description>
+        ///   </listheader>
+        ///   <item>
+        ///     <term>2</term>
+        ///     <description>Field deleted because the specified expiration time is due.</description>
+        ///   </item>
+        ///   <item>
+        ///     <term>1</term>
+        ///     <description>Expiration time set/updated.</description>
+        ///   </item>
+        ///   <item>
+        ///     <term>0</term>
+        ///     <description>Expiration time is not set/update (a specified ExpireWhen condition is not met).</description>
+        ///   </item>
+        ///   <item>
+        ///     <term>-1</term>
+        ///     <description>No such field exists.</description>
+        ///   </item>
+        /// </list>
+        /// </returns>
+        ExpireResult[] HashFieldExpire(RedisKey key, RedisValue[] hashFields, TimeSpan expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Set the time out on a field of the given set of fields of hash.
+        /// After the timeout has expired, the field of the hash will automatically be deleted.
+        /// </summary>
+        /// <param name="key">The key of the hash.</param>
+        /// <param name="hashFields">The fields in the hash to set expire time.</param>
+        /// <param name="expiry">The exact date to expiry to set.</param>
+        /// <param name="when">under which condition the expiration will be set using <see cref="ExpireWhen"/>.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>
+        /// Empty array if the key does not exist. Otherwise returns an array where each item is the result of operation for given fields:
+        /// <list type="table">
+        ///   <listheader>
+        ///       <term>Result</term>
+        ///       <description>Description</description>
+        ///   </listheader>
+        ///   <item>
+        ///     <term>2</term>
+        ///     <description>Field deleted because the specified expiration time is due.</description>
+        ///   </item>
+        ///   <item>
+        ///     <term>1</term>
+        ///     <description>Expiration time set/updated.</description>
+        ///   </item>
+        ///   <item>
+        ///     <term>0</term>
+        ///     <description>Expiration time is not set/update (a specified ExpireWhen condition is not met).</description>
+        ///   </item>
+        ///   <item>
+        ///     <term>-1</term>
+        ///     <description>No such field exists.</description>
+        ///   </item>
+        /// </list>
+        /// </returns>
+        ExpireResult[] HashFieldExpire(RedisKey key, RedisValue[] hashFields, DateTime expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// For each specified field, it gets the expiration time as a Unix timestamp in milliseconds (milliseconds since the Unix epoch).
+        /// </summary>
+        /// <param name="key">The key of the hash.</param>
+        /// <param name="hashFields">The fields in the hash to get expire time.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>
+        /// Empty array if the key does not exist. Otherwise returns the result of operation for given fields:
+        /// <list type="table">
+        ///   <listheader>
+        ///     <term>Result</term>
+        ///     <description>Description</description>
+        ///   </listheader>
+        ///   <item>
+        ///     <term>&gt; 0</term>
+        ///     <description>Expiration time, as a Unix timestamp in milliseconds.</description>
+        ///   </item>
+        ///   <item>
+        ///     <term>-1</term>
+        ///     <description>Field has no associated expiration time.</description>
+        ///   </item>
+        ///   <item>
+        ///     <term>-2</term>
+        ///     <description>No such field exists.</description>
+        ///   </item>
+        /// </list>
+        /// </returns>
+        long[] HashFieldGetExpireDateTime(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// For each specified field, it removes the expiration time.
+        /// </summary>
+        /// <param name="key">The key of the hash.</param>
+        /// <param name="hashFields">The fields in the hash to remove expire time.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>
+        /// Empty array if the key does not exist. Otherwise returns the result of operation for given fields:
+        /// <list type="table">
+        ///   <listheader>
+        ///     <term>Result</term>
+        ///     <description>Description</description>
+        ///   </listheader>
+        ///   <item>
+        ///     <term>1</term>
+        ///     <description>Expiration time was removed.</description>
+        ///   </item>
+        ///   <item>
+        ///     <term>-1</term>
+        ///     <description>Field has no associated expiration time.</description>
+        ///   </item>
+        ///   <item>
+        ///     <term>-2</term>
+        ///     <description>No such field exists.</description>
+        ///   </item>
+        /// </list>
+        /// </returns>
+        PersistResult[] HashFieldPersist(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// For each specified field, it gets the remaining time to live in milliseconds.
+        /// </summary>
+        /// <param name="key">The key of the hash.</param>
+        /// <param name="hashFields">The fields in the hash to get expire time.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>
+        /// Empty array if the key does not exist. Otherwise returns the result of operation for given fields:
+        /// <list type="table">
+        ///   <listheader>
+        ///     <term>Result</term>
+        ///     <description>Description</description>
+        ///   </listheader>
+        ///   <item>
+        ///     <term>&gt; 0</term>
+        ///     <description>Time to live, in milliseconds.</description>
+        ///   </item>
+        ///   <item>
+        ///     <term>-1</term>
+        ///     <description>Field has no associated expiration time.</description>
+        ///   </item>
+        ///   <item>
+        ///     <term>-2</term>
+        ///     <description>No such field exists.</description>
+        ///   </item>
+        /// </list>
+        /// </returns>
+        long[] HashFieldGetTimeToLive(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Returns the value associated with field in the hash stored at key.
         /// </summary>
         /// <param name="key">The key of the hash.</param>

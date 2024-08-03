@@ -8,6 +8,7 @@ Current package versions:
 
 ## Unreleased
 
+- Add support for hash field expiration (see [#2715](https://github.com/StackExchange/StackExchange.Redis/issues/2715)) ([#2716 by atakavci](https://github.com/StackExchange/StackExchange.Redis/pull/2716]))
 
 ## 2.8.0
 
