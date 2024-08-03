@@ -11,6 +11,7 @@ namespace StackExchange.Redis.Profiling
         /// Caller-defined state object.
         /// </summary>
         public object? UserToken { get; }
+
         /// <summary>
         /// Create a new profiling session, optionally including a caller-defined state object.
         /// </summary>

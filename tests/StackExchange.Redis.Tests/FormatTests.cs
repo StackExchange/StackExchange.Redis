@@ -81,7 +81,6 @@ public class FormatTests : TestBase
     public void ReplicationChangeOptionsFormatting(ReplicationChangeOptions value, string expected)
         => Assert.Equal(expected, value.ToString());
 
-
     [Theory]
     [InlineData(0, "0")]
     [InlineData(1, "1")]

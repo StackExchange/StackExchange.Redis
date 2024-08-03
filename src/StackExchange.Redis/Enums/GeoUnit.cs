@@ -8,19 +8,22 @@ namespace StackExchange.Redis
     public enum GeoUnit
     {
         /// <summary>
-        /// Meters
+        /// Meters.
         /// </summary>
         Meters,
+
         /// <summary>
-        /// Kilometers
+        /// Kilometers.
         /// </summary>
         Kilometers,
+
         /// <summary>
-        /// Miles
+        /// Miles.
         /// </summary>
         Miles,
+
         /// <summary>
-        /// Feet
+        /// Feet.
         /// </summary>
         Feet,
     }
@@ -33,7 +36,7 @@ namespace StackExchange.Redis
             GeoUnit.Kilometers => RedisLiterals.km,
             GeoUnit.Meters => RedisLiterals.m,
             GeoUnit.Miles => RedisLiterals.mi,
-            _ => throw new ArgumentOutOfRangeException(nameof(unit))
+            _ => throw new ArgumentOutOfRangeException(nameof(unit)),
         };
     }
 }

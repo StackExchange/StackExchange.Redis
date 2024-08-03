@@ -47,7 +47,7 @@ public class FailoverTests : TestBase, IAsyncLifetime
             {
                 { TestConfig.Current.FailoverPrimaryServer, TestConfig.Current.FailoverPrimaryPort },
                 { TestConfig.Current.FailoverReplicaServer, TestConfig.Current.FailoverReplicaPort },
-            }
+            },
         };
     }
 
@@ -136,8 +136,8 @@ public class FailoverTests : TestBase, IAsyncLifetime
             bool isUnanimous = log.Contains("tie-break is unanimous at " + TestConfig.Current.FailoverPrimaryServerAndPort);
             if (!isUnanimous) Skip.Inconclusive("this is timing sensitive; unable to verify this time");
         }
-        // k, so we know everyone loves 6379; is that what we get?
 
+        // k, so we know everyone loves 6379; is that what we get?
         var db = conn.GetDatabase();
         RedisKey key = Me();
 

@@ -5,6 +5,7 @@
     <OutputType>Exe</OutputType>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <DefineConstants>$(DefineConstants);SEREDIS_BASELINE</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>

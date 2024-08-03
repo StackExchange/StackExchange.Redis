@@ -8,7 +8,7 @@ namespace StackExchange.Redis.Tests;
 
 public class ValueTests : TestBase
 {
-    public ValueTests(ITestOutputHelper output) : base (output) { }
+    public ValueTests(ITestOutputHelper output) : base(output) { }
 
     [Fact]
     public void NullValueChecks()

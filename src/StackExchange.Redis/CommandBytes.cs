@@ -54,7 +54,6 @@ namespace StackExchange.Redis
         public bool Equals(in CommandBytes other) => _0 == other._0 && _1 == other._1 && _2 == other._2 && _3 == other._3;
 
         // note: don't add == operators; with the implicit op above, that invalidates "==null" compiler checks (which should report a failure!)
-
         public static implicit operator CommandBytes(string value) => new CommandBytes(value);
 
         public override unsafe string ToString()
@@ -181,10 +180,16 @@ namespace StackExchange.Redis
             char* workspace = stackalloc char[MaxChars];
             int charCount = Encoding.GetChars(bPtr, oldLen, workspace, MaxChars);
             char* c = workspace;
-            for (int i = 0; i < charCount; i++) *c = char.ToUpperInvariant(*c++);
+            for (int i = 0; i < charCount; i++)
+            {
+                *c = char.ToUpperInvariant(*c++);
+            }
             int newLen = Encoding.GetBytes(workspace, charCount, bPtr, MaxLength);
             // don't forget to zero any shrink
-            for (int i = newLen; i < oldLen; i++) bPtr[i] = 0;
+            for (int i = newLen; i < oldLen; i++)
+            {
+                bPtr[i] = 0;
+            }
             return newLen;
         }
 

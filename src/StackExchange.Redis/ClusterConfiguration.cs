@@ -247,7 +247,7 @@ namespace StackExchange.Redis
         /// <param name="slot">The slot ID to get a node by.</param>
         public ClusterNode? GetBySlot(int slot)
         {
-            foreach(var node in Nodes)
+            foreach (var node in Nodes)
             {
                 if (!node.IsReplica && node.ServesSlot(slot)) return node;
             }
@@ -265,7 +265,7 @@ namespace StackExchange.Redis
     /// Represents the configuration of a single node in a cluster configuration.
     /// </summary>
     /// <remarks><seealso href="https://redis.io/commands/cluster-nodes"/></remarks>
-    public sealed class ClusterNode :  IEquatable<ClusterNode>, IComparable<ClusterNode>, IComparable
+    public sealed class ClusterNode : IEquatable<ClusterNode>, IComparable<ClusterNode>, IComparable
     {
         private readonly ClusterConfiguration configuration;
         private IList<ClusterNode>? children;
@@ -421,7 +421,8 @@ namespace StackExchange.Redis
 
             if (IsReplica != other.IsReplica) return IsReplica ? 1 : -1; // primaries first
 
-            if (IsReplica) // both replicas? compare by parent, so we get primaries A, B, C and then replicas of A, B, C
+            // both replicas? compare by parent, so we get primaries A, B, C and then replicas of A, B, C
+            if (IsReplica)
             {
                 int i = string.CompareOrdinal(ParentNodeId, other.ParentNodeId);
                 if (i != 0) return i;
@@ -457,16 +458,16 @@ namespace StackExchange.Redis
                 if (Parent is ClusterNode parent) sb.Append(" at ").Append(parent.EndPoint);
             }
             var childCount = Children.Count;
-            switch(childCount)
+            switch (childCount)
             {
                 case 0: break;
                 case 1: sb.Append(", 1 replica"); break;
                 default: sb.Append(", ").Append(childCount).Append(" replicas"); break;
             }
-            if(Slots.Count != 0)
+            if (Slots.Count != 0)
             {
                 sb.Append(", slots: ");
-                foreach(var slot in Slots)
+                foreach (var slot in Slots)
                 {
                     sb.Append(slot).Append(' ');
                 }

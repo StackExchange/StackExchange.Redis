@@ -29,7 +29,7 @@ public class PubSubCommandTests : TestBase
         _ = server.SubscriptionPatternCount();
         var count = server.SubscriptionSubscriberCount(channel);
         Assert.Equal(0, count);
-        conn.GetSubscriber().Subscribe(channel, delegate { });
+        conn.GetSubscriber().Subscribe(channel, (channel, value) => { });
         count = server.SubscriptionSubscriberCount(channel);
         Assert.Equal(1, count);
 
@@ -57,7 +57,7 @@ public class PubSubCommandTests : TestBase
         _ = await server.SubscriptionPatternCountAsync().WithTimeout(2000);
         var count = await server.SubscriptionSubscriberCountAsync(channel).WithTimeout(2000);
         Assert.Equal(0, count);
-        await conn.GetSubscriber().SubscribeAsync(channel, delegate { }).WithTimeout(2000);
+        await conn.GetSubscriber().SubscribeAsync(channel, (channel, value) => { }).WithTimeout(2000);
         count = await server.SubscriptionSubscriberCountAsync(channel).WithTimeout(2000);
         Assert.Equal(1, count);
 
@@ -69,8 +69,7 @@ public class PubSubCommandTests : TestBase
 }
 internal static class Util
 {
-    public static async Task WithTimeout(this Task task, int timeoutMs,
-        [CallerMemberName] string? caller = null, [CallerLineNumber] int line = 0)
+    public static async Task WithTimeout(this Task task, int timeoutMs, [CallerMemberName] string? caller = null, [CallerLineNumber] int line = 0)
     {
         var cts = new CancellationTokenSource();
         if (task == await Task.WhenAny(task, Task.Delay(timeoutMs, cts.Token)).ForAwait())
@@ -83,8 +82,7 @@ internal static class Util
             throw new TimeoutException($"timout from {caller} line {line}");
         }
     }
-    public static async Task<T> WithTimeout<T>(this Task<T> task, int timeoutMs,
-        [CallerMemberName] string? caller = null, [CallerLineNumber] int line = 0)
+    public static async Task<T> WithTimeout<T>(this Task<T> task, int timeoutMs, [CallerMemberName] string? caller = null, [CallerLineNumber] int line = 0)
     {
         var cts = new CancellationTokenSource();
         if (task == await Task.WhenAny(task, Task.Delay(timeoutMs, cts.Token)).ForAwait())

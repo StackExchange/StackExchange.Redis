@@ -1,10 +1,10 @@
-﻿using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
-using System;
+﻿using System;
 using System.IO;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -65,16 +65,16 @@ public class LoggerTests : TestBase
     public class TestWrapperLogger : ILogger
     {
         public int LogCount = 0;
-        public ILogger _inner { get; }
+        private ILogger Inner { get; }
 
-        public TestWrapperLogger(ILogger toWrap) => _inner = toWrap;
+        public TestWrapperLogger(ILogger toWrap) => Inner = toWrap;
 
-        public IDisposable BeginScope<TState>(TState state) => _inner.BeginScope(state);
-        public bool IsEnabled(LogLevel logLevel) => _inner.IsEnabled(logLevel);
+        public IDisposable BeginScope<TState>(TState state) => Inner.BeginScope(state);
+        public bool IsEnabled(LogLevel logLevel) => Inner.IsEnabled(logLevel);
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
         {
             Interlocked.Increment(ref LogCount);
-            _inner.Log(logLevel, eventId, state, exception, formatter);
+            Inner.Log(logLevel, eventId, state, exception, formatter);
         }
     }
 

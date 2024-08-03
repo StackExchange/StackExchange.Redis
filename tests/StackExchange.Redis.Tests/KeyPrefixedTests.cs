@@ -3,10 +3,10 @@ using System.Collections.Generic;
 using System.Linq.Expressions;
 using System.Net;
 using System.Text;
+using System.Threading.Tasks;
 using NSubstitute;
 using StackExchange.Redis.KeyspaceIsolation;
 using Xunit;
-using System.Threading.Tasks;
 
 namespace StackExchange.Redis.Tests
 {
@@ -133,7 +133,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task HashStringLengthAsync()
         {
-            await prefixed.HashStringLengthAsync("key","field", CommandFlags.None);
+            await prefixed.HashStringLengthAsync("key", "field", CommandFlags.None);
             await mock.Received().HashStringLengthAsync("prefix:key", "field", CommandFlags.None);
         }
 

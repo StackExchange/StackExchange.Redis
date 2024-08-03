@@ -1,6 +1,4 @@
-﻿using StackExchange.Redis.Profiling;
-using StackExchange.Redis.Tests.Helpers;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -9,6 +7,8 @@ using System.Runtime;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using StackExchange.Redis.Profiling;
+using StackExchange.Redis.Tests.Helpers;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -23,7 +23,7 @@ public abstract class TestBase : IDisposable
     internal static string GetDefaultConfiguration() => TestConfig.Current.PrimaryServerAndPort;
 
     /// <summary>
-    /// Gives the current TestContext, propulated by the runner (this type of thing will be built-in in xUnit 3.x)
+    /// Gives the current TestContext, propulated by the runner (this type of thing will be built-in in xUnit 3.x).
     /// </summary>
     protected TestContext Context => _context.Value!;
     private static readonly AsyncLocal<TestContext> _context = new();
@@ -31,7 +31,7 @@ public abstract class TestBase : IDisposable
 
     private readonly SharedConnectionFixture? _fixture;
 
-    protected bool SharedFixtureAvailable => _fixture != null && _fixture.IsEnabled;
+    protected bool SharedFixtureAvailable => _fixture != null && _fixture.IsEnabled && !HighIntegrity;
 
     protected TestBase(ITestOutputHelper output, SharedConnectionFixture? fixture = null)
     {
@@ -94,7 +94,7 @@ public abstract class TestBase : IDisposable
         GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced);
     }
 
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Design", "CA1063:ImplementIDisposableCorrectly")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Design", "CA1063:ImplementIDisposableCorrectly", Justification = "Trust me yo")]
     public void Dispose()
     {
         _fixture?.Teardown(Writer);
@@ -236,6 +236,8 @@ public abstract class TestBase : IDisposable
         throw new InvalidOperationException("Requires a primary endpoint (found none)");
     }
 
+    internal virtual bool HighIntegrity => false;
+
     internal virtual IInternalConnectionMultiplexer Create(
         string? clientName = null,
         int? syncTimeout = null,
@@ -271,9 +273,10 @@ public abstract class TestBase : IDisposable
         protocol ??= Context.Test.Protocol;
 
         // Share a connection if instructed to and we can - many specifics mean no sharing
+        bool highIntegrity = HighIntegrity;
         if (shared && expectedFailCount == 0
             && _fixture != null && _fixture.IsEnabled
-            && CanShare(allowAdmin, password, tieBreaker, fail, disabledCommands, enabledCommands, channelPrefix, proxy, configuration, defaultDatabase, backlogPolicy))
+            && CanShare(allowAdmin, password, tieBreaker, fail, disabledCommands, enabledCommands, channelPrefix, proxy, configuration, defaultDatabase, backlogPolicy, highIntegrity))
         {
             configuration = GetConfiguration();
             var fixtureConn = _fixture.GetConnection(this, protocol.Value, caller: caller);
@@ -290,13 +293,27 @@ public abstract class TestBase : IDisposable
         var conn = CreateDefault(
             Writer,
             configuration ?? GetConfiguration(),
-            clientName, syncTimeout, asyncTimeout, allowAdmin, keepAlive,
-            connectTimeout, password, tieBreaker, log,
-            fail, disabledCommands, enabledCommands,
-            checkConnect, failMessage,
-            channelPrefix, proxy,
-            logTransactionData, defaultDatabase,
-            backlogPolicy, protocol,
+            clientName,
+            syncTimeout,
+            asyncTimeout,
+            allowAdmin,
+            keepAlive,
+            connectTimeout,
+            password,
+            tieBreaker,
+            log,
+            fail,
+            disabledCommands,
+            enabledCommands,
+            checkConnect,
+            failMessage,
+            channelPrefix,
+            proxy,
+            logTransactionData,
+            defaultDatabase,
+            backlogPolicy,
+            protocol,
+            highIntegrity,
             caller);
 
         ThrowIfIncorrectProtocol(conn, protocol);
@@ -319,8 +336,8 @@ public abstract class TestBase : IDisposable
         Proxy? proxy,
         string? configuration,
         int? defaultDatabase,
-        BacklogPolicy? backlogPolicy
-        )
+        BacklogPolicy? backlogPolicy,
+        bool highIntegrity)
         => enabledCommands == null
             && disabledCommands == null
             && fail
@@ -331,7 +348,8 @@ public abstract class TestBase : IDisposable
             && tieBreaker == null
             && defaultDatabase == null
             && (allowAdmin == null || allowAdmin == true)
-            && backlogPolicy == null;
+            && backlogPolicy == null
+            && !highIntegrity;
 
     internal void ThrowIfIncorrectProtocol(IInternalConnectionMultiplexer conn, RedisProtocol? requiredProtocol)
     {
@@ -345,7 +363,7 @@ public abstract class TestBase : IDisposable
         {
             throw new SkipTestException($"Requires protocol {requiredProtocol}, but connection is {serverProtocol}.")
             {
-                MissingFeatures = $"Protocol {requiredProtocol}."
+                MissingFeatures = $"Protocol {requiredProtocol}.",
             };
         }
     }
@@ -362,7 +380,7 @@ public abstract class TestBase : IDisposable
         {
             throw new SkipTestException($"Requires server version {requiredVersion}, but server is only {serverVersion}.")
             {
-                MissingFeatures = $"Server version >= {requiredVersion}."
+                MissingFeatures = $"Server version >= {requiredVersion}.",
             };
         }
     }
@@ -390,6 +408,7 @@ public abstract class TestBase : IDisposable
         int? defaultDatabase = null,
         BacklogPolicy? backlogPolicy = null,
         RedisProtocol? protocol = null,
+        bool highIntegrity = false,
         [CallerMemberName] string caller = "")
     {
         StringWriter? localLog = null;
@@ -425,18 +444,21 @@ public abstract class TestBase : IDisposable
             if (defaultDatabase is not null) config.DefaultDatabase = defaultDatabase.Value;
             if (backlogPolicy is not null) config.BacklogPolicy = backlogPolicy;
             if (protocol is not null) config.Protocol = protocol;
+            if (highIntegrity) config.HighIntegrity = highIntegrity;
             var watch = Stopwatch.StartNew();
             var task = ConnectionMultiplexer.ConnectAsync(config, log);
             if (!task.Wait(config.ConnectTimeout >= (int.MaxValue / 2) ? int.MaxValue : config.ConnectTimeout * 2))
             {
-                task.ContinueWith(x =>
-                {
-                    try
+                task.ContinueWith(
+                    x =>
                     {
-                        GC.KeepAlive(x.Exception);
-                    }
-                    catch { /* No boom */ }
-                }, TaskContinuationOptions.OnlyOnFaulted);
+                        try
+                        {
+                            GC.KeepAlive(x.Exception);
+                        }
+                        catch { /* No boom */ }
+                    },
+                    TaskContinuationOptions.OnlyOnFaulted);
                 throw new TimeoutException("Connect timeout");
             }
             watch.Stop();
@@ -491,7 +513,7 @@ public abstract class TestBase : IDisposable
         ManualResetEvent allDone = new ManualResetEvent(false);
         object token = new object();
         int active = 0;
-        void callback()
+        void Callback()
         {
             lock (token)
             {
@@ -517,9 +539,9 @@ public abstract class TestBase : IDisposable
         var threadArr = new Thread[threads];
         for (int i = 0; i < threads; i++)
         {
-            var thd = new Thread(callback)
+            var thd = new Thread(Callback)
             {
-                Name = caller
+                Name = caller,
             };
             threadArr[i] = thd;
             thd.Start();

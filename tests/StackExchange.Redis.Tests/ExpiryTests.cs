@@ -8,9 +8,9 @@ namespace StackExchange.Redis.Tests;
 [Collection(SharedConnectionFixture.Key)]
 public class ExpiryTests : TestBase
 {
-    public ExpiryTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base (output, fixture) { }
+    public ExpiryTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
 
-    private static string[]? GetMap(bool disablePTimes) => disablePTimes ? (new[] { "pexpire", "pexpireat", "pttl" }) : null;
+    private static string[]? GetMap(bool disablePTimes) => disablePTimes ? new[] { "pexpire", "pexpireat", "pttl" } : null;
 
     [Theory]
     [InlineData(true)]

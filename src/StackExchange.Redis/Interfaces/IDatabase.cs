@@ -6,12 +6,12 @@ using System.Net;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// Describes functionality that is common to both standalone redis servers and redis clusters
+    /// Describes functionality that is common to both standalone redis servers and redis clusters.
     /// </summary>
     public interface IDatabase : IRedis, IDatabaseAsync
     {
         /// <summary>
-        /// The numeric identifier of this database
+        /// The numeric identifier of this database.
         /// </summary>
         int Database { get; }
 
@@ -517,8 +517,9 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns><see langword="true"/> if field is a new field in the hash and value was set, <see langword="false"/> if field already exists in the hash and the value was updated.</returns>
         /// <remarks>
+        /// See
         /// <seealso href="https://redis.io/commands/hset"/>,
-        /// <seealso href="https://redis.io/commands/hsetnx"/>
+        /// <seealso href="https://redis.io/commands/hsetnx"/>.
         /// </remarks>
         bool HashSet(RedisKey key, RedisValue hashField, RedisValue value, When when = When.Always, CommandFlags flags = CommandFlags.None);
 
@@ -526,7 +527,7 @@ namespace StackExchange.Redis
         /// Returns the string length of the value associated with field in the hash stored at key.
         /// </summary>
         /// <param name="key">The key of the hash.</param>
-        /// <param name="hashField">The field containing the string</param>
+        /// <param name="hashField">The field containing the string.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The length of the string at field, or 0 when key does not exist.</returns>
         /// <remarks><seealso href="https://redis.io/commands/hstrlen"/></remarks>
@@ -584,7 +585,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="destination">The key of the merged hyperloglog.</param>
         /// <param name="first">The key of the first hyperloglog to merge.</param>
-        /// <param name="second">The key of the first hyperloglog to merge.</param>
+        /// <param name="second">The key of the second hyperloglog to merge.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <remarks><seealso href="https://redis.io/commands/pfmerge"/></remarks>
         void HyperLogLogMerge(RedisKey destination, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None);
@@ -626,8 +627,9 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns><see langword="true"/> if the key was removed.</returns>
         /// <remarks>
+        /// See
         /// <seealso href="https://redis.io/commands/del"/>,
-        /// <seealso href="https://redis.io/commands/unlink"/>
+        /// <seealso href="https://redis.io/commands/unlink"/>.
         /// </remarks>
         bool KeyDelete(RedisKey key, CommandFlags flags = CommandFlags.None);
 
@@ -639,8 +641,9 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of keys that were removed.</returns>
         /// <remarks>
+        /// See
         /// <seealso href="https://redis.io/commands/del"/>,
-        /// <seealso href="https://redis.io/commands/unlink"/>
+        /// <seealso href="https://redis.io/commands/unlink"/>.
         /// </remarks>
         long KeyDelete(RedisKey[] keys, CommandFlags flags = CommandFlags.None);
 
@@ -702,9 +705,10 @@ namespace StackExchange.Redis
         /// See the page on key expiry for more information.
         /// </para>
         /// <para>
+        /// See
         /// <seealso href="https://redis.io/commands/expire"/>,
         /// <seealso href="https://redis.io/commands/pexpire"/>,
-        /// <seealso href="https://redis.io/commands/persist"/>
+        /// <seealso href="https://redis.io/commands/persist"/>.
         /// </para>
         /// </remarks>
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
@@ -721,8 +725,9 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns><see langword="true"/> if the timeout was set. <see langword="false"/> if key does not exist or the timeout could not be set.</returns>
         /// <remarks>
+        /// See
         /// <seealso href="https://redis.io/commands/expire"/>,
-        /// <seealso href="https://redis.io/commands/pexpire"/>
+        /// <seealso href="https://redis.io/commands/pexpire"/>.
         /// </remarks>
         bool KeyExpire(RedisKey key, TimeSpan? expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None);
 
@@ -747,9 +752,10 @@ namespace StackExchange.Redis
         /// See the page on key expiry for more information.
         /// </para>
         /// <para>
+        /// See
         /// <seealso href="https://redis.io/commands/expireat"/>,
         /// <seealso href="https://redis.io/commands/pexpireat"/>,
-        /// <seealso href="https://redis.io/commands/persist"/>
+        /// <seealso href="https://redis.io/commands/persist"/>.
         /// </para>
         /// </remarks>
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
@@ -766,8 +772,9 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns><see langword="true"/> if the timeout was set. <see langword="false"/> if key does not exist or the timeout could not be set.</returns>
         /// <remarks>
+        /// See
         /// <seealso href="https://redis.io/commands/expire"/>,
-        /// <seealso href="https://redis.io/commands/pexpire"/>
+        /// <seealso href="https://redis.io/commands/pexpire"/>.
         /// </remarks>
         bool KeyExpire(RedisKey key, DateTime? expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None);
 
@@ -778,8 +785,9 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The time at which the given key will expire, or <see langword="null"/> if the key does not exist or has no associated expiration time.</returns>
         /// <remarks>
+        /// See
         /// <seealso href="https://redis.io/commands/expiretime"/>,
-        /// <seealso href="https://redis.io/commands/pexpiretime"/>
+        /// <seealso href="https://redis.io/commands/pexpiretime"/>.
         /// </remarks>
         DateTime? KeyExpireTime(RedisKey key, CommandFlags flags = CommandFlags.None);
 
@@ -851,8 +859,9 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns><see langword="true"/> if the key was renamed, <see langword="false"/> otherwise.</returns>
         /// <remarks>
+        /// See
         /// <seealso href="https://redis.io/commands/rename"/>,
-        /// <seealso href="https://redis.io/commands/renamenx"/>
+        /// <seealso href="https://redis.io/commands/renamenx"/>.
         /// </remarks>
         bool KeyRename(RedisKey key, RedisKey newKey, When when = When.Always, CommandFlags flags = CommandFlags.None);
 
@@ -956,7 +965,7 @@ namespace StackExchange.Redis
         /// If the list contains less than count elements, removes and returns the number of elements in the list.
         /// </summary>
         /// <param name="key">The key of the list.</param>
-        /// <param name="count">The number of elements to remove</param>
+        /// <param name="count">The number of elements to remove.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>Array of values that were popped, or <see langword="null"/> if the key doesn't exist.</returns>
         /// <remarks><seealso href="https://redis.io/commands/lpop"/></remarks>
@@ -1010,8 +1019,9 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The length of the list after the push operations.</returns>
         /// <remarks>
+        /// See
         /// <seealso href="https://redis.io/commands/lpush"/>,
-        /// <seealso href="https://redis.io/commands/lpushx"/>
+        /// <seealso href="https://redis.io/commands/lpushx"/>.
         /// </remarks>
         long ListLeftPush(RedisKey key, RedisValue value, When when = When.Always, CommandFlags flags = CommandFlags.None);
 
@@ -1025,8 +1035,9 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The length of the list after the push operations.</returns>
         /// <remarks>
+        /// See
         /// <seealso href="https://redis.io/commands/lpush"/>,
-        /// <seealso href="https://redis.io/commands/lpushx"/>
+        /// <seealso href="https://redis.io/commands/lpushx"/>.
         /// </remarks>
         long ListLeftPush(RedisKey key, RedisValue[] values, When when = When.Always, CommandFlags flags = CommandFlags.None);
 
@@ -1110,7 +1121,7 @@ namespace StackExchange.Redis
         /// If the list contains less than count elements, removes and returns the number of elements in the list.
         /// </summary>
         /// <param name="key">The key of the list.</param>
-        /// <param name="count">The number of elements to pop</param>
+        /// <param name="count">The number of elements to pop.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>Array of values that were popped, or <see langword="null"/> if the key doesn't exist.</returns>
         /// <remarks><seealso href="https://redis.io/commands/rpop"/></remarks>
@@ -1147,8 +1158,9 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The length of the list after the push operation.</returns>
         /// <remarks>
+        /// See
         /// <seealso href="https://redis.io/commands/rpush"/>,
-        /// <seealso href="https://redis.io/commands/rpushx"/>
+        /// <seealso href="https://redis.io/commands/rpushx"/>.
         /// </remarks>
         long ListRightPush(RedisKey key, RedisValue value, When when = When.Always, CommandFlags flags = CommandFlags.None);
 
@@ -1162,8 +1174,9 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The length of the list after the push operation.</returns>
         /// <remarks>
+        /// See
         /// <seealso href="https://redis.io/commands/rpush"/>,
-        /// <seealso href="https://redis.io/commands/rpushx"/>
+        /// <seealso href="https://redis.io/commands/rpushx"/>.
         /// </remarks>
         long ListRightPush(RedisKey key, RedisValue[] values, When when = When.Always, CommandFlags flags = CommandFlags.None);
 
@@ -1285,8 +1298,9 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>A dynamic representation of the script's result.</returns>
         /// <remarks>
+        /// See
         /// <seealso href="https://redis.io/commands/eval"/>,
-        /// <seealso href="https://redis.io/commands/evalsha"/>
+        /// <seealso href="https://redis.io/commands/evalsha"/>.
         /// </remarks>
         RedisResult ScriptEvaluate(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None);
 
@@ -1337,8 +1351,9 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>A dynamic representation of the script's result.</returns>
         /// <remarks>
+        /// See
         /// <seealso href="https://redis.io/commands/eval_ro"/>,
-        /// <seealso href="https://redis.io/commands/evalsha_ro"/>
+        /// <seealso href="https://redis.io/commands/evalsha_ro"/>.
         /// </remarks>
         RedisResult ScriptEvaluateReadOnly(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None);
 
@@ -1386,9 +1401,10 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>List with members of the resulting set.</returns>
         /// <remarks>
+        /// See
         /// <seealso href="https://redis.io/commands/sunion"/>,
         /// <seealso href="https://redis.io/commands/sinter"/>,
-        /// <seealso href="https://redis.io/commands/sdiff"/>
+        /// <seealso href="https://redis.io/commands/sdiff"/>.
         /// </remarks>
         RedisValue[] SetCombine(SetOperation operation, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None);
 
@@ -1400,9 +1416,10 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>List with members of the resulting set.</returns>
         /// <remarks>
+        /// See
         /// <seealso href="https://redis.io/commands/sunion"/>,
         /// <seealso href="https://redis.io/commands/sinter"/>,
-        /// <seealso href="https://redis.io/commands/sdiff"/>
+        /// <seealso href="https://redis.io/commands/sdiff"/>.
         /// </remarks>
         RedisValue[] SetCombine(SetOperation operation, RedisKey[] keys, CommandFlags flags = CommandFlags.None);
 
@@ -1417,9 +1434,10 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of elements in the resulting set.</returns>
         /// <remarks>
+        /// See
         /// <seealso href="https://redis.io/commands/sunionstore"/>,
         /// <seealso href="https://redis.io/commands/sinterstore"/>,
-        /// <seealso href="https://redis.io/commands/sdiffstore"/>
+        /// <seealso href="https://redis.io/commands/sdiffstore"/>.
         /// </remarks>
         long SetCombineAndStore(SetOperation operation, RedisKey destination, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None);
 
@@ -1433,9 +1451,10 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of elements in the resulting set.</returns>
         /// <remarks>
+        /// See
         /// <seealso href="https://redis.io/commands/sunionstore"/>,
         /// <seealso href="https://redis.io/commands/sinterstore"/>,
-        /// <seealso href="https://redis.io/commands/sdiffstore"/>
+        /// <seealso href="https://redis.io/commands/sdiffstore"/>.
         /// </remarks>
         long SetCombineAndStore(SetOperation operation, RedisKey destination, RedisKey[] keys, CommandFlags flags = CommandFlags.None);
 
@@ -1590,7 +1609,7 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// The SSCAN command is used to incrementally iterate over set.
-		/// Note: to resume an iteration via <i>cursor</i>, cast the original enumerable or enumerator to <see cref="IScanningCursor"/>.
+        /// Note: to resume an iteration via <i>cursor</i>, cast the original enumerable or enumerator to <see cref="IScanningCursor"/>.
         /// </summary>
         /// <param name="key">The key of the set.</param>
         /// <param name="pattern">The pattern to match.</param>
@@ -1621,8 +1640,9 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The sorted elements, or the external values if <c>get</c> is specified.</returns>
         /// <remarks>
+        /// See
         /// <seealso href="https://redis.io/commands/sort"/>,
-        /// <seealso href="https://redis.io/commands/sort_ro"/>
+        /// <seealso href="https://redis.io/commands/sort_ro"/>.
         /// </remarks>
         RedisValue[] Sort(RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default, RedisValue[]? get = null, CommandFlags flags = CommandFlags.None);
 
@@ -1700,9 +1720,10 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The resulting sorted set.</returns>
         /// <remarks>
+        /// See
         /// <seealso href="https://redis.io/commands/zunion"/>,
         /// <seealso href="https://redis.io/commands/zinter"/>,
-        /// <seealso href="https://redis.io/commands/zdiff"/>
+        /// <seealso href="https://redis.io/commands/zdiff"/>.
         /// </remarks>
         RedisValue[] SortedSetCombine(SetOperation operation, RedisKey[] keys, double[]? weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None);
 
@@ -1718,9 +1739,10 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The resulting sorted set with scores.</returns>
         /// <remarks>
+        /// See
         /// <seealso href="https://redis.io/commands/zunion"/>,
         /// <seealso href="https://redis.io/commands/zinter"/>,
-        /// <seealso href="https://redis.io/commands/zdiff"/>
+        /// <seealso href="https://redis.io/commands/zdiff"/>.
         /// </remarks>
         SortedSetEntry[] SortedSetCombineWithScores(SetOperation operation, RedisKey[] keys, double[]? weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None);
 
@@ -1737,9 +1759,10 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of elements in the resulting sorted set at destination.</returns>
         /// <remarks>
+        /// See
         /// <seealso href="https://redis.io/commands/zunionstore"/>,
         /// <seealso href="https://redis.io/commands/zinterstore"/>,
-        /// <seealso href="https://redis.io/commands/zdiffstore"/>
+        /// <seealso href="https://redis.io/commands/zdiffstore"/>.
         /// </remarks>
         long SortedSetCombineAndStore(SetOperation operation, RedisKey destination, RedisKey first, RedisKey second, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None);
 
@@ -1756,9 +1779,10 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of elements in the resulting sorted set at destination.</returns>
         /// <remarks>
+        /// See
         /// <seealso href="https://redis.io/commands/zunionstore"/>,
         /// <seealso href="https://redis.io/commands/zinterstore"/>,
-        /// <seealso href="https://redis.io/commands/zdiffstore"/>
+        /// <seealso href="https://redis.io/commands/zdiffstore"/>.
         /// </remarks>
         long SortedSetCombineAndStore(SetOperation operation, RedisKey destination, RedisKey[] keys, double[]? weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None);
 
@@ -1881,8 +1905,9 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>List of elements in the specified range.</returns>
         /// <remarks>
+        /// See
         /// <seealso href="https://redis.io/commands/zrange"/>,
-        /// <seealso href="https://redis.io/commands/zrevrange"/>
+        /// <seealso href="https://redis.io/commands/zrevrange"/>.
         /// </remarks>
         RedisValue[] SortedSetRangeByRank(RedisKey key, long start = 0, long stop = -1, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None);
 
@@ -1932,8 +1957,9 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>List of elements in the specified range.</returns>
         /// <remarks>
+        /// See
         /// <seealso href="https://redis.io/commands/zrange"/>,
-        /// <seealso href="https://redis.io/commands/zrevrange"/>
+        /// <seealso href="https://redis.io/commands/zrevrange"/>.
         /// </remarks>
         SortedSetEntry[] SortedSetRangeByRankWithScores(RedisKey key, long start = 0, long stop = -1, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None);
 
@@ -1954,10 +1980,12 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>List of elements in the specified score range.</returns>
         /// <remarks>
+        /// See
         /// <seealso href="https://redis.io/commands/zrangebyscore"/>,
-        /// <seealso href="https://redis.io/commands/zrevrangebyscore"/>
+        /// <seealso href="https://redis.io/commands/zrevrangebyscore"/>.
         /// </remarks>
-        RedisValue[] SortedSetRangeByScore(RedisKey key,
+        RedisValue[] SortedSetRangeByScore(
+            RedisKey key,
             double start = double.NegativeInfinity,
             double stop = double.PositiveInfinity,
             Exclude exclude = Exclude.None,
@@ -1983,10 +2011,12 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>List of elements in the specified score range.</returns>
         /// <remarks>
+        /// See
         /// <seealso href="https://redis.io/commands/zrangebyscore"/>,
-        /// <seealso href="https://redis.io/commands/zrevrangebyscore"/>
+        /// <seealso href="https://redis.io/commands/zrevrangebyscore"/>.
         /// </remarks>
-        SortedSetEntry[] SortedSetRangeByScoreWithScores(RedisKey key,
+        SortedSetEntry[] SortedSetRangeByScoreWithScores(
+            RedisKey key,
             double start = double.NegativeInfinity,
             double stop = double.PositiveInfinity,
             Exclude exclude = Exclude.None,
@@ -2008,7 +2038,8 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>List of elements in the specified score range.</returns>
         /// <remarks><seealso href="https://redis.io/commands/zrangebylex"/></remarks>
-        RedisValue[] SortedSetRangeByValue(RedisKey key,
+        RedisValue[] SortedSetRangeByValue(
+            RedisKey key,
             RedisValue min,
             RedisValue max,
             Exclude exclude,
@@ -2024,16 +2055,18 @@ namespace StackExchange.Redis
         /// <param name="min">The min value to filter by.</param>
         /// <param name="max">The max value to filter by.</param>
         /// <param name="exclude">Which of <paramref name="min"/> and <paramref name="max"/> to exclude (defaults to both inclusive).</param>
-        /// <param name="order">Whether to order the data ascending or descending</param>
+        /// <param name="order">Whether to order the data ascending or descending.</param>
         /// <param name="skip">How many items to skip.</param>
         /// <param name="take">How many items to take.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>List of elements in the specified score range.</returns>
         /// <remarks>
+        /// See
         /// <seealso href="https://redis.io/commands/zrangebylex"/>,
-        /// <seealso href="https://redis.io/commands/zrevrangebylex"/>
+        /// <seealso href="https://redis.io/commands/zrevrangebylex"/>.
         /// </remarks>
-        RedisValue[] SortedSetRangeByValue(RedisKey key,
+        RedisValue[] SortedSetRangeByValue(
+            RedisKey key,
             RedisValue min = default,
             RedisValue max = default,
             Exclude exclude = Exclude.None,
@@ -2052,8 +2085,9 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>If member exists in the sorted set, the rank of member. If member does not exist in the sorted set or key does not exist, <see langword="null"/>.</returns>
         /// <remarks>
+        /// See
         /// <seealso href="https://redis.io/commands/zrank"/>,
-        /// <seealso href="https://redis.io/commands/zrevrank"/>
+        /// <seealso href="https://redis.io/commands/zrevrank"/>.
         /// </remarks>
         long? SortedSetRank(RedisKey key, RedisValue member, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None);
 
@@ -2129,7 +2163,7 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// The ZSCAN command is used to incrementally iterate over a sorted set
-		/// Note: to resume an iteration via <i>cursor</i>, cast the original enumerable or enumerator to <i>IScanningCursor</i>.
+        /// Note: to resume an iteration via <i>cursor</i>, cast the original enumerable or enumerator to <i>IScanningCursor</i>.
         /// </summary>
         /// <param name="key">The key of the sorted set.</param>
         /// <param name="pattern">The pattern to match.</param>
@@ -2139,7 +2173,8 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>Yields all matching elements of the sorted set.</returns>
         /// <remarks><seealso href="https://redis.io/commands/zscan"/></remarks>
-        IEnumerable<SortedSetEntry> SortedSetScan(RedisKey key,
+        IEnumerable<SortedSetEntry> SortedSetScan(
+            RedisKey key,
             RedisValue pattern = default,
             int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize,
             long cursor = RedisBase.CursorUtils.Origin,
@@ -2179,8 +2214,9 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The removed element, or <see langword="null"/> when key does not exist.</returns>
         /// <remarks>
+        /// See
         /// <seealso href="https://redis.io/commands/zpopmin"/>,
-        /// <seealso href="https://redis.io/commands/zpopmax"/>
+        /// <seealso href="https://redis.io/commands/zpopmax"/>.
         /// </remarks>
         SortedSetEntry? SortedSetPop(RedisKey key, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None);
 
@@ -2193,8 +2229,9 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>An array of elements, or an empty array when key does not exist.</returns>
         /// <remarks>
+        /// See
         /// <seealso href="https://redis.io/commands/zpopmin"/>,
-        /// <seealso href="https://redis.io/commands/zpopmax"/>
+        /// <seealso href="https://redis.io/commands/zpopmax"/>.
         /// </remarks>
         SortedSetEntry[] SortedSetPop(RedisKey key, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None);
 
@@ -2453,7 +2490,7 @@ namespace StackExchange.Redis
         /// A pending message is a message read using StreamReadGroup (XREADGROUP) but not yet acknowledged.
         /// </summary>
         /// <param name="key">The key of the stream.</param>
-        /// <param name="groupName">The name of the consumer group</param>
+        /// <param name="groupName">The name of the consumer group.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>
         /// An instance of <see cref="StreamPendingInfo"/>.
@@ -2552,7 +2589,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="streamPositions">Array of streams and the positions from which to begin reading for each stream.</param>
         /// <param name="groupName">The name of the consumer group.</param>
-        /// <param name="consumerName"></param>
+        /// <param name="consumerName">The name of the consumer.</param>
         /// <param name="countPerStream">The maximum number of messages to return from each stream.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>A value of <see cref="RedisStream"/> for each stream.</returns>
@@ -2568,7 +2605,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="streamPositions">Array of streams and the positions from which to begin reading for each stream.</param>
         /// <param name="groupName">The name of the consumer group.</param>
-        /// <param name="consumerName"></param>
+        /// <param name="consumerName">The name of the consumer.</param>
         /// <param name="countPerStream">The maximum number of messages to return from each stream.</param>
         /// <param name="noAck">When true, the message will not be added to the pending message list.</param>
         /// <param name="flags">The flags to use for this operation.</param>
@@ -2682,8 +2719,9 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The value of key after the decrement.</returns>
         /// <remarks>
+        /// See
         /// <seealso href="https://redis.io/commands/decrby"/>,
-        /// <seealso href="https://redis.io/commands/decr"/>
+        /// <seealso href="https://redis.io/commands/decr"/>.
         /// </remarks>
         long StringDecrement(RedisKey key, long value = 1, CommandFlags flags = CommandFlags.None);
 
@@ -2818,8 +2856,9 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The value of key after the increment.</returns>
         /// <remarks>
+        /// See
         /// <seealso href="https://redis.io/commands/incrby"/>,
-        /// <seealso href="https://redis.io/commands/incr"/>
+        /// <seealso href="https://redis.io/commands/incr"/>.
         /// </remarks>
         long StringIncrement(RedisKey key, long value = 1, CommandFlags flags = CommandFlags.None);
 
@@ -2914,8 +2953,9 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns><see langword="true"/> if the keys were set, <see langword="false"/> otherwise.</returns>
         /// <remarks>
+        /// See
         /// <seealso href="https://redis.io/commands/mset"/>,
-        /// <seealso href="https://redis.io/commands/msetnx"/>
+        /// <seealso href="https://redis.io/commands/msetnx"/>.
         /// </remarks>
         bool StringSet(KeyValuePair<RedisKey, RedisValue>[] values, When when = When.Always, CommandFlags flags = CommandFlags.None);
 

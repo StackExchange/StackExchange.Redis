@@ -7,7 +7,7 @@ namespace StackExchange.Redis.Tests;
 
 public class BacklogTests : TestBase
 {
-    public BacklogTests(ITestOutputHelper output) : base (output) { }
+    public BacklogTests(ITestOutputHelper output) : base(output) { }
 
     protected override string GetConfiguration() => TestConfig.Current.PrimaryServerAndPort + "," + TestConfig.Current.ReplicaServerAndPort;
 
@@ -149,7 +149,6 @@ public class BacklogTests : TestBase
             var lastPing = db.PingAsync();
 
             // TODO: Add specific server call
-
             var disconnectedStats = server.GetBridgeStatus(ConnectionType.Interactive);
             Assert.False(conn.IsConnected);
             Assert.True(disconnectedStats.BacklogMessagesPending >= 3, $"Expected {nameof(disconnectedStats.BacklogMessagesPending)} > 3, got {disconnectedStats.BacklogMessagesPending}");
@@ -238,10 +237,10 @@ public class BacklogTests : TestBase
             Log("Test: Disconnected pings");
 
             Task[] pings = new Task[3];
-            pings[0] = RunBlockingSynchronousWithExtraThreadAsync(() => disconnectedPings(1));
-            pings[1] = RunBlockingSynchronousWithExtraThreadAsync(() => disconnectedPings(2));
-            pings[2] = RunBlockingSynchronousWithExtraThreadAsync(() => disconnectedPings(3));
-            void disconnectedPings(int id)
+            pings[0] = RunBlockingSynchronousWithExtraThreadAsync(() => DisconnectedPings(1));
+            pings[1] = RunBlockingSynchronousWithExtraThreadAsync(() => DisconnectedPings(2));
+            pings[2] = RunBlockingSynchronousWithExtraThreadAsync(() => DisconnectedPings(3));
+            void DisconnectedPings(int id)
             {
                 // No need to delay, we're going to try a disconnected connection immediately so it'll fail...
                 Log($"Pinging (disconnected - {id})");
@@ -278,9 +277,9 @@ public class BacklogTests : TestBase
             Assert.Equal(0, reconnectedStats.BacklogMessagesPending);
 
             Log("Test: Pinging again...");
-            pings[0] = RunBlockingSynchronousWithExtraThreadAsync(() => disconnectedPings(4));
-            pings[1] = RunBlockingSynchronousWithExtraThreadAsync(() => disconnectedPings(5));
-            pings[2] = RunBlockingSynchronousWithExtraThreadAsync(() => disconnectedPings(6));
+            pings[0] = RunBlockingSynchronousWithExtraThreadAsync(() => DisconnectedPings(4));
+            pings[1] = RunBlockingSynchronousWithExtraThreadAsync(() => DisconnectedPings(5));
+            pings[2] = RunBlockingSynchronousWithExtraThreadAsync(() => DisconnectedPings(6));
             Log("Test: Last Ping queued");
 
             // We should see none queued

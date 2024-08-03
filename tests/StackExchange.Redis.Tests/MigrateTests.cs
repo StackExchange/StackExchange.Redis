@@ -8,7 +8,7 @@ namespace StackExchange.Redis.Tests;
 
 public class MigrateTests : TestBase
 {
-    public MigrateTests(ITestOutputHelper output) : base (output) { }
+    public MigrateTests(ITestOutputHelper output) : base(output) { }
 
     [FactLongRunning]
     public async Task Basic()

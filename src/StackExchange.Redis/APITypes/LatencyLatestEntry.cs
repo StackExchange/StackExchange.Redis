@@ -3,7 +3,7 @@
 namespace StackExchange.Redis;
 
 /// <summary>
-/// A latency entry as reported by the built-in LATENCY LATEST command
+/// A latency entry as reported by the built-in LATENCY LATEST command.
 /// </summary>
 public readonly struct LatencyLatestEntry
 {
@@ -31,22 +31,22 @@ public readonly struct LatencyLatestEntry
     }
 
     /// <summary>
-    /// The name of this event
+    /// The name of this event.
     /// </summary>
     public string EventName { get; }
 
     /// <summary>
-    /// The time at which this entry was recorded
+    /// The time at which this entry was recorded.
     /// </summary>
     public DateTime Timestamp { get; }
 
     /// <summary>
-    /// The latency recorded for this event
+    /// The latency recorded for this event.
     /// </summary>
     public int DurationMilliseconds { get; }
 
     /// <summary>
-    /// The max latency recorded for all events
+    /// The max latency recorded for all events.
     /// </summary>
     public int MaxDurationMilliseconds { get; }
 

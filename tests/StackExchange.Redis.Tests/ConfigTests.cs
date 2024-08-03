@@ -1,6 +1,4 @@
-﻿using Microsoft.Extensions.Logging.Abstractions;
-using StackExchange.Redis.Configuration;
-using System;
+﻿using System;
 using System.Globalization;
 using System.IO;
 using System.IO.Pipelines;
@@ -13,6 +11,8 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging.Abstractions;
+using StackExchange.Redis.Configuration;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -24,38 +24,69 @@ public class ConfigTests : TestBase
 {
     public ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
 
-    public Version DefaultVersion = new (3, 0, 0);
-    public Version DefaultAzureVersion = new (4, 0, 0);
+    public Version DefaultVersion = new(3, 0, 0);
+    public Version DefaultAzureVersion = new(4, 0, 0);
 
     [Fact]
     public void ExpectedFields()
     {
         // if this test fails, check that you've updated ConfigurationOptions.Clone(), then: fix the test!
         // this is a simple but pragmatic "have you considered?" check
-
-        var fields = Array.ConvertAll(typeof(ConfigurationOptions).GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance),
+        var fields = Array.ConvertAll(
+            typeof(ConfigurationOptions).GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance),
             x => Regex.Replace(x.Name, """^<(\w+)>k__BackingField$""", "$1"));
         Array.Sort(fields);
-        Assert.Equal(new[] {
-            "abortOnConnectFail", "allowAdmin", "asyncTimeout", "backlogPolicy", "BeforeSocketConnect",
-            "CertificateSelection", "CertificateValidation", "ChannelPrefix",
-            "checkCertificateRevocation", "ClientName", "commandMap",
-            "configChannel", "configCheckSeconds", "connectRetry",
-            "connectTimeout", "DefaultDatabase", "defaultOptions",
-            "defaultVersion", "EndPoints", "heartbeatConsistencyChecks",
-            "heartbeatInterval", "includeDetailInExceptions", "includePerformanceCountersInExceptions",
-            "keepAlive", "LibraryName", "loggerFactory",
-            "password", "Protocol", "proxy",
-            "reconnectRetryPolicy", "resolveDns", "responseTimeout",
-            "ServiceName", "setClientLibrary", "SocketManager",
-            "ssl",
-#if !NETFRAMEWORK
-            "SslClientAuthenticationOptions",
-#endif
-            "sslHost", "SslProtocols",
-            "syncTimeout", "tieBreaker", "Tunnel",
-            "user"
-            }, fields);
+        Assert.Equal(
+            new[]
+            {
+                "abortOnConnectFail",
+                "allowAdmin",
+                "asyncTimeout",
+                "backlogPolicy",
+                "BeforeSocketConnect",
+                "CertificateSelection",
+                "CertificateValidation",
+                "ChannelPrefix",
+                "checkCertificateRevocation",
+                "ClientName",
+                "commandMap",
+                "configChannel",
+                "configCheckSeconds",
+                "connectRetry",
+                "connectTimeout",
+                "DefaultDatabase",
+                "defaultOptions",
+                "defaultVersion",
+                "EndPoints",
+                "heartbeatConsistencyChecks",
+                "heartbeatInterval",
+                "highIntegrity",
+                "includeDetailInExceptions",
+                "includePerformanceCountersInExceptions",
+                "keepAlive",
+                "LibraryName",
+                "loggerFactory",
+                "password",
+                "Protocol",
+                "proxy",
+                "reconnectRetryPolicy",
+                "resolveDns",
+                "responseTimeout",
+                "ServiceName",
+                "setClientLibrary",
+                "SocketManager",
+                "ssl",
+    #if !NETFRAMEWORK
+                "SslClientAuthenticationOptions",
+    #endif
+                "sslHost",
+                "SslProtocols",
+                "syncTimeout",
+                "tieBreaker",
+                "Tunnel",
+                "user",
+            },
+            fields);
     }
 
     [Fact]
@@ -208,9 +239,9 @@ public class ConfigTests : TestBase
             AbortOnConnectFail = false,
             EndPoints =
             {
-                { "127.0.0.1:1234" }
+                { "127.0.0.1:1234" },
             },
-            ConnectTimeout = 200
+            ConnectTimeout = 200,
         };
         var log = new StringWriter();
         using (var conn = ConnectionMultiplexer.Connect(config, log))
@@ -544,7 +575,7 @@ public class ConfigTests : TestBase
         var config = new ConfigurationOptions
         {
             EndPoints = { { IPAddress.Loopback, 6379 } },
-            SocketManager = SocketManager.ThreadPool
+            SocketManager = SocketManager.ThreadPool,
         };
 
         using var conn = ConnectionMultiplexer.Connect(config);
@@ -759,5 +790,25 @@ public class ConfigTests : TestBase
         options = options.Clone();
         Assert.Equal(setlib, options.SetClientLibrary);
         Assert.Equal(configurationString, options.ToString());
+    }
+
+    [Theory]
+    [InlineData(null, false, "dummy")]
+    [InlineData(false, false, "dummy,highIntegrity=False")]
+    [InlineData(true, true, "dummy,highIntegrity=True")]
+    public void CheckHighIntegrity(bool? assigned, bool expected, string cs)
+    {
+        var options = ConfigurationOptions.Parse("dummy");
+        if (assigned.HasValue) options.HighIntegrity = assigned.Value;
+
+        Assert.Equal(expected, options.HighIntegrity);
+        Assert.Equal(cs, options.ToString());
+
+        var clone = options.Clone();
+        Assert.Equal(expected, clone.HighIntegrity);
+        Assert.Equal(cs, clone.ToString());
+
+        var parsed = ConfigurationOptions.Parse(cs);
+        Assert.Equal(expected, options.HighIntegrity);
     }
 }

@@ -8,7 +8,7 @@ namespace StackExchange.Redis.Tests;
 [Collection(NonParallelCollection.Name)]
 public class CommandTimeoutTests : TestBase
 {
-    public CommandTimeoutTests(ITestOutputHelper output) : base (output) { }
+    public CommandTimeoutTests(ITestOutputHelper output) : base(output) { }
 
     [FactLongRunning]
     public async Task DefaultHeartbeatTimeout()

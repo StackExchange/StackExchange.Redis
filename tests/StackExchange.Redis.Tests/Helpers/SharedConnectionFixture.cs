@@ -29,8 +29,7 @@ public class SharedConnectionFixture : IDisposable
             output: null,
             clientName: nameof(SharedConnectionFixture),
             configuration: Configuration,
-            allowAdmin: true
-        );
+            allowAdmin: true);
         _actualConnection.InternalError += OnInternalError;
         _actualConnection.ConnectionFailed += OnConnectionFailed;
     }
@@ -43,7 +42,8 @@ public class SharedConnectionFixture : IDisposable
         {
             ref NonDisposingConnection? field = ref protocol == RedisProtocol.Resp3 ? ref resp3 : ref resp2;
             if (field is { IsConnected: false })
-            {   // abandon memoized connection if disconnected
+            {
+                // abandon memoized connection if disconnected
                 var muxer = field.UnderlyingMultiplexer;
                 field = null;
                 muxer.Dispose();
@@ -271,7 +271,7 @@ public class SharedConnectionFixture : IDisposable
                 }
                 privateExceptions.Clear();
             }
-            //Assert.True(false, $"There were {privateFailCount} private ambient exceptions.");
+            // Assert.True(false, $"There were {privateFailCount} private ambient exceptions.");
         }
 
         if (_actualConnection != null)

@@ -1,12 +1,12 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading.Tasks;
 using System.Threading;
-using System.Collections.Concurrent;
+using System.Threading.Tasks;
+using StackExchange.Redis.Profiling;
 using Xunit;
 using Xunit.Abstractions;
-using StackExchange.Redis.Profiling;
 
 namespace StackExchange.Redis.Tests;
 
@@ -182,8 +182,8 @@ public class ProfilingTests : TestBase
                 {
                     var g = db.StringGetAsync(prefix + ix);
                     var s = db.StringSetAsync(prefix + ix, "world" + ix);
-                        // overlap the g+s, just for fun
-                        await g;
+                    // overlap the g+s, just for fun
+                    await g;
                     await s;
                 }
 
@@ -243,11 +243,7 @@ public class ProfilingTests : TestBase
 
         foreach (var i in Enumerable.Range(0, OuterLoop))
         {
-            var t =
-                db.StringSetAsync(prefix + i, "bar" + i)
-                  .ContinueWith(
-                    async _ => (string?)(await db.StringGetAsync(prefix + i).ForAwait())
-                  );
+            var t = db.StringSetAsync(prefix + i, "bar" + i).ContinueWith(async _ => (string?)(await db.StringGetAsync(prefix + i).ForAwait()));
 
             var finalResult = t.Unwrap();
             allTasks.Add(finalResult);

@@ -12,8 +12,10 @@ namespace StackExchange.Redis
         private readonly EventHandler<RedisErrorEventArgs>? handler;
         private readonly object sender;
         internal RedisErrorEventArgs(
-            EventHandler<RedisErrorEventArgs>? handler, object sender,
-            EndPoint endpoint, string message)
+            EventHandler<RedisErrorEventArgs>? handler,
+            object sender,
+            EndPoint endpoint,
+            string message)
         {
             this.handler = handler;
             this.sender = sender;
@@ -28,7 +30,7 @@ namespace StackExchange.Redis
         /// <param name="endpoint">Redis endpoint.</param>
         /// <param name="message">Error message.</param>
         public RedisErrorEventArgs(object sender, EndPoint endpoint, string message)
-            : this (null, sender, endpoint, message)
+            : this(null, sender, endpoint, message)
         {
         }
 

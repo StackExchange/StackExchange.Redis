@@ -11,7 +11,7 @@ public class SecureTests : TestBase
     protected override string GetConfiguration() =>
         TestConfig.Current.SecureServerAndPort + ",password=" + TestConfig.Current.SecurePassword + ",name=MyClient";
 
-    public SecureTests(ITestOutputHelper output) : base (output) { }
+    public SecureTests(ITestOutputHelper output) : base(output) { }
 
     [Fact]
     public void MassiveBulkOpsFireAndForgetSecure()
@@ -31,8 +31,7 @@ public class SecureTests : TestBase
         int val = (int)db.StringGet(key);
         Assert.Equal(AsyncOpsQty, val);
         watch.Stop();
-        Log("{2}: Time for {0} ops: {1}ms (any order); ops/s: {3}", AsyncOpsQty, watch.ElapsedMilliseconds, Me(),
-            AsyncOpsQty / watch.Elapsed.TotalSeconds);
+        Log("{2}: Time for {0} ops: {1}ms (any order); ops/s: {3}", AsyncOpsQty, watch.ElapsedMilliseconds, Me(), AsyncOpsQty / watch.Elapsed.TotalSeconds);
     }
 
     [Fact]

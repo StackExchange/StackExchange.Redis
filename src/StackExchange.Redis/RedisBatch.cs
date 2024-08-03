@@ -8,7 +8,7 @@ namespace StackExchange.Redis
     {
         private List<Message>? pending;
 
-        public RedisBatch(RedisDatabase wrapped, object? asyncState) : base(wrapped.multiplexer, wrapped.Database, asyncState ?? wrapped.AsyncState) {}
+        public RedisBatch(RedisDatabase wrapped, object? asyncState) : base(wrapped.multiplexer, wrapped.Database, asyncState ?? wrapped.AsyncState) { }
 
         public void Execute()
         {
@@ -109,13 +109,13 @@ namespace StackExchange.Redis
             return task;
         }
 
-        internal override T ExecuteSync<T>(Message? message, ResultProcessor<T>? processor, ServerEndPoint? server = null, T? defaultValue = default) where T : default =>
-            throw new NotSupportedException("ExecuteSync cannot be used inside a batch");
+        internal override T ExecuteSync<T>(Message? message, ResultProcessor<T>? processor, ServerEndPoint? server = null, T? defaultValue = default) where T : default
+            => throw new NotSupportedException("ExecuteSync cannot be used inside a batch");
 
         private static void FailNoServer(ConnectionMultiplexer muxer, List<Message> messages)
         {
             if (messages == null) return;
-            foreach(var msg in messages)
+            foreach (var msg in messages)
             {
                 msg.Fail(ConnectionFailureType.UnableToResolvePhysicalConnection, null, "unable to write batch", muxer);
                 msg.Complete();

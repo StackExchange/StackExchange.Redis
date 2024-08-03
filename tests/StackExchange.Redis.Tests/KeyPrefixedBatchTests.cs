@@ -1,6 +1,6 @@
-﻿using StackExchange.Redis.KeyspaceIsolation;
-using System.Text;
+﻿using System.Text;
 using NSubstitute;
+using StackExchange.Redis.KeyspaceIsolation;
 using Xunit;
 
 namespace StackExchange.Redis.Tests;

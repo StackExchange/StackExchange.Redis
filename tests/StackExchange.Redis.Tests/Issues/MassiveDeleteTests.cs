@@ -67,8 +67,7 @@ public class MassiveDeleteTests : TestBase
         }
         watch.Stop();
         long remaining = await db.SetLengthAsync(key).ForAwait();
-        Log("From {0} to {1}; {2}ms", originally, remaining,
-            watch.ElapsedMilliseconds);
+        Log($"From {originally} to {remaining}; {watch.ElapsedMilliseconds}ms");
 
         var counters = GetServer(conn).GetCounters();
         Log("Completions: {0} sync, {1} async", counters.Interactive.CompletedSynchronously, counters.Interactive.CompletedAsynchronously);

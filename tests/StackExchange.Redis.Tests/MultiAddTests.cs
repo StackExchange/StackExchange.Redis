@@ -19,20 +19,40 @@ public class MultiAddTests : TestBase
 
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.SortedSetAdd(key, "a", 1, CommandFlags.FireAndForget);
-        db.SortedSetAdd(key, new[] {
-                new SortedSetEntry("b", 2) }, CommandFlags.FireAndForget);
-        db.SortedSetAdd(key, new[] {
+        db.SortedSetAdd(
+            key,
+            new[]
+            {
+                new SortedSetEntry("b", 2),
+            },
+            CommandFlags.FireAndForget);
+        db.SortedSetAdd(
+            key,
+            new[]
+            {
                 new SortedSetEntry("c", 3),
-                new SortedSetEntry("d", 4)}, CommandFlags.FireAndForget);
-        db.SortedSetAdd(key, new[] {
+                new SortedSetEntry("d", 4),
+            },
+            CommandFlags.FireAndForget);
+        db.SortedSetAdd(
+            key,
+            new[]
+            {
                 new SortedSetEntry("e", 5),
                 new SortedSetEntry("f", 6),
-                new SortedSetEntry("g", 7)}, CommandFlags.FireAndForget);
-        db.SortedSetAdd(key, new[] {
+                new SortedSetEntry("g", 7),
+            },
+            CommandFlags.FireAndForget);
+        db.SortedSetAdd(
+            key,
+            new[]
+            {
                 new SortedSetEntry("h", 8),
                 new SortedSetEntry("i", 9),
                 new SortedSetEntry("j", 10),
-                new SortedSetEntry("k", 11)}, CommandFlags.FireAndForget);
+                new SortedSetEntry("k", 11),
+            },
+            CommandFlags.FireAndForget);
         var vals = db.SortedSetRangeByScoreWithScores(key);
         string s = string.Join(",", vals.OrderByDescending(x => x.Score).Select(x => x.Element));
         Assert.Equal("k,j,i,h,g,f,e,d,c,b,a", s);
@@ -50,20 +70,40 @@ public class MultiAddTests : TestBase
 
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.HashSet(key, "a", 1, flags: CommandFlags.FireAndForget);
-        db.HashSet(key, new[] {
-                new HashEntry("b", 2) }, CommandFlags.FireAndForget);
-        db.HashSet(key, new[] {
+        db.HashSet(
+            key,
+            new[]
+            {
+                new HashEntry("b", 2),
+            },
+            CommandFlags.FireAndForget);
+        db.HashSet(
+            key,
+            new[]
+            {
                 new HashEntry("c", 3),
-                new HashEntry("d", 4)}, CommandFlags.FireAndForget);
-        db.HashSet(key, new[] {
+                new HashEntry("d", 4),
+            },
+            CommandFlags.FireAndForget);
+        db.HashSet(
+            key,
+            new[]
+            {
                 new HashEntry("e", 5),
                 new HashEntry("f", 6),
-                new HashEntry("g", 7)}, CommandFlags.FireAndForget);
-        db.HashSet(key, new[] {
+                new HashEntry("g", 7),
+            },
+            CommandFlags.FireAndForget);
+        db.HashSet(
+            key,
+            new[]
+            {
                 new HashEntry("h", 8),
                 new HashEntry("i", 9),
                 new HashEntry("j", 10),
-                new HashEntry("k", 11)}, CommandFlags.FireAndForget);
+                new HashEntry("k", 11),
+            },
+            CommandFlags.FireAndForget);
         var vals = db.HashGetAll(key);
         string s = string.Join(",", vals.OrderByDescending(x => (double)x.Value).Select(x => x.Name));
         Assert.Equal("k,j,i,h,g,f,e,d,c,b,a", s);

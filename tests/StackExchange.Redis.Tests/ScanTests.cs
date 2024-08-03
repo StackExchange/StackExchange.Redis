@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using Xunit;
 using Xunit.Abstractions;
-// ReSharper disable PossibleMultipleEnumeration
 
 namespace StackExchange.Redis.Tests;
 
@@ -146,7 +145,6 @@ public class ScanTests : TestBase
         // page size, with zero guarantees; in this particular test, the first page actually has 19 elements, for example. So: we cannot
         // make the following assertion:
         // Assert.Equal(12, snapOffset);
-
         seq = server.Keys(dbId, prefix + ":*", pageSize: 15, cursor: snapCursor, pageOffset: snapOffset);
         var seqCur = (IScanningCursor)seq;
         Assert.Equal(snapCursor, seqCur.Cursor);
@@ -257,7 +255,7 @@ public class ScanTests : TestBase
         Assert.Equal(2, basicArr[1].Score);
         Assert.Equal(3, basicArr[2].Score);
         basic = basicArr.ToDictionary();
-        Assert.Equal(3, basic.Count); //asc
+        Assert.Equal(3, basic.Count); // asc
         Assert.Equal(1, basic["a"]);
         Assert.Equal(2, basic["b"]);
         Assert.Equal(3, basic["c"]);
@@ -333,7 +331,6 @@ public class ScanTests : TestBase
         int count = db.HashScan(key, pageSize: pageSize).Count();
         Assert.Equal(2000, count);
     }
-
 
     [Theory]
     [InlineData(true)]
@@ -417,7 +414,7 @@ public class ScanTests : TestBase
 
         var found = false;
         var response = db.HashScan(key);
-        var cursor = ((IScanningCursor)response);
+        var cursor = (IScanningCursor)response;
         foreach (var _ in response)
         {
             if (cursor.Cursor > 0)
