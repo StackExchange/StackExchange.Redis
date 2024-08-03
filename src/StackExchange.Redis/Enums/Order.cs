@@ -11,6 +11,7 @@ namespace StackExchange.Redis
         /// Ordered from low values to high values.
         /// </summary>
         Ascending,
+
         /// <summary>
         /// Ordered from high values to low values.
         /// </summary>
@@ -23,7 +24,7 @@ namespace StackExchange.Redis
         {
             Order.Ascending => RedisLiterals.ASC,
             Order.Descending => RedisLiterals.DESC,
-            _ => throw new ArgumentOutOfRangeException(nameof(order))
+            _ => throw new ArgumentOutOfRangeException(nameof(order)),
         };
     }
 }

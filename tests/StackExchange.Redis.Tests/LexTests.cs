@@ -17,17 +17,19 @@ public class LexTests : TestBase
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
-        db.SortedSetAdd(key,
+        db.SortedSetAdd(
+            key,
             new[]
-        {
-                new SortedSetEntry("a", 0),
-                new SortedSetEntry("b", 0),
-                new SortedSetEntry("c", 0),
-                new SortedSetEntry("d", 0),
-                new SortedSetEntry("e", 0),
-                new SortedSetEntry("f", 0),
-                new SortedSetEntry("g", 0),
-        }, CommandFlags.FireAndForget);
+            {
+                    new SortedSetEntry("a", 0),
+                    new SortedSetEntry("b", 0),
+                    new SortedSetEntry("c", 0),
+                    new SortedSetEntry("d", 0),
+                    new SortedSetEntry("e", 0),
+                    new SortedSetEntry("f", 0),
+                    new SortedSetEntry("g", 0),
+            },
+            CommandFlags.FireAndForget);
 
         var set = db.SortedSetRangeByValue(key, default(RedisValue), "c");
         var count = db.SortedSetLengthByValue(key, default(RedisValue), "c");
@@ -64,24 +66,28 @@ public class LexTests : TestBase
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
-        db.SortedSetAdd(key,
+        db.SortedSetAdd(
+            key,
             new[]
-        {
-                new SortedSetEntry("aaaa", 0),
-                new SortedSetEntry("b", 0),
-                new SortedSetEntry("c", 0),
-                new SortedSetEntry("d", 0),
-                new SortedSetEntry("e", 0),
-        }, CommandFlags.FireAndForget);
-        db.SortedSetAdd(key,
+            {
+                    new SortedSetEntry("aaaa", 0),
+                    new SortedSetEntry("b", 0),
+                    new SortedSetEntry("c", 0),
+                    new SortedSetEntry("d", 0),
+                    new SortedSetEntry("e", 0),
+            },
+            CommandFlags.FireAndForget);
+        db.SortedSetAdd(
+            key,
             new[]
-        {
-                new SortedSetEntry("foo", 0),
-                new SortedSetEntry("zap", 0),
-                new SortedSetEntry("zip", 0),
-                new SortedSetEntry("ALPHA", 0),
-                new SortedSetEntry("alpha", 0),
-        }, CommandFlags.FireAndForget);
+            {
+                    new SortedSetEntry("foo", 0),
+                    new SortedSetEntry("zap", 0),
+                    new SortedSetEntry("zip", 0),
+                    new SortedSetEntry("ALPHA", 0),
+                    new SortedSetEntry("alpha", 0),
+            },
+            CommandFlags.FireAndForget);
 
         var set = db.SortedSetRangeByRank(key);
         Equate(set, set.Length, "ALPHA", "aaaa", "alpha", "b", "c", "d", "e", "foo", "zap", "zip");

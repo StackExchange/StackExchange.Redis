@@ -1,6 +1,6 @@
-﻿using StackExchange.Redis;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Reflection;
+using StackExchange.Redis;
 
 Stopwatch stopwatch = new Stopwatch();
 stopwatch.Start();
@@ -11,7 +11,7 @@ options.HighIntegrity = false; // as needed
 Console.WriteLine($"{nameof(options.HighIntegrity)}: {options.HighIntegrity}");
 #endif
 
-//options.SocketManager = SocketManager.ThreadPool;
+// options.SocketManager = SocketManager.ThreadPool;
 Console.WriteLine("Connecting...");
 var connection = ConnectionMultiplexer.Connect(options);
 Console.WriteLine("Connected");
@@ -118,8 +118,8 @@ static async Task MassInsertAsync(ConnectionMultiplexer connection)
             matchErrors += await ValidateAsync(outstanding);
             Console.WriteLine(i);
         }
-
     }
+
     matchErrors += await ValidateAsync(outstanding);
 
     Console.WriteLine($"Match errors: {matchErrors}");
@@ -140,7 +140,6 @@ static async Task MassInsertAsync(ConnectionMultiplexer connection)
         return matchErrors;
     }
 }
-
 
 static void ParallelTasks(ConnectionMultiplexer connection)
 {
@@ -164,14 +163,14 @@ static void ParallelTasks(ConnectionMultiplexer connection)
     }
 
     var taskList = new List<Task>();
-	for (int i = 0; i < 10; i++)
-	{
-		var i1 = i;
-		var task = new Task(() => ParallelRun(i1, connection));
-		task.Start();
-		taskList.Add(task);
-	}
-	Task.WaitAll(taskList.ToArray());
+    for (int i = 0; i < 10; i++)
+    {
+        var i1 = i;
+        var task = new Task(() => ParallelRun(i1, connection));
+        task.Start();
+        taskList.Add(task);
+    }
+    Task.WaitAll(taskList.ToArray());
 }
 
 static void MassPublish(ConnectionMultiplexer connection)
@@ -182,8 +181,8 @@ static void MassPublish(ConnectionMultiplexer connection)
 
 static string GetLibVersion()
 {
-	var assembly = typeof(ConnectionMultiplexer).Assembly;
-	return (Attribute.GetCustomAttribute(assembly, typeof(AssemblyFileVersionAttribute)) as AssemblyFileVersionAttribute)?.Version
-		?? assembly.GetName().Version?.ToString()
-		?? "Unknown";
+    var assembly = typeof(ConnectionMultiplexer).Assembly;
+    return (Attribute.GetCustomAttribute(assembly, typeof(AssemblyFileVersionAttribute)) as AssemblyFileVersionAttribute)?.Version
+        ?? assembly.GetName().Version?.ToString()
+        ?? "Unknown";
 }

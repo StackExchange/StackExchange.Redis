@@ -1,6 +1,4 @@
-﻿using StackExchange.Redis.Profiling;
-using StackExchange.Redis.Tests.Helpers;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -9,6 +7,8 @@ using System.Runtime;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using StackExchange.Redis.Profiling;
+using StackExchange.Redis.Tests.Helpers;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -23,7 +23,7 @@ public abstract class TestBase : IDisposable
     internal static string GetDefaultConfiguration() => TestConfig.Current.PrimaryServerAndPort;
 
     /// <summary>
-    /// Gives the current TestContext, propulated by the runner (this type of thing will be built-in in xUnit 3.x)
+    /// Gives the current TestContext, propulated by the runner (this type of thing will be built-in in xUnit 3.x).
     /// </summary>
     protected TestContext Context => _context.Value!;
     private static readonly AsyncLocal<TestContext> _context = new();
@@ -94,7 +94,7 @@ public abstract class TestBase : IDisposable
         GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced);
     }
 
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Design", "CA1063:ImplementIDisposableCorrectly")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Design", "CA1063:ImplementIDisposableCorrectly", Justification = "Trust me yo")]
     public void Dispose()
     {
         _fixture?.Teardown(Writer);
@@ -293,13 +293,27 @@ public abstract class TestBase : IDisposable
         var conn = CreateDefault(
             Writer,
             configuration ?? GetConfiguration(),
-            clientName, syncTimeout, asyncTimeout, allowAdmin, keepAlive,
-            connectTimeout, password, tieBreaker, log,
-            fail, disabledCommands, enabledCommands,
-            checkConnect, failMessage,
-            channelPrefix, proxy,
-            logTransactionData, defaultDatabase,
-            backlogPolicy, protocol, highIntegrity,
+            clientName,
+            syncTimeout,
+            asyncTimeout,
+            allowAdmin,
+            keepAlive,
+            connectTimeout,
+            password,
+            tieBreaker,
+            log,
+            fail,
+            disabledCommands,
+            enabledCommands,
+            checkConnect,
+            failMessage,
+            channelPrefix,
+            proxy,
+            logTransactionData,
+            defaultDatabase,
+            backlogPolicy,
+            protocol,
+            highIntegrity,
             caller);
 
         ThrowIfIncorrectProtocol(conn, protocol);
@@ -323,8 +337,7 @@ public abstract class TestBase : IDisposable
         string? configuration,
         int? defaultDatabase,
         BacklogPolicy? backlogPolicy,
-        bool highIntegrity
-        )
+        bool highIntegrity)
         => enabledCommands == null
             && disabledCommands == null
             && fail
@@ -350,7 +363,7 @@ public abstract class TestBase : IDisposable
         {
             throw new SkipTestException($"Requires protocol {requiredProtocol}, but connection is {serverProtocol}.")
             {
-                MissingFeatures = $"Protocol {requiredProtocol}."
+                MissingFeatures = $"Protocol {requiredProtocol}.",
             };
         }
     }
@@ -367,7 +380,7 @@ public abstract class TestBase : IDisposable
         {
             throw new SkipTestException($"Requires server version {requiredVersion}, but server is only {serverVersion}.")
             {
-                MissingFeatures = $"Server version >= {requiredVersion}."
+                MissingFeatures = $"Server version >= {requiredVersion}.",
             };
         }
     }
@@ -436,14 +449,16 @@ public abstract class TestBase : IDisposable
             var task = ConnectionMultiplexer.ConnectAsync(config, log);
             if (!task.Wait(config.ConnectTimeout >= (int.MaxValue / 2) ? int.MaxValue : config.ConnectTimeout * 2))
             {
-                task.ContinueWith(x =>
-                {
-                    try
+                task.ContinueWith(
+                    x =>
                     {
-                        GC.KeepAlive(x.Exception);
-                    }
-                    catch { /* No boom */ }
-                }, TaskContinuationOptions.OnlyOnFaulted);
+                        try
+                        {
+                            GC.KeepAlive(x.Exception);
+                        }
+                        catch { /* No boom */ }
+                    },
+                    TaskContinuationOptions.OnlyOnFaulted);
                 throw new TimeoutException("Connect timeout");
             }
             watch.Stop();
@@ -498,7 +513,7 @@ public abstract class TestBase : IDisposable
         ManualResetEvent allDone = new ManualResetEvent(false);
         object token = new object();
         int active = 0;
-        void callback()
+        void Callback()
         {
             lock (token)
             {
@@ -524,9 +539,9 @@ public abstract class TestBase : IDisposable
         var threadArr = new Thread[threads];
         for (int i = 0; i < threads; i++)
         {
-            var thd = new Thread(callback)
+            var thd = new Thread(Callback)
             {
-                Name = caller
+                Name = caller,
             };
             threadArr[i] = thd;
             thd.Start();

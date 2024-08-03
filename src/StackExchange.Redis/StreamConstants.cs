@@ -1,5 +1,4 @@
-﻿
-namespace StackExchange.Redis
+﻿namespace StackExchange.Redis
 {
     /// <summary>
     /// Constants representing values used in Redis Stream commands.

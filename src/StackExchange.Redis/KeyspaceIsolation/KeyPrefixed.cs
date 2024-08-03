@@ -132,7 +132,6 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<HashEntry[]> HashRandomFieldsWithValuesAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None) =>
             Inner.HashRandomFieldsWithValuesAsync(ToInner(key), count, flags);
 
-
         public IAsyncEnumerable<HashEntry> HashScanAsync(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags) =>
             Inner.HashScanAsync(ToInner(key), pattern, pageSize, cursor, pageOffset, flags);
 

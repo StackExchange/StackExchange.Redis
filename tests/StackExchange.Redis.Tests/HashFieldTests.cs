@@ -1,11 +1,7 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
 using System.Linq;
 using Xunit;
 using Xunit.Abstractions;
-using System.Threading.Tasks;
-using System.Globalization;
 
 namespace StackExchange.Redis.Tests;
 
@@ -22,7 +18,6 @@ public class HashFieldTests : TestBase
     private readonly HashEntry[] entries = new HashEntry[] { new("f1", 1), new("f2", 2) };
 
     private readonly RedisValue[] fields = new RedisValue[] { "f1", "f2" };
-
 
     public HashFieldTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture)
     {

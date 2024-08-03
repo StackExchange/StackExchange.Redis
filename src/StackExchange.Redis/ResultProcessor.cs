@@ -1,6 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
-using Pipelines.Sockets.Unofficial.Arenas;
-using System;
+﻿using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -10,6 +8,8 @@ using System.Linq;
 using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
+using Microsoft.Extensions.Logging;
+using Pipelines.Sockets.Unofficial.Arenas;
 
 namespace StackExchange.Redis
 {
@@ -92,7 +92,6 @@ namespace StackExchange.Redis
 
         public static readonly ResultProcessor<RedisValue[]>
             RedisValueArray = new RedisValueArrayProcessor();
-
 
         public static readonly ResultProcessor<long[]>
             Int64Array = new Int64ArrayProcessor();
@@ -407,7 +406,8 @@ namespace StackExchange.Redis
                     return false;
                 }
                 else
-                {   // don't check the actual reply; there are multiple ways of constructing
+                {
+                    // don't check the actual reply; there are multiple ways of constructing
                     // a timing message, and we don't actually care about what approach was used
                     TimeSpan duration;
                     if (message is TimerMessage timingMessage)
@@ -470,7 +470,7 @@ namespace StackExchange.Redis
                         var newServer = message.Command switch
                         {
                             RedisCommand.SUBSCRIBE or RedisCommand.PSUBSCRIBE => connection.BridgeCouldBeNull?.ServerEndPoint,
-                            _ => null
+                            _ => null,
                         };
                         Subscription?.SetCurrentServer(newServer);
                         return true;
@@ -490,8 +490,16 @@ namespace StackExchange.Redis
                     case ResultType.Integer:
                     case ResultType.SimpleString:
                     case ResultType.BulkString:
-                        if (result.IsEqual(CommonReplies.one)) { value = true; return true; }
-                        else if (result.IsEqual(CommonReplies.zero)) { value = false; return true; }
+                        if (result.IsEqual(CommonReplies.one))
+                        {
+                            value = true;
+                            return true;
+                        }
+                        else if (result.IsEqual(CommonReplies.zero))
+                        {
+                            value = false;
+                            return true;
+                        }
                         break;
                 }
                 value = false;
@@ -655,7 +663,6 @@ namespace StackExchange.Redis
                 return false;
             }
         }
-
 
         internal sealed class HashEntryArrayProcessor : ValuePairInterleavedProcessorBase<HashEntry>
         {
@@ -1142,9 +1149,13 @@ namespace StackExchange.Redis
                     case ResultType.BulkString:
                         string nodes = result.GetString()!;
                         try
-                        { ClusterNodesProcessor.Parse(connection, nodes); }
+                        {
+                            ClusterNodesProcessor.Parse(connection, nodes);
+                        }
                         catch
-                        { /* tralalalala */}
+                        {
+                            /* tralalalala */
+                        }
                         SetResult(message, nodes);
                         return true;
                 }
@@ -1222,7 +1233,7 @@ namespace StackExchange.Redis
                             // -1 means no expiry and -2 means key does not exist
                             < 0 => null,
                             _ when isMilliseconds => RedisBase.UnixEpoch.AddMilliseconds(duration),
-                            _ => RedisBase.UnixEpoch.AddSeconds(duration)
+                            _ => RedisBase.UnixEpoch.AddSeconds(duration),
                         };
                         SetResult(message, expiry);
                         return true;
@@ -1598,7 +1609,6 @@ namespace StackExchange.Redis
             }
         }
 
-
         private sealed class Int64ArrayProcessor : ResultProcessor<long[]>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
@@ -1763,7 +1773,7 @@ The coordinates as a two items x,y array (longitude,latitude).
         /// <summary>
         /// Parser for the https://redis.io/commands/lcs/ format with the <see cref="RedisLiterals.IDX"/> and <see cref="RedisLiterals.WITHMATCHLEN"/> arguments.
         /// </summary>
-        /// <remarks>
+        /// <example>
         /// Example response:
         /// 1) "matches"
         /// 2) 1) 1) 1) (integer) 4
@@ -1773,7 +1783,8 @@ The coordinates as a two items x,y array (longitude,latitude).
         ///       3) (integer) 4
         /// 3) "len"
         /// 4) (integer) 6
-        /// </remarks>
+        /// ...
+        /// </example>
         private sealed class LongestCommonSubsequenceProcessor : ResultProcessor<LCSMatchResult>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
@@ -2134,15 +2145,16 @@ The coordinates as a two items x,y array (longitude,latitude).
                 }
                 else
                 {
-                    streams = result.GetItems().ToArray((in RawResult item, in MultiStreamProcessor obj) =>
-                    {
-                        var details = item.GetItems();
+                    streams = result.GetItems().ToArray(
+                        (in RawResult item, in MultiStreamProcessor obj) =>
+                        {
+                            var details = item.GetItems();
 
-                        // details[0] = Name of the Stream
-                        // details[1] = Multibulk Array of Stream Entries
-                        return new RedisStream(key: details[0].AsRedisKey(),
-                            entries: obj.ParseRedisStreamEntries(details[1])!);
-                    }, this);
+                            // details[0] = Name of the Stream
+                            // details[1] = Multibulk Array of Stream Entries
+                            return new RedisStream(key: details[0].AsRedisKey(), entries: obj.ParseRedisStreamEntries(details[1])!);
+                        },
+                        this);
                 }
 
                 SetResult(message, streams);
@@ -2238,7 +2250,6 @@ The coordinates as a two items x,y array (longitude,latitude).
                 //    4) (integer)1
                 //    5) idle
                 //    6) (integer)83841983
-
                 var arr = result.GetItems();
                 string? name = default;
                 int pendingMessageCount = default;
@@ -2337,7 +2348,6 @@ The coordinates as a two items x,y array (longitude,latitude).
                 //   10) (integer)1
                 //   11) "lag"
                 //   12) (integer)1
-
                 var arr = result.GetItems();
                 string? name = default, lastDeliveredId = default;
                 int consumerCount = default, pendingMessageCount = default;
@@ -2472,7 +2482,6 @@ The coordinates as a two items x,y array (longitude,latitude).
                 //       2) "2"
                 // 5) 1) 1) "Joe"
                 //       2) "8"
-
                 if (result.Resp2TypeArray != ResultType.Array)
                 {
                     return false;
@@ -2501,12 +2510,11 @@ The coordinates as a two items x,y array (longitude,latitude).
                     });
                 }
 
-                var pendingInfo = new StreamPendingInfo(pendingMessageCount: (int)arr[0].AsRedisValue(),
+                var pendingInfo = new StreamPendingInfo(
+                    pendingMessageCount: (int)arr[0].AsRedisValue(),
                     lowestId: arr[1].AsRedisValue(),
                     highestId: arr[2].AsRedisValue(),
                     consumers: consumers ?? Array.Empty<StreamConsumer>());
-                // ^^^^^
-                // Should we bother allocating an empty array only to prevent the need for a null check?
 
                 SetResult(message, pendingInfo);
                 return true;
@@ -2526,7 +2534,8 @@ The coordinates as a two items x,y array (longitude,latitude).
                 {
                     var details = item.GetItems().GetEnumerator();
 
-                    return new StreamPendingMessageInfo(messageId: details.GetNext().AsRedisValue(),
+                    return new StreamPendingMessageInfo(
+                        messageId: details.GetNext().AsRedisValue(),
                         consumerName: details.GetNext().AsRedisValue(),
                         idleTimeInMs: (long)details.GetNext().AsRedisValue(),
                         deliveryCount: (int)details.GetNext().AsRedisValue());
@@ -2548,6 +2557,7 @@ The coordinates as a two items x,y array (longitude,latitude).
         /// <summary>
         /// Handles stream responses. For formats, see <see href="https://redis.io/topics/streams-intro"/>.
         /// </summary>
+        /// <typeparam name="T">The type of the stream result.</typeparam>
         internal abstract class StreamProcessorBase<T> : ResultProcessor<T>
         {
             protected static StreamEntry ParseRedisStreamEntry(in RawResult item)
@@ -2561,7 +2571,8 @@ The coordinates as a two items x,y array (longitude,latitude).
                 //  [1] = Multibulk array of the name/value pairs of the stream entry's data
                 var entryDetails = item.GetItems();
 
-                return new StreamEntry(id: entryDetails[0].AsRedisValue(),
+                return new StreamEntry(
+                    id: entryDetails[0].AsRedisValue(),
                     values: ParseStreamEntryValues(entryDetails[1]));
             }
             protected internal StreamEntry[] ParseRedisStreamEntries(in RawResult result) =>
@@ -2583,7 +2594,6 @@ The coordinates as a two items x,y array (longitude,latitude).
                 //       2) "9999"
                 //       3) "temperature"
                 //       4) "18.2"
-
                 if (result.Resp2TypeArray != ResultType.Array || result.IsNull)
                 {
                     return Array.Empty<NameValueEntry>();
@@ -2734,7 +2744,8 @@ The coordinates as a two items x,y array (longitude,latitude).
                 }
                 else
                 {
-                    connection.RecordConnectionFailed(ConnectionFailureType.ProtocolFailure,
+                    connection.RecordConnectionFailed(
+                        ConnectionFailureType.ProtocolFailure,
                         new InvalidOperationException($"unexpected tracer reply to {message.Command}: {result.ToString()}"));
                     return false;
                 }
@@ -2867,7 +2878,8 @@ The coordinates as a two items x,y array (longitude,latitude).
                                 {
                                     throw new ArgumentOutOfRangeException(nameof(rawInnerArray), $"Error processing {message.CommandAndKey}, could not decode array '{rawInnerArray}'");
                                 }
-                            }, innerProcessor)!;
+                            },
+                            innerProcessor)!;
 
                         SetResult(message, returnArray);
                         return true;

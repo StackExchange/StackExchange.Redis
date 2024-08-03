@@ -1,5 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -9,6 +8,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using static StackExchange.Redis.PhysicalBridge;
 
 namespace StackExchange.Redis
@@ -84,7 +84,7 @@ namespace StackExchange.Redis
         /// This is memoized because it's accessed on hot paths inside the write lock.
         /// </remarks>
         public bool SupportsDatabases =>
-            supportsDatabases ??= (serverType == ServerType.Standalone && Multiplexer.CommandMap.IsAvailable(RedisCommand.SELECT));
+            supportsDatabases ??= serverType == ServerType.Standalone && Multiplexer.CommandMap.IsAvailable(RedisCommand.SELECT);
 
         public int Databases
         {
@@ -105,7 +105,7 @@ namespace StackExchange.Redis
         }
 
         public bool SupportsSubscriptions => Multiplexer.CommandMap.IsAvailable(RedisCommand.SUBSCRIBE);
-        public bool SupportsPrimaryWrites => supportsPrimaryWrites ??= (!IsReplica || !ReplicaReadOnly || AllowReplicaWrites);
+        public bool SupportsPrimaryWrites => supportsPrimaryWrites ??= !IsReplica || !ReplicaReadOnly || AllowReplicaWrites;
 
         private readonly List<TaskCompletionSource<string>> _pendingConnectionMonitors = new List<TaskCompletionSource<string>>();
 
@@ -157,7 +157,7 @@ namespace StackExchange.Redis
                 var subEx = subscription?.LastException;
                 var subExData = subEx?.Data;
 
-                //check if subscription endpoint has a better last exception
+                // check if subscription endpoint has a better last exception
                 if (subExData != null && subExData.Contains("Redis-FailureType") && subExData["Redis-FailureType"]?.ToString() != nameof(ConnectionFailureType.UnableToConnect))
                 {
                     return subEx;
@@ -208,7 +208,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// If we have a connection (interactive), report the protocol being used
+        /// If we have a connection (interactive), report the protocol being used.
         /// </summary>
         public RedisProtocol? Protocol => interactive?.Protocol;
 
@@ -254,7 +254,6 @@ namespace StackExchange.Redis
             // Subscription commands go to a specific bridge - so we need to set that up.
             // There are other commands we need to send to the right connection (e.g. subscriber PING with an explicit SetForSubscriptionBridge call),
             // but these always go subscriber.
-
             switch (message.Command)
             {
                 case RedisCommand.SUBSCRIBE:
@@ -464,8 +463,9 @@ namespace StackExchange.Redis
         }
 
         private int _nextReplicaOffset;
+
         /// <summary>
-        /// Used to round-robin between multiple replicas
+        /// Used to round-robin between multiple replicas.
         /// </summary>
         internal uint NextReplicaOffset()
             => (uint)Interlocked.Increment(ref _nextReplicaOffset);
@@ -533,7 +533,8 @@ namespace StackExchange.Redis
                 return GetBridge(connectionType, false)?.GetStatus() ?? BridgeStatus.Zero;
             }
             catch (Exception ex)
-            {   // only needs to be best efforts
+            {
+                // only needs to be best efforts
                 System.Diagnostics.Debug.WriteLine(ex.Message);
             }
 
@@ -872,6 +873,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Write the message directly to the pipe or fail...will not queue.
         /// </summary>
+        /// <typeparam name="T">The type of the result processor.</typeparam>
         internal ValueTask WriteDirectOrQueueFireAndForgetAsync<T>(PhysicalConnection? connection, Message message, ResultProcessor<T> processor)
         {
             static async ValueTask Awaited(ValueTask<WriteResult> l_result) => await l_result.ForAwait();
@@ -966,7 +968,6 @@ namespace StackExchange.Redis
             // that's fine and doesn't cause a problem; if we wanted we could probably just discard (`_ =`)
             // the various tasks and just `return connection.FlushAsync();` - however, since handshake is low
             // volume, we can afford to optimize for a good stack-trace rather than avoiding state machines.
-
             ResultProcessor<bool>? autoConfig = null;
             if (Multiplexer.RawConfig.TryResp3()) // note this includes an availability check on HELLO
             {
@@ -1020,8 +1021,7 @@ namespace StackExchange.Redis
                     var libName = Multiplexer.GetFullLibraryName();
                     if (!string.IsNullOrWhiteSpace(libName))
                     {
-                        msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.CLIENT,
-                            RedisLiterals.SETINFO, RedisLiterals.lib_name, libName);
+                        msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.CLIENT, RedisLiterals.SETINFO, RedisLiterals.lib_name, libName);
                         msg.SetInternalCall();
                         await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
                     }
@@ -1029,8 +1029,7 @@ namespace StackExchange.Redis
                     var version = ClientInfoSanitize(Utils.GetLibVersion());
                     if (!string.IsNullOrWhiteSpace(version))
                     {
-                        msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.CLIENT,
-                            RedisLiterals.SETINFO, RedisLiterals.lib_ver, version);
+                        msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.CLIENT, RedisLiterals.SETINFO, RedisLiterals.lib_ver, version);
                         msg.SetInternalCall();
                         await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
                     }
@@ -1086,7 +1085,7 @@ namespace StackExchange.Redis
             }
         }
         internal static string ClientInfoSanitize(string? value)
-            => string.IsNullOrWhiteSpace(value) ? ""  : nameSanitizer.Replace(value!.Trim(), "-");
+            => string.IsNullOrWhiteSpace(value) ? "" : nameSanitizer.Replace(value!.Trim(), "-");
 
         private void ClearMemoized()
         {
@@ -1095,7 +1094,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// For testing only
+        /// For testing only.
         /// </summary>
         internal void SimulateConnectionFailure(SimulatedFailureType failureType)
         {

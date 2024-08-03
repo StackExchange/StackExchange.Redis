@@ -41,7 +41,8 @@ namespace StackExchange.Redis
                 _current = _iterator.Current.Span;
                 OffsetThisSpan = 0;
                 RemainingThisSpan = _current.Length;
-            } while (IsEmpty); // skip empty segments, they don't help us!
+            }
+            while (IsEmpty); // skip empty segments, they don't help us!
 
             return true;
         }
@@ -59,7 +60,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Note that in results other than success, no guarantees are made about final state; if you care: snapshot
+        /// Note that in results other than success, no guarantees are made about final state; if you care: snapshot.
         /// </summary>
         public ConsumeResult TryConsumeCRLF()
         {
@@ -82,6 +83,7 @@ namespace StackExchange.Redis
                     return result;
             }
         }
+
         public bool TryConsume(int count)
         {
             if (count < 0) throw new ArgumentOutOfRangeException(nameof(count));
@@ -102,7 +104,8 @@ namespace StackExchange.Redis
                 // consume all of this span
                 _totalConsumed += available;
                 count -= available;
-            } while (FetchNextSegment());
+            }
+            while (FetchNextSegment());
             return false;
         }
 
@@ -127,13 +130,18 @@ namespace StackExchange.Redis
             if (!TryConsumeAsBuffer(count, out var buffer)) throw new EndOfStreamException();
             return buffer;
         }
+
         public ReadOnlySequence<byte> ConsumeToEnd()
         {
             var from = SnapshotPosition();
             var result = _buffer.Slice(from);
-            while (FetchNextSegment()) { } // consume all
+            while (FetchNextSegment())
+            {
+                // consume all
+            }
             return result;
         }
+
         public bool TryConsumeAsBuffer(int count, out ReadOnlySequence<byte> buffer)
         {
             var from = SnapshotPosition();
@@ -146,6 +154,7 @@ namespace StackExchange.Redis
             buffer = _buffer.Slice(from, to);
             return true;
         }
+
         public void Consume(int count)
         {
             if (!TryConsume(count)) throw new EndOfStreamException();
@@ -163,13 +172,14 @@ namespace StackExchange.Redis
                 if (found >= 0) return totalSkipped + found;
 
                 totalSkipped += span.Length;
-            } while (reader.FetchNextSegment());
+            }
+            while (reader.FetchNextSegment());
             return -1;
         }
+
         internal static int FindNextCrLf(BufferReader reader) // very deliberately not ref; want snapshot
         {
             // is it in the current span? (we need to handle the offsets differently if so)
-
             int totalSkipped = 0;
             bool haveTrailingCR = false;
             do

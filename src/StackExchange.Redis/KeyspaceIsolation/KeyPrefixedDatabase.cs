@@ -738,6 +738,5 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public long KeyTouch(RedisKey[] keys, CommandFlags flags = CommandFlags.None) =>
             Inner.KeyTouch(ToInner(keys), flags);
-
     }
 }

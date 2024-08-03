@@ -483,7 +483,7 @@ namespace StackExchange.Redis
                 {
                     case RedisType.SortedSet:
                         var parsedValue = result.AsRedisValue();
-                        value = (parsedValue.IsNull != expectedResult);
+                        value = parsedValue.IsNull != expectedResult;
                         ConnectionMultiplexer.TraceWithoutContext("exists: " + parsedValue + "; expected: " + expectedResult + "; voting: " + value);
                         return true;
 
@@ -633,7 +633,7 @@ namespace StackExchange.Redis
                         }
                         else
                         {
-                            value = (parsed.IsNull != expectedResult);
+                            value = parsed.IsNull != expectedResult;
                             ConnectionMultiplexer.TraceWithoutContext("exists: " + parsed + "; expected: " + expectedResult + "; voting: " + value);
                         }
                         return true;

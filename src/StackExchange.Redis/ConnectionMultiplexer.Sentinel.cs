@@ -1,12 +1,12 @@
-﻿using Microsoft.Extensions.Logging;
-using Pipelines.Sockets.Unofficial;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
+using Pipelines.Sockets.Unofficial;
 
 namespace StackExchange.Redis;
 
@@ -33,33 +33,36 @@ public partial class ConnectionMultiplexer
 
         if (sub.SubscribedEndpoint(RedisChannel.Literal("+switch-master")) == null)
         {
-            sub.Subscribe(RedisChannel.Literal("+switch-master"), (__, message) =>
-            {
-                string[] messageParts = ((string)message!).Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                // We don't care about the result of this - we're just trying
-                _ = Format.TryParseEndPoint(string.Format("{0}:{1}", messageParts[1], messageParts[2]), out var switchBlame);
-
-                lock (sentinelConnectionChildren)
+            sub.Subscribe(
+                RedisChannel.Literal("+switch-master"),
+                (__, message) =>
                 {
-                    // Switch the primary if we have connections for that service
-                    if (sentinelConnectionChildren.ContainsKey(messageParts[0]))
-                    {
-                        ConnectionMultiplexer child = sentinelConnectionChildren[messageParts[0]];
+                    string[] messageParts = ((string)message!).Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    // We don't care about the result of this - we're just trying
+                    _ = Format.TryParseEndPoint(string.Format("{0}:{1}", messageParts[1], messageParts[2]), out var switchBlame);
 
-                        // Is the connection still valid?
-                        if (child.IsDisposed)
+                    lock (sentinelConnectionChildren)
+                    {
+                        // Switch the primary if we have connections for that service
+                        if (sentinelConnectionChildren.ContainsKey(messageParts[0]))
                         {
-                            child.ConnectionFailed -= OnManagedConnectionFailed;
-                            child.ConnectionRestored -= OnManagedConnectionRestored;
-                            sentinelConnectionChildren.Remove(messageParts[0]);
-                        }
-                        else
-                        {
-                            SwitchPrimary(switchBlame, sentinelConnectionChildren[messageParts[0]]);
+                            ConnectionMultiplexer child = sentinelConnectionChildren[messageParts[0]];
+
+                            // Is the connection still valid?
+                            if (child.IsDisposed)
+                            {
+                                child.ConnectionFailed -= OnManagedConnectionFailed;
+                                child.ConnectionRestored -= OnManagedConnectionRestored;
+                                sentinelConnectionChildren.Remove(messageParts[0]);
+                            }
+                            else
+                            {
+                                SwitchPrimary(switchBlame, sentinelConnectionChildren[messageParts[0]]);
+                            }
                         }
                     }
-                }
-            }, CommandFlags.FireAndForget);
+                },
+                CommandFlags.FireAndForget);
         }
 
         // If we lose connection to a sentinel server,
@@ -71,11 +74,14 @@ public partial class ConnectionMultiplexer
         // Subscribe to new sentinels being added
         if (sub.SubscribedEndpoint(RedisChannel.Literal("+sentinel")) == null)
         {
-            sub.Subscribe(RedisChannel.Literal("+sentinel"), (_, message) =>
-            {
-                string[] messageParts = ((string)message!).Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                UpdateSentinelAddressList(messageParts[0]);
-            }, CommandFlags.FireAndForget);
+            sub.Subscribe(
+                RedisChannel.Literal("+sentinel"),
+                (_, message) =>
+                {
+                    string[] messageParts = ((string)message!).Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    UpdateSentinelAddressList(messageParts[0]);
+                },
+                CommandFlags.FireAndForget);
         }
     }
 
@@ -164,7 +170,8 @@ public partial class ConnectionMultiplexer
     {
         if (ServerSelectionStrategy.ServerType != ServerType.Sentinel)
         {
-            throw new RedisConnectionException(ConnectionFailureType.UnableToConnect,
+            throw new RedisConnectionException(
+                ConnectionFailureType.UnableToConnect,
                 "Sentinel: The ConnectionMultiplexer is not a Sentinel connection. Detected as: " + ServerSelectionStrategy.ServerType);
         }
 
@@ -198,7 +205,8 @@ public partial class ConnectionMultiplexer
 
             if (newPrimaryEndPoint is null)
             {
-                throw new RedisConnectionException(ConnectionFailureType.UnableToConnect,
+                throw new RedisConnectionException(
+                    ConnectionFailureType.UnableToConnect,
                     $"Sentinel: Failed connecting to configured primary for service: {config.ServiceName}");
             }
 
@@ -241,11 +249,13 @@ public partial class ConnectionMultiplexer
             }
 
             Thread.Sleep(100);
-        } while (sw.ElapsedMilliseconds < config.ConnectTimeout);
+        }
+        while (sw.ElapsedMilliseconds < config.ConnectTimeout);
 
         if (!success)
         {
-            throw new RedisConnectionException(ConnectionFailureType.UnableToConnect,
+            throw new RedisConnectionException(
+                ConnectionFailureType.UnableToConnect,
                 $"Sentinel: Failed connecting to configured primary for service: {config.ServiceName}");
         }
 
@@ -323,29 +333,33 @@ public partial class ConnectionMultiplexer
         // or if we miss the published primary change.
         if (connection.sentinelPrimaryReconnectTimer == null)
         {
-            connection.sentinelPrimaryReconnectTimer = new Timer(_ =>
-            {
-                try
-                {
-                    // Attempt, but do not fail here
-                    SwitchPrimary(e.EndPoint, connection);
-                }
-                catch (Exception)
-                {
-                }
-                finally
+            connection.sentinelPrimaryReconnectTimer = new Timer(
+                _ =>
                 {
                     try
                     {
-                        connection.sentinelPrimaryReconnectTimer?.Change(TimeSpan.FromSeconds(1), Timeout.InfiniteTimeSpan);
+                        // Attempt, but do not fail here
+                        SwitchPrimary(e.EndPoint, connection);
                     }
-                    catch (ObjectDisposedException)
+                    catch (Exception)
                     {
-                        // If we get here the managed connection was restored and the timer was
-                        // disposed by another thread, so there's no need to run the timer again.
                     }
-                }
-            }, null, TimeSpan.Zero, Timeout.InfiniteTimeSpan);
+                    finally
+                    {
+                        try
+                        {
+                            connection.sentinelPrimaryReconnectTimer?.Change(TimeSpan.FromSeconds(1), Timeout.InfiniteTimeSpan);
+                        }
+                        catch (ObjectDisposedException)
+                        {
+                            // If we get here the managed connection was restored and the timer was
+                            // disposed by another thread, so there's no need to run the timer again.
+                        }
+                    }
+                },
+                null,
+                TimeSpan.Zero,
+                Timeout.InfiniteTimeSpan);
         }
     }
 
@@ -389,8 +403,7 @@ public partial class ConnectionMultiplexer
         // Get new primary - try twice
         EndPoint newPrimaryEndPoint = GetConfiguredPrimaryForService(serviceName)
                                     ?? GetConfiguredPrimaryForService(serviceName)
-                                    ?? throw new RedisConnectionException(ConnectionFailureType.UnableToConnect,
-                                        $"Sentinel: Failed connecting to switch primary for service: {serviceName}");
+                                    ?? throw new RedisConnectionException(ConnectionFailureType.UnableToConnect, $"Sentinel: Failed connecting to switch primary for service: {serviceName}");
 
         connection.currentSentinelPrimaryEndPoint = newPrimaryEndPoint;
 
@@ -411,8 +424,14 @@ public partial class ConnectionMultiplexer
             }
             Trace($"Switching primary to {newPrimaryEndPoint}");
             // Trigger a reconfigure
-            connection.ReconfigureAsync(first: false, reconfigureAll: false, logger, switchBlame,
-                $"Primary switch {serviceName}", false, CommandFlags.PreferMaster).Wait();
+            connection.ReconfigureAsync(
+                first: false,
+                reconfigureAll: false,
+                log: logger,
+                blame: switchBlame,
+                cause: $"Primary switch {serviceName}",
+                publishReconfigure: false,
+                publishReconfigureFlags: CommandFlags.PreferMaster).Wait();
 
             UpdateSentinelAddressList(serviceName);
         }

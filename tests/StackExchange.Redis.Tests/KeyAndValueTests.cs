@@ -72,7 +72,7 @@ public class KeyAndValueTests
         Assert.True(y == x, "y==x");
         Assert.False(x != y, "x!=y");
         Assert.False(y != x, "y!=x");
-        Assert.True(x.Equals(y),"x.EQ(y)");
+        Assert.True(x.Equals(y), "x.EQ(y)");
         Assert.True(y.Equals(x), "y.EQ(x)");
         Assert.True(x.GetHashCode() == y.GetHashCode(), "GetHashCode");
     }
@@ -122,9 +122,9 @@ public class KeyAndValueTests
         Assert.Equal(0L, (long)value);
 
         CheckSame(value, value);
-        //CheckSame(value, default(RedisValue));
-        //CheckSame(value, (string)null);
-        //CheckSame(value, (byte[])null);
+        // CheckSame(value, default(RedisValue));
+        // CheckSame(value, (string)null);
+        // CheckSame(value, (byte[])null);
     }
 
     [Fact]
@@ -145,14 +145,14 @@ public class KeyAndValueTests
         // ReSharper disable RedundantCast
         Assert.Equal((short)123, c.ToInt16(CultureInfo.InvariantCulture));
         Assert.Equal((int)123, c.ToInt32(CultureInfo.InvariantCulture));
-        Assert.Equal((long)123, c.ToInt64(CultureInfo.InvariantCulture));
-        Assert.Equal((float)123, c.ToSingle(CultureInfo.InvariantCulture));
+        Assert.Equal(123L, c.ToInt64(CultureInfo.InvariantCulture));
+        Assert.Equal(123F, c.ToSingle(CultureInfo.InvariantCulture));
         Assert.Equal("123", c.ToString(CultureInfo.InvariantCulture));
-        Assert.Equal((double)123, c.ToDouble(CultureInfo.InvariantCulture));
-        Assert.Equal((decimal)123, c.ToDecimal(CultureInfo.InvariantCulture));
+        Assert.Equal(123D, c.ToDouble(CultureInfo.InvariantCulture));
+        Assert.Equal(123M, c.ToDecimal(CultureInfo.InvariantCulture));
         Assert.Equal((ushort)123, c.ToUInt16(CultureInfo.InvariantCulture));
-        Assert.Equal((uint)123, c.ToUInt32(CultureInfo.InvariantCulture));
-        Assert.Equal((ulong)123, c.ToUInt64(CultureInfo.InvariantCulture));
+        Assert.Equal(123U, c.ToUInt32(CultureInfo.InvariantCulture));
+        Assert.Equal(123UL, c.ToUInt64(CultureInfo.InvariantCulture));
 
         blob = (byte[])c.ToType(typeof(byte[]), CultureInfo.InvariantCulture);
         Assert.Equal(3, blob.Length);

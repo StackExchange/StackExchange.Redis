@@ -219,7 +219,8 @@ public class ClusterTests : TestBase
             do
             {
                 y = Guid.NewGuid().ToString();
-            } while (--abort > 0 && config.GetBySlot(y) == xNode);
+            }
+            while (--abort > 0 && config.GetBySlot(y) == xNode);
             if (abort == 0) Skip.Inconclusive("failed to find a different node to use");
             var yNode = config.GetBySlot(y);
             Assert.NotNull(yNode);
@@ -243,13 +244,13 @@ public class ClusterTests : TestBase
             // the rest no longer applies while we are following single-slot rules
 
             //// check that everything was aborted
-            //Assert.False(success, "tran aborted");
-            //Assert.True(setX.IsCanceled, "set x cancelled");
-            //Assert.True(setY.IsCanceled, "set y cancelled");
-            //var existsX = cluster.KeyExistsAsync(x);
-            //var existsY = cluster.KeyExistsAsync(y);
-            //Assert.False(cluster.Wait(existsX), "x exists");
-            //Assert.False(cluster.Wait(existsY), "y exists");
+            // Assert.False(success, "tran aborted");
+            // Assert.True(setX.IsCanceled, "set x cancelled");
+            // Assert.True(setY.IsCanceled, "set y cancelled");
+            // var existsX = cluster.KeyExistsAsync(x);
+            // var existsY = cluster.KeyExistsAsync(y);
+            // Assert.False(cluster.Wait(existsX), "x exists");
+            // Assert.False(cluster.Wait(existsY), "y exists");
         });
         Assert.Equal("Multi-key operations must involve a single slot; keys can use 'hash tags' to help this, i.e. '{/users/12345}/account' and '{/users/12345}/contacts' will always be in the same slot", ex.Message);
     }
@@ -274,7 +275,8 @@ public class ClusterTests : TestBase
             do
             {
                 y = Guid.NewGuid().ToString();
-            } while (--abort > 0 && config.GetBySlot(y) != xNode);
+            }
+            while (--abort > 0 && config.GetBySlot(y) != xNode);
             if (abort == 0) Skip.Inconclusive("failed to find a key with the same node to use");
             var yNode = config.GetBySlot(y);
             Assert.NotNull(xNode);
@@ -299,13 +301,13 @@ public class ClusterTests : TestBase
             // the rest no longer applies while we are following single-slot rules
 
             //// check that everything was aborted
-            //Assert.True(success, "tran aborted");
-            //Assert.False(setX.IsCanceled, "set x cancelled");
-            //Assert.False(setY.IsCanceled, "set y cancelled");
-            //var existsX = cluster.KeyExistsAsync(x);
-            //var existsY = cluster.KeyExistsAsync(y);
-            //Assert.True(cluster.Wait(existsX), "x exists");
-            //Assert.True(cluster.Wait(existsY), "y exists");
+            // Assert.True(success, "tran aborted");
+            // Assert.False(setX.IsCanceled, "set x cancelled");
+            // Assert.False(setY.IsCanceled, "set y cancelled");
+            // var existsX = cluster.KeyExistsAsync(x);
+            // var existsY = cluster.KeyExistsAsync(y);
+            // Assert.True(cluster.Wait(existsX), "x exists");
+            // Assert.True(cluster.Wait(existsY), "y exists");
         });
         Assert.Equal("Multi-key operations must involve a single slot; keys can use 'hash tags' to help this, i.e. '{/users/12345}/account' and '{/users/12345}/contacts' will always be in the same slot", ex.Message);
     }
@@ -358,7 +360,7 @@ public class ClusterTests : TestBase
     }
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "xUnit1004:Test methods should not be skipped", Justification = "Because.")]
-    [Theory (Skip = "FlushAllDatabases")]
+    [Theory(Skip = "FlushAllDatabases")]
     [InlineData(null, 10)]
     [InlineData(null, 100)]
     [InlineData("abc", 10)]
@@ -624,7 +626,6 @@ public class ClusterTests : TestBase
         // note it doesn't matter that the data doesn't exist for this;
         // the point here is that the entire thing *won't work* otherwise,
         // as per above test
-
         var keys = InventKeys();
         using var conn = Create();
 
@@ -650,7 +651,7 @@ public class ClusterTests : TestBase
     [Fact]
     public void MovedProfiling()
     {
-        var Key = Me();
+        var key = Me();
         const string Value = "redirected-value";
 
         var profiler = new ProfilingTests.PerThreadProfiler();
@@ -663,24 +664,24 @@ public class ClusterTests : TestBase
         var servers = endpoints.Select(e => conn.GetServer(e));
 
         var db = conn.GetDatabase();
-        db.KeyDelete(Key);
-        db.StringSet(Key, Value);
+        db.KeyDelete(key);
+        db.StringSet(key, Value);
         var config = servers.First().ClusterConfiguration;
         Assert.NotNull(config);
 
-        //int slot = conn.HashSlot(Key);
-        var rightPrimaryNode = config.GetBySlot(Key);
+        // int slot = conn.HashSlot(Key);
+        var rightPrimaryNode = config.GetBySlot(key);
         Assert.NotNull(rightPrimaryNode);
 
         Assert.NotNull(rightPrimaryNode.EndPoint);
-        string? a = (string?)conn.GetServer(rightPrimaryNode.EndPoint).Execute("GET", Key);
+        string? a = (string?)conn.GetServer(rightPrimaryNode.EndPoint).Execute("GET", key);
         Assert.Equal(Value, a); // right primary
 
         var wrongPrimaryNode = config.Nodes.FirstOrDefault(x => !x.IsReplica && x.NodeId != rightPrimaryNode.NodeId);
         Assert.NotNull(wrongPrimaryNode);
 
         Assert.NotNull(wrongPrimaryNode.EndPoint);
-        string? b = (string?)conn.GetServer(wrongPrimaryNode.EndPoint).Execute("GET", Key);
+        string? b = (string?)conn.GetServer(wrongPrimaryNode.EndPoint).Execute("GET", key);
         Assert.Equal(Value, b); // wrong primary, allow redirect
 
         var msgs = profiler.GetSession().FinishProfiling().ToList();

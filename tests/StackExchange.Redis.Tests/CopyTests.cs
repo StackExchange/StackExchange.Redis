@@ -8,7 +8,7 @@ namespace StackExchange.Redis.Tests;
 [Collection(SharedConnectionFixture.Key)]
 public class CopyTests : TestBase
 {
-    public CopyTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base (output, fixture) { }
+    public CopyTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
 
     [Fact]
     public async Task Basic()

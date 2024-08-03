@@ -330,7 +330,7 @@ public class TransactionTests : TestBase
     {
         Equal,
         LessThan,
-        GreaterThan
+        GreaterThan,
     }
 
     [Theory]
@@ -1232,7 +1232,7 @@ public class TransactionTests : TestBase
         var a = tran.ExecuteAsync("SET", "foo", "bar");
         Assert.True(await tran.ExecuteAsync());
         var setting = db.StringGet("foo");
-        Assert.Equal("bar",setting);
+        Assert.Equal("bar", setting);
     }
 
 #if VERBOSE
@@ -1296,9 +1296,9 @@ public class TransactionTests : TestBase
             {
                 RedisKey key = Me();
                 await db.KeyDeleteAsync(key);
-                HashEntry[] hashEntries = new []
+                HashEntry[] hashEntries = new[]
                 {
-                    new HashEntry("blah", DateTime.UtcNow.ToString("R"))
+                    new HashEntry("blah", DateTime.UtcNow.ToString("R")),
                 };
                 ITransaction transaction = db.CreateTransaction();
                 transaction.AddCondition(Condition.KeyNotExists(key));

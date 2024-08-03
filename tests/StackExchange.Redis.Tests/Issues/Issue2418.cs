@@ -35,7 +35,6 @@ public class Issue2418 : TestBase
             Log($"'{pair.Name}'='{pair.Value}'");
         }
 
-
         // filter with LINQ
         Assert.True(entry.Any(x => x.Name == "some_int"), "Any");
         someInt = entry.FirstOrDefault(x => x.Name == "some_int").Value;

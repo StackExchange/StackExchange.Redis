@@ -12,8 +12,8 @@ public class SO22786599Tests : TestBase
     [Fact]
     public void Execute()
     {
-        string CurrentIdsSetDbKey = Me() + ".x";
-        string CurrentDetailsSetDbKey = Me() + ".y";
+        string currentIdsSetDbKey = Me() + ".x";
+        string currentDetailsSetDbKey = Me() + ".y";
 
         RedisValue[] stringIds = Enumerable.Range(1, 750).Select(i => (RedisValue)(i + " id")).ToArray();
         RedisValue[] stringDetails = Enumerable.Range(1, 750).Select(i => (RedisValue)(i + " detail")).ToArray();
@@ -23,8 +23,8 @@ public class SO22786599Tests : TestBase
         var db = conn.GetDatabase();
         var tran = db.CreateTransaction();
 
-        tran.SetAddAsync(CurrentIdsSetDbKey, stringIds);
-        tran.SetAddAsync(CurrentDetailsSetDbKey, stringDetails);
+        tran.SetAddAsync(currentIdsSetDbKey, stringIds);
+        tran.SetAddAsync(currentDetailsSetDbKey, stringDetails);
 
         var watch = Stopwatch.StartNew();
         var isOperationSuccessful = tran.Execute();

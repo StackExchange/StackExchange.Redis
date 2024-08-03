@@ -63,7 +63,7 @@ namespace StackExchange.Redis
 
             internal static SslProtocols ParseSslProtocols(string key, string? value)
             {
-                //Flags expect commas as separators, but we need to use '|' since commas are already used in the connection string to mean something else
+                // Flags expect commas as separators, but we need to use '|' since commas are already used in the connection string to mean something else
                 value = value?.Replace("|", ",");
 
                 if (!Enum.TryParse(value, true, out SslProtocols tmp)) throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' requires an SslProtocol value (multiple values separated by '|'); the value '{value}' is not recognised.");
@@ -182,14 +182,14 @@ namespace StackExchange.Redis
         /// A LocalCertificateSelectionCallback delegate responsible for selecting the certificate used for authentication; note
         /// that this cannot be specified in the configuration-string.
         /// </summary>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Design", "CA1009:DeclareEventHandlersCorrectly")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Design", "CA1009:DeclareEventHandlersCorrectly", Justification = "Existing compatibility")]
         public event LocalCertificateSelectionCallback? CertificateSelection;
 
         /// <summary>
         /// A RemoteCertificateValidationCallback delegate responsible for validating the certificate supplied by the remote party; note
         /// that this cannot be specified in the configuration-string.
         /// </summary>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Design", "CA1009:DeclareEventHandlersCorrectly")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Design", "CA1009:DeclareEventHandlersCorrectly", Justification = "Existing compatibility")]
         public event RemoteCertificateValidationCallback? CertificateValidation;
 
         /// <summary>
@@ -238,7 +238,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Indicates whether the connection should be encrypted
+        /// Indicates whether the connection should be encrypted.
         /// </summary>
         [Obsolete("Please use .Ssl instead of .UseSsl, will be removed in 3.0."),
          Browsable(false),
@@ -257,7 +257,6 @@ namespace StackExchange.Redis
             get => setClientLibrary ?? Defaults.SetClientLibrary;
             set => setClientLibrary = value;
         }
-
 
         /// <summary>
         /// Gets or sets the library name to use for CLIENT SETINFO lib-name calls to Redis during handshake.
@@ -477,9 +476,9 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// Controls how often the connection heartbeats. A heartbeat includes:
-        /// - Evaluating if any messages have timed out
-        /// - Evaluating connection status (checking for failures)
-        /// - Sending a server message to keep the connection alive if needed
+        /// - Evaluating if any messages have timed out.
+        /// - Evaluating connection status (checking for failures).
+        /// - Sending a server message to keep the connection alive if needed.
         /// </summary>
         /// <remarks>
         /// This defaults to 1000 milliseconds and should not be changed for most use cases.
@@ -506,7 +505,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Should exceptions include identifiable details? (key names, additional .Data annotations)
+        /// Whether exceptions include identifiable details (key names, additional .Data annotations).
         /// </summary>
         public bool IncludeDetailInExceptions
         {
@@ -515,7 +514,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Should exceptions include performance counter details?
+        /// Whether exceptions include performance counter details.
         /// </summary>
         /// <remarks>
         /// CPU usage, etc - note that this can be problematic on some platforms.
@@ -528,7 +527,7 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// Specifies the time in seconds at which connections should be pinged to ensure validity.
-        /// -1 Defaults to 60 Seconds
+        /// -1 Defaults to 60 Seconds.
         /// </summary>
         public int KeepAlive
         {
@@ -1107,7 +1106,7 @@ namespace StackExchange.Redis
         public Tunnel? Tunnel { get; set; }
 
         /// <summary>
-        /// Specify the redis protocol type
+        /// Specify the redis protocol type.
         /// </summary>
         public RedisProtocol? Protocol { get; set; }
 
@@ -1115,12 +1114,12 @@ namespace StackExchange.Redis
         {
             // note: deliberately leaving the IsAvailable duplicated to use short-circuit
 
-            //if (Protocol is null)
-            //{
-            //    // if not specified, lean on the server version and whether HELLO is available
-            //    return new RedisFeatures(DefaultVersion).Resp3 && CommandMap.IsAvailable(RedisCommand.HELLO);
-            //}
-            //else
+            // if (Protocol is null)
+            // {
+            //     // if not specified, lean on the server version and whether HELLO is available
+            //     return new RedisFeatures(DefaultVersion).Resp3 && CommandMap.IsAvailable(RedisCommand.HELLO);
+            // }
+            // else
             // ^^^ left for context; originally our intention was to auto-enable RESP3 by default *if* the server version
             // is >= 6; however, it turns out (see extensive conversation here https://github.com/StackExchange/StackExchange.Redis/pull/2396)
             // that tangential undocumented API breaks were made at the same time; this means that even if we fix every
