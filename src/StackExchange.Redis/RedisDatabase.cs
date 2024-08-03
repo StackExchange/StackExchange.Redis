@@ -430,9 +430,9 @@ namespace StackExchange.Redis
             return executor(msg, processor);
         }
 
-        private RedisCommand PickExpireCommandByPrecision(bool useSeconds) => useSeconds ? RedisCommand.HEXPIRE : RedisCommand.HPEXPIRE;
+        private static RedisCommand PickExpireCommandByPrecision(bool useSeconds) => useSeconds ? RedisCommand.HEXPIRE : RedisCommand.HPEXPIRE;
 
-        private RedisCommand PickExpireAtCommandByPrecision(bool useSeconds) => useSeconds ? RedisCommand.HEXPIREAT : RedisCommand.HPEXPIREAT;
+        private static RedisCommand PickExpireAtCommandByPrecision(bool useSeconds) => useSeconds ? RedisCommand.HEXPIREAT : RedisCommand.HPEXPIREAT;
 
         private T HashFieldExecute<T, P>(RedisCommand cmd, RedisKey key, CustomExecutor<T, P> executor, P processor, CommandFlags flags = CommandFlags.None, params RedisValue[] hashFields)
         {
