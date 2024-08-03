@@ -12,7 +12,7 @@ namespace StackExchange.Redis.Tests;
 [Collection(SharedConnectionFixture.Key)]
 public class OverloadCompatTests : TestBase
 {
-    public OverloadCompatTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base (output, fixture) { }
+    public OverloadCompatTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
 
     [Fact]
     public async Task KeyExpire()
@@ -42,7 +42,6 @@ public class OverloadCompatTests : TestBase
         db.KeyExpire(key, expireTime, when: when, flags: flags);
 
         // Async
-
         await db.KeyExpireAsync(key, expiresIn);
         await db.KeyExpireAsync(key, expiresIn, when);
         await db.KeyExpireAsync(key, expiresIn, when: when);
@@ -89,7 +88,6 @@ public class OverloadCompatTests : TestBase
         db.StringBitCount(key, start: 1, end: 1, flags: flags);
 
         // Async
-
         await db.StringBitCountAsync(key);
         await db.StringBitCountAsync(key, 1);
         await db.StringBitCountAsync(key, 0, 0);
@@ -138,7 +136,6 @@ public class OverloadCompatTests : TestBase
         db.StringBitPosition(key, true, start: 1, end: 1, flags: flags);
 
         // Async
-
         await db.StringBitPositionAsync(key, true);
         await db.StringBitPositionAsync(key, true, 1);
         await db.StringBitPositionAsync(key, true, 1, 3);
@@ -166,7 +163,7 @@ public class OverloadCompatTests : TestBase
         RedisKey key = Me();
         RedisValue val = "myval";
         var score = 1.0d;
-        var values = new SortedSetEntry[]{new SortedSetEntry(val, score)};
+        var values = new SortedSetEntry[] { new SortedSetEntry(val, score) };
         var when = When.Exists;
         var flags = CommandFlags.None;
 
@@ -191,7 +188,6 @@ public class OverloadCompatTests : TestBase
         db.SortedSetAdd(key, values, when: when, flags: flags);
 
         // Async
-
         await db.SortedSetAddAsync(key, val, score);
         await db.SortedSetAddAsync(key, val, score, when);
         await db.SortedSetAddAsync(key, val, score, when: when);
@@ -239,7 +235,6 @@ public class OverloadCompatTests : TestBase
         db.StringSet(key, val, null, When.NotExists, flags);
 
         // Async
-
         await db.StringSetAsync(key, val);
         await db.StringSetAsync(key, val, expiry: expiresIn);
         await db.StringSetAsync(key, val, when: when);

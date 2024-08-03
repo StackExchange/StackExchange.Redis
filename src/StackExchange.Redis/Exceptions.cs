@@ -50,6 +50,7 @@ namespace StackExchange.Redis
         {
             Commandstatus = info.GetValue("commandStatus", typeof(CommandStatus)) as CommandStatus? ?? CommandStatus.Unknown;
         }
+
         /// <summary>
         /// Serialization implementation; not intended for general usage.
         /// </summary>
@@ -73,7 +74,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="failureType">The type of connection failure.</param>
         /// <param name="message">The message for the exception.</param>
-        public RedisConnectionException(ConnectionFailureType failureType, string message) : this(failureType, message, null, CommandStatus.Unknown) {}
+        public RedisConnectionException(ConnectionFailureType failureType, string message) : this(failureType, message, null, CommandStatus.Unknown) { }
 
         /// <summary>
         /// Creates a new <see cref="RedisConnectionException"/>.
@@ -81,7 +82,7 @@ namespace StackExchange.Redis
         /// <param name="failureType">The type of connection failure.</param>
         /// <param name="message">The message for the exception.</param>
         /// <param name="innerException">The inner exception.</param>
-        public RedisConnectionException(ConnectionFailureType failureType, string message, Exception? innerException) : this(failureType, message, innerException, CommandStatus.Unknown) {}
+        public RedisConnectionException(ConnectionFailureType failureType, string message, Exception? innerException) : this(failureType, message, innerException, CommandStatus.Unknown) { }
 
         /// <summary>
         /// Creates a new <see cref="RedisConnectionException"/>.
@@ -111,6 +112,7 @@ namespace StackExchange.Redis
             FailureType = (ConnectionFailureType)info.GetInt32("failureType");
             CommandStatus = info.GetValue("commandStatus", typeof(CommandStatus)) as CommandStatus? ?? CommandStatus.Unknown;
         }
+
         /// <summary>
         /// Serialization implementation; not intended for general usage.
         /// </summary>

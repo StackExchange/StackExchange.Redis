@@ -8,7 +8,7 @@ namespace StackExchange.Redis.Tests;
 [Collection(SharedConnectionFixture.Key)]
 public class FloatingPointTests : TestBase
 {
-    public FloatingPointTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base (output, fixture) { }
+    public FloatingPointTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
 
     private static bool Within(double x, double y, double delta) => Math.Abs(x - y) <= delta;
 
@@ -22,16 +22,17 @@ public class FloatingPointTests : TestBase
         db.KeyDelete(key, CommandFlags.FireAndForget);
         double[] incr =
         {
-                12.134,
-                -14561.0000002,
-                125.3421,
-                -2.49892498
-            }, decr =
+            12.134,
+            -14561.0000002,
+            125.3421,
+            -2.49892498,
+        },
+        decr =
         {
-                99.312,
-                12,
-                -35
-            };
+            99.312,
+            12,
+            -35,
+        };
         double sum = 0;
         foreach (var value in incr)
         {
@@ -58,16 +59,17 @@ public class FloatingPointTests : TestBase
         db.KeyDelete(key, CommandFlags.FireAndForget);
         double[] incr =
         {
-                12.134,
-                -14561.0000002,
-                125.3421,
-                -2.49892498
-            }, decr =
+            12.134,
+            -14561.0000002,
+            125.3421,
+            -2.49892498,
+        },
+        decr =
         {
-                99.312,
-                12,
-                -35
-            };
+            99.312,
+            12,
+            -35,
+        };
         double sum = 0;
         foreach (var value in incr)
         {
@@ -95,16 +97,17 @@ public class FloatingPointTests : TestBase
         db.KeyDelete(key, CommandFlags.FireAndForget);
         double[] incr =
         {
-                12.134,
-                -14561.0000002,
-                125.3421,
-                -2.49892498
-            }, decr =
+            12.134,
+            -14561.0000002,
+            125.3421,
+            -2.49892498,
+        },
+        decr =
         {
-                99.312,
-                12,
-                -35
-            };
+            99.312,
+            12,
+            -35,
+        };
         double sum = 0;
         foreach (var value in incr)
         {
@@ -132,16 +135,17 @@ public class FloatingPointTests : TestBase
         db.KeyDelete(key, CommandFlags.FireAndForget);
         double[] incr =
         {
-                12.134,
-                -14561.0000002,
-                125.3421,
-                -2.49892498
-            }, decr =
+            12.134,
+            -14561.0000002,
+            125.3421,
+            -2.49892498,
+        },
+        decr =
         {
-                99.312,
-                12,
-                -35
-            };
+            99.312,
+            12,
+            -35,
+        };
         double sum = 0;
         foreach (var value in incr)
         {

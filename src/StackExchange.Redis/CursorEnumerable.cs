@@ -12,6 +12,7 @@ namespace StackExchange.Redis
     /// <summary>
     /// Provides the ability to iterate over a cursor-based sequence of redis data, synchronously or asynchronously.
     /// </summary>
+    /// <typeparam name="T">The type of the data in the cursor.</typeparam>
     internal abstract class CursorEnumerable<T> : IEnumerable<T>, IScanningCursor, IAsyncEnumerable<T>
     {
         private readonly RedisBase redis;
@@ -91,7 +92,8 @@ namespace StackExchange.Redis
             /// <summary>
             /// Gets the current value of the enumerator.
             /// </summary>
-            public T Current {
+            public T Current
+            {
                 [MethodImpl(MethodImplOptions.AggressiveInlining)]
                 get
                 {
@@ -165,7 +167,7 @@ namespace StackExchange.Redis
             {
                 _currentCursor = _nextCursor;
                 _nextCursor = result.Cursor;
-                _pageOffset = isInitial ? parent.initialOffset - 1 :  -1;
+                _pageOffset = isInitial ? parent.initialOffset - 1 : -1;
                 Recycle(ref _pageOversized, ref _isPooled); // recycle any existing data
                 _pageOversized = result.ValuesOversized ?? Array.Empty<T>();
                 _isPooled = result.IsPooled;
@@ -206,7 +208,7 @@ namespace StackExchange.Redis
             /// </summary>
             public ValueTask<bool> MoveNextAsync()
             {
-                if(SimpleNext()) return new ValueTask<bool>(true);
+                if (SimpleNext()) return new ValueTask<bool>(true);
                 return SlowNextAsync();
             }
 
@@ -274,7 +276,7 @@ namespace StackExchange.Redis
                     {
                         scanResult = await pending.ForAwait();
                     }
-                    catch(Exception ex)
+                    catch (Exception ex)
                     {
                         TryAppendExceptionState(ex);
                         throw;
@@ -344,8 +346,8 @@ namespace StackExchange.Redis
         private class SingleBlockEnumerable : CursorEnumerable<T>
         {
             private readonly Task<T[]> _pending;
-            public SingleBlockEnumerable(RedisBase redis, ServerEndPoint? server,
-                Task<T[]> pending, int pageOffset) : base(redis, server, 0, int.MaxValue, 0, pageOffset, default)
+            public SingleBlockEnumerable(RedisBase redis, ServerEndPoint? server, Task<T[]> pending, int pageOffset)
+                : base(redis, server, 0, int.MaxValue, 0, pageOffset, default)
             {
                 _pending = pending;
             }

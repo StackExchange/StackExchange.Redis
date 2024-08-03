@@ -132,8 +132,7 @@ public sealed class RespProtocolTests : TestBase
     [InlineData(@"return {1,2,3}", RedisProtocol.Resp2, ResultType.Array, ResultType.Array, ARR_123)]
     [InlineData("return nil", RedisProtocol.Resp2, ResultType.BulkString, ResultType.Null, null)]
     [InlineData(@"return redis.pcall('hgetall', 'key')", RedisProtocol.Resp2, ResultType.Array, ResultType.Array, MAP_ABC)]
-    [InlineData(@"redis.setresp(3)
-return redis.pcall('hgetall', 'key')", RedisProtocol.Resp2, ResultType.Array, ResultType.Array, MAP_ABC)]
+    [InlineData(@"redis.setresp(3) return redis.pcall('hgetall', 'key')", RedisProtocol.Resp2, ResultType.Array, ResultType.Array, MAP_ABC)]
     [InlineData("return true", RedisProtocol.Resp2, ResultType.Integer, ResultType.Integer, 1)]
     [InlineData("return false", RedisProtocol.Resp2, ResultType.BulkString, ResultType.Null, null)]
     [InlineData("redis.setresp(3) return true", RedisProtocol.Resp2, ResultType.Integer, ResultType.Integer, 1)]
@@ -148,8 +147,7 @@ return redis.pcall('hgetall', 'key')", RedisProtocol.Resp2, ResultType.Array, Re
     [InlineData("return {1,2,3}", RedisProtocol.Resp3, ResultType.Array, ResultType.Array, ARR_123)]
     [InlineData("return nil", RedisProtocol.Resp3, ResultType.BulkString, ResultType.Null, null)]
     [InlineData(@"return redis.pcall('hgetall', 'key')", RedisProtocol.Resp3, ResultType.Array, ResultType.Array, MAP_ABC)]
-    [InlineData(@"redis.setresp(3)
-return redis.pcall('hgetall', 'key')", RedisProtocol.Resp3, ResultType.Array, ResultType.Map, MAP_ABC)]
+    [InlineData(@"redis.setresp(3) return redis.pcall('hgetall', 'key')", RedisProtocol.Resp3, ResultType.Array, ResultType.Map, MAP_ABC)]
     [InlineData("return true", RedisProtocol.Resp3, ResultType.Integer, ResultType.Integer, 1)]
     [InlineData("return false", RedisProtocol.Resp3, ResultType.BulkString, ResultType.Null, null)]
     [InlineData("redis.setresp(3) return true", RedisProtocol.Resp3, ResultType.Integer, ResultType.Boolean, true)]
@@ -230,23 +228,20 @@ return redis.pcall('hgetall', 'key')", RedisProtocol.Resp3, ResultType.Array, Re
         }
     }
 
-
     [Theory]
-    //[InlineData("return 42", false, ResultType.Integer, ResultType.Integer, 42)]
-    //[InlineData("return 'abc'", false, ResultType.BulkString, ResultType.BulkString, "abc")]
-    //[InlineData(@"return {1,2,3}", false, ResultType.Array, ResultType.Array, ARR_123)]
-    //[InlineData("return nil", false, ResultType.BulkString, ResultType.Null, null)]
-    //[InlineData(@"return redis.pcall('hgetall', 'key')", false, ResultType.Array, ResultType.Array, MAP_ABC)]
-    //[InlineData("return true", false, ResultType.Integer, ResultType.Integer, 1)]
+    // [InlineData("return 42", false, ResultType.Integer, ResultType.Integer, 42)]
+    // [InlineData("return 'abc'", false, ResultType.BulkString, ResultType.BulkString, "abc")]
+    // [InlineData(@"return {1,2,3}", false, ResultType.Array, ResultType.Array, ARR_123)]
+    // [InlineData("return nil", false, ResultType.BulkString, ResultType.Null, null)]
+    // [InlineData(@"return redis.pcall('hgetall', 'key')", false, ResultType.Array, ResultType.Array, MAP_ABC)]
+    // [InlineData("return true", false, ResultType.Integer, ResultType.Integer, 1)]
 
-    //[InlineData("return 42", true, ResultType.Integer, ResultType.Integer, 42)]
-    //[InlineData("return 'abc'", true, ResultType.BulkString, ResultType.BulkString, "abc")]
-    //[InlineData("return {1,2,3}", true, ResultType.Array, ResultType.Array, ARR_123)]
-    //[InlineData("return nil", true, ResultType.BulkString, ResultType.Null, null)]
-    //[InlineData(@"return redis.pcall('hgetall', 'key')", true, ResultType.Array, ResultType.Array, MAP_ABC)]
-    //[InlineData("return true", true, ResultType.Integer, ResultType.Integer, 1)]
-
-
+    // [InlineData("return 42", true, ResultType.Integer, ResultType.Integer, 42)]
+    // [InlineData("return 'abc'", true, ResultType.BulkString, ResultType.BulkString, "abc")]
+    // [InlineData("return {1,2,3}", true, ResultType.Array, ResultType.Array, ARR_123)]
+    // [InlineData("return nil", true, ResultType.BulkString, ResultType.Null, null)]
+    // [InlineData(@"return redis.pcall('hgetall', 'key')", true, ResultType.Array, ResultType.Array, MAP_ABC)]
+    // [InlineData("return true", true, ResultType.Integer, ResultType.Integer, 1)]
     [InlineData("incrby", RedisProtocol.Resp2, ResultType.Integer, ResultType.Integer, 42, "ikey", 2)]
     [InlineData("incrby", RedisProtocol.Resp3, ResultType.Integer, ResultType.Integer, 42, "ikey", 2)]
     [InlineData("incrby", RedisProtocol.Resp2, ResultType.Integer, ResultType.Integer, 2, "nkey", 2)]
@@ -322,7 +317,7 @@ return redis.pcall('hgetall', 'key')", RedisProtocol.Resp3, ResultType.Array, Re
     {
         var muxer = Create(protocol: protocol);
         var ep = muxer.GetServerEndPoint(muxer.GetEndPoints().Single());
-        if (command == "debug" && args.Length > 0 && args[0] is "protocol" && !ep.GetFeatures().Resp3 /* v6 check */ )
+        if (command == "debug" && args.Length > 0 && args[0] is "protocol" && !ep.GetFeatures().Resp3 /* v6 check */)
         {
             Skip.Inconclusive("debug protocol not available");
         }
@@ -341,7 +336,7 @@ return redis.pcall('hgetall', 'key')", RedisProtocol.Resp3, ResultType.Array, Re
                     await db.SetAddAsync("skey", new RedisValue[] { "a", "b", "c" });
                     break;
                 case "hkey":
-                    await db.HashSetAsync("hkey", new HashEntry[] { new("a", 1), new("b", 2), new("c",3) });
+                    await db.HashSetAsync("hkey", new HashEntry[] { new("a", 1), new("b", 2), new("c", 3) });
                     break;
             }
         }
@@ -382,7 +377,7 @@ return redis.pcall('hgetall', 'key')", RedisProtocol.Resp3, ResultType.Array, Re
                 Log(scontent);
                 if (protocol == RedisProtocol.Resp3)
                 {
-                    Assert.Equal("txt", type); 
+                    Assert.Equal("txt", type);
                 }
                 else
                 {
@@ -418,14 +413,14 @@ return redis.pcall('hgetall', 'key')", RedisProtocol.Resp3, ResultType.Array, Re
                 Assert.Equal(b ? 1 : 0, result.AsInt64());
                 break;
         }
-
-
     }
 
+#pragma warning disable SA1310 // Field names should not contain underscore
     private const string SET_ABC = nameof(SET_ABC);
     private const string ARR_123 = nameof(ARR_123);
     private const string MAP_ABC = nameof(MAP_ABC);
     private const string EMPTY_ARR = nameof(EMPTY_ARR);
     private const string STR_DAVE = nameof(STR_DAVE);
     private const string ANY = nameof(ANY);
+#pragma warning restore SA1310 // Field names should not contain underscore
 }

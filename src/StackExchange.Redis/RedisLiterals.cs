@@ -2,6 +2,8 @@
 
 namespace StackExchange.Redis
 {
+#pragma warning disable SA1310 // Field names should not contain underscore
+#pragma warning disable SA1311 // Static readonly fields should begin with upper-case letter
     internal static class CommonReplies
     {
         public static readonly CommandBytes
@@ -153,14 +155,14 @@ namespace StackExchange.Redis
             REPLICAS = "REPLICAS",
             SLAVES = "SLAVES",
             GETMASTERADDRBYNAME = "GET-MASTER-ADDR-BY-NAME",
-            //            RESET = "RESET",
+            // RESET = "RESET",
             FAILOVER = "FAILOVER",
             SENTINELS = "SENTINELS",
 
             // Sentinel Literals as of 2.8.4
             MONITOR = "MONITOR",
             REMOVE = "REMOVE",
-            //            SET = "SET",
+            // SET = "SET",
 
             // replication states
             connect = "connect",
@@ -215,4 +217,6 @@ namespace StackExchange.Redis
             _ => throw new ArgumentOutOfRangeException(nameof(operation)),
         };
     }
+#pragma warning restore SA1310 // Field names should not contain underscore
+#pragma warning restore SA1311 // Static readonly fields should begin with upper-case letter
 }

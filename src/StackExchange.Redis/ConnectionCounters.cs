@@ -71,7 +71,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// The number of subscriptions (with and without patterns) currently held against this connection.
         /// </summary>
-        public long Subscriptions { get;internal set; }
+        public long Subscriptions { get; internal set; }
 
         /// <summary>
         /// Indicates the total number of outstanding items against this connection.

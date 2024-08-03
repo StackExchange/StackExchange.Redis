@@ -3,7 +3,7 @@
 namespace StackExchange.Redis;
 
 /// <summary>
-/// A latency entry as reported by the built-in LATENCY HISTORY command
+/// A latency entry as reported by the built-in LATENCY HISTORY command.
 /// </summary>
 public readonly struct LatencyHistoryEntry
 {
@@ -30,12 +30,12 @@ public readonly struct LatencyHistoryEntry
     }
 
     /// <summary>
-    /// The time at which this entry was recorded
+    /// The time at which this entry was recorded.
     /// </summary>
     public DateTime Timestamp { get; }
 
     /// <summary>
-    /// The latency recorded for this event
+    /// The latency recorded for this event.
     /// </summary>
     public int DurationMilliseconds { get; }
 

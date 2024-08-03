@@ -527,7 +527,6 @@ public class StringTests : TestBase
         Assert.Equal(6, r3);
 
         // Async
-
         r1 = await db.StringBitCountAsync(key);
         r2 = await db.StringBitCountAsync(key, 0, 0);
         r3 = await db.StringBitCountAsync(key, 1, 1);
@@ -554,7 +553,6 @@ public class StringTests : TestBase
         Assert.Equal(1, r2);
 
         // Async
-
         r1 = await db.StringBitCountAsync(key, 1, 1); // Using default byte
         r2 = await db.StringBitCountAsync(key, 1, 1, StringIndexType.Bit);
 
@@ -616,7 +614,6 @@ public class StringTests : TestBase
         Assert.Equal(9, r3);
 
         // Async
-
         r1 = await db.StringBitPositionAsync(key, true);
         r2 = await db.StringBitPositionAsync(key, true, 10, 10);
         r3 = await db.StringBitPositionAsync(key, true, 1, 3);
@@ -669,7 +666,6 @@ public class StringTests : TestBase
         Assert.Equal(value.Length, await resAsync);
         Assert.Equal(0, await resNonExistingAsync);
     }
-
 
     [Fact]
     public void HashStringLength()

@@ -6,7 +6,7 @@ namespace StackExchange.Redis.Tests;
 
 public class ExceptionFactoryTests : TestBase
 {
-    public ExceptionFactoryTests(ITestOutputHelper output) : base (output) { }
+    public ExceptionFactoryTests(ITestOutputHelper output) : base(output) { }
 
     [Fact]
     public void NullLastException()
@@ -163,7 +163,7 @@ public class ExceptionFactoryTests : TestBase
                 BacklogPolicy = BacklogPolicy.FailFast,
                 ConnectTimeout = 1000,
                 SyncTimeout = 500,
-                KeepAlive = 5000
+                KeepAlive = 5000,
             };
 
             ConnectionMultiplexer conn;

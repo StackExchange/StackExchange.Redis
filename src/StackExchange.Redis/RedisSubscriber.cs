@@ -148,7 +148,7 @@ namespace StackExchange.Redis
         internal enum SubscriptionAction
         {
             Subscribe,
-            Unsubscribe
+            Unsubscribe,
         }
 
         /// <summary>
@@ -396,7 +396,6 @@ namespace StackExchange.Redis
             if (sub.IsConnected) { return true; }
 
             // TODO: Cleanup old hangers here?
-
             sub.SetCurrentServer(null); // we're not appropriately connected, so blank it out for eligible reconnection
             var message = sub.GetMessage(channel, SubscriptionAction.Subscribe, flags, internalCall);
             var selected = multiplexer.SelectServer(message);
@@ -428,7 +427,6 @@ namespace StackExchange.Redis
             if (sub.IsConnected) { return CompletedTask<bool>.Default(null); }
 
             // TODO: Cleanup old hangers here?
-
             sub.SetCurrentServer(null); // we're not appropriately connected, so blank it out for eligible reconnection
             var message = sub.GetMessage(channel, SubscriptionAction.Subscribe, flags, internalCall);
             var selected = multiplexer.SelectServer(message);

@@ -102,8 +102,8 @@ namespace StackExchange.Redis
 
             if (server != null)
             {
-                //if we already have the serverEndpoint for connection failure use that
-                //otherwise it would output state of all the endpoints
+                // If we already have the serverEndpoint for connection failure use that,
+                // otherwise it would output state of all the endpoints.
                 serverSnapshot = new ServerEndPoint[] { server };
             }
 
@@ -283,11 +283,11 @@ namespace StackExchange.Redis
             Exception ex = logConnectionException && lastConnectionException is not null
                 ? new RedisConnectionException(lastConnectionException.FailureType, sb.ToString(), lastConnectionException, message?.Status ?? CommandStatus.Unknown)
                 {
-                    HelpLink = TimeoutHelpLink
+                    HelpLink = TimeoutHelpLink,
                 }
                 : new RedisTimeoutException(sb.ToString(), message?.Status ?? CommandStatus.Unknown)
                 {
-                    HelpLink = TimeoutHelpLink
+                    HelpLink = TimeoutHelpLink,
                 };
             CopyDataToException(data, ex);
 
@@ -312,8 +312,7 @@ namespace StackExchange.Redis
             StringBuilder sb,
             Message? message,
             ConnectionMultiplexer multiplexer,
-            ServerEndPoint? server
-            )
+            ServerEndPoint? server)
         {
             if (message != null)
             {
@@ -325,7 +324,7 @@ namespace StackExchange.Redis
             // Add server data, if we have it
             if (server != null && message != null)
             {
-                var bs = server.GetBridgeStatus(message.IsForSubscriptionBridge ? ConnectionType.Subscription: ConnectionType.Interactive);
+                var bs = server.GetBridgeStatus(message.IsForSubscriptionBridge ? ConnectionType.Subscription : ConnectionType.Interactive);
 
                 switch (bs.Connection.ReadStatus)
                 {

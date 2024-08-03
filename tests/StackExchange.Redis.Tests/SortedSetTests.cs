@@ -22,7 +22,7 @@ public class SortedSetTests : TestBase
         new SortedSetEntry("g", 7),
         new SortedSetEntry("h", 8),
         new SortedSetEntry("i", 9),
-        new SortedSetEntry("j", 10)
+        new SortedSetEntry("j", 10),
     };
 
     private static readonly SortedSetEntry[] entriesPow2 = new SortedSetEntry[]
@@ -36,7 +36,7 @@ public class SortedSetTests : TestBase
         new SortedSetEntry("g", 64),
         new SortedSetEntry("h", 128),
         new SortedSetEntry("i", 256),
-        new SortedSetEntry("j", 512)
+        new SortedSetEntry("j", 512),
     };
 
     private static readonly SortedSetEntry[] entriesPow3 = new SortedSetEntry[]
@@ -59,7 +59,7 @@ public class SortedSetTests : TestBase
         new SortedSetEntry("g", 0),
         new SortedSetEntry("h", 0),
         new SortedSetEntry("i", 0),
-        new SortedSetEntry("j", 0)
+        new SortedSetEntry("j", 0),
     };
 
     [Fact]
@@ -1051,7 +1051,10 @@ public class SortedSetTests : TestBase
         var key = Me();
         db.KeyDelete(key);
 
-        db.SortedSetAdd(key, new SortedSetEntry[] {
+        db.SortedSetAdd(
+            key,
+            new SortedSetEntry[]
+            {
                 new SortedSetEntry("rays", 100),
                 new SortedSetEntry("yankees", 92),
                 new SortedSetEntry("red sox", 92),
@@ -1085,7 +1088,10 @@ public class SortedSetTests : TestBase
         var key = Me();
         db.KeyDelete(key);
 
-        db.SortedSetAdd(key, new SortedSetEntry[] {
+        db.SortedSetAdd(
+            key,
+            new SortedSetEntry[]
+            {
                 new SortedSetEntry("rays", 100),
                 new SortedSetEntry("yankees", 92),
                 new SortedSetEntry("red sox", 92),
@@ -1143,7 +1149,10 @@ public class SortedSetTests : TestBase
         var key = Me();
         db.KeyDelete(key);
 
-        db.SortedSetAdd(key, new SortedSetEntry[] {
+        db.SortedSetAdd(
+            key,
+            new SortedSetEntry[]
+            {
                 new SortedSetEntry("rays", 100),
                 new SortedSetEntry("yankees", 92),
                 new SortedSetEntry("red sox", 92),
@@ -1451,7 +1460,7 @@ public class SortedSetTests : TestBase
         var db = conn.GetDatabase();
         var key = Me();
         var member = "a";
-        var values = new SortedSetEntry[] {new SortedSetEntry(member, 5)};
+        var values = new SortedSetEntry[] { new SortedSetEntry(member, 5) };
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.SortedSetAdd(key, member, 2);
 
@@ -1459,6 +1468,6 @@ public class SortedSetTests : TestBase
         Assert.Equal(1, db.SortedSetUpdate(key, values));
 
         Assert.True(await db.SortedSetUpdateAsync(key, member, 1));
-        Assert.Equal(1,await db.SortedSetUpdateAsync(key, values));
+        Assert.Equal(1, await db.SortedSetUpdateAsync(key, values));
     }
 }

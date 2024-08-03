@@ -9,7 +9,7 @@ namespace StackExchange.Redis.Tests;
 
 public class ConnectByIPTests : TestBase
 {
-    public ConnectByIPTests(ITestOutputHelper output) : base (output) { }
+    public ConnectByIPTests(ITestOutputHelper output) : base(output) { }
 
     [Fact]
     public void ParseEndpoints()
@@ -18,7 +18,7 @@ public class ConnectByIPTests : TestBase
         {
             { "127.0.0.1", 1000 },
             { "::1", 1001 },
-            { "localhost", 1002 }
+            { "localhost", 1002 },
         };
 
         Assert.Equal(AddressFamily.InterNetwork, eps[0].AddressFamily);
@@ -35,7 +35,7 @@ public class ConnectByIPTests : TestBase
     {
         var config = new ConfigurationOptions
         {
-            EndPoints = { { TestConfig.Current.IPv4Server, TestConfig.Current.IPv4Port } }
+            EndPoints = { { TestConfig.Current.IPv4Server, TestConfig.Current.IPv4Port } },
         };
         using var conn = ConnectionMultiplexer.Connect(config);
 
@@ -49,7 +49,7 @@ public class ConnectByIPTests : TestBase
     {
         var config = new ConfigurationOptions
         {
-            EndPoints = { { TestConfig.Current.IPv6Server, TestConfig.Current.IPv6Port } }
+            EndPoints = { { TestConfig.Current.IPv6Server, TestConfig.Current.IPv6Port } },
         };
         using var conn = ConnectionMultiplexer.Connect(config);
 
@@ -65,7 +65,7 @@ public class ConnectByIPTests : TestBase
         Assert.Equal(expectedFamily, ep.AddressFamily);
         var config = new ConfigurationOptions
         {
-            EndPoints = { ep }
+            EndPoints = { ep },
         };
         if (ep.AddressFamily != AddressFamily.InterNetworkV6) // I don't have IPv6 servers
         {

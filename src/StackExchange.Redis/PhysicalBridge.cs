@@ -49,7 +49,7 @@ namespace StackExchange.Redis
         private volatile bool isDisposed;
         private long nonPreferredEndpointCount;
 
-        //private volatile int missedHeartbeats;
+        // private volatile int missedHeartbeats;
         private long operationCount, socketCount;
         private volatile PhysicalConnection? physical;
 
@@ -63,7 +63,7 @@ namespace StackExchange.Redis
         internal long? ConnectionId => physical?.ConnectionId;
 
 #if NETCOREAPP
-        private readonly SemaphoreSlim _singleWriterMutex = new(1,1);
+        private readonly SemaphoreSlim _singleWriterMutex = new(1, 1);
 #else
         private readonly MutexSlim _singleWriterMutex;
 #endif
@@ -98,7 +98,7 @@ namespace StackExchange.Redis
             Connecting,
             ConnectedEstablishing,
             ConnectedEstablished,
-            Disconnected
+            Disconnected,
         }
 
         public Exception? LastException { get; private set; }
@@ -123,7 +123,7 @@ namespace StackExchange.Redis
         public RedisCommand LastCommand { get; private set; }
 
         /// <summary>
-        /// If we have a connection, report the protocol being used
+        /// If we have a connection, report the protocol being used.
         /// </summary>
         public RedisProtocol? Protocol => physical?.Protocol;
 
@@ -292,10 +292,12 @@ namespace StackExchange.Redis
             /// Number of messages sent since the last heartbeat was processed.
             /// </summary>
             public int MessagesSinceLastHeartbeat { get; init; }
+
             /// <summary>
             /// The time this connection was connected at, if it's connected currently.
             /// </summary>
             public DateTime? ConnectedAt { get; init; }
+
             /// <summary>
             /// Whether the pipe writer is currently active.
             /// </summary>
@@ -310,10 +312,12 @@ namespace StackExchange.Redis
             /// The number of messages that are in the backlog queue (waiting to be sent when the connection is healthy again).
             /// </summary>
             public int BacklogMessagesPending { get; init; }
+
             /// <summary>
             /// The number of messages that are in the backlog queue (waiting to be sent when the connection is healthy again).
             /// </summary>
             public int BacklogMessagesPendingCounter { get; init; }
+
             /// <summary>
             /// The number of messages ever added to the backlog queue in the life of this connection.
             /// </summary>
@@ -392,8 +396,7 @@ namespace StackExchange.Redis
                     }
                     else if (commandMap.IsAvailable(RedisCommand.UNSUBSCRIBE))
                     {
-                        msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.UNSUBSCRIBE,
-                            RedisChannel.Literal(Multiplexer.UniqueId));
+                        msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.UNSUBSCRIBE, RedisChannel.Literal(Multiplexer.UniqueId));
                         msg.SetSource(ResultProcessor.TrackSubscriptions, null);
                     }
                     break;
@@ -478,7 +481,7 @@ namespace StackExchange.Redis
 
             oldState = default(State); // only defined when isCurrent = true
             ConnectedAt = default;
-            if (isCurrent = (physical == connection))
+            if (isCurrent = physical == connection)
             {
                 Trace("Bridge noting disconnect from active connection" + (isDisposed ? " (disposed)" : ""));
                 oldState = ChangeState(State.Disconnected);
@@ -745,8 +748,8 @@ namespace StackExchange.Redis
                         message.Complete();
                         return result;
                     }
-                    //The parent message (next) may be returned from GetMessages
-                    //and should not be marked as sent again below
+                    // The parent message (next) may be returned from GetMessages
+                    // and should not be marked as sent again below.
                     messageIsSent = messageIsSent || subCommand == message;
                 }
                 if (!messageIsSent)
@@ -840,7 +843,6 @@ namespace StackExchange.Redis
             // In the handshake case: send the command directly through.
             // If we're disconnected *in the middle of a handshake*, we've bombed a brand new socket and failing,
             // backing off, and retrying next heartbeat is best anyway.
-            // 
             // Internal calls also shouldn't queue - try immediately. If these aren't errors (most aren't), we
             // won't alert the user.
             if (bypassBacklog || message.IsInternalCall)
@@ -848,9 +850,9 @@ namespace StackExchange.Redis
                 return false;
             }
 
-            // Note, for deciding emptiness for whether to push onlyIfExists, and start worker, 
-            // we only need care if WE are able to 
-            // see the queue when its empty. Not whether anyone else sees it as empty.
+            // Note, for deciding emptiness for whether to push onlyIfExists, and start worker,
+            // we only need care if WE are able to see the queue when its empty.
+            // Not whether anyone else sees it as empty.
             // So strong synchronization is not required.
             if (onlyIfExists && Volatile.Read(ref _backlogCurrentEnqueued) == 0)
             {
@@ -988,6 +990,7 @@ namespace StackExchange.Redis
         }
 
         private volatile BacklogStatus _backlogStatus;
+
         /// <summary>
         /// Process the backlog(s) in play if any.
         /// This means flushing commands to an available/active connection (if any) or spinning until timeout if not.
@@ -1312,7 +1315,8 @@ namespace StackExchange.Redis
 #else
             ValueTask<LockToken> pending,
 #endif
-            PhysicalConnection physical, Message message)
+            PhysicalConnection physical,
+            Message message)
         {
 #if NETCOREAPP
             bool gotLock = false;
@@ -1353,6 +1357,7 @@ namespace StackExchange.Redis
             }
         }
 
+        [SuppressMessage("StyleCop.CSharp.LayoutRules", "SA1519:Braces should not be omitted from multi-line child statement", Justification = "Detector is confused with the #ifdefs here")]
         private async ValueTask<WriteResult> CompleteWriteAndReleaseLockAsync(
 #if !NETCOREAPP
             LockToken lockToken,
@@ -1503,7 +1508,7 @@ namespace StackExchange.Redis
                 {
                     throw ExceptionFactory.PrimaryOnly(Multiplexer.RawConfig.IncludeDetailInExceptions, message.Command, message, ServerEndPoint);
                 }
-                switch(cmd)
+                switch (cmd)
                 {
                     case RedisCommand.QUIT:
                         connection.RecordQuit();
@@ -1519,7 +1524,7 @@ namespace StackExchange.Redis
                 {
                     // If we are executing AUTH, it means we are still unauthenticated
                     // Setting READONLY before AUTH always fails but we think it succeeded since
-                    // we run it as Fire and Forget. 
+                    // we run it as Fire and Forget.
                     if (cmd != RedisCommand.AUTH && cmd != RedisCommand.HELLO)
                     {
                         var readmode = connection.GetReadModeCommand(isPrimaryOnly);
@@ -1555,8 +1560,7 @@ namespace StackExchange.Redis
 
                 if (_nextHighIntegrityToken is not 0
                     && !connection.TransactionActive // validated in the UNWATCH/EXEC/DISCARD
-                    && message.Command is not RedisCommand.AUTH or RedisCommand.HELLO // if auth fails, ECHO may also fail; avoid confusion
-                    )
+                    && message.Command is not RedisCommand.AUTH or RedisCommand.HELLO) // if auth fails, ECHO may also fail; avoid confusion
                 {
                     // make sure this value exists early to avoid a race condition
                     // if the response comes back super quickly
@@ -1607,8 +1611,8 @@ namespace StackExchange.Redis
                 Trace("Write failed: " + ex.Message);
                 message.Fail(ConnectionFailureType.InternalFailure, ex, null, Multiplexer);
                 message.Complete();
-                // This failed without actually writing; we're OK with that... unless there's a transaction
 
+                // This failed without actually writing; we're OK with that... unless there's a transaction
                 if (connection?.TransactionActive == true)
                 {
                     // We left it in a broken state - need to kill the connection
@@ -1645,7 +1649,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// For testing only
+        /// For testing only.
         /// </summary>
         internal void SimulateConnectionFailure(SimulatedFailureType failureType)
         {

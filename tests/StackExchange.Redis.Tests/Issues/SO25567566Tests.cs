@@ -47,8 +47,8 @@ public class SO25567566Tests : TestBase
 
         var exec = tran.ExecuteAsync();
         // SWAP THESE TWO
+        // bool ok = true;
         bool ok = await Task.WhenAny(exec, timeout).ForAwait() == exec;
-        //bool ok = true;
 
         if (ok)
         {

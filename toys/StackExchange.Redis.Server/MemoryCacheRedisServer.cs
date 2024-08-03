@@ -18,7 +18,7 @@ namespace StackExchange.Redis.Server
         {
             var old = _cache;
             _cache = new MemoryCache(GetType().Name);
-            if (old != null) old.Dispose();
+            old?.Dispose();
         }
 
         protected override void Dispose(bool disposing)
@@ -100,7 +100,7 @@ namespace StackExchange.Redis.Server
             if (stack == null) return RedisValue.Null;
 
             var val = stack.Pop();
-            if(stack.Count == 0) _cache.Remove(key);
+            if (stack.Count == 0) _cache.Remove(key);
             return val;
         }
 

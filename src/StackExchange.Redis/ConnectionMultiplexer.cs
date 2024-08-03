@@ -1,7 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
-using Pipelines.Sockets.Unofficial;
-using StackExchange.Redis.Profiling;
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -14,6 +11,9 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
+using Pipelines.Sockets.Unofficial;
+using StackExchange.Redis.Profiling;
 
 namespace StackExchange.Redis
 {
@@ -70,9 +70,7 @@ namespace StackExchange.Redis
         internal static long LastGlobalHeartbeatSecondsAgo =>
             unchecked(Environment.TickCount - Thread.VolatileRead(ref lastGlobalHeartbeatTicks)) / 1000;
 
-        /// <summary>
-        /// Should exceptions include identifiable details? (key names, additional .Data annotations)
-        /// </summary>
+        /// <inheritdoc cref="ConfigurationOptions.IncludeDetailInExceptions"/>
         [Obsolete($"Please use {nameof(ConfigurationOptions)}.{nameof(ConfigurationOptions.IncludeDetailInExceptions)} instead - this will be removed in 3.0.")]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         public bool IncludeDetailInExceptions
@@ -81,12 +79,7 @@ namespace StackExchange.Redis
             set => RawConfig.IncludeDetailInExceptions = value;
         }
 
-        /// <summary>
-        /// Should exceptions include performance counter details?
-        /// </summary>
-        /// <remarks>
-        /// CPU usage, etc - note that this can be problematic on some platforms.
-        /// </remarks>
+        /// <inheritdoc cref="ConfigurationOptions.IncludePerformanceCountersInExceptions"/>
         [Obsolete($"Please use {nameof(ConfigurationOptions)}.{nameof(ConfigurationOptions.IncludePerformanceCountersInExceptions)} instead - this will be removed in 3.0.")]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         public bool IncludePerformanceCountersInExceptions
@@ -858,7 +851,7 @@ namespace StackExchange.Redis
             public ServerSnapshotFiltered Where(CommandFlags flags)
             {
                 var effectiveFlags = flags & (CommandFlags.DemandMaster | CommandFlags.DemandReplica);
-                return (effectiveFlags) switch
+                return effectiveFlags switch
                 {
                     CommandFlags.DemandMaster => Where(static s => !s.IsReplica),
                     CommandFlags.DemandReplica => Where(static s => s.IsReplica),
@@ -1021,7 +1014,6 @@ namespace StackExchange.Redis
             // outstanding messages; if the consumer has dropped the multiplexer, then
             // there will be no new incoming messages, and after timeouts: everything
             // should drop.
-
             public void Root(ConnectionMultiplexer multiplexer)
             {
                 lock (StrongRefSyncLock)
@@ -1074,7 +1066,8 @@ namespace StackExchange.Redis
                     }
                 }
                 if (isRooted && !hasPendingCallerFacingItems)
-                {   // release the GC root on the heartbeat *if* the token still matches
+                {
+                    // release the GC root on the heartbeat *if* the token still matches
                     pulse?.UnRoot(token);
                 }
             }
@@ -1483,7 +1476,7 @@ namespace StackExchange.Redis
                             Trace("Testing: " + Format.ToString(endpoints[i]));
 
                             var server = GetServerEndPoint(endpoints[i]);
-                            //server.ReportNextFailure();
+                            // server.ReportNextFailure();
                             servers[i] = server;
 
                             // This awaits either the endpoint's initial connection, or a tracer if we're already connected
@@ -1695,8 +1688,9 @@ namespace StackExchange.Redis
                         ResetAllNonConnected();
                         log?.LogInformation($"  Retrying - attempts left: {attemptsLeft}...");
                     }
-                    //WTF("?: " + attempts);
-                } while (first && !healthy && attemptsLeft > 0);
+                    // WTF("?: " + attempts);
+                }
+                while (first && !healthy && attemptsLeft > 0);
 
                 if (first && RawConfig.AbortOnConnectFail && !healthy)
                 {

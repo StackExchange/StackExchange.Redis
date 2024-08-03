@@ -30,7 +30,10 @@ namespace RedisSharp
 
         public enum KeyType
         {
-            None, String, List, Set
+            None,
+            String,
+            List,
+            Set,
         }
 
         public class ResponseException : Exception
@@ -217,7 +220,7 @@ namespace RedisSharp
             socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp)
             {
                 NoDelay = true,
-                SendTimeout = SendTimeout
+                SendTimeout = SendTimeout,
             };
             socket.Connect(Host, Port);
             if (!socket.Connected)
@@ -232,7 +235,7 @@ namespace RedisSharp
                 SendExpectSuccess("AUTH {0}\r\n", Password);
         }
 
-        private readonly byte[] end_data = new byte[] { (byte)'\r', (byte)'\n' };
+        private readonly byte[] endData = new byte[] { (byte)'\r', (byte)'\n' };
 
         private bool SendDataCommand(byte[] data, string cmd, params object[] args)
         {
@@ -250,7 +253,7 @@ namespace RedisSharp
                 if (data != null)
                 {
                     socket.Send(data);
-                    socket.Send(end_data);
+                    socket.Send(endData);
                 }
             }
             catch (SocketException)
@@ -380,9 +383,7 @@ namespace RedisSharp
             throw new ResponseException("Unknown reply on integer request: " + c + s);
         }
 
-        //
         // This one does not throw errors
-        //
         private string SendGetString(string cmd, params object[] args)
         {
             if (!SendCommand(cmd, args))
@@ -435,7 +436,7 @@ namespace RedisSharp
                 throw new ResponseException("Invalid length");
             }
 
-            //returns the number of matches
+            // returns the number of matches
             if (c == '*')
             {
                 if (int.TryParse(r.Substring(1), out int n))
