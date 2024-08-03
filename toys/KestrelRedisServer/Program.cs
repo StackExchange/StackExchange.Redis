@@ -1,25 +1,41 @@
-﻿using Microsoft.AspNetCore;
+﻿using KestrelRedisServer;
 using Microsoft.AspNetCore.Connections;
-using Microsoft.AspNetCore.Hosting;
+using StackExchange.Redis.Server;
 
-namespace KestrelRedisServer
+var server = new MemoryCacheRedisServer();
+
+var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddSingleton<RespServer>(server);
+builder.WebHost.ConfigureKestrel(options =>
 {
-    public static class Program
+    // HTTP 5000 (test/debug API only)
+    options.ListenLocalhost(5000);
+
+    // this is the core of using Kestrel to create a TCP server
+    // TCP 6379
+    options.ListenLocalhost(6379, builder => builder.UseConnectionHandler<RedisConnectionHandler>());
+});
+
+var app = builder.Build();
+
+// redis-specific hack - there is a redis command to shutdown the server
+_ = server.Shutdown.ContinueWith(
+    static (t, s) =>
     {
-        public static void Main(string[] args) => CreateWebHostBuilder(args).Build().Run();
+        try
+        {
+            // if the resp server is shutdown by a client: stop the kestrel server too
+            if (t.Result == RespServer.ShutdownReason.ClientInitiated)
+            {
+                ((IServiceProvider)s!).GetService<IHostApplicationLifetime>()?.StopApplication();
+            }
+        }
+        catch { /* Don't go boom on shutdown */ }
+    },
+    app.Services);
 
-        public static IWebHostBuilder CreateWebHostBuilder(string[] args) =>
-            WebHost.CreateDefaultBuilder(args)
-                .UseKestrel(options =>
-                {
-                    // Moved to SocketTransportOptions.UnsafePreferInlineScheduling = true;
-                    // options.ApplicationSchedulingMode = SchedulingMode.Inline;
+// add debug route
+app.Run(context => context.Response.WriteAsync(server.GetStats()));
 
-                    // HTTP 5000
-                    options.ListenLocalhost(5000);
-
-                    // TCP 6379
-                    options.ListenLocalhost(6379, builder => builder.UseConnectionHandler<RedisConnectionHandler>());
-                }).UseStartup<Startup>();
-    }
-}
+// run the server
+await app.RunAsync();
