@@ -115,6 +115,7 @@ public class NamingTests : TestBase
             case nameof(IDatabase.SetScan):
             case nameof(IDatabase.SortedSetScan):
             case nameof(IDatabase.HashScan):
+            case nameof(IDatabase.HashScanNoValues):
             case nameof(ISubscriber.SubscribedEndpoint):
                 return true;
         }

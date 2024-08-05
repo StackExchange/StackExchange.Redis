@@ -112,6 +112,7 @@ namespace StackExchange.Redis
             NODES = "NODES",
             NOSAVE = "NOSAVE",
             NOT = "NOT",
+            NOVALUES = "NOVALUES",
             NUMPAT = "NUMPAT",
             NUMSUB = "NUMSUB",
             NX = "NX",
