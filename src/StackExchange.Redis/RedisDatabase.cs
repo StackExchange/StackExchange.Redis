@@ -547,9 +547,6 @@ namespace StackExchange.Redis
             throw ExceptionFactory.NotSupported(true, RedisCommand.HSCAN);
         }
 
-        IEnumerable<RedisValue> IDatabase.HashScanNoValues(RedisKey key, RedisValue pattern, int pageSize, CommandFlags flags)
-             => HashScanNoValuesAsync(key, pattern, pageSize, CursorUtils.Origin, 0, flags);
-
         IEnumerable<RedisValue> IDatabase.HashScanNoValues(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags)
             => HashScanNoValuesAsync(key, pattern, pageSize, cursor, pageOffset, flags);
 

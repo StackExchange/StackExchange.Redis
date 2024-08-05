@@ -471,17 +471,6 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// The HSCAN command is used to incrementally iterate over a hash and return only field names.
-        /// </summary>
-        /// <param name="key">The key of the hash.</param>
-        /// <param name="pattern">The pattern of keys to get entries for.</param>
-        /// <param name="pageSize">The page size to iterate by.</param>
-        /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>Yields all elements of the hash matching the pattern.</returns>
-        /// <remarks><seealso href="https://redis.io/commands/hscan"/></remarks>
-        IEnumerable<RedisValue> HashScanNoValues(RedisKey key, RedisValue pattern, int pageSize, CommandFlags flags);
-
-        /// <summary>
-        /// The HSCAN command is used to incrementally iterate over a hash and return only field names.
         /// Note: to resume an iteration via <i>cursor</i>, cast the original enumerable or enumerator to <see cref="IScanningCursor"/>.
         /// </summary>
         /// <param name="key">The key of the hash.</param>

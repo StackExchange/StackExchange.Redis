@@ -166,7 +166,7 @@ public sealed class KeyPrefixedDatabaseTests
     public void HashScanNoValues()
     {
         prefixed.HashScanNoValues("key", "pattern", 123, flags: CommandFlags.None);
-        mock.Received().HashScanNoValues("prefix:key", "pattern", 123, CommandFlags.None);
+        mock.Received().HashScanNoValues("prefix:key", "pattern", 123, flags: CommandFlags.None);
     }
 
     [Fact]
