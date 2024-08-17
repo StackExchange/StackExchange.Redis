@@ -56,7 +56,7 @@ public class PubSubTests : TestBase
     [InlineData(null, true, "d")]
     [InlineData("", true, "e")]
     [InlineData("Foo:", true, "f")]
-    public async Task TestBasicPubSub(string channelPrefix, bool wildCard, string breaker)
+    public async Task TestBasicPubSub(string? channelPrefix, bool wildCard, string breaker)
     {
         using var conn = Create(channelPrefix: channelPrefix, shared: false, log: Writer);
 

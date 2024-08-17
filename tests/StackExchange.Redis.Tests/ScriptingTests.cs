@@ -1021,7 +1021,7 @@ return arr;
     [InlineData("$29c3804401b0727f70f73d4415e162400cbe57b", false)]
     [InlineData("829c3804401b0727f70f73d4415e162400cbe57", false)]
     [InlineData("829c3804401b0727f70f73d4415e162400cbe57bb", false)]
-    public void Sha1Detection(string candidate, bool isSha)
+    public void Sha1Detection(string? candidate, bool isSha)
     {
         Assert.Equal(isSha, ResultProcessor.ScriptLoadProcessor.IsSHA1(candidate));
     }

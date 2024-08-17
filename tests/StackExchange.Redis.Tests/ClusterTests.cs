@@ -365,7 +365,7 @@ public class ClusterTests : TestBase
     [InlineData(null, 100)]
     [InlineData("abc", 10)]
     [InlineData("abc", 100)]
-    public void Keys(string pattern, int pageSize)
+    public void Keys(string? pattern, int pageSize)
     {
         using var conn = Create(allowAdmin: true);
 

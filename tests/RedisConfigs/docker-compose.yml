@@ -20,5 +20,7 @@ services:
       context: .docker/Envoy
     image: stackexchange/redis-tests-envoy:latest
     platform: linux
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -p 7015 ping | grep PONG"]
     ports:
       - 7015:7015

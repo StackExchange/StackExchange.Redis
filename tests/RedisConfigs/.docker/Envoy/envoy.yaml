@@ -23,14 +23,14 @@ static_resources:
             enable_redirection: true
           prefix_routes:
             catch_all_route:
-              cluster: standalone_redis
+              cluster: cluster_redis
   clusters:
-  - name: standalone_redis
+  - name: cluster_redis
     connect_timeout: 1s
     type: STRICT_DNS
     dns_lookup_family: V4_ONLY
     load_assignment:
-        cluster_name: standalone_redis
+        cluster_name: cluster_redis
         endpoints:
         - lb_endpoints: 
           - endpoint:

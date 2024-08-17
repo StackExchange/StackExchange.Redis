@@ -156,7 +156,7 @@ public sealed class RespProtocolTests : TestBase
     [InlineData("return { map = { a = 1, b = 2, c = 3 } }", RedisProtocol.Resp3, ResultType.Array, ResultType.Map, MAP_ABC, 6)]
     [InlineData("return { set = { a = 1, b = 2, c = 3 } }", RedisProtocol.Resp3, ResultType.Array, ResultType.Set, SET_ABC, 6)]
     [InlineData("return { double = 42 }", RedisProtocol.Resp3, ResultType.SimpleString, ResultType.Double, 42.0, 6)]
-    public async Task CheckLuaResult(string script, RedisProtocol protocol, ResultType resp2, ResultType resp3, object expected, int serverMin = 1)
+    public async Task CheckLuaResult(string script, RedisProtocol protocol, ResultType resp2, ResultType resp3, object? expected, int? serverMin = 1)
     {
         // note Lua does not appear to return RESP3 types in any scenarios
         var muxer = Create(protocol: protocol);
@@ -313,7 +313,7 @@ public sealed class RespProtocolTests : TestBase
     [InlineData("debug", RedisProtocol.Resp2, ResultType.Integer, ResultType.Integer, false, "protocol", "false")]
     [InlineData("debug", RedisProtocol.Resp3, ResultType.Integer, ResultType.Boolean, false, "protocol", "false")]
 
-    public async Task CheckCommandResult(string command, RedisProtocol protocol, ResultType resp2, ResultType resp3, object expected, params object[] args)
+    public async Task CheckCommandResult(string command, RedisProtocol protocol, ResultType resp2, ResultType resp3, object? expected, params object[] args)
     {
         var muxer = Create(protocol: protocol);
         var ep = muxer.GetServerEndPoint(muxer.GetEndPoints().Single());
