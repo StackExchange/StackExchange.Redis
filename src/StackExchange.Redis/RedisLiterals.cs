@@ -78,6 +78,7 @@ namespace StackExchange.Redis
             EX = "EX",
             EXAT = "EXAT",
             EXISTS = "EXISTS",
+            FIELDS = "FIELDS",
             FILTERBY = "FILTERBY",
             FLUSH = "FLUSH",
             FREQ = "FREQ",

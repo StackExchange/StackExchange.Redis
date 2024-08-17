@@ -84,6 +84,21 @@ namespace StackExchange.Redis
         /// <inheritdoc cref="IDatabase.HashExists(RedisKey, RedisValue, CommandFlags)"/>
         Task<bool> HashExistsAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None);
 
+        /// <inheritdoc cref="IDatabase.HashFieldExpire(RedisKey, RedisValue[], TimeSpan, ExpireWhen, CommandFlags)"/>
+        Task<ExpireResult[]> HashFieldExpireAsync(RedisKey key, RedisValue[] hashFields, TimeSpan expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="IDatabase.HashFieldExpire(RedisKey, RedisValue[], DateTime, ExpireWhen, CommandFlags)"/>
+        Task<ExpireResult[]> HashFieldExpireAsync(RedisKey key, RedisValue[] hashFields, DateTime expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="IDatabase.HashFieldGetExpireDateTime(RedisKey, RedisValue[], CommandFlags)"/>
+        Task<long[]> HashFieldGetExpireDateTimeAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="HashFieldPersistAsync(RedisKey, RedisValue[], CommandFlags)"/>
+        Task<PersistResult[]> HashFieldPersistAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="IDatabase.HashFieldGetTimeToLive(RedisKey, RedisValue[], CommandFlags)"/>
+        Task<long[]> HashFieldGetTimeToLiveAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None);
+
         /// <inheritdoc cref="IDatabase.HashGet(RedisKey, RedisValue, CommandFlags)"/>
         Task<RedisValue> HashGetAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None);
 
