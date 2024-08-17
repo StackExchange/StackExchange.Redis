@@ -23,27 +23,18 @@ static_resources:
             enable_redirection: true
           prefix_routes:
             catch_all_route:
-              cluster: redis_cluster
+              cluster: standalone_redis
   clusters:
-  - name: redis_cluster
+  - name: standalone_redis
     connect_timeout: 1s
+    type: STRICT_DNS
     dns_lookup_family: V4_ONLY
-    lb_policy: CLUSTER_PROVIDED
     load_assignment:
-        cluster_name: redis_cluster
+        cluster_name: standalone_redis
         endpoints:
         - lb_endpoints: 
           - endpoint:
               address:
                 socket_address:
-                  address: 127.0.0.1
+                  address: host.docker.internal
                   port_value: 7000
-    cluster_type:
-      name: envoy.clusters.redis
-      typed_config:
-        "@type": type.googleapis.com/google.protobuf.Struct
-        value:
-          cluster_refresh_rate: 30s
-          cluster_refresh_timeout: 0.5s
-          redirect_refresh_interval: 10s
-          redirect_refresh_threshold: 10

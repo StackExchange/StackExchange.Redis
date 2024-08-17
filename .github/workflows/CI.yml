@@ -24,7 +24,7 @@ jobs:
       with:
         dotnet-version: | 
           6.0.x
-          7.0.x
+          8.0.x
     - name: .NET Build
       run: dotnet build Build.csproj -c Release /p:CI=true
     - name: Start Redis Services (docker-compose)
@@ -57,7 +57,7 @@ jobs:
     #   with:
     #     dotnet-version: | 
     #       6.0.x
-    #       7.0.x
+    #       8.0.x
     - name: .NET Build
       run: dotnet build Build.csproj -c Release /p:CI=true
     - name: Start Redis Services (v3.0.503)

@@ -1,16 +1,24 @@
-version: '2.6'
+version: '2.7'
 
 services:
   redis:
     build:
-      context: .
+      context: .docker/Redis
+      additional_contexts:
+         configs: .
     image: stackexchange/redis-tests:latest
     platform: linux
     ports:
       - 6379-6384:6379-6384
       - 7000-7006:7000-7006
       - 7010-7011:7010-7011
-      - 7015:7015
       - 26379-26381:26379-26381
     sysctls :
       net.core.somaxconn: '511'
+  envoy:
+    build:
+      context: .docker/Envoy
+    image: stackexchange/redis-tests-envoy:latest
+    platform: linux
+    ports:
+      - 7015:7015
