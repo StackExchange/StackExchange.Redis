@@ -68,6 +68,10 @@ namespace StackExchange.Redis
         public static readonly ResultProcessor<long?>
             NullableInt64 = new NullableInt64Processor();
 
+        public static readonly ResultProcessor<ExpireResult[]> ExpireResultArray = new ExpireResultArrayProcessor();
+
+        public static readonly ResultProcessor<PersistResult[]> PersistResultArray = new PersistResultArrayProcessor();
+
         public static readonly ResultProcessor<RedisChannel[]>
             RedisChannelArrayLiteral = new RedisChannelArrayProcessor(RedisChannel.PatternMode.Literal);
 
@@ -1452,6 +1456,47 @@ namespace StackExchange.Redis
                             return true;
                         }
                         break;
+                    case ResultType.Array:
+                        var items = result.GetItems();
+                        if (items.Length == 1)
+                        { // treat an array of 1 like a single reply
+                            if (items[0].TryGetInt64(out long value))
+                            {
+                                SetResult(message, value);
+                                return true;
+                            }
+                        }
+                        break;
+                }
+                return false;
+            }
+        }
+
+        private sealed class ExpireResultArrayProcessor : ResultProcessor<ExpireResult[]>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                if (result.Resp2TypeArray == ResultType.Array || result.IsNull)
+                {
+                    var arr = result.ToArray((in RawResult x) => (ExpireResult)(long)x.AsRedisValue())!;
+
+                    SetResult(message, arr);
+                    return true;
+                }
+                return false;
+            }
+        }
+
+        private sealed class PersistResultArrayProcessor : ResultProcessor<PersistResult[]>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                if (result.Resp2TypeArray == ResultType.Array || result.IsNull)
+                {
+                    var arr = result.ToArray((in RawResult x) => (PersistResult)(long)x.AsRedisValue())!;
+
+                    SetResult(message, arr);
+                    return true;
                 }
                 return false;
             }
