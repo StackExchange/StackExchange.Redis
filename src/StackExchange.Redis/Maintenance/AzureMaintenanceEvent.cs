@@ -15,7 +15,7 @@ namespace StackExchange.Redis.Maintenance
     {
         private const string PubSubChannelName = "AzureRedisEvents";
 
-        internal AzureMaintenanceEvent(string azureEvent)
+        internal AzureMaintenanceEvent(string? azureEvent)
         {
             if (azureEvent == null)
             {

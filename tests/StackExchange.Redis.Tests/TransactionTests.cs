@@ -90,7 +90,7 @@ public class TransactionTests : TestBase
     [InlineData("x", null, false, true)]
     [InlineData(null, "y", false, true)]
     [InlineData(null, null, false, false)]
-    public async Task BasicTranWithEqualsCondition(string expected, string value, bool expectEqual, bool expectTranResult)
+    public async Task BasicTranWithEqualsCondition(string? expected, string? value, bool expectEqual, bool expectTranResult)
     {
         using var conn = Create();
 
@@ -179,7 +179,7 @@ public class TransactionTests : TestBase
     [InlineData("x", null, false, true)]
     [InlineData(null, "y", false, true)]
     [InlineData(null, null, false, false)]
-    public async Task BasicTranWithHashEqualsCondition(string expected, string value, bool expectEqual, bool expectedTranResult)
+    public async Task BasicTranWithHashEqualsCondition(string? expected, string? value, bool expectEqual, bool expectedTranResult)
     {
         using var conn = Create();
 
@@ -290,7 +290,7 @@ public class TransactionTests : TestBase
     [InlineData("x", null, false, true)]
     [InlineData(null, "y", false, true)]
     [InlineData(null, null, false, false)]
-    public async Task BasicTranWithListEqualsCondition(string expected, string value, bool expectEqual, bool expectTranResult)
+    public async Task BasicTranWithListEqualsCondition(string? expected, string? value, bool expectEqual, bool expectTranResult)
     {
         using var conn = Create();
 
@@ -357,7 +357,7 @@ public class TransactionTests : TestBase
     [InlineData("", ComparisonType.GreaterThan, 0L, false)]
     [InlineData(null, ComparisonType.GreaterThan, 1L, false)]
     [InlineData(null, ComparisonType.GreaterThan, 0L, false)]
-    public async Task BasicTranWithStringLengthCondition(string value, ComparisonType type, long length, bool expectTranResult)
+    public async Task BasicTranWithStringLengthCondition(string? value, ComparisonType type, long length, bool expectTranResult)
     {
         using var conn = Create();
 

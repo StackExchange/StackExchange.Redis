@@ -12,7 +12,7 @@ public class SentinelFailoverTests : SentinelBase
 {
     public SentinelFailoverTests(ITestOutputHelper output) : base(output) { }
 
-    [Fact]
+    [FactLongRunning]
     public async Task ManagedPrimaryConnectionEndToEndWithFailoverTest()
     {
         var connectionString = $"{TestConfig.Current.SentinelServer}:{TestConfig.Current.SentinelPortA},serviceName={ServiceOptions.ServiceName},allowAdmin=true";

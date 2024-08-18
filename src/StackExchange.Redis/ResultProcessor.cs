@@ -526,7 +526,7 @@ namespace StackExchange.Redis
 
             private static readonly Regex sha1 = new Regex("^[0-9a-f]{40}$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-            internal static bool IsSHA1(string script) => script is not null && script.Length == SHA1Length && sha1.IsMatch(script);
+            internal static bool IsSHA1(string? script) => script is not null && script.Length == SHA1Length && sha1.IsMatch(script);
 
             internal const int Sha1HashLength = 20;
             internal static byte[] ParseSHA1(byte[] value)

@@ -251,16 +251,14 @@ internal static class XUnitExtensions
             {
                 protocols = RunPerProtocol.AllProtocols;
             }
-            var results = new List<IXunitTestCase>();
             foreach (var protocol in protocols)
             {
-                results.Add(generator(protocol));
+                yield return generator(protocol);
             }
-            return results;
         }
         else
         {
-            return new[] { generator(RedisProtocol.Resp2) };
+            yield return generator(RedisProtocol.Resp2);
         }
     }
 }
@@ -270,7 +268,7 @@ internal static class XUnitExtensions
 /// <see cref="Thread.CurrentThread" /> and <see cref="CultureInfo.CurrentCulture" /> with another culture.
 /// </summary>
 /// <remarks>
-/// Based on: https://bartwullems.blogspot.com/2022/03/xunit-change-culture-during-your-test.html
+/// Based on: https://bartwullems.blogspot.com/2022/03/xunit-change-culture-during-your-test.html.
 /// </remarks>
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, AllowMultiple = false, Inherited = true)]
 public class TestCultureAttribute : BeforeAfterTestAttribute
@@ -288,7 +286,7 @@ public class TestCultureAttribute : BeforeAfterTestAttribute
     /// Stores the current <see cref="Thread.CurrentPrincipal" /> and <see cref="CultureInfo.CurrentCulture" />
     /// and replaces them with the new cultures defined in the constructor.
     /// </summary>
-    /// <param name="methodUnderTest">The method under test</param>
+    /// <param name="methodUnderTest">The method under test.</param>
     public override void Before(MethodInfo methodUnderTest)
     {
         originalCulture = Thread.CurrentThread.CurrentCulture;
@@ -299,7 +297,7 @@ public class TestCultureAttribute : BeforeAfterTestAttribute
     /// <summary>
     /// Restores the original <see cref="CultureInfo.CurrentCulture" /> to <see cref="Thread.CurrentPrincipal" />.
     /// </summary>
-    /// <param name="methodUnderTest">The method under test</param>
+    /// <param name="methodUnderTest">The method under test.</param>
     public override void After(MethodInfo methodUnderTest)
     {
         if (originalCulture is not null)

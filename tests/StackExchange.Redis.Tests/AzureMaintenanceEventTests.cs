@@ -29,7 +29,7 @@ public class AzureMaintenanceEventTests : TestBase
     [InlineData("NonSSLPort |", AzureNotificationType.Unknown, null, false, null, 0, 0)]
     [InlineData("StartTimeInUTC|thisisthestart", AzureNotificationType.Unknown, null, false, null, 0, 0)]
     [InlineData(null, AzureNotificationType.Unknown, null, false, null, 0, 0)]
-    public void TestAzureMaintenanceEventStrings(string message, AzureNotificationType expectedEventType, string expectedStart, bool expectedIsReplica, string expectedIP, int expectedSSLPort, int expectedNonSSLPort)
+    public void TestAzureMaintenanceEventStrings(string? message, AzureNotificationType expectedEventType, string? expectedStart, bool expectedIsReplica, string? expectedIP, int expectedSSLPort, int expectedNonSSLPort)
     {
         DateTime? expectedStartTimeUtc = null;
         if (expectedStart != null && DateTime.TryParseExact(expectedStart, "s", CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out DateTime startTimeUtc))
