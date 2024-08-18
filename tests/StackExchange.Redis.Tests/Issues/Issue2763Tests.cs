@@ -16,7 +16,7 @@ namespace StackExchange.Redis.Tests.Issues
             using var conn = Create();
             var subscriber = conn.GetSubscriber();
 
-            void Handler(RedisChannel c, RedisValue v) { }
+            static void Handler(RedisChannel c, RedisValue v) { }
 
             const int COUNT = 1000;
             RedisChannel channel = RedisChannel.Literal("CHANNEL:TEST");
@@ -36,10 +36,10 @@ namespace StackExchange.Redis.Tests.Issues
             Assert.Equal(0, CountSubscriptionsForChannel(subscriber, channel));
         }
 
-        private int CountSubscriptionsForChannel(ISubscriber subscriber, RedisChannel channel)
+        private static int CountSubscriptionsForChannel(ISubscriber subscriber, RedisChannel channel)
         {
             ConnectionMultiplexer connMultiplexer = (ConnectionMultiplexer)subscriber.Multiplexer;
-            connMultiplexer.GetSubscriberCounts(channel, out int handlers, out int queues);
+            connMultiplexer.GetSubscriberCounts(channel, out int handlers, out int _);
             return handlers;
         }
     }

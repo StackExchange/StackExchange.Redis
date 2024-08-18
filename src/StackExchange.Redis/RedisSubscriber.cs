@@ -207,7 +207,7 @@ namespace StackExchange.Redis
             {
                 if (handler != null)
                 {
-                    lock(_handlersLock)
+                    lock (_handlersLock)
                     {
                         _handlers += handler;
                     }
@@ -243,7 +243,7 @@ namespace StackExchange.Redis
 
             internal void MarkCompleted()
             {
-                lock(_handlersLock)
+                lock (_handlersLock)
                 {
                     _handlers = null;
                 }
