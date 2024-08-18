@@ -6,7 +6,6 @@ services:
       context: .docker/Redis
       additional_contexts:
          configs: .
-    image: stackexchange/redis-tests:latest
     platform: linux
     ports:
       - 6379-6384:6379-6384     # Misc
@@ -18,7 +17,6 @@ services:
   envoy:
     build:
       context: .docker/Envoy
-    image: stackexchange/redis-tests-envoy:latest
     platform: linux
     environment:
       loglevel: warning
