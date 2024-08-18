@@ -6,6 +6,7 @@ public partial class ConnectionMultiplexer
 {
     internal int haveStormLog = 0;
     internal string? stormLogSnapshot;
+
     /// <summary>
     /// Limit at which to start recording unusual busy patterns (only one log will be retained at a time).
     /// Set to a negative value to disable this feature.

@@ -6,7 +6,7 @@ namespace StackExchange.Redis.Tests;
 
 public class TransientErrorTests : TestBase
 {
-    public TransientErrorTests(ITestOutputHelper output) : base (output) { }
+    public TransientErrorTests(ITestOutputHelper output) : base(output) { }
 
     [Fact]
     public void TestExponentialRetry()

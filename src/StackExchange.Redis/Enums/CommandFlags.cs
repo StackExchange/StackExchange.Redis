@@ -4,7 +4,7 @@ using System.ComponentModel;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// Behaviour markers associated with a given command
+    /// Behaviour markers associated with a given command.
     /// </summary>
     [Flags]
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1069:Enums values should not be duplicated", Justification = "Compatibility")]
@@ -16,11 +16,12 @@ namespace StackExchange.Redis
         None = 0,
 
         /// <summary>
-        /// From 2.0, this flag is not used
+        /// From 2.0, this flag is not used.
         /// </summary>
         [Obsolete("From 2.0, this flag is not used, this will be removed in 3.0.", false)]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         HighPriority = 1,
+
         /// <summary>
         /// The caller is not interested in the result; the caller will immediately receive a default-value
         /// of the expected return type (this value is not indicative of anything at the server).
@@ -69,7 +70,7 @@ namespace StackExchange.Redis
         // 32: used for "asking" flag; never user-specified, so not visible on the public API
 
         /// <summary>
-        /// Indicates that this operation should not be forwarded to other servers as a result of an ASK or MOVED response
+        /// Indicates that this operation should not be forwarded to other servers as a result of an ASK or MOVED response.
         /// </summary>
         NoRedirect = 64,
 
@@ -78,7 +79,7 @@ namespace StackExchange.Redis
         // 256: used for "script unavailable"; never user-specified, so not visible on the public API
 
         /// <summary>
-        /// Indicates that script-related operations should use EVAL, not SCRIPT LOAD + EVALSHA
+        /// Indicates that script-related operations should use EVAL, not SCRIPT LOAD + EVALSHA.
         /// </summary>
         NoScriptCache = 512,
 

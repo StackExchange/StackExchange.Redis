@@ -31,7 +31,7 @@ namespace StackExchange.Redis.Configuration
         /// <summary>
         /// The current list of providers to match (potentially modified from defaults via <see cref="AddProvider(DefaultOptionsProvider)"/>.
         /// </summary>
-        private static LinkedList<DefaultOptionsProvider> KnownProviders { get; set; } = new (BuiltInProviders);
+        private static LinkedList<DefaultOptionsProvider> KnownProviders { get; set; } = new(BuiltInProviders);
 
         /// <summary>
         /// Adds a provider to match endpoints against. The last provider added has the highest priority.
@@ -143,9 +143,9 @@ namespace StackExchange.Redis.Configuration
 
         /// <summary>
         /// Controls how often the connection heartbeats. A heartbeat includes:
-        /// - Evaluating if any messages have timed out
-        /// - Evaluating connection status (checking for failures)
-        /// - Sending a server message to keep the connection alive if needed
+        /// - Evaluating if any messages have timed out.
+        /// - Evaluating connection status (checking for failures).
+        /// - Sending a server message to keep the connection alive if needed.
         /// </summary>
         /// <remarks>Be aware setting this very low incurs additional overhead of evaluating the above more often.</remarks>
         public virtual TimeSpan HeartbeatInterval => TimeSpan.FromSeconds(1);
@@ -157,12 +157,12 @@ namespace StackExchange.Redis.Configuration
         public virtual bool HeartbeatConsistencyChecks => false;
 
         /// <summary>
-        /// Should exceptions include identifiable details? (key names, additional .Data annotations)
+        /// Whether exceptions include identifiable details (key names, additional .Data annotations).
         /// </summary>
         public virtual bool IncludeDetailInExceptions => true;
 
         /// <summary>
-        /// Should exceptions include performance counter details?
+        /// Whether exceptions include performance counter details.
         /// </summary>
         /// <remarks>
         /// CPU usage, etc - note that this can be problematic on some platforms.
@@ -223,6 +223,7 @@ namespace StackExchange.Redis.Configuration
 
         // We memoize this to reduce cost on re-access
         private string? defaultClientName;
+
         /// <summary>
         /// The default client name for a connection, with the library version appended.
         /// </summary>
@@ -253,7 +254,7 @@ namespace StackExchange.Redis.Configuration
         protected static string ComputerName => Environment.MachineName ?? Environment.GetEnvironmentVariable("ComputerName") ?? "Unknown";
 
         /// <summary>
-        /// Whether to identify the client by library name/version when possible
+        /// Whether to identify the client by library name/version when possible.
         /// </summary>
         public virtual bool SetClientLibrary => true;
 
@@ -293,7 +294,7 @@ namespace StackExchange.Redis.Configuration
             }
             catch (Exception)
             {
-                //silently ignores the exception
+                // Silently ignores the exception
                 roleInstanceId = null;
             }
             return roleInstanceId;

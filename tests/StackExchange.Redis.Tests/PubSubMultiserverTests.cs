@@ -123,11 +123,14 @@ public class PubSubMultiserverTests : TestBase
 
         var count = 0;
         Log("Subscribing...");
-        await sub.SubscribeAsync(channel, (_, val) =>
-        {
-            Interlocked.Increment(ref count);
-            Log("Message: " + val);
-        }, flags);
+        await sub.SubscribeAsync(
+            channel,
+            (_, val) =>
+            {
+                Interlocked.Increment(ref count);
+                Log("Message: " + val);
+            },
+            flags);
         Assert.True(sub.IsConnected(channel));
 
         Log("Publishing (1)...");

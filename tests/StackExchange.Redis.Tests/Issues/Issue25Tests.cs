@@ -6,7 +6,7 @@ namespace StackExchange.Redis.Tests.Issues;
 
 public class Issue25Tests : TestBase
 {
-    public Issue25Tests(ITestOutputHelper output) : base (output) { }
+    public Issue25Tests(ITestOutputHelper output) : base(output) { }
 
     [Fact]
     public void CaseInsensitive()

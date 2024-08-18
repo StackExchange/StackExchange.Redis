@@ -7,7 +7,7 @@ using System.Text;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// Represents a key that can be stored in redis
+    /// Represents a key that can be stored in redis.
     /// </summary>
     public readonly struct RedisKey : IEquatable<RedisKey>
     {
@@ -239,6 +239,7 @@ namespace StackExchange.Redis
             if (key == null) return default;
             return new RedisKey(null, key);
         }
+
         /// <summary>
         /// Create a <see cref="RedisKey"/> from a <see cref="T:byte[]"/>.
         /// </summary>
@@ -253,7 +254,7 @@ namespace StackExchange.Redis
         /// Obtain the <see cref="RedisKey"/> as a <see cref="T:byte[]"/>.
         /// </summary>
         /// <param name="key">The key to get a byte array for.</param>
-        public static implicit operator byte[]? (RedisKey key)
+        public static implicit operator byte[]?(RedisKey key)
         {
             if (key.IsNull) return null;
             if (key.TryGetSimpleBuffer(out var arr)) return arr;
@@ -270,7 +271,7 @@ namespace StackExchange.Redis
         /// Obtain the key as a <see cref="string"/>.
         /// </summary>
         /// <param name="key">The key to get a string for.</param>
-        public static implicit operator string? (RedisKey key)
+        public static implicit operator string?(RedisKey key)
         {
             if (key.KeyPrefix is null)
             {
@@ -413,9 +414,11 @@ namespace StackExchange.Redis
                         unsafe
                         {
                             fixed (byte* bPtr = destination)
-                            fixed (char* cPtr = s)
                             {
-                                written += Encoding.UTF8.GetBytes(cPtr, s.Length, bPtr, destination.Length);
+                                fixed (char* cPtr = s)
+                                {
+                                    written += Encoding.UTF8.GetBytes(cPtr, s.Length, bPtr, destination.Length);
+                                }
                             }
                         }
 #endif

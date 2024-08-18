@@ -8,7 +8,6 @@ using System.Threading.Tasks;
 using StackExchange.Redis.Maintenance;
 using Xunit;
 using Xunit.Abstractions;
-// ReSharper disable AccessToModifiedClosure
 
 namespace StackExchange.Redis.Tests;
 
@@ -33,7 +32,8 @@ public class PubSubTests : TestBase
 
         pub.Publish("abcd", "efg");
 #pragma warning restore CS0618
-        await UntilConditionAsync(TimeSpan.FromSeconds(10),
+        await UntilConditionAsync(
+            TimeSpan.FromSeconds(10),
             () => Thread.VolatileRead(ref b) == 1
                && Thread.VolatileRead(ref c) == 1
                && Thread.VolatileRead(ref d) == 1);
@@ -56,7 +56,7 @@ public class PubSubTests : TestBase
     [InlineData(null, true, "d")]
     [InlineData("", true, "e")]
     [InlineData("Foo:", true, "f")]
-    public async Task TestBasicPubSub(string channelPrefix, bool wildCard, string breaker)
+    public async Task TestBasicPubSub(string? channelPrefix, bool wildCard, string breaker)
     {
         using var conn = Create(channelPrefix: channelPrefix, shared: false, log: Writer);
 
@@ -80,8 +80,7 @@ public class PubSubTests : TestBase
                     Log(channel);
                 }
             }
-        }
-        , handler2 = (_, __) => Interlocked.Increment(ref secondHandler);
+        }, handler2 = (_, __) => Interlocked.Increment(ref secondHandler);
 #pragma warning disable CS0618
         sub.Subscribe(subChannel, handler1);
         sub.Subscribe(subChannel, handler2);
@@ -154,16 +153,19 @@ public class PubSubTests : TestBase
         HashSet<string?> received = new();
         int secondHandler = 0;
         await PingAsync(pub, sub).ForAwait();
-        sub.Subscribe(key, (channel, payload) =>
-        {
-            lock (received)
+        sub.Subscribe(
+            key,
+            (channel, payload) =>
             {
-                if (channel == key)
+                lock (received)
                 {
-                    received.Add(payload);
+                    if (channel == key)
+                    {
+                        received.Add(payload);
+                    }
                 }
-            }
-        }, CommandFlags.FireAndForget);
+            },
+            CommandFlags.FireAndForget);
 
         sub.Subscribe(key, (_, __) => Interlocked.Increment(ref secondHandler), CommandFlags.FireAndForget);
         Log(profiler);
@@ -326,8 +328,7 @@ public class PubSubTests : TestBase
         sub.WaitAll(tasks);
         withAsync.Stop();
 
-        Log("{2}: {0}ms (F+F) vs {1}ms (async)",
-            withFAF.ElapsedMilliseconds, withAsync.ElapsedMilliseconds, caption);
+        Log($"{caption}: {withFAF.ElapsedMilliseconds}ms (F+F) vs {withAsync.ElapsedMilliseconds}ms (async)");
         // We've made async so far, this test isn't really valid anymore
         // So let's check they're at least within a few seconds.
         Assert.True(withFAF.ElapsedMilliseconds < withAsync.ElapsedMilliseconds + 3000, caption);
@@ -345,7 +346,8 @@ public class PubSubTests : TestBase
         var gotall = new TaskCompletionSource<int>();
 
         var source = await sub.SubscribeAsync(channel);
-        var op = Task.Run(async () => {
+        var op = Task.Run(async () =>
+        {
             int count = 0;
             await foreach (var item in source)
             {
@@ -479,10 +481,7 @@ public class PubSubTests : TestBase
             Log("Awaiting completion.");
             await subChannel.Completion;
             Log("Completion awaited.");
-            await Assert.ThrowsAsync<ChannelClosedException>(async delegate
-            {
-                await subChannel.ReadAsync().ForAwait();
-            }).ForAwait();
+            await Assert.ThrowsAsync<ChannelClosedException>(async () => await subChannel.ReadAsync().ForAwait()).ForAwait();
             Log("End of muxer.");
         }
         Log("End of test.");
@@ -548,10 +547,7 @@ public class PubSubTests : TestBase
             await subChannel.Completion;
             Log("Completion awaited.");
             Assert.True(subChannel.Completion.IsCompleted);
-            await Assert.ThrowsAsync<ChannelClosedException>(async delegate
-            {
-                await subChannel.ReadAsync().ForAwait();
-            }).ForAwait();
+            await Assert.ThrowsAsync<ChannelClosedException>(async () => await subChannel.ReadAsync().ForAwait()).ForAwait();
             Log("End of muxer.");
         }
         Log("End of test.");
@@ -622,10 +618,7 @@ public class PubSubTests : TestBase
             await subChannel.Completion;
             Log("Completion awaited.");
             Assert.True(subChannel.Completion.IsCompleted);
-            await Assert.ThrowsAsync<ChannelClosedException>(async delegate
-            {
-                await subChannel.ReadAsync().ForAwait();
-            }).ForAwait();
+            await Assert.ThrowsAsync<ChannelClosedException>(async () => await subChannel.ReadAsync().ForAwait()).ForAwait();
             Log("End of muxer.");
         }
         Log("End of test.");
@@ -642,8 +635,8 @@ public class PubSubTests : TestBase
         var listenA = connA.GetSubscriber();
         var listenB = connB.GetSubscriber();
 #pragma warning disable CS0618
-        var t1 = listenA.SubscribeAsync(channel, delegate { });
-        var t2 = listenB.SubscribeAsync(channel, delegate { });
+        var t1 = listenA.SubscribeAsync(channel, (arg1, arg2) => { });
+        var t2 = listenB.SubscribeAsync(channel, (arg1, arg2) => { });
 #pragma warning restore CS0618
 
         await Task.WhenAll(t1, t2).ForAwait();
@@ -696,12 +689,12 @@ public class PubSubTests : TestBase
         var sub = conn.GetSubscriber();
         int count = 0;
         var prefix = Me();
-        void handler(RedisChannel _, RedisValue __) => Interlocked.Increment(ref count);
+        void Handler(RedisChannel unused, RedisValue unused2) => Interlocked.Increment(ref count);
 #pragma warning disable CS0618
-        var a0 = sub.SubscribeAsync(prefix + "foo", handler);
-        var a1 = sub.SubscribeAsync(prefix + "bar", handler);
-        var b0 = sub.SubscribeAsync(prefix + "f*o", handler);
-        var b1 = sub.SubscribeAsync(prefix + "b*r", handler);
+        var a0 = sub.SubscribeAsync(prefix + "foo", Handler);
+        var a1 = sub.SubscribeAsync(prefix + "bar", Handler);
+        var b0 = sub.SubscribeAsync(prefix + "f*o", Handler);
+        var b1 = sub.SubscribeAsync(prefix + "b*r", Handler);
 #pragma warning restore CS0618
         await Task.WhenAll(a0, a1, b0, b1).ForAwait();
 
@@ -767,8 +760,8 @@ public class PubSubTests : TestBase
         var sub = connSub.GetSubscriber();
         int x = 0, y = 0;
 #pragma warning disable CS0618
-        var t1 = sub.SubscribeAsync(prefix + "abc", delegate { Interlocked.Increment(ref x); });
-        var t2 = sub.SubscribeAsync(prefix + "ab*", delegate { Interlocked.Increment(ref y); });
+        var t1 = sub.SubscribeAsync(prefix + "abc", (arg1, arg2) => Interlocked.Increment(ref x));
+        var t2 = sub.SubscribeAsync(prefix + "ab*", (arg1, arg2) => Interlocked.Increment(ref y));
         await Task.WhenAll(t1, t2).ForAwait();
         pub.Publish(prefix + "abc", "");
         await AllowReasonableTimeToPublishAndProcess().ForAwait();
@@ -780,8 +773,8 @@ public class PubSubTests : TestBase
         pub.Publish(prefix + "abc", "");
         Assert.Equal(1, Volatile.Read(ref x));
         Assert.Equal(1, Volatile.Read(ref y));
-        t1 = sub.SubscribeAsync(prefix + "abc", delegate { Interlocked.Increment(ref x); });
-        t2 = sub.SubscribeAsync(prefix + "ab*", delegate { Interlocked.Increment(ref y); });
+        t1 = sub.SubscribeAsync(prefix + "abc", (arg1, arg2) => Interlocked.Increment(ref x));
+        t2 = sub.SubscribeAsync(prefix + "ab*", (arg1, arg2) => Interlocked.Increment(ref y));
         await Task.WhenAll(t1, t2).ForAwait();
         pub.Publish(prefix + "abc", "");
 #pragma warning restore CS0618
@@ -801,7 +794,7 @@ public class PubSubTests : TestBase
         {
             EndPoints = { TestConfig.Current.AzureCacheServer },
             Password = TestConfig.Current.AzureCachePassword,
-            Ssl = true
+            Ssl = true,
         };
 
         using (var connection = await ConnectionMultiplexer.ConnectAsync(options))

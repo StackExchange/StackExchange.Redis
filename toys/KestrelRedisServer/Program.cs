@@ -19,17 +19,20 @@ builder.WebHost.ConfigureKestrel(options =>
 var app = builder.Build();
 
 // redis-specific hack - there is a redis command to shutdown the server
-_ = server.Shutdown.ContinueWith(static (t, s) =>
-{
-    try
-    {   // if the resp server is shutdown by a client: stop the kestrel server too
-        if (t.Result == RespServer.ShutdownReason.ClientInitiated)
+_ = server.Shutdown.ContinueWith(
+    static (t, s) =>
+    {
+        try
         {
-            ((IServiceProvider)s!).GetService<IHostApplicationLifetime>()?.StopApplication();
+            // if the resp server is shutdown by a client: stop the kestrel server too
+            if (t.Result == RespServer.ShutdownReason.ClientInitiated)
+            {
+                ((IServiceProvider)s!).GetService<IHostApplicationLifetime>()?.StopApplication();
+            }
         }
-    }
-    catch { /* Don't go boom on shutdown */ }
-}, app.Services);
+        catch { /* Don't go boom on shutdown */ }
+    },
+    app.Services);
 
 // add debug route
 app.Run(context => context.Response.WriteAsync(server.GetStats()));

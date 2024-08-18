@@ -10,7 +10,7 @@ namespace StackExchange.Redis.Tests;
 [Collection(SharedConnectionFixture.Key)]
 public class PreserveOrderTests : TestBase
 {
-    public PreserveOrderTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base (output, fixture) { }
+    public PreserveOrderTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
 
     [Fact]
     public void Execute()

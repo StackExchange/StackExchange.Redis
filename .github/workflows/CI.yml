@@ -24,12 +24,12 @@ jobs:
       with:
         dotnet-version: | 
           6.0.x
-          7.0.x
+          8.0.x
     - name: .NET Build
       run: dotnet build Build.csproj -c Release /p:CI=true
     - name: Start Redis Services (docker-compose)
       working-directory: ./tests/RedisConfigs
-      run: docker-compose -f docker-compose.yml up -d
+      run: docker compose -f docker-compose.yml up -d --wait
     - name: StackExchange.Redis.Tests
       run: dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj -c Release --logger trx --logger GitHubActions --results-directory ./test-results/ /p:CI=true
     - uses: dorny/test-reporter@v1
@@ -49,6 +49,7 @@ jobs:
       NUGET_CERT_REVOCATION_MODE: offline # Disabling signing because of massive perf hit, see https://github.com/NuGet/Home/issues/11548
       DOTNET_SYSTEM_CONSOLE_ALLOW_ANSI_COLOR_REDIRECTION: "1" # Note this doesn't work yet for Windows - see https://github.com/dotnet/runtime/issues/68340
       TERM: xterm
+      DOCKER_BUILDKIT: 1
     steps:
     - name: Checkout code
       uses: actions/checkout@v1
@@ -57,9 +58,13 @@ jobs:
     #   with:
     #     dotnet-version: | 
     #       6.0.x
-    #       7.0.x
+    #       8.0.x
     - name: .NET Build
       run: dotnet build Build.csproj -c Release /p:CI=true
+    # We can't do this combination - see https://github.com/actions/runner/issues/904
+    # - name: Start Redis Services (docker-compose)
+    #   working-directory: .\tests\RedisConfigs
+    #   run: docker compose -f docker-compose.yml up -d --wait
     - name: Start Redis Services (v3.0.503)
       working-directory: .\tests\RedisConfigs\3.0.503
       run: |

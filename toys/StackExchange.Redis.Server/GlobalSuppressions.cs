@@ -5,4 +5,4 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-[assembly: SuppressMessage("Style", "IDE0066:Convert switch statement to expression", Justification = "<Pending>", Scope = "member", Target = "~M:StackExchange.Redis.TypedRedisValue.ToString~System.String")]
+[assembly: SuppressMessage("Style", "IDE0066:Convert switch statement to expression", Justification = "Pending", Scope = "member", Target = "~M:StackExchange.Redis.TypedRedisValue.ToString~System.String")]

@@ -78,13 +78,14 @@ namespace StackExchange.Redis.Profiling
 
         private readonly ProfiledCommand? _head;
         private readonly int _count;
+
         /// <summary>
-        /// Returns the number of commands captured in this snapshot
+        /// Returns the number of commands captured in this snapshot.
         /// </summary>
         public int Count() => _count;
 
         /// <summary>
-        /// Returns the number of commands captured in this snapshot that match a condition
+        /// Returns the number of commands captured in this snapshot that match a condition.
         /// </summary>
         /// <param name="predicate">The predicate to match.</param>
         public int Count(Func<IProfiledCommand, bool> predicate)
@@ -103,10 +104,11 @@ namespace StackExchange.Redis.Profiling
         }
 
         /// <summary>
-        /// Returns the captured commands as an array
+        /// Returns the captured commands as an array.
         /// </summary>
         public IProfiledCommand[] ToArray()
-        {   // exploit the fact that we know the length
+        {
+            // exploit the fact that we know the length
             if (_count == 0) return Array.Empty<IProfiledCommand>();
 
             var arr = new IProfiledCommand[_count];
@@ -120,10 +122,11 @@ namespace StackExchange.Redis.Profiling
         }
 
         /// <summary>
-        /// Returns the captured commands as a list
+        /// Returns the captured commands as a list.
         /// </summary>
         public List<IProfiledCommand> ToList()
-        {   // exploit the fact that we know the length
+        {
+            // exploit the fact that we know the length
             var list = new List<IProfiledCommand>(_count);
             ProfiledCommand? cur = _head;
             while (cur != null)

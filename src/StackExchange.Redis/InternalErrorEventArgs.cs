@@ -25,12 +25,12 @@ namespace StackExchange.Redis
         /// This constructor is only for testing purposes.
         /// </summary>
         /// <param name="sender">The source of the event.</param>
-        /// <param name="endpoint"></param>
+        /// <param name="endpoint">The endpoint (if any) involved in the event.</param>
         /// <param name="connectionType">Redis connection type.</param>
         /// <param name="exception">The exception that occurred.</param>
         /// <param name="origin">Origin.</param>
         public InternalErrorEventArgs(object sender, EndPoint endpoint, ConnectionType connectionType, Exception exception, string origin)
-            : this (null, sender, endpoint, connectionType, exception, origin)
+            : this(null, sender, endpoint, connectionType, exception, origin)
         {
         }
 

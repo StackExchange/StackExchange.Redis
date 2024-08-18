@@ -1,0 +1,35 @@
+admin:
+  address: { socket_address: { protocol: TCP, address: 0.0.0.0, port_value: 8001 } }
+static_resources:
+  listeners:
+  - name: redis_listener
+    address: { socket_address: { protocol: TCP, address: 0.0.0.0, port_value: 7015 } }
+    filter_chains:
+    - filters:
+      - name: envoy.filters.network.redis_proxy
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.filters.network.redis_proxy.v3.RedisProxy
+          stat_prefix: envoy_redis_stats
+          settings:
+            op_timeout: 3s
+            dns_cache_config:
+              name: dynamic_forward_proxy_cache_config
+              dns_lookup_family: V4_ONLY
+          prefix_routes:
+            catch_all_route:
+              cluster: redis_cluster
+  clusters:
+  - name: redis_cluster
+    connect_timeout: 3s
+    type: STRICT_DNS
+    dns_lookup_family: V4_ONLY
+    load_assignment:
+      cluster_name: redis_cluster
+      endpoints:
+      - lb_endpoints:
+        - endpoint: { address: { socket_address: { address: redis, port_value: 7000 } } }
+        - endpoint: { address: { socket_address: { address: redis, port_value: 7001 } } }
+        - endpoint: { address: { socket_address: { address: redis, port_value: 7002 } } }
+        - endpoint: { address: { socket_address: { address: redis, port_value: 7003 } } }
+        - endpoint: { address: { socket_address: { address: redis, port_value: 7004 } } }
+        - endpoint: { address: { socket_address: { address: redis, port_value: 7005 } } }

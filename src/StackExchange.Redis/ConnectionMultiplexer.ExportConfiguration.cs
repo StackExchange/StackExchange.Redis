@@ -98,7 +98,7 @@ public partial class ConnectionMultiplexer
         }
     }
 
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:Do not dispose objects multiple times")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:Do not dispose objects multiple times", Justification = "We're not double disposing.")]
     private static void Write<T>(ZipArchive zip, string name, Task task, Action<T, StreamWriter> callback)
     {
         var entry = zip.CreateEntry(name, CompressionLevel.Optimal);

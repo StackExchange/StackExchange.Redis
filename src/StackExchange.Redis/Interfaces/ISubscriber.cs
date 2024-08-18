@@ -52,8 +52,9 @@ namespace StackExchange.Redis
         /// <param name="handler">The handler to invoke when a message is received on <paramref name="channel"/>.</param>
         /// <param name="flags">The command flags to use.</param>
         /// <remarks>
+        /// See
         /// <seealso href="https://redis.io/commands/subscribe"/>,
-        /// <seealso href="https://redis.io/commands/psubscribe"/>
+        /// <seealso href="https://redis.io/commands/psubscribe"/>.
         /// </remarks>
         void Subscribe(RedisChannel channel, Action<RedisChannel, RedisValue> handler, CommandFlags flags = CommandFlags.None);
 
@@ -65,10 +66,11 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="channel">The redis channel to subscribe to.</param>
         /// <param name="flags">The command flags to use.</param>
-        /// <returns>A channel that represents this source</returns>
+        /// <returns>A channel that represents this source.</returns>
         /// <remarks>
+        /// See
         /// <seealso href="https://redis.io/commands/subscribe"/>,
-        /// <seealso href="https://redis.io/commands/psubscribe"/>
+        /// <seealso href="https://redis.io/commands/psubscribe"/>.
         /// </remarks>
         ChannelMessageQueue Subscribe(RedisChannel channel, CommandFlags flags = CommandFlags.None);
 
@@ -91,8 +93,9 @@ namespace StackExchange.Redis
         /// <param name="handler">The handler to no longer invoke when a message is received on <paramref name="channel"/>.</param>
         /// <param name="flags">The command flags to use.</param>
         /// <remarks>
+        /// See
         /// <seealso href="https://redis.io/commands/unsubscribe"/>,
-        /// <seealso href="https://redis.io/commands/punsubscribe"/>
+        /// <seealso href="https://redis.io/commands/punsubscribe"/>.
         /// </remarks>
         void Unsubscribe(RedisChannel channel, Action<RedisChannel, RedisValue>? handler = null, CommandFlags flags = CommandFlags.None);
 
@@ -104,8 +107,9 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="flags">The command flags to use.</param>
         /// <remarks>
+        /// See
         /// <seealso href="https://redis.io/commands/unsubscribe"/>,
-        /// <seealso href="https://redis.io/commands/punsubscribe"/>
+        /// <seealso href="https://redis.io/commands/punsubscribe"/>.
         /// </remarks>
         void UnsubscribeAll(CommandFlags flags = CommandFlags.None);
 

@@ -7,7 +7,7 @@ namespace StackExchange.Redis.Tests;
 
 public class ConnectFailTimeoutTests : TestBase
 {
-    public ConnectFailTimeoutTests(ITestOutputHelper output) : base (output) { }
+    public ConnectFailTimeoutTests(ITestOutputHelper output) : base(output) { }
 
     [Fact]
     public async Task NoticesConnectFail()
@@ -17,8 +17,9 @@ public class ConnectFailTimeoutTests : TestBase
 
         var server = conn.GetServer(conn.GetEndPoints()[0]);
 
-        await RunBlockingSynchronousWithExtraThreadAsync(innerScenario).ForAwait();
-        void innerScenario()
+        await RunBlockingSynchronousWithExtraThreadAsync(InnerScenario).ForAwait();
+
+        void InnerScenario()
         {
             conn.ConnectionFailed += (s, a) =>
                 Log("Disconnected: " + EndPointCollection.ToString(a.EndPoint));

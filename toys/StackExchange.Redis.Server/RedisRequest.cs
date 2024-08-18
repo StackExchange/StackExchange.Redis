@@ -3,7 +3,8 @@
 namespace StackExchange.Redis.Server
 {
     public readonly ref struct RedisRequest
-    {   // why ref? don't *really* need it, but: these things are "in flight"
+    {
+        // why ref? don't *really* need it, but: these things are "in flight"
         // based on an open RawResult (which is just the detokenized ReadOnlySequence<byte>)
         // so: using "ref" makes it clear that you can't expect to store these and have
         // them keep working

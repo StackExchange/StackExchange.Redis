@@ -3,7 +3,7 @@
 namespace StackExchange.Redis;
 
 /// <summary>
-/// A Shape that you can use for a GeoSearch
+/// A Shape that you can use for a GeoSearch.
 /// </summary>
 public abstract class GeoSearchShape
 {
@@ -18,9 +18,9 @@ public abstract class GeoSearchShape
     internal abstract int ArgCount { get; }
 
     /// <summary>
-    /// constructs a <see cref="GeoSearchShape"/>
+    /// constructs a <see cref="GeoSearchShape"/>.
     /// </summary>
-    /// <param name="unit"></param>
+    /// <param name="unit">The geography unit to use.</param>
     public GeoSearchShape(GeoUnit unit)
     {
         Unit = unit;
@@ -30,7 +30,7 @@ public abstract class GeoSearchShape
 }
 
 /// <summary>
-/// A circle drawn on a map bounding
+/// A circle drawn on a map bounding.
 /// </summary>
 public class GeoSearchCircle : GeoSearchShape
 {
@@ -41,7 +41,7 @@ public class GeoSearchCircle : GeoSearchShape
     /// </summary>
     /// <param name="radius">The radius of the circle.</param>
     /// <param name="unit">The distance unit the circle will use, defaults to Meters.</param>
-    public GeoSearchCircle(double radius, GeoUnit unit = GeoUnit.Meters) : base (unit)
+    public GeoSearchCircle(double radius, GeoUnit unit = GeoUnit.Meters) : base(unit)
     {
         _radius = radius;
     }
@@ -49,9 +49,8 @@ public class GeoSearchCircle : GeoSearchShape
     internal override int ArgCount => 3;
 
     /// <summary>
-    /// Gets the <exception cref="RedisValue"/>s for this shape
+    /// Gets the <see cref="RedisValue"/>s for this shape.
     /// </summary>
-    /// <returns></returns>
     internal override void AddArgs(List<RedisValue> args)
     {
         args.Add(RedisLiterals.BYRADIUS);
@@ -61,7 +60,7 @@ public class GeoSearchCircle : GeoSearchShape
 }
 
 /// <summary>
-/// A box drawn on a map
+/// A box drawn on a map.
 /// </summary>
 public class GeoSearchBox : GeoSearchShape
 {

@@ -41,7 +41,7 @@ namespace StackExchange.Redis
         /// <param name="workerCount">the number of dedicated workers for this <see cref="SocketManager"/>.</param>
         /// <param name="useHighPrioritySocketThreads">Whether this <see cref="SocketManager"/> should use high priority sockets.</param>
         public SocketManager(string name, int workerCount, bool useHighPrioritySocketThreads)
-            : this(name, workerCount, UseHighPrioritySocketThreads(useHighPrioritySocketThreads)) {}
+            : this(name, workerCount, UseHighPrioritySocketThreads(useHighPrioritySocketThreads)) { }
 
         private static SocketManagerOptions UseHighPrioritySocketThreads(bool value)
             => value ? SocketManagerOptions.UseHighPrioritySocketThreads : SocketManagerOptions.None;
@@ -56,12 +56,14 @@ namespace StackExchange.Redis
             /// No additional options.
             /// </summary>
             None = 0,
+
             /// <summary>
             /// Whether the <see cref="SocketManager"/> should use high priority sockets.
             /// </summary>
             UseHighPrioritySocketThreads = 1 << 0,
+
             /// <summary>
-            /// Use the regular thread-pool for all scheduling
+            /// Use the regular thread-pool for all scheduling.
             /// </summary>
             UseThreadPool = 1 << 1,
         }
@@ -70,8 +72,8 @@ namespace StackExchange.Redis
         /// Creates a new (optionally named) <see cref="SocketManager"/> instance.
         /// </summary>
         /// <param name="name">The name for this <see cref="SocketManager"/>.</param>
-        /// <param name="workerCount">the number of dedicated workers for this <see cref="SocketManager"/>.</param>
-        /// <param name="options"></param>
+        /// <param name="workerCount">The number of dedicated workers for this <see cref="SocketManager"/>.</param>
+        /// <param name="options">Options to use when creating the socket manager.</param>
         public SocketManager(string? name = null, int workerCount = 0, SocketManagerOptions options = SocketManagerOptions.None)
         {
             if (name.IsNullOrWhiteSpace()) name = GetType().Name;
@@ -85,17 +87,18 @@ namespace StackExchange.Redis
 
             var defaultPipeOptions = PipeOptions.Default;
 
-            long Send_PauseWriterThreshold = Math.Max(
-                512 * 1024,// send: let's give it up to 0.5MiB
+            long send_PauseWriterThreshold = Math.Max(
+                512 * 1024, // send: let's give it up to 0.5MiB
                 defaultPipeOptions.PauseWriterThreshold); // or the default, whichever is bigger
-            long Send_ResumeWriterThreshold = Math.Max(
-                Send_PauseWriterThreshold / 2,
+            long send_ResumeWriterThreshold = Math.Max(
+                send_PauseWriterThreshold / 2,
                 defaultPipeOptions.ResumeWriterThreshold);
 
             Scheduler = PipeScheduler.ThreadPool;
             if (!useThreadPool)
             {
-                Scheduler = new DedicatedThreadPoolPipeScheduler(name + ":IO",
+                Scheduler = new DedicatedThreadPoolPipeScheduler(
+                    name: name + ":IO",
                     workerCount: workerCount,
                     priority: useHighPrioritySocketThreads ? ThreadPriority.AboveNormal : ThreadPriority.Normal);
             }
@@ -103,8 +106,8 @@ namespace StackExchange.Redis
                 pool: defaultPipeOptions.Pool,
                 readerScheduler: Scheduler,
                 writerScheduler: Scheduler,
-                pauseWriterThreshold: Send_PauseWriterThreshold,
-                resumeWriterThreshold: Send_ResumeWriterThreshold,
+                pauseWriterThreshold: send_PauseWriterThreshold,
+                resumeWriterThreshold: send_ResumeWriterThreshold,
                 minimumSegmentSize: Math.Max(defaultPipeOptions.MinimumSegmentSize, MINIMUM_SEGMENT_SIZE),
                 useSynchronizationContext: false);
             ReceivePipeOptions = new PipeOptions(
@@ -220,7 +223,7 @@ namespace StackExchange.Redis
                 ? new Socket(SocketType.Stream, protocolType)
                 : new Socket(addressFamily, SocketType.Stream, protocolType);
             SocketConnection.SetRecommendedClientOptions(socket);
-            //socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.Linger, false);
+            // socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.Linger, false);
             return socket;
         }
 
