@@ -127,6 +127,91 @@ public class HashTests : TestBase
     }
 
     [Fact]
+    public async Task ScanNoValuesAsync()
+    {
+        using var conn = Create(require: RedisFeatures.v7_4_0_rc1);
+
+        var db = conn.GetDatabase();
+        var key = Me();
+        await db.KeyDeleteAsync(key);
+        for (int i = 0; i < 200; i++)
+        {
+            await db.HashSetAsync(key, "key" + i, "value " + i);
+        }
+
+        int count = 0;
+        // works for async
+        await foreach (var _ in db.HashScanNoValuesAsync(key, pageSize: 20))
+        {
+            count++;
+        }
+        Assert.Equal(200, count);
+
+        // and sync=>async (via cast)
+        count = 0;
+        await foreach (var _ in (IAsyncEnumerable<RedisValue>)db.HashScanNoValues(key, pageSize: 20))
+        {
+            count++;
+        }
+        Assert.Equal(200, count);
+
+        // and sync (native)
+        count = 0;
+        foreach (var _ in db.HashScanNoValues(key, pageSize: 20))
+        {
+            count++;
+        }
+        Assert.Equal(200, count);
+
+        // and async=>sync (via cast)
+        count = 0;
+        foreach (var _ in (IEnumerable<RedisValue>)db.HashScanNoValuesAsync(key, pageSize: 20))
+        {
+            count++;
+        }
+        Assert.Equal(200, count);
+    }
+
+    [Fact]
+    public void ScanNoValues()
+    {
+        using var conn = Create(require: RedisFeatures.v7_4_0_rc1);
+
+        var db = conn.GetDatabase();
+
+        var key = Me();
+        db.KeyDeleteAsync(key);
+        db.HashSetAsync(key, "abc", "def");
+        db.HashSetAsync(key, "ghi", "jkl");
+        db.HashSetAsync(key, "mno", "pqr");
+
+        var t1 = db.HashScanNoValues(key);
+        var t2 = db.HashScanNoValues(key, "*h*");
+        var t3 = db.HashScanNoValues(key);
+        var t4 = db.HashScanNoValues(key, "*h*");
+
+        var v1 = t1.ToArray();
+        var v2 = t2.ToArray();
+        var v3 = t3.ToArray();
+        var v4 = t4.ToArray();
+
+        Assert.Equal(3, v1.Length);
+        Assert.Single(v2);
+        Assert.Equal(3, v3.Length);
+        Assert.Single(v4);
+
+        Array.Sort(v1);
+        Array.Sort(v2);
+        Array.Sort(v3);
+        Array.Sort(v4);
+
+        Assert.Equal(new RedisValue[] { "abc", "ghi", "mno" }, v1);
+        Assert.Equal(new RedisValue[] { "ghi" }, v2);
+        Assert.Equal(new RedisValue[] { "abc", "ghi", "mno" }, v3);
+        Assert.Equal(new RedisValue[] { "ghi" }, v4);
+    }
+
+    [Fact]
     public void TestIncrementOnHashThatDoesntExist()
     {
         using var conn = Create();
