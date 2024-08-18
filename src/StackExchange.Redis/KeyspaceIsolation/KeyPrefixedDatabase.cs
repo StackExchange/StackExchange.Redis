@@ -721,6 +721,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
         IEnumerable<HashEntry> IDatabase.HashScan(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags)
             => Inner.HashScan(ToInner(key), pattern, pageSize, cursor, pageOffset, flags);
 
+        IEnumerable<RedisValue> IDatabase.HashScanNoValues(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags)
+            => Inner.HashScanNoValues(ToInner(key), pattern, pageSize, cursor, pageOffset, flags);
+
         IEnumerable<RedisValue> IDatabase.SetScan(RedisKey key, RedisValue pattern, int pageSize, CommandFlags flags)
             => Inner.SetScan(ToInner(key), pattern, pageSize, flags);
 

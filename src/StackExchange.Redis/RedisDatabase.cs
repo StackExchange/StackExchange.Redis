@@ -624,6 +624,23 @@ namespace StackExchange.Redis
             throw ExceptionFactory.NotSupported(true, RedisCommand.HSCAN);
         }
 
+        IEnumerable<RedisValue> IDatabase.HashScanNoValues(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags)
+            => HashScanNoValuesAsync(key, pattern, pageSize, cursor, pageOffset, flags);
+
+        IAsyncEnumerable<RedisValue> IDatabaseAsync.HashScanNoValuesAsync(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags)
+            => HashScanNoValuesAsync(key, pattern, pageSize, cursor, pageOffset, flags);
+
+        private CursorEnumerable<RedisValue> HashScanNoValuesAsync(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags)
+        {
+            var scan = TryScan<RedisValue>(key, pattern, pageSize, cursor, pageOffset, flags, RedisCommand.HSCAN, SetScanResultProcessor.Default, out var server, true);
+            if (scan != null) return scan;
+
+            if (cursor != 0) throw ExceptionFactory.NoCursor(RedisCommand.HKEYS);
+
+            if (pattern.IsNull) return CursorEnumerable<RedisValue>.From(this, server, HashKeysAsync(key, flags), pageOffset);
+            throw ExceptionFactory.NotSupported(true, RedisCommand.HSCAN);
+        }
+
         public bool HashSet(RedisKey key, RedisValue hashField, RedisValue value, When when = When.Always, CommandFlags flags = CommandFlags.None)
         {
             WhenAlwaysOrNotExists(when);
@@ -4679,7 +4696,7 @@ namespace StackExchange.Redis
             _ => throw new ArgumentOutOfRangeException(nameof(operation)),
         };
 
-        private CursorEnumerable<T>? TryScan<T>(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags, RedisCommand command, ResultProcessor<ScanEnumerable<T>.ScanResult> processor, out ServerEndPoint? server)
+        private CursorEnumerable<T>? TryScan<T>(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags, RedisCommand command, ResultProcessor<ScanEnumerable<T>.ScanResult> processor, out ServerEndPoint? server, bool noValues = false)
         {
             server = null;
             if (pageSize <= 0)
@@ -4690,7 +4707,7 @@ namespace StackExchange.Redis
             if (!features.Scan) return null;
 
             if (CursorUtils.IsNil(pattern)) pattern = (byte[]?)null;
-            return new ScanEnumerable<T>(this, server, key, pattern, pageSize, cursor, pageOffset, flags, command, processor);
+            return new ScanEnumerable<T>(this, server, key, pattern, pageSize, cursor, pageOffset, flags, command, processor, noValues);
         }
 
         private Message GetLexMessage(RedisCommand command, RedisKey key, RedisValue min, RedisValue max, Exclude exclude, long skip, long take, CommandFlags flags)
@@ -4783,6 +4800,7 @@ namespace StackExchange.Redis
             private readonly RedisKey key;
             private readonly RedisValue pattern;
             private readonly RedisCommand command;
+            private readonly bool noValues;
 
             public ScanEnumerable(
                 RedisDatabase database,
@@ -4794,19 +4812,28 @@ namespace StackExchange.Redis
                 int pageOffset,
                 CommandFlags flags,
                 RedisCommand command,
-                ResultProcessor<ScanResult> processor)
+                ResultProcessor<ScanResult> processor,
+                bool noValues)
                 : base(database, server, database.Database, pageSize, cursor, pageOffset, flags)
             {
                 this.key = key;
                 this.pattern = pattern;
                 this.command = command;
                 Processor = processor;
+                this.noValues = noValues;
             }
 
             private protected override ResultProcessor<CursorEnumerable<T>.ScanResult> Processor { get; }
 
             private protected override Message CreateMessage(in RedisValue cursor)
             {
+                if (noValues)
+                {
+                    if (CursorUtils.IsNil(pattern) && pageSize == CursorUtils.DefaultRedisPageSize) return Message.Create(db, flags, command, key, cursor, RedisLiterals.NOVALUES);
+                    if (CursorUtils.IsNil(pattern)) return Message.Create(db, flags, command, key, cursor, RedisLiterals.COUNT, pageSize, RedisLiterals.NOVALUES);
+                    return Message.Create(db, flags, command, key, cursor, RedisLiterals.MATCH, pattern, RedisLiterals.COUNT, pageSize, RedisLiterals.NOVALUES);
+                }
+
                 if (CursorUtils.IsNil(pattern))
                 {
                     if (pageSize == CursorUtils.DefaultRedisPageSize)
@@ -4826,7 +4853,7 @@ namespace StackExchange.Redis
                     }
                     else
                     {
-                        return Message.Create(db, flags, command, key, new RedisValue[] { cursor, RedisLiterals.MATCH, pattern, RedisLiterals.COUNT, pageSize });
+                        return Message.Create(db, flags, command, key, cursor, RedisLiterals.MATCH, pattern, RedisLiterals.COUNT, pageSize);
                     }
                 }
             }

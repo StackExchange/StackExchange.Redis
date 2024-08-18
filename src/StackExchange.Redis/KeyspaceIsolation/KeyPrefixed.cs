@@ -135,6 +135,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public IAsyncEnumerable<HashEntry> HashScanAsync(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags) =>
             Inner.HashScanAsync(ToInner(key), pattern, pageSize, cursor, pageOffset, flags);
 
+        public IAsyncEnumerable<RedisValue> HashScanNoValuesAsync(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags) =>
+            Inner.HashScanNoValuesAsync(ToInner(key), pattern, pageSize, cursor, pageOffset, flags);
+
         public Task<bool> HashSetAsync(RedisKey key, RedisValue hashField, RedisValue value, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
             Inner.HashSetAsync(ToInner(key), hashField, value, when, flags);
 
