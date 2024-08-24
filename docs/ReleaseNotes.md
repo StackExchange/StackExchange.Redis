@@ -14,7 +14,7 @@ Current package versions:
 
 ## 2.8.0
 
-- Add high-integrity mode ([docs](https://stackexchange.github.io/StackExchange.Redis/Configuration), [#2471 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2741]))
+- Add high-integrity mode ([docs](https://stackexchange.github.io/StackExchange.Redis/Configuration), [#2471 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2741))
 - TLS certificate/`TrustIssuer`: Check EKU in X509 chain checks when validating certificates ([#2670 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2670))
 
 ## 2.7.33
