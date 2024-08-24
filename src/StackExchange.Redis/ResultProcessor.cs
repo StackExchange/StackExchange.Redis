@@ -813,9 +813,20 @@ namespace StackExchange.Redis
                         Log?.LogInformation($"{Format.ToString(server)}: Auto-configured role: replica");
                         server.IsReplica = true;
                     }
+
+                    return base.SetResult(connection, message, result);
                 }
 
-                return base.SetResult(connection, message, result);
+                var success = base.SetResult(connection, message, result);
+
+                if (!success && connection.BridgeCouldBeNull?.IsConnected == true)
+                {
+                    connection.RecordConnectionFailed(
+                        ConnectionFailureType.ProtocolFailure,
+                        new InvalidOperationException($"unexpected auto-configure reply to {message.Command}: {result.ToString()}"));
+                }
+
+                return success;
             }
 
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)

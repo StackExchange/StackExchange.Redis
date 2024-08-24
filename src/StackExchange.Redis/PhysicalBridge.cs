@@ -610,19 +610,19 @@ namespace StackExchange.Redis
                                 checkConfigSeconds = ServerEndPoint.ConfigCheckSeconds;
 
                             if (state == (int)State.ConnectedEstablished && ConnectionType == ConnectionType.Interactive
-                                && tmp.BridgeCouldBeNull?.Multiplexer.RawConfig.HeartbeatConsistencyChecks == true)
+                                && checkConfigSeconds > 0 && ServerEndPoint.LastInfoReplicationCheckSecondsAgo >= checkConfigSeconds
+                                && ServerEndPoint.CheckInfoReplication())
+                            {
+                                // that serves as a keep-alive, if it is accepted
+                            }
+                            else if (state == (int)State.ConnectedEstablished && ConnectionType == ConnectionType.Interactive
+                                 && tmp.BridgeCouldBeNull?.Multiplexer.RawConfig.HeartbeatConsistencyChecks == true)
                             {
                                 // If HeartbeatConsistencyChecks are enabled, we're sending a PING (expecting PONG) or ECHO (expecting UniqueID back) every single
                                 // heartbeat as an opt-in measure to react to any network stream drop ASAP to terminate the connection as faulted.
                                 // If we don't get the expected response to that command, then the connection is terminated.
                                 // This is to prevent the case of things like 100% string command usage where a protocol error isn't otherwise encountered.
                                 KeepAlive(forceRun: true);
-                            }
-                            else if (state == (int)State.ConnectedEstablished && ConnectionType == ConnectionType.Interactive
-                                && checkConfigSeconds > 0 && ServerEndPoint.LastInfoReplicationCheckSecondsAgo >= checkConfigSeconds
-                                && ServerEndPoint.CheckInfoReplication())
-                            {
-                                // that serves as a keep-alive, if it is accepted
                             }
                             else if (writeEverySeconds > 0 && tmp.LastWriteSecondsAgo >= writeEverySeconds)
                             {
