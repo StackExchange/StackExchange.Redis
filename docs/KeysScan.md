@@ -43,7 +43,7 @@ Simple: start from a server, not a database.
 var server = conn.GetServer(someServer);
 
 // show all keys in database 0 that include "foo" in their name
-foreach(var key in server.Keys(pattern: "*foo*")) {
+foreach(var key in server.Keys(0, pattern: "*foo*")) { //if you dont provide the database the system can timeout.
     Console.WriteLine(key);
 }
 
