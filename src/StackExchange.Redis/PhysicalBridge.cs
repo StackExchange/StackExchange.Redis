@@ -606,8 +606,8 @@ namespace StackExchange.Redis
                                 tmp.BridgeCouldBeNull?.ServerEndPoint?.ClearUnselectable(UnselectableFlags.DidNotRespond);
                             }
                             int timedOutThisHeartbeat = tmp.OnBridgeHeartbeat();
-                            int writeEverySeconds = ServerEndPoint.WriteEverySeconds,
-                                checkConfigSeconds = ServerEndPoint.ConfigCheckSeconds;
+                            int writeEverySeconds = ServerEndPoint.WriteEverySeconds;
+                            bool configCheckDue = ServerEndPoint.ConfigCheckSeconds > 0 && ServerEndPoint.LastInfoReplicationCheckSecondsAgo >= ServerEndPoint.ConfigCheckSeconds;
 
                             if (state == (int)State.ConnectedEstablished && ConnectionType == ConnectionType.Interactive
                                 && tmp.BridgeCouldBeNull?.Multiplexer.RawConfig.HeartbeatConsistencyChecks == true)
@@ -617,9 +617,15 @@ namespace StackExchange.Redis
                                 // If we don't get the expected response to that command, then the connection is terminated.
                                 // This is to prevent the case of things like 100% string command usage where a protocol error isn't otherwise encountered.
                                 KeepAlive(forceRun: true);
+
+                                // If we're configured to check info replication, perform that too
+                                if (configCheckDue)
+                                {
+                                    ServerEndPoint.CheckInfoReplication();
+                                }
                             }
                             else if (state == (int)State.ConnectedEstablished && ConnectionType == ConnectionType.Interactive
-                                && checkConfigSeconds > 0 && ServerEndPoint.LastInfoReplicationCheckSecondsAgo >= checkConfigSeconds
+                                && configCheckDue
                                 && ServerEndPoint.CheckInfoReplication())
                             {
                                 // that serves as a keep-alive, if it is accepted
