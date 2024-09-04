@@ -1071,17 +1071,17 @@ namespace StackExchange.Redis
             await connection.FlushAsync().ForAwait();
         }
 
-        private async Task SendAuthMessageAsync(PhysicalConnection connection, Message msg, ResultProcessor<bool> demandOK)
+        private ValueTask SendAuthMessageAsync(PhysicalConnection connection, Message msg, ResultProcessor<bool> demandOK)
         {
             if (Multiplexer.RawConfig.WaitForAuth)
             {
-                await WriteDirectAsync(msg, ResultProcessor.DemandOK).ForAwait();
+                return new ValueTask(WriteDirectAsync(msg, ResultProcessor.DemandOK));
             }
             else
             {
                 msg.Flags = CommandFlags.FireAndForget;
                 msg.SetInternalCall();
-                await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
+                return WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK);
             }
         }
 
