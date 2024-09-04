@@ -116,6 +116,17 @@ namespace StackExchange.Redis.Configuration
         public virtual bool HighIntegrity => false;
 
         /// <summary>
+        /// A Boolean value that specifies whether the client should wait for the server to return
+        /// response for the initial AUTH command before trying any further commands.
+        /// </summary>
+        /// <remarks>
+        /// This is especially useful when connecting to Envoy proxies with external authentication
+        /// providers.
+        /// The default and recommended value is false.
+        /// </remarks>
+        public virtual bool WaitForAuth => false;
+
+        /// <summary>
         /// The number of times to repeat the initial connect cycle if no servers respond promptly.
         /// </summary>
         public virtual int ConnectRetry => 3;

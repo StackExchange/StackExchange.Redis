@@ -262,6 +262,7 @@ public abstract class TestBase : IDisposable
         BacklogPolicy? backlogPolicy = null,
         Version? require = null,
         RedisProtocol? protocol = null,
+        bool? waitForAuth = null,
         [CallerMemberName] string caller = "")
     {
         if (Output == null)
@@ -314,6 +315,7 @@ public abstract class TestBase : IDisposable
             backlogPolicy,
             protocol,
             highIntegrity,
+            waitForAuth,
             caller);
 
         ThrowIfIncorrectProtocol(conn, protocol);
@@ -409,6 +411,7 @@ public abstract class TestBase : IDisposable
         BacklogPolicy? backlogPolicy = null,
         RedisProtocol? protocol = null,
         bool highIntegrity = false,
+        bool? waitForAuth = null,
         [CallerMemberName] string caller = "")
     {
         StringWriter? localLog = null;
@@ -445,6 +448,7 @@ public abstract class TestBase : IDisposable
             if (backlogPolicy is not null) config.BacklogPolicy = backlogPolicy;
             if (protocol is not null) config.Protocol = protocol;
             if (highIntegrity) config.HighIntegrity = highIntegrity;
+            if (waitForAuth is not null) config.WaitForAuth = waitForAuth.Value;
             var watch = Stopwatch.StartNew();
             var task = ConnectionMultiplexer.ConnectAsync(config, log);
             if (!task.Wait(config.ConnectTimeout >= (int.MaxValue / 2) ? int.MaxValue : config.ConnectTimeout * 2))

@@ -254,6 +254,8 @@ StackExchange.Redis.ConfigurationOptions.HeartbeatInterval.get -> System.TimeSpa
 StackExchange.Redis.ConfigurationOptions.HeartbeatInterval.set -> void
 StackExchange.Redis.ConfigurationOptions.HighIntegrity.get -> bool
 StackExchange.Redis.ConfigurationOptions.HighIntegrity.set -> void
+StackExchange.Redis.ConfigurationOptions.WaitForAuth.get -> bool
+StackExchange.Redis.ConfigurationOptions.WaitForAuth.set -> void
 StackExchange.Redis.ConfigurationOptions.HighPrioritySocketThreads.get -> bool
 StackExchange.Redis.ConfigurationOptions.HighPrioritySocketThreads.set -> void
 StackExchange.Redis.ConfigurationOptions.IncludeDetailInExceptions.get -> bool
@@ -1846,6 +1848,7 @@ virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.GetSslHostFromE
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.HeartbeatConsistencyChecks.get -> bool
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.HeartbeatInterval.get -> System.TimeSpan
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.HighIntegrity.get -> bool
+virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.WaitForAuth.get -> bool
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.IncludeDetailInExceptions.get -> bool
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.IncludePerformanceCountersInExceptions.get -> bool
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.IsMatch(System.Net.EndPoint! endpoint) -> bool

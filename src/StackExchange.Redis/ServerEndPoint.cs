@@ -972,9 +972,8 @@ namespace StackExchange.Redis
             if (Multiplexer.RawConfig.TryResp3()) // note this includes an availability check on HELLO
             {
                 log?.LogInformation($"{Format.ToString(this)}: Authenticating via HELLO");
-                var hello = Message.CreateHello(3, user, password, clientName, CommandFlags.FireAndForget);
-                hello.SetInternalCall();
-                await WriteDirectOrQueueFireAndForgetAsync(connection, hello, autoConfig ??= ResultProcessor.AutoConfigureProcessor.Create(log)).ForAwait();
+                var hello = Message.CreateHello(3, user, password, clientName, CommandFlags.None);
+                await SendAuthMessageAsync(connection, hello, autoConfig ??= ResultProcessor.AutoConfigureProcessor.Create(log)).ForAwait();
 
                 // note that the server can reject RESP3 via either an -ERR response (HELLO not understood), or by simply saying "nope",
                 // so we don't set the actual .Protocol until we process the result of the HELLO request
@@ -990,16 +989,14 @@ namespace StackExchange.Redis
             if (!string.IsNullOrWhiteSpace(user) && Multiplexer.CommandMap.IsAvailable(RedisCommand.AUTH))
             {
                 log?.LogInformation($"{Format.ToString(this)}: Authenticating (user/password)");
-                msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.AUTH, (RedisValue)user, (RedisValue)password);
-                msg.SetInternalCall();
-                await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
+                msg = Message.Create(-1, CommandFlags.None, RedisCommand.AUTH, (RedisValue)user, (RedisValue)password);
+                await SendAuthMessageAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
             }
             else if (!string.IsNullOrWhiteSpace(password) && Multiplexer.CommandMap.IsAvailable(RedisCommand.AUTH))
             {
                 log?.LogInformation($"{Format.ToString(this)}: Authenticating (password)");
-                msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.AUTH, (RedisValue)password);
-                msg.SetInternalCall();
-                await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
+                msg = Message.Create(-1, CommandFlags.None, RedisCommand.AUTH, (RedisValue)password);
+                await SendAuthMessageAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
             }
 
             if (Multiplexer.CommandMap.IsAvailable(RedisCommand.CLIENT))
@@ -1071,6 +1068,20 @@ namespace StackExchange.Redis
             }
             log?.LogInformation($"{Format.ToString(this)}: Flushing outbound buffer");
             await connection.FlushAsync().ForAwait();
+        }
+
+        private async Task SendAuthMessageAsync(PhysicalConnection connection, Message msg, ResultProcessor<bool> demandOK)
+        {
+            if (Multiplexer.RawConfig.WaitForAuth)
+            {
+                await WriteDirectAsync(msg, ResultProcessor.DemandOK).ForAwait();
+            }
+            else
+            {
+                msg.Flags = CommandFlags.FireAndForget;
+                msg.SetInternalCall();
+                await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
+            }
         }
 
         private void SetConfig<T>(ref T field, T value, [CallerMemberName] string? caller = null)

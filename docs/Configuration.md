@@ -100,6 +100,7 @@ The `ConfigurationOptions` object has a wide range of properties, all of which a
 | setlib={bool}          | `SetClientLibrary`     | `true`                       | Whether to attempt to use `CLIENT SETINFO` to set the library name/version on the connection              |
 | protocol={string}      | `Protocol`             | `null`                       | Redis protocol to use; see section below                                                                  |
 | highIntegrity={bool}   | `HighIntegrity`        | `false`                      | High integrity (incurs overhead) sequence checking on every command; see section below                    |
+| waitForAuth={bool}     | `WaitForAuth`          | `false`                      | Wait before the result of the `AUTH` command is returned before trying to send any other commands to the server |
 
 Additional code-only options:
 - LoggerFactory (`ILoggerFactory`) - Default: `null`

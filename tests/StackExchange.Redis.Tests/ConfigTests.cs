@@ -85,6 +85,7 @@ public class ConfigTests : TestBase
                 "tieBreaker",
                 "Tunnel",
                 "user",
+                "waitForAuth",
             },
             fields);
     }
@@ -810,5 +811,25 @@ public class ConfigTests : TestBase
 
         var parsed = ConfigurationOptions.Parse(cs);
         Assert.Equal(expected, options.HighIntegrity);
+    }
+
+    [Theory]
+    [InlineData(null, false, "dummy")]
+    [InlineData(false, false, "dummy,waitForAuth=False")]
+    [InlineData(true, true, "dummy,waitForAuth=True")]
+    public void CheckWaitForAuth(bool? assigned, bool expected, string cs)
+    {
+        var options = ConfigurationOptions.Parse("dummy");
+        if (assigned.HasValue) options.WaitForAuth = assigned.Value;
+
+        Assert.Equal(expected, options.WaitForAuth);
+        Assert.Equal(cs, options.ToString());
+
+        var clone = options.Clone();
+        Assert.Equal(expected, clone.WaitForAuth);
+        Assert.Equal(cs, clone.ToString());
+
+        var parsed = ConfigurationOptions.Parse(cs);
+        Assert.Equal(expected, options.WaitForAuth);
     }
 }

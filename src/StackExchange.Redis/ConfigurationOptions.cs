@@ -111,7 +111,8 @@ namespace StackExchange.Redis
                 Tunnel = "tunnel",
                 SetClientLibrary = "setlib",
                 Protocol = "protocol",
-                HighIntegrity = "highIntegrity";
+                HighIntegrity = "highIntegrity",
+                WaitForAuth = "true";
 
             private static readonly Dictionary<string, string> normalizedOptions = new[]
             {
@@ -143,6 +144,7 @@ namespace StackExchange.Redis
                 CheckCertificateRevocation,
                 Protocol,
                 HighIntegrity,
+                WaitForAuth,
             }.ToDictionary(x => x, StringComparer.OrdinalIgnoreCase);
 
             public static string TryNormalize(string value)
@@ -158,7 +160,7 @@ namespace StackExchange.Redis
         private DefaultOptionsProvider? defaultOptions;
 
         private bool? allowAdmin, abortOnConnectFail, resolveDns, ssl, checkCertificateRevocation, heartbeatConsistencyChecks,
-                      includeDetailInExceptions, includePerformanceCountersInExceptions, setClientLibrary, highIntegrity;
+                      includeDetailInExceptions, includePerformanceCountersInExceptions, setClientLibrary, highIntegrity, waitForAuth;
 
         private string? tieBreaker, sslHost, configChannel, user, password;
 
@@ -293,6 +295,21 @@ namespace StackExchange.Redis
         {
             get => highIntegrity ?? Defaults.HighIntegrity;
             set => highIntegrity = value;
+        }
+
+        /// <summary>
+        /// A Boolean value that specifies whether the client should wait for the server to return
+        /// response for the initial AUTH command before trying any further commands.
+        /// </summary>
+        /// <remarks>
+        /// This is especially useful when connecting to Envoy proxies with external authentication
+        /// providers.
+        /// The default and recommended value is false.
+        /// </remarks>
+        public bool WaitForAuth
+        {
+            get => waitForAuth ?? Defaults.WaitForAuth;
+            set => waitForAuth = value;
         }
 
         /// <summary>
@@ -786,6 +803,7 @@ namespace StackExchange.Redis
             heartbeatInterval = heartbeatInterval,
             heartbeatConsistencyChecks = heartbeatConsistencyChecks,
             highIntegrity = highIntegrity,
+            waitForAuth = waitForAuth,
         };
 
         /// <summary>
@@ -867,6 +885,7 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.DefaultDatabase, DefaultDatabase);
             Append(sb, OptionKeys.SetClientLibrary, setClientLibrary);
             Append(sb, OptionKeys.HighIntegrity, highIntegrity);
+            Append(sb, OptionKeys.WaitForAuth, waitForAuth);
             Append(sb, OptionKeys.Protocol, FormatProtocol(Protocol));
             if (Tunnel is { IsInbuilt: true } tunnel)
             {
@@ -912,7 +931,7 @@ namespace StackExchange.Redis
         {
             ClientName = ServiceName = user = password = tieBreaker = sslHost = configChannel = null;
             keepAlive = syncTimeout = asyncTimeout = connectTimeout = connectRetry = configCheckSeconds = DefaultDatabase = null;
-            allowAdmin = abortOnConnectFail = resolveDns = ssl = setClientLibrary = highIntegrity = null;
+            allowAdmin = abortOnConnectFail = resolveDns = ssl = setClientLibrary = highIntegrity = waitForAuth = null;
             SslProtocols = null;
             defaultVersion = null;
             EndPoints.Clear();
@@ -1033,6 +1052,9 @@ namespace StackExchange.Redis
                             break;
                         case OptionKeys.HighIntegrity:
                             HighIntegrity = OptionKeys.ParseBoolean(key, value);
+                            break;
+                        case OptionKeys.WaitForAuth:
+                            WaitForAuth = OptionKeys.ParseBoolean(key, value);
                             break;
                         case OptionKeys.Tunnel:
                             if (value.IsNullOrWhiteSpace())
