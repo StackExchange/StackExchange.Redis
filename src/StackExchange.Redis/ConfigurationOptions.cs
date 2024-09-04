@@ -112,7 +112,7 @@ namespace StackExchange.Redis
                 SetClientLibrary = "setlib",
                 Protocol = "protocol",
                 HighIntegrity = "highIntegrity",
-                WaitForAuth = "true";
+                WaitForAuth = "waitForAuth";
 
             private static readonly Dictionary<string, string> normalizedOptions = new[]
             {
