@@ -972,8 +972,9 @@ namespace StackExchange.Redis
             if (Multiplexer.RawConfig.TryResp3()) // note this includes an availability check on HELLO
             {
                 log?.LogInformation($"{Format.ToString(this)}: Authenticating via HELLO");
-                var hello = Message.CreateHello(3, user, password, clientName, CommandFlags.None);
-                await SendAuthMessageAsync(connection, hello, autoConfig ??= ResultProcessor.AutoConfigureProcessor.Create(log)).ForAwait();
+                var hello = Message.CreateHello(3, user, password, clientName, CommandFlags.FireAndForget);
+                hello.SetInternalCall();
+                await WriteDirectOrQueueFireAndForgetAsync(connection, hello, autoConfig ??= ResultProcessor.AutoConfigureProcessor.Create(log)).ForAwait();
 
                 // note that the server can reject RESP3 via either an -ERR response (HELLO not understood), or by simply saying "nope",
                 // so we don't set the actual .Protocol until we process the result of the HELLO request
