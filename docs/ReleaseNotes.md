@@ -7,6 +7,9 @@ Current package versions:
 | [![StackExchange.Redis](https://img.shields.io/nuget/v/StackExchange.Redis.svg)](https://www.nuget.org/packages/StackExchange.Redis/) | [![StackExchange.Redis](https://img.shields.io/nuget/vpre/StackExchange.Redis.svg)](https://www.nuget.org/packages/StackExchange.Redis/) | [![StackExchange.Redis MyGet](https://img.shields.io/myget/stackoverflow/vpre/StackExchange.Redis.svg)](https://www.myget.org/feed/stackoverflow/package/nuget/StackExchange.Redis) |
 
 ## Unreleased
+No pending unreleased changes.
+
+## 2.8.14
 
 - Fix [#2793](https://github.com/StackExchange/StackExchange.Redis/issues/2793): Update Envoyproxy's command map according to latest Envoy documentation ([#2794 by dbarbosapn](https://github.com/StackExchange/StackExchange.Redis/pull/2794))
 
