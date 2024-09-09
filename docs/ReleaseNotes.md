@@ -8,7 +8,7 @@ Current package versions:
 
 ## Unreleased
 
-- Fix [#2793](https://github.com/StackExchange/StackExchange.Redis/issues/2793): Update Envoyproxy's command map according to latest Envoy documentation ([#2794](https://github.com/StackExchange/StackExchange.Redis/pull/2794))
+- Fix [#2793](https://github.com/StackExchange/StackExchange.Redis/issues/2793): Update Envoyproxy's command map according to latest Envoy documentation ([#2794 by dbarbosapn](https://github.com/StackExchange/StackExchange.Redis/pull/2794))
 
 ## 2.8.12
 
