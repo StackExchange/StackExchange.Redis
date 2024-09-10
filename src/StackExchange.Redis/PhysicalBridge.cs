@@ -652,7 +652,9 @@ namespace StackExchange.Redis
                                 // so if we have an empty unsent queue and a non-empty sent queue, test the socket.
                                 KeepAlive();
                             }
-                            else if (timedOutThisHeartbeat > 0
+
+                            // This is an "always" check - we always want to evaluate a dead connection from a non-responsive sever regardless of the need to heartbeat above
+                            if (timedOutThisHeartbeat > 0
                                 && tmp.LastReadSecondsAgo * 1_000 > (tmp.BridgeCouldBeNull?.Multiplexer.AsyncTimeoutMilliseconds * 4))
                             {
                                 // If we've received *NOTHING* on the pipe in 4 timeouts worth of time and we're timing out commands, issue a connection failure so that we reconnect
