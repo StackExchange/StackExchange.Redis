@@ -8,6 +8,10 @@ Current package versions:
 
 ## Unreleased
 
+No pending unreleased changes.
+
+## 2.8.16
+
 - Fix: PhysicalBridge: Always perform "last read" check in heartbeat when `HeartbeatConsistencyChecks` is enabled ([#2795 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2795))
 
 ## 2.8.14
