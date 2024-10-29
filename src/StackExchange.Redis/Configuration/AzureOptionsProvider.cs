@@ -16,9 +16,9 @@ namespace StackExchange.Redis.Configuration
         public override bool AbortOnConnectFail => false;
 
         /// <summary>
-        /// The minimum version of Redis in Azure is 4, so use the widest set of available commands when connecting.
+        /// The minimum version of Redis in Azure is 6, so use the widest set of available commands when connecting.
         /// </summary>
-        public override Version DefaultVersion => RedisFeatures.v4_0_0;
+        public override Version DefaultVersion => RedisFeatures.v6_0_0;
 
         /// <summary>
         /// List of domains known to be Azure Redis, so we can light up some helpful functionality
