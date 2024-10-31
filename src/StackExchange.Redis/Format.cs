@@ -97,7 +97,20 @@ namespace StackExchange.Redis
                     if (dns.Port == 0) return dns.Host;
                     return dns.Host + ":" + Format.ToString(dns.Port);
                 case IPEndPoint ip:
-                    if (ip.Port == 0) return ip.Address.ToString();
+                    var addr = ip.Address.ToString();
+
+                    if (ip.Port == 0)
+                    {
+                        // no port specified; use naked IP
+                        return addr;
+                    }
+
+                    if (addr.IndexOf(':') >= 0)
+                    {
+                        // ipv6 with port; use "[IP]:port" notation
+                        return "[" + addr + "]:" + Format.ToString(ip.Port);
+                    }
+                    // ipv4 with port; use "IP:port" notation
                     return ip.Address + ":" + Format.ToString(ip.Port);
 #if UNIX_SOCKET
                 case UnixDomainSocketEndPoint uds:
