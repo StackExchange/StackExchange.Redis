@@ -208,10 +208,7 @@ public class FailoverTests : TestBase, IAsyncLifetime
         var sub = conn.GetSubscriber();
         int counter = 0;
         Assert.True(sub.IsConnected());
-        await sub.SubscribeAsync(channel, delegate
-        {
-            Interlocked.Increment(ref counter);
-        }).ConfigureAwait(false);
+        await sub.SubscribeAsync(channel, (arg1, arg2) => Interlocked.Increment(ref counter)).ConfigureAwait(false);
 
         var profile1 = Log(profiler);
 
@@ -257,8 +254,7 @@ public class FailoverTests : TestBase, IAsyncLifetime
 
         // Ensure we've sent the subscribe command after reconnecting
         var profile2 = Log(profiler);
-        //Assert.Equal(1, profile2.Count(p => p.Command == nameof(RedisCommand.SUBSCRIBE)));
-
+        // Assert.Equal(1, profile2.Count(p => p.Command == nameof(RedisCommand.SUBSCRIBE)));
         Log("Issuing ping after reconnected");
         sub.Ping();
 
@@ -395,7 +391,7 @@ public class FailoverTests : TestBase, IAsyncLifetime
                     Log("    IsReplica: " + !server.IsReplica);
                     Log("    Type: " + server.ServerType);
                 }
-                //Skip.Inconclusive("Not enough latency.");
+                // Skip.Inconclusive("Not enough latency.");
             }
             Assert.True(sanityCheck, $"B Connection: {TestConfig.Current.FailoverPrimaryServerAndPort} should be a replica");
             Assert.False(bConn.GetServer(TestConfig.Current.FailoverReplicaServerAndPort).IsReplica, $"B Connection: {TestConfig.Current.FailoverReplicaServerAndPort} should be a primary");

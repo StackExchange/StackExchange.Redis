@@ -178,8 +178,8 @@ public class ConnectionFailedErrorsTests : TestBase
         {
             using var conn = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true, log: Writer, shared: false);
 
-            await RunBlockingSynchronousWithExtraThreadAsync(innerScenario).ForAwait();
-            void innerScenario()
+            await RunBlockingSynchronousWithExtraThreadAsync(InnerScenario).ForAwait();
+            void InnerScenario()
             {
                 conn.GetDatabase();
                 var server = conn.GetServer(conn.GetEndPoints()[0]);
