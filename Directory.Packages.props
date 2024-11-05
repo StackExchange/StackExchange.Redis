@@ -3,11 +3,11 @@
     <!-- Packages we depend on for StackExchange.Redis, upgrades can create binding redirect pain! -->
     <PackageVersion Include="Microsoft.Bcl.AsyncInterfaces" Version="5.0.0" />
     <PackageVersion Include="Pipelines.Sockets.Unofficial" Version="2.2.8" />
+    <PackageVersion Include="System.CommandLine" Version="2.0.0-beta4.22272.1" />
     <PackageVersion Include="System.Diagnostics.PerformanceCounter" Version="5.0.0" />
     <PackageVersion Include="System.Threading.Channels" Version="5.0.0" />
     <PackageVersion Include="System.Runtime.InteropServices.RuntimeInformation" Version="4.3.0" />
     <PackageVersion Include="System.IO.Compression" Version="4.3.0" />
-    
     <!-- Packages only used in the solution, upgrade at will -->
     <PackageVersion Include="BenchmarkDotNet" Version="0.13.1" />
     <PackageVersion Include="GitHubActionsTestLogger" Version="2.4.1" />

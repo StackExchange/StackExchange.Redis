@@ -1,0 +1,23 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFrameworks>net6.0;net8.0</TargetFrameworks>
+    <RootNamespace>StackExchange.Redis.RespCli</RootNamespace>
+    <ToolCommandName>resp-cli</ToolCommandName>
+    <AssemblyName>resp-cli</AssemblyName>
+    <PackAsTool>true</PackAsTool>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <Title>command-line "RESP" client, comparable to redis-cli</Title>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.CommandLine" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\StackExchange.Redis\StackExchange.Redis.csproj" />
+  </ItemGroup>
+
+</Project>
