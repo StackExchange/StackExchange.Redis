@@ -208,7 +208,7 @@ public class FailoverTests : TestBase, IAsyncLifetime
         var sub = conn.GetSubscriber();
         int counter = 0;
         Assert.True(sub.IsConnected());
-        await sub.SubscribeAsync(channel, (_, _) => Interlocked.Increment(ref counter)).ConfigureAwait(false);
+        await sub.SubscribeAsync(channel, (arg1, arg2) => Interlocked.Increment(ref counter)).ConfigureAwait(false);
 
         var profile1 = Log(profiler);
 
