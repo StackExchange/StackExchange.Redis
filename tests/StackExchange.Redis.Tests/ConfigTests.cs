@@ -25,7 +25,7 @@ public class ConfigTests : TestBase
     public ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
 
     public Version DefaultVersion = new(3, 0, 0);
-    public Version DefaultAzureVersion = new(4, 0, 0);
+    public Version DefaultAzureVersion = new(6, 0, 0);
 
     [Fact]
     public void ExpectedFields()
