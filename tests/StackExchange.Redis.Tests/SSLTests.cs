@@ -186,6 +186,7 @@ public class SSLTests : TestBase, IClassFixture<SSLTests.SSLServerFixture>
     {
         Fixture.SkipIfNoServer();
 
+#pragma warning disable CA1416 // Validate platform compatibility
         var config = new ConfigurationOptions()
         {
             EndPoints = { TestConfig.Current.SslServerAndPort },
@@ -207,6 +208,7 @@ public class SSLTests : TestBase, IClassFixture<SSLTests.SSLServerFixture>
                 },
             },
         };
+#pragma warning restore CA1416 // Validate platform compatibility
 
         try
         {
@@ -528,7 +530,9 @@ public class SSLTests : TestBase, IClassFixture<SSLTests.SSLServerFixture>
     [Fact]
     public void ConfigObject_Issue1407_ToStringIncludesSslProtocols()
     {
+#pragma warning disable SYSLIB0039 // Type or member is obsolete
         const SslProtocols sslProtocols = SslProtocols.Tls12 | SslProtocols.Tls;
+#pragma warning restore SYSLIB0039 // Type or member is obsolete
         var sourceOptions = new ConfigurationOptions
         {
             AbortOnConnectFail = false,

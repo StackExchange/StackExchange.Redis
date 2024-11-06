@@ -13,6 +13,9 @@
     <Title>command-line "RESP" client, comparable to redis-cli</Title>
     <GeneratePackageOnBuild Condition="'$(Configuration)'=='Release'">True</GeneratePackageOnBuild>
     <PackageReadmeFile>readme.md</PackageReadmeFile>
+    <GenerateDocumentationFile>False</GenerateDocumentationFile>
+    <NoPublicApi>True</NoPublicApi>
+    <SignAssembly>true</SignAssembly>
   </PropertyGroup>
 
   <ItemGroup>

@@ -93,14 +93,18 @@ public class ConfigTests : TestBase
     public void SslProtocols_SingleValue()
     {
         var options = ConfigurationOptions.Parse("myhost,sslProtocols=Tls11");
+#pragma warning disable SYSLIB0039 // Type or member is obsolete
         Assert.Equal(SslProtocols.Tls11, options.SslProtocols.GetValueOrDefault());
+#pragma warning restore SYSLIB0039 // Type or member is obsolete
     }
 
     [Fact]
     public void SslProtocols_MultipleValues()
     {
         var options = ConfigurationOptions.Parse("myhost,sslProtocols=Tls11|Tls12");
+#pragma warning disable SYSLIB0039 // Type or member is obsolete
         Assert.Equal(SslProtocols.Tls11 | SslProtocols.Tls12, options.SslProtocols.GetValueOrDefault());
+#pragma warning restore SYSLIB0039 // Type or member is obsolete
     }
 
     [Theory]
@@ -121,9 +125,11 @@ public class ConfigTests : TestBase
         // The below scenario is for cases where the *targeted*
         // .NET framework version (e.g. .NET 4.0) doesn't define an enum value (e.g. Tls11)
         // but the OS has been patched with support
+#pragma warning disable SYSLIB0039 // Type or member is obsolete
         const int integerValue = (int)(SslProtocols.Tls11 | SslProtocols.Tls12);
         var options = ConfigurationOptions.Parse("myhost,sslProtocols=" + integerValue);
         Assert.Equal(SslProtocols.Tls11 | SslProtocols.Tls12, options.SslProtocols.GetValueOrDefault());
+#pragma warning restore SYSLIB0039 // Type or member is obsolete
     }
 
     [Fact]

@@ -59,7 +59,9 @@ public class ServerSnapshotTests
         var snapshot = ServerSnapshot.Empty;
         for (int i = 0; i < count; i++)
         {
+#pragma warning disable SYSLIB0050 // Type or member is obsolete
             var dummy = (ServerEndPoint)FormatterServices.GetSafeUninitializedObject(typeof(ServerEndPoint));
+#pragma warning restore SYSLIB0050 // Type or member is obsolete
             dummy.IsReplica = i < replicaCount;
             snapshot = snapshot.Add(dummy);
         }
