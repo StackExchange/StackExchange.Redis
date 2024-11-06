@@ -2,5 +2,10 @@
   "version": "1.0.35",
   "versionHeightOffset": 0,
   "assemblyVersion": "1.0",
-  "inherit": true
+  "inherit": true,
+  "publicReleaseRefSpec": [
+    "^refs/heads/main$",
+    "^refs/heads/resp",
+    "^refs/tags/v\\d+\\.\\d+"
+  ]
 }
