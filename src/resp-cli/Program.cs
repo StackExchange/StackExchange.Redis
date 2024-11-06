@@ -1,4 +1,5 @@
-﻿using System.CommandLine;
+﻿using System;
+using System.CommandLine;
 using System.CommandLine.Parsing;
 using System.Globalization;
 using System.Net;
@@ -53,16 +54,121 @@ file static class RespClient
         var db = muxer.GetDatabase();
         while (true)
         {
-            var line = ReadLine(db);
+            var line = ReadLine(db.Database);
+
             if (line is null) break;
             if (string.IsNullOrWhiteSpace(line)) continue;
             var parts = line.Split(" ");
 
             object[] args = new string[parts.Length - 1];
             Array.Copy(parts, 1, args, 0, parts.Length - 1);
-            var result = await db.ExecuteAsync(parts[0], args);
+            try
+            {
+                var result = await db.ExecuteAsync(parts[0], args);
+                WriteValue(result, 0);
+            }
+            catch (RedisServerException ex)
+            {
+                WriteString(RedisResult.Create(ex.Message, ResultType.SimpleString), "-", 0, ConsoleColor.Red, ConsoleColor.Gray);
+            }
+        }
 
-            Console.WriteLine($"< {result}");
+        static void WriteValue(RedisResult value, int indent)
+        {
+            switch (value.Resp3Type)
+            {
+                case ResultType.BulkString:
+                    WriteString(value, "$", indent);
+                    break;
+                case ResultType.SimpleString:
+                    WriteString(value, "+", indent);
+                    break;
+                case ResultType.Integer:
+                    WriteString(value, ":", indent);
+                    break;
+                case ResultType.Double:
+                    WriteString(value, ",", indent);
+                    break;
+                case ResultType.Null:
+                    WriteString(value, "_", indent);
+                    break;
+                case ResultType.Boolean:
+                    WriteString(value, "#", indent);
+                    break;
+                case ResultType.BigInteger:
+                    WriteString(value, "(", indent);
+                    break;
+                case ResultType.Error:
+                    WriteString(value, "-", indent, ConsoleColor.Red, ConsoleColor.Gray);
+                    break;
+                case ResultType.BlobError:
+                    WriteString(value, "!", indent, ConsoleColor.Red, ConsoleColor.Gray);
+                    break;
+                // case ResultType.Array:
+                //    WriteArray
+                default:
+                    WriteString(value, "?", indent);
+                    break;
+            }
+        }
+
+        static void Indent(int indent)
+        {
+            while (indent-- > 0) Write(" ", null, null);
+        }
+
+        static void WriteString(RedisResult value, string token, int indent, ConsoleColor foreground = ConsoleColor.DarkGray, ConsoleColor background = ConsoleColor.Yellow)
+        {
+            Indent(indent);
+            Write(token, null, null);
+            Write(" ", null, null);
+            if (value.IsNull)
+            {
+                WriteNull();
+            }
+            else
+            {
+                WriteLine((string)value!, foreground, background);
+            }
+        }
+
+        static void WriteNull()
+        {
+            WriteLine("(nil)", ConsoleColor.Blue, ConsoleColor.Yellow);
+        }
+
+        static void Write(string message, ConsoleColor? foreground, ConsoleColor? background)
+        {
+            var fg = Console.ForegroundColor;
+            var bg = Console.BackgroundColor;
+            try
+            {
+                if (foreground != null) Console.ForegroundColor = foreground.Value;
+                if (background != null) Console.BackgroundColor = background.Value;
+                Console.Write(message);
+            }
+            finally
+            {
+                Console.ForegroundColor = fg;
+                Console.BackgroundColor = bg;
+            }
+        }
+
+        static void WriteLine(string message, ConsoleColor? foreground, ConsoleColor? background)
+        {
+            var fg = Console.ForegroundColor;
+            var bg = Console.BackgroundColor;
+            try
+            {
+                if (foreground != null) Console.ForegroundColor = foreground.Value;
+                if (background != null) Console.BackgroundColor = background.Value;
+                Console.WriteLine(message);
+            }
+            finally
+            {
+                Console.ForegroundColor = fg;
+                Console.BackgroundColor = bg;
+            }
         }
 
         static async Task<(bool Connected, int Databases)> VerifyConnectedAsync(ConnectionMultiplexer muxer)
@@ -98,9 +204,10 @@ file static class RespClient
             return (false, -1);
         }
 
-        static string? ReadLine(IDatabase db)
+        static string? ReadLine(int db)
         {
-            Console.Write($"[{db.Database}]> ");
+            if (db > 1) Console.Write(db);
+            Console.Write("> ");
             return Console.ReadLine();
         }
     }
