@@ -12,14 +12,13 @@
     <Nullable>enable</Nullable>
     <Title>command-line "RESP" client, comparable to redis-cli</Title>
     <GeneratePackageOnBuild Condition="'$(Configuration)'=='Release'">True</GeneratePackageOnBuild>
+    <PackageReadmeFile>readme.md</PackageReadmeFile>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="System.CommandLine" />
-  </ItemGroup>
-
-  <ItemGroup>
     <ProjectReference Include="..\StackExchange.Redis\StackExchange.Redis.csproj" />
+    <None Include="readme.md" Link="readme.md" Pack="true" PackagePath="/" />
   </ItemGroup>
 
 </Project>

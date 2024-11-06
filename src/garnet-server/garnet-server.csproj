@@ -12,8 +12,10 @@
     <Nullable>enable</Nullable>
     <Title>The Microsoft.Garnet RESP server, packaged as a .NET tool</Title>
     <GeneratePackageOnBuild Condition="'$(Configuration)'=='Release'">True</GeneratePackageOnBuild>
+    <PackageReadmeFile>readme.md</PackageReadmeFile>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Garnet" VersionOverride="1.0.35" />
+    <None Include="readme.md" Link="readme.md" Pack="true" PackagePath="/" />
   </ItemGroup>
 </Project>
