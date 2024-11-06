@@ -5,12 +5,13 @@
     <TargetFrameworks>net6.0;net8.0</TargetFrameworks>
     <RootNamespace>StackExchange.Redis.RespCli</RootNamespace>
     <ToolCommandName>resp-cli</ToolCommandName>
-    <AssemblyName>resp-cli</AssemblyName>
+    <AssemblyName>StackExchange.Redis.RespCli</AssemblyName>
+    <PackageId>resp-cli</PackageId>
     <PackAsTool>true</PackAsTool>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <Title>command-line "RESP" client, comparable to redis-cli</Title>
-    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+    <GeneratePackageOnBuild Condition="'$(Configuration)'=='Release'">True</GeneratePackageOnBuild>
   </PropertyGroup>
 
   <ItemGroup>
