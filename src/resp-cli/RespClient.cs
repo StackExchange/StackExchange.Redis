@@ -44,13 +44,14 @@ internal static class RespClient
         {
             if (foreground != null) Console.ForegroundColor = foreground.Value;
             if (background != null) Console.BackgroundColor = background.Value;
-            Console.WriteLine(message);
+            Console.Write(message);
         }
         finally
         {
             Console.ForegroundColor = fg;
             Console.BackgroundColor = bg;
         }
+        Console.WriteLine();
     }
 
     internal static async Task RunClient(string host, int port)
