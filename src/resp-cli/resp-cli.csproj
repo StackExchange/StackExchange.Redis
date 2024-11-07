@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFrameworks>net6.0;net8.0</TargetFrameworks>
+    <TargetFrameworks>net8.0</TargetFrameworks>
     <RootNamespace>StackExchange.Redis.RespCli</RootNamespace>
     <ToolCommandName>resp-cli</ToolCommandName>
     <AssemblyName>StackExchange.Redis.RespCli</AssemblyName>
@@ -15,13 +15,12 @@
     <PackageReadmeFile>readme.md</PackageReadmeFile>
     <GenerateDocumentationFile>False</GenerateDocumentationFile>
     <NoPublicApi>True</NoPublicApi>
-    <SignAssembly>true</SignAssembly>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="System.CommandLine" />
+    <PackageReference Include="Terminal.Gui" />
     <ProjectReference Include="..\StackExchange.Redis\StackExchange.Redis.csproj" />
     <None Include="readme.md" Link="readme.md" Pack="true" PackagePath="/" />
   </ItemGroup>
-
 </Project>

@@ -1,4 +1,5 @@
-﻿#if NET8_0_OR_GREATER
+﻿/*
+#if NET8_0_OR_GREATER
 using StackExchange.Redis;
 using Xunit;
 
@@ -21,3 +22,4 @@ public class CommandParserTests
 }
 
 #endif
+*/

@@ -1,6 +1,7 @@
 ﻿using System.Globalization;
 using System.Net;
-using StackExchange.Redis;
+
+namespace StackExchange.Redis;
 
 internal static class RespClient
 {
@@ -8,7 +9,7 @@ internal static class RespClient
     {
         try
         {
-            return CommandParser.Parse(line, out args);
+            return Utils.Parse(line, out args);
         }
         catch (Exception ex)
         {
@@ -54,31 +55,14 @@ internal static class RespClient
         Console.WriteLine();
     }
 
-    internal static async Task RunClient(string host, int port)
+    internal static async Task RunClient(ConnectionMultiplexer connection)
     {
         try
         {
-            EndPoint ep;
-            if (IPAddress.TryParse(host, out var ipAddress))
-            {
-                ep = new IPEndPoint(ipAddress, port);
-            }
-            else
-            {
-                ep = new DnsEndPoint(host, port);
-            }
-            var config = new ConfigurationOptions
-            {
-                EndPoints = { ep },
-            };
-            Console.WriteLine($"Connecting to {config}...");
-            config.AllowAdmin = true;
-            using var muxer = await ConnectionMultiplexer.ConnectAsync(config);
-
-            var (connected, dbCount) = await VerifyConnectedAsync(muxer);
+            var (connected, dbCount) = await VerifyConnectedAsync(connection);
             if (!connected) return;
 
-            var db = muxer.GetDatabase();
+            var db = connection.GetDatabase();
             while (true)
             {
                 var line = ReadLine(db.Database);

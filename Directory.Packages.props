@@ -24,6 +24,7 @@
     <!-- For binding redirect testing, main package gets this transitively -->
     <PackageVersion Include="System.IO.Pipelines" Version="5.0.1" />
     <PackageVersion Include="System.Runtime.Caching" Version="5.0.0" />
+    <PackageVersion Include="Terminal.Gui" Version="2.0.0-v2-develop.2329" />
     <PackageVersion Include="xunit" Version="2.9.0" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="2.8.2" />
   </ItemGroup>
