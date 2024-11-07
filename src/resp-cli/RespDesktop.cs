@@ -36,6 +36,10 @@ internal class RespDesktop
                 {
                     return Utils.GetSimpleText(response.GetAwaiter().GetResult(), 8, out _);
                 }
+                catch (RedisServerException rex)
+                {
+                    return Utils.GetSimpleText(RedisResult.Create(rex.Message, ResultType.Error), 0, out _);
+                }
                 catch (Exception ex)
                 {
                     return ex.Message;
@@ -112,7 +116,7 @@ internal class RespDesktop
             var cmd = Utils.Parse(query, out var args);
             if (string.IsNullOrWhiteSpace(cmd)) return false;
 
-            data.TrimToLength(9);
+            data.TrimToLength(50);
             var pending = connection.GetServers().Single().ExecuteAsync(cmd, args);
             if (!pending.IsCompleted)
             {
