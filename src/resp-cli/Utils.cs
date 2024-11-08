@@ -1,12 +1,74 @@
-﻿using System.Net;
+﻿using System.Diagnostics.CodeAnalysis;
+using System.Net;
+using System.Net.Security;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
-using System.Xml.Linq;
-using Terminal.Gui;
+using RESPite.Resp;
+using static StackExchange.Redis.RespDesktop;
 
 namespace StackExchange.Redis;
 
 public static class Utils
 {
+    internal static string GetSimpleText(LeasedRespResult value, int includeItems)
+    {
+        var reader = new RespReader(value.Span);
+        if (TryGetSimpleText(ref reader, includeItems, out _, out var s) && !reader.TryReadNext())
+        {
+            return s;
+        }
+        return value.ToString(); // fallback
+    }
+
+    internal static bool TryGetSimpleText(ref RespReader reader, int includeItems, out bool isAggregate, [NotNullWhen(true)] out string? value, bool iterateChildren = true)
+    {
+        value = null;
+        if (!reader.TryReadNext())
+        {
+            isAggregate = false;
+            return false;
+        }
+        isAggregate = reader.IsAggregate;
+        char prefix = (char)reader.Prefix;
+        if (reader.IsScalar)
+        {
+            value = $"{prefix} {reader.ReadString()}";
+            return true;
+        }
+        if (reader.IsAggregate)
+        {
+            var count = reader.ChildCount;
+            if (!iterateChildren)
+            {
+                value = $"{prefix} {count}";
+                return true;
+            }
+
+            if (count > includeItems && count != 0)
+            {
+                value = $"{prefix} {count}";
+                reader.SkipChildren();
+                return true;
+            }
+
+            var sb = new StringBuilder();
+            sb.Append(prefix).Append(" ").Append(count).Append(" [");
+            for (int i = 0; i < count; i++)
+            {
+                if (i != 0) sb.Append(",");
+                if (!(reader.TryReadNext() && TryGetSimpleText(ref reader, 0, out _, out var s)))
+                {
+                    value = null;
+                    return false;
+                }
+                sb.Append(s);
+            }
+            value = sb.Append("]").ToString();
+            return true;
+        }
+        return false;
+    }
+
     public static string GetSimpleText(RedisResult value, int includeItems, out bool isAggregate)
     {
         var type = value.Resp3Type;
@@ -55,29 +117,22 @@ public static class Utils
             };
     }
 
-    public static ConfigurationOptions BuildOptions(string host, int port)
+    public static EndPoint BuildEndPoint(string host, int port)
     {
-        EndPoint ep;
         if (IPAddress.TryParse(host, out var ipAddress))
         {
-            ep = new IPEndPoint(ipAddress, port);
+            return new IPEndPoint(ipAddress, port);
         }
         else
         {
-            ep = new DnsEndPoint(host, port);
+            return new DnsEndPoint(host, port);
         }
-        var config = new ConfigurationOptions
-        {
-            EndPoints = { ep },
-            AllowAdmin = true,
-        };
-        return config;
     }
 
     public static string Parse(string value, out object[] args)
     {
         args = Array.Empty<object>();
-        using var iter = Tokenize(value);
+        using var iter = Tokenize(value).GetEnumerator();
         if (iter.MoveNext())
         {
             var cmd = iter.Current;
@@ -92,7 +147,7 @@ public static class Utils
         return "";
     }
 
-    private static IEnumerator<string> Tokenize(string value)
+    public static IEnumerable<string> Tokenize(string value)
     {
         bool inQuote = false, prevWhitespace = true;
         int startIndex = -1;
@@ -140,5 +195,22 @@ public static class Utils
         }
 
         static void UnableToParse() => throw new FormatException("Unable to parse input");
+    }
+
+    internal static bool CertificateValidation(object sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors sslPolicyErrors)
+    {
+        if (certificate is X509Certificate2 cert2)
+        {
+            Console.WriteLine($"TLS: {certificate.Subject} ({cert2.Thumbprint})");
+        }
+        else
+        {
+            Console.WriteLine($"TLS: {certificate?.Subject}");
+        }
+        if (sslPolicyErrors != SslPolicyErrors.None)
+        {
+            Console.WriteLine($"Ignoring certificate policy failure (ignoring): {sslPolicyErrors}");
+        }
+        return true;
     }
 }

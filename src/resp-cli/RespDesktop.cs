@@ -1,17 +1,55 @@
-﻿using System.Net;
+﻿using System.Buffers;
+using System.Diagnostics.CodeAnalysis;
+using System.Text;
+using RESPite;
+using RESPite.Messages;
+using RESPite.Resp;
+using RESPite.Transports;
 using Terminal.Gui;
 
 namespace StackExchange.Redis;
 
 internal class RespDesktop
 {
-    public static void Run(ConnectionMultiplexer connection)
+    public static void Run(Stream connection, string? user, string? pass, bool resp3)
     {
         Application.Init();
 
         try
         {
-            Application.Run(new RespDesktopWindow(connection));
+            var window = new RespDesktopWindow(connection);
+            if (resp3)
+            {
+                if (!string.IsNullOrWhiteSpace(pass))
+                {
+                    if (string.IsNullOrWhiteSpace(user))
+                    {
+                        window.Send($"HELLO 3 AUTH default {pass}");
+                    }
+                    else
+                    {
+                        window.Send($"HELLO 3 AUTH {user} {pass}");
+                    }
+                }
+                else
+                {
+                    window.Send("HELLO 3");
+                }
+            }
+            else if (!string.IsNullOrWhiteSpace(pass))
+            {
+                if (string.IsNullOrWhiteSpace(user))
+                {
+                    window.Send($"AUTH {user} {pass}");
+                }
+                else
+                {
+                    window.Send($"AUTH {pass}");
+                }
+            }
+            window.Send("CLIENT SETNAME resp-cli");
+            window.Send("CLIENT SETINFO LIB-NAME RESPite");
+            Application.Run();
         }
         finally
         {
@@ -19,11 +57,11 @@ internal class RespDesktop
         }
     }
 
-    private sealed class RespPayload(string request, Task<RedisResult> response)
+    private sealed class RespPayload(string request, Task<LeasedRespResult> response)
     {
         public string Request { get; } = request;
 
-        public Task<RedisResult> ResponseTask => response;
+        public Task<LeasedRespResult> ResponseTask => response;
         public string ResponseText
         {
             get
@@ -34,7 +72,7 @@ internal class RespDesktop
                 }
                 try
                 {
-                    return Utils.GetSimpleText(response.GetAwaiter().GetResult(), 8, out _);
+                    return Utils.GetSimpleText(response.GetAwaiter().GetResult(), 8);
                 }
                 catch (RedisServerException rex)
                 {
@@ -109,33 +147,109 @@ internal class RespDesktop
         public void Insert(int index, RespPayload value) => items.Insert(0, value);
     }
 
+    internal sealed class LeasedRespResult : IDisposable
+    {
+        public override string ToString()
+        {
+            var tmp = _buffer;
+            return tmp is null ? "(disposed)" : Encoding.UTF8.GetString(tmp, 0, _length);
+        }
+
+        private byte[]? _buffer;
+        private readonly int _length;
+
+        public ReadOnlySpan<byte> Span
+        {
+            get
+            {
+                var tmp = _buffer;
+                return tmp is null ? ThrowDisposed() : new(tmp, 0, _length);
+
+                static ReadOnlySpan<byte> ThrowDisposed() => throw new ObjectDisposedException(nameof(LeasedRespResult));
+            }
+        }
+
+        public LeasedRespResult(in ReadOnlySequence<byte> content)
+        {
+            _length = checked((int)content.Length);
+            _buffer = ArrayPool<byte>.Shared.Rent(_length);
+            content.CopyTo(_buffer);
+        }
+
+        public void Dispose()
+        {
+            var old = _buffer;
+            _buffer = null;
+            if (old is not null)
+            {
+                ArrayPool<byte>.Shared.Return(old);
+            }
+        }
+    }
+
+    private sealed class RawResultReader : IReader<Empty, LeasedRespResult>
+    {
+        public static RawResultReader Instance = new();
+        private RawResultReader() { }
+
+        public LeasedRespResult Read(in Empty request, in ReadOnlySequence<byte> content)
+            => new(content);
+    }
+
     private class RespDesktopWindow : Window
     {
         public bool Send(string query)
         {
-            var cmd = Utils.Parse(query, out var args);
-            if (string.IsNullOrWhiteSpace(cmd)) return false;
+            ReadOnlyMemory<string> cmd = Utils.Tokenize(query).ToArray();
+            if (cmd.IsEmpty)
+            {
+                return false;
+            }
 
-            data.TrimToLength(50);
-            var pending = connection.GetServers().Single().ExecuteAsync(cmd, args);
+            /*
+            var x = transport.Send(cmd, RespWriters.Strings, RawResultReader.Instance);
+            var pending = Task.FromResult(x);
+            */
+
+            /*
+            var pending = transport.SendAsync(cmd, RespWriters.Strings, RawResultReader.Instance, EndOfLife).AsTask();
+            */
+
+            /*
             if (!pending.IsCompleted)
             {
                 _ = pending.ContinueWith(asyncUpdateTable);
             }
             data.Insert(0, new RespPayload(query, pending));
+            */
             return true;
         }
 
         private readonly TableView table;
         private readonly TextField input;
         private readonly MyTable data;
-        private readonly ConnectionMultiplexer connection;
-
+        private readonly IRequestResponseTransport transport;
+        private readonly CancellationTokenSource endOfLifeSource = new();
         private readonly Action<Task> asyncUpdateTable;
 
-        public RespDesktopWindow(ConnectionMultiplexer connection)
+        private CancellationToken EndOfLife => endOfLifeSource.Token;
+
+        protected override void Dispose(bool disposing)
         {
-            this.connection = connection;
+            if (disposing)
+            {
+                endOfLifeSource.Cancel();
+                transport?.Dispose();
+            }
+
+            base.Dispose(disposing);
+        }
+        public RespDesktopWindow(Stream connection)
+        {
+            // transport = connection.CreateTransport().RequestResponse(RespFrameScanner.Default);
+            // transport.OutOfBandData += Transport_OutOfBandData;
+            transport = null!;
+
             Title = $"resp-cli desktop ({Application.QuitKey} to exit)";
 
             var lbl = new Label
@@ -274,18 +388,36 @@ internal class RespDesktop
             Send("CONFIG GET databases");
         }
 
-        private ITreeNode BuildTree(RedisResult redisResult)
-        {
-            var node = new TreeNode(" " + Utils.GetSimpleText(redisResult, 0, out bool isAgg));
+        private void Transport_OutOfBandData(ReadOnlySequence<byte> obj) { }
 
-            if (isAgg)
+        private ITreeNode BuildTree(LeasedRespResult value)
+        {
+            var reader = new RespReader(value.Span);
+            if (TryCreateNode(ref reader, out var node))
             {
-                for (int i = 0; i < redisResult.Length; i++)
+                return node;
+            }
+            return new TreeNode(" ???");
+        }
+
+        private static bool TryCreateNode(ref RespReader reader, [NotNullWhen(true)] out ITreeNode? node)
+        {
+            if (!Utils.TryGetSimpleText(ref reader, 0, out _, out var text, iterateChildren: false))
+            {
+                node = null;
+                return false;
+            }
+
+            node = new TreeNode(" " + text);
+            if (reader.IsAggregate)
+            {
+                var count = reader.ChildCount;
+                for (int i = 0; i < count && TryCreateNode(ref reader, out var child); i++)
                 {
-                    node.Children.Add(BuildTree(redisResult[i]));
+                    node.Children.Add(child);
                 }
             }
-            return node;
+            return true;
         }
     }
 }

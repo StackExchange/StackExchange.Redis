@@ -203,6 +203,7 @@ dotnet_diagnostic.SA1513.severity = none # SA1513: Closing brace should be follo
 dotnet_diagnostic.SA1515.severity = none # SA1515: Single-line comment should be preceded by blank line
 dotnet_diagnostic.SA1611.severity = suggestion # SA1611: Element parameters should be documented
 dotnet_diagnostic.SA1649.severity = suggestion # SA1649: File name should match first type name
+dotnet_diagnostic.SA1618.severity = none # SA1649: Missing generic type documentation
 
 
 

@@ -1,0 +1,31 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Nullable>enable</Nullable>
+    <TargetFrameworks>net461;netstandard2.0;net472;netcoreapp3.1;net6.0;net8.0</TargetFrameworks>
+    <Description>Low level RESP primitives.</Description>
+    <AssemblyName>RESPite</AssemblyName>
+    <AssemblyTitle>RESPite</AssemblyTitle>
+    <RootNamespace>RESPite</RootNamespace>
+    <PackageId>RESPite</PackageId>
+    <PackageTags>RESP</PackageTags>
+    <SignAssembly>true</SignAssembly>
+    <PublicSign Condition=" '$(OS)' != 'Windows_NT' ">true</PublicSign>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\StackExchange.Redis\NullableHacks.cs" Link="NullableHacks.cs" />
+    <Compile Include="..\StackExchange.Redis\SkipLocalsInit.cs" Link="SkipLocalsInit.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Remove="Microsoft.CodeAnalysis.PublicApiAnalyzers" />
+
+    <!-- built into .NET core now -->
+    <PackageReference Include="System.Memory" Condition="'$(TargetFramework)' == 'net472' or '$(TargetFramework)' == 'net461' or '$(TargetFramework)' == 'netstandard2.0'" />
+    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Condition="'$(TargetFramework)' == 'net472' or '$(TargetFramework)' == 'net461' or '$(TargetFramework)' == 'netstandard2.0'" />
+    <PackageReference Include="System.Threading.Channels" Condition="'$(TargetFramework)' == 'net472' or '$(TargetFramework)' == 'net461' or '$(TargetFramework)' == 'netstandard2.0'" />
+
+  </ItemGroup>
+
+</Project>
