@@ -93,6 +93,7 @@ internal sealed class RespConnectView : View
         {
             Y = Pos.Bottom(resp3Check),
             Text = "connect",
+            IsDefault = true,
         };
         Add(btn);
         btn.Accept += (s, e) => Connect?.Invoke();
