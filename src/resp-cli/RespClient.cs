@@ -1,5 +1,9 @@
-﻿using System.Globalization;
+﻿using System;
+using System.Globalization;
 using System.Net;
+using System.Reflection;
+using RESPite.Resp;
+using RESPite.Transports;
 
 namespace StackExchange.Redis;
 
@@ -55,32 +59,27 @@ internal static class RespClient
         Console.WriteLine();
     }
 
-    internal static async Task RunClient(ConnectionMultiplexer connection)
+    internal static async Task RunClient(IRequestResponseTransport transport, string? command)
     {
         try
         {
-            var (connected, dbCount) = await VerifyConnectedAsync(connection);
-            if (!connected) return;
-
-            var db = connection.GetDatabase();
-            while (true)
+            if (!string.IsNullOrWhiteSpace(command))
             {
-                var line = ReadLine(db.Database);
-                if (line is null) break;
-
-                var cmd = ParseCommand(line, out var args);
-                if (string.IsNullOrWhiteSpace(cmd)) continue; // no input
-
-                try
-                {
-                    var result = await db.ExecuteAsync(cmd, args);
-                    WriteValue(result, 0, -1);
-                }
-                catch (RedisServerException ex)
-                {
-                    WriteString(RedisResult.Create(ex.Message, ResultType.SimpleString), "-", 0, -1, ConsoleColor.Red, ConsoleColor.Gray);
-                }
+                WriteLine("Authenticating...", null, null);
             }
+            do
+            {
+                if (command is null) break; // EOF
+
+                ReadOnlyMemory<string> cmd = Utils.Tokenize(command).ToArray();
+                if (!cmd.IsEmpty)
+                {
+                    WriteResult(await transport.SendAsync(cmd, RespWriters.Strings, LeasedRespResult.Reader));
+                }
+
+                command = ReadLine();
+            }
+            while (true);
         }
         catch (Exception ex)
         {
@@ -88,74 +87,54 @@ internal static class RespClient
             // and exit, no idea what happened
         }
 
-        static void WriteValue(RedisResult value, int indent, int index)
+        static void WriteResult(LeasedRespResult result)
         {
-            switch (value.Resp3Type)
+            var reader = new RespReader(result.Span);
+            if (reader.TryReadNext())
             {
-                case ResultType.BulkString:
-                    WriteString(value, "$", indent, index);
-                    break;
-                case ResultType.SimpleString:
-                    WriteString(value, "+", indent, index);
-                    break;
-                case ResultType.VerbatimString:
-                    WriteString(value, "=", indent, index);
-                    break;
-                case ResultType.Integer:
-                    WriteString(value, ":", indent, index);
-                    break;
-                case ResultType.Double:
-                    WriteString(value, ",", indent, index);
-                    break;
-                case ResultType.Null:
-                    WriteString(value, "_", indent, index);
-                    break;
-                case ResultType.Boolean:
-                    WriteString(value, "#", indent, index);
-                    break;
-                case ResultType.BigInteger:
-                    WriteString(value, "(", indent, index);
-                    break;
-                case ResultType.Error:
-                    WriteString(value, "-", indent, index, ConsoleColor.Red, ConsoleColor.Gray);
-                    break;
-                case ResultType.BlobError:
-                    WriteString(value, "!", indent, index, ConsoleColor.Red, ConsoleColor.Gray);
-                    break;
-                case ResultType.Array:
-                    WriteArray(value, "*", indent, index);
-                    break;
-                case ResultType.Map:
-                    WriteArray(value, "%", indent, index);
-                    break;
-                case ResultType.Set:
-                    WriteArray(value, "~", indent, index);
-                    break;
-                default:
-                    WriteString(value, "?", indent, index);
-                    break;
+                WriteValue(ref reader, 0, -1);
             }
         }
 
-        static void WriteArray(RedisResult value, string token, int indent, int index)
+        static void WriteValue(ref RespReader reader, int indent, int index)
         {
-            WriteHeader(token, indent, index);
-            if (value.IsNull)
+            if (reader.IsScalar)
+            {
+                WriteString(
+                    ref reader,
+                    indent,
+                    index,
+                    reader.IsError ? ConsoleColor.Red : null,
+                    reader.IsError ? ConsoleColor.Gray : null);
+            }
+            else if (reader.IsAggregate)
+            {
+                WriteArray(ref reader, indent, index);
+            }
+        }
+
+        static void WriteArray(ref RespReader reader, int indent, int index)
+        {
+            WriteHeader(reader.Prefix, indent, index);
+            if (reader.IsNull)
             {
                 WriteNull();
             }
-            else if (value.Length == 0)
+            else if (reader.ChildCount == 0)
             {
                 WriteLine("(empty)", ConsoleColor.Green, ConsoleColor.DarkGray);
             }
             else
             {
-                WriteLine($"{value.Length}", ConsoleColor.Green, ConsoleColor.DarkGray);
+                var count = reader.ChildCount;
+                WriteLine($"{count}", ConsoleColor.Green, ConsoleColor.DarkGray);
                 indent++;
-                var arr = (RedisResult[])value!;
-                for (int i = 0; i < arr.Length; i++)
+                for (int i = 0; i < count; i++)
                 {
-                    WriteValue(arr[i], indent, i);
+                    if (reader.TryReadNext())
+                    {
+                        WriteValue(ref reader, indent, i);
+                    }
                 }
             }
         }
@@ -165,26 +144,26 @@ internal static class RespClient
             while (indent-- > 0) Write(" ", null, null);
         }
 
-        static void WriteHeader(string token, int indent, int index)
+        static void WriteHeader(RespPrefix prefix, int indent, int index)
         {
             Indent(indent);
             if (index >= 0)
             {
                 Write($"[{index}]", ConsoleColor.White, ConsoleColor.DarkBlue);
             }
-            Write(token, ConsoleColor.White, ConsoleColor.DarkBlue);
+            Write(((char)prefix).ToString(), ConsoleColor.White, ConsoleColor.DarkBlue);
             Write(" ", null, null);
         }
-        static void WriteString(RedisResult value, string token, int indent, int index, ConsoleColor? foreground = null, ConsoleColor? background = null)
+        static void WriteString(ref RespReader reader, int indent, int index, ConsoleColor? foreground = null, ConsoleColor? background = null)
         {
-            WriteHeader(token, indent, index);
-            if (value.IsNull)
+            WriteHeader(reader.Prefix, indent, index);
+            if (reader.IsNull)
             {
                 WriteNull();
             }
             else
             {
-                WriteLine((string)value!, foreground, background);
+                WriteLine(reader.ReadString() ?? "", foreground, background);
             }
         }
 
@@ -193,42 +172,8 @@ internal static class RespClient
             WriteLine("(nil)", ConsoleColor.Blue, ConsoleColor.Yellow);
         }
 
-        static async Task<(bool Connected, int Databases)> VerifyConnectedAsync(ConnectionMultiplexer muxer)
+        static string? ReadLine()
         {
-            foreach (var server in muxer.GetServers())
-            {
-                // show some details about the first server we connect to
-                if (server.IsConnected)
-                {
-                    foreach (var grp in await server.InfoAsync("server"))
-                    {
-                        Console.WriteLine($"# {grp.Key}");
-                        foreach (var pair in grp)
-                        {
-                            if (pair.Key.EndsWith("version") || pair.Key == "redis_mode")
-                            {
-                                Console.WriteLine($"{pair.Key}:\t{pair.Value}");
-                            }
-                        }
-                    }
-                    int dbCount = -1;
-                    foreach (var token in await server.ConfigGetAsync("databases"))
-                    {
-                        Console.WriteLine($"{token.Key}:\t{token.Value}");
-                        if (int.TryParse(token.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var tmp))
-                        {
-                            dbCount = tmp;
-                        }
-                    }
-                    return (true, dbCount);
-                }
-            }
-            return (false, -1);
-        }
-
-        static string? ReadLine(int db)
-        {
-            if (db > 1) Console.Write(db);
             Console.Write("> ");
             return Console.ReadLine();
         }

@@ -3,7 +3,7 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFrameworks>net8.0</TargetFrameworks>
-    <RootNamespace>StackExchange.Redis.RespCli</RootNamespace>
+    <RootNamespace>StackExchange.Redis</RootNamespace>
     <ToolCommandName>resp-cli</ToolCommandName>
     <AssemblyName>StackExchange.Redis.RespCli</AssemblyName>
     <PackageId>resp-cli</PackageId>
@@ -21,7 +21,6 @@
     <PackageReference Include="System.CommandLine" />
     <PackageReference Include="Terminal.Gui" />
     <ProjectReference Include="..\RESPite.Resp\RESPite.Resp.csproj" />
-    <ProjectReference Include="..\StackExchange.Redis\StackExchange.Redis.csproj" />
     <None Include="readme.md" Link="readme.md" Pack="true" PackagePath="/" />
   </ItemGroup>
 </Project>

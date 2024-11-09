@@ -48,65 +48,40 @@ RootCommand rootCommand = new(description: "Connects to a RESP server to issue a
     hostOption,
     portOption,
     guiOption,
+    userOption,
+    passOption,
+    tlsOption,
+    resp3Option,
 };
 
 rootCommand.SetHandler(
     async (string host, int port, bool gui, string? user, string? pass, bool tls, bool resp3) =>
     {
-        Stream? conn = null;
         try
         {
             if (string.IsNullOrEmpty(pass))
             {
                 pass = Environment.GetEnvironmentVariable("RESPCLI_AUTH");
             }
+
             var ep = Utils.BuildEndPoint(host, port);
             if (gui)
             {
-                /*
-                using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-                socket.NoDelay = true;
-                await socket.ConnectAsync(ep);
-                conn = new NetworkStream(socket);
-                if (tls)
-                {
-                    var ssl = new SslStream(conn);
-                    conn = ssl;
-                    var options = new SslClientAuthenticationOptions
-                    {
-                        RemoteCertificateValidationCallback = Utils.CertificateValidation,
-                        TargetHost = host,
-                    };
-                    await ssl.AuthenticateAsClientAsync(options);
-                }
-                */
-                conn = null!;
-                RespDesktop.Run(conn, user, pass, resp3);
+                RespDesktop.Run(host, port, user, pass, resp3);
             }
             else
             {
-                var config = new ConfigurationOptions
+                using var conn = await Utils.ConnectAsync(host, port, tls, Console.WriteLine);
+                if (conn is not null)
                 {
-                    EndPoints = { ep },
-                    AllowAdmin = true,
-                    User = user,
-                    Password = pass,
-                    Ssl = tls,
-                    ClientName = "resp-cli",
-                };
-                config.CertificateValidation += Utils.CertificateValidation;
-
-                await using var muxer = await ConnectionMultiplexer.ConnectAsync(config);
-                await RespClient.RunClient(muxer);
+                    var handshake = Utils.GetHandshake(user, pass, resp3);
+                    await RespClient.RunClient(conn, handshake);
+                }
             }
         }
         catch (Exception ex)
         {
             Console.Error.WriteLine(ex.Message);
-        }
-        finally
-        {
-            conn?.Dispose();
         }
     },
     hostOption,

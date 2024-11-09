@@ -11,44 +11,14 @@ namespace StackExchange.Redis;
 
 internal class RespDesktop
 {
-    public static void Run(Stream connection, string? user, string? pass, bool resp3)
+    public static void Run(string host, int port, string? user, string? pass, bool resp3)
     {
         Application.Init();
 
         try
         {
-            var window = new RespDesktopWindow(connection);
-            if (resp3)
-            {
-                if (!string.IsNullOrWhiteSpace(pass))
-                {
-                    if (string.IsNullOrWhiteSpace(user))
-                    {
-                        window.Send($"HELLO 3 AUTH default {pass}");
-                    }
-                    else
-                    {
-                        window.Send($"HELLO 3 AUTH {user} {pass}");
-                    }
-                }
-                else
-                {
-                    window.Send("HELLO 3");
-                }
-            }
-            else if (!string.IsNullOrWhiteSpace(pass))
-            {
-                if (string.IsNullOrWhiteSpace(user))
-                {
-                    window.Send($"AUTH {user} {pass}");
-                }
-                else
-                {
-                    window.Send($"AUTH {pass}");
-                }
-            }
-            window.Send("CLIENT SETNAME resp-cli");
-            window.Send("CLIENT SETINFO LIB-NAME RESPite");
+            var window = new RespDesktopWindow(host, port, user, pass, resp3);
+
             Application.Run();
         }
         finally
@@ -73,10 +43,6 @@ internal class RespDesktop
                 try
                 {
                     return Utils.GetSimpleText(response.GetAwaiter().GetResult(), 8);
-                }
-                catch (RedisServerException rex)
-                {
-                    return Utils.GetSimpleText(RedisResult.Create(rex.Message, ResultType.Error), 0, out _);
                 }
                 catch (Exception ex)
                 {
@@ -147,55 +113,6 @@ internal class RespDesktop
         public void Insert(int index, RespPayload value) => items.Insert(0, value);
     }
 
-    internal sealed class LeasedRespResult : IDisposable
-    {
-        public override string ToString()
-        {
-            var tmp = _buffer;
-            return tmp is null ? "(disposed)" : Encoding.UTF8.GetString(tmp, 0, _length);
-        }
-
-        private byte[]? _buffer;
-        private readonly int _length;
-
-        public ReadOnlySpan<byte> Span
-        {
-            get
-            {
-                var tmp = _buffer;
-                return tmp is null ? ThrowDisposed() : new(tmp, 0, _length);
-
-                static ReadOnlySpan<byte> ThrowDisposed() => throw new ObjectDisposedException(nameof(LeasedRespResult));
-            }
-        }
-
-        public LeasedRespResult(in ReadOnlySequence<byte> content)
-        {
-            _length = checked((int)content.Length);
-            _buffer = ArrayPool<byte>.Shared.Rent(_length);
-            content.CopyTo(_buffer);
-        }
-
-        public void Dispose()
-        {
-            var old = _buffer;
-            _buffer = null;
-            if (old is not null)
-            {
-                ArrayPool<byte>.Shared.Return(old);
-            }
-        }
-    }
-
-    private sealed class RawResultReader : IReader<Empty, LeasedRespResult>
-    {
-        public static RawResultReader Instance = new();
-        private RawResultReader() { }
-
-        public LeasedRespResult Read(in Empty request, in ReadOnlySequence<byte> content)
-            => new(content);
-    }
-
     private class RespDesktopWindow : Window
     {
         public bool Send(string query)
@@ -244,7 +161,8 @@ internal class RespDesktop
 
             base.Dispose(disposing);
         }
-        public RespDesktopWindow(Stream connection)
+
+        public RespDesktopWindow(string host, int port, string? user, string? pass, bool resp3)
         {
             // transport = connection.CreateTransport().RequestResponse(RespFrameScanner.Default);
             // transport.OutOfBandData += Transport_OutOfBandData;

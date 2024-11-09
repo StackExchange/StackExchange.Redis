@@ -1,15 +1,90 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Net.Security;
+using System.Net.Sockets;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using RESPite.Resp;
-using static StackExchange.Redis.RespDesktop;
+using RESPite.Transports;
 
 namespace StackExchange.Redis;
 
 public static class Utils
 {
+    internal static async Task<IRequestResponseTransport?> ConnectAsync(string host, int port, bool tls, Action<string>? log)
+    {
+        Socket? socket = null;
+        Stream? conn = null;
+        try
+        {
+            var ep = BuildEndPoint(host, port);
+            socket = new(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp)
+            {
+                NoDelay = true,
+            };
+            log?.Invoke($"Connecting to {host} on TCP port {port}...");
+            await socket.ConnectAsync(ep);
+
+            conn = new NetworkStream(socket);
+            if (tls)
+            {
+                log?.Invoke("Establishing TLS...");
+                var ssl = new SslStream(conn);
+                conn = ssl;
+                var options = new SslClientAuthenticationOptions
+                {
+                    RemoteCertificateValidationCallback = Utils.CertificateValidation(log),
+                    TargetHost = host,
+                };
+                await ssl.AuthenticateAsClientAsync(options);
+            }
+
+            return conn.CreateTransport().RequestResponse(RespFrameScanner.Default);
+        }
+        catch (Exception ex)
+        {
+            conn?.Dispose();
+            socket?.Dispose();
+
+            log?.Invoke(ex.Message);
+            return null;
+        }
+    }
+
+    internal static string GetHandshake(string? user, string? pass, bool resp3)
+    {
+        if (resp3)
+        {
+            if (!string.IsNullOrWhiteSpace(pass))
+            {
+                if (string.IsNullOrWhiteSpace(user))
+                {
+                    return $"HELLO 3 AUTH default {pass}";
+                }
+                else
+                {
+                    return $"HELLO 3 AUTH {user} {pass}";
+                }
+            }
+            else
+            {
+                return "HELLO 3";
+            }
+        }
+        else if (!string.IsNullOrWhiteSpace(pass))
+        {
+            if (string.IsNullOrWhiteSpace(user))
+            {
+                return $"AUTH {user} {pass}";
+            }
+            else
+            {
+                return $"AUTH {pass}";
+            }
+        }
+        return "";
+    }
+
     internal static string GetSimpleText(LeasedRespResult value, int includeItems)
     {
         var reader = new RespReader(value.Span);
@@ -67,54 +142,6 @@ public static class Utils
             return true;
         }
         return false;
-    }
-
-    public static string GetSimpleText(RedisResult value, int includeItems, out bool isAggregate)
-    {
-        var type = value.Resp3Type;
-        switch (type)
-        {
-            case ResultType.Map:
-            case ResultType.Array:
-            case ResultType.Set:
-                isAggregate = true;
-                if (value.Length > includeItems && value.Length != 0)
-                {
-                    return $"{GetPrefix(type)} {value.Length}";
-                }
-                var sb = new StringBuilder();
-                sb.Append(GetPrefix(type)).Append(" ").Append(value.Length).Append(" [");
-                for (int i = 0; i < value.Length; i++)
-                {
-                    if (i != 0) sb.Append(",");
-                    sb.Append(GetSimpleText(value[i], 0, out _));
-                }
-                return sb.Append("]").ToString();
-            default:
-                isAggregate = false;
-                return $"{GetPrefix(type)} {value.ToString()}";
-        }
-
-        static string GetPrefix(ResultType type)
-            => type switch
-            {
-                ResultType.SimpleString => "+",
-                ResultType.Error => "-",
-                ResultType.Integer => ":",
-                ResultType.BulkString => "$",
-                ResultType.Array => "*",
-                ResultType.Null => "_",
-                ResultType.Boolean => "#",
-                ResultType.Double => ",",
-                ResultType.BigInteger => "(",
-                ResultType.BlobError => "!",
-                ResultType.VerbatimString => "=",
-                ResultType.Map => "%",
-                ResultType.Set => "~",
-                ResultType.Attribute => "|",
-                ResultType.Push => ">",
-                _ => "???",
-            };
     }
 
     public static EndPoint BuildEndPoint(string host, int port)
@@ -197,20 +224,21 @@ public static class Utils
         static void UnableToParse() => throw new FormatException("Unable to parse input");
     }
 
-    internal static bool CertificateValidation(object sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors sslPolicyErrors)
-    {
-        if (certificate is X509Certificate2 cert2)
+    internal static RemoteCertificateValidationCallback CertificateValidation(Action<string>? log)
+        => (object sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors sslPolicyErrors) =>
         {
-            Console.WriteLine($"TLS: {certificate.Subject} ({cert2.Thumbprint})");
-        }
-        else
-        {
-            Console.WriteLine($"TLS: {certificate?.Subject}");
-        }
-        if (sslPolicyErrors != SslPolicyErrors.None)
-        {
-            Console.WriteLine($"Ignoring certificate policy failure (ignoring): {sslPolicyErrors}");
-        }
-        return true;
-    }
+            if (certificate is X509Certificate2 cert2)
+            {
+                log?.Invoke($"Server certificate: {certificate.Subject} ({cert2.Thumbprint})");
+            }
+            else
+            {
+                log?.Invoke($"Server certificate: {certificate?.Subject}");
+            }
+            if (sslPolicyErrors != SslPolicyErrors.None)
+            {
+                log?.Invoke($"Ignoring certificate policy failure (ignoring): {sslPolicyErrors}");
+            }
+            return true;
+        };
 }
