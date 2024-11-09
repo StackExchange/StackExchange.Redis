@@ -64,13 +64,18 @@ internal class ServerView : View
             transport = await Utils.ConnectAsync(host, port, tls, msg => Application.Invoke(() =>
             {
                 log.MoveEnd();
-                log.InsertText(msg);
+                log.ReadOnly = false;
+                log.InsertText(msg + Environment.NewLine);
+                log.ReadOnly = true;
             }));
 
             if (transport is not null)
             {
-                Remove(log);
-                CreateTable();
+                Application.Invoke(() =>
+                {
+                    Remove(log);
+                    CreateTable();
+                });
             }
         });
     }
