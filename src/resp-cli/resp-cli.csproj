@@ -15,6 +15,7 @@
     <PackageReadmeFile>readme.md</PackageReadmeFile>
     <GenerateDocumentationFile>False</GenerateDocumentationFile>
     <NoPublicApi>True</NoPublicApi>
+    <WarningsAsErrors Condition="'$(Configuration)'=='Debug'">false</WarningsAsErrors>
   </PropertyGroup>
 
   <ItemGroup>

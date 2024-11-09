@@ -1,4 +1,5 @@
-﻿using System.Diagnostics.CodeAnalysis;
+﻿using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
@@ -87,12 +88,20 @@ public static class Utils
 
     internal static string GetSimpleText(LeasedRespResult value, int includeItems)
     {
-        var reader = new RespReader(value.Span);
-        if (TryGetSimpleText(ref reader, includeItems, out _, out var s) && !reader.TryReadNext())
+        try
         {
-            return s;
+            var reader = new RespReader(value.Span);
+            if (TryGetSimpleText(ref reader, includeItems, out _, out var s) && !reader.TryReadNext())
+            {
+                return s;
+            }
+            return value.ToString(); // fallback
         }
-        return value.ToString(); // fallback
+        catch
+        {
+            Debug.WriteLine(Encoding.UTF8.GetString(value.Span));
+            throw;
+        }
     }
 
     internal static bool TryGetSimpleText(ref RespReader reader, int includeItems, out bool isAggregate, [NotNullWhen(true)] out string? value, bool iterateChildren = true)

@@ -837,10 +837,6 @@ public ref struct RespReader
             remaining = remaining - 1 + ChildCount;
         }
         if (remaining != 0) ThrowEOF();
-        if (total != 0)
-        {
-            ResetCurrent(); // would be confusing to see the last descendent state
-        }
         return total;
     }
     [DoesNotReturn]

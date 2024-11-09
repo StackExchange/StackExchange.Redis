@@ -67,7 +67,7 @@ rootCommand.SetHandler(
             var ep = Utils.BuildEndPoint(host, port);
             if (gui)
             {
-                RespDesktop.Run(host, port, user, pass, resp3);
+                RespDesktop.Run(host, port, tls, user, pass, resp3);
             }
             else
             {

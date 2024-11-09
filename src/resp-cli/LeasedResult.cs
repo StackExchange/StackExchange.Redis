@@ -1,4 +1,5 @@
 ﻿using System.Buffers;
+using System.Diagnostics;
 using System.Text;
 using RESPite;
 using RESPite.Messages;
@@ -33,6 +34,17 @@ internal sealed class LeasedRespResult : IDisposable
         _length = checked((int)content.Length);
         _buffer = ArrayPool<byte>.Shared.Rent(_length);
         content.CopyTo(_buffer);
+
+        DebugAssertValid();
+    }
+
+    [Conditional("DEBUG")]
+    private void DebugAssertValid()
+    {
+        RespReader reader = new RespReader(Span);
+        Debug.Assert(reader.TryReadNext(), "failed to read root node");
+        reader.SkipChildren();
+        Debug.Assert(!reader.TryReadNext(), "multiple root nodes");
     }
 
     public void Dispose()
