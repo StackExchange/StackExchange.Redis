@@ -26,7 +26,18 @@ internal sealed class RespDesktopWindow : Window
     public RespDesktopWindow(string host, int port, bool tls, string? user, string? pass, bool resp3)
     {
         Title = $"resp-cli desktop ({Application.QuitKey} to exit)";
-        statusBar = new();
+
+        statusBar = new()
+        {
+            Width = Dim.Fill(5),
+        };
+        var tool = new Button
+        {
+            X = Pos.Right(statusBar),
+            Y = Pos.Top(statusBar),
+            Width = 5,
+            Text = "!",
+        };
 
         var lbl = new Label
         {
@@ -96,7 +107,7 @@ internal sealed class RespDesktopWindow : Window
             }
         };
 
-        Add(lbl, input, servers, statusBar);
+        Add(lbl, input, servers, statusBar, tool);
     }
 
     public void SetStatusText(string text) => statusBar.Text = text;

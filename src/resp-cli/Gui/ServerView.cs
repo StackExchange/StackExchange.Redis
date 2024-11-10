@@ -17,9 +17,7 @@ internal class ServerView : View
 
     public string StatusCaption { get; set; }
 
-#pragma warning disable CS0067 // not used
     public event Action<string>? StatusChanged;
-#pragma warning restore CS0067
 
     protected override void Dispose(bool disposing)
     {
@@ -175,6 +173,33 @@ internal class ServerView : View
                     var node = BuildTree(result);
                     tree.AddObject(node);
                     tree.Expand(node);
+                    tree.SelectionChanged += (s, e) =>
+                    {
+                        string? status = null;
+                        if (e.NewValue is RespTreeNode typedNode)
+                        {
+                            status = typedNode.Prefix switch
+                            {
+                                RespPrefix.BigNumber => "big number",
+                                RespPrefix.BulkError => "bulk error",
+                                RespPrefix.BulkString => "bulk string",
+                                RespPrefix.SimpleError => "simple error",
+                                RespPrefix.None => "(none)",
+                                RespPrefix.SimpleString => "simple string",
+                                RespPrefix.Integer => "integer",
+                                RespPrefix.Array => "array",
+                                RespPrefix.Null => "null",
+                                RespPrefix.Boolean => "boolean",
+                                RespPrefix.Double => "double",
+                                RespPrefix.VerbatimString => "verbatim string",
+                                RespPrefix.Map => "map",
+                                RespPrefix.Set => "set",
+                                RespPrefix.Push => "push",
+                                _ => typedNode.Prefix.ToString(),
+                            };
+                        }
+                        StatusChanged?.Invoke(status ?? "");
+                    };
 
                     respText.Text = result.ToString();
                 }
@@ -236,7 +261,12 @@ internal class ServerView : View
         {
             return node;
         }
-        return new TreeNode(" ???");
+        return new RespTreeNode(" ???", RespPrefix.None);
+    }
+
+    private sealed class RespTreeNode(string text, RespPrefix prefix) : TreeNode(text)
+    {
+        public RespPrefix Prefix => prefix;
     }
 
     private static bool TryCreateNode(ref RespReader reader, [NotNullWhen(true)] out ITreeNode? node)
@@ -248,7 +278,7 @@ internal class ServerView : View
             return false;
         }
 
-        node = new TreeNode(sb.ToString());
+        node = new RespTreeNode(sb.ToString(), reader.Prefix);
         if (reader.IsAggregate)
         {
             var count = reader.ChildCount;
