@@ -1,26 +1,35 @@
 ﻿namespace StackExchange.Redis.Gui;
 
-internal sealed class RespPayload(string request, Task<LeasedRespResult> response)
+internal abstract class RespPayloadBase
 {
-    public string Request { get; } = request;
+    public abstract string GetRequest(int sizeHint = int.MaxValue);
+    public abstract string GetResponse(int sizeHint = int.MaxValue);
+}
 
+internal sealed class RespLogPayload(string request, string response) : RespPayloadBase
+{
+    public override string GetRequest(int sizeHint) => request;
+    public override string GetResponse(int sizeHint) => response;
+}
+
+internal sealed class RespPayload(string request, Task<LeasedRespResult> response) : RespPayloadBase
+{
     public Task<LeasedRespResult> ResponseTask => response;
-    public string ResponseText
+
+    public override string GetRequest(int sizeHint) => request;
+    public override string GetResponse(int sizeHint)
     {
-        get
+        if (!response.IsCompleted)
         {
-            if (!response.IsCompleted)
-            {
-                return "(pending)";
-            }
-            try
-            {
-                return Utils.GetSimpleText(response.GetAwaiter().GetResult(), 8);
-            }
-            catch (Exception ex)
-            {
-                return ex.Message;
-            }
+            return "(pending)";
+        }
+        try
+        {
+            return Utils.GetSimpleText(response.GetAwaiter().GetResult(), sizeHint: sizeHint);
+        }
+        catch (Exception ex)
+        {
+            return ex.Message;
         }
     }
 }

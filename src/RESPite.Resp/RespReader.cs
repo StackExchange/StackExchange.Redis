@@ -66,6 +66,8 @@ public abstract class RespReaderBase<TRequest, TResponse> : IReader<TRequest, TR
 /// </summary>
 public ref struct RespReader
 {
+    internal string DebugDisplay => IsAggregate ? $"{Prefix}:{ChildCount}" : IsScalar ? $"{Prefix}:{ReadString()}" : Prefix.ToString();
+
     private readonly ReadOnlySequence<byte> _fullPayload;
     private SequencePosition _segPos;
     private long _positionBase;

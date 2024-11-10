@@ -1,6 +1,7 @@
 ﻿using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
 using System.Drawing;
+using System.Text;
 using RESPite.Resp;
 using RESPite.Transports;
 using Terminal.Gui;
@@ -73,12 +74,17 @@ internal class ServerView : View
             {
                 Application.Invoke(() =>
                 {
+                    var txt = log.Text;
                     Remove(log);
                     CreateTable();
+                    AddLogEntry("(Connect)", txt);
                 });
             }
         });
     }
+
+    public void AddLogEntry(string category, string message)
+        => data?.Insert(data.Count, new RespLogPayload(category, message));
 
     private void CreateTable()
     {
@@ -122,74 +128,92 @@ internal class ServerView : View
                 Height = Dim.Percent(80),
                 Width = Dim.Percent(80),
             };
+
             using var reqText = new TextView
             {
                 ReadOnly = true,
                 Width = Dim.Fill(),
                 Height = 1,
-                Text = obj.Request,
+                Text = obj.GetRequest(),
             };
-            using var tabs = new TabView
+            if (obj is RespPayload resp)
             {
-                Y = Pos.Bottom(reqText),
-                Width = Dim.Fill(),
-                Height = Dim.Fill(1),
-            };
-            using var tree = new TreeView
-            {
-                Width = Dim.Fill(),
-                Height = Dim.Fill(),
-            };
-            using var treeTab = new Tab
-            {
-                DisplayText = "Tree",
-                Width = Dim.Fill(),
-                Height = Dim.Fill(),
-                View = tree,
-            };
-            using var respText = new TextView
-            {
-                ReadOnly = true,
-                Width = Dim.Fill(),
-                Height = Dim.Fill(),
-            };
-            if (obj.ResponseTask.IsCompletedSuccessfully)
-            {
-                var result = obj.ResponseTask.GetAwaiter().GetResult();
-                var node = BuildTree(result);
-                tree.AddObject(node);
-                tree.Expand(node);
+                var tabs = new TabView
+                {
+                    Y = Pos.Bottom(reqText),
+                    Width = Dim.Fill(),
+                    Height = Dim.Fill(1),
+                };
+                var tree = new TreeView
+                {
+                    Width = Dim.Fill(),
+                    Height = Dim.Fill(),
+                };
+                var treeTab = new Tab
+                {
+                    DisplayText = "Tree",
+                    Width = Dim.Fill(),
+                    Height = Dim.Fill(),
+                    View = tree,
+                };
+                var respText = new TextView
+                {
+                    ReadOnly = true,
+                    Width = Dim.Fill(),
+                    Height = Dim.Fill(),
+                };
+                if (resp.ResponseTask.IsCompletedSuccessfully)
+                {
+                    var result = resp.ResponseTask.GetAwaiter().GetResult();
+                    var node = BuildTree(result);
+                    tree.AddObject(node);
+                    tree.Expand(node);
 
-                respText.Text = result.ToString();
+                    respText.Text = result.ToString();
+                }
+                var respTab = new Tab
+                {
+                    DisplayText = "RESP",
+                    Width = Dim.Fill(),
+                    Height = Dim.Fill(),
+                    View = respText,
+                };
+                tabs.AddTab(treeTab, true);
+                tabs.AddTab(respTab, false);
+                var okBtn = new Button
+                {
+                    Y = Pos.Bottom(tabs),
+                    Text = "ok",
+                };
+                var repeatBtn = new Button
+                {
+                    IsDefault = true,
+                    Y = okBtn.Y,
+                    X = Pos.Right(okBtn),
+                    Text = "repeat",
+                };
+                okBtn.Accept += (s, e) => Application.RequestStop();
+                repeatBtn.Accept += (s, e) =>
+                {
+                    Application.RequestStop();
+                    RepeatCommand?.Invoke(obj.GetRequest());
+                };
+                popup.Add(reqText, tabs, okBtn, repeatBtn);
             }
-            using var respTab = new Tab
+            else
             {
-                DisplayText = "RESP",
-                Width = Dim.Fill(),
-                Height = Dim.Fill(),
-                View = respText,
-            };
-            tabs.AddTab(treeTab, true);
-            tabs.AddTab(respTab, false);
-            using var okBtn = new Button
-            {
-                Y = Pos.Bottom(tabs),
-                Text = "ok",
-            };
-            using var repeatBtn = new Button
-            {
-                IsDefault = true,
-                Y = okBtn.Y,
-                X = Pos.Right(okBtn),
-                Text = "repeat",
-            };
-            okBtn.Accept += (s, e) => Application.RequestStop();
-            repeatBtn.Accept += (s, e) =>
-            {
-                Application.RequestStop();
-                RepeatCommand?.Invoke(obj.Request);
-            };
-            popup.Add(reqText, tabs, okBtn, repeatBtn);
+                popup.Title = obj.GetRequest();
+                reqText.Text = obj.GetResponse();
+                reqText.Height = Dim.Fill(2);
+                var okBtn = new Button
+                {
+                    Y = Pos.Bottom(reqText),
+                    Text = "ok",
+                    IsDefault = true,
+                };
+                okBtn.Accept += (s, e) => Application.RequestStop();
+                popup.Add(reqText, okBtn);
+            }
             Application.Run(popup);
         };
     }
@@ -210,13 +234,14 @@ internal class ServerView : View
 
     private static bool TryCreateNode(ref RespReader reader, [NotNullWhen(true)] out ITreeNode? node)
     {
-        if (!Utils.TryGetSimpleText(ref reader, 0, out _, out var text, iterateChildren: false))
+        var sb = new StringBuilder(" ");
+        if (!Utils.TryGetSimpleText(sb, ref reader, Utils.AggregateMode.CountOnly))
         {
             node = null;
             return false;
         }
 
-        node = new TreeNode(" " + text);
+        node = new TreeNode(sb.ToString());
         if (reader.IsAggregate)
         {
             var count = reader.ChildCount;

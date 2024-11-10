@@ -86,14 +86,15 @@ public static class Utils
         return "";
     }
 
-    internal static string GetSimpleText(LeasedRespResult value, int includeItems)
+    internal static string GetSimpleText(LeasedRespResult value, AggregateMode childMode = AggregateMode.Full, int sizeHint = int.MaxValue)
     {
         try
         {
             var reader = new RespReader(value.Span);
-            if (TryGetSimpleText(ref reader, includeItems, out _, out var s) && !reader.TryReadNext())
+            var sb = new StringBuilder();
+            if (TryGetSimpleText(sb, ref reader, childMode, sizeHint: sizeHint) && !reader.TryReadNext())
             {
-                return s;
+                return sb.ToString();
             }
             return value.ToString(); // fallback
         }
@@ -104,50 +105,90 @@ public static class Utils
         }
     }
 
-    internal static bool TryGetSimpleText(ref RespReader reader, int includeItems, out bool isAggregate, [NotNullWhen(true)] out string? value, bool iterateChildren = true)
+    internal enum AggregateMode
     {
-        value = null;
+        Full,
+        CountAndConsume,
+        CountOnly,
+    }
+
+    internal static bool TryGetSimpleText(StringBuilder sb, ref RespReader reader, AggregateMode aggregateMode = AggregateMode.Full, int sizeHint = int.MaxValue)
+    {
         if (!reader.TryReadNext())
         {
-            isAggregate = false;
             return false;
         }
-        isAggregate = reader.IsAggregate;
+
+        static string? Escape(string? value)
+        {
+            if (string.IsNullOrEmpty(value)) return value;
+
+            value = value.Replace("'", "\\'");
+            value = value.Replace("\"", "\\\"");
+            return value;
+        }
         char prefix = (char)reader.Prefix;
         if (reader.IsScalar)
         {
-            value = $"{prefix} {reader.ReadString()}";
+            sb.Append(prefix);
+            if (reader.IsNull)
+            {
+                sb.Append("(null)");
+            }
+            else
+            {
+                switch (reader.Prefix)
+                {
+                    case RespPrefix.SimpleString:
+                        sb.Append("'").Append(Escape(reader.ReadString())).Append("'");
+                        break;
+                    case RespPrefix.BulkString:
+                        sb.Append("\"").Append(Escape(reader.ReadString())).Append("\"");
+                        break;
+                    case RespPrefix.VerbatimString:
+                        sb.Append("\"\"\"").Append(Escape(reader.ReadString())).Append("\"\"\"");
+                        break;
+                    default:
+                        sb.Append(reader.ReadString());
+                        break;
+                }
+            }
             return true;
         }
         if (reader.IsAggregate)
         {
             var count = reader.ChildCount;
-            if (!iterateChildren)
+
+            sb.Append(prefix).Append(count);
+            switch (aggregateMode)
             {
-                value = $"{prefix} {count}";
-                return true;
+                case AggregateMode.Full when count == 0:
+                case AggregateMode.CountOnly:
+                    return true;
+                case AggregateMode.CountAndConsume:
+                    reader.SkipChildren();
+                    return true;
             }
 
-            if (count > includeItems && count != 0)
-            {
-                value = $"{prefix} {count}";
-                reader.SkipChildren();
-                return true;
-            }
-
-            var sb = new StringBuilder();
-            sb.Append(prefix).Append(" ").Append(count).Append(" [");
+            sb.Append(" [");
             for (int i = 0; i < count; i++)
             {
-                if (i != 0) sb.Append(",");
-                if (!(reader.TryReadNext() && TryGetSimpleText(ref reader, 0, out _, out var s)))
+                if (i != 0 && sb.Length < sizeHint) sb.Append(",");
+                if (sb.Length < sizeHint)
                 {
-                    value = null;
-                    return false;
+                    if (!TryGetSimpleText(sb, ref reader, aggregateMode, sizeHint))
+                    {
+                        return false;
+                    }
                 }
-                sb.Append(s);
+                else
+                {
+                    // skip!
+                    if (!reader.TryReadNext()) return false;
+                    if (reader.IsAggregate) reader.SkipChildren();
+                }
             }
-            value = sb.Append("]").ToString();
+            if (sb.Length < sizeHint) sb.Append("]");
             return true;
         }
         return false;
