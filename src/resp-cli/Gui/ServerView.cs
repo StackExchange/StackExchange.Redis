@@ -1,6 +1,5 @@
 ﻿using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
-using System.Drawing;
 using System.Text;
 using RESPite.Resp;
 using RESPite.Transports;
@@ -15,6 +14,12 @@ internal class ServerView : View
     private Action<Task>? asyncUpdateTable;
     private RespPayloadTableSource? data;
     private readonly CancellationToken endOfLife;
+
+    public string StatusCaption { get; set; }
+
+#pragma warning disable CS0067 // not used
+    public event Action<string>? StatusChanged;
+#pragma warning restore CS0067
 
     protected override void Dispose(bool disposing)
     {
@@ -48,6 +53,7 @@ internal class ServerView : View
 
     public ServerView(string host, int port, bool tls, CancellationToken endOfLife)
     {
+        StatusCaption = $"{host}, port {port}{(tls ? " (TLS)" : "")}";
         CanFocus = true;
         Width = Dim.Fill();
         Height = Dim.Fill();
@@ -92,6 +98,7 @@ internal class ServerView : View
         {
             Width = Dim.Fill(),
             Height = Dim.Fill(),
+            BorderStyle = LineStyle.None,
         };
 
         data = new RespPayloadTableSource(table);

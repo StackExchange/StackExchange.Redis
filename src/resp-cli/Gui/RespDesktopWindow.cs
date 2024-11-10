@@ -8,6 +8,7 @@ internal sealed class RespDesktopWindow : Window
 
     private readonly TextField input;
     private readonly TabView servers;
+    private readonly StatusBar statusBar;
     private readonly RespConnectView connect;
 
     private CancellationToken EndOfLife => endOfLifeSource.Token;
@@ -25,6 +26,7 @@ internal sealed class RespDesktopWindow : Window
     public RespDesktopWindow(string host, int port, bool tls, string? user, string? pass, bool resp3)
     {
         Title = $"resp-cli desktop ({Application.QuitKey} to exit)";
+        statusBar = new();
 
         var lbl = new Label
         {
@@ -36,12 +38,16 @@ internal sealed class RespDesktopWindow : Window
             X = Pos.Right(lbl) + 1,
             Width = Dim.Fill(),
         };
+        input.HasFocusChanged += (s, e) =>
+        {
+            if (input.HasFocus) SetStatusText("Send a RESP command");
+        };
 
         servers = new TabView
         {
             Y = Pos.Bottom(input),
             Width = Dim.Fill(),
-            Height = Dim.Fill(),
+            Height = Dim.Fill(1),
             Style =
             {
                 // TabsOnBottom = true,
@@ -50,6 +56,21 @@ internal sealed class RespDesktopWindow : Window
             },
         };
         servers.ApplyStyleChanges();
+        servers.SelectedTabChanged += (s, e) =>
+        {
+            if (servers.SelectedTab?.View is ServerView { } selected)
+            {
+                SetStatusText(selected.StatusCaption);
+            }
+            else if (servers.SelectedTab?.View is RespConnectView)
+            {
+                SetStatusText("Create a new RESP connection");
+            }
+            else
+            {
+                SetStatusText("");
+            }
+        };
         connect = new RespConnectView(host, port, tls, resp3);
         var tab = new Tab
         {
@@ -75,8 +96,11 @@ internal sealed class RespDesktopWindow : Window
             }
         };
 
-        Add(lbl, input, servers);
+        Add(lbl, input, servers, statusBar);
     }
+
+    public void SetStatusText(string text) => statusBar.Text = text;
+
     public void AddServer()
     {
         Application.Invoke(() =>
@@ -87,6 +111,7 @@ internal sealed class RespDesktopWindow : Window
             }
 
             var view = new ServerView(host, port, connect.Tls, EndOfLife);
+            view.StatusChanged += SetStatusText;
             var tabNumber = servers.Tabs.Count;
             var tab = new Tab
             {
@@ -100,7 +125,7 @@ internal sealed class RespDesktopWindow : Window
                 input.SetFocus();
             };
 
-            var hotkey = tabNumber switch
+            var key = tabNumber switch
             {
                 1 => Key.F1,
                 2 => Key.F2,
@@ -117,16 +142,17 @@ internal sealed class RespDesktopWindow : Window
                 _ => null,
             };
 
-            servers.AddTab(tab, true);
-            if (hotkey is not null)
+            if (key is not null)
             {
                 Add(new Shortcut
                 {
-                    Key = hotkey,
+                    Key = key,
                     Action = () => servers.SelectedTab = tab,
                     Visible = false,
                 });
+                view.StatusCaption = $"({key}) " + view.StatusCaption;
             }
+            servers.AddTab(tab, true);
         });
     }
 }

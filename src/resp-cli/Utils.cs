@@ -128,30 +128,28 @@ public static class Utils
             return value;
         }
         char prefix = (char)reader.Prefix;
+
+        if (reader.IsNull)
+        {
+            sb.Append(prefix).Append("(null)");
+        }
         if (reader.IsScalar)
         {
             sb.Append(prefix);
-            if (reader.IsNull)
+            switch (reader.Prefix)
             {
-                sb.Append("(null)");
-            }
-            else
-            {
-                switch (reader.Prefix)
-                {
-                    case RespPrefix.SimpleString:
-                        sb.Append("'").Append(Escape(reader.ReadString())).Append("'");
-                        break;
-                    case RespPrefix.BulkString:
-                        sb.Append("\"").Append(Escape(reader.ReadString())).Append("\"");
-                        break;
-                    case RespPrefix.VerbatimString:
-                        sb.Append("\"\"\"").Append(Escape(reader.ReadString())).Append("\"\"\"");
-                        break;
-                    default:
-                        sb.Append(reader.ReadString());
-                        break;
-                }
+                case RespPrefix.SimpleString:
+                    sb.Append("'").Append(Escape(reader.ReadString())).Append("'");
+                    break;
+                case RespPrefix.BulkString:
+                    sb.Append("\"").Append(Escape(reader.ReadString())).Append("\"");
+                    break;
+                case RespPrefix.VerbatimString:
+                    sb.Append("\"\"\"").Append(Escape(reader.ReadString())).Append("\"\"\"");
+                    break;
+                default:
+                    sb.Append(reader.ReadString());
+                    break;
             }
             return true;
         }
