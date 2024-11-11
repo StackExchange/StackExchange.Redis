@@ -9,7 +9,8 @@ namespace StackExchange.Redis.Gui;
 
 internal class ServerView : View
 {
-    private IRequestResponseTransport? transport;
+    public IRequestResponseTransport? Transport { get; private set; }
+
     private TableView? table;
     private Action<Task>? asyncUpdateTable;
     private RespPayloadTableSource? data;
@@ -23,14 +24,14 @@ internal class ServerView : View
     {
         if (disposing)
         {
-            transport?.Dispose();
+            Transport?.Dispose();
         }
         base.Dispose(disposing);
     }
 
     public bool Send(string command)
     {
-        if (transport is null || data is null || asyncUpdateTable is null)
+        if (Transport is not { } transport || data is null || asyncUpdateTable is null)
         {
             return false;
         }
@@ -66,7 +67,7 @@ internal class ServerView : View
         Add(log);
         _ = Task.Run(async () =>
         {
-            transport = await Utils.ConnectAsync(host, port, tls, msg => Application.Invoke(() =>
+            Transport = await Utils.ConnectAsync(host, port, tls, msg => Application.Invoke(() =>
             {
                 log.MoveEnd();
                 log.ReadOnly = false;
@@ -74,7 +75,7 @@ internal class ServerView : View
                 log.ReadOnly = true;
             }));
 
-            if (transport is not null)
+            if (Transport is not null)
             {
                 Application.Invoke(() =>
                 {

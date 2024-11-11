@@ -107,7 +107,7 @@ public ref struct RespWriter
     /// <summary>
     /// Create a new RESP writer over the provided target.
     /// </summary>
-    public RespWriter(in IBufferWriter<byte> target)
+    public RespWriter(IBufferWriter<byte> target)
     {
         _target = target;
         _index = 0;
@@ -185,6 +185,20 @@ public ref struct RespWriter
     /// </summary>
     /// <param name="count">The number of elements in the array.</param>
     public void WriteArray(int count) => WritePrefixedInteger(RespPrefix.Array, count);
+
+    /// <summary>
+    /// Write a command header.
+    /// </summary>
+    /// <param name="command">The command name to write.</param>
+    /// <param name="args">The number of arguments for the command (excluding the command itself).</param>
+    public void WriteCommand(scoped ReadOnlySpan<byte> command, int args)
+    {
+        if (args < 0) Throw();
+        WritePrefixedInteger(RespPrefix.Array, args + 1);
+        WriteBulkString(command);
+
+        static void Throw() => throw new ArgumentOutOfRangeException(nameof(args));
+    }
 
     /// <summary>
     /// Write a payload as a bulk string.

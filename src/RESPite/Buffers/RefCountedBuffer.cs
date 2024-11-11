@@ -77,9 +77,16 @@ public readonly struct RefCountedBuffer<T> : IDisposable
 
     void IDisposable.Dispose() => Release();
 
-    private RefCountedBuffer(in ReadOnlySequence<T> content)
+    /// <summary>
+    /// Create a new value from an existing buffer; the underlying buffer is not
+    /// required to support ref-counting - GC rules will work otherwise.
+    /// </summary>
+    public RefCountedBuffer(in ReadOnlySequence<T> content)
         => _content = content;
 
     internal static RefCountedBuffer<T> CreateValidated(in ReadOnlySequence<T> content)
         => new(in content);
+
+    /// <inheritdoc cref="ReadOnlySequence{T}.GetEnumerator">
+    public ReadOnlySequence<T>.Enumerator GetEnumerator() => _content.GetEnumerator();
 }

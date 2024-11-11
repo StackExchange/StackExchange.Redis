@@ -21,6 +21,8 @@
     <Compile Include="..\RESPite\Internal\Constants.cs" Link="Internal\Constants.cs" />
 
     <Compile Include="..\RESPite\Internal\RuntimeShims.cs" Link="Internal\RuntimeShims.cs" />
+
+    <Compile Include="..\StackExchange.Redis\IsExternalInit.cs" Link="IsExternalInit.cs" />
     <Compile Include="..\StackExchange.Redis\NullableHacks.cs" Link="NullableHacks.cs" />
     <Compile Include="..\StackExchange.Redis\SkipLocalsInit.cs" Link="SkipLocalsInit.cs" />
   </ItemGroup>

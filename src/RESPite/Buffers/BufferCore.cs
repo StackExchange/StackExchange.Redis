@@ -3,10 +3,9 @@ using System.Buffers;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
-using RESPite.Buffers;
 using RESPite.Buffers.Internal;
 
-namespace RESPite.Internal;
+namespace RESPite.Buffers;
 
 /// <summary>
 /// Handles buffer management; intended for use as the private implementation layer of a transport.

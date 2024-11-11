@@ -38,6 +38,7 @@ internal sealed class RespDesktopWindow : Window
             Width = 5,
             Text = "!",
         };
+        tool.Accept += (s, e) => ShowServerDialog<KeysDialog>();
 
         var lbl = new Label
         {
@@ -111,6 +112,24 @@ internal sealed class RespDesktopWindow : Window
     }
 
     public void SetStatusText(string text) => statusBar.Text = text;
+
+    private bool ShowServerDialog<T>() where T : ServerToolDialog, new()
+    {
+        if (!(servers.SelectedTab?.View is ServerView server && server.Transport is { } transport))
+        {
+            return false;
+        }
+
+        using var popup = new T();
+
+        popup.SetTransport(transport);
+        popup.StatusTextChanged += (s, e) => SetStatusText(e);
+        SetStatusText(popup.StatusText);
+
+        Application.Run(popup);
+
+        return true;
+    }
 
     public void AddServer()
     {
