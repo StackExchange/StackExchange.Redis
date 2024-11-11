@@ -7,6 +7,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Text;
 using RESPite.Internal;
 using RESPite.Messages;
 using static RESPite.Internal.Constants;
@@ -27,7 +28,7 @@ public abstract class RespReaderBase<TResponse> : IReader<Empty, TResponse>
     {
         var reader = new RespReader(in content);
         if (!reader.TryReadNext()) RespReader.ThrowEOF();
-        if (reader.IsError) throw reader.ReadError();
+        reader.ThrowIfError();
         return Read(ref reader);
     }
 
@@ -50,7 +51,7 @@ public abstract class RespReaderBase<TRequest, TResponse> : IReader<TRequest, TR
     {
         var reader = new RespReader(in content);
         if (!reader.TryReadNext()) RespReader.ThrowEOF();
-        if (reader.IsError) throw reader.ReadError();
+        reader.ThrowIfError();
         return Read(in request, ref reader);
     }
 
@@ -64,9 +65,10 @@ public abstract class RespReaderBase<TRequest, TResponse> : IReader<TRequest, TR
 /// <summary>
 /// Low-level RESP reading API.
 /// </summary>
+[DebuggerDisplay($"{{{nameof(GetDebuggerDisplay)}(),nq}}")]
 public ref struct RespReader
 {
-    internal string DebugDisplay => IsAggregate ? $"{Prefix}:{ChildCount}" : IsScalar ? $"{Prefix}:{ReadString()}" : Prefix.ToString();
+    internal readonly string GetDebuggerDisplay() => IsAggregate ? $"{Prefix}:{ChildCount}" : IsScalar ? $"{Prefix}:{ReadString()}" : Prefix.ToString();
 
     private readonly ReadOnlySequence<byte> _fullPayload;
     private SequencePosition _segPos;
@@ -74,6 +76,7 @@ public ref struct RespReader
     private int _bufferIndex; // after TryRead, this should be positioned immediately before the actual data
     private int _bufferLength;
     private int _length; // for null: -1; for scalars: the length of the payload; for aggregates: the child count
+    [SuppressMessage("Style", "IDE0032:Use auto property", Justification = "Clarity")]
     private RespPrefix _prefix;
 
     /// <summary>
@@ -93,9 +96,9 @@ public ref struct RespReader
     /// <summary>
     /// Returns as much data as possible into the buffer, ignoring
     /// any data that cannot fit into <paramref name="target"/>, and
-    /// returning the segment representing copied data.
+    /// returning the amount of copied data.
     /// </summary>
-    public readonly Span<byte> CopyTo(Span<byte> target)
+    public readonly int CopyTo(Span<byte> target)
     {
         if (!IsScalar) return default; // only possible for scalars
         if (TryGetValueSpan(out var source))
@@ -109,9 +112,66 @@ public ref struct RespReader
                 target = target.Slice(0, source.Length);
             }
             source.CopyTo(target);
-            return target;
+            return target.Length;
         }
         throw new NotImplementedException();
+    }
+
+    /// <summary>
+    /// Copy a scalar value to the provided <paramref name="writer"/>.
+    /// </summary>
+    public readonly int CopyTo(IBufferWriter<byte> writer)
+    {
+        if (TryGetValueSpan(out var source)) // only true for contiguous scalar values
+        {
+            Span<byte> target = writer.GetSpan(source.Length);
+            if (target.Length >= source.Length)
+            {
+                source.CopyTo(target);
+                return source.Length;
+            }
+        }
+        return CopyToSlow(ref writer);
+    }
+
+    /// <summary>
+    /// Copy a scalar value to the provided <paramref name="writer"/>.
+    /// </summary>
+    public readonly int CopyTo<TWriter>(ref TWriter writer) where TWriter : IBufferWriter<byte>
+    {
+        if (TryGetValueSpan(out var source)) // only true for contiguous scalar values
+        {
+            Span<byte> target = writer.GetSpan(source.Length);
+            Debug.Assert(source.Length == ScalarLength, "expected to get full scalar chunk");
+            if (target.Length >= source.Length)
+            {
+                source.CopyTo(target);
+                writer.Advance(source.Length);
+                return source.Length;
+            }
+        }
+        return CopyToSlow(ref writer);
+    }
+
+    private readonly int CopyToSlow<TWriter>(ref TWriter writer) where TWriter : IBufferWriter<byte>
+    {
+        DemandScalar();
+        var reader = new SlowReader(in this);
+        int remaining = ScalarLength;
+        while (remaining > 0)
+        {
+            var target = writer.GetSpan(remaining);
+            if (target.Length > remaining)
+            {
+                target = target.Slice(remaining);
+            }
+            int written = reader.Fill(target);
+            if (written == 0) break; // not making progress
+            writer.Advance(written);
+            remaining -= written;
+        }
+        if (remaining == 0) ThrowEOF();
+        return ScalarLength;
     }
 
     /// <summary>
@@ -153,7 +213,6 @@ public ref struct RespReader
     public readonly int ReadInt32()
     {
         DemandScalar();
-        if (_length > MaxRawBytesInt32) ThrowFormatException();
         if (TryGetValueSpan(out var span))
         {
             if (!(Utf8Parser.TryParse(span, out int value, out int bytes) & bytes == span.Length))
@@ -165,11 +224,41 @@ public ref struct RespReader
         return ReadInt32Slow();
     }
 
+    /// <summary>
+    /// The a scalar integer value.
+    /// </summary>
+    public readonly long ReadInt64()
+    {
+        DemandScalar();
+        if (TryGetValueSpan(out var span))
+        {
+            if (!(Utf8Parser.TryParse(span, out long value, out int bytes) & bytes == span.Length))
+            {
+                ThrowFormatException();
+            }
+            return value;
+        }
+        return ReadInt64Slow();
+    }
+
     private readonly int ReadInt32Slow()
     {
-        Span<byte> buffer = stackalloc byte[_length]; // we already checked vs MaxRawBytesInt32
+        if (_length > MaxRawBytesInt32) ThrowFormatException();
+        Span<byte> buffer = stackalloc byte[_length];
         if (new SlowReader(in this).Fill(buffer) != _length) ThrowEOF();
         if (!(Utf8Parser.TryParse(buffer.Slice(0, _length), out int value, out int bytes) & bytes == _length))
+        {
+            ThrowFormatException();
+        }
+        return value;
+    }
+
+    private readonly long ReadInt64Slow()
+    {
+        if (_length > MaxRawBytesInt64) ThrowFormatException();
+        Span<byte> buffer = stackalloc byte[_length];
+        if (new SlowReader(in this).Fill(buffer) != _length) ThrowEOF();
+        if (!(Utf8Parser.TryParse(buffer.Slice(0, _length), out long value, out int bytes) & bytes == _length))
         {
             ThrowFormatException();
         }
@@ -182,6 +271,12 @@ public ref struct RespReader
     {
         if (!IsScalar) Throw(Prefix);
         static void Throw(RespPrefix prefix) => throw new InvalidOperationException($"Scalar value expected; got {prefix}");
+    }
+
+    private readonly void DemandAggregate()
+    {
+        if (!IsAggregate) Throw(Prefix);
+        static void Throw(RespPrefix prefix) => throw new InvalidOperationException($"Aggregate value expected; got {prefix}");
     }
 
     /// <summary>
@@ -265,12 +360,15 @@ public ref struct RespReader
     /// <summary>
     /// Read a RESP fragment.
     /// </summary>
-    public RespReader(byte[] value, int start = 0, int length = -1) : this(new ReadOnlySpan<byte>(value, start, length < 0 ? value.Length - start : length)) { }
+    public RespReader(byte[] value, int start = 0, int length = -1)
+        : this(new ReadOnlySpan<byte>(value, start, length < 0 ? value.Length - start : length))
+    { }
 
     /// <summary>
     /// Read a RESP fragment.
     /// </summary>
-    public RespReader(ReadOnlyMemory<byte> value) : this(value.Span) { }
+    public RespReader(ReadOnlyMemory<byte> value) : this(value.Span)
+    { }
 
     /// <summary>
     /// Read a RESP fragment.
@@ -377,11 +475,20 @@ public ref struct RespReader
         get => Prefix is RespPrefix.BulkError or RespPrefix.SimpleError;
     }
 
-    internal readonly Exception ReadError()
+    /// <summary>
+    /// Asserts that the reader does not reprent a RESP error message.
+    /// </summary>
+    public readonly void ThrowIfError()
+    {
+        if (IsError) ThrowRespError();
+    }
+
+    [DoesNotReturn, MethodImpl(MethodImplOptions.NoInlining)]
+    private readonly void ThrowRespError()
     {
         var message = ReadString();
         if (string.IsNullOrWhiteSpace(message)) message = "unknown RESP error";
-        return new RespException(message!);
+        throw new RespException(message!);
     }
 
     /// <summary>
@@ -469,12 +576,53 @@ public ref struct RespReader
     {
         if (TryReadNext())
         {
-            if (Prefix != demand) Throw(demand, Prefix);
+            if (Prefix != demand) ThrowPrefix(demand, Prefix);
             return true;
         }
         return false;
-        static void Throw(RespPrefix expected, RespPrefix actual)
-            => throw new InvalidOperationException($"Expected {expected}, got {actual}");
+    }
+
+    /// <summary>
+    /// Assert that the <see cref="Prefix"/> matches <paramref name="prefix"/>.
+    /// </summary>
+    public void Demand(RespPrefix prefix)
+    {
+        if (Prefix != prefix) ThrowPrefix(prefix, Prefix);
+    }
+
+    private static void ThrowPrefix(RespPrefix expected, RespPrefix actual)
+        => throw new InvalidOperationException($"Expected {expected}, got {actual}");
+
+    /// <summary>
+    /// Move to the next RESP element, asserting that it is a scalar and returning the <see cref="ScalarLength"/>.
+    /// </summary>
+    public int ReadNextScalar()
+    {
+        if (!TryReadNext()) ThrowEOF();
+        if (IsError) ThrowRespError();
+        DemandScalar();
+        return ScalarLength;
+    }
+
+    /// <summary>
+    /// Assert that the data is complete.
+    /// </summary>
+    public void ReadEnd()
+    {
+        if (TryReadNext()) Throw(Prefix);
+
+        static void Throw(RespPrefix prefix) => throw new InvalidOperationException($"Unexpected additional data was encountered: {prefix}");
+    }
+
+    /// <summary>
+    /// Move to the next RESP element, asserting that it is an aggregate and returning the <see cref="ChildCount"/>.
+    /// </summary>
+    public int ReadNextAggregate()
+    {
+        if (!TryReadNext()) ThrowEOF();
+        if (IsError) ThrowRespError();
+        DemandAggregate();
+        return ChildCount;
     }
 
     /// <summary>
@@ -647,7 +795,7 @@ public ref struct RespReader
             return _current[_index++];
         }
 
-        private int CurrentRemainingBytes
+        private readonly int CurrentRemainingBytes
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get => _current.Length - _index;
@@ -779,7 +927,7 @@ public ref struct RespReader
         private ReadOnlySpan<byte> _current;
         private int _index;
         private long _totalBase;
-        public long TotalConsumed => _totalBase + _index;
+        public readonly long TotalConsumed => _totalBase + _index;
 
         internal bool StartsWith(scoped ReadOnlySpan<byte> value)
         {
@@ -843,4 +991,49 @@ public ref struct RespReader
     }
     [DoesNotReturn]
     internal static void ThrowEOF() => throw new EndOfStreamException();
+
+    /// <summary>
+    /// Parse a scalar value as an enum of type <typeparamref name="T"/>.
+    /// </summary>
+    [SuppressMessage("Style", "IDE0018:Inline variable declaration", Justification = "Not in all # cases")]
+    public readonly T ReadEnum<T>(T unknownValue = default) where T : struct, Enum
+    {
+        const int MAX_STACK = 256;
+        DemandScalar();
+        var len = ScalarLength;
+        int count;
+        T value;
+        if (len <= MAX_STACK && TryGetValueSpan(out var bytes))
+        {
+#if NET6_0_OR_GREATER
+            Span<char> chars = stackalloc char[len];
+            count = Encoding.UTF8.GetChars(bytes, chars);
+            chars = chars.Slice(0, count);
+            if (!Enum.TryParse<T>(chars, true, out value))
+            {
+                value = unknownValue;
+            }
+            return value;
+#endif
+        }
+        byte[] bytesArr = ArrayPool<byte>.Shared.Rent(len);
+        CopyTo(bytesArr);
+        char[] charsArr = ArrayPool<char>.Shared.Rent(len);
+
+        count = Encoding.UTF8.GetChars(bytesArr, 0, len, charsArr, 0);
+#if NET6_0_OR_GREATER
+        if (!Enum.TryParse<T>(new ReadOnlySpan<char>(charsArr, 0, count), true, out value))
+        {
+            value = unknownValue;
+        }
+#else
+        if (!Enum.TryParse<T>(new string(charsArr, 0, count), true, out value))
+        {
+            value = unknownValue;
+        }
+#endif
+        ArrayPool<char>.Shared.Return(charsArr);
+        ArrayPool<byte>.Shared.Return(bytesArr);
+        return value;
+    }
 }

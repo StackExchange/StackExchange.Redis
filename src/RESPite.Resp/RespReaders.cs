@@ -1,7 +1,10 @@
 ﻿using System;
 using System.Buffers;
+using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Text;
+using RESPite.Buffers;
 using RESPite.Internal;
 using RESPite.Messages;
 using static RESPite.Internal.Constants;
@@ -31,9 +34,14 @@ public static class RespReaders
     public static IReader<Empty, Empty> OK => common;
 
     /// <summary>
+    /// Reads arrays of opaque payloads.
+    /// </summary>
+    public static IReader<Empty, RefCountedBuffers<byte>> Strings => common;
+
+    /// <summary>
     /// Reads PONG responses.
     /// </summary>
-    public static PongReader Pong { get; } = new();
+    public static IReader<string, string> Pong { get; } = new PongReader();
 
     internal static void ThrowMissingExpected(in ReadOnlySequence<byte> content, string expected, [CallerMemberName] string caller = "")
     {
@@ -44,7 +52,11 @@ public static class RespReaders
 #endif
     }
 
-    internal sealed class Impl : IReader<Empty, Empty>, IReader<Empty, string?>, IReader<Empty, int>
+    internal sealed class Impl :
+        IReader<Empty, Empty>,
+        IReader<Empty, string?>,
+        IReader<Empty, int>,
+        IReader<Empty, RefCountedBuffers<byte>>
     {
         private static readonly uint OK_HiNibble = UnsafeCpuUInt32("+OK\r"u8);
         Empty IReader<Empty, Empty>.Read(in Empty request, in ReadOnlySequence<byte> content)
@@ -119,16 +131,22 @@ public static class RespReaders
                 static int Digit(byte value)
                 {
                     var i = value - '0';
-                    if (i < 0 | i > 9) Throw();
+                    if (i < 0 | i > 9) ThrowFormat();
                     return i;
                 }
             }
             var reader = new RespReader(in content);
-            if (!(reader.TryReadNext() && reader.IsScalar)) Throw();
+            if (!(reader.TryReadNext() && reader.IsScalar)) ThrowFormat();
             return reader.ReadInt32();
-
-            static void Throw() => throw new FormatException();
         }
+
+        RefCountedBuffers<byte> IReader<Empty, RefCountedBuffers<byte>>.Read(in Empty request, in ReadOnlySequence<byte> content)
+        {
+            var reader = new RespReader(in content);
+            if (!(reader.TryReadNext() && !reader.IsAggregate)) ThrowFormat();
+            return ReadAggregateAsRefCountedBuffers(ref reader);
+        }
+
         private static readonly uint
                 SingleCharScalarMask = CpuUInt32(0xFF00FFFF),
                 DoubleCharScalarMask = CpuUInt32(0xFF0000FF),
@@ -141,9 +159,10 @@ public static class RespReaders
     /// <summary>
     /// Reads PONG responses.
     /// </summary>
-    public sealed class PongReader : IReader<Empty, Empty>, IReader<string, string>
+    private sealed class PongReader : IReader<Empty, Empty>, IReader<string, string>
     {
         internal PongReader() { }
+
         Empty IReader<Empty, Empty>.Read(in Empty request, in ReadOnlySequence<byte> content)
         {
             var reader = new RespReader(content);
@@ -153,8 +172,41 @@ public static class RespReaders
         string IReader<string, string>.Read(in string request, in ReadOnlySequence<byte> content)
         {
             var reader = new RespReader(content);
-            if (!reader.TryReadNext(RespPrefix.BulkString)) ThrowMissingExpected(in content, "PONG");
+            if (!reader.TryReadNext(RespPrefix.BulkString)) ThrowMissingExpected(in content, request);
             return reader.ReadString()!;
         }
     }
+
+    internal static RefCountedBuffers<byte> ReadAggregateAsRefCountedBuffers(ref RespReader reader)
+    {
+        Debug.Assert(reader.IsAggregate, "should have already checked for aggregate");
+        if (reader.IsNull) return RefCountedBuffers<byte>.Null;
+
+        var count = reader.ChildCount;
+        if (count == 0) return RefCountedBuffers<byte>.Empty;
+
+        var builder = new RefCountedBuffers<byte>.Builder(count, clear: false);
+        var buffer = new BufferCore<byte>();
+        try
+        {
+            for (int i = 0; i < count; i++)
+            {
+                if (!reader.TryReadNext(RespPrefix.BulkString)) ThrowFormat();
+
+                builder.SetLength(i, reader.CopyTo(ref buffer));
+            }
+            return builder.Create(buffer.Detach());
+        }
+        finally
+        {
+            // can't use "using" because that creates a snapshot (BufferCore is mutable, and used "ref")
+            buffer.Dispose();
+        }
+    }
+
+    [DoesNotReturn, MethodImpl(MethodImplOptions.NoInlining)]
+    private static void ThrowFormat() => throw new FormatException();
+
+    [DoesNotReturn, MethodImpl(MethodImplOptions.NoInlining)]
+    private static void ThrowUnableToLease() => throw new InvalidOperationException("Unable to lease memory for " + nameof(Strings));
 }

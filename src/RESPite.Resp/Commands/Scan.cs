@@ -1,5 +1,5 @@
 ﻿using System;
-using System.Text.RegularExpressions;
+using System.Runtime.CompilerServices;
 using RESPite.Buffers;
 using RESPite.Messages;
 
@@ -8,33 +8,61 @@ namespace RESPite.Resp.Commands;
 /// <summary>
 /// Queries keys in a RESP database.
 /// </summary>
-public readonly record struct Scan(long Cursor = 0, ReadOnlyMemory<RespKey> Match = default, int Count = 10, string? Type = null)
+public readonly record struct Scan(long Cursor = 0, ReadOnlyMemory<byte> Match = default, int Count = 10, string? Type = null)
     : IRespCommand<Scan, Scan.Response>
 {
     IWriter<Scan> IRespCommand<Scan, Response>.Writer => ScanWriter.Instance;
 
     IReader<Empty, Response> IRespCommand<Scan, Response>.Reader => ScanReader.Instance;
 
-    public readonly struct Response(long Cursor, RefCountedBuffer<RespKey> Keys)
+    /// <summary>
+    /// Process the result of a scan operation to update the <see cref="Cursor"/>.
+    /// </summary>
+    public Scan Next(in Response reply) => this with { Cursor = reply.Cursor };
+
+    /// <summary>
+    /// Provides the keys associated with a single iteration of a scan operation,
+    /// and the cursor to continue the scan operation.
+    /// </summary>
+    /// <remarks>The keys can be any number, including zero and more than was requested in the request.</remarks>
+    public readonly struct Response(long cursor, RefCountedBuffers<byte> keys) : IDisposable
     {
-        public long Cursor { get; }
+        private readonly RefCountedBuffers<byte> _keys = keys;
+
+        /// <summary>
+        /// Gets the cursor to use to continue this scan operation.
+        /// </summary>
+        public long Cursor { get; } = cursor;
+
+        /// <summary>
+        /// Gets the keys returned from this iteration of the scan operation.
+        /// </summary>
+        public RefCountedBuffers<byte> Keys => _keys;
+
+        /// <inheritdoc/>
+        public void Dispose()
+        {
+            var keys = _keys;
+            Unsafe.AsRef(in _keys) = default;
+            keys.Dispose();
+        }
     }
 
-    private sealed class ScanWriter : CommandWriter<Scan>
+    private sealed class ScanWriter : RespWriterBase<Scan>
     {
         public static ScanWriter Instance = new();
 
-        protected override void Write(in Scan request, ref RespWriter writer)
+        public override void Write(in Scan request, ref RespWriter writer)
         {
             writer.WriteCommand(
                 "SCAN"u8,
-                1 + (request.Match.IsEmpty ? 0 : 2) + (request.Count > 0 ? 0 : 2) + (request.Type is null ? 0 : 2));
-            writer.WriteBulkString(Cursor);
+                1 + (request.Match.IsEmpty ? 0 : 2) + (request.Count > 0 ? 0 : 2) + (string.IsNullOrEmpty(request.Type) ? 0 : 2));
+            writer.WriteBulkString(request.Cursor);
 
-            if (request.Match.IsEmpty)
+            if (!request.Match.IsEmpty)
             {
                 writer.WriteBulkString("MATCH"u8);
-                writer.WriteBulkString(request.Match);
+                writer.WriteBulkString(request.Match.Span);
             }
 
             if (request.Count != 10)
@@ -43,18 +71,29 @@ public readonly record struct Scan(long Cursor = 0, ReadOnlyMemory<RespKey> Matc
                 writer.WriteBulkString(request.Count);
             }
 
-            if (request.Type is not null)
+            if (!string.IsNullOrEmpty(request.Type))
             {
                 writer.WriteBulkString("TYPE"u8);
-                writer.WriteBulkString(request.Type);
+                writer.WriteBulkString(request.Type!);
             }
         }
     }
 
-    private sealed class ScanReader : CommandReader<Response>
+    private sealed class ScanReader : RespReaderBase<Response>
     {
         public static ScanReader Instance = new();
 
-        protected override Response Read(ref RespReader reader) => throw new System.NotImplementedException();
+        public override Response Read(ref RespReader reader)
+        {
+            reader.Demand(RespPrefix.Array);
+            if (reader.ChildCount < 2 || !reader.TryReadNext()) Throw();
+
+            var cursor = reader.ReadInt64();
+            if (!reader.TryReadNext(RespPrefix.Array)) Throw();
+            var keys = RespReaders.ReadAggregateAsRefCountedBuffers(ref reader);
+            return new(cursor, keys);
+
+            static void Throw() => throw new InvalidOperationException("Unable to parse SCAN result");
+        }
     }
 }

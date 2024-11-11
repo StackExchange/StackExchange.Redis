@@ -21,14 +21,14 @@ public abstract class RespWriterBase<TRequest> : IWriter<TRequest>
     public virtual void Write(in TRequest request, IBufferWriter<byte> target)
     {
         var writer = new RespWriter(target);
-        Write(ref writer);
+        Write(in request, ref writer);
         writer.Flush();
     }
 
     /// <summary>
     /// Write a RESP payload via the <see cref="RespWriter"/> API.
     /// </summary>
-    public virtual void Write(ref RespWriter writer)
+    public virtual void Write(in TRequest request, ref RespWriter writer)
         => throw new NotSupportedException("A " + nameof(Write) + " overload must be overridden");
 }
 
@@ -291,6 +291,72 @@ public ref struct RespWriter
         {
             Debug.Assert(MaxRawBytesInt32 <= 16);
             Span<byte> scratch = stackalloc byte[16];
+            if (!Utf8Formatter.TryFormat(value, scratch, out int bytes))
+                ThrowFormatException();
+            WritePrefixedInteger(RespPrefix.BulkString, bytes);
+            WriteRaw(scratch.Slice(0, bytes));
+            WriteCrLf();
+        }
+    }
+
+    /// <summary>
+    /// Write an integer as a bulk string.
+    /// </summary>
+    public void WriteBulkString(long value)
+    {
+        if (value >= -1 & value <= 20)
+        {
+            WriteRaw(value switch
+            {
+                -1 => "$2\r\n-1\r\n"u8,
+                0 => "$1\r\n0\r\n"u8,
+                1 => "$1\r\n1\r\n"u8,
+                2 => "$1\r\n2\r\n"u8,
+                3 => "$1\r\n3\r\n"u8,
+                4 => "$1\r\n4\r\n"u8,
+                5 => "$1\r\n5\r\n"u8,
+                6 => "$1\r\n6\r\n"u8,
+                7 => "$1\r\n7\r\n"u8,
+                8 => "$1\r\n8\r\n"u8,
+                9 => "$1\r\n9\r\n"u8,
+                10 => "$2\r\n10\r\n"u8,
+                11 => "$2\r\n11\r\n"u8,
+                12 => "$2\r\n12\r\n"u8,
+                13 => "$2\r\n13\r\n"u8,
+                14 => "$2\r\n14\r\n"u8,
+                15 => "$2\r\n15\r\n"u8,
+                16 => "$2\r\n16\r\n"u8,
+                17 => "$2\r\n17\r\n"u8,
+                18 => "$2\r\n18\r\n"u8,
+                19 => "$2\r\n19\r\n"u8,
+                20 => "$2\r\n20\r\n"u8,
+                _ => Throw(),
+            });
+
+            static ReadOnlySpan<byte> Throw() => throw new ArgumentOutOfRangeException(nameof(value));
+        }
+        else if (Available >= MaxProtocolBytesBulkStringIntegerInt64)
+        {
+            var singleDigit = value >= -99_999_999 && value <= 999_999_999;
+            WriteRawUnsafe((byte)RespPrefix.BulkString);
+
+            var target = Tail.Slice(singleDigit ? 3 : 4); // N\r\n or NN\r\n
+            if (!Utf8Formatter.TryFormat(value, target, out var valueBytes))
+                ThrowFormatException();
+
+            Debug.Assert(valueBytes > 0 && singleDigit ? (valueBytes < 10) : (valueBytes is 10 or 11));
+            if (!Utf8Formatter.TryFormat(valueBytes, Tail, out var prefixBytes))
+                ThrowFormatException();
+            Debug.Assert(prefixBytes == (singleDigit ? 1 : 2));
+            _index += prefixBytes;
+            WriteCrLfUnsafe();
+            _index += valueBytes;
+            WriteCrLfUnsafe();
+        }
+        else
+        {
+            Debug.Assert(MaxRawBytesInt64 <= 24);
+            Span<byte> scratch = stackalloc byte[24];
             if (!Utf8Formatter.TryFormat(value, scratch, out int bytes))
                 ThrowFormatException();
             WritePrefixedInteger(RespPrefix.BulkString, bytes);

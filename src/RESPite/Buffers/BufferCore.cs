@@ -10,8 +10,9 @@ namespace RESPite.Buffers;
 /// <summary>
 /// Handles buffer management; intended for use as the private implementation layer of a transport.
 /// </summary>
-public struct BufferCore<T>
-    : IDisposable // note mutable struct intended to encapsulate logic as a field inside a class instance
+public struct BufferCore<T> :
+    IDisposable, // note mutable struct intended to encapsulate logic as a field inside a class instance
+    IBufferWriter<T>
 {
     private readonly SlabManager<T> _slabManager;
     private RefCountedSequenceSegment<T> _head, _tail;
@@ -24,7 +25,13 @@ public struct BufferCore<T>
     /// <summary>
     /// Initializes the instance.
     /// </summary>
-    public BufferCore(int maxLength = 0) : this(SlabManager<T>.Ambient, maxLength) { }
+    public BufferCore(int maxLength) : this(SlabManager<T>.Ambient, maxLength) { }
+
+    /// <summary>
+    /// Initializes the instance.
+    /// </summary>
+    public BufferCore() : this(SlabManager<T>.Ambient, 0) { }
+
     internal BufferCore(SlabManager<T> slabManager, int maxLength = 0)
     {
         if (maxLength <= 0) maxLength = int.MaxValue;
@@ -80,6 +87,14 @@ public struct BufferCore<T>
         return false;
     }
 
+    Span<T> IBufferWriter<T>.GetSpan(int sizeHint)
+        => GetWritableTail().Span;
+
+    Memory<T> IBufferWriter<T>.GetMemory(int sizeHint)
+        => GetWritableTail();
+
+    void IBufferWriter<T>.Advance(int count) => Commit(count);
+
     /// <summary>
     /// Gets the region in which new data can be deposited.
     /// </summary>
@@ -101,7 +116,7 @@ public struct BufferCore<T>
     /// <summary>
     /// Commits data to the buffer.
     /// </summary>
-    internal void Commit(int bytes) // unlike Advance, this remains valid for data outside what has been written
+    public void Commit(int bytes) // unlike Advance, this remains valid for data outside what has been written
     {
         if (bytes >= 0 && bytes <= _tailSize - _tailOffset)
         {

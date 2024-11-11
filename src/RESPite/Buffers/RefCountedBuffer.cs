@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Buffers;
+using System.Diagnostics.CodeAnalysis;
 using RESPite.Buffers.Internal;
 
 namespace RESPite.Buffers;
@@ -8,7 +9,10 @@ namespace RESPite.Buffers;
 /// An arbitrary payload that uses ref-counting for retention; incorrect usage
 /// may cause significant problems.
 /// </summary>
-public readonly struct RefCountedBuffer<T> : IDisposable
+/// <remarks>
+/// The underlying buffer is not required to support ref-counting - GC rules will work otherwise.
+/// </remarks>
+public readonly struct RefCountedBuffer<T>(in ReadOnlySequence<T> content) : IDisposable
 {
     /// <inheritdoc cref="ReadOnlySequence{T}.Length"/>
     public long Length => _content.Length;
@@ -19,11 +23,15 @@ public readonly struct RefCountedBuffer<T> : IDisposable
     /// <summary>
     /// Convert the specified <see cref="RefCountedBuffer{T}"/> to a <see cref="ReadOnlySequence{T}"/>.
     /// </summary>
+    /// <param name="value">The buffer to convert.</param>
     public static implicit operator ReadOnlySequence<T>(in RefCountedBuffer<T> value) => value._content;
 
     /// <inheritdoc/>
     public override string ToString() => _content.ToString();
-    private readonly ReadOnlySequence<T> _content;
+
+    [SuppressMessage("Style", "IDE0032:Use auto property", Justification = "Clarity")]
+
+    private readonly ReadOnlySequence<T> _content = content;
 
     /// <inheritdoc/>
     public override int GetHashCode() => _content.GetHashCode();
@@ -77,16 +85,11 @@ public readonly struct RefCountedBuffer<T> : IDisposable
 
     void IDisposable.Dispose() => Release();
 
-    /// <summary>
-    /// Create a new value from an existing buffer; the underlying buffer is not
-    /// required to support ref-counting - GC rules will work otherwise.
-    /// </summary>
-    public RefCountedBuffer(in ReadOnlySequence<T> content)
-        => _content = content;
-
     internal static RefCountedBuffer<T> CreateValidated(in ReadOnlySequence<T> content)
         => new(in content);
 
-    /// <inheritdoc cref="ReadOnlySequence{T}.GetEnumerator">
+    /// <summary>
+    /// Enumerate the values inside the buffer.
+    /// </summary>
     public ReadOnlySequence<T>.Enumerator GetEnumerator() => _content.GetEnumerator();
 }

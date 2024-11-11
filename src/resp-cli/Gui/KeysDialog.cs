@@ -1,7 +1,9 @@
 ﻿using System.Globalization;
-using RESPite.Resp;
+using System.Text;
+using RESPite.Resp.Commands;
 using Terminal.Gui;
-
+using static RESPite.Resp.Commands.Type;
+using Type = RESPite.Resp.Commands.Type;
 namespace StackExchange.Redis.Gui;
 
 internal class KeysDialog : ServerToolDialog
@@ -11,15 +13,54 @@ internal class KeysDialog : ServerToolDialog
     private readonly TextField _top;
     private readonly KeysRowSource _rows = new();
 
-    private void Fetch()
+    private async Task FetchKeys()
     {
-        if (!int.TryParse(_top.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int count))
+        try
         {
-            StatusText = "Invalid count: " + _top.Text;
-        }
+            if (!int.TryParse(_top.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int count))
+            {
+                StatusText = "Invalid count: " + _top.Text;
+            }
 
-        var match = _match.Text;
-        if (match == "*") match = "";
+            var match = _match.Text;
+            if (match is null or "*") match = "";
+
+            var cmd = new Scan(Match: Encoding.UTF8.GetBytes(match), Count: 100, Type: _match.Text);
+            do
+            {
+                StatusText = $"Fetching next page...";
+                using var reply = await Transport.SendAsync<Scan, Scan.Response>(cmd, CancellationToken);
+
+                int start = _rows.Rows;
+                int added = reply.Keys.ForEach(
+                    static (i, span, state) =>
+                    {
+                        state.Add(Encoding.UTF8.GetString(span));
+                        return true;
+                    },
+                    _rows);
+
+                _keys.SetNeedsDisplay();
+
+                StatusText = $"Fetching types...";
+
+                for (int i = 0; i < added; i++)
+                {
+                    var obj = _rows[i];
+                    obj.Type = await Transport.SendAsync<Type, KnownType>(new(obj.Key), CancellationToken);
+                    _keys.SetNeedsDisplay();
+                }
+
+                // update the cursor
+                cmd = cmd.Next(reply);
+            }
+            while (cmd.Cursor != 0);
+            StatusText = $"All done!";
+        }
+        catch (Exception ex)
+        {
+            StatusText = ex.Message;
+        }
     }
 
     public KeysDialog()
@@ -54,7 +95,7 @@ internal class KeysDialog : ServerToolDialog
             Width = Dim.Fill(),
             Text = "Go",
         };
-        btn.Accept += (s, e) => Fetch();
+        btn.Accept += (s, e) => _ = FetchKeys();
         _keys = new TableView
         {
             Y = Pos.Bottom(matchLabel),
@@ -90,18 +131,31 @@ internal class KeysDialog : ServerToolDialog
         public int Columns => 3;
 
         public int Rows => _rows.Count;
+
+        public void Add(string key) => _rows.Add(new(key));
+
+        public KeysRow this[int index] => _rows[index];
     }
-    private sealed class KeysRow(string key)
+
+    public sealed class KeysRow(string key)
     {
         public string Key => key;
-        public string Type { get; set; } = "";
+        public KnownType Type { get; set; }
         public string Content { get; set; } = "";
     }
 
     protected override async void OnStart()
     {
-        StatusText = $"Querying database size...";
-        var count = await RespCommands.DbSize.SendAsync(Transport, RespReaders.Int32, CancellationToken);
-        StatusText = $"Keys in database: {count}";
+        try
+        {
+            StatusText = $"Querying database size...";
+            var count = await Transport.SendAsync<DbSize, int>(CancellationToken);
+
+            StatusText = $"Keys in database: {count}";
+        }
+        catch (Exception ex)
+        {
+            StatusText = ex.Message;
+        }
     }
 }
