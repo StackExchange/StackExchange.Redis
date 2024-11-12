@@ -59,18 +59,18 @@ internal class KeysDialog : ServerToolDialog
                     var obj = _rows[i];
                     obj.SetQueried();
                     using var key = LeasedBuffer.Utf8(obj.Key);
-                    obj.SetType(await TYPE.SendAsync(Transport, key.Memory, CancellationToken));
+                    obj.SetType(await TYPE.SendAsync(Transport, key, CancellationToken));
                     _keys.SetNeedsDisplay();
 
                     string content = obj.Type switch
                     {
                         KnownType.None => "",
-                        KnownType.String => $"{await Strings.STRLEN.SendAsync(Transport, key.Memory, CancellationToken)} bytes",
-                        KnownType.List => $"{await Lists.LLEN.SendAsync(Transport, key.Memory, CancellationToken)} elements",
-                        KnownType.Set => $"{await Sets.SCARD.SendAsync(Transport, key.Memory, CancellationToken)} elements",
-                        KnownType.ZSet => $"{await SortedSets.ZCARD.SendAsync(Transport, key.Memory, CancellationToken)} elements",
-                        KnownType.Hash => $"{await Hashes.HLEN.SendAsync(Transport, key.Memory, CancellationToken)} elements",
-                        KnownType.Stream => $"{await Streams.XLEN.SendAsync(Transport, key.Memory, CancellationToken)} elements",
+                        KnownType.String => $"{await Strings.STRLEN.SendAsync(Transport, key, CancellationToken)} bytes",
+                        KnownType.List => $"{await Lists.LLEN.SendAsync(Transport, key, CancellationToken)} elements",
+                        KnownType.Set => $"{await Sets.SCARD.SendAsync(Transport, key, CancellationToken)} elements",
+                        KnownType.ZSet => $"{await SortedSets.ZCARD.SendAsync(Transport, key, CancellationToken)} elements",
+                        KnownType.Hash => $"{await Hashes.HLEN.SendAsync(Transport, key, CancellationToken)} elements",
+                        KnownType.Stream => $"{await Streams.XLEN.SendAsync(Transport, key, CancellationToken)} elements",
                         _ => "(???)",
                     };
                     obj.SetContent(content);
