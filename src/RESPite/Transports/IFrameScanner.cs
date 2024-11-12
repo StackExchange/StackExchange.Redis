@@ -3,6 +3,18 @@
 namespace RESPite.Transports;
 
 /// <summary>
+/// When implemented by a <see cref="IFrameScanner{TState}"/>, verifies that a message is valid.
+/// </summary>
+/// <remarks>This is typically used for debugging or other scenarios where correctness is in question.</remarks>
+public interface IFrameValidator
+{
+    /// <summary>
+    /// Verify the provided payload.
+    /// </summary>
+    void Validate(in ReadOnlySequence<byte> message);
+}
+
+/// <summary>
 /// Lightweight frame scanner; the role of the scanner is not to *process* data,
 /// but simply to split data into frames; this could be by reading a frame
 /// header and capturing the required body size, or it could be by looking

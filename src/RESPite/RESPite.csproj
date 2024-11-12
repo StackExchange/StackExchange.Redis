@@ -16,9 +16,6 @@
   <ItemGroup>
     <Compile Include="..\StackExchange.Redis\NullableHacks.cs" Link="NullableHacks.cs" />
     <Compile Include="..\StackExchange.Redis\SkipLocalsInit.cs" Link="SkipLocalsInit.cs" />
-  </ItemGroup>
-
-  <ItemGroup>
     <PackageReference Remove="Microsoft.CodeAnalysis.PublicApiAnalyzers" />
 
     <!-- built into .NET core now -->

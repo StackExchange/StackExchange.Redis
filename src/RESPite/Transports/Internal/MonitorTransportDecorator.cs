@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using RESPite.Messages;
@@ -11,7 +10,7 @@ internal sealed class MonitorTransportDecorator(ISyncRequestResponseTransport tr
     public MonitorTransportDecorator(ISyncRequestResponseTransport transport) : this(transport, Timeout.InfiniteTimeSpan) { }
 
     private readonly object syncLock = new();
-    public event Action<ReadOnlySequence<byte>> OutOfBandData
+    public event MessageCallback OutOfBandData
     {
         add => transport.OutOfBandData += value;
         remove => transport.OutOfBandData -= value;

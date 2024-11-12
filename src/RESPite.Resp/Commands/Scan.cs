@@ -54,9 +54,9 @@ public readonly record struct Scan(long Cursor = 0, ReadOnlyMemory<byte> Match =
 
         public override void Write(in Scan request, ref RespWriter writer)
         {
-            writer.WriteCommand(
-                "SCAN"u8,
-                1 + (request.Match.IsEmpty ? 0 : 2) + (request.Count > 0 ? 0 : 2) + (string.IsNullOrEmpty(request.Type) ? 0 : 2));
+            const int DEFAULT_SERVER_COUNT = 10;
+            int args = 1 + (request.Match.IsEmpty ? 0 : 2) + (request.Count == DEFAULT_SERVER_COUNT ? 0 : 2) + (string.IsNullOrEmpty(request.Type) ? 0 : 2);
+            writer.WriteCommand("SCAN"u8, args);
             writer.WriteBulkString(request.Cursor);
 
             if (!request.Match.IsEmpty)
@@ -65,7 +65,7 @@ public readonly record struct Scan(long Cursor = 0, ReadOnlyMemory<byte> Match =
                 writer.WriteBulkString(request.Match.Span);
             }
 
-            if (request.Count != 10)
+            if (request.Count != DEFAULT_SERVER_COUNT)
             {
                 writer.WriteBulkString("COUNT"u8);
                 writer.WriteBulkString(request.Count);

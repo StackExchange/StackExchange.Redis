@@ -21,7 +21,7 @@ internal abstract class MessageTransportDecorator : IMessageTransportBase
         if (transport is IAsyncMessageTransport) _support |= SUPPORT_ASYNC;
     }
 
-    public virtual event Action<ReadOnlySequence<byte>> OutOfBandData
+    public virtual event MessageCallback OutOfBandData
     {
         add => _transport.OutOfBandData += value;
         remove => _transport.OutOfBandData -= value;

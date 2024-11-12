@@ -1,66 +1,86 @@
 ﻿using System;
 using System.Buffers;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using RESPite.Buffers;
+using RESPite.Internal;
 using RESPite.Messages;
+
 namespace RESPite.Transports.Internal;
 
-internal sealed class RequestResponseTransport<TState>(IByteTransport transport, IFrameScanner<TState> scanner)
-        : RequestResponseBase<TState>(transport, scanner), IRequestResponseTransport
+internal sealed class RequestResponseTransport<TState>(IByteTransport transport, IFrameScanner<TState> scanner, bool validateOutbound)
+        : RequestResponseBase<TState>(transport, scanner, validateOutbound), IRequestResponseTransport
 { }
 
-internal sealed class SyncRequestResponseTransport<TState>(ISyncByteTransport transport, IFrameScanner<TState> scanner)
-    : RequestResponseBase<TState>(transport, scanner), ISyncRequestResponseTransport
+internal sealed class SyncRequestResponseTransport<TState>(ISyncByteTransport transport, IFrameScanner<TState> scanner, bool validateOutbound)
+    : RequestResponseBase<TState>(transport, scanner, validateOutbound), ISyncRequestResponseTransport
 { }
 
-internal sealed class AsyncRequestResponseTransport<TState>(IAsyncByteTransport transport, IFrameScanner<TState> scanner)
-    : RequestResponseBase<TState>(transport, scanner), IAsyncRequestResponseTransport
+internal sealed class AsyncRequestResponseTransport<TState>(IAsyncByteTransport transport, IFrameScanner<TState> scanner, bool validateOutbound)
+    : RequestResponseBase<TState>(transport, scanner, validateOutbound), IAsyncRequestResponseTransport
 { }
 
 internal abstract class RequestResponseBase<TState> : IRequestResponseBase
 {
     private readonly IByteTransportBase _transport;
     private readonly IFrameScanner<TState> _scanner;
-    private readonly int _support;
-    private const int SUPPORT_SYNC = 1 << 0, SUPPORT_ASYNC = 1 << 1, SUPPORT_LIFETIME = 1 << 2;
+    private readonly int _flags;
+    private const int SUPPORT_SYNC = 1 << 0, SUPPORT_ASYNC = 1 << 1, SUPPORT_LIFETIME = 1 << 2, SCAN_OUTBOUND = 1 << 3;
 
     public void Dispose() => (_transport as IDisposable)?.Dispose();
 
     public ValueTask DisposeAsync() => _transport is IAsyncDisposable d ? d.DisposeAsync() : default;
 
-    public RequestResponseBase(IByteTransportBase transport, IFrameScanner<TState> scanner)
+    public RequestResponseBase(IByteTransportBase transport, IFrameScanner<TState> scanner, bool validateOutbound)
     {
         _transport = transport;
         _scanner = scanner;
-        if (transport is ISyncByteTransport) _support |= SUPPORT_SYNC;
-        if (transport is IAsyncByteTransport) _support |= SUPPORT_ASYNC;
-        if (scanner is IFrameScannerLifetime<TState>) _support |= SUPPORT_LIFETIME;
+        if (transport is ISyncByteTransport) _flags |= SUPPORT_SYNC;
+        if (transport is IAsyncByteTransport) _flags |= SUPPORT_ASYNC;
+        if (scanner is IFrameScannerLifetime<TState>) _flags |= SUPPORT_LIFETIME;
+#if DEBUG
+        validateOutbound = true; // always pay the extra in debug
+#endif
+        if (validateOutbound && scanner is IFrameValidator) _flags |= SCAN_OUTBOUND;
     }
 
     [DoesNotReturn]
     private void ThrowNotSupported([CallerMemberName] string caller = "") => throw new NotSupportedException(caller);
     private IAsyncByteTransport AsAsync([CallerMemberName] string caller = "")
     {
-        if ((_support & SUPPORT_ASYNC) == 0) ThrowNotSupported(caller);
+        if ((_flags & SUPPORT_ASYNC) == 0) ThrowNotSupported(caller);
         return Unsafe.As<IAsyncByteTransport>(_transport); // type-tested in .ctor
     }
+
     private ISyncByteTransport AsSync([CallerMemberName] string caller = "")
     {
-        if ((_support & SUPPORT_SYNC) == 0) ThrowNotSupported(caller);
+        if ((_flags & SUPPORT_SYNC) == 0) ThrowNotSupported(caller);
         return Unsafe.As<ISyncByteTransport>(_transport); // type-tested in .ctor
     }
 
+    private IFrameValidator AsValidator([CallerMemberName] string caller = "")
+    {
+        if ((_flags & SCAN_OUTBOUND) == 0) ThrowNotSupported(caller);
+        return Unsafe.As<IFrameValidator>(_scanner); // type-tested in .ctor
+    }
+
     private IAsyncByteTransport AsAsyncPrechecked() => Unsafe.As<IAsyncByteTransport>(_transport);
-    private bool WithLifetime => (_support & SUPPORT_LIFETIME) != 0;
+    private bool WithLifetime => (_flags & SUPPORT_LIFETIME) != 0;
+
+    private bool ScanOutbound => (_flags & SCAN_OUTBOUND) != 0;
 
     public ValueTask<TResponse> SendAsync<TRequest, TResponse>(in TRequest request, IWriter<TRequest> writer, IReader<TRequest, TResponse> reader, CancellationToken token = default)
     {
         var transport = AsAsync();
         var leased = writer.Serialize(in request);
         var content = leased.Content;
+
+        if (ScanOutbound) Validate(in content);
+
         var pendingWrite = transport.WriteAsync(in content, token);
         if (!pendingWrite.IsCompletedSuccessfully) return AwaitedWrite(this, pendingWrite, leased, request, reader, token);
 
@@ -96,11 +116,34 @@ internal abstract class RequestResponseBase<TState> : IRequestResponseBase
         }
     }
 
+    private void Validate(in ReadOnlySequence<byte> content)
+    {
+        try
+        {
+            if (content.IsEmpty)
+            {
+                Debug.WriteLine($"{GetType().Name} sending empty frame to transport");
+            }
+            else
+            {
+                Debug.WriteLine($"{GetType().Name} sending {content.Length} bytes to transport: {Constants.UTF8.GetString(content)}");
+            }
+            AsValidator().Validate(in content);
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"Invalid outbound frame (${content.Length} bytes): {ex.Message}", ex);
+        }
+    }
+
     public ValueTask<TResponse> SendAsync<TRequest, TResponse>(in TRequest request, IWriter<TRequest> writer, IReader<Empty, TResponse> reader, CancellationToken token = default)
     {
         var transport = AsAsync();
         var leased = writer.Serialize(in request);
         var content = leased.Content;
+
+        if (ScanOutbound) Validate(in content);
+
         var pendingWrite = transport.WriteAsync(in content, token);
         if (!pendingWrite.IsCompletedSuccessfully) return AwaitedWrite(this, pendingWrite, leased, reader, token);
 
@@ -140,6 +183,9 @@ internal abstract class RequestResponseBase<TState> : IRequestResponseBase
         var transport = AsSync();
         var leased = writer.Serialize(in request);
         var content = leased.Content;
+
+        if (ScanOutbound) Validate(in content);
+
         transport.Write(in content);
         leased.Release();
 
@@ -154,6 +200,9 @@ internal abstract class RequestResponseBase<TState> : IRequestResponseBase
         var transport = AsSync();
         var leased = writer.Serialize(in request);
         var content = leased.Content;
+
+        if (ScanOutbound) Validate(in content);
+
         transport.Write(in content);
         leased.Release();
 
@@ -164,5 +213,5 @@ internal abstract class RequestResponseBase<TState> : IRequestResponseBase
         return response;
     }
 
-    public event Action<ReadOnlySequence<byte>>? OutOfBandData;
+    public event MessageCallback? OutOfBandData;
 }

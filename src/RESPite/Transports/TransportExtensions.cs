@@ -10,7 +10,6 @@ using System.Threading.Tasks;
 using RESPite.Buffers;
 using RESPite.Buffers.Internal;
 using RESPite.Gateways.Internal;
-using RESPite.Internal;
 using RESPite.Messages;
 using RESPite.Transports.Internal;
 
@@ -25,22 +24,22 @@ public static class TransportExtensions
     /// Builds a connection intended for simple request/response operation, without
     /// any concurrency or backlog of pending operations.
     /// </summary>
-    public static IRequestResponseTransport RequestResponse<TState>(this IByteTransport gateway, IFrameScanner<TState> frameScanner)
-        => new RequestResponseTransport<TState>(gateway, frameScanner);
+    public static IRequestResponseTransport RequestResponse<TState>(this IByteTransport gateway, IFrameScanner<TState> frameScanner, bool validateOutbound = false)
+        => new RequestResponseTransport<TState>(gateway, frameScanner, validateOutbound);
 
     /// <summary>
     /// Builds a connection intended for simple request/response operation, without
     /// any concurrency or backlog of pending operations.
     /// </summary>
-    public static IAsyncRequestResponseTransport RequestResponse<TState>(this IAsyncByteTransport gateway, IFrameScanner<TState> frameScanner)
-        => new AsyncRequestResponseTransport<TState>(gateway, frameScanner);
+    public static IAsyncRequestResponseTransport RequestResponse<TState>(this IAsyncByteTransport gateway, IFrameScanner<TState> frameScanner, bool validateOutbound = false)
+        => new AsyncRequestResponseTransport<TState>(gateway, frameScanner, validateOutbound);
 
     /// <summary>
     /// Builds a connection intended for simple request/response operation, without
     /// any concurrency or backlog of pending operations.
     /// </summary>
-    public static ISyncRequestResponseTransport RequestResponse<TState>(this ISyncByteTransport gateway, IFrameScanner<TState> frameScanner)
-        => new SyncRequestResponseTransport<TState>(gateway, frameScanner);
+    public static ISyncRequestResponseTransport RequestResponse<TState>(this ISyncByteTransport gateway, IFrameScanner<TState> frameScanner, bool validateOutbound = false)
+        => new SyncRequestResponseTransport<TState>(gateway, frameScanner, validateOutbound);
 
     /// <summary>
     /// Uses <see cref="Monitor"/> to synchronize access to the underlying transport.
@@ -129,7 +128,7 @@ public static class TransportExtensions
     internal static IEnumerable<RefCountedBuffer<byte>> ReadAll<TState>(
         this ISyncByteTransport transport,
         IFrameScanner<TState> scanner,
-        Action<ReadOnlySequence<byte>>? outOfBandData)
+        MessageCallback? outOfBandData)
     {
         TState? scanState;
         {
@@ -217,7 +216,7 @@ public static class TransportExtensions
     internal static RefCountedBuffer<byte> ReadOne<TState>(
         this ISyncByteTransport transport,
         IFrameScanner<TState> scanner,
-        Action<ReadOnlySequence<byte>>? outOfBandData,
+        MessageCallback? outOfBandData,
         bool unsafeForceLifetime)
     {
         if (unsafeForceLifetime)
@@ -230,7 +229,7 @@ public static class TransportExtensions
         static RefCountedBuffer<byte> ReadOneWithLifetime(
             ISyncByteTransport transport,
             IFrameScannerLifetime<TState> scanner,
-            Action<ReadOnlySequence<byte>>? outOfBandData)
+            MessageCallback? outOfBandData)
         {
             scanner.OnInitialize(out var scanState);
             try
@@ -246,7 +245,7 @@ public static class TransportExtensions
         static RefCountedBuffer<byte> ReadOneCore(
             ISyncByteTransport transport,
             IFrameScanner<TState> scanner,
-            Action<ReadOnlySequence<byte>>? outOfBandData,
+            MessageCallback? outOfBandData,
             ref TState? scanState)
         {
             FrameScanInfo scanInfo = default;
@@ -302,7 +301,7 @@ public static class TransportExtensions
     internal static async ValueTask<RefCountedBuffer<byte>> ReadOneAsync<TState>(
         this IAsyncByteTransport transport,
         IFrameScanner<TState> scanner,
-        Action<ReadOnlySequence<byte>>? outOfBandData,
+        MessageCallback? outOfBandData,
         CancellationToken token)
     {
         TState? scanState;

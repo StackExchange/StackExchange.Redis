@@ -7,8 +7,13 @@ namespace RESPite.Resp.Commands;
 /// <summary>
 /// Queries the type of data in a RESP database.
 /// </summary>
-public readonly struct Type : IRespCommand<Type, Type.KnownType>
+public readonly struct Type(ReadOnlyMemory<byte> key) : IRespCommand<Type, Type.KnownType>
 {
+    /// <summary>
+    /// The key to request.
+    /// </summary>
+    public ReadOnlyMemory<byte> Key { get; } = key;
+
     /// <summary>
     /// Database storage type.
     /// </summary>
@@ -18,6 +23,11 @@ public readonly struct Type : IRespCommand<Type, Type.KnownType>
         /// An unknown or unrecognized value.
         /// </summary>
         Unknown,
+
+        /// <summary>
+        /// No value.
+        /// </summary>
+        None,
 
         /// <summary>
         /// Strings.
@@ -50,30 +60,9 @@ public readonly struct Type : IRespCommand<Type, Type.KnownType>
         Stream,
     }
 
-    private readonly string? _s;
-    private readonly ReadOnlyMemory<byte> _rom;
-
     IWriter<Type> IRespCommand<Type, KnownType>.Writer => Handler.Instance;
 
     IReader<Empty, KnownType> IRespCommand<Type, KnownType>.Reader => Handler.Instance;
-
-    /// <summary>
-    /// Create a new TYPE command.
-    /// </summary>
-    public Type(ReadOnlyMemory<byte> key)
-    {
-        _s = null;
-        _rom = key;
-    }
-
-    /// <summary>
-    /// Create a new TYPE command.
-    /// </summary>
-    public Type(string key)
-    {
-        _s = key;
-        _rom = default;
-    }
 
     private sealed class Handler : IWriter<Type>, IReader<Empty, KnownType>
     {
@@ -84,6 +73,7 @@ public readonly struct Type : IRespCommand<Type, Type.KnownType>
         {
             RespReader reader = new(content);
             reader.ReadNextScalar();
+            if (reader.IsNull) return KnownType.None;
             var result = reader.ReadEnum<KnownType>(KnownType.Unknown);
             reader.ReadEnd();
             return result;
@@ -93,14 +83,7 @@ public readonly struct Type : IRespCommand<Type, Type.KnownType>
         {
             var writer = new RespWriter(target);
             writer.WriteRaw("*2\r\n$4\r\nTYPE\r\n"u8);
-            if (request._s is null)
-            {
-                writer.WriteBulkString(request._rom.Span);
-            }
-            else
-            {
-                writer.WriteBulkString(request._s);
-            }
+            writer.WriteBulkString(request.Key.Span);
         }
     }
 }

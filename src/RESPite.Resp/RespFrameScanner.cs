@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Buffers;
 using System.Diagnostics;
+using System.IO;
 using RESPite.Transports;
 using static RESPite.Internal.Constants;
 namespace RESPite.Resp;
@@ -8,7 +9,7 @@ namespace RESPite.Resp;
 /// <summary>
 /// Scans RESP frames.
 /// </summary>.
-public sealed class RespFrameScanner : IFrameScanner<RespFrameScanner.RespFrameState>
+public sealed class RespFrameScanner : IFrameScanner<RespFrameScanner.RespFrameState>, IFrameValidator
 {
     /// <summary>
     /// Gets a frame scanner for RESP2 request/response connections, or RESP3 connections.
@@ -154,6 +155,23 @@ public sealed class RespFrameScanner : IFrameScanner<RespFrameScanner.RespFrameS
     }
 
     void IFrameScanner<RespFrameState>.Trim(ref RespFrameState state, ref ReadOnlySequence<byte> data, ref FrameScanInfo info) { }
+
+    void IFrameValidator.Validate(in ReadOnlySequence<byte> message)
+    {
+        if (message.IsEmpty) Throw("Empty RESP frame");
+        RespReader reader = new(in message);
+        if (!reader.TryReadNext(RespPrefix.Array)) ThrowEOF("command header");
+        var count = reader.ChildCount;
+        for (int i = 0; i < count; i++)
+        {
+            if (!reader.TryReadNext(RespPrefix.BulkString)) ThrowEOF("command argument " + i);
+            if (i == 0 && reader.ScalarLength == 0) Throw("command must be non-empty");
+        }
+        if (reader.TryReadNext()) Throw($"command should be a single root element; found: {reader.Prefix}");
+
+        static void ThrowEOF(string message) => throw new EndOfStreamException("Data terminated prematurely: " + message);
+        static void Throw(string message) => throw new InvalidOperationException(message);
+    }
 
     /// <summary>
     /// Internal state required by the frame parser.

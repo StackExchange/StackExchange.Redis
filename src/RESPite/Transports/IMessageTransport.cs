@@ -55,5 +55,5 @@ public interface IMessageTransportBase
     /// is only valid for the duration of the event. If the data is required after the invocation (for despatch),
     /// it should be retained (<see cref="BufferExtensions.Retain"/>) and released when complete.
     /// </summary>
-    event Action<ReadOnlySequence<byte>> OutOfBandData;
+    event MessageCallback OutOfBandData;
 }

@@ -19,21 +19,6 @@ internal sealed unsafe class UnsafeRawCommand<T> : IWriter<T>
     {
         ptr = (byte*)Unsafe.AsPointer(ref MemoryMarshal.GetReference(value));
         length = value.Length;
-        DebugValidate();
-    }
-
-    [Conditional("DEBUG")]
-    private void DebugValidate()
-    {
-        RespReader reader = new(Value);
-        Debug.Assert(reader.TryReadNext(RespPrefix.Array), "unable to read command array header");
-        var count = reader.ChildCount;
-        for (int i = 0; i < count; i++)
-        {
-            Debug.Assert(reader.TryReadNext(RespPrefix.BulkString), $"unable to read command arg {i}");
-            if (i == 0) Debug.Assert(reader.ScalarLength != 0, "command must be non-empty");
-        }
-        Debug.Assert(!reader.TryReadNext(), "command should be a single root element");
     }
 
     /// <summary>

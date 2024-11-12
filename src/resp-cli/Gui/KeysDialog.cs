@@ -1,5 +1,7 @@
-﻿using System.Globalization;
+﻿using System.Collections.ObjectModel;
+using System.Globalization;
 using System.Text;
+using RESPite.Buffers;
 using RESPite.Resp.Commands;
 using Terminal.Gui;
 using static RESPite.Resp.Commands.Type;
@@ -12,6 +14,8 @@ internal class KeysDialog : ServerToolDialog
     private readonly TextField _match;
     private readonly TextField _top;
     private readonly KeysRowSource _rows = new();
+    private readonly ComboBox _type = new();
+    private readonly ObservableCollection<string> _types = new() { "string", "list", "set", "zset", "hash", "stream" };
 
     private async Task FetchKeys()
     {
@@ -25,7 +29,10 @@ internal class KeysDialog : ServerToolDialog
             var match = _match.Text;
             if (match is null or "*") match = "";
 
-            var cmd = new Scan(Match: Encoding.UTF8.GetBytes(match), Count: 100, Type: _match.Text);
+            int typeIndex = _type.SelectedItem;
+            string? type = typeIndex < 0 ? null : _types[typeIndex];
+
+            var cmd = new Scan(Match: Encoding.UTF8.GetBytes(match), Count: 100, Type: type);
             do
             {
                 StatusText = $"Fetching next page...";
@@ -47,8 +54,19 @@ internal class KeysDialog : ServerToolDialog
                 for (int i = 0; i < added; i++)
                 {
                     var obj = _rows[i];
-                    obj.Type = await Transport.SendAsync<Type, KnownType>(new(obj.Key), CancellationToken);
+                    obj.SetQueried();
+                    using var key = LeasedBuffer.Utf8(obj.Key);
+                    obj.SetType(await Transport.SendAsync<Type, KnownType>(new(key), CancellationToken));
                     _keys.SetNeedsDisplay();
+
+                    switch (obj.Type)
+                    {
+                        case KnownType.String:
+                            /*
+                            obj.SetContent(await Transport.SendAsync())
+                            */
+                            break;
+                    }
                 }
 
                 // update the cursor
@@ -78,10 +96,22 @@ internal class KeysDialog : ServerToolDialog
             Width = 8,
             Text = "100",
         };
+        var typeLabel = new Label
+        {
+            Text = "Type",
+            X = Pos.Right(_top) + 1,
+        };
+        _type = new()
+        {
+            X = Pos.Right(typeLabel) + 1,
+            Width = 9,
+        };
+        _type.SetSource(_types);
+        _type.CanFocus = true;
         var matchLabel = new Label()
         {
             Text = "Match",
-            X = Pos.Right(_top) + 1,
+            X = Pos.Right(_type) + 1,
         };
         _match = new()
         {
@@ -104,7 +134,7 @@ internal class KeysDialog : ServerToolDialog
             Table = _rows,
         };
 
-        Add(topLabel, _top, matchLabel, _match, btn, _keys);
+        Add(topLabel, _top, typeLabel, _type, matchLabel, _match, btn, _keys);
     }
 
     private sealed class KeysRowSource : ITableSource
@@ -139,9 +169,27 @@ internal class KeysDialog : ServerToolDialog
 
     public sealed class KeysRow(string key)
     {
+        private int _state;
         public string Key => key;
-        public KnownType Type { get; set; }
-        public string Content { get; set; } = "";
+        public KnownType Type { get; private set; } = KnownType.Unknown;
+
+        public void SetQueried() => _state |= 0b001;
+        public bool HaveQueried => (_state & 0b001) != 0;
+        public bool HaveType => (_state & 0b010) != 0;
+        public void SetType(KnownType type)
+        {
+            _state |= 0b010;
+            Type = type;
+        }
+        public string Content { get; private set; } = "";
+
+        public bool HaveContent => (_state & 0b100) != 0;
+
+        public void SetContent(string content)
+        {
+            _state |= 0b100;
+            Content = content;
+        }
     }
 
     protected override async void OnStart()
