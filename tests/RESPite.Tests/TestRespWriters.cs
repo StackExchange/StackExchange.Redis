@@ -1,5 +1,6 @@
 ﻿using System.Buffers;
 using RESPite.Messages;
+using RESPite.Resp.Writers;
 
 namespace RESPite.Resp;
 

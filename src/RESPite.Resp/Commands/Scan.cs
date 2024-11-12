@@ -1,7 +1,8 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
 using RESPite.Buffers;
-using RESPite.Messages;
+using RESPite.Resp.Readers;
+using RESPite.Resp.Writers;
 
 namespace RESPite.Resp.Commands;
 
@@ -9,12 +10,7 @@ namespace RESPite.Resp.Commands;
 /// Queries keys in a RESP database.
 /// </summary>
 public readonly record struct Scan(long Cursor = 0, ReadOnlyMemory<byte> Match = default, int Count = 10, string? Type = null)
-    : IRespCommand<Scan, Scan.Response>
 {
-    IWriter<Scan> IRespCommand<Scan, Response>.Writer => ScanWriter.Instance;
-
-    IReader<Empty, Response> IRespCommand<Scan, Response>.Reader => ScanReader.Instance;
-
     /// <summary>
     /// Process the result of a scan operation to update the <see cref="Cursor"/>.
     /// </summary>
@@ -48,7 +44,7 @@ public readonly record struct Scan(long Cursor = 0, ReadOnlyMemory<byte> Match =
         }
     }
 
-    private sealed class ScanWriter : RespWriterBase<Scan>
+    internal sealed class ScanWriter : RespWriterBase<Scan>
     {
         public static ScanWriter Instance = new();
 
@@ -79,7 +75,7 @@ public readonly record struct Scan(long Cursor = 0, ReadOnlyMemory<byte> Match =
         }
     }
 
-    private sealed class ScanReader : RespReaderBase<Response>
+    internal sealed class ScanReader : RespReaderBase<Response>
     {
         public static ScanReader Instance = new();
 

@@ -2,6 +2,7 @@
 using System.Buffers;
 using System.Diagnostics;
 using System.IO;
+using RESPite.Resp.Readers;
 using RESPite.Transports;
 using static RESPite.Internal.Constants;
 namespace RESPite.Resp;
@@ -127,7 +128,7 @@ public sealed class RespFrameScanner : IFrameScanner<RespFrameScanner.RespFrameS
 
         static OperationStatus TryReadViaReader(ref RespFrameState state, in ReadOnlySequence<byte> data, ref FrameScanInfo info, bool pubsub)
         {
-            var reader = new RespReader(in data);
+            var reader = new RespReader(in data, throwOnErrorResponse: false);
             int remaining = state.Remaining;
             while (remaining != 0 && reader.TryReadNext()) // TODO: implement info.ReadHint
             {
@@ -159,7 +160,7 @@ public sealed class RespFrameScanner : IFrameScanner<RespFrameScanner.RespFrameS
     void IFrameValidator.Validate(in ReadOnlySequence<byte> message)
     {
         if (message.IsEmpty) Throw("Empty RESP frame");
-        RespReader reader = new(in message);
+        RespReader reader = new(in message, throwOnErrorResponse: false);
         if (!reader.TryReadNext(RespPrefix.Array)) ThrowEOF("command header");
         var count = reader.ChildCount;
         for (int i = 0; i < count; i++)

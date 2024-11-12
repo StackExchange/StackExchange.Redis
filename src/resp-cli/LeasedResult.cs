@@ -3,7 +3,7 @@ using System.Diagnostics;
 using System.Text;
 using RESPite;
 using RESPite.Messages;
-using RESPite.Resp;
+using RESPite.Resp.Readers;
 
 namespace StackExchange.Redis;
 

@@ -12,15 +12,15 @@ using RESPite.Messages;
 
 namespace RESPite.Transports.Internal;
 
-internal sealed class RequestResponseTransport<TState>(IByteTransport transport, IFrameScanner<TState> scanner, bool validateOutbound)
+internal sealed class RequestResponseTransport<TState>(IByteTransport transport, IFrameScanner<TState> scanner, FrameValidation validateOutbound)
         : RequestResponseBase<TState>(transport, scanner, validateOutbound), IRequestResponseTransport
 { }
 
-internal sealed class SyncRequestResponseTransport<TState>(ISyncByteTransport transport, IFrameScanner<TState> scanner, bool validateOutbound)
+internal sealed class SyncRequestResponseTransport<TState>(ISyncByteTransport transport, IFrameScanner<TState> scanner, FrameValidation validateOutbound)
     : RequestResponseBase<TState>(transport, scanner, validateOutbound), ISyncRequestResponseTransport
 { }
 
-internal sealed class AsyncRequestResponseTransport<TState>(IAsyncByteTransport transport, IFrameScanner<TState> scanner, bool validateOutbound)
+internal sealed class AsyncRequestResponseTransport<TState>(IAsyncByteTransport transport, IFrameScanner<TState> scanner, FrameValidation validateOutbound)
     : RequestResponseBase<TState>(transport, scanner, validateOutbound), IAsyncRequestResponseTransport
 { }
 
@@ -35,7 +35,7 @@ internal abstract class RequestResponseBase<TState> : IRequestResponseBase
 
     public ValueTask DisposeAsync() => _transport is IAsyncDisposable d ? d.DisposeAsync() : default;
 
-    public RequestResponseBase(IByteTransportBase transport, IFrameScanner<TState> scanner, bool validateOutbound)
+    public RequestResponseBase(IByteTransportBase transport, IFrameScanner<TState> scanner, FrameValidation validateOutbound)
     {
         _transport = transport;
         _scanner = scanner;
@@ -43,9 +43,12 @@ internal abstract class RequestResponseBase<TState> : IRequestResponseBase
         if (transport is IAsyncByteTransport) _flags |= SUPPORT_ASYNC;
         if (scanner is IFrameScannerLifetime<TState>) _flags |= SUPPORT_LIFETIME;
 #if DEBUG
-        validateOutbound = true; // always pay the extra in debug
+        if (validateOutbound is FrameValidation.Debug)
+        {
+            validateOutbound = FrameValidation.Enabled; // always pay the extra in debug
+        }
 #endif
-        if (validateOutbound && scanner is IFrameValidator) _flags |= SCAN_OUTBOUND;
+        if (validateOutbound is FrameValidation.Enabled && scanner is IFrameValidator) _flags |= SCAN_OUTBOUND;
     }
 
     [DoesNotReturn]

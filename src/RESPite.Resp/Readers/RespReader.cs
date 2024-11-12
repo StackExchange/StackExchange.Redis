@@ -11,12 +11,12 @@ using System.Text;
 using RESPite.Internal;
 using RESPite.Messages;
 using static RESPite.Internal.Constants;
-namespace RESPite.Resp;
+namespace RESPite.Resp.Readers;
 
 /// <summary>
 /// Base implementation for RESP writers that do not depend on the request parameter.
 /// </summary>
-public abstract class RespReaderBase<TResponse> : IReader<Empty, TResponse>
+public abstract class RespReaderBase<TResponse> : IReader<Empty, TResponse>, IRespReader<Empty, TResponse>
 {
     TResponse IReader<Empty, TResponse>.Read(in Empty request, in ReadOnlySequence<byte> content)
         => Read(content);
@@ -26,7 +26,7 @@ public abstract class RespReaderBase<TResponse> : IReader<Empty, TResponse>
     /// </summary>
     public virtual TResponse Read(scoped in ReadOnlySequence<byte> content)
     {
-        var reader = new RespReader(in content);
+        var reader = new RespReader(in content, throwOnErrorResponse: true);
         if (!reader.TryReadNext()) RespReader.ThrowEOF();
         reader.ThrowIfError();
         return Read(ref reader);
@@ -37,19 +37,22 @@ public abstract class RespReaderBase<TResponse> : IReader<Empty, TResponse>
     /// </summary>
     public virtual TResponse Read(ref RespReader reader)
         => throw new NotSupportedException("A " + nameof(Read) + " overload must be overridden");
+
+    TResponse IRespReader<Empty, TResponse>.Read(in Empty request, ref RespReader reader)
+        => Read(ref reader);
 }
 
 /// <summary>
 /// Base implementation for RESP writers that do depend on the request parameter.
 /// </summary>
-public abstract class RespReaderBase<TRequest, TResponse> : IReader<TRequest, TResponse>
+public abstract class RespReaderBase<TRequest, TResponse> : IReader<TRequest, TResponse>, IRespReader<TRequest, TResponse>
 {
     /// <summary>
     /// Read a raw RESP payload.
     /// </summary>
     public virtual TResponse Read(in TRequest request, in ReadOnlySequence<byte> content)
     {
-        var reader = new RespReader(in content);
+        var reader = new RespReader(in content, throwOnErrorResponse: true);
         if (!reader.TryReadNext()) RespReader.ThrowEOF();
         reader.ThrowIfError();
         return Read(in request, ref reader);
@@ -391,7 +394,7 @@ public ref struct RespReader
     /// <summary>
     /// Read a RESP fragment.
     /// </summary>
-    public RespReader(scoped in ReadOnlySequence<byte> value)
+    public RespReader(scoped in ReadOnlySequence<byte> value, bool throwOnErrorResponse)
     {
         _fullPayload = value;
         _positionBase = _bufferIndex = _bufferLength = 0;
@@ -417,6 +420,21 @@ public ref struct RespReader
             if (value.TryGet(ref _segPos, out var current))
             {
                 SetCurrent(current.Span);
+            }
+        }
+        if (throwOnErrorResponse && _bufferLength != 0)
+        {
+            var peek = (RespPrefix)CurrentUnsafe;
+            switch (peek)
+            {
+                case RespPrefix.SimpleError:
+                case RespPrefix.BulkError:
+                    if (TryReadNext(peek))
+                    {
+                        Debug.Assert(IsError, "expecting an error!");
+                        ThrowRespError();
+                    }
+                    break;
             }
         }
     }
@@ -1009,7 +1027,7 @@ public ref struct RespReader
             Span<char> chars = stackalloc char[len];
             count = Encoding.UTF8.GetChars(bytes, chars);
             chars = chars.Slice(0, count);
-            if (!Enum.TryParse<T>(chars, true, out value))
+            if (!Enum.TryParse(chars, true, out value))
             {
                 value = unknownValue;
             }
@@ -1022,12 +1040,12 @@ public ref struct RespReader
 
         count = Encoding.UTF8.GetChars(bytesArr, 0, len, charsArr, 0);
 #if NET6_0_OR_GREATER
-        if (!Enum.TryParse<T>(new ReadOnlySpan<char>(charsArr, 0, count), true, out value))
+        if (!Enum.TryParse(new ReadOnlySpan<char>(charsArr, 0, count), true, out value))
         {
             value = unknownValue;
         }
 #else
-        if (!Enum.TryParse<T>(new string(charsArr, 0, count), true, out value))
+        if (!Enum.TryParse(new string(charsArr, 0, count), true, out value))
         {
             value = unknownValue;
         }
@@ -1035,5 +1053,17 @@ public ref struct RespReader
         ArrayPool<char>.Shared.Return(charsArr);
         ArrayPool<byte>.Shared.Return(bytesArr);
         return value;
+    }
+
+    /// <summary>
+    /// Assert that the value is not null.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void DemandNotNull()
+    {
+        if (IsNull) Throw(Prefix);
+
+        [DoesNotReturn, MethodImpl(MethodImplOptions.NoInlining)]
+        static void Throw(RespPrefix prefix) => throw new InvalidOperationException($"{prefix} value is null");
     }
 }

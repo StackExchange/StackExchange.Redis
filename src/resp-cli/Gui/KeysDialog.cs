@@ -4,8 +4,7 @@ using System.Text;
 using RESPite.Buffers;
 using RESPite.Resp.Commands;
 using Terminal.Gui;
-using static RESPite.Resp.Commands.Type;
-using Type = RESPite.Resp.Commands.Type;
+using static RESPite.Resp.Commands.Keys;
 namespace StackExchange.Redis.Gui;
 
 internal class KeysDialog : ServerToolDialog
@@ -32,41 +31,50 @@ internal class KeysDialog : ServerToolDialog
             int typeIndex = _type.SelectedItem;
             string? type = typeIndex < 0 ? null : _types[typeIndex];
 
+            _rows.Clear();
+            _keys.SetNeedsDisplay();
+
             var cmd = new Scan(Match: Encoding.UTF8.GetBytes(match), Count: 100, Type: type);
             do
             {
                 StatusText = $"Fetching next page...";
-                using var reply = await Transport.SendAsync<Scan, Scan.Response>(cmd, CancellationToken);
+                using var reply = await SCAN.SendAsync(Transport, cmd, CancellationToken);
 
+                var offset = _rows.Rows;
                 int start = _rows.Rows;
                 int added = reply.Keys.ForEach(
                     static (i, span, state) =>
                     {
-                        state.Add(Encoding.UTF8.GetString(span));
+                        state._rows.Add(Encoding.UTF8.GetString(span), state.offset + i);
                         return true;
                     },
-                    _rows);
+                    (offset, _rows));
 
                 _keys.SetNeedsDisplay();
 
                 StatusText = $"Fetching types...";
 
-                for (int i = 0; i < added; i++)
+                for (int i = offset; i < offset + added; i++)
                 {
                     var obj = _rows[i];
                     obj.SetQueried();
                     using var key = LeasedBuffer.Utf8(obj.Key);
-                    obj.SetType(await Transport.SendAsync<Type, KnownType>(new(key), CancellationToken));
+                    obj.SetType(await TYPE.SendAsync(Transport, key.Memory, CancellationToken));
                     _keys.SetNeedsDisplay();
 
-                    switch (obj.Type)
+                    string content = obj.Type switch
                     {
-                        case KnownType.String:
-                            /*
-                            obj.SetContent(await Transport.SendAsync())
-                            */
-                            break;
-                    }
+                        KnownType.None => "",
+                        KnownType.String => $"{await Strings.STRLEN.SendAsync(Transport, key.Memory, CancellationToken)} bytes",
+                        KnownType.List => $"{await Lists.LLEN.SendAsync(Transport, key.Memory, CancellationToken)} elements",
+                        KnownType.Set => $"{await Sets.SCARD.SendAsync(Transport, key.Memory, CancellationToken)} elements",
+                        KnownType.ZSet => $"{await SortedSets.ZCARD.SendAsync(Transport, key.Memory, CancellationToken)} elements",
+                        KnownType.Hash => $"{await Hashes.HLEN.SendAsync(Transport, key.Memory, CancellationToken)} elements",
+                        KnownType.Stream => $"{await Streams.XLEN.SendAsync(Transport, key.Memory, CancellationToken)} elements",
+                        _ => "(???)",
+                    };
+                    obj.SetContent(content);
+                    _keys.SetNeedsDisplay();
                 }
 
                 // update the cursor
@@ -162,15 +170,19 @@ internal class KeysDialog : ServerToolDialog
 
         public int Rows => _rows.Count;
 
-        public void Add(string key) => _rows.Add(new(key));
+        public void Add(string key, int index) => _rows.Add(new(key, index));
+        internal void Clear() => _rows.Clear();
 
         public KeysRow this[int index] => _rows[index];
     }
 
-    public sealed class KeysRow(string key)
+    public sealed class KeysRow(string key, int index)
     {
-        private int _state;
         public string Key => key;
+        public int Index => index;
+
+        private int _state;
+
         public KnownType Type { get; private set; } = KnownType.Unknown;
 
         public void SetQueried() => _state |= 0b001;
@@ -197,7 +209,7 @@ internal class KeysDialog : ServerToolDialog
         try
         {
             StatusText = $"Querying database size...";
-            var count = await Transport.SendAsync<DbSize, int>(CancellationToken);
+            var count = await Keys.DBSIZE.SendAsync(Transport, CancellationToken);
 
             StatusText = $"Keys in database: {count}";
         }

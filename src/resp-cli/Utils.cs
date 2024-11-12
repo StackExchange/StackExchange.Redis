@@ -6,6 +6,7 @@ using System.Net.Sockets;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using RESPite.Resp;
+using RESPite.Resp.Readers;
 using RESPite.Transports;
 
 namespace StackExchange.Redis;
@@ -139,7 +140,7 @@ public static class Utils
             switch (reader.Prefix)
             {
                 case RespPrefix.SimpleString:
-                    sb.Append("'").Append(Escape(reader.ReadString())).Append("'");
+                    sb.Append(Escape(reader.ReadString()));
                     break;
                 case RespPrefix.BulkString:
                     sb.Append("\"").Append(Escape(reader.ReadString())).Append("\"");

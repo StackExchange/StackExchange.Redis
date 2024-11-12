@@ -1,6 +1,7 @@
 ﻿using System.Text;
 using RESPite.Internal;
 using RESPite.Resp;
+using RESPite.Resp.Readers;
 using RESPite.Transports;
 namespace RESPite;
 
@@ -35,8 +36,7 @@ public class RequestResponseTests
         transport.Send(("abc", 123), TestRespWriters.Set, RespReaders.OK);
         Assert.Equal("*3\r\n$3\r\nSET\r\n$3\r\nabc\r\n$3\r\n123\r\n", GetRequests(target));
 
-        var pong = transport.Send<string, string>("hello", TestRespWriters.Ping, RespReaders.Pong);
-        Assert.Equal("hello", pong);
+        transport.Send<string, Empty>("hello", TestRespWriters.Ping, RespReaders.Echo);
         Assert.Equal("*2\r\n$4\r\nPING\r\n$5\r\nhello\r\n", GetRequests(target));
 
         var got = transport.Send("abc", TestRespWriters.Get, RespReaders.Int32);

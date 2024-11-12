@@ -3,6 +3,8 @@ using System.Globalization;
 using System.Net;
 using System.Reflection;
 using RESPite.Resp;
+using RESPite.Resp.Readers;
+using RESPite.Resp.Writers;
 using RESPite.Transports;
 
 namespace StackExchange.Redis;

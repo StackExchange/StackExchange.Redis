@@ -1,4 +1,4 @@
-﻿using RESPite.Resp;
+﻿using RESPite.Resp.Writers;
 
 namespace RESPite;
 

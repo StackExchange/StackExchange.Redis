@@ -1,6 +1,7 @@
 ﻿using RESPite.Internal;
 using RESPite.Messages;
 using RESPite.Resp;
+using RESPite.Resp.Readers;
 using RESPite.Transports;
 using Xunit.Abstractions;
 namespace RESPite;
@@ -12,7 +13,7 @@ public class RespDeframe(ITestOutputHelper log)
         var stream = new MemoryStream();
         stream.Write(payload);
         stream.Position = 0;
-        return stream.CreateTransport().RequestResponse(RespFrameScanner.Default);
+        return stream.CreateTransport().RequestResponse(RespFrameScanner.Default, FrameValidation.Disabled); // because we're sending invalid Empty frames
     }
 
     [Fact]

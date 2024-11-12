@@ -8,12 +8,12 @@ using System.Text;
 using RESPite.Internal;
 using RESPite.Messages;
 using static RESPite.Internal.Constants;
-namespace RESPite.Resp;
+namespace RESPite.Resp.Writers;
 
 /// <summary>
 /// Base implementation for RESP writers.
 /// </summary>
-public abstract class RespWriterBase<TRequest> : IWriter<TRequest>
+public abstract class RespWriterBase<TRequest> : IWriter<TRequest>, IRespWriter<TRequest>
 {
     /// <summary>
     /// Write a raw RESP payload.
@@ -53,7 +53,7 @@ public ref struct RespWriter
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get => MemoryMarshal.CreateSpan(ref Unsafe.Add(ref StartOfBuffer, _index), BufferLength - _index);
     }
-    private void WriteRawUnsafe(byte value) => Unsafe.Add(ref StartOfBuffer, _index++) = (byte)value;
+    private void WriteRawUnsafe(byte value) => Unsafe.Add(ref StartOfBuffer, _index++) = value;
 
     private ReadOnlySpan<byte> WrittenLocalBuffer => MemoryMarshal.CreateReadOnlySpan(ref StartOfBuffer, _index);
 #else
@@ -278,7 +278,7 @@ public ref struct RespWriter
             if (!Utf8Formatter.TryFormat(value, target, out var valueBytes))
                 ThrowFormatException();
 
-            Debug.Assert(valueBytes > 0 && singleDigit ? (valueBytes < 10) : (valueBytes is 10 or 11));
+            Debug.Assert(valueBytes > 0 && singleDigit ? valueBytes < 10 : valueBytes is 10 or 11);
             if (!Utf8Formatter.TryFormat(valueBytes, Tail, out var prefixBytes))
                 ThrowFormatException();
             Debug.Assert(prefixBytes == (singleDigit ? 1 : 2));
@@ -344,7 +344,7 @@ public ref struct RespWriter
             if (!Utf8Formatter.TryFormat(value, target, out var valueBytes))
                 ThrowFormatException();
 
-            Debug.Assert(valueBytes > 0 && singleDigit ? (valueBytes < 10) : (valueBytes is 10 or 11));
+            Debug.Assert(valueBytes > 0 && singleDigit ? valueBytes < 10 : valueBytes is 10 or 11);
             if (!Utf8Formatter.TryFormat(valueBytes, Tail, out var prefixBytes))
                 ThrowFormatException();
             Debug.Assert(prefixBytes == (singleDigit ? 1 : 2));

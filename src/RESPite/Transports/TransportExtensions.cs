@@ -24,21 +24,21 @@ public static class TransportExtensions
     /// Builds a connection intended for simple request/response operation, without
     /// any concurrency or backlog of pending operations.
     /// </summary>
-    public static IRequestResponseTransport RequestResponse<TState>(this IByteTransport gateway, IFrameScanner<TState> frameScanner, bool validateOutbound = false)
+    public static IRequestResponseTransport RequestResponse<TState>(this IByteTransport gateway, IFrameScanner<TState> frameScanner, FrameValidation validateOutbound = FrameValidation.Debug)
         => new RequestResponseTransport<TState>(gateway, frameScanner, validateOutbound);
 
     /// <summary>
     /// Builds a connection intended for simple request/response operation, without
     /// any concurrency or backlog of pending operations.
     /// </summary>
-    public static IAsyncRequestResponseTransport RequestResponse<TState>(this IAsyncByteTransport gateway, IFrameScanner<TState> frameScanner, bool validateOutbound = false)
+    public static IAsyncRequestResponseTransport RequestResponse<TState>(this IAsyncByteTransport gateway, IFrameScanner<TState> frameScanner, FrameValidation validateOutbound = FrameValidation.Debug)
         => new AsyncRequestResponseTransport<TState>(gateway, frameScanner, validateOutbound);
 
     /// <summary>
     /// Builds a connection intended for simple request/response operation, without
     /// any concurrency or backlog of pending operations.
     /// </summary>
-    public static ISyncRequestResponseTransport RequestResponse<TState>(this ISyncByteTransport gateway, IFrameScanner<TState> frameScanner, bool validateOutbound = false)
+    public static ISyncRequestResponseTransport RequestResponse<TState>(this ISyncByteTransport gateway, IFrameScanner<TState> frameScanner, FrameValidation validateOutbound = FrameValidation.Debug)
         => new SyncRequestResponseTransport<TState>(gateway, frameScanner, validateOutbound);
 
     /// <summary>
