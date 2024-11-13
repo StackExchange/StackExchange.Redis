@@ -504,6 +504,21 @@ public readonly struct SimpleString
         }
     }
 
+    internal SimpleString(MemoryManager<byte>? manager, int start, int length)
+    {
+        if (manager is null)
+        {
+            this = _empty;
+        }
+        else
+        {
+            _obj1 = manager;
+            _obj2 = null;
+            _start = start;
+            _length = length;
+        }
+    }
+
     /// <summary>
     /// Create a new <see cref="SimpleString"/> from the provided <paramref name="value"/>.
     /// </summary>

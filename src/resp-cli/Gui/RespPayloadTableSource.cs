@@ -30,19 +30,8 @@ internal sealed class RespPayloadTableSource(TableView parent, int maxCount = 10
                 _ => throw new IndexOutOfRangeException(),
             };
 
-            return Truncate(val, maxWidth);
+            return Utils.Truncate(val, maxWidth);
         }
-    }
-
-    private static string Truncate(string value, int length)
-    {
-        value ??= "";
-        if (value.Length > length)
-        {
-            if (length <= 1) return "\u2026";
-            return value.Substring(0, length - 1) + "\u2026";
-        }
-        return value;
     }
 
     string[] ITableSource.ColumnNames => ["Request", "Response"];

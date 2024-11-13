@@ -4,9 +4,8 @@ using System.Diagnostics;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using RESPite.Buffers;
-using RESPite.Buffers.Internal;
 using RESPite.Internal;
+using RESPite.Internal.Buffers;
 using RESPite.Transports;
 
 namespace RESPite.Gateways.Internal;

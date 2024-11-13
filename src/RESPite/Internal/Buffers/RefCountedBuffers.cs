@@ -5,13 +5,13 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 
-namespace RESPite.Buffers;
+namespace RESPite.Internal.Buffers;
 
 /// <summary>
 /// Represents multiple values that partition data over the same underlying multi-segment buffer.
 /// A set of integer lengths indicate how the values are distributed over the buffers.
 /// </summary>
-public readonly struct RefCountedBuffers<T> : IDisposable, IEnumerable<ReadOnlySequence<T>>
+internal readonly struct RefCountedBuffers<T> : IDisposable, IEnumerable<ReadOnlySequence<T>>
 {
     private readonly RefCountedBuffer<T> _buffer;
     private readonly int[] _lengthsPooled;
@@ -168,7 +168,7 @@ public readonly struct RefCountedBuffers<T> : IDisposable, IEnumerable<ReadOnlyS
     /// <summary>
     /// Perform an action for each value, represented as a simple buffer.
     /// </summary>
-    public int ForEach(LeasedChunkCallback<object> action) => ForEach<object>(action, null!);
+    public int ForEach(LeasedChunkCallback<object> action) => ForEach(action, null!);
 
     /// <summary>
     /// Perform an action for each value, represented as a simple buffer.

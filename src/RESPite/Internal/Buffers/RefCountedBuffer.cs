@@ -1,9 +1,8 @@
 ﻿using System;
 using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
-using RESPite.Buffers.Internal;
 
-namespace RESPite.Buffers;
+namespace RESPite.Internal.Buffers;
 
 /// <summary>
 /// An arbitrary payload that uses ref-counting for retention; incorrect usage
@@ -12,7 +11,7 @@ namespace RESPite.Buffers;
 /// <remarks>
 /// The underlying buffer is not required to support ref-counting - GC rules will work otherwise.
 /// </remarks>
-public readonly struct RefCountedBuffer<T>(in ReadOnlySequence<T> content) : IDisposable
+internal readonly struct RefCountedBuffer<T>(in ReadOnlySequence<T> content) : IDisposable
 {
     /// <inheritdoc cref="ReadOnlySequence{T}.Length"/>
     public long Length => _content.Length;

@@ -1,7 +1,5 @@
 ﻿using System.Collections.ObjectModel;
 using System.Globalization;
-using System.Text;
-using RESPite.Buffers;
 using RESPite.Resp;
 using RESPite.Resp.Commands;
 using Terminal.Gui;
@@ -41,33 +39,32 @@ internal class KeysDialog : ServerToolDialog
                 StatusText = $"Fetching next page...";
                 using var reply = await SCAN.SendAsync(Transport, cmd, CancellationToken);
 
-                var offset = _rows.Rows;
+                var rowIndex = _rows.Rows;
                 int start = _rows.Rows;
-                int added = reply.Keys.ForEach(
-                    static (i, span, state) =>
-                    {
-                        state._rows.Add(Encoding.UTF8.GetString(span), state.offset + i);
-                        return true;
-                    },
-                    (offset, _rows));
+
+                foreach (var key in reply.Keys)
+                {
+                    _rows.Add(key.ToString());
+                }
 
                 _keys.SetNeedsDisplay();
 
                 StatusText = $"Fetching types...";
 
-                for (int i = offset; i < offset + added; i++)
+                int end = start + reply.Keys.Length;
+                for (int i = start; i < end; i++)
                 {
                     var obj = _rows[i];
                     obj.SetQueried();
-                    using var lease = LeasedBuffer.Utf8(obj.Key);
-                    SimpleString key = lease.Memory;
+                    SimpleString key = obj.Key;
                     obj.SetType(await TYPE.SendAsync(Transport, key, CancellationToken));
                     _keys.SetNeedsDisplay();
 
+                    const int MAX_STRING_LEN = 30;
                     string content = obj.Type switch
                     {
                         KnownType.None => "",
-                        KnownType.String => $"{await Strings.STRLEN.SendAsync(Transport, key, CancellationToken)} bytes",
+                        KnownType.String => $"{await Strings.STRLEN.SendAsync(Transport, key, CancellationToken)} bytes: {Burn(await Strings.GETRANGE.SendAsync(Transport, (key, 0, MAX_STRING_LEN + 1), CancellationToken))}",
                         KnownType.List => $"{await Lists.LLEN.SendAsync(Transport, key, CancellationToken)} elements",
                         KnownType.Set => $"{await Sets.SCARD.SendAsync(Transport, key, CancellationToken)} elements",
                         KnownType.ZSet => $"{await SortedSets.ZCARD.SendAsync(Transport, key, CancellationToken)} elements",
@@ -75,6 +72,14 @@ internal class KeysDialog : ServerToolDialog
                         KnownType.Stream => $"{await Streams.XLEN.SendAsync(Transport, key, CancellationToken)} elements",
                         _ => "(???)",
                     };
+
+                    static string Burn(LeasedString value)
+                    {
+                        var s = Utils.Truncate(value.ToString(), MAX_STRING_LEN);
+                        value.Dispose();
+                        return s;
+                    }
+
                     obj.SetContent(content);
                     _keys.SetNeedsDisplay();
                 }
@@ -172,16 +177,15 @@ internal class KeysDialog : ServerToolDialog
 
         public int Rows => _rows.Count;
 
-        public void Add(string key, int index) => _rows.Add(new(key, index));
+        public void Add(string key) => _rows.Add(new(key));
         internal void Clear() => _rows.Clear();
 
         public KeysRow this[int index] => _rows[index];
     }
 
-    public sealed class KeysRow(string key, int index)
+    public sealed class KeysRow(string key)
     {
         public string Key => key;
-        public int Index => index;
 
         private int _state;
 

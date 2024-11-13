@@ -3,14 +3,13 @@ using System.Buffers;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
-using RESPite.Buffers.Internal;
 
-namespace RESPite.Buffers;
+namespace RESPite.Internal.Buffers;
 
 /// <summary>
 /// Handles buffer management; intended for use as the private implementation layer of a transport.
 /// </summary>
-public struct BufferCore<T> :
+internal struct BufferCore<T> :
     IDisposable, // note mutable struct intended to encapsulate logic as a field inside a class instance
     IBufferWriter<T>
 {
@@ -58,7 +57,7 @@ public struct BufferCore<T> :
     private void Expand()
     {
         Debug.Assert(_tail is null || _tailOffset == _tail.Memory.Length, "tail page should be full");
-        if (MaxLength > 0 && (GetBuffer().Length + _slabManager.ChunkSize) > MaxLength) ThrowQuota();
+        if (MaxLength > 0 && GetBuffer().Length + _slabManager.ChunkSize > MaxLength) ThrowQuota();
 
         var next = new RefCountedSequenceSegment<T>(_slabManager.GetChunk(out var chunk), chunk, _tail);
         _tail = next;

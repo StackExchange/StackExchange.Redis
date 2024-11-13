@@ -1,13 +1,12 @@
 ﻿using System;
 using System.Buffers;
-using RESPite.Buffers.Internal;
 
-namespace RESPite.Buffers;
+namespace RESPite.Internal.Buffers;
 
 /// <summary>
 /// Utility methods for working with buffers.
 /// </summary>
-public static class BufferExtensions
+internal static class BufferExtensions
 {
     /// <summary>
     /// Retains the specified data; if it is already a <see cref="RefCountedBuffer{T}"/>,

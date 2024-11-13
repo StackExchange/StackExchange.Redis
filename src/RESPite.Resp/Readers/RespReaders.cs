@@ -3,7 +3,6 @@ using System.Buffers;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
-using RESPite.Buffers;
 using RESPite.Messages;
 using static RESPite.Internal.Constants;
 
@@ -47,9 +46,14 @@ public static class RespReaders
     public static IRespReader<Empty, Empty> OK => common;
 
     /// <summary>
+    /// Reads <see cref="LeasedString" /> payloads.
+    /// </summary>
+    public static IRespReader<Empty, LeasedString> LeasedString => common;
+
+    /// <summary>
     /// Reads arrays of opaque payloads.
     /// </summary>
-    public static IRespReader<Empty, RefCountedBuffers<byte>> Strings => common;
+    public static IRespReader<Empty, LeasedStrings> LeasedStrings => common;
 
     /// <summary>
     /// Reads PONG responses.
@@ -65,21 +69,14 @@ public static class RespReaders
         => throw new InvalidOperationException($"Did not receive expected response: '{expected}'");
 
     internal sealed class Impl :
-        IReader<Empty, Empty>,
-        IReader<Empty, string?>,
-        IReader<Empty, int>,
-        IReader<Empty, int?>,
-        IReader<Empty, long>,
-        IReader<Empty, long?>,
-        IReader<Empty, RefCountedBuffers<byte>>,
-
         IRespReader<Empty, Empty>,
         IRespReader<Empty, string?>,
         IRespReader<Empty, int>,
         IRespReader<Empty, int?>,
         IRespReader<Empty, long>,
         IRespReader<Empty, long?>,
-        IRespReader<Empty, RefCountedBuffers<byte>>
+        IRespReader<Empty, LeasedStrings>,
+        IRespReader<Empty, LeasedString>
     {
         private static readonly uint OK_HiNibble = UnsafeCpuUInt32("+OK\r"u8);
         Empty IReader<Empty, Empty>.Read(in Empty request, in ReadOnlySequence<byte> content)
@@ -175,6 +172,19 @@ public static class RespReaders
             return reader.IsNull ? null : reader.ReadInt32();
         }
 
+        LeasedString IReader<Empty, LeasedString>.Read(in Empty request, in ReadOnlySequence<byte> content)
+        {
+            var reader = new RespReader(in content);
+            reader.ReadNextScalar();
+            return reader.ReadLeasedString();
+        }
+
+        LeasedString IRespReader<Empty, LeasedString>.Read(in Empty request, ref RespReader reader)
+        {
+            reader.ReadNextScalar();
+            return reader.ReadLeasedString();
+        }
+
         private static bool TryReadFastInt32(ReadOnlySpan<byte> span, out int value)
         {
             switch (span.Length)
@@ -257,17 +267,17 @@ public static class RespReaders
             return reader.IsNull ? null : reader.ReadInt32();
         }
 
-        RefCountedBuffers<byte> IReader<Empty, RefCountedBuffers<byte>>.Read(in Empty request, in ReadOnlySequence<byte> content)
+        LeasedStrings IReader<Empty, LeasedStrings>.Read(in Empty request, in ReadOnlySequence<byte> content)
         {
             var reader = new RespReader(in content, throwOnErrorResponse: true);
             reader.ReadNextAggregate();
-            return ReadAggregateAsRefCountedBuffers(ref reader);
+            return ReadLeasedStrings(ref reader);
         }
 
-        RefCountedBuffers<byte> IRespReader<Empty, RefCountedBuffers<byte>>.Read(in Empty request, ref RespReader reader)
+        LeasedStrings IRespReader<Empty, LeasedStrings>.Read(in Empty request, ref RespReader reader)
         {
             reader.ReadNextAggregate();
-            return ReadAggregateAsRefCountedBuffers(ref reader);
+            return ReadLeasedStrings(ref reader);
         }
 
         private static readonly uint
@@ -358,16 +368,15 @@ public static class RespReaders
         }
     }
 
-    internal static RefCountedBuffers<byte> ReadAggregateAsRefCountedBuffers(ref RespReader reader)
+    internal static LeasedStrings ReadLeasedStrings(ref RespReader reader)
     {
         Debug.Assert(reader.IsAggregate, "should have already checked for aggregate");
-        if (reader.IsNull) return RefCountedBuffers<byte>.Null;
+        if (reader.IsNull) return default;
 
         var count = reader.ChildCount;
-        if (count == 0) return RefCountedBuffers<byte>.Empty;
+        if (count == 0) return Resp.LeasedStrings.Empty;
 
-        var builder = new RefCountedBuffers<byte>.Builder(count, clear: false);
-        var buffer = new BufferCore<byte>();
+        var builder = new LeasedStrings.Builder(count);
         try
         {
             for (int i = 0; i < count; i++)
@@ -375,14 +384,23 @@ public static class RespReaders
                 reader.ReadNextScalar();
                 reader.Demand(RespPrefix.BulkString);
 
-                builder.SetLength(i, reader.CopyTo(ref buffer));
+                if (reader.IsNull)
+                {
+                    builder.AddNull();
+                }
+                else
+                {
+                    var span = builder.Add(reader.ScalarLength);
+                    reader.CopyTo(span);
+                }
             }
-            return builder.Create(buffer.Detach());
+            return builder.Create();
         }
-        finally
+        catch (Exception ex)
         {
-            // can't use "using" because that creates a snapshot (BufferCore is mutable, and used "ref")
-            buffer.Dispose();
+            Debug.Write(ex.Message);
+            builder.Dispose();
+            throw;
         }
     }
 

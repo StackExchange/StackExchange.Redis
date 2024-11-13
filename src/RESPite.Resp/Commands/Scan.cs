@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
-using RESPite.Buffers;
 using RESPite.Resp.Readers;
 using RESPite.Resp.Writers;
 
@@ -21,9 +20,9 @@ public readonly record struct Scan(long Cursor = 0, SimpleString Match = default
     /// and the cursor to continue the scan operation.
     /// </summary>
     /// <remarks>The keys can be any number, including zero and more than was requested in the request.</remarks>
-    public readonly struct Response(long cursor, RefCountedBuffers<byte> keys) : IDisposable
+    public readonly struct Response(long cursor, LeasedStrings keys) : IDisposable
     {
-        private readonly RefCountedBuffers<byte> _keys = keys;
+        private readonly LeasedStrings _keys = keys;
 
         /// <summary>
         /// Gets the cursor to use to continue this scan operation.
@@ -33,7 +32,7 @@ public readonly record struct Scan(long Cursor = 0, SimpleString Match = default
         /// <summary>
         /// Gets the keys returned from this iteration of the scan operation.
         /// </summary>
-        public RefCountedBuffers<byte> Keys => _keys;
+        public LeasedStrings Keys => _keys;
 
         /// <inheritdoc/>
         public void Dispose()
@@ -86,7 +85,7 @@ public readonly record struct Scan(long Cursor = 0, SimpleString Match = default
 
             var cursor = reader.ReadInt64();
             if (!reader.TryReadNext(RespPrefix.Array)) Throw();
-            var keys = RespReaders.ReadAggregateAsRefCountedBuffers(ref reader);
+            var keys = RespReaders.ReadLeasedStrings(ref reader);
             return new(cursor, keys);
 
             static void Throw() => throw new InvalidOperationException("Unable to parse SCAN result");

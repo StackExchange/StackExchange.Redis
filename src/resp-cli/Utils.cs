@@ -14,6 +14,17 @@ namespace StackExchange.Redis;
 
 public static class Utils
 {
+    internal static string Truncate(string value, int length)
+    {
+        value ??= "";
+        if (value.Length > length)
+        {
+            if (length <= 1) return "\u2026";
+            return value.Substring(0, length - 1) + "\u2026";
+        }
+        return value;
+    }
+
     internal static async Task<IRequestResponseTransport?> ConnectAsync(
         string host,
         int port,

@@ -2,7 +2,7 @@
 using System.Buffers;
 using System.Threading;
 using System.Threading.Tasks;
-using RESPite.Buffers;
+using RESPite.Internal.Buffers;
 using RESPite.Messages;
 
 namespace RESPite.Transports;

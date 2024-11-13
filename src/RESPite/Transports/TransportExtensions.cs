@@ -7,9 +7,8 @@ using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
-using RESPite.Buffers;
-using RESPite.Buffers.Internal;
 using RESPite.Gateways.Internal;
+using RESPite.Internal.Buffers;
 using RESPite.Messages;
 using RESPite.Transports.Internal;
 

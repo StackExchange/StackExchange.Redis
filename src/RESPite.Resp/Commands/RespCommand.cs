@@ -15,6 +15,9 @@ namespace RESPite.Resp.Commands;
 /// <param name="reader">The reader for this operation.</param>
 public readonly struct StatefulRespCommand<TRequest, TResponse>(IRespWriter<TRequest> writer, IRespReader<TRequest, TResponse> reader)
 {
+    /// <inheritdoc/>
+    public override string? ToString() => writer.ToString();
+
     internal readonly IRespWriter<TRequest> writer = writer;
     internal readonly IRespReader<TRequest, TResponse> reader = reader;
 
@@ -35,6 +38,8 @@ public readonly struct StatefulRespCommand<TRequest, TResponse>(IRespWriter<TReq
 /// <param name="reader">The reader for this operation.</param>
 public readonly struct RespCommand<TRequest, TResponse>(IRespWriter<TRequest> writer, IRespReader<Empty, TResponse> reader)
 {
+    /// <inheritdoc/>
+    public override string? ToString() => writer.ToString();
     internal readonly IRespWriter<TRequest> writer = writer;
     internal readonly IRespReader<Empty, TResponse> reader = reader;
 

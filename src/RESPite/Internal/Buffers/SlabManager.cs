@@ -4,7 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using System.Threading;
 
-namespace RESPite.Buffers.Internal;
+namespace RESPite.Internal.Buffers;
 
 internal sealed class SlabManager<T> : IDisposable
 {

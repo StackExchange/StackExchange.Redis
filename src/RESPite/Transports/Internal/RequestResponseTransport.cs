@@ -6,8 +6,8 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using RESPite.Buffers;
 using RESPite.Internal;
+using RESPite.Internal.Buffers;
 using RESPite.Messages;
 
 namespace RESPite.Transports.Internal;

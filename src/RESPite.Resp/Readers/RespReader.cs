@@ -117,7 +117,13 @@ public ref struct RespReader
             source.CopyTo(target);
             return target.Length;
         }
-        throw new NotImplementedException();
+        return CopyToSlow(target);
+    }
+
+    private readonly int CopyToSlow(Span<byte> target)
+    {
+        var reader = new SlowReader(in this);
+        return reader.Fill(target);
     }
 
     /// <summary>
@@ -211,7 +217,7 @@ public ref struct RespReader
     }
 
     /// <summary>
-    /// The a scalar integer value.
+    /// Read a scalar integer value.
     /// </summary>
     public readonly int ReadInt32()
     {
@@ -228,7 +234,7 @@ public ref struct RespReader
     }
 
     /// <summary>
-    /// The a scalar integer value.
+    /// Read a scalar integer value.
     /// </summary>
     public readonly long ReadInt64()
     {
@@ -1065,5 +1071,21 @@ public ref struct RespReader
 
         [DoesNotReturn, MethodImpl(MethodImplOptions.NoInlining)]
         static void Throw(RespPrefix prefix) => throw new InvalidOperationException($"{prefix} value is null");
+    }
+
+    /// <summary>
+    /// Read a scalar string value.
+    /// </summary>
+    public LeasedString ReadLeasedString()
+    {
+        DemandScalar();
+        if (IsNull) return default;
+        var len = ScalarLength;
+        if (len == 0) return LeasedString.Empty;
+
+        var lease = new LeasedString(len, out var memory);
+        int copied = CopyTo(memory.Span);
+        Debug.Assert(copied == len);
+        return lease;
     }
 }
