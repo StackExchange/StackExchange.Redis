@@ -19,8 +19,14 @@ public static class Strings
     /// <summary>
     /// Set key to hold the string value and set key to timeout after a given number of seconds.
     /// </summary>
-    public static RespCommand<(SimpleString Key, int Seconds, ReadOnlySequence<byte> Value), Empty> SETEX { get; }
-        = new(PinnedPrefixWriter.SimpleStringInt32Sequence("*4\r\n$5\r\nSETEX\r\n"u8), RespReaders.OK);
+    public static RespCommand<(SimpleString Key, int Seconds, SimpleString Value), Empty> SETEX { get; }
+        = new(PinnedPrefixWriter.SimpleStringInt32SimpleString("*4\r\n$5\r\nSETEX\r\n"u8), RespReaders.OK);
+
+    /// <summary>
+    /// Set key to hold the string value and set key to timeout after a given number of seconds.
+    /// </summary>
+    public static RespCommand<(SimpleString Key, SimpleString Value), Empty> SET { get; }
+        = new(PinnedPrefixWriter.SimpleStringSimpleString("*3\r\n$3\r\nSET\r\n"u8), RespReaders.OK);
 
     /// <summary>
     /// Get the value of key. If the key does not exist the special value nil is returned. An error is returned if the value stored at key is not a string, because GET only handles string values.

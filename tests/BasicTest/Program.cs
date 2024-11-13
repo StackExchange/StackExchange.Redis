@@ -11,11 +11,36 @@ using BenchmarkDotNet.Running;
 using BenchmarkDotNet.Validators;
 using StackExchange.Redis;
 
+#if RESPITE
+using RESPite.Resp;
+using RESPite.Resp.Commands;
+using RESPite.Transports;
+#endif
+
+#pragma warning disable SA1512 // to turn individial tests on/off
+
 namespace BasicTest
 {
     internal static class Program
     {
-        private static void Main(string[] args) => BenchmarkSwitcher.FromAssembly(typeof(Program).GetTypeInfo().Assembly).Run(args);
+        private static async Task Main(string[] args)
+        {
+#if DEBUG
+            var obj = new RedisBenchmarks();
+            await obj.Setup();
+
+            obj.StringSet();
+            obj.StringGet();
+#if RESPITE
+            obj.StringGet_RESPite();
+            obj.StringSet_RESPite();
+#endif
+            Console.WriteLine("ok!");
+#else
+            await Task.Delay(0);
+            BenchmarkSwitcher.FromAssembly(typeof(Program).GetTypeInfo().Assembly).Run(args);
+#endif
+        }
     }
     internal class CustomConfig : ManualConfig
     {
@@ -49,13 +74,21 @@ namespace BasicTest
         private ConnectionMultiplexer connection;
         private IDatabase db;
 
+#if RESPITE
+        private IMessageTransport transport;
+#endif
+
         [GlobalSetup]
-        public void Setup()
+        public async Task Setup()
         {
             // Pipelines.Sockets.Unofficial.SocketConnection.AssertDependencies();
             var options = ConfigurationOptions.Parse("127.0.0.1:6379");
-            connection = ConnectionMultiplexer.Connect(options);
+            connection = await ConnectionMultiplexer.ConnectAsync(options);
             db = connection.GetDatabase(3);
+
+#if RESPITE
+            transport = await RespiteConnect.ConnectAsync("127.0.0.1", 6379, tls: false);
+#endif
 
             db.KeyDelete(GeoKey);
             db.GeoAdd(GeoKey, 13.361389, 38.115556, "Palermo ");
@@ -69,6 +102,10 @@ namespace BasicTest
         }
 
         private static readonly RedisKey GeoKey = "GeoTest", IncrByKey = "counter", StringKey = "string", HashKey = "hash";
+
+#if RESPITE
+        private static readonly SimpleString SimpleStringKey = "string";
+#endif
         void IDisposable.Dispose()
         {
             mgr?.Dispose();
@@ -177,10 +214,36 @@ namespace BasicTest
             }
         }
 
+#if RESPITE
+        /// <summary>
+        /// Run StringSet lots of times.
+        /// </summary>
+        [Benchmark(Description = "StringSet/s (RESPite)", OperationsPerInvoke = COUNT)]
+        public void StringSet_RESPite()
+        {
+            for (int i = 0; i < COUNT; i++)
+            {
+                Strings.SET.Send(transport, (SimpleStringKey, "hey"));
+            }
+        }
+
+        /// <summary>
+        /// Run StringGet lots of times.
+        /// </summary>
+        [Benchmark(Description = "StringGet/s (RESPite)", OperationsPerInvoke = COUNT)]
+        public void StringGet_RESPite()
+        {
+            for (int i = 0; i < COUNT; i++)
+            {
+                using (Strings.GET.Send(transport, SimpleStringKey)) { }
+            }
+        }
+#endif
+
         /// <summary>
         /// Run HashGetAll lots of times.
         /// </summary>
-        [Benchmark(Description = "HashGetAll F+F/s", OperationsPerInvoke = COUNT)]
+        // [Benchmark(Description = "HashGetAll F+F/s", OperationsPerInvoke = COUNT)]
         public void HashGetAll_FAF()
         {
             for (int i = 0; i < COUNT; i++)
@@ -193,8 +256,7 @@ namespace BasicTest
         /// <summary>
         /// Run HashGetAll lots of times.
         /// </summary>
-        [Benchmark(Description = "HashGetAll F+F/a", OperationsPerInvoke = COUNT)]
-
+        // [Benchmark(Description = "HashGetAll F+F/a", OperationsPerInvoke = COUNT)]
         public async Task HashGetAllAsync_FAF()
         {
             for (int i = 0; i < COUNT; i++)
