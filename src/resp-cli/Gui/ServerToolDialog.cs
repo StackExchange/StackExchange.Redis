@@ -22,7 +22,7 @@ public abstract class ServerToolDialog : Dialog
         OnStart();
     }
 
-    protected abstract void OnStart();
+    protected virtual void OnStart() { }
 
     private readonly CancellationTokenSource cancelled = new();
     public CancellationToken CancellationToken => cancelled.Token;

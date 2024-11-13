@@ -66,7 +66,7 @@ internal sealed class RespConnectView : View
         lbl = Add(new Label
         {
             Text = "TLS ",
-            Y = Pos.Bottom(portField),
+            Y = Pos.Bottom(portField) + 1,
         });
         tlsCheck = new CheckBox
         {
@@ -91,7 +91,7 @@ internal sealed class RespConnectView : View
 
         var btn = new Button
         {
-            Y = Pos.Bottom(resp3Check),
+            Y = Pos.Bottom(resp3Check) + 2,
             Text = "connect",
             IsDefault = true,
         };

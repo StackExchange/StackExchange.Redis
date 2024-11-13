@@ -23,6 +23,8 @@ public static class PinnedPrefixWriter
     /// </summary>
     public static IRespWriter<ReadOnlyMemory<byte>> Memory(ReadOnlySpan<byte> prefix)
         => new PrefixWriterMemory(prefix);
+    internal static IRespWriter<(ReadOnlyMemory<byte> Key, int Seconds, ReadOnlySequence<byte> Value)> MemoryInt32Sequence(ReadOnlySpan<byte> prefix)
+        => new PrefixWriterMemoryInt32Sequence(prefix);
 
     private unsafe sealed class PrefixWriterNone : IWriter<Empty>, IRespWriter<Empty>
     {
@@ -66,6 +68,36 @@ public static class PinnedPrefixWriter
             writer.WriteRaw(Span);
             writer.WriteBulkString(request.Span);
             writer.Flush();
+        }
+    }
+
+    private unsafe sealed class PrefixWriterMemoryInt32Sequence :
+        IWriter<(ReadOnlyMemory<byte>, int, ReadOnlySequence<byte>)>,
+        IRespWriter<(ReadOnlyMemory<byte>, int, ReadOnlySequence<byte>)>
+    {
+        private readonly byte* ptr;
+        private readonly int length;
+
+        public PrefixWriterMemoryInt32Sequence(ReadOnlySpan<byte> prefix)
+        {
+            ptr = (byte*)Unsafe.AsPointer(ref MemoryMarshal.GetReference(prefix));
+            length = prefix.Length;
+        }
+
+        private ReadOnlySpan<byte> Span => new(ptr, length);
+
+        public void Write(in (ReadOnlyMemory<byte>, int, ReadOnlySequence<byte>) request, IBufferWriter<byte> target)
+        {
+            var writer = new RespWriter(target);
+            Write(in request, ref writer);
+            writer.Flush();
+        }
+        public void Write(in (ReadOnlyMemory<byte>, int, ReadOnlySequence<byte>) request, ref RespWriter writer)
+        {
+            writer.WriteRaw(Span);
+            writer.WriteBulkString(request.Item1.Span);
+            writer.WriteBulkString(request.Item2);
+            writer.WriteBulkString(request.Item3);
         }
     }
 }

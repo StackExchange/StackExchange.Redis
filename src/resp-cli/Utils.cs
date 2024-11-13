@@ -175,6 +175,7 @@ public static class Utils
         if (reader.IsNull)
         {
             sb.Append(prefix).Append("(null)");
+            return true;
         }
         if (reader.IsScalar)
         {

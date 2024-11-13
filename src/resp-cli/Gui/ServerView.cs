@@ -297,11 +297,9 @@ internal class ServerView : View
                         }
                         StatusChanged?.Invoke(status ?? "");
                     };
+                    respText.Text = response.ToString();
                 }
-                if (resp.Request is { } request)
-                {
-                    respText.Text = Utils.GetCommandText(request.Content);
-                }
+
                 var respTab = new Tab
                 {
                     DisplayText = "RESP",

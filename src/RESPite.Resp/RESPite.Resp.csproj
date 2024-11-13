@@ -27,4 +27,8 @@
     <Compile Include="..\StackExchange.Redis\SkipLocalsInit.cs" Link="SkipLocalsInit.cs" />
   </ItemGroup>
 
+  <ItemGroup Condition="'$(TargetFramework)'=='net461' or '$(TargetFramework)'=='net472' or '$(TargetFramework)'=='netstandard2.0'">
+    <PackageReference Include="System.ValueTuple" />
+  </ItemGroup>
+
 </Project>

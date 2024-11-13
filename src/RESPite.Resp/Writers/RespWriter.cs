@@ -55,27 +55,27 @@ public ref struct RespWriter
     }
     private void WriteRawUnsafe(byte value) => Unsafe.Add(ref StartOfBuffer, _index++) = value;
 
-    private ReadOnlySpan<byte> WrittenLocalBuffer => MemoryMarshal.CreateReadOnlySpan(ref StartOfBuffer, _index);
+    private readonly ReadOnlySpan<byte> WrittenLocalBuffer => MemoryMarshal.CreateReadOnlySpan(ref StartOfBuffer, _index);
 #else
     private Span<byte> _buffer;
-    private int BufferLength => _buffer.Length;
-    private ref byte StartOfBuffer
+    private readonly int BufferLength => _buffer.Length;
+    private readonly ref byte StartOfBuffer
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get => ref MemoryMarshal.GetReference(_buffer);
     }
-    private ref byte WriteHead
+    private readonly ref byte WriteHead
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get => ref Unsafe.Add(ref MemoryMarshal.GetReference(_buffer), _index);
     }
-    private Span<byte> Tail => _buffer.Slice(_index);
+    private readonly Span<byte> Tail => _buffer.Slice(_index);
     private void WriteRawUnsafe(byte value) => _buffer[_index++] = value;
 
-    private ReadOnlySpan<byte> WrittenLocalBuffer => _buffer.Slice(0, _index);
+    private readonly ReadOnlySpan<byte> WrittenLocalBuffer => _buffer.Slice(0, _index);
 #endif
 
-    internal string DebugBuffer() => UTF8.GetString(WrittenLocalBuffer);
+    internal readonly string DebugBuffer() => UTF8.GetString(WrittenLocalBuffer);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void WriteCrLfUnsafe()
@@ -491,10 +491,10 @@ public ref struct RespWriter
 
         static void WriteUtf8Slow(ref RespWriter writer, scoped ReadOnlySpan<char> value, int remaining)
         {
-            var enc = s_PerThreadEncoder;
+            var enc = __PerThreadEncoder;
             if (enc is null)
             {
-                enc = s_PerThreadEncoder = UTF8.GetEncoder();
+                enc = __PerThreadEncoder = UTF8.GetEncoder();
             }
             else
             {
@@ -527,6 +527,27 @@ public ref struct RespWriter
         }
     }
 
+    internal void WriteBulkString(in ReadOnlySequence<byte> value)
+    {
+        if (value.IsSingleSegment)
+        {
+#if NETCOREAPP3_0_OR_GREATER
+            WriteBulkString(value.FirstSpan);
+#else
+            WriteBulkString(value.First.Span);
+#endif
+        }
+        else
+        {
+            // lazy for now
+            int len = checked((int)value.Length);
+            byte[] buffer = ArrayPool<byte>.Shared.Rent(len);
+            value.CopyTo(buffer);
+            WriteBulkString(new ReadOnlySpan<byte>(buffer, 0, len));
+            ArrayPool<byte>.Shared.Return(buffer);
+        }
+    }
+
     [ThreadStatic]
-    private static Encoder? s_PerThreadEncoder;
+    private static Encoder? __PerThreadEncoder;
 }

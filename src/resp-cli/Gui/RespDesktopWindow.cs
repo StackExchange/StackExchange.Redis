@@ -1,4 +1,6 @@
-﻿using Terminal.Gui;
+﻿using System.ComponentModel;
+using System.Net.Sockets;
+using Terminal.Gui;
 
 namespace StackExchange.Redis.Gui;
 
@@ -29,16 +31,16 @@ internal sealed class RespDesktopWindow : Window
 
         statusBar = new()
         {
-            Width = Dim.Fill(5),
+            Width = Dim.Fill(7),
         };
         var tool = new Button
         {
-            X = Pos.Right(statusBar),
+            X = Pos.Right(statusBar) + 1,
             Y = Pos.Top(statusBar),
-            Width = 5,
-            Text = "!",
+            Width = 6,
+            Text = "⚠ ",
         };
-        tool.Accept += (s, e) => ShowServerDialog<KeysDialog>();
+        tool.Accept += (s, e) => ShowTools();
 
         var lbl = new Label
         {
@@ -86,7 +88,7 @@ internal sealed class RespDesktopWindow : Window
         connect = new RespConnectView(host, port, tls, resp3);
         var tab = new Tab
         {
-            DisplayText = " + ",
+            DisplayText = "⚡",
             View = connect,
         };
         connect.Connect += AddServer;
@@ -112,6 +114,62 @@ internal sealed class RespDesktopWindow : Window
     }
 
     public void SetStatusText(string text) => statusBar.Text = text;
+
+    private void ShowTools()
+    {
+        if (!(servers.SelectedTab?.View is ServerView server && server.Transport is { } transport))
+        {
+            return;
+        }
+
+        int mode = 0;
+        using (var popup = new Dialog())
+        {
+            Button? last = null;
+            void Add(string title, int selectedMode)
+            {
+                Button btn = new Button
+                {
+                    Text = title,
+                    X = 1,
+                };
+                btn.Accept += (s, e) =>
+                {
+                    mode = selectedMode;
+                    Application.RequestStop(popup);
+                };
+
+                if (last is null)
+                {
+                    btn.IsDefault = true;
+                    btn.Y = 1;
+                }
+                else
+                {
+                    btn.Y = Pos.Bottom(last) + 1;
+                }
+                last = btn;
+                popup.Add(btn);
+            }
+
+            popup.Title = "Tools";
+
+            Add("Keys (SCAN)", 1);
+            Add("Create keys", 2);
+
+            Application.Run(popup);
+        }
+
+        switch (mode)
+        {
+            case 1:
+                ShowServerDialog<KeysDialog>();
+                break;
+            case 2:
+                ShowServerDialog<CreateKeysDialog>();
+                break;
+        }
+    }
 
     private bool ShowServerDialog<T>() where T : ServerToolDialog, new()
     {
