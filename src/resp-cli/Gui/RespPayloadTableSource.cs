@@ -1,13 +1,15 @@
-﻿using Terminal.Gui;
+﻿using System.Buffers;
+using Terminal.Gui;
 
 namespace StackExchange.Redis.Gui;
 
-internal sealed class RespPayloadTableSource(TableView parent) : ITableSource
+internal sealed class RespPayloadTableSource(TableView parent, int maxCount = 100) : ITableSource
 {
     private readonly List<RespPayloadBase> items = new();
 
     public int Count => items.Count;
 
+    public int MaxCount { get; } = maxCount;
     public RespPayloadBase this[int index] => items[index];
 
     public int Width => parent.GetContentSize().Width;
@@ -53,11 +55,33 @@ internal sealed class RespPayloadTableSource(TableView parent) : ITableSource
     {
         if (items.Count > count)
         {
-            items.RemoveRange(count, items.Count - count);
+            var remove = items.Count - count;
+            if (remove == 1)
+            {
+                var kill = items[count];
+                items.RemoveAt(count);
+                kill.Dispose();
+            }
+            else
+            {
+                var cleanup = ArrayPool<RespPayloadBase>.Shared.Rent(remove);
+                items.CopyTo(count, cleanup, 0, remove);
+                items.RemoveRange(index: count, count: remove);
+
+                for (int i = 0; i < remove; i++)
+                {
+                    cleanup[i].Dispose();
+                }
+                ArrayPool<RespPayloadBase>.Shared.Return(cleanup);
+            }
         }
     }
 
     public void RemoveAt(int index) => items.RemoveAt(index);
 
-    public void Insert(int index, RespPayloadBase value) => items.Insert(0, value);
+    public void Insert(int index, RespPayloadBase value)
+    {
+        items.Insert(0, value);
+        TrimToLength(MaxCount);
+    }
 }

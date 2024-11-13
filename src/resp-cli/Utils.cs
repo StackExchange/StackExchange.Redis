@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+﻿using System.Buffers;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Net.Security;
@@ -13,7 +14,12 @@ namespace StackExchange.Redis;
 
 public static class Utils
 {
-    internal static async Task<IRequestResponseTransport?> ConnectAsync(string host, int port, bool tls, Action<string>? log)
+    internal static async Task<IRequestResponseTransport?> ConnectAsync(
+        string host,
+        int port,
+        bool tls,
+        Action<string>? log,
+        IFrameScanner<RespFrameScanner.RespFrameState>? frameScanner = null)
     {
         Socket? socket = null;
         Stream? conn = null;
@@ -41,7 +47,7 @@ public static class Utils
                 await ssl.AuthenticateAsClientAsync(options);
             }
 
-            return conn.CreateTransport().RequestResponse(RespFrameScanner.Default);
+            return conn.CreateTransport().RequestResponse(frameScanner ?? RespFrameScanner.Default);
         }
         catch (Exception ex)
         {
@@ -87,23 +93,23 @@ public static class Utils
         return "";
     }
 
-    internal static string GetSimpleText(LeasedRespResult value, AggregateMode childMode = AggregateMode.Full, int sizeHint = int.MaxValue)
+    internal static string GetSimpleText(in ReadOnlySequence<byte> content, AggregateMode childMode = AggregateMode.Full, int sizeHint = int.MaxValue)
     {
         try
         {
-            var reader = new RespReader(value.Span);
+            var reader = new RespReader(content, throwOnErrorResponse: false);
             var sb = new StringBuilder();
             if (TryGetSimpleText(sb, ref reader, childMode, sizeHint: sizeHint) && !reader.TryReadNext())
             {
                 return sb.ToString();
             }
-            return value.ToString(); // fallback
         }
         catch
         {
-            Debug.WriteLine(Encoding.UTF8.GetString(value.Span));
+            Debug.WriteLine(Encoding.UTF8.GetString(content));
             throw;
         }
+        return Encoding.UTF8.GetString(content); // fallback
     }
 
     internal enum AggregateMode
@@ -113,6 +119,50 @@ public static class Utils
         CountOnly,
     }
 
+    public static string GetCommandText(in ReadOnlySequence<byte> payload, int sizeHint = int.MaxValue)
+    {
+        RespReader reader = new(payload);
+        return GetCommandText(ref reader, sizeHint);
+    }
+
+    public static string GetCommandText(ref RespReader reader, int sizeHint = int.MaxValue)
+    {
+        reader.ReadNextAggregate();
+        reader.Demand(RespPrefix.Array);
+
+        var len = reader.ChildCount;
+        reader.ReadNextScalar();
+        reader.Demand(RespPrefix.BulkString);
+        reader.DemandNotNull();
+        string cmd = reader.ReadString()!;
+        if (len != 1)
+        {
+            var sb = new StringBuilder(cmd);
+            for (int i = 1; i < len; i++)
+            {
+                reader.ReadNextScalar();
+                reader.Demand(RespPrefix.BulkString);
+                reader.DemandNotNull();
+                string orig = reader.ReadString()!;
+                var s = Escape(reader.ReadString());
+                if (orig.IndexOf(' ') >= 0 || orig.IndexOf('\"') >= 0) s = "\"" + s + "\"";
+                sb.Append(' ').Append(s);
+            }
+            cmd = sb.ToString();
+        }
+        reader.ReadEnd();
+        return cmd;
+    }
+
+    private static string? Escape(string? value)
+    {
+        if (string.IsNullOrEmpty(value)) return value;
+
+        value = value.Replace("'", "\\'");
+        value = value.Replace("\"", "\\\"");
+        return value;
+    }
+
     internal static bool TryGetSimpleText(StringBuilder sb, ref RespReader reader, AggregateMode aggregateMode = AggregateMode.Full, int sizeHint = int.MaxValue)
     {
         if (!reader.TryReadNext())
@@ -120,14 +170,6 @@ public static class Utils
             return false;
         }
 
-        static string? Escape(string? value)
-        {
-            if (string.IsNullOrEmpty(value)) return value;
-
-            value = value.Replace("'", "\\'");
-            value = value.Replace("\"", "\\\"");
-            return value;
-        }
         char prefix = (char)reader.Prefix;
 
         if (reader.IsNull)

@@ -1,6 +1,10 @@
 ﻿using System.Buffers;
+using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
+using System.Xml;
+using RESPite;
+using RESPite.Messages;
 using RESPite.Resp;
 using RESPite.Resp.Readers;
 using RESPite.Resp.Writers;
@@ -11,10 +15,50 @@ namespace StackExchange.Redis.Gui;
 
 internal class ServerView : View
 {
+    private sealed class InterceptingScanner : IFrameScanner<RespFrameScanner.RespFrameState>, IFrameValidator
+    {
+        private readonly IFrameScanner<RespFrameScanner.RespFrameState> tailScanner;
+        private readonly IFrameValidator? tailValidator;
+
+        public InterceptingScanner(IFrameScanner<RespFrameScanner.RespFrameState>? tail = null)
+        {
+            if (tail is not null)
+            {
+                tailScanner = tail;
+                tailValidator = tail as IFrameValidator;
+            }
+            else
+            {
+                var tmp = RespFrameScanner.Default;
+                tailScanner = tmp;
+                tailValidator = tmp;
+            }
+        }
+
+        public void OnBeforeFrame(ref RespFrameScanner.RespFrameState state, ref FrameScanInfo info)
+            => tailScanner.OnBeforeFrame(ref state, ref info);
+        public OperationStatus TryRead(ref RespFrameScanner.RespFrameState state, in ReadOnlySequence<byte> data, ref FrameScanInfo info)
+            => tailScanner.TryRead(ref state, data, ref info);
+        public void Trim(ref RespFrameScanner.RespFrameState state, ref ReadOnlySequence<byte> data, ref FrameScanInfo info)
+        {
+            tailScanner.Trim(ref state, ref data, ref info);
+
+            (info.IsOutOfBand ? InboundOutOfBand : InboundResponse)?.Invoke(in data);
+        }
+        public void Validate(in ReadOnlySequence<byte> message)
+        {
+            tailValidator?.Validate(message);
+            OutboundRequest?.Invoke(in message);
+        }
+
+        public event MessageCallback? OutboundRequest;
+        public event MessageCallback? InboundResponse;
+        public event MessageCallback? InboundOutOfBand;
+    }
+
     public IRequestResponseTransport? Transport { get; private set; }
 
     private TableView? table;
-    private Action<Task>? asyncUpdateTable;
     private RespPayloadTableSource? data;
     private readonly CancellationToken endOfLife;
 
@@ -33,7 +77,7 @@ internal class ServerView : View
 
     public bool Send(string command)
     {
-        if (Transport is not { } transport || data is null || asyncUpdateTable is null)
+        if (Transport is not { } transport || data is null)
         {
             return false;
         }
@@ -43,17 +87,13 @@ internal class ServerView : View
             return false;
         }
 
-        var pending = transport.SendAsync(cmd, RespWriters.Strings, LeasedRespResult.Reader, endOfLife).AsTask();
-        if (!pending.IsCompleted)
-        {
-            _ = pending.ContinueWith(asyncUpdateTable);
-        }
-        data.Insert(0, new RespPayload(command, pending));
+        _ = transport.SendAsync(cmd, RespWriters.Strings, LeasedRespResult.Reader, endOfLife).AsTask();
         return true;
     }
 
     public ServerView(string host, int port, bool tls, CancellationToken endOfLife)
     {
+        _performRowDelta = PerformRowDelta;
         StatusCaption = $"{host}, port {port}{(tls ? " (TLS)" : "")}";
         CanFocus = true;
         Width = Dim.Fill();
@@ -66,16 +106,23 @@ internal class ServerView : View
             Height = Dim.Fill(),
             ReadOnly = true,
         };
+
+        var frameScanner = new InterceptingScanner();
+        frameScanner.OutboundRequest += OnOutboundRequest;
+        frameScanner.InboundResponse += OnInboundResponse;
+        frameScanner.InboundOutOfBand += OnInboundOutOfBand;
+
         Add(log);
         _ = Task.Run(async () =>
         {
-            Transport = await Utils.ConnectAsync(host, port, tls, msg => Application.Invoke(() =>
+            Action<string> writeLog = msg => Application.Invoke(() =>
             {
                 log.MoveEnd();
                 log.ReadOnly = false;
                 log.InsertText(msg + Environment.NewLine);
                 log.ReadOnly = true;
-            }));
+            });
+            Transport = await Utils.ConnectAsync(host, port, tls, writeLog, frameScanner);
 
             if (Transport is not null)
             {
@@ -88,6 +135,54 @@ internal class ServerView : View
                 });
             }
         });
+    }
+
+    private readonly ConcurrentQueue<RespPayload> _rowsToAdd = [];
+    private readonly ConcurrentQueue<RespPayload> _awaitingReply = [];
+    private int _rowChangePending;
+    private readonly Action _performRowDelta;
+    private void PerformRowDelta()
+    {
+        Interlocked.Exchange(ref _rowChangePending, 0);
+
+        while (_rowsToAdd.TryDequeue(out var row))
+        {
+            data?.Insert(0, row);
+        }
+        table?.SetNeedsDisplay();
+    }
+
+    private void SignalRowDelta()
+    {
+        if (Interlocked.CompareExchange(ref _rowChangePending, 0, 1) == 0)
+        {
+            Application.Invoke(_performRowDelta);
+        }
+    }
+
+    private void OnInboundOutOfBand(in ReadOnlySequence<byte> payload)
+    {
+        RespPayload row = new(null, LeasedRespResult.Reader.Read(in payload));
+        _rowsToAdd.Enqueue(row);
+        SignalRowDelta();
+    }
+
+    private void OnInboundResponse(in ReadOnlySequence<byte> payload)
+    {
+        if (_awaitingReply.TryDequeue(out var next))
+        {
+            var reply = LeasedRespResult.Reader.Read(in payload);
+            next.SetResponse(reply);
+            SignalRowDelta();
+        }
+    }
+
+    private void OnOutboundRequest(in ReadOnlySequence<byte> payload)
+    {
+        RespPayload row = new(new LeasedRespResult(payload), null);
+        _awaitingReply.Enqueue(row);
+        _rowsToAdd.Enqueue(row);
+        SignalRowDelta();
     }
 
     public void AddLogEntry(string category, string message)
@@ -104,7 +199,6 @@ internal class ServerView : View
 
         data = new RespPayloadTableSource(table);
         table.Table = data;
-        asyncUpdateTable = t => Application.Invoke(() => table.SetNeedsDisplay());
         Add(table);
 
         table.KeyDown += (sender, key) =>
@@ -170,10 +264,10 @@ internal class ServerView : View
                     Width = Dim.Fill(),
                     Height = Dim.Fill(),
                 };
-                if (resp.ResponseTask.IsCompletedSuccessfully)
+
+                if (resp.Response is { } response)
                 {
-                    var result = resp.ResponseTask.GetAwaiter().GetResult();
-                    var node = BuildTree(result);
+                    var node = BuildTree(response);
                     tree.AddObject(node);
                     tree.Expand(node);
                     tree.SelectionChanged += (s, e) =>
@@ -203,8 +297,10 @@ internal class ServerView : View
                         }
                         StatusChanged?.Invoke(status ?? "");
                     };
-
-                    respText.Text = result.ToString();
+                }
+                if (resp.Request is { } request)
+                {
+                    respText.Text = Utils.GetCommandText(request.Content);
                 }
                 var respTab = new Tab
                 {
@@ -254,8 +350,6 @@ internal class ServerView : View
     }
 
     public event Action<string>? RepeatCommand;
-
-    private void Transport_OutOfBandData(ReadOnlySequence<byte> obj) { }
 
     private ITreeNode BuildTree(LeasedRespResult value)
     {

@@ -394,7 +394,7 @@ public ref struct RespReader
     /// <summary>
     /// Read a RESP fragment.
     /// </summary>
-    public RespReader(scoped in ReadOnlySequence<byte> value, bool throwOnErrorResponse)
+    public RespReader(scoped in ReadOnlySequence<byte> value, bool throwOnErrorResponse = true)
     {
         _fullPayload = value;
         _positionBase = _bufferIndex = _bufferLength = 0;

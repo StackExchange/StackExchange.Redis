@@ -15,6 +15,8 @@ internal sealed class LeasedRespResult : IDisposable
         return tmp is null ? "(disposed)" : Encoding.UTF8.GetString(tmp, 0, _length);
     }
 
+    public ReadOnlySequence<byte> Content => _buffer is { } arr ? new(arr, 0, _length) : default;
+
     private byte[]? _buffer;
     private readonly int _length;
 
