@@ -21,10 +21,11 @@ public static class PinnedPrefixWriter
     /// <summary>
     /// Writes a command that takes one parameter.
     /// </summary>
-    public static IRespWriter<ReadOnlyMemory<byte>> Memory(ReadOnlySpan<byte> prefix)
-        => new PrefixWriterMemory(prefix);
-    internal static IRespWriter<(ReadOnlyMemory<byte> Key, int Seconds, ReadOnlySequence<byte> Value)> MemoryInt32Sequence(ReadOnlySpan<byte> prefix)
-        => new PrefixWriterMemoryInt32Sequence(prefix);
+    public static IRespWriter<SimpleString> SimpleString(ReadOnlySpan<byte> prefix)
+        => new PrefixWriterSimpleString(prefix);
+
+    internal static IRespWriter<(SimpleString Key, int Seconds, ReadOnlySequence<byte> Value)> SimpleStringInt32Sequence(ReadOnlySpan<byte> prefix)
+        => new PrefixWriterSimpleStringInt32Sequence(prefix);
 
     private unsafe sealed class PrefixWriterNone : IWriter<Empty>, IRespWriter<Empty>
     {
@@ -43,12 +44,12 @@ public static class PinnedPrefixWriter
         void IRespWriter<Empty>.Write(in Empty request, ref RespWriter writer) => writer.WriteRaw(Span);
     }
 
-    private unsafe sealed class PrefixWriterMemory : IWriter<ReadOnlyMemory<byte>>, IRespWriter<ReadOnlyMemory<byte>>
+    private unsafe sealed class PrefixWriterSimpleString : IWriter<SimpleString>, IRespWriter<SimpleString>
     {
         private readonly byte* ptr;
         private readonly int length;
 
-        public PrefixWriterMemory(ReadOnlySpan<byte> prefix)
+        public PrefixWriterSimpleString(ReadOnlySpan<byte> prefix)
         {
             ptr = (byte*)Unsafe.AsPointer(ref MemoryMarshal.GetReference(prefix));
             length = prefix.Length;
@@ -56,29 +57,29 @@ public static class PinnedPrefixWriter
 
         private ReadOnlySpan<byte> Span => new(ptr, length);
 
-        void IRespWriter<ReadOnlyMemory<byte>>.Write(in ReadOnlyMemory<byte> request, ref RespWriter writer)
+        public void Write(in SimpleString request, ref RespWriter writer)
         {
             writer.WriteRaw(Span);
-            writer.WriteBulkString(request.Span);
+            writer.WriteBulkString(in request);
         }
 
-        public void Write(in ReadOnlyMemory<byte> request, IBufferWriter<byte> target)
+        public void Write(in SimpleString request, IBufferWriter<byte> target)
         {
             var writer = new RespWriter(target);
             writer.WriteRaw(Span);
-            writer.WriteBulkString(request.Span);
+            writer.WriteBulkString(in request);
             writer.Flush();
         }
     }
 
-    private unsafe sealed class PrefixWriterMemoryInt32Sequence :
-        IWriter<(ReadOnlyMemory<byte>, int, ReadOnlySequence<byte>)>,
-        IRespWriter<(ReadOnlyMemory<byte>, int, ReadOnlySequence<byte>)>
+    private unsafe sealed class PrefixWriterSimpleStringInt32Sequence :
+        IWriter<(SimpleString, int, ReadOnlySequence<byte>)>,
+        IRespWriter<(SimpleString, int, ReadOnlySequence<byte>)>
     {
         private readonly byte* ptr;
         private readonly int length;
 
-        public PrefixWriterMemoryInt32Sequence(ReadOnlySpan<byte> prefix)
+        public PrefixWriterSimpleStringInt32Sequence(ReadOnlySpan<byte> prefix)
         {
             ptr = (byte*)Unsafe.AsPointer(ref MemoryMarshal.GetReference(prefix));
             length = prefix.Length;
@@ -86,16 +87,19 @@ public static class PinnedPrefixWriter
 
         private ReadOnlySpan<byte> Span => new(ptr, length);
 
-        public void Write(in (ReadOnlyMemory<byte>, int, ReadOnlySequence<byte>) request, IBufferWriter<byte> target)
+        public void Write(in (SimpleString, int, ReadOnlySequence<byte>) request, IBufferWriter<byte> target)
         {
             var writer = new RespWriter(target);
-            Write(in request, ref writer);
+            writer.WriteRaw(Span);
+            writer.WriteBulkString(request.Item1);
+            writer.WriteBulkString(request.Item2);
+            writer.WriteBulkString(request.Item3);
             writer.Flush();
         }
-        public void Write(in (ReadOnlyMemory<byte>, int, ReadOnlySequence<byte>) request, ref RespWriter writer)
+        public void Write(in (SimpleString, int, ReadOnlySequence<byte>) request, ref RespWriter writer)
         {
             writer.WriteRaw(Span);
-            writer.WriteBulkString(request.Item1.Span);
+            writer.WriteBulkString(request.Item1);
             writer.WriteBulkString(request.Item2);
             writer.WriteBulkString(request.Item3);
         }

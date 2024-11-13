@@ -9,7 +9,7 @@ namespace RESPite.Resp.Commands;
 /// <summary>
 /// Queries keys in a RESP database.
 /// </summary>
-public readonly record struct Scan(long Cursor = 0, ReadOnlyMemory<byte> Match = default, int Count = 10, string? Type = null)
+public readonly record struct Scan(long Cursor = 0, SimpleString Match = default, int Count = 10, string? Type = null)
 {
     /// <summary>
     /// Process the result of a scan operation to update the <see cref="Cursor"/>.
@@ -58,7 +58,7 @@ public readonly record struct Scan(long Cursor = 0, ReadOnlyMemory<byte> Match =
             if (!request.Match.IsEmpty)
             {
                 writer.WriteBulkString("MATCH"u8);
-                writer.WriteBulkString(request.Match.Span);
+                writer.WriteBulkString(request.Match);
             }
 
             if (request.Count != DEFAULT_SERVER_COUNT)

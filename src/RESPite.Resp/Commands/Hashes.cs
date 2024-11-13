@@ -12,5 +12,5 @@ public static class Hashes
     /// <summary>
     /// Returns the sorted set cardinality (number of elements) of the sorted set stored at key.
     /// </summary>
-    public static RespCommand<ReadOnlyMemory<byte>, long> HLEN { get; } = new(PinnedPrefixWriter.Memory("*2\r\n$4\r\nHLEN\r\n"u8), RespReaders.Int64);
+    public static RespCommand<SimpleString, long> HLEN { get; } = new(PinnedPrefixWriter.SimpleString("*2\r\n$4\r\nHLEN\r\n"u8), RespReaders.Int64);
 }

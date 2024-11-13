@@ -228,6 +228,40 @@ public ref struct RespWriter
     }
 
     /// <summary>
+    /// Write a payload as a bulk string.
+    /// </summary>
+    /// <param name="value">The payload to write.</param>
+    public void WriteBulkString(in SimpleString value)
+    {
+        if (value.IsEmpty)
+        {
+            WriteRaw("$0\r\n\r\n"u8);
+        }
+        else if (value.TryGetBytes(span: out var bytes))
+        {
+            WriteBulkString(bytes);
+        }
+        else if (value.TryGetChars(span: out var chars))
+        {
+            WriteBulkString(chars);
+        }
+        else if (value.TryGetBytes(sequence: out var bytesSeq))
+        {
+            WriteBulkString(bytesSeq);
+        }
+        else if (value.TryGetChars(sequence: out var charsSeq))
+        {
+            WriteBulkString(charsSeq);
+        }
+        else
+        {
+            Throw();
+        }
+
+        static void Throw() => throw new InvalidOperationException($"It was not possible to read the {nameof(SimpleString)} contents");
+    }
+
+    /// <summary>
     /// Write an integer as a bulk string.
     /// </summary>
     public void WriteBulkString(bool value)
@@ -545,6 +579,27 @@ public ref struct RespWriter
             value.CopyTo(buffer);
             WriteBulkString(new ReadOnlySpan<byte>(buffer, 0, len));
             ArrayPool<byte>.Shared.Return(buffer);
+        }
+    }
+
+    internal void WriteBulkString(in ReadOnlySequence<char> value)
+    {
+        if (value.IsSingleSegment)
+        {
+#if NETCOREAPP3_0_OR_GREATER
+            WriteBulkString(value.FirstSpan);
+#else
+            WriteBulkString(value.First.Span);
+#endif
+        }
+        else
+        {
+            // lazy for now
+            int len = checked((int)value.Length);
+            char[] buffer = ArrayPool<char>.Shared.Rent(len);
+            value.CopyTo(buffer);
+            WriteBulkString(new ReadOnlySpan<char>(buffer, 0, len));
+            ArrayPool<char>.Shared.Return(buffer);
         }
     }
 

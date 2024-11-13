@@ -372,7 +372,8 @@ public static class RespReaders
         {
             for (int i = 0; i < count; i++)
             {
-                if (!reader.TryReadNext(RespPrefix.BulkString)) ThrowFormat();
+                reader.ReadNextScalar();
+                reader.Demand(RespPrefix.BulkString);
 
                 builder.SetLength(i, reader.CopyTo(ref buffer));
             }
@@ -387,7 +388,4 @@ public static class RespReaders
 
     [DoesNotReturn, MethodImpl(MethodImplOptions.NoInlining)]
     private static void ThrowFormat() => throw new FormatException();
-
-    [DoesNotReturn, MethodImpl(MethodImplOptions.NoInlining)]
-    private static void ThrowUnableToLease() => throw new InvalidOperationException("Unable to lease memory for " + nameof(Strings));
 }

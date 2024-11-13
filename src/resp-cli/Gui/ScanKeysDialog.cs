@@ -2,6 +2,7 @@
 using System.Globalization;
 using System.Text;
 using RESPite.Buffers;
+using RESPite.Resp;
 using RESPite.Resp.Commands;
 using Terminal.Gui;
 using static RESPite.Resp.Commands.Keys;
@@ -34,7 +35,7 @@ internal class KeysDialog : ServerToolDialog
             _rows.Clear();
             _keys.SetNeedsDisplay();
 
-            var cmd = new Scan(Match: Encoding.UTF8.GetBytes(match), Count: 100, Type: type);
+            var cmd = new Scan(Match: match, Count: 100, Type: type);
             do
             {
                 StatusText = $"Fetching next page...";
@@ -58,7 +59,8 @@ internal class KeysDialog : ServerToolDialog
                 {
                     var obj = _rows[i];
                     obj.SetQueried();
-                    using var key = LeasedBuffer.Utf8(obj.Key);
+                    using var lease = LeasedBuffer.Utf8(obj.Key);
+                    SimpleString key = lease.Memory;
                     obj.SetType(await TYPE.SendAsync(Transport, key, CancellationToken));
                     _keys.SetNeedsDisplay();
 

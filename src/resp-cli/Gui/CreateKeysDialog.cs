@@ -62,12 +62,17 @@ public class CreateKeysDialog : ServerToolDialog
                     byte[] key = new byte[36];
                     byte[] payload = new byte[size];
                     int i;
+
                     for (i = 0; i < count; i++)
                     {
                         bool didWrite = Guid.NewGuid().TryFormat(key, out int keyBytes) && keyBytes == key.Length;
                         Debug.Assert(didWrite);
 
-                        Random.Shared.NextBytes(payload);
+                        var alphabet = Alphabet;
+                        for (int j = 0; j < payload.Length; j++)
+                        {
+                            payload[j] = alphabet[Random.Shared.Next(0, alphabet.Length)];
+                        }
 
                         await Strings.SETEX.SendAsync(Transport, (new(key), 5 * 60, new(payload)), CancellationToken);
 
@@ -86,4 +91,6 @@ public class CreateKeysDialog : ServerToolDialog
         };
         Add(countLabel, countField, sizeLabel, sizeField, btn);
     }
+
+    private static ReadOnlySpan<byte> Alphabet => "abcdefghijklmnopqrstuvwxyz ABCDEFGHIJKLMNOPQRSTUVWXYZ 0123456789 _+-/\\()!@#$%^&*[]{};:,.<>"u8;
 }

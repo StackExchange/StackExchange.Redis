@@ -22,7 +22,7 @@ public static class Keys
     /// <summary>
     /// Gets the type of the requested key.
     /// </summary>
-    public static readonly RespCommand<ReadOnlyMemory<byte>, KnownType> TYPE = new(PinnedPrefixWriter.Memory("*2\r\n$4\r\nTYPE\r\n"u8), RespReaders.EnumReader<KnownType>.Instance);
+    public static readonly RespCommand<SimpleString, KnownType> TYPE = new(PinnedPrefixWriter.SimpleString("*2\r\n$4\r\nTYPE\r\n"u8), RespReaders.EnumReader<KnownType>.Instance);
 
     /// <summary>
     /// Database storage type.
