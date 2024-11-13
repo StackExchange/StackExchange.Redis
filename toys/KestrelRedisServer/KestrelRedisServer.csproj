@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net9.0</TargetFramework>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\StackExchange.Redis.Server\StackExchange.Redis.Server.csproj" />
+    <PackageReference Include="System.Drawing.Common" />
   </ItemGroup>
 
 </Project>

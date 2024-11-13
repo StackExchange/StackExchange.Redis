@@ -182,6 +182,7 @@ dotnet_diagnostic.SA1516.severity = silent # SA1516: Elements should be separate
 dotnet_diagnostic.SA1600.severity = none # SA1600: Elements should be documented
 dotnet_diagnostic.SA1601.severity = none # SA1601: Partial elements should be documented
 dotnet_diagnostic.SA1602.severity = none # SA1602: Enumeration items should be documented
+dotnet_diagnostic.SA1611.severity = none # SA1611: The documentation for parameter '...' is missing
 dotnet_diagnostic.SA1615.severity = none # SA1615: Element return value should be documented
 dotnet_diagnostic.SA1623.severity = none # SA1623: Property summary documentation should match accessors
 dotnet_diagnostic.SA1633.severity = none # SA1633: File should have header
