@@ -12,6 +12,10 @@
 
   <ItemGroup>
     <Compile Include="..\BasicTest\Program.cs" Link="Program.cs" />
+    <PackageReference Include="Newtonsoft.Json" />
+    <PackageReference Include="System.Net.Http" />
+    <PackageReference Include="System.Private.Uri" />
+    <PackageReference Include="System.Text.RegularExpressions" />
   </ItemGroup>
 
   <ItemGroup>
