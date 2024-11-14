@@ -49,7 +49,8 @@ namespace BasicTest
             Console.WriteLine("ok!");
 #else
             await Task.Delay(0);
-            BenchmarkSwitcher.FromAssembly(typeof(Program).GetType().Assembly).Run(args);
+            BenchmarkRunner.Run(typeof(RedisBenchmarks));
+            //BenchmarkSwitcher.FromAssembly(typeof(Program).GetType().Assembly).Run(args);
 #endif
         }
     }
