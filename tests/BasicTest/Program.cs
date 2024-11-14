@@ -17,7 +17,7 @@ using RESPite.Resp.Commands;
 using RESPite.Transports;
 #endif
 
-#pragma warning disable SA1512 // to turn individial tests on/off
+#pragma warning disable SA1512, SA1005 // to turn individial tests on/off
 
 namespace BasicTest
 {
@@ -32,8 +32,11 @@ namespace BasicTest
             obj.StringSet();
             obj.StringGet();
 #if RESPITE
-            obj.StringGet_RESPite();
-            obj.StringSet_RESPite();
+            //for (int i = 0; i < 1000; i++)
+            {
+                obj.StringGet_RESPite();
+                obj.StringSet_RESPite();
+            }
 #endif
             Console.WriteLine("ok!");
 #else
@@ -56,7 +59,8 @@ namespace BasicTest
             AddValidator(JitOptimizationsValidator.FailOnError);
 
             AddJob(Configure(Job.Default.WithRuntime(ClrRuntime.Net472)));
-            AddJob(Configure(Job.Default.WithRuntime(CoreRuntime.Core50)));
+            AddJob(Configure(Job.Default.WithRuntime(CoreRuntime.Core60)));
+            AddJob(Configure(Job.Default.WithRuntime(CoreRuntime.CreateForNewVersion("net9.0", ".NET 9.0"))));
         }
     }
     internal class SlowConfig : CustomConfig
@@ -235,7 +239,7 @@ namespace BasicTest
         {
             for (int i = 0; i < COUNT; i++)
             {
-                using (Strings.GET.Send(transport, SimpleStringKey)) { }
+                Strings.GET.Send(transport, SimpleStringKey).Dispose();
             }
         }
 #endif

@@ -86,7 +86,9 @@ public class ServerSnapshotTests
         Assert.False(snapshot.Any(static _ => false));
 
         Assert.NotEmpty(snapshot);
+#pragma warning disable xUnit2030 // Do not use Assert.NotEmpty to check if a value exists in a collection
         Assert.NotEmpty(Enumerable.Where(snapshot, static _ => true));
+#pragma warning restore xUnit2030 // Do not use Assert.NotEmpty to check if a value exists in a collection
         Assert.NotEmpty(snapshot.Where(static _ => true));
         Assert.Empty(Enumerable.Where(snapshot, static _ => false));
         Assert.Empty(snapshot.Where(static _ => false));
