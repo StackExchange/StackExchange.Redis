@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFrameworks>net8.0</TargetFrameworks>
+    <TargetFrameworks>net8.0;net9.0</TargetFrameworks>
     <RootNamespace>StackExchange.Redis</RootNamespace>
     <ToolCommandName>resp-cli</ToolCommandName>
     <AssemblyName>StackExchange.Redis.RespCli</AssemblyName>
