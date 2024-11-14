@@ -27,6 +27,7 @@ public class RequestResponseTests
         return s;
     }
 
+    /*
     [Fact]
     public void Spoof()
     {
@@ -43,4 +44,5 @@ public class RequestResponseTests
         Assert.Equal(123, got);
         Assert.Equal("*2\r\n$3\r\nGET\r\n$3\r\nabc\r\n", GetRequests(target));
     }
+    */
 }

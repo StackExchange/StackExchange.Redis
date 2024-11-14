@@ -81,13 +81,16 @@ internal class ServerView : View
         {
             return false;
         }
-        ReadOnlyMemory<string> cmd = Utils.Tokenize(command).ToArray();
-        if (cmd.IsEmpty)
-        {
-            return false;
-        }
 
-        _ = transport.SendAsync(cmd, RespWriters.Strings, LeasedRespResult.Reader, endOfLife).AsTask();
+        LeasedStrings.Builder builder = default;
+        foreach (var item in Utils.Tokenize(command))
+        {
+            builder.Add(item);
+        }
+        using var cmd = builder.Create();
+        if (cmd.IsEmpty) return false;
+
+        _ = transport.SendAsync(cmd, CommandWriter.AdHoc, LeasedRespResult.Reader, endOfLife).AsTask();
         return true;
     }
 

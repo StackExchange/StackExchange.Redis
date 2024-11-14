@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
+using RESPite.Internal;
 
 namespace RESPite.Resp;
 
@@ -29,6 +30,11 @@ public readonly struct LeasedStrings : IDisposable, IEnumerable<SimpleString>, I
     /// </summary>
     public int Length => _lengths.Length;
 
+    /// <summary>
+    /// Indicates whether this is an empty instance.
+    /// </summary>
+    public bool IsEmpty => _lengths.IsEmpty;
+
     /// <inheritdoc cref="IDisposable.Dispose"/>
     public void Dispose()
     {
@@ -52,12 +58,12 @@ public readonly struct LeasedStrings : IDisposable, IEnumerable<SimpleString>, I
         private byte[]? _data = ArrayPool<byte>.Shared.Rent(byteHint);
 
         /// <summary>
-        /// Add an adiditional value.
+        /// Add an additional value.
         /// </summary>
         public void AddNull() => Add(-1);
 
         /// <summary>
-        /// Add an adiditional value.
+        /// Add an additional value.
         /// </summary>
         public void Add(ReadOnlySpan<byte> data)
         {
@@ -67,7 +73,54 @@ public readonly struct LeasedStrings : IDisposable, IEnumerable<SimpleString>, I
         }
 
         /// <summary>
-        /// Add an adiditional value. Negative numbers are interpreted as <c>null</c> values.
+        /// Add an additional value.
+        /// </summary>
+        public void Add(byte[]? data)
+        {
+            if (data is null)
+            {
+                Add(-1);
+            }
+            else
+            {
+                var target = Add(data.Length);
+                Debug.Assert(data.Length == target.Length);
+                data.CopyTo(target);
+            }
+        }
+
+        /// <summary>
+        /// Add an additional value.
+        /// </summary>
+        public void Add(string? data)
+        {
+            if (data is null)
+            {
+                Add(-1);
+            }
+            else
+            {
+                var len = Constants.UTF8.GetByteCount(data);
+                var target = Add(data.Length);
+
+                var actual = Constants.UTF8.GetBytes(data.AsSpan(), target);
+                Debug.Assert(len == actual);
+            }
+        }
+
+        /// <summary>
+        /// Add an additional value.
+        /// </summary>
+        public void Add(ReadOnlySpan<char> data)
+        {
+            var len = Constants.UTF8.GetByteCount(data);
+            var target = Add(data.Length);
+            var actual = Constants.UTF8.GetBytes(data, target);
+            Debug.Assert(len == actual);
+        }
+
+        /// <summary>
+        /// Add an additional value. Negative numbers are interpreted as <c>null</c> values.
         /// </summary>
         /// <returns>The payload buffer to write to.</returns>
         public Span<byte> Add(int length)

@@ -1,6 +1,4 @@
-﻿using System;
-using RESPite.Resp.Readers;
-using RESPite.Resp.Writers;
+﻿using RESPite.Resp.Readers;
 
 namespace RESPite.Resp.Commands;
 
@@ -12,17 +10,17 @@ public static class Keys
     /// <summary>
     /// Iterates keys in a database.
     /// </summary>
-    public static readonly RespCommand<Empty, long> DBSIZE = new(PinnedPrefixWriter.None("*1\r\n$6\r\nDBSIZE\r\n"u8), RespReaders.Int64);
+    public static readonly RespCommand<Empty, long> DBSIZE = new(default);
 
     /// <summary>
     /// Iterates keys in a database.
     /// </summary>
-    public static readonly RespCommand<Scan, Scan.Response> SCAN = new(Scan.ScanWriter.Instance, Scan.ScanReader.Instance);
+    public static readonly RespCommand<Scan, Scan.Response> SCAN = new(default);
 
     /// <summary>
     /// Gets the type of the requested key.
     /// </summary>
-    public static readonly RespCommand<SimpleString, KnownType> TYPE = new(PinnedPrefixWriter.SimpleString("*2\r\n$4\r\nTYPE\r\n"u8), RespReaders.EnumReader<KnownType>.Instance);
+    public static readonly RespCommand<SimpleString, KnownType> TYPE = new(default);
 
     /// <summary>
     /// Database storage type.

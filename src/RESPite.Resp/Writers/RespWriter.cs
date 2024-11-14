@@ -2,43 +2,23 @@
 using System.Buffers;
 using System.Buffers.Text;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using RESPite.Internal;
-using RESPite.Messages;
 using static RESPite.Internal.Constants;
 namespace RESPite.Resp.Writers;
-
-/// <summary>
-/// Base implementation for RESP writers.
-/// </summary>
-public abstract class RespWriterBase<TRequest> : IWriter<TRequest>, IRespWriter<TRequest>
-{
-    /// <summary>
-    /// Write a raw RESP payload.
-    /// </summary>
-    public virtual void Write(in TRequest request, IBufferWriter<byte> target)
-    {
-        var writer = new RespWriter(target);
-        Write(in request, ref writer);
-        writer.Flush();
-    }
-
-    /// <summary>
-    /// Write a RESP payload via the <see cref="RespWriter"/> API.
-    /// </summary>
-    public virtual void Write(in TRequest request, ref RespWriter writer)
-        => throw new NotSupportedException("A " + nameof(Write) + " overload must be overridden");
-}
 
 /// <summary>
 /// Provides low-level RESP formatting operations.
 /// </summary>
 public ref struct RespWriter
 {
-    private readonly IBufferWriter<byte> _target;
+    private readonly IBufferWriter<byte>? _target;
     private int _index;
+
+    internal int IndexInCurrentBuffer => _index;
 
 #if NET7_0_OR_GREATER
     private ref byte StartOfBuffer;
@@ -121,11 +101,25 @@ public ref struct RespWriter
     }
 
     /// <summary>
+    /// Create a new RESP writer over the provided target.
+    /// </summary>
+    public RespWriter(Span<byte> target)
+    {
+        _index = 0;
+#if NET7_0_OR_GREATER
+        BufferLength = target.Length;
+        StartOfBuffer = ref MemoryMarshal.GetReference(target);
+#else
+        _buffer = target;
+#endif
+    }
+
+    /// <summary>
     /// Commits any unwritten bytes to the output.
     /// </summary>
     public void Flush()
     {
-        if (_index != 0)
+        if (_index != 0 && _target is not null)
         {
             _target.Advance(_index);
 #if NET7_0_OR_GREATER
@@ -148,18 +142,28 @@ public ref struct RespWriter
     {
         if (Available == 0)
         {
-            const int MIN_BUFFER = 1024;
-            _index = 0;
+            if (_target is null)
+            {
+                ThrowFixedBufferExceeded();
+            }
+            else
+            {
+                const int MIN_BUFFER = 1024;
+                _index = 0;
 #if NET7_0_OR_GREATER
-            var span = _target.GetSpan(Math.Max(sizeHint, MIN_BUFFER));
-            BufferLength = span.Length;
-            StartOfBuffer = ref MemoryMarshal.GetReference(span);
+                var span = _target.GetSpan(Math.Max(sizeHint, MIN_BUFFER));
+                BufferLength = span.Length;
+                StartOfBuffer = ref MemoryMarshal.GetReference(span);
 #else
-            _buffer = _target.GetSpan(Math.Max(sizeHint, MIN_BUFFER));
+                _buffer = _target.GetSpan(Math.Max(sizeHint, MIN_BUFFER));
 #endif
-            Debug.Assert(Available > 0);
+                Debug.Assert(Available > 0);
+            }
         }
     }
+
+    [DoesNotReturn, MethodImpl(MethodImplOptions.NoInlining)]
+    private static void ThrowFixedBufferExceeded() => throw new InvalidOperationException("Fixed buffer cannot be expanded");
 
     /// <summary>
     /// Write raw RESP data to the output; no validation will occur.
@@ -176,7 +180,14 @@ public ref struct RespWriter
         {
             // write directly to the output
             Flush();
-            _target.Write(buffer);
+            if (_target is null)
+            {
+                ThrowFixedBufferExceeded();
+            }
+            else
+            {
+                _target.Write(buffer);
+            }
         }
     }
 

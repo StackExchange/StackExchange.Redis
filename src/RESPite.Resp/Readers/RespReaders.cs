@@ -11,49 +11,49 @@ namespace RESPite.Resp.Readers;
 /// <summary>
 /// Provides common RESP reader implementations.
 /// </summary>
-public static class RespReaders
+internal static class RespReaders
 {
-    private static readonly Impl common = new();
+    internal static readonly Impl Common = new();
 
     /// <summary>
     /// Reads <see cref="String"/> payloads.
     /// </summary>
-    public static IRespReader<Empty, string?> String => common;
+    public static IRespReader<Empty, string?> String => Common;
 
     /// <summary>
     /// Reads <see cref="Int32"/> payloads.
     /// </summary>
-    public static IRespReader<Empty, int> Int32 => common;
+    public static IRespReader<Empty, int> Int32 => Common;
 
     /// <summary>
     /// Reads <see cref="Nullable{Int32}"/> payloads.
     /// </summary>
-    public static IRespReader<Empty, int?> NullableInt32 => common;
+    public static IRespReader<Empty, int?> NullableInt32 => Common;
 
     /// <summary>
     /// Reads <see cref="Int64"/> payloads.
     /// </summary>
-    public static IRespReader<Empty, long> Int64 => common;
+    public static IRespReader<Empty, long> Int64 => Common;
 
     /// <summary>
     /// Reads <see cref="Nullable{Int64}"/> payloads.
     /// </summary>
-    public static IRespReader<Empty, long?> NullableInt64 => common;
+    public static IRespReader<Empty, long?> NullableInt64 => Common;
 
     /// <summary>
     /// Reads 'OK' acknowledgements.
     /// </summary>
-    public static IRespReader<Empty, Empty> OK => common;
+    public static IRespReader<Empty, Empty> OK => Common;
 
     /// <summary>
     /// Reads <see cref="LeasedString" /> payloads.
     /// </summary>
-    public static IRespReader<Empty, LeasedString> LeasedString => common;
+    public static IRespReader<Empty, LeasedString> LeasedString => Common;
 
     /// <summary>
     /// Reads arrays of opaque payloads.
     /// </summary>
-    public static IRespReader<Empty, LeasedStrings> LeasedStrings => common;
+    public static IRespReader<Empty, LeasedStrings> LeasedStrings => Common;
 
     /// <summary>
     /// Reads PONG responses.

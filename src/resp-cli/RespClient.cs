@@ -73,10 +73,15 @@ internal static class RespClient
             {
                 if (command is null) break; // EOF
 
-                ReadOnlyMemory<string> cmd = Utils.Tokenize(command).ToArray();
+                LeasedStrings.Builder builder = default;
+                foreach (var item in Utils.Tokenize(command))
+                {
+                    builder.Add(item);
+                }
+                using var cmd = builder.Create();
                 if (!cmd.IsEmpty)
                 {
-                    WriteResult(await transport.SendAsync(cmd, RespWriters.Strings, LeasedRespResult.Reader));
+                    WriteResult(await transport.SendAsync(cmd, CommandWriter.AdHoc, LeasedRespResult.Reader));
                 }
 
                 command = ReadLine();
