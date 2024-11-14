@@ -69,7 +69,7 @@ namespace BasicTest
 
             AddJob(Configure(Job.Default.WithRuntime(ClrRuntime.Net472)));
             AddJob(Configure(Job.Default.WithRuntime(CoreRuntime.Core60)));
-            AddJob(Configure(Job.Default.WithRuntime(CoreRuntime.CreateForNewVersion("net9.0", ".NET 9.0"))));
+            AddJob(Configure(Job.Default.WithRuntime(CoreRuntime.Core90)));
         }
     }
     internal class SlowConfig : CustomConfig
