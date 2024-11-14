@@ -2,12 +2,12 @@
 
 using System;
 using System.Buffers;
-using System.Collections.Generic;
+using RESPite.Resp.Commands;
 using RESPite.Resp.Writers;
 
-namespace RESPite.Resp.Commands;
+namespace RESPite.Resp.Client;
 
-public partial class RespCommandFactory : RespCommandFactory.IRespWriterFactory<Empty>
+public partial class CommandFactory : IRespWriterFactory<Empty>
 {
     IRespWriter<Empty> IRespWriterFactory<Empty>.CreateWriter(string command) => EmptyWriter.Factory.Create(command);
 
@@ -41,7 +41,7 @@ public partial class RespCommandFactory : RespCommandFactory.IRespWriterFactory<
     }
 }
 
-public partial class RespCommandFactory : RespCommandFactory.IRespWriterFactory<SimpleString>
+public partial class CommandFactory : IRespWriterFactory<SimpleString>
 {
     IRespWriter<SimpleString> IRespWriterFactory<SimpleString>.CreateWriter(string command) => SimpleStringWriter.Factory.Create(command);
 
@@ -78,7 +78,7 @@ public partial class RespCommandFactory : RespCommandFactory.IRespWriterFactory<
 }
 
 
-public partial class RespCommandFactory : RespCommandFactory.IRespWriterFactory<(SimpleString, SimpleString)>
+public partial class CommandFactory : IRespWriterFactory<(SimpleString, SimpleString)>
 {
     IRespWriter<(SimpleString, SimpleString)> IRespWriterFactory<(SimpleString, SimpleString)>.CreateWriter(string command) => SimpleStringSimpleStringWriter.Factory.Create(command);
 
@@ -115,7 +115,45 @@ public partial class RespCommandFactory : RespCommandFactory.IRespWriterFactory<
     }
 }
 
-public partial class RespCommandFactory : RespCommandFactory.IRespWriterFactory<(SimpleString, int, int)>
+public partial class CommandFactory : IRespWriterFactory<(SimpleString, int)>
+{
+    IRespWriter<(SimpleString, int)> IRespWriterFactory<(SimpleString, int)>.CreateWriter(string command) => SimpleStringInt32Writer.Factory.Create(command);
+
+    private sealed class SimpleStringInt32Writer(string command, ReadOnlySpan<byte> pinnedPrefix = default) : CommandWriter<(SimpleString, int)>(command, 2, pinnedPrefix)
+    {
+        public static class Factory
+        {
+            private static SimpleStringInt32Writer? __LINDEX;
+
+            public static SimpleStringInt32Writer Create(string command) => command switch
+            {
+                "LINDEX" => __LINDEX ??= new(command, "*3\r\n$6\r\nLINDEX\r\n"u8),
+                _ => new(command),
+            };
+        }
+
+        protected override IRespWriter<(SimpleString, int)> Create(string command) => Factory.Create(command);
+
+        public override void Write(in (SimpleString, int) request, ref RespWriter writer)
+        {
+            writer.WriteRaw(CommandAndArgCount);
+            writer.WriteBulkString(request.Item1);
+            writer.WriteBulkString(request.Item2);
+        }
+
+        public override void Write(in (SimpleString, int) request, IBufferWriter<byte> target)
+        {
+            RespWriter writer = new(target);
+            writer.WriteRaw(CommandAndArgCount);
+            writer.WriteBulkString(request.Item1);
+            writer.WriteBulkString(request.Item2);
+            writer.Flush();
+        }
+    }
+}
+
+
+public partial class CommandFactory : IRespWriterFactory<(SimpleString, int, int)>
 {
     IRespWriter<(SimpleString, int, int)> IRespWriterFactory<(SimpleString, int, int)>.CreateWriter(string command) => SimpleStringInt32Int32Writer.Factory.Create(command);
 
@@ -155,7 +193,7 @@ public partial class RespCommandFactory : RespCommandFactory.IRespWriterFactory<
     }
 }
 
-public partial class RespCommandFactory : RespCommandFactory.IRespWriterFactory<(SimpleString, int, SimpleString)>
+public partial class CommandFactory : IRespWriterFactory<(SimpleString, int, SimpleString)>
 {
     IRespWriter<(SimpleString, int, SimpleString)> IRespWriterFactory<(SimpleString, int, SimpleString)>.CreateWriter(string command) => SimpleStringInt32SimpleStringWriter.Factory.Create(command);
 

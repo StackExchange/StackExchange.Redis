@@ -12,6 +12,7 @@
 
   <ItemGroup>
     <PackageReference Include="BenchmarkDotNet" />
+    <ProjectReference Include="..\..\src\RESPite.Resp.Client\RESPite.Resp.Client.csproj" />
     <ProjectReference Include="..\..\src\RESPite.Resp\RESPite.Resp.csproj" />
     <ProjectReference Include="..\..\src\StackExchange.Redis\StackExchange.Redis.csproj" />
     <PackageReference Include="Newtonsoft.Json" />

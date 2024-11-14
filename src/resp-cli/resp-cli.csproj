@@ -21,6 +21,7 @@
   <ItemGroup>
     <PackageReference Include="System.CommandLine" />
     <PackageReference Include="Terminal.Gui" />
+    <ProjectReference Include="..\RESPite.Resp.Client\RESPite.Resp.Client.csproj" />
     <ProjectReference Include="..\RESPite.Resp\RESPite.Resp.csproj" />
     <PackageReference Include="System.Text.Json" VersionOverride="8.0.5" />
     <None Include="readme.md" Link="readme.md" Pack="true" PackagePath="/" />

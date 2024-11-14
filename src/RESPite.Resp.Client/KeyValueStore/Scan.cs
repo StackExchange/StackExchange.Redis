@@ -1,17 +1,23 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
 
-namespace RESPite.Resp.Commands;
+namespace RESPite.Resp.KeyValueStore;
 
 /// <summary>
 /// Queries keys in a RESP database.
 /// </summary>
-public readonly record struct Scan(long Cursor = 0, SimpleString Match = default, int Count = 10, string? Type = null)
+public static class Scan
 {
     /// <summary>
-    /// Process the result of a scan operation to update the <see cref="Cursor"/>.
+    /// Requests the next page of SCAN results from the given <paramref name="Cursor"/>.
     /// </summary>
-    public Scan Next(in Response reply) => this with { Cursor = reply.Cursor };
+    public readonly record struct Request(long Cursor = 0, SimpleString Match = default, int Count = 10, string? Type = null)
+    {
+        /// <summary>
+        /// Process the result of a scan operation to update the <see cref="Cursor"/>.
+        /// </summary>
+        public Request Next(in Response reply) => this with { Cursor = reply.Cursor };
+    }
 
     /// <summary>
     /// Provides the keys associated with a single iteration of a scan operation,

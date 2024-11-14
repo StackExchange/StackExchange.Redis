@@ -1,9 +1,8 @@
 ﻿using System.Buffers;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
-using System.Xml;
-using RESPite;
 using RESPite.Messages;
 using RESPite.Resp;
 using RESPite.Resp.Readers;
@@ -62,9 +61,17 @@ internal class ServerView : View
     private RespPayloadTableSource? data;
     private readonly CancellationToken endOfLife;
 
-    public string StatusCaption { get; set; }
+    private string statusCaption;
+    public string StatusCaption => statusCaption;
 
     public event Action<string>? StatusChanged;
+
+    [MemberNotNull(nameof(statusCaption))]
+    public void SetStatus(string status)
+    {
+        statusCaption = status;
+        StatusChanged?.Invoke(status);
+    }
 
     protected override void Dispose(bool disposing)
     {
@@ -75,29 +82,39 @@ internal class ServerView : View
         base.Dispose(disposing);
     }
 
-    public bool Send(string command)
+    public async Task<bool> SendAsync(string command)
     {
-        if (Transport is not { } transport || data is null)
+        try
         {
+            if (Transport is not { } transport || data is null)
+            {
+                SetStatus("Not connected, unable to send command");
+                return false;
+            }
+
+            LeasedStrings.Builder builder = default;
+            foreach (var item in Utils.Tokenize(command))
+            {
+                builder.Add(item);
+            }
+            using var cmd = builder.Create();
+            if (cmd.IsEmpty) return false;
+
+            await transport.SendAsync(cmd, CommandWriter.AdHoc, LeasedRespResult.Reader, endOfLife).AsTask();
+            SetStatus($"Sent command: {command}");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            SetStatus(ex.Message);
             return false;
         }
-
-        LeasedStrings.Builder builder = default;
-        foreach (var item in Utils.Tokenize(command))
-        {
-            builder.Add(item);
-        }
-        using var cmd = builder.Create();
-        if (cmd.IsEmpty) return false;
-
-        _ = transport.SendAsync(cmd, CommandWriter.AdHoc, LeasedRespResult.Reader, endOfLife).AsTask();
-        return true;
     }
 
     public ServerView(string host, int port, bool tls, CancellationToken endOfLife)
     {
         _performRowDelta = PerformRowDelta;
-        StatusCaption = $"{host}, port {port}{(tls ? " (TLS)" : "")}";
+        SetStatus($"{host}, port {port}{(tls ? " (TLS)" : "")}");
         CanFocus = true;
         Width = Dim.Fill();
         Height = Dim.Fill();
@@ -125,7 +142,7 @@ internal class ServerView : View
                 log.InsertText(msg + Environment.NewLine);
                 log.ReadOnly = true;
             });
-            Transport = await Utils.ConnectAsync(host, port, tls, writeLog, frameScanner);
+            Transport = await Utils.ConnectAsync(host, port, tls, writeLog, frameScanner, FrameValidation.Enabled);
 
             if (Transport is not null)
             {
@@ -146,13 +163,20 @@ internal class ServerView : View
     private readonly Action _performRowDelta;
     private void PerformRowDelta()
     {
-        Interlocked.Exchange(ref _rowChangePending, 0);
-
-        while (_rowsToAdd.TryDequeue(out var row))
+        try
         {
-            data?.Insert(0, row);
+            Interlocked.Exchange(ref _rowChangePending, 0);
+
+            while (_rowsToAdd.TryDequeue(out var row))
+            {
+                data?.Insert(0, row);
+            }
+            table?.SetNeedsDisplay();
         }
-        table?.SetNeedsDisplay();
+        catch (Exception ex)
+        {
+            SetStatus(ex.Message);
+        }
     }
 
     private void SignalRowDelta()

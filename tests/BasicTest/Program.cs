@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Reflection;
 using System.Threading.Tasks;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Columns;
@@ -13,7 +12,7 @@ using StackExchange.Redis;
 
 #if RESPITE
 using RESPite.Resp;
-using RESPite.Resp.Commands;
+using RESPite.Resp.KeyValueStore;
 using RESPite.Transports;
 #endif
 
@@ -32,6 +31,15 @@ namespace BasicTest
             obj.StringSet();
             obj.StringGet();
 #if RESPITE
+            // check all the ..ctor
+            _ = Hashes.HLEN;
+            _ = Keys.TYPE;
+            _ = Lists.LINDEX;
+            _ = Sets.SCARD;
+            _ = SortedSets.ZCARD;
+            _ = Streams.XLEN;
+            _ = Strings.SET;
+
             //for (int i = 0; i < 1000; i++)
             {
                 obj.StringGet_RESPite();
@@ -41,7 +49,7 @@ namespace BasicTest
             Console.WriteLine("ok!");
 #else
             await Task.Delay(0);
-            BenchmarkSwitcher.FromAssembly(typeof(Program).GetTypeInfo().Assembly).Run(args);
+            BenchmarkSwitcher.FromAssembly(typeof(Program).GetType().Assembly).Run(args);
 #endif
         }
     }

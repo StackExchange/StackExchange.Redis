@@ -2,8 +2,11 @@
 using System.Globalization;
 using RESPite.Resp;
 using RESPite.Resp.Commands;
+using RESPite.Resp.KeyValueStore;
 using Terminal.Gui;
-using static RESPite.Resp.Commands.Keys;
+
+using static RESPite.Resp.KeyValueStore.Keys;
+
 namespace StackExchange.Redis.Gui;
 
 internal class KeysDialog : ServerToolDialog
@@ -33,7 +36,7 @@ internal class KeysDialog : ServerToolDialog
             _rows.Clear();
             _keys.SetNeedsDisplay();
 
-            var cmd = new Scan(Match: match, Count: 100, Type: type);
+            var cmd = new Scan.Request(Match: match, Count: 100, Type: type);
             do
             {
                 StatusText = $"Fetching next page...";

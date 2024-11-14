@@ -271,13 +271,13 @@ internal static class RespReaders
         {
             var reader = new RespReader(in content, throwOnErrorResponse: true);
             reader.ReadNextAggregate();
-            return ReadLeasedStrings(ref reader);
+            return reader.ReadLeasedStrings();
         }
 
         LeasedStrings IRespReader<Empty, LeasedStrings>.Read(in Empty request, ref RespReader reader)
         {
             reader.ReadNextAggregate();
-            return ReadLeasedStrings(ref reader);
+            return reader.ReadLeasedStrings();
         }
 
         private static readonly uint
@@ -365,42 +365,6 @@ internal static class RespReaders
             var value = reader.ReadString()!;
             if (value != request) ThrowMissingExpected(request);
             return Empty.Value;
-        }
-    }
-
-    internal static LeasedStrings ReadLeasedStrings(ref RespReader reader)
-    {
-        Debug.Assert(reader.IsAggregate, "should have already checked for aggregate");
-        if (reader.IsNull) return default;
-
-        var count = reader.ChildCount;
-        if (count == 0) return Resp.LeasedStrings.Empty;
-
-        var builder = new LeasedStrings.Builder(count);
-        try
-        {
-            for (int i = 0; i < count; i++)
-            {
-                reader.ReadNextScalar();
-                reader.Demand(RespPrefix.BulkString);
-
-                if (reader.IsNull)
-                {
-                    builder.AddNull();
-                }
-                else
-                {
-                    var span = builder.Add(reader.ScalarLength);
-                    reader.CopyTo(span);
-                }
-            }
-            return builder.Create();
-        }
-        catch (Exception ex)
-        {
-            Debug.Write(ex.Message);
-            builder.Dispose();
-            throw;
         }
     }
 

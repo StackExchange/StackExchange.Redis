@@ -1,0 +1,35 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Nullable>enable</Nullable>
+    <TargetFrameworks>net461;netstandard2.0;net472;netcoreapp3.1;net6.0;net8.0</TargetFrameworks>
+    <Description>Standard RESP command definitions using RESPite.Resp</Description>
+    <AssemblyName>RESPite.Resp.Client</AssemblyName>
+    <AssemblyTitle>RESPite.Resp.Client</AssemblyTitle>
+    <RootNamespace>RESPite.Resp</RootNamespace>
+    <PackageId>RESPite.Resp.Client</PackageId>
+    <PackageTags>RESP</PackageTags>
+    <SignAssembly>true</SignAssembly>
+    <PublicSign Condition=" '$(OS)' != 'Windows_NT' ">true</PublicSign>
+    <SuppressTfmSupportBuildWarnings>true</SuppressTfmSupportBuildWarnings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\RESPite.Resp\RESPite.Resp.csproj" />
+    <ProjectReference Include="..\RESPite\RESPite.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Remove="Microsoft.CodeAnalysis.PublicApiAnalyzers" />
+
+    <Compile Include="..\StackExchange.Redis\IsExternalInit.cs" Link="IsExternalInit.cs" />
+    <Compile Include="..\StackExchange.Redis\NullableHacks.cs" Link="NullableHacks.cs" />
+    <Compile Include="..\StackExchange.Redis\SkipLocalsInit.cs" Link="SkipLocalsInit.cs" />
+
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)'=='net461' or '$(TargetFramework)'=='net472' or '$(TargetFramework)'=='netstandard2.0'">
+    <PackageReference Include="System.ValueTuple" />
+  </ItemGroup>
+
+</Project>

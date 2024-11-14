@@ -96,17 +96,24 @@ internal sealed class RespDesktopWindow : Window
         servers.AddTab(tab, true);
         AddServer();
 
-        input.KeyDown += (sender, key) =>
+        input.KeyDown += async (sender, key) =>
         {
-            if (key == Key.Enter)
+            try
             {
-                if (servers.SelectedTab?.View is ServerView server)
+                if (key == Key.Enter)
                 {
-                    if (server.Send(input.Text.ToString()))
+                    if (servers.SelectedTab?.View is ServerView server)
                     {
-                        input.Text = "";
+                        if (await server.SendAsync(input.Text.ToString()))
+                        {
+                            input.Text = "";
+                        }
                     }
                 }
+            }
+            catch (Exception ex)
+            {
+                SetStatusText(ex.Message);
             }
         };
 
@@ -238,7 +245,7 @@ internal sealed class RespDesktopWindow : Window
                     Action = () => servers.SelectedTab = tab,
                     Visible = false,
                 });
-                view.StatusCaption = $"({key}) " + view.StatusCaption;
+                view.SetStatus($"({key}) " + view.StatusCaption);
             }
             servers.AddTab(tab, true);
         });

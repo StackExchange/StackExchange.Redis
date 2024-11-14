@@ -1,6 +1,7 @@
-﻿using RESPite.Resp.Readers;
+﻿using RESPite.Resp.Commands;
+using static RESPite.Resp.Client.CommandFactory;
 
-namespace RESPite.Resp.Commands;
+namespace RESPite.Resp.KeyValueStore;
 
 /// <summary>
 /// Keyspace commands.
@@ -10,17 +11,17 @@ public static class Keys
     /// <summary>
     /// Iterates keys in a database.
     /// </summary>
-    public static readonly RespCommand<Empty, long> DBSIZE = new(default);
+    public static readonly RespCommand<Empty, long> DBSIZE = new(Default);
 
     /// <summary>
     /// Iterates keys in a database.
     /// </summary>
-    public static readonly RespCommand<Scan, Scan.Response> SCAN = new(default);
+    public static readonly RespCommand<Scan.Request, Scan.Response> SCAN = new(Default);
 
     /// <summary>
     /// Gets the type of the requested key.
     /// </summary>
-    public static readonly RespCommand<SimpleString, KnownType> TYPE = new(default);
+    public static readonly RespCommand<SimpleString, KnownType> TYPE = new(Default);
 
     /// <summary>
     /// Database storage type.

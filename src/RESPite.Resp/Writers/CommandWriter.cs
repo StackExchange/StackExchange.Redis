@@ -55,15 +55,10 @@ public abstract class CommandWriter
     public override string ToString() => Command;
 
     /// <summary>
-    /// Create a new instance, precomputing a prefix for the specified <paramref name="command"/>.
-    /// </summary>
-    public CommandWriter(string command, int argCount) : this(command, argCount, default) { }
-
-    /// <summary>
-    /// Create a new instance.
+    /// Create a new instance, (optionally including an externally pinned/computed command header) for the specified <paramref name="command"/>.
     /// </summary>
     /// <remarks>If <paramref name="pinnedPrefix"/> is supplied, it <b>MUST</b> be externally pinned, for example a <c>"..."u8</c> literal.</remarks>
-    internal unsafe CommandWriter(string command, int argCount, ReadOnlySpan<byte> pinnedPrefix)
+    public unsafe CommandWriter(string command, int argCount, ReadOnlySpan<byte> pinnedPrefix = default)
     {
         ArgCount = argCount;
         if (string.IsNullOrWhiteSpace(command)) ThrowEmptyCommand();
@@ -74,7 +69,15 @@ public abstract class CommandWriter
             _prefixLength = pinnedPrefix.Length;
             _lazyPrefix = null;
         }
-        DebugVerifyPrefix();
+
+        if (pinnedPrefix.IsEmpty)
+        {
+            DebugVerifyPrefix(); // wrote via writer; double-check in DEBUG, not in RELEASE
+        }
+        else
+        {
+            VerifyPrefix(); // always verify (will be in a different assembly; *this assembly* might be RELEASE, but can't trust caller
+        }
 
         static void ThrowEmptyCommand() => throw new ArgumentException($"The command cannot be empty; for disabled commands, use {nameof(CommandWriter)}.{nameof(CommandWriter.Disabled)}", nameof(command));
     }
@@ -114,7 +117,9 @@ public abstract class CommandWriter
     protected unsafe ReadOnlySpan<byte> CommandAndArgCount => _pinnedPrefix is not null ? new ReadOnlySpan<byte>(_pinnedPrefix, _prefixLength) : (_lazyPrefix ?? CreatePrefix());
 
     [Conditional("DEBUG")]
-    private void DebugVerifyPrefix()
+    private void DebugVerifyPrefix() => VerifyPrefix();
+
+    private void VerifyPrefix()
     {
         if (ArgCount < 0) return; // dynamic size; no fixed preamble to verify
         try
@@ -169,11 +174,10 @@ public abstract class CommandWriter
 public abstract class CommandWriter<TRequest> : CommandWriter, IRespWriter<TRequest>
 {
     /// <summary>
-    /// Create a new instance, precomputing a prefix for the specified <paramref name="command"/>.
+    /// Create a new instance, (optionally including an externally pinned/computed command header) for the specified <paramref name="command"/>.
     /// </summary>
-    public CommandWriter(string command, int argCount) : base(command, argCount) { }
-
-    internal CommandWriter(string command, int argCount, ReadOnlySpan<byte> pinnedPrefix)
+    /// <remarks>If <paramref name="pinnedPrefix"/> is supplied, it <b>MUST</b> be externally pinned, for example a <c>"..."u8</c> literal.</remarks>
+    public CommandWriter(string command, int argCount, ReadOnlySpan<byte> pinnedPrefix = default)
         : base(command, argCount, pinnedPrefix) { }
 
     /// <inheritdoc cref="IRespWriter{TRequest}.Write(in TRequest, ref RespWriter)"/>

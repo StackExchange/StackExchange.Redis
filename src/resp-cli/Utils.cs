@@ -30,7 +30,8 @@ public static class Utils
         int port,
         bool tls,
         Action<string>? log,
-        IFrameScanner<RespFrameScanner.RespFrameState>? frameScanner = null)
+        IFrameScanner<RespFrameScanner.RespFrameState>? frameScanner = null,
+        FrameValidation validateOutbound = FrameValidation.Debug)
     {
         Socket? socket = null;
         Stream? conn = null;
@@ -58,7 +59,7 @@ public static class Utils
                 await ssl.AuthenticateAsClientAsync(options);
             }
 
-            return conn.CreateTransport().RequestResponse(frameScanner ?? RespFrameScanner.Default);
+            return conn.CreateTransport().RequestResponse(frameScanner ?? RespFrameScanner.Default, validateOutbound);
         }
         catch (Exception ex)
         {

@@ -59,12 +59,15 @@ public readonly struct RespCommand<TRequest, TResponse>
     /// Create a new command instance.
     /// </summary>
     public RespCommand(
-        RespCommandFactory? factory,
+        RespCommandFactory factory,
         [CallerMemberName] string command = "",
         IRespWriter<TRequest>? writer = null,
         IRespReader<Empty, TResponse>? reader = null)
     {
-        factory ??= RespCommandFactory.Default;
+        if ((reader is null || writer is null) && factory is null)
+        {
+            throw new ArgumentNullException(nameof(factory), "A factory must be provided if the reader or writer is omitted");
+        }
         this.reader = reader ?? factory.CreateReader<Empty, TResponse>() ?? throw new ArgumentNullException(nameof(reader), $"No suitable reader available for '{typeof(TResponse).Name}'");
         if (string.IsNullOrWhiteSpace(command))
         {

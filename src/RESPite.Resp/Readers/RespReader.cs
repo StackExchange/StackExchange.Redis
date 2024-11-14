@@ -1025,6 +1025,7 @@ public ref struct RespReader
     /// </summary>
     public LeasedString ReadLeasedString()
     {
+        Debug.Assert(IsScalar, "should have already checked for scalar");
         DemandScalar();
         if (IsNull) return default;
         var len = ScalarLength;
@@ -1034,5 +1035,45 @@ public ref struct RespReader
         int copied = CopyTo(memory.Span);
         Debug.Assert(copied == len);
         return lease;
+    }
+
+    /// <summary>
+    /// Reads an aggregate value as a <see cref="LeasedStrings"/> value.
+    /// </summary>
+    public LeasedStrings ReadLeasedStrings()
+    {
+        Debug.Assert(IsAggregate, "should have already checked for aggregate");
+        DemandAggregate();
+        if (IsNull) return default;
+
+        var count = ChildCount;
+        if (count == 0) return LeasedStrings.Empty;
+
+        var builder = new LeasedStrings.Builder(count);
+        try
+        {
+            for (int i = 0; i < count; i++)
+            {
+                ReadNextScalar();
+                Demand(RespPrefix.BulkString);
+
+                if (IsNull)
+                {
+                    builder.AddNull();
+                }
+                else
+                {
+                    var span = builder.Add(ScalarLength);
+                    CopyTo(span);
+                }
+            }
+            return builder.Create();
+        }
+        catch (Exception ex)
+        {
+            Debug.Write(ex.Message);
+            builder.Dispose();
+            throw;
+        }
     }
 }
