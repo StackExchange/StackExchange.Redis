@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Reflection;
 using System.Threading.Tasks;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Columns;
@@ -49,8 +50,7 @@ namespace BasicTest
             Console.WriteLine("ok!");
 #else
             await Task.Delay(0);
-            BenchmarkRunner.Run(typeof(RedisBenchmarks));
-            //BenchmarkSwitcher.FromAssembly(typeof(Program).GetType().Assembly).Run(args);
+            BenchmarkSwitcher.FromAssembly(typeof(Program).GetTypeInfo().Assembly).Run(args);
 #endif
         }
     }

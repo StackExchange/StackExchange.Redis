@@ -1,5 +1,9 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using System.Threading;
+using RESPite.Resp.Commands;
+using RESPite.Transports;
 
 namespace RESPite.Resp.KeyValueStore;
 
@@ -8,6 +12,49 @@ namespace RESPite.Resp.KeyValueStore;
 /// </summary>
 public static class Scan
 {
+    /// <summary>
+    /// Iterate over SCAN results, fetching all matching records.
+    /// </summary>
+    public static IEnumerable<SimpleString> ReadAll(this in RespCommand<Request, Response> command, ISyncMessageTransport transport, in Request request)
+    {
+        return Impl(command, transport, request);
+        static IEnumerable<SimpleString> Impl(RespCommand<Request, Response> command, ISyncMessageTransport transport, Request request)
+        {
+            do
+            {
+                using var response = command.Send(transport, in request);
+                foreach (var key in response.Keys)
+                {
+                    yield return key;
+                }
+                request = request.Next(response);
+            }
+            while (request.Cursor != 0);
+        }
+    }
+
+    /// <summary>
+    /// Iterate over SCAN results, fetching all matching records.
+    /// </summary>
+    public static IAsyncEnumerable<SimpleString> ReadAllAsync(this in RespCommand<Request, Response> command, IAsyncMessageTransport transport, in Request request, CancellationToken token = default)
+    {
+        return Impl(command, transport, request, token);
+        static async IAsyncEnumerable<SimpleString> Impl(RespCommand<Request, Response> command, IAsyncMessageTransport transport, Request request, [EnumeratorCancellation] CancellationToken token)
+        {
+            do
+            {
+                token.ThrowIfCancellationRequested();
+                using var response = await command.SendAsync(transport, in request, token).ConfigureAwait(false);
+                foreach (var key in response.Keys)
+                {
+                    yield return key;
+                }
+                request = request.Next(response);
+            }
+            while (request.Cursor != 0);
+        }
+    }
+
     /// <summary>
     /// Requests the next page of SCAN results from the given <paramref name="Cursor"/>.
     /// </summary>
