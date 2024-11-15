@@ -556,7 +556,7 @@ public ref struct RespReader
     /// <summary>
     /// Assert that the <see cref="Prefix"/> matches <paramref name="prefix"/>.
     /// </summary>
-    public void Demand(RespPrefix prefix)
+    public readonly void Demand(RespPrefix prefix)
     {
         if (Prefix != prefix) ThrowPrefix(prefix, Prefix);
     }
@@ -1012,7 +1012,7 @@ public ref struct RespReader
     /// Assert that the value is not null.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void DemandNotNull()
+    public readonly void DemandNotNull()
     {
         if (IsNull) Throw(Prefix);
 
@@ -1023,7 +1023,7 @@ public ref struct RespReader
     /// <summary>
     /// Read a scalar string value.
     /// </summary>
-    public LeasedString ReadLeasedString()
+    public readonly LeasedString ReadLeasedString()
     {
         Debug.Assert(IsScalar, "should have already checked for scalar");
         DemandScalar();

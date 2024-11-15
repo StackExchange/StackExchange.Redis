@@ -10,8 +10,11 @@ internal sealed class RespConnectView : View
     private readonly TextField portField;
     private readonly CheckBox tlsCheck;
     private readonly CheckBox resp3Check;
+    private readonly CheckBox handshakeCheck;
 
     public bool Tls => tlsCheck.CheckedState == CheckState.Checked;
+
+    public bool Handshake => handshakeCheck.CheckedState == CheckState.Checked;
 
     public bool Validate([NotNullWhen(true)] out string? host, out int port)
     {
@@ -65,12 +68,12 @@ internal sealed class RespConnectView : View
 
         lbl = Add(new Label
         {
-            Text = "TLS ",
+            Text = "TLS",
             Y = Pos.Bottom(portField) + 1,
         });
         tlsCheck = new CheckBox
         {
-            X = Pos.Right(lbl),
+            X = Pos.Right(lbl) + 1,
             Y = lbl.Y,
             CheckedState = tls ? CheckState.Checked : CheckState.UnChecked,
         };
@@ -78,20 +81,33 @@ internal sealed class RespConnectView : View
 
         lbl = Add(new Label
         {
-            Text = "RESP 3 ",
+            Text = "RESP 3",
             Y = Pos.Bottom(tlsCheck),
         });
         resp3Check = new CheckBox
         {
-            X = Pos.Right(lbl),
+            X = Pos.Right(lbl) + 1,
             Y = lbl.Y,
             CheckedState = resp3 ? CheckState.Checked : CheckState.UnChecked,
         };
         Add(resp3Check);
 
+        lbl = Add(new Label
+        {
+            Text = "Handshake",
+            Y = Pos.Bottom(tlsCheck),
+        });
+        handshakeCheck = new CheckBox
+        {
+            X = Pos.Right(lbl) + 1,
+            Y = lbl.Y,
+            CheckedState = CheckState.Checked,
+        };
+        Add(handshakeCheck);
+
         var btn = new Button
         {
-            Y = Pos.Bottom(resp3Check) + 2,
+            Y = Pos.Bottom(lbl) + 2,
             Text = "connect",
             IsDefault = true,
         };

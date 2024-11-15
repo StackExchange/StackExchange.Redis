@@ -157,7 +157,7 @@ public static class Utils
                 reader.DemandNotNull();
                 string orig = reader.ReadString()!;
                 var s = Escape(reader.ReadString());
-                if (orig.IndexOf(' ') >= 0 || orig.IndexOf('\"') >= 0) s = "\"" + s + "\"";
+                if (orig.Contains(' ') || orig.Contains('\"')) s = "\"" + s + "\"";
                 sb.Append(' ').Append(s);
             }
             cmd = sb.ToString();

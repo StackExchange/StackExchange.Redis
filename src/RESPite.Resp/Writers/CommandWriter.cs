@@ -41,7 +41,7 @@ public abstract class CommandWriter
     /// Create a new instance, (optionally including an externally pinned/computed command header) for the specified <paramref name="command"/>.
     /// </summary>
     /// <remarks>If <paramref name="pinnedPrefix"/> is supplied, it <b>MUST</b> be externally pinned, for example a <c>"..."u8</c> literal.</remarks>
-    public unsafe CommandWriter(string command, int argCount, ReadOnlySpan<byte> pinnedPrefix = default)
+    internal unsafe CommandWriter(string command, int argCount, ReadOnlySpan<byte> pinnedPrefix = default)
     {
         ArgCount = argCount;
         Command = string.IsNullOrWhiteSpace(command) ? "" : command.Trim();

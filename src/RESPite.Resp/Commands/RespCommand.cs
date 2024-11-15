@@ -12,31 +12,6 @@ namespace RESPite.Resp.Commands;
 
 /// <summary>
 /// Represents a RESP command that sends message of type <typeparamref name="TRequest"/>, and
-/// receives values of type <typeparamref name="TResponse"/>, using the request during the read.
-/// </summary>
-/// <param name="writer">The writer for this operation.</param>
-/// <param name="reader">The reader for this operation.</param>
-/// <typeparam name="TRequest">The type used to represent the parameters of this operation.</typeparam>
-/// <typeparam name="TResponse">The type returned by this operation.</typeparam>
-public readonly partial struct StatefulRespCommand<TRequest, TResponse>(IRespWriter<TRequest> writer, IRespReader<TRequest, TResponse> reader)
-{
-    /// <inheritdoc/>
-    public override string? ToString() => writer.ToString();
-
-    internal readonly IRespWriter<TRequest> writer = writer;
-    internal readonly IRespReader<TRequest, TResponse> reader = reader;
-
-    /// <inheritdoc cref="ISyncMessageTransport.Send{TRequest, TResponse}(in TRequest, IWriter{TRequest}, IReader{TRequest, TResponse})"/>
-    public TResponse Send(ISyncMessageTransport transport, in TRequest request)
-        => transport.Send<TRequest, TResponse>(in request, writer, reader);
-
-    /// <inheritdoc cref="IAsyncMessageTransport.SendAsync{TRequest, TResponse}(in TRequest, IWriter{TRequest}, IReader{TRequest, TResponse}, CancellationToken)"/>
-    public ValueTask<TResponse> SendAsync(IAsyncMessageTransport transport, in TRequest request, CancellationToken token = default)
-        => transport.SendAsync<TRequest, TResponse>(in request, writer, reader, token);
-}
-
-/// <summary>
-/// Represents a RESP command that sends message of type <typeparamref name="TRequest"/>, and
 /// receives values of type <typeparamref name="TResponse"/>.
 /// </summary>
 /// <typeparam name="TRequest">The type used to represent the parameters of this operation.</typeparam>
@@ -63,14 +38,14 @@ public readonly struct RespCommand<TRequest, TResponse>
     /// <summary>
     /// Change the reader associated with this operation.
     /// </summary>
-    public RespCommand<TRequest, TNewResponse> WithReader<TNewResponse>(IRespReader<Empty, TNewResponse> reader)
+    public RespCommand<TRequest, TResult> WithReader<TResult>(IRespReader<Empty, TResult> reader)
         => new(writer, reader);
 
     /// <summary>
     /// Change the reader associated with this operation using the supplied factory.
     /// </summary>
-    public RespCommand<TRequest, TNewResponse> WithReader<TNewResponse>(RespCommandFactory factory)
-        => new(writer, factory.CreateReader<Empty, TNewResponse>() ?? throw new ArgumentNullException(nameof(factory), $"No suitable reader available for '{typeof(TNewResponse).Name}'"));
+    public RespCommand<TRequest, TResult> WithReader<TResult>(RespCommandFactory factory)
+        => new(writer, factory.CreateReader<Empty, TResult>() ?? throw new ArgumentNullException(nameof(factory), $"No suitable reader available for '{typeof(TResult).Name}'"));
 
     /// <summary>
     /// Create a new command instance.
@@ -111,6 +86,13 @@ public readonly struct RespCommand<TRequest, TResponse>
     /// <inheritdoc cref="IAsyncMessageTransport.SendAsync{TRequest, TResponse}(in TRequest, IWriter{TRequest}, IReader{Empty, TResponse}, CancellationToken)"/>
     public ValueTask<TResponse> SendAsync(IAsyncMessageTransport transport, in TRequest request, CancellationToken token = default)
         => transport.SendAsync<TRequest, TResponse>(in request, writer, reader, token);
+
+    /// <summary>
+    /// Use the existing command as a template for a stateful operation that takes an addition <typeparamref name="TState"/> input,
+    /// and a custom reader that parses the data, returning a <typeparamref name="TResult"/> value.
+    /// </summary>
+    public StatefulRespCommand<TRequest, TState, TResult> WithState<TState, TResult>(IRespReader<TState, TResult> reader)
+        => new(writer, reader);
 }
 
 /// <summary>

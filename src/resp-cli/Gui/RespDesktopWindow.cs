@@ -205,7 +205,7 @@ internal sealed class RespDesktopWindow : Window
                 return;
             }
 
-            var view = new ServerView(host, port, connect.Tls, EndOfLife);
+            var view = new ServerView(host, port, connect.Tls, connect.Handshake, EndOfLife);
             view.StatusChanged += SetStatusText;
             var tabNumber = servers.Tabs.Count;
             var tab = new Tab

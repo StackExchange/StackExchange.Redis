@@ -99,9 +99,9 @@ public readonly struct SimpleStrings : IEnumerable<SimpleString>, IEnumerable
         private int _byteIndex;
 
         /// <inheritdoc cref="IEnumerator{SimpleString}.Current"/>
-        public SimpleString Current => _current;
+        public readonly SimpleString Current => _current;
 
-        object IEnumerator.Current => _current;
+        readonly object IEnumerator.Current => _current;
 
         /// <inheritdoc cref="IEnumerator.MoveNext()" />
         public bool MoveNext()
@@ -130,6 +130,6 @@ public readonly struct SimpleStrings : IEnumerable<SimpleString>, IEnumerable
         /// <inheritdoc cref="IEnumerator.Reset" />
         public void Reset() => _elementIndex = 0;
 
-        void IDisposable.Dispose() { }
+        readonly void IDisposable.Dispose() { }
     }
 }

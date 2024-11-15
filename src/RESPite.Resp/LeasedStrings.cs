@@ -28,7 +28,6 @@ public readonly struct LeasedStrings : IDisposable, IEnumerable<SimpleString>, I
     public override int GetHashCode() => throw new NotSupportedException();
 
     private readonly LeasedString _chunk;
-    private readonly int _count;
 
     /// <summary>
     /// An empty instance.
@@ -41,7 +40,7 @@ public readonly struct LeasedStrings : IDisposable, IEnumerable<SimpleString>, I
     /// <summary>
     /// Gets the values associated with this lease.
     /// </summary>
-    public SimpleStrings Value => new(_chunk.Value, _count);
+    public SimpleStrings Value => new(_chunk.Value, Count);
 
     /// <summary>
     /// Indicates whether this is a null value.
@@ -51,12 +50,12 @@ public readonly struct LeasedStrings : IDisposable, IEnumerable<SimpleString>, I
     /// <summary>
     /// Gets the number of values in this instance.
     /// </summary>
-    public int Count => _count;
+    public int Count { get; }
 
     /// <summary>
     /// Indicates whether this is an empty instance.
     /// </summary>
-    public bool IsEmpty => _count == 0;
+    public bool IsEmpty => Count == 0;
 
     /// <inheritdoc cref="IDisposable.Dispose"/>
     public void Dispose() => _chunk.Dispose();
@@ -64,13 +63,13 @@ public readonly struct LeasedStrings : IDisposable, IEnumerable<SimpleString>, I
     private LeasedStrings(in LeasedString chunk, int count)
     {
         _chunk = chunk;
-        _count = count;
+        Count = count;
     }
 
     private LeasedStrings(int elementCount, byte[] buffer, int byteCount)
     {
         _chunk = new(buffer, byteCount);
-        _count = elementCount;
+        Count = elementCount;
     }
 
     /// <summary>
@@ -159,6 +158,7 @@ public readonly struct LeasedStrings : IDisposable, IEnumerable<SimpleString>, I
     /// <summary>
     /// Allows construction of a <see cref="LeasedStrings"/> value.
     /// </summary>
+    [SuppressMessage("Style", "IDE0032:Use auto property", Justification = "Intentionally being very explicit")]
     public struct Builder : IDisposable
     {
         private readonly int _maxCount;
@@ -169,17 +169,17 @@ public readonly struct LeasedStrings : IDisposable, IEnumerable<SimpleString>, I
         /// <summary>
         /// The number of values added to this instance.
         /// </summary>
-        public int Count => _elementIndex;
+        public readonly int Count => _elementIndex;
 
         /// <summary>
         /// The total number of bytes, excluding header tokens, written to this instance.
         /// </summary>
-        public int PayloadBytes => _byteOffset - (_elementIndex * sizeof(int));
+        public readonly int PayloadBytes => _byteOffset - (_elementIndex * sizeof(int));
 
         /// <summary>
         /// The total number of bytes, including header tokens, written to this instance.
         /// </summary>
-        public int TotalBytes => _byteOffset;
+        public readonly int TotalBytes => _byteOffset;
 
         /// <summary>
         /// Allows construction of a <see cref="LeasedStrings"/> value.
@@ -267,7 +267,7 @@ public readonly struct LeasedStrings : IDisposable, IEnumerable<SimpleString>, I
         }
 
         [MemberNotNull(nameof(_buffer))]
-        private void CheckAlive()
+        private readonly void CheckAlive()
         {
             if (_buffer is null) throw new ObjectDisposedException(nameof(Builder));
         }

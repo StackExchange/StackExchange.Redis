@@ -2,9 +2,13 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 using System.Text;
+using RESPite;
 using RESPite.Messages;
 using RESPite.Resp;
+using RESPite.Resp.Commands;
+using RESPite.Resp.KeyValueStore;
 using RESPite.Resp.Readers;
 using RESPite.Resp.Writers;
 using RESPite.Transports;
@@ -82,7 +86,7 @@ internal class ServerView : View
         base.Dispose(disposing);
     }
 
-    public async Task<bool> SendAsync(string command)
+    public async Task<bool> SendAsync(string command, Action<LeasedRespResult>? callback = null)
     {
         try
         {
@@ -100,8 +104,9 @@ internal class ServerView : View
             using LeasedStrings cmd = new(strings);
             if (cmd.IsEmpty) return false;
 
-            await transport.SendAsync(cmd, CommandWriter.AdHoc, LeasedRespResult.Reader, endOfLife).AsTask();
+            var result = await transport.SendAsync(cmd, CommandWriter.AdHoc, LeasedRespResult.Reader, endOfLife).AsTask();
             SetStatus($"Sent command: {command}");
+            callback?.Invoke(result);
             return true;
         }
         catch (Exception ex)
@@ -111,7 +116,7 @@ internal class ServerView : View
         }
     }
 
-    public ServerView(string host, int port, bool tls, CancellationToken endOfLife)
+    public ServerView(string host, int port, bool tls, bool handshake, CancellationToken endOfLife)
     {
         _performRowDelta = PerformRowDelta;
         SetStatus($"{host}, port {port}{(tls ? " (TLS)" : "")}");
@@ -146,12 +151,40 @@ internal class ServerView : View
 
             if (Transport is not null)
             {
-                Application.Invoke(() =>
+                Application.Invoke(async () =>
                 {
                     var txt = log.Text;
                     Remove(log);
                     CreateTable();
                     AddLogEntry("(Connect)", txt);
+
+                    // common courtesy operations; non-destructive, purely metadata
+                    if (handshake)
+                    {
+                        // identify ourselves to the server
+                        try
+                        {
+                            await Server.CLIENT.SETNAME.Success().SendAsync(Transport, Environment.MachineName, endOfLife);
+                            await Server.CLIENT.SETINFO.Success().SendAsync(Transport, ("LIB-NAME", "resp-cli"), endOfLife);
+                            if (typeof(Program).Assembly.GetCustomAttribute<AssemblyFileVersionAttribute>() is { } ver)
+                            {
+                                await Server.CLIENT.SETINFO.Success().SendAsync(Transport, ("LIB-VER", ver.Version), endOfLife);
+                            }
+                        }
+                        catch { }
+
+                        // ask the server about itself
+                        try
+                        {
+                            await Keys.DBSIZE.Success().SendAsync(Transport, endOfLife);
+                            await Server.INFO.Success().SendAsync(Transport, "server", endOfLife);
+                            await Server.CONFIG.GET.Success().SendAsync(Transport, "databases", endOfLife);
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.WriteLine(ex.Message);
+                        }
+                    }
                 });
             }
         });
@@ -410,5 +443,28 @@ internal class ServerView : View
             }
         }
         return true;
+    }
+}
+
+internal static class NopCommandExtensions
+{
+    /// <summary>
+    /// Accepts anything that isn't an error, without processing it.
+    /// </summary>
+    public static RespCommand<TRequest, Empty> Success<TRequest, TResponse>(this in RespCommand<TRequest, TResponse> command)
+        => command.WithReader<Empty>(EmptyReader.Instance);
+
+    private sealed class EmptyReader : IRespReader<Empty, Empty>
+    {
+        public static readonly EmptyReader Instance = new();
+        private EmptyReader() { }
+
+        public Empty Read(in Empty request, ref RespReader reader) => request;
+
+        public Empty Read(in Empty request, in ReadOnlySequence<byte> content)
+        {
+            new RespReader(content, throwOnErrorResponse: true); // just for ERR validation
+            return request;
+        }
     }
 }

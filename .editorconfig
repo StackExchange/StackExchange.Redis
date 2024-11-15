@@ -176,7 +176,7 @@ dotnet_diagnostic.SA1312.severity = none # SA1312: Variable names should begin w
 dotnet_diagnostic.SA1401.severity = silent # SA1401: Fields should be private
 dotnet_diagnostic.SA1402.severity = suggestion # SA1402: File may only contain a single type
 
-dotnet_diagnostic.SA1502.severity = silent # SA1502: Element should not be on a single line
+dotnet_diagnostic.SA1502.severity = none # SA1502: Element should not be on a single line
 dotnet_diagnostic.SA1503.severity = silent # SA1503: Braces should not be omitted
 dotnet_diagnostic.SA1516.severity = silent # SA1516: Elements should be separated by blank line
 

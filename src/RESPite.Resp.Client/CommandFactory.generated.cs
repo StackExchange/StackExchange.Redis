@@ -77,6 +77,41 @@ public partial class CommandFactory : IRespWriterFactory<SimpleString>
     }
 }
 
+public partial class CommandFactory : IRespWriterFactory<string>
+{
+    IRespWriter<string> IRespWriterFactory<string>.CreateWriter(string command) => StringWriter.Factory.Create(command);
+
+    private sealed class StringWriter(string command, ReadOnlySpan<byte> pinnedPrefix = default) : CommandWriter<string>(command, 1, pinnedPrefix)
+    {
+        public static class Factory
+        {
+            private static StringWriter? __INFO;
+
+            public static StringWriter Create(string command) => command switch
+            {
+                "INFO" => __INFO ??= new(command, "*2\r\n$4\r\nINFO\r\n"u8),
+                _ => new(command),
+            };
+        }
+
+        protected override IRespWriter<string> Create(string command) => Factory.Create(command);
+
+        public override void Write(in string request, ref RespWriter writer)
+        {
+            writer.WriteRaw(CommandAndArgCount);
+            writer.WriteBulkString(request);
+        }
+
+        public override void Write(in string request, IBufferWriter<byte> target)
+        {
+            RespWriter writer = new(target);
+            writer.WriteRaw(CommandAndArgCount);
+            writer.WriteBulkString(request);
+            writer.Flush();
+        }
+    }
+}
+
 
 public partial class CommandFactory : IRespWriterFactory<(SimpleString, SimpleString)>
 {
