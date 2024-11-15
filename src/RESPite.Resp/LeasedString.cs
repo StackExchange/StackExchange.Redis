@@ -1,4 +1,5 @@
 ﻿using System;
+using System.ComponentModel;
 
 namespace RESPite.Resp;
 
@@ -8,7 +9,15 @@ namespace RESPite.Resp;
 public readonly struct LeasedString : IDisposable
 {
     /// <inheritdoc />
-    public override string ToString() => IsNull ? "" : Value.ToString();
+    [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
+    public override bool Equals(object? obj) => throw new NotSupportedException();
+
+    /// <inheritdoc />
+    [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
+    public override int GetHashCode() => throw new NotSupportedException();
+
+    /// <inheritdoc />
+    public override string? ToString() => Value.ToString();
 
     private readonly Lease<byte> _lease;
 
@@ -28,10 +37,8 @@ public readonly struct LeasedString : IDisposable
     /// </summary>
     public static LeasedString Empty { get; } = new(0, out var _);
 
-    /// <summary>
-    /// Gets the leased value as a <see cref="SimpleString"/>.
-    /// </summary>
-    public static implicit operator SimpleString(LeasedString value) => value.Value;
+    /// <inheritdoc cref="Value"/>
+    public static implicit operator SimpleString(in LeasedString value) => value.Value;
 
     /// <summary>
     /// Create a new leased buffer of the requested length.
@@ -41,6 +48,9 @@ public readonly struct LeasedString : IDisposable
         _lease = new Lease<byte>(length);
         memory = _lease.Memory;
     }
+
+    internal LeasedString(byte[] buffer, int length)
+        => _lease = new Lease<byte>(buffer, length);
 
     /// <inheritdoc cref="IDisposable.Dispose"/>
     public void Dispose() => _lease.Dispose();

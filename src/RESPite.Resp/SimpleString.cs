@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Buffers;
+using System.Buffers.Binary;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -10,10 +12,18 @@ using RESPite.Internal;
 namespace RESPite.Resp;
 
 /// <summary>
-/// Represents a RESP key as either <see cref="byte"/> or <see cref="char"/> based data.
+/// Represents an opaque string as either <see cref="byte"/> or <see cref="char"/> based data.
 /// </summary>
 public readonly struct SimpleString
 {
+    /// <inheritdoc />
+    [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
+    public override bool Equals(object? obj) => throw new NotSupportedException();
+
+    /// <inheritdoc />
+    [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
+    public override int GetHashCode() => throw new NotSupportedException();
+
     private readonly object? _obj1, _obj2;
     private readonly int _start, _length;
 
@@ -22,9 +32,20 @@ public readonly struct SimpleString
     /// </summary>
     public bool IsSingleSegment => _obj2 is null;
 
+    /// <summary>
+    /// Gets whether this is a string of <see cref="byte"/> based data.
+    /// </summary>
+    public bool IsBytes => _obj1 is byte[] or MemoryManager<byte> or ReadOnlySequenceSegment<byte>;
+
+    /// <summary>
+    /// Gets whether this is a string of <see cref="char"/> based data.
+    /// </summary>
+    public bool IsChars => _obj1 is string or char[] or MemoryManager<char> or ReadOnlySequenceSegment<char>;
+
     /// <inheritdoc />
-    public override string ToString()
+    public override string? ToString()
     {
+        if (IsNull) return null;
         if (IsEmpty) return "";
         if (IsSingleSegment)
         {
@@ -72,26 +93,18 @@ public readonly struct SimpleString
         }
     }
 
-    /// <inheritdoc />
-    [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
-    public override int GetHashCode() => throw new NotSupportedException();
-
-    /// <inheritdoc />
-    [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
-    public override bool Equals(object? obj) => throw new NotSupportedException();
-
     /// <summary>
-    /// Indicates whehter this an empty key.
+    /// Indicates whehter this an empty string.
     /// </summary>
     public bool IsEmpty => _length == 0 & _obj2 is null;
 
     /// <summary>
-    /// Indicates whehter this a null key.
+    /// Indicates whether this a null string.
     /// </summary>
     public bool IsNull => _obj1 is null;
 
     /// <summary>
-    /// Attempt to get the contents of the key.
+    /// Attempt to get the contents of the string.
     /// </summary>
     public bool TryGetBytes(out ReadOnlySpan<byte> span)
     {
@@ -115,7 +128,7 @@ public readonly struct SimpleString
     }
 
     /// <summary>
-    /// Attempt to get the contents of the key.
+    /// Attempt to get the contents of the string.
     /// </summary>
     public bool TryGetBytes(out ReadOnlyMemory<byte> memory)
     {
@@ -139,13 +152,13 @@ public readonly struct SimpleString
     }
 
     /// <summary>
-    /// Attempt to get the contents of the key.
+    /// Attempt to get the contents of the string.
     /// </summary>
     public bool TryGetBytes(out ReadOnlySequence<byte> sequence)
     {
-        if (_obj1 is ReadOnlySequenceSegment<byte> start && _obj2 is ReadOnlySequenceSegment<byte> end)
+        if (_obj1 is ReadOnlySequenceSegment<byte> start)
         {
-            sequence = new(start, _start, end, _length);
+            sequence = new(start, _start, (ReadOnlySequenceSegment<byte>)_obj2!, _length);
             return true;
         }
         if (IsEmpty)
@@ -163,7 +176,7 @@ public readonly struct SimpleString
     }
 
     /// <summary>
-    /// Attempt to get the contents of the key.
+    /// Attempt to get the contents of the string.
     /// </summary>
     public bool TryGetChars(out ReadOnlySpan<char> span)
     {
@@ -193,7 +206,7 @@ public readonly struct SimpleString
     }
 
     /// <summary>
-    /// Attempt to get the contents of the key.
+    /// Attempt to get the contents of the string.
     /// </summary>
     public bool TryGetChars(out ReadOnlyMemory<char> memory)
     {
@@ -223,7 +236,7 @@ public readonly struct SimpleString
     }
 
     /// <summary>
-    /// Attempt to get the contents of the key.
+    /// Attempt to get the contents of the string.
     /// </summary>
     public bool TryGetChars(out ReadOnlySequence<char> sequence)
     {
@@ -388,8 +401,8 @@ public readonly struct SimpleString
             _obj2 = null;
             _start = offset;
             _length = count;
-            if (offset < 0 || offset >= value.Length) ThrowArgumentOutOfRange(nameof(offset));
-            if (count < 0 || offset + count >= value.Length) ThrowArgumentOutOfRange(nameof(count));
+            if (offset < 0 || offset >= value.Length) ThrowOffset();
+            if (count < 0 || offset + count >= value.Length) ThrowCount();
         }
     }
 
@@ -412,8 +425,8 @@ public readonly struct SimpleString
             _obj2 = null;
             _start = offset;
             _length = count;
-            if (offset < 0 || offset >= value.Length) ThrowArgumentOutOfRange(nameof(offset));
-            if (count < 0 || offset + count >= value.Length) ThrowArgumentOutOfRange(nameof(count));
+            if (offset < 0 || offset >= value.Length) ThrowOffset();
+            if (count < 0 || offset + count >= value.Length) ThrowCount();
         }
     }
 
@@ -555,5 +568,177 @@ public readonly struct SimpleString
     private static SimpleString ThrowMemoryKind() => throw new ArgumentException("Unexpected memory kind", "value");
 
     [DoesNotReturn, MethodImpl(MethodImplOptions.NoInlining)]
-    private static void ThrowArgumentOutOfRange(string parameterName) => throw new ArgumentOutOfRangeException(parameterName);
+    private static void ThrowOffset() => throw new ArgumentOutOfRangeException("offset");
+
+    [DoesNotReturn, MethodImpl(MethodImplOptions.NoInlining)]
+    private static void ThrowCount() => throw new ArgumentOutOfRangeException("count");
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private ReadOnlySequence<byte> GetByteSequencePrechecked()
+    {
+        Debug.Assert(_obj1 is ReadOnlySequenceSegment<byte>, $"{nameof(_obj1)} should have been prechecked");
+        Debug.Assert(_obj2 is ReadOnlySequenceSegment<byte>, $"{nameof(_obj2)} should be a ROSS-byte");
+
+        ReadOnlySequence<byte> value = new(Unsafe.As<ReadOnlySequenceSegment<byte>>(_obj1!), _start, Unsafe.As<ReadOnlySequenceSegment<byte>>(_obj2!), _length);
+        Debug.Assert(!(value.IsEmpty || value.IsSingleSegment), "should already have excluded trivial sequences during .ctor");
+        return value;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private ReadOnlySequence<char> GetCharSequencePrechecked()
+    {
+        Debug.Assert(_obj1 is ReadOnlySequenceSegment<char>, $"{nameof(_obj1)} should have been prechecked");
+        Debug.Assert(_obj2 is ReadOnlySequenceSegment<char>, $"{nameof(_obj2)} should be a ROSS-char");
+
+        ReadOnlySequence<char> value = new(Unsafe.As<ReadOnlySequenceSegment<char>>(_obj1!), _start, Unsafe.As<ReadOnlySequenceSegment<char>>(_obj2!), _length);
+        Debug.Assert(!(value.IsEmpty || value.IsSingleSegment), "should already have excluded trivial sequences during .ctor");
+        return value;
+    }
+
+    /// <summary>
+    /// Gets the number of bytes represented by this content; for <see cref="byte"/> based data, this is direct; for <see cref="char"/> based data,
+    /// this is calculated using <see cref="UTF8Encoding"/>.
+    /// </summary>
+    public int GetByteCount() => _obj1 switch
+    {
+        null => 0,
+        byte[] or MemoryManager<byte> => _length,
+        ReadOnlySequenceSegment<byte> bseg => checked((int)GetByteSequencePrechecked().Length),
+        string s => Constants.UTF8.GetByteCount(s.AsSpan(_start, _length)),
+        char[] c => Constants.UTF8.GetByteCount(c, _start, _length),
+        MemoryManager<char> m => Constants.UTF8.GetByteCount(m.GetSpan().Slice(_start, _length)),
+        ReadOnlySequenceSegment<char> cseg => SlowGetByteCountFromCharSequencePrechecked(),
+        _ => ThrowInvalidContent(),
+    };
+
+    /// <summary>
+    /// Write this value to the provided <see cref="Span{Byte}"/>.
+    /// </summary>
+    public int CopyTo(Span<byte> destination)
+    {
+        if (TryGetBytes(span: out var bytes))
+        {
+            bytes.CopyTo(destination);
+            return bytes.Length;
+        }
+        else if (_obj1 is ReadOnlySequenceSegment<byte>)
+        {
+            var seq = GetByteSequencePrechecked();
+            seq.CopyTo(destination);
+            return (int)seq.Length;
+        }
+        else if (TryGetChars(span: out var chars))
+        {
+            return Constants.UTF8.GetBytes(chars, destination);
+        }
+        else if (_obj1 is ReadOnlySequenceSegment<char>)
+        {
+            return SlowCopyToFromCharSequencePrechecked(destination);
+        }
+        else
+        {
+            ThrowInvalidContent();
+            return 0;
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private int SlowGetByteCountFromCharSequencePrechecked()
+    {
+        var value = GetCharSequencePrechecked();
+        int tally = 0;
+        foreach (var chunk in value)
+        {
+            var chunkSize = Constants.UTF8.GetByteCount(chunk.Span);
+            checked
+            {
+                tally += chunkSize;
+            }
+        }
+        return tally;
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private int SlowCopyToFromCharSequencePrechecked(Span<byte> destination)
+    {
+        var value = GetCharSequencePrechecked();
+        int tally = 0;
+        foreach (var chunk in value)
+        {
+            var chunkSize = Constants.UTF8.GetBytes(chunk.Span, destination);
+            checked
+            {
+                tally += chunkSize;
+            }
+            destination = destination.Slice(chunkSize);
+        }
+        return tally;
+    }
+
+    internal int ReadLitteEndianInt64(int offset)
+    {
+        switch (_obj1)
+        {
+            case byte[] arr:
+                if (offset + sizeof(int) > _length) ThrowOffset();
+                return BinaryPrimitives.ReadInt32LittleEndian(new(arr, _start + offset, sizeof(int)));
+            case MemoryManager<byte> mgr:
+                if (offset + sizeof(int) > _length) ThrowOffset();
+                return BinaryPrimitives.ReadInt32LittleEndian(mgr.GetSpan().Slice(_start + offset, sizeof(int)));
+            case ReadOnlySequenceSegment<byte> seg:
+                return SlowReadLitteEndianInt32Prechecked(offset);
+            default:
+                return ThrowInvalidContent();
+        }
+    }
+
+    private int SlowReadLitteEndianInt32Prechecked(int offset)
+    {
+        var value = GetByteSequencePrechecked();
+        Span<byte> scratch = stackalloc byte[sizeof(int)];
+        value.Slice(offset, sizeof(int)).CopyTo(scratch);
+        return BinaryPrimitives.ReadInt32LittleEndian(scratch);
+    }
+
+    [DoesNotReturn, MethodImpl(MethodImplOptions.NoInlining)]
+    private int ThrowInvalidContent([CallerMemberName] string operation = "")
+        => throw new InvalidOperationException($"Invalid content for {operation}: {_obj1?.GetType().Name ?? "null"}");
+
+    /// <summary>
+    /// Get a substring of a <see cref="byte"/> based payload.
+    /// </summary>
+    public SimpleString SliceBytes(int offset, int count) => new(in this, offset, count);
+
+    /// <summary>
+    /// Performs a slice on *exclusively* byte data.
+    /// </summary>
+    private SimpleString(in SimpleString source, int offset, int count, [CallerMemberName] string caller = "")
+    {
+        if (source.IsChars) ThrowInvalidContent(caller);
+        if (offset < 0) ThrowOffset();
+        if (count < 0) ThrowCount();
+        var bytes = source.GetByteCount();
+        if (offset + count > bytes) ThrowCount();
+        if (count == 0)
+        {
+            this = source.IsNull ? default : Empty;
+            return;
+        }
+
+        if (source._obj1 is byte[] or MemoryManager<byte>)
+        {
+            this = source;
+            _start += offset;
+            _length = count;
+            return;
+        }
+
+        if (source._obj1 is ReadOnlySequenceSegment<byte>)
+        {
+            this = new(GetByteSequencePrechecked().Slice(offset, count));
+        }
+
+        ThrowInvalidContent(caller);
+        this = default; // not reached
+    }
 }

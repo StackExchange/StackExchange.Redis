@@ -24,23 +24,6 @@ public abstract class CommandWriter
     private byte[]? _lazyPrefix;
 
     /// <summary>
-    /// Represents an inactive writer for type <typeparamref name="TRequest"/>.
-    /// </summary>
-    public static IRespWriter<TRequest> Disabled<TRequest>() => DisabledWriter<TRequest>.Instance;
-
-    private sealed class DisabledWriter<TRequest> : IRespWriter<TRequest>
-    {
-        public static readonly DisabledWriter<TRequest> Instance = new();
-
-        IRespWriter<TRequest> IRespWriter<TRequest>.WithAlias(string command)
-            => string.IsNullOrWhiteSpace(command) ? this : throw new InvalidOperationException("This command is disabled (aliased to empty).");
-        void IRespWriter<TRequest>.Write(in TRequest request, ref RespWriter writer) => throw new InvalidOperationException("This command is disabled (aliased to empty).");
-        void IWriter<TRequest>.Write(in TRequest request, IBufferWriter<byte> target) => throw new InvalidOperationException("This command is disabled (aliased to empty).");
-
-        public override string ToString() => "(disabled)";
-    }
-
-    /// <summary>
     /// The number of parameters associated with this command, if it is fixed, or <c>-1</c> otherwise. Note that this is <b>excluding</b> the <see cref="Command"/>, i.e.
     /// a RESP command such as <c>"GET mykey</c> would report <c>1</c> here.
     /// </summary>
@@ -61,8 +44,7 @@ public abstract class CommandWriter
     public unsafe CommandWriter(string command, int argCount, ReadOnlySpan<byte> pinnedPrefix = default)
     {
         ArgCount = argCount;
-        if (string.IsNullOrWhiteSpace(command)) ThrowEmptyCommand();
-        Command = command.Trim();
+        Command = string.IsNullOrWhiteSpace(command) ? "" : command.Trim();
         if (!pinnedPrefix.IsEmpty)
         {
             _pinnedPrefix = (byte*)Unsafe.AsPointer(ref MemoryMarshal.GetReference(pinnedPrefix));
@@ -78,8 +60,6 @@ public abstract class CommandWriter
         {
             VerifyPrefix(); // always verify (will be in a different assembly; *this assembly* might be RELEASE, but can't trust caller
         }
-
-        static void ThrowEmptyCommand() => throw new ArgumentException($"The command cannot be empty; for disabled commands, use {nameof(CommandWriter)}.{nameof(CommandWriter.Disabled)}", nameof(command));
     }
 
     private unsafe byte[] CreatePrefix()
@@ -158,7 +138,7 @@ public abstract class CommandWriter
         protected override IRespWriter<LeasedStrings> Create(string command) => this;
         public override void Write(in LeasedStrings request, ref RespWriter writer)
         {
-            writer.WriteArray(request.Length);
+            writer.WriteArray(request.Count);
             foreach (var value in request)
             {
                 writer.WriteBulkString(value);
@@ -173,6 +153,8 @@ public abstract class CommandWriter
 /// <remarks>Implementers of fixed-length commands must (for non-zero arg-counts) override <see cref="WriteArgs(in TRequest, ref RespWriter)"/>. Fully dynamic implementations must override <see cref="WriteArgs(in TRequest, ref RespWriter)"/> and write the command manually. All implementations may choose to override <see cref="WriteArgs(in TRequest, ref RespWriter)"/>, to minimize virtual calls.</remarks>
 public abstract class CommandWriter<TRequest> : CommandWriter, IRespWriter<TRequest>
 {
+    bool IRespWriter<TRequest>.IsDisabled => Command.Length == 0;
+
     /// <summary>
     /// Create a new instance, (optionally including an externally pinned/computed command header) for the specified <paramref name="command"/>.
     /// </summary>
@@ -205,8 +187,8 @@ public abstract class CommandWriter<TRequest> : CommandWriter, IRespWriter<TRequ
 
     IRespWriter<TRequest> IRespWriter<TRequest>.WithAlias(string command)
     {
+        command = string.IsNullOrWhiteSpace(command) ? "" : command.Trim();
         if (command == Command) return this;
-        if (string.IsNullOrWhiteSpace(command)) return Disabled<TRequest>();
         return Create(command);
     }
 

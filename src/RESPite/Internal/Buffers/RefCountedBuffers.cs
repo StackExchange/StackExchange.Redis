@@ -2,6 +2,7 @@
 using System.Buffers;
 using System.Collections;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 
@@ -30,9 +31,11 @@ internal readonly struct RefCountedBuffers<T> : IDisposable, IEnumerable<ReadOnl
     private static readonly RefCountedBuffers<T> __disposed = new(default, [], -2);
 
     /// <inheritdoc/>
+    [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
     public override bool Equals(object? obj) => throw new NotSupportedException();
 
     /// <inheritdoc/>
+    [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
     public override int GetHashCode() => throw new NotSupportedException();
 
     /// <inheritdoc/>

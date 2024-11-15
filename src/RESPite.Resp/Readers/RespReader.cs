@@ -1046,33 +1046,43 @@ public ref struct RespReader
         DemandAggregate();
         if (IsNull) return default;
 
-        var count = ChildCount;
-        if (count == 0) return LeasedStrings.Empty;
+        var childCount = ChildCount;
+        if (childCount == 0) return LeasedStrings.Empty;
 
-        var builder = new LeasedStrings.Builder(count);
+        // find the total payload length first, for efficient LeasedStrings usage
+        long totalBytes = 0;
+        {
+            // scope here to make sure we don't access copy again after
+            RespReader copy = this;
+            for (int i = 0; i < childCount; i++)
+            {
+                copy.ReadNextScalar();
+                copy.Demand(RespPrefix.BulkString);
+                totalBytes += copy.ScalarLength;
+            }
+        }
+
+        // now snag the data
+        var builder = new LeasedStrings.Builder(childCount, checked((int)totalBytes));
         try
         {
-            for (int i = 0; i < count; i++)
+            for (int i = 0; i < childCount; i++)
             {
                 ReadNextScalar();
-                Demand(RespPrefix.BulkString);
-
-                if (IsNull)
-                {
-                    builder.AddNull();
-                }
-                else
-                {
-                    var span = builder.Add(ScalarLength);
-                    CopyTo(span);
-                }
+                int written = CopyTo(builder.Add(ScalarLength, clear: false));
+                Debug.Assert(written == ScalarLength, "copy mismatch");
             }
-            return builder.Create();
+            Debug.Assert(builder.Count == childCount, "all child elements written?");
+            Debug.Assert(builder.PayloadBytes == totalBytes, "all paylaod data written?");
+
+            var result = builder.Create();
+            Debug.Assert(result.Count == childCount);
+            return result;
         }
         catch (Exception ex)
         {
-            Debug.Write(ex.Message);
             builder.Dispose();
+            Debug.Write(ex.Message);
             throw;
         }
     }

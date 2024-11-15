@@ -73,12 +73,12 @@ internal static class RespClient
             {
                 if (command is null) break; // EOF
 
-                LeasedStrings.Builder builder = default;
-                foreach (var item in Utils.Tokenize(command))
+                List<SimpleString> strings = new List<SimpleString>();
+                foreach (var value in Utils.Tokenize(command))
                 {
-                    builder.Add(item);
+                    strings.Add(value);
                 }
-                using var cmd = builder.Create();
+                using LeasedStrings cmd = new(strings);
                 if (!cmd.IsEmpty)
                 {
                     WriteResult(await transport.SendAsync(cmd, CommandWriter.AdHoc, LeasedRespResult.Reader));

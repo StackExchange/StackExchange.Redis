@@ -47,14 +47,14 @@ internal class KeysDialog : ServerToolDialog
 
                 foreach (var key in reply.Keys)
                 {
-                    _rows.Add(key.ToString());
+                    _rows.Add(key.ToString() ?? "");
                 }
 
                 _keys.SetNeedsDisplay();
 
                 StatusText = $"Fetching types...";
 
-                int end = start + reply.Keys.Length;
+                int end = start + reply.Keys.Count;
                 for (int i = start; i < end; i++)
                 {
                     var obj = _rows[i];

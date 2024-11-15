@@ -8,6 +8,11 @@ namespace RESPite.Resp.Writers;
 public interface IRespWriter<TRequest> : IWriter<TRequest>
 {
     /// <summary>
+    /// Indicates whether this command has been deactivated (aliased to an empty string).
+    /// </summary>
+    bool IsDisabled { get; }
+
+    /// <summary>
     /// Creates an aliased version of this command.
     /// </summary>
     IRespWriter<TRequest> WithAlias(string command);

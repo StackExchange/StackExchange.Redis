@@ -48,6 +48,30 @@ public readonly struct RespCommand<TRequest, TResponse>
     internal readonly IRespWriter<TRequest> writer;
     internal readonly IRespReader<Empty, TResponse> reader;
 
+    private RespCommand(IRespWriter<TRequest> writer, IRespReader<Empty, TResponse> reader)
+    {
+        this.writer = writer;
+        this.reader = reader;
+    }
+
+    /// <summary>
+    /// Change the command associated with this operation.
+    /// </summary>
+    public RespCommand<TRequest, TResponse> WithAlias(string command)
+        => new(writer.WithAlias(command), reader);
+
+    /// <summary>
+    /// Change the reader associated with this operation.
+    /// </summary>
+    public RespCommand<TRequest, TNewResponse> WithReader<TNewResponse>(IRespReader<Empty, TNewResponse> reader)
+        => new(writer, reader);
+
+    /// <summary>
+    /// Change the reader associated with this operation using the supplied factory.
+    /// </summary>
+    public RespCommand<TRequest, TNewResponse> WithReader<TNewResponse>(RespCommandFactory factory)
+        => new(writer, factory.CreateReader<Empty, TNewResponse>() ?? throw new ArgumentNullException(nameof(factory), $"No suitable reader available for '{typeof(TNewResponse).Name}'"));
+
     /// <summary>
     /// Create a new command instance.
     /// </summary>
@@ -69,11 +93,7 @@ public readonly struct RespCommand<TRequest, TResponse>
             throw new ArgumentNullException(nameof(factory), "A factory must be provided if the reader or writer is omitted");
         }
         this.reader = reader ?? factory.CreateReader<Empty, TResponse>() ?? throw new ArgumentNullException(nameof(reader), $"No suitable reader available for '{typeof(TResponse).Name}'");
-        if (string.IsNullOrWhiteSpace(command))
-        {
-            this.writer = CommandWriter.Disabled<TRequest>();
-        }
-        else if (writer is null)
+        if (writer is null)
         {
             writer = factory.CreateWriter<TRequest>(command);
         }

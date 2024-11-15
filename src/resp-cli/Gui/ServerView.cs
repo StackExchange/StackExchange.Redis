@@ -92,12 +92,12 @@ internal class ServerView : View
                 return false;
             }
 
-            LeasedStrings.Builder builder = default;
-            foreach (var item in Utils.Tokenize(command))
+            List<SimpleString> strings = new List<SimpleString>();
+            foreach (var value in Utils.Tokenize(command))
             {
-                builder.Add(item);
+                strings.Add(value);
             }
-            using var cmd = builder.Create();
+            using LeasedStrings cmd = new(strings);
             if (cmd.IsEmpty) return false;
 
             await transport.SendAsync(cmd, CommandWriter.AdHoc, LeasedRespResult.Reader, endOfLife).AsTask();

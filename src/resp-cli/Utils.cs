@@ -14,7 +14,7 @@ namespace StackExchange.Redis;
 
 public static class Utils
 {
-    internal static string Truncate(string value, int length)
+    internal static string Truncate(string? value, int length)
     {
         value ??= "";
         if (value.Length > length)
