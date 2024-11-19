@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.IO.Pipelines;
@@ -25,7 +26,6 @@ public class ConfigTests : TestBase
     public ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
 
     public Version DefaultVersion = new(3, 0, 0);
-    public Version DefaultAzureVersion = new(6, 0, 0);
 
     [Fact]
     public void ExpectedFields()
@@ -132,12 +132,21 @@ public class ConfigTests : TestBase
         Assert.Throws<ArgumentOutOfRangeException>(() => ConfigurationOptions.Parse("myhost,sslProtocols=InvalidSslProtocol"));
     }
 
-    [Fact]
-    public void ConfigurationOptionsDefaultForAzure()
+    [Theory]
+    [InlineData("contoso.redis.cache.windows.net:6380", true)]
+    [InlineData("contoso.REDIS.CACHE.chinacloudapi.cn:6380", true)] // added a few upper case chars to validate comparison
+    [InlineData("contoso.redis.cache.usgovcloudapi.net:6380", true)]
+    [InlineData("contoso.redisenterprise.cache.azure.net:10000", false)]
+    [InlineData("contoso.redis.azure.net:10000", true)]
+    [InlineData("contoso.redis.chinacloudapi.cn:10000", true)]
+    [InlineData("contoso.redis.usgovcloudapi.net:10000", true)]
+    public void ConfigurationOptionsDefaultForAzure(string hostAndPort, bool sslShouldBeEnabled)
     {
-        var options = ConfigurationOptions.Parse("contoso.redis.cache.windows.net");
-        Assert.True(options.DefaultVersion.Equals(DefaultAzureVersion));
+        Version defaultAzureVersion = new(6, 0, 0);
+        var options = ConfigurationOptions.Parse(hostAndPort);
+        Assert.True(options.DefaultVersion.Equals(defaultAzureVersion));
         Assert.False(options.AbortOnConnectFail);
+        Assert.Equal(sslShouldBeEnabled, options.Ssl);
     }
 
     [Fact]
@@ -146,31 +155,6 @@ public class ConfigTests : TestBase
         var options = ConfigurationOptions.Parse("contoso.redis.cache.windows.net,abortConnect=true, version=2.1.1");
         Assert.True(options.DefaultVersion.Equals(new Version(2, 1, 1)));
         Assert.True(options.AbortOnConnectFail);
-    }
-
-    [Fact]
-    public void ConfigurationOptionsDefaultForAzureChina()
-    {
-        // added a few upper case chars to validate comparison
-        var options = ConfigurationOptions.Parse("contoso.REDIS.CACHE.chinacloudapi.cn");
-        Assert.True(options.DefaultVersion.Equals(DefaultAzureVersion));
-        Assert.False(options.AbortOnConnectFail);
-    }
-
-    [Fact]
-    public void ConfigurationOptionsDefaultForAzureGermany()
-    {
-        var options = ConfigurationOptions.Parse("contoso.redis.cache.cloudapi.de");
-        Assert.True(options.DefaultVersion.Equals(DefaultAzureVersion));
-        Assert.False(options.AbortOnConnectFail);
-    }
-
-    [Fact]
-    public void ConfigurationOptionsDefaultForAzureUSGov()
-    {
-        var options = ConfigurationOptions.Parse("contoso.redis.cache.usgovcloudapi.net");
-        Assert.True(options.DefaultVersion.Equals(DefaultAzureVersion));
-        Assert.False(options.AbortOnConnectFail);
     }
 
     [Fact]
