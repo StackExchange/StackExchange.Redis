@@ -92,15 +92,15 @@ public class ConfigTests : TestBase
     [Fact]
     public void SslProtocols_SingleValue()
     {
-        var options = ConfigurationOptions.Parse("myhost,sslProtocols=Tls11");
-        Assert.Equal(SslProtocols.Tls11, options.SslProtocols.GetValueOrDefault());
+        var options = ConfigurationOptions.Parse("myhost,sslProtocols=Tls12");
+        Assert.Equal(SslProtocols.Tls12, options.SslProtocols.GetValueOrDefault());
     }
 
     [Fact]
     public void SslProtocols_MultipleValues()
     {
-        var options = ConfigurationOptions.Parse("myhost,sslProtocols=Tls11|Tls12");
-        Assert.Equal(SslProtocols.Tls11 | SslProtocols.Tls12, options.SslProtocols.GetValueOrDefault());
+        var options = ConfigurationOptions.Parse("myhost,sslProtocols=Tls12|Tls13");
+        Assert.Equal(SslProtocols.Tls12 | SslProtocols.Tls13, options.SslProtocols.GetValueOrDefault());
     }
 
     [Theory]
@@ -121,9 +121,9 @@ public class ConfigTests : TestBase
         // The below scenario is for cases where the *targeted*
         // .NET framework version (e.g. .NET 4.0) doesn't define an enum value (e.g. Tls11)
         // but the OS has been patched with support
-        const int integerValue = (int)(SslProtocols.Tls11 | SslProtocols.Tls12);
+        const int integerValue = (int)(SslProtocols.Tls12 | SslProtocols.Tls13);
         var options = ConfigurationOptions.Parse("myhost,sslProtocols=" + integerValue);
-        Assert.Equal(SslProtocols.Tls11 | SslProtocols.Tls12, options.SslProtocols.GetValueOrDefault());
+        Assert.Equal(SslProtocols.Tls12 | SslProtocols.Tls13, options.SslProtocols.GetValueOrDefault());
     }
 
     [Fact]
@@ -203,7 +203,7 @@ public class ConfigTests : TestBase
     public void CanParseAndFormatUnixDomainSocket()
     {
         const string ConfigString = "!/some/path,allowAdmin=True";
-#if NET472
+#if NETFRAMEWORK
         var ex = Assert.Throws<PlatformNotSupportedException>(() => ConfigurationOptions.Parse(ConfigString));
         Assert.Equal("Unix domain sockets require .NET Core 3 or above", ex.Message);
 #else
@@ -793,6 +793,6 @@ public class ConfigTests : TestBase
         Assert.Equal(cs, clone.ToString());
 
         var parsed = ConfigurationOptions.Parse(cs);
-        Assert.Equal(expected, options.HighIntegrity);
+        Assert.Equal(expected, parsed.HighIntegrity);
     }
 }

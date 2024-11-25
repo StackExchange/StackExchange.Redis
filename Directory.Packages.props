@@ -1,7 +1,8 @@
 <Project>
   <ItemGroup>
     <!-- Packages we depend on for StackExchange.Redis, upgrades can create binding redirect pain! -->
-    <PackageVersion Include="Microsoft.Bcl.AsyncInterfaces" Version="5.0.0" />
+    <PackageVersion Include="Microsoft.Bcl.AsyncInterfaces" Version="6.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="6.0.0" />
     <PackageVersion Include="Pipelines.Sockets.Unofficial" Version="2.2.8" />
     <PackageVersion Include="System.Diagnostics.PerformanceCounter" Version="5.0.0" />
     <PackageVersion Include="System.Threading.Channels" Version="5.0.0" />
@@ -9,22 +10,23 @@
     <PackageVersion Include="System.IO.Compression" Version="4.3.0" />
     
     <!-- Packages only used in the solution, upgrade at will -->
-    <PackageVersion Include="BenchmarkDotNet" Version="0.13.1" />
+    <PackageVersion Include="BenchmarkDotNet" Version="0.14.0" />
     <PackageVersion Include="GitHubActionsTestLogger" Version="2.4.1" />
     <PackageVersion Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" Version="3.3.4" />
-    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="6.0.0" />
-    <PackageVersion Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.2" />
-    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.10.0" />
+    <PackageVersion Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
     <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="8.0.0" />
-    <PackageVersion Include="Nerdbank.GitVersioning" Version="3.6.141" />
+    <PackageVersion Include="Nerdbank.GitVersioning" Version="3.6.146" />
     <PackageVersion Include="Newtonsoft.Json" Version="13.0.3" />
-    <PackageVersion Include="NSubstitute" Version="5.1.0" />
+    <PackageVersion Include="NSubstitute" Version="5.3.0" />
     <PackageVersion Include="StackExchange.Redis" Version="2.6.96" />
     <PackageVersion Include="StyleCop.Analyzers" Version="1.2.0-beta.556" />
+    <PackageVersion Include="System.Collections.Immutable" Version="9.0.0" />
+    <PackageVersion Include="System.Reflection.Metadata" Version="9.0.0" />    
     <!-- For binding redirect testing, main package gets this transitively -->
-    <PackageVersion Include="System.IO.Pipelines" Version="5.0.1" />
-    <PackageVersion Include="System.Runtime.Caching" Version="5.0.0" />
-    <PackageVersion Include="xunit" Version="2.9.0" />
+    <PackageVersion Include="System.IO.Pipelines" Version="9.0.0" />
+    <PackageVersion Include="System.Runtime.Caching" Version="9.0.0" />
+    <PackageVersion Include="xunit" Version="2.9.2" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="2.8.2" />
   </ItemGroup>
 </Project>
