@@ -55,7 +55,7 @@ public class FormatTests : TestBase
 
     [Theory]
     [InlineData(CommandFlags.None, "None")]
-#if NET472
+#if NETFRAMEWORK
     [InlineData(CommandFlags.PreferReplica, "PreferMaster, PreferReplica")] // 2-bit flag is hit-and-miss
     [InlineData(CommandFlags.DemandReplica, "PreferMaster, DemandReplica")] // 2-bit flag is hit-and-miss
 #else
