@@ -10,6 +10,7 @@ Current package versions:
 
 - Format IPv6 endpoints correctly when rewriting configration strings ([#2813 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2813))
 - Update default Redis version from 4.0.0 to 6.0.0 for Azure Redis resources ([#2810 by philon-msft](https://github.com/StackExchange/StackExchange.Redis/pull/2810))
+- Detect Azure Managed Redis caches and tune default connection settings for them ([#2818 by philon-msft](https://github.com/StackExchange/StackExchange.Redis/pull/2818))
 
 ## 2.8.16
 
