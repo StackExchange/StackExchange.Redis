@@ -62,8 +62,14 @@ public class FormatTests : TestBase
     [InlineData(CommandFlags.PreferReplica, "PreferReplica")] // 2-bit flag is hit-and-miss
     [InlineData(CommandFlags.DemandReplica, "DemandReplica")] // 2-bit flag is hit-and-miss
 #endif
+
+#if NET8_0_OR_GREATER
+    [InlineData(CommandFlags.PreferReplica | CommandFlags.FireAndForget, "FireAndForget, PreferReplica")] // 2-bit flag is hit-and-miss
+    [InlineData(CommandFlags.DemandReplica | CommandFlags.FireAndForget, "FireAndForget, DemandReplica")] // 2-bit flag is hit-and-miss
+#else
     [InlineData(CommandFlags.PreferReplica | CommandFlags.FireAndForget, "PreferMaster, FireAndForget, PreferReplica")] // 2-bit flag is hit-and-miss
     [InlineData(CommandFlags.DemandReplica | CommandFlags.FireAndForget, "PreferMaster, FireAndForget, DemandReplica")] // 2-bit flag is hit-and-miss
+#endif
     public void CommandFlagsFormatting(CommandFlags value, string expected)
         => Assert.Equal(expected, value.ToString());
 
