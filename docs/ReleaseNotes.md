@@ -7,10 +7,14 @@ Current package versions:
 | [![StackExchange.Redis](https://img.shields.io/nuget/v/StackExchange.Redis.svg)](https://www.nuget.org/packages/StackExchange.Redis/) | [![StackExchange.Redis](https://img.shields.io/nuget/vpre/StackExchange.Redis.svg)](https://www.nuget.org/packages/StackExchange.Redis/) | [![StackExchange.Redis MyGet](https://img.shields.io/myget/stackoverflow/vpre/StackExchange.Redis.svg)](https://www.myget.org/feed/stackoverflow/package/nuget/StackExchange.Redis) |
 
 ## Unreleased
+No pending unreleased changes.
+
+## 2.8.22
 
 - Format IPv6 endpoints correctly when rewriting configration strings ([#2813 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2813))
-- Update default Redis version from 4.0.0 to 6.0.0 for Azure Redis resources ([#2810 by philon-msft](https://github.com/StackExchange/StackExchange.Redis/pull/2810))
+- Update default Redis version from `4.0.0` to `6.0.0` for Azure Redis resources ([#2810 by philon-msft](https://github.com/StackExchange/StackExchange.Redis/pull/2810))
 - Detect Azure Managed Redis caches and tune default connection settings for them ([#2818 by philon-msft](https://github.com/StackExchange/StackExchange.Redis/pull/2818))
+- Bump `Microsoft.Bcl.AsyncInterfaces` dependency from `5.0.0` to `6.0.0` ([#2820 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2820))
 
 ## 2.8.16
 
