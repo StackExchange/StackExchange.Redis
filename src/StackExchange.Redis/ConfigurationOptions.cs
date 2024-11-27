@@ -357,13 +357,17 @@ namespace StackExchange.Redis
                     byte[] authorityData = authority.RawData;
                     foreach (var chainElement in chain.ChainElements)
                     {
-#if NET8_0_OR_GREATER
-#error TODO: use RawDataMemory (needs testing)
-#endif
                         using var chainCert = chainElement.Certificate;
-                        if (!found && chainCert.RawData.SequenceEqual(authorityData))
+                        if (!found)
                         {
-                            found = true;
+#if NET8_0_OR_GREATER
+                            if (chainCert.RawDataMemory.Span.SequenceEqual(authorityData))
+#else
+                            if (chainCert.RawData.SequenceEqual(authorityData))
+#endif
+                            {
+                                found = true;
+                            }
                         }
                     }
                     return found;

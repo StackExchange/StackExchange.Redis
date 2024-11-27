@@ -7,10 +7,12 @@ using System.Linq;
 using System.Net;
 using System.Net.Security;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading.Tasks;
+using NSubstitute.Exceptions;
 using StackExchange.Redis.Tests.Helpers;
 using Xunit;
 using Xunit.Abstractions;
@@ -182,34 +184,35 @@ public class SSLTests : TestBase, IClassFixture<SSLTests.SSLServerFixture>
     [InlineData(SslProtocols.Ssl3 | SslProtocols.Tls12 | SslProtocols.Tls13, true)]
     [InlineData(SslProtocols.Ssl2, false, TlsCipherSuite.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384, TlsCipherSuite.TLS_AES_256_GCM_SHA384)]
 #pragma warning restore CS0618 // Type or member is obsolete
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Interoperability", "CA1416:Validate platform compatibility", Justification = "Yes, we know.")]
     public async Task ConnectSslClientAuthenticationOptions(SslProtocols protocols, bool expectSuccess, params TlsCipherSuite[] tlsCipherSuites)
     {
         Fixture.SkipIfNoServer();
 
-        var config = new ConfigurationOptions()
-        {
-            EndPoints = { TestConfig.Current.SslServerAndPort },
-            AllowAdmin = true,
-            ConnectRetry = 1,
-            SyncTimeout = Debugger.IsAttached ? int.MaxValue : 5000,
-            Ssl = true,
-            SslClientAuthenticationOptions = host => new SslClientAuthenticationOptions()
-            {
-                TargetHost = host,
-                CertificateRevocationCheckMode = X509RevocationMode.NoCheck,
-                EnabledSslProtocols = protocols,
-                CipherSuitesPolicy = tlsCipherSuites?.Length > 0 ? new CipherSuitesPolicy(tlsCipherSuites) : null,
-                RemoteCertificateValidationCallback = (sender, cert, chain, errors) =>
-                {
-                    Log("  Errors: " + errors);
-                    Log("  Cert issued to: " + cert?.Subject);
-                    return true;
-                },
-            },
-        };
-
         try
         {
+            var config = new ConfigurationOptions()
+            {
+                EndPoints = { TestConfig.Current.SslServerAndPort },
+                AllowAdmin = true,
+                ConnectRetry = 1,
+                SyncTimeout = Debugger.IsAttached ? int.MaxValue : 5000,
+                Ssl = true,
+                SslClientAuthenticationOptions = host => new SslClientAuthenticationOptions()
+                {
+                    TargetHost = host,
+                    CertificateRevocationCheckMode = X509RevocationMode.NoCheck,
+                    EnabledSslProtocols = protocols,
+                    CipherSuitesPolicy = tlsCipherSuites?.Length > 0 ? new CipherSuitesPolicy(tlsCipherSuites) : null,
+                    RemoteCertificateValidationCallback = (sender, cert, chain, errors) =>
+                    {
+                        Log("  Errors: " + errors);
+                        Log("  Cert issued to: " + cert?.Subject);
+                        return true;
+                    },
+                },
+            };
+
             if (expectSuccess)
             {
                 using var conn = await ConnectionMultiplexer.ConnectAsync(config, Writer);
@@ -376,12 +379,12 @@ public class SSLTests : TestBase, IClassFixture<SSLTests.SSLServerFixture>
             },
             Ssl = true,
         };
-        Assert.True(options.SslHost == "mycache.rediscache.windows.net");
+        Assert.Equal("mycache.rediscache.windows.net", options.SslHost);
         options = new ConfigurationOptions()
         {
             EndPoints = { { "121.23.23.45", 15000 } },
         };
-        Assert.True(options.SslHost == null);
+        Assert.Null(options.SslHost);
     }
 
     private void Check(string name, object? x, object? y)
@@ -528,7 +531,7 @@ public class SSLTests : TestBase, IClassFixture<SSLTests.SSLServerFixture>
     [Fact]
     public void ConfigObject_Issue1407_ToStringIncludesSslProtocols()
     {
-        const SslProtocols sslProtocols = SslProtocols.Tls12 | SslProtocols.Tls;
+        const SslProtocols sslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13;
         var sourceOptions = new ConfigurationOptions
         {
             AbortOnConnectFail = false,
