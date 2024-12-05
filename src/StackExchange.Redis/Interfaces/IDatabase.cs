@@ -2656,12 +2656,27 @@ namespace StackExchange.Redis
         /// <param name="groupName">The name of the consumer group.</param>
         /// <param name="count">The maximum number of pending messages to return.</param>
         /// <param name="consumerName">The consumer name for the pending messages. Pass RedisValue.Null to include pending messages for all consumers.</param>
+        /// <param name="minId">The minimum ID from which to read the stream of pending messages. Pass null to read from the beginning of the stream.</param>
+        /// <param name="maxId">The maximum ID to read to within the stream of pending messages. Pass null to read to the end of the stream.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>An instance of <see cref="StreamPendingMessageInfo"/> for each pending message.</returns>
+        /// <remarks>Equivalent of calling XPENDING key group start-id end-id count consumer-name.</remarks>
+        /// <remarks><seealso href="https://redis.io/commands/xpending"/></remarks>
+        StreamPendingMessageInfo[] StreamPendingMessages(RedisKey key, RedisValue groupName, int count, RedisValue consumerName, RedisValue? minId, RedisValue? maxId, CommandFlags flags);
+
+        /// <summary>
+        /// View information about each pending message.
+        /// </summary>
+        /// <param name="key">The key of the stream.</param>
+        /// <param name="groupName">The name of the consumer group.</param>
+        /// <param name="count">The maximum number of pending messages to return.</param>
+        /// <param name="consumerName">The consumer name for the pending messages. Pass RedisValue.Null to include pending messages for all consumers.</param>
         /// <param name="minId">The minimum ID from which to read the stream of pending messages. The method will default to reading from the beginning of the stream.</param>
         /// <param name="maxId">The maximum ID to read to within the stream of pending messages. The method will default to reading to the end of the stream.</param>
         /// <param name="minIdleTimeInMs">The minimum idle time threshold for pending messages to be claimed.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>An instance of <see cref="StreamPendingMessageInfo"/> for each pending message.</returns>
-        /// <remarks>Equivalent of calling XPENDING key group start-id end-id count consumer-name.</remarks>
+        /// <remarks>Equivalent of calling XPENDING key group IDLE min-idle-time start-id end-id count consumer-name.</remarks>
         /// <remarks><seealso href="https://redis.io/commands/xpending"/></remarks>
         StreamPendingMessageInfo[] StreamPendingMessages(RedisKey key, RedisValue groupName, int count, RedisValue consumerName, RedisValue? minId = null, RedisValue? maxId = null, long? minIdleTimeInMs = null, CommandFlags flags = CommandFlags.None);
 

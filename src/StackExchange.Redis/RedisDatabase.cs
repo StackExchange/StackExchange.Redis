@@ -2803,6 +2803,9 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.StreamPendingInfo);
         }
 
+        public StreamPendingMessageInfo[] StreamPendingMessages(RedisKey key, RedisValue groupName, int count, RedisValue consumerName, RedisValue? minId = null, RedisValue? maxId = null, CommandFlags flags = CommandFlags.None) =>
+            StreamPendingMessages(key, groupName, count, consumerName, minId, maxId, null, flags);
+
         public StreamPendingMessageInfo[] StreamPendingMessages(RedisKey key, RedisValue groupName, int count, RedisValue consumerName, RedisValue? minId = null, RedisValue? maxId = null, long? minIdleTimeInMs = null, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStreamPendingMessagesMessage(
@@ -2817,6 +2820,9 @@ namespace StackExchange.Redis
 
             return ExecuteSync(msg, ResultProcessor.StreamPendingMessages, defaultValue: Array.Empty<StreamPendingMessageInfo>());
         }
+
+        public Task<StreamPendingMessageInfo[]> StreamPendingMessagesAsync(RedisKey key, RedisValue groupName, int count, RedisValue consumerName, RedisValue? minId = null, RedisValue? maxId = null, CommandFlags flags = CommandFlags.None) =>
+            StreamPendingMessagesAsync(key, groupName, count, consumerName, minId, maxId, null, flags);
 
         public Task<StreamPendingMessageInfo[]> StreamPendingMessagesAsync(RedisKey key, RedisValue groupName, int count, RedisValue consumerName, RedisValue? minId = null, RedisValue? maxId = null, long? minIdleTimeInMs = null, CommandFlags flags = CommandFlags.None)
         {
