@@ -1119,7 +1119,7 @@ public class StreamTests : TestBase
         var preDelayPendingMessages =
             db.StreamPendingMessages(key, groupName, 10, RedisValue.Null, minId: id1, maxId: id1, minIdleTimeInMs: minIdleTimeInMs);
 
-        await Task.Delay(minIdleTimeInMs).ForAwait();
+        await Task.Delay(minIdleTimeInMs * 2).ForAwait();
 
         var postDelayPendingMessages =
             db.StreamPendingMessages(key, groupName, 10, RedisValue.Null, minId: id1, maxId: id1, minIdleTimeInMs: minIdleTimeInMs);
