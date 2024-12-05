@@ -2803,7 +2803,7 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.StreamPendingInfo);
         }
 
-        public StreamPendingMessageInfo[] StreamPendingMessages(RedisKey key, RedisValue groupName, int count, RedisValue consumerName, RedisValue? minId = null, RedisValue? maxId = null, CommandFlags flags = CommandFlags.None)
+        public StreamPendingMessageInfo[] StreamPendingMessages(RedisKey key, RedisValue groupName, int count, RedisValue consumerName, RedisValue? minId = null, RedisValue? maxId = null, long? minIdleTimeInMs = null, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStreamPendingMessagesMessage(
                 key,
@@ -2812,12 +2812,13 @@ namespace StackExchange.Redis
                 maxId,
                 count,
                 consumerName,
+                minIdleTimeInMs,
                 flags);
 
             return ExecuteSync(msg, ResultProcessor.StreamPendingMessages, defaultValue: Array.Empty<StreamPendingMessageInfo>());
         }
 
-        public Task<StreamPendingMessageInfo[]> StreamPendingMessagesAsync(RedisKey key, RedisValue groupName, int count, RedisValue consumerName, RedisValue? minId = null, RedisValue? maxId = null, CommandFlags flags = CommandFlags.None)
+        public Task<StreamPendingMessageInfo[]> StreamPendingMessagesAsync(RedisKey key, RedisValue groupName, int count, RedisValue consumerName, RedisValue? minId = null, RedisValue? maxId = null, long? minIdleTimeInMs = null, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStreamPendingMessagesMessage(
                 key,
@@ -2826,6 +2827,7 @@ namespace StackExchange.Redis
                 maxId,
                 count,
                 consumerName,
+                minIdleTimeInMs,
                 flags);
 
             return ExecuteAsync(msg, ResultProcessor.StreamPendingMessages, defaultValue: Array.Empty<StreamPendingMessageInfo>());
@@ -4300,9 +4302,9 @@ namespace StackExchange.Redis
         /// Gets a message for <see href="https://redis.io/commands/xpending/"/>.
         /// </summary>
         /// <remarks><seealso href="https://redis.io/topics/streams-intro"/></remarks>
-        private Message GetStreamPendingMessagesMessage(RedisKey key, RedisValue groupName, RedisValue? minId, RedisValue? maxId, int count, RedisValue consumerName, CommandFlags flags)
+        private Message GetStreamPendingMessagesMessage(RedisKey key, RedisValue groupName, RedisValue? minId, RedisValue? maxId, int count, RedisValue consumerName, long? minIdleTimeInMs, CommandFlags flags)
         {
-            // > XPENDING mystream mygroup - + 10 [consumer name]
+            // > XPENDING mystream mygroup [IDLE min-idle-time] - + 10 [consumer name]
             // 1) 1) 1526569498055 - 0
             //    2) "Bob"
             //    3) (integer)74170458
@@ -4316,16 +4318,33 @@ namespace StackExchange.Redis
                 throw new ArgumentOutOfRangeException(nameof(count), "count must be greater than 0.");
             }
 
-            var values = new RedisValue[consumerName == RedisValue.Null ? 4 : 5];
+            var valuesLength = 4;
+            if (consumerName != RedisValue.Null)
+            {
+                valuesLength++;
+            }
 
-            values[0] = groupName;
-            values[1] = minId ?? StreamConstants.ReadMinValue;
-            values[2] = maxId ?? StreamConstants.ReadMaxValue;
-            values[3] = count;
+            if (minIdleTimeInMs is not null)
+            {
+                valuesLength += 2;
+            }
+            var values = new RedisValue[valuesLength];
+
+            var offset = 0;
+
+            values[offset++] = groupName;
+            if (minIdleTimeInMs is not null)
+            {
+                values[offset++] = "IDLE";
+                values[offset++] = minIdleTimeInMs;
+            }
+            values[offset++] = minId ?? StreamConstants.ReadMinValue;
+            values[offset++] = maxId ?? StreamConstants.ReadMaxValue;
+            values[offset++] = count;
 
             if (consumerName != RedisValue.Null)
             {
-                values[4] = consumerName;
+                values[offset++] = consumerName;
             }
 
             return Message.Create(

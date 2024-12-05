@@ -1099,6 +1099,41 @@ public class StreamTests : TestBase
     }
 
     [Fact]
+    public async Task StreamConsumerGroupViewPendingMessageWithMinIdle()
+    {
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
+
+        var db = conn.GetDatabase();
+        var key = Me();
+        const string groupName = "test_group",
+            consumer1 = "test_consumer_1";
+        const int minIdleTimeInMs = 100;
+
+        var id1 = db.StreamAdd(key, "field1", "value1");
+
+        db.StreamCreateConsumerGroup(key, groupName, StreamPosition.Beginning);
+
+        // Read a single message into the first consumer.
+        db.StreamReadGroup(key, groupName, consumer1, count: 1);
+
+        var preDelayPendingMessages =
+            db.StreamPendingMessages(key, groupName, 10, RedisValue.Null, minId: id1, maxId: id1, minIdleTimeInMs: minIdleTimeInMs);
+
+        await Task.Delay(minIdleTimeInMs).ForAwait();
+
+        var postDelayPendingMessages =
+            db.StreamPendingMessages(key, groupName, 10, RedisValue.Null, minId: id1, maxId: id1, minIdleTimeInMs: minIdleTimeInMs);
+
+        Assert.NotNull(preDelayPendingMessages);
+        Assert.Empty(preDelayPendingMessages);
+        Assert.NotNull(postDelayPendingMessages);
+        Assert.Single(postDelayPendingMessages);
+        Assert.Equal(1, postDelayPendingMessages[0].DeliveryCount);
+        Assert.True((int)postDelayPendingMessages[0].IdleTimeInMilliseconds > minIdleTimeInMs);
+        Assert.Equal(id1, postDelayPendingMessages[0].MessageId);
+    }
+
+    [Fact]
     public void StreamConsumerGroupViewPendingMessageInfoForConsumer()
     {
         using var conn = Create(require: RedisFeatures.v5_0_0);
