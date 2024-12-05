@@ -1154,8 +1154,8 @@ public sealed class KeyPrefixedDatabaseTests
     [Fact]
     public void StreamPendingMessageInfoGet()
     {
-        prefixed.StreamPendingMessages("key", "group", 10, RedisValue.Null, "-", "+", CommandFlags.None);
-        mock.Received().StreamPendingMessages("prefix:key", "group", 10, RedisValue.Null, "-", "+", CommandFlags.None);
+        prefixed.StreamPendingMessages("key", "group", 10, RedisValue.Null, "-", "+", 1000, CommandFlags.None);
+        mock.Received().StreamPendingMessages("prefix:key", "group", 10, RedisValue.Null, "-", "+", 1000, CommandFlags.None);
     }
 
     [Fact]
