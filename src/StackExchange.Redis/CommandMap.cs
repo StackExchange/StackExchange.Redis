@@ -59,8 +59,6 @@ namespace StackExchange.Redis
 
             RedisCommand.PSUBSCRIBE, RedisCommand.PUNSUBSCRIBE, RedisCommand.SUBSCRIBE, RedisCommand.UNSUBSCRIBE,
 
-            RedisCommand.UNWATCH,
-
             RedisCommand.SCRIPT,
 
             RedisCommand.SELECT,
