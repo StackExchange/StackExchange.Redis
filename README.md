@@ -1,6 +1,8 @@
 StackExchange.Redis
 ===================
 
+StackExchange.Redis is a .NET client for communicating with RESP servers such as [Redis](https://redis.io/), [Garnet](https://microsoft.github.io/garnet/), [Valkey](https://valkey.io/), Azure Cache for Redis, AWS, and a wide range of other Redis-like servers. We do not maintain a list of compatible servers, but if the server has a Redis-like API: it will *probably* work fine. If not: log an issue with details!
+
 For all documentation, [see here](https://stackexchange.github.io/StackExchange.Redis/).
 
 #### Build Status
