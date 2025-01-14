@@ -51,6 +51,126 @@ namespace StackExchange.Redis
 
         public Version Version => server.Version;
 
+        public RedisValue[] AccessControlGetCategories(CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.ACL, RedisLiterals.CAT);
+            return ExecuteSync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
+        }
+
+        public Task<RedisValue[]> AccessControlGetCategoriesAsync(CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.ACL, RedisLiterals.CAT);
+            return ExecuteAsync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
+        }
+
+        public RedisValue[] AccessControlGetCommands(RedisValue category, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.ACL, RedisLiterals.CAT, category);
+            return ExecuteSync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
+        }
+
+        public Task<RedisValue[]> AccessControlGetCommandsAsync(RedisValue category, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.ACL, RedisLiterals.CAT, category);
+            return ExecuteAsync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
+        }
+
+        public long AccessControlDeleteUsers(RedisValue[] usernames, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.ACL, RedisLiterals.DELUSER, usernames);
+            return ExecuteSync(msg, ResultProcessor.Int64);
+        }
+
+        public Task<long> AccessControlDeleteUsersAsync(RedisValue[] usernames, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.ACL, RedisLiterals.DELUSER, usernames);
+            return ExecuteAsync(msg, ResultProcessor.Int64);
+        }
+
+        public RedisValue AccessControlGeneratePassword(long bits, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.ACL, RedisLiterals.GENPASS, bits);
+            return ExecuteSync(msg, ResultProcessor.RedisValue);
+        }
+
+        public Task<RedisValue> AccessControlGeneratePasswordAsync(long bits, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.ACL, RedisLiterals.GENPASS, bits);
+            return ExecuteAsync(msg, ResultProcessor.RedisValue);
+        }
+
+        public void AccessControlLoad(CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.ACL, RedisLiterals.LOAD);
+            ExecuteSync(msg, ResultProcessor.DemandOK);
+        }
+
+        public Task AccessControlLoadAsync(CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.ACL, RedisLiterals.LOAD);
+            return ExecuteAsync(msg, ResultProcessor.DemandOK);
+        }
+
+        public void AccessControlLogReset(CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.ACL, RedisLiterals.LOG, RedisLiterals.RESET);
+            ExecuteSync(msg, ResultProcessor.DemandOK);
+        }
+
+        public Task AccessControlLogResetAsync(CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.ACL, RedisLiterals.LOG, RedisLiterals.RESET);
+            return ExecuteAsync(msg, ResultProcessor.DemandOK);
+        }
+
+        public KeyValuePair<string, RedisValue>[][] AccessControlLog(long count, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.ACL, RedisLiterals.LOG, count);
+            return ExecuteSync(msg, ResultProcessor.ArrayOfKeyValueArray, defaultValue: Array.Empty<KeyValuePair<string, RedisValue>[]>());
+        }
+
+        public Task<KeyValuePair<string, RedisValue>[][]> AccessControlLogAsync(long count, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.ACL, RedisLiterals.LOG, count);
+            return ExecuteAsync(msg, ResultProcessor.ArrayOfKeyValueArray, defaultValue: Array.Empty<KeyValuePair<string, RedisValue>[]>());
+        }
+
+        public void AccessControlSave(CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.ACL, RedisLiterals.SAVE);
+            ExecuteSync(msg, ResultProcessor.DemandOK);
+        }
+
+        public Task AccessControlSaveAsync(CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.ACL, RedisLiterals.SAVE);
+            return ExecuteAsync(msg, ResultProcessor.DemandOK);
+        }
+
+        public RedisValue AccessControlWhoAmI(CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.ACL, RedisLiterals.WHOAMI);
+            return ExecuteSync(msg, ResultProcessor.RedisValue);
+        }
+
+        public Task<RedisValue> AccessControlWhoAmIAsync(CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.ACL, RedisLiterals.WHOAMI);
+            return ExecuteAsync(msg, ResultProcessor.RedisValue);
+        }
+
+        public void AccessControlSetUser(RedisValue userName, ACLRules rules, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.ACL, RedisLiterals.SETUSER, userName, rules.ToRedisValues());
+            ExecuteSync(msg, ResultProcessor.DemandOK);
+        }
+
+        public Task AccessControlSetUserAsync(RedisValue userName, ACLRules rules, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.ACL, RedisLiterals.SETUSER, userName, rules.ToRedisValues());
+            return ExecuteAsync(msg, ResultProcessor.DemandOK);
+        }
+
         public void ClientKill(EndPoint endpoint, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(-1, flags, RedisCommand.CLIENT, RedisLiterals.KILL, (RedisValue)Format.ToString(endpoint));

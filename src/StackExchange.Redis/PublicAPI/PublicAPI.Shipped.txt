@@ -55,6 +55,98 @@ override StackExchange.Redis.SocketManager.ToString() -> string!
 override StackExchange.Redis.SortedSetEntry.Equals(object? obj) -> bool
 override StackExchange.Redis.SortedSetEntry.GetHashCode() -> int
 override StackExchange.Redis.SortedSetEntry.ToString() -> string!
+readonly StackExchange.Redis.ACLCommandRules.CategoriesAllowed -> string![]?
+readonly StackExchange.Redis.ACLCommandRules.CategoriesDisallowed -> string![]?
+readonly StackExchange.Redis.ACLCommandRules.CommandsAllowed -> string![]?
+readonly StackExchange.Redis.ACLCommandRules.CommandsDisallowed -> string![]?
+readonly StackExchange.Redis.ACLCommandRules.CommandsRule -> StackExchange.Redis.ACLCommandsRule?
+readonly StackExchange.Redis.ACLCommandRules.KeysAllowedPatterns -> string![]?
+readonly StackExchange.Redis.ACLCommandRules.KeysAllowedReadForPatterns -> string![]?
+readonly StackExchange.Redis.ACLCommandRules.KeysAllowedWriteForPatterns -> string![]?
+readonly StackExchange.Redis.ACLCommandRules.KeysRule -> StackExchange.Redis.ACLKeysRule?
+readonly StackExchange.Redis.ACLCommandRules.PubSubAllowChannels -> string![]?
+readonly StackExchange.Redis.ACLCommandRules.PubSubRule -> StackExchange.Redis.ACLPubSubRule?
+readonly StackExchange.Redis.ACLRules.AclCommandRules -> StackExchange.Redis.ACLCommandRules?
+readonly StackExchange.Redis.ACLRules.AclSelectorRules -> StackExchange.Redis.ACLSelectorRules![]?
+readonly StackExchange.Redis.ACLRules.AclUserRules -> StackExchange.Redis.ACLUserRules?
+readonly StackExchange.Redis.ACLSelectorRules.CategoriesAllowed -> string![]?
+readonly StackExchange.Redis.ACLSelectorRules.CategoriesDisallowed -> string![]?
+readonly StackExchange.Redis.ACLSelectorRules.CommandsAllowed -> string![]?
+readonly StackExchange.Redis.ACLSelectorRules.CommandsDisallowed -> string![]?
+readonly StackExchange.Redis.ACLSelectorRules.KeysAllowedPatterns -> string![]?
+readonly StackExchange.Redis.ACLSelectorRules.KeysAllowedReadForPatterns -> string![]?
+readonly StackExchange.Redis.ACLSelectorRules.KeysAllowedWriteForPatterns -> string![]?
+readonly StackExchange.Redis.ACLUserRules.ClearSelectors -> bool
+readonly StackExchange.Redis.ACLUserRules.HashedPasswordsToRemove -> string![]?
+readonly StackExchange.Redis.ACLUserRules.HashedPasswordsToSet -> string![]?
+readonly StackExchange.Redis.ACLUserRules.NoPass -> bool
+readonly StackExchange.Redis.ACLUserRules.PasswordsToRemove -> string![]?
+readonly StackExchange.Redis.ACLUserRules.PasswordsToSet -> string![]?
+readonly StackExchange.Redis.ACLUserRules.ResetPass -> bool
+readonly StackExchange.Redis.ACLUserRules.ResetUser -> bool
+readonly StackExchange.Redis.ACLUserRules.UserState -> StackExchange.Redis.ACLUserState?
+StackExchange.Redis.ACLCommandRules
+StackExchange.Redis.ACLCommandRules.ACLCommandRules(StackExchange.Redis.ACLCommandsRule? commandsRule, string![]? commandsAllowed, string![]? commandsDisallowed, string![]? categoriesAllowed, string![]? categoriesDisallowed, StackExchange.Redis.ACLKeysRule? keysRule, string![]? keysAllowedPatterns, string![]? keysAllowedReadForPatterns, string![]? keysAllowedWriteForPatterns, StackExchange.Redis.ACLPubSubRule? pubSubRule, string![]? pubSubAllowChannels) -> void
+StackExchange.Redis.ACLCommandRulesBuilder
+StackExchange.Redis.ACLCommandRulesBuilder.ACLCommandRulesBuilder() -> void
+StackExchange.Redis.ACLCommandRulesBuilder.Build() -> StackExchange.Redis.ACLCommandRules!
+StackExchange.Redis.ACLCommandRulesBuilder.CategoriesAllowed(params string![]! categories) -> StackExchange.Redis.ACLCommandRulesBuilder!
+StackExchange.Redis.ACLCommandRulesBuilder.CategoriesDisallowed(params string![]! categories) -> StackExchange.Redis.ACLCommandRulesBuilder!
+StackExchange.Redis.ACLCommandRulesBuilder.CommandsAllowed(params string![]! commands) -> StackExchange.Redis.ACLCommandRulesBuilder!
+StackExchange.Redis.ACLCommandRulesBuilder.CommandsDisallowed(params string![]! commands) -> StackExchange.Redis.ACLCommandRulesBuilder!
+StackExchange.Redis.ACLCommandRulesBuilder.CommandsRule(StackExchange.Redis.ACLCommandsRule? commandsRule) -> StackExchange.Redis.ACLCommandRulesBuilder!
+StackExchange.Redis.ACLCommandRulesBuilder.KeysAllowedPatterns(params string![]! patterns) -> StackExchange.Redis.ACLCommandRulesBuilder!
+StackExchange.Redis.ACLCommandRulesBuilder.KeysAllowedReadForPatterns(params string![]! patterns) -> StackExchange.Redis.ACLCommandRulesBuilder!
+StackExchange.Redis.ACLCommandRulesBuilder.KeysAllowedWriteForPatterns(params string![]! patterns) -> StackExchange.Redis.ACLCommandRulesBuilder!
+StackExchange.Redis.ACLCommandRulesBuilder.KeysRule(StackExchange.Redis.ACLKeysRule? keysRule) -> StackExchange.Redis.ACLCommandRulesBuilder!
+StackExchange.Redis.ACLCommandRulesBuilder.PubSubAllowChannels(params string![]! channels) -> StackExchange.Redis.ACLCommandRulesBuilder!
+StackExchange.Redis.ACLCommandRulesBuilder.PubSubRule(StackExchange.Redis.ACLPubSubRule? pubSubRule) -> StackExchange.Redis.ACLCommandRulesBuilder!
+StackExchange.Redis.ACLCommandsRule
+StackExchange.Redis.ACLCommandsRule.ALLCOMMANDS = 0 -> StackExchange.Redis.ACLCommandsRule
+StackExchange.Redis.ACLCommandsRule.NOCOMMANDS = 1 -> StackExchange.Redis.ACLCommandsRule
+StackExchange.Redis.ACLKeysRule
+StackExchange.Redis.ACLKeysRule.ALLKEYS = 0 -> StackExchange.Redis.ACLKeysRule
+StackExchange.Redis.ACLKeysRule.RESETKEYS = 1 -> StackExchange.Redis.ACLKeysRule
+StackExchange.Redis.ACLPubSubRule
+StackExchange.Redis.ACLPubSubRule.ALLCHANNELS = 0 -> StackExchange.Redis.ACLPubSubRule
+StackExchange.Redis.ACLPubSubRule.RESETCHANNELS = 1 -> StackExchange.Redis.ACLPubSubRule
+StackExchange.Redis.ACLRules
+StackExchange.Redis.ACLRules.ACLRules(StackExchange.Redis.ACLUserRules? aclUserRules, StackExchange.Redis.ACLCommandRules? aclCommandRules, StackExchange.Redis.ACLSelectorRules![]? aclSelectorRules) -> void
+StackExchange.Redis.ACLRulesBuilder
+StackExchange.Redis.ACLRulesBuilder.ACLRulesBuilder() -> void
+StackExchange.Redis.ACLRulesBuilder.AppendACLSelectorRules(System.Action<StackExchange.Redis.ACLSelectorRulesBuilder!>! buildAction) -> StackExchange.Redis.ACLRulesBuilder!
+StackExchange.Redis.ACLRulesBuilder.Build() -> StackExchange.Redis.ACLRules!
+StackExchange.Redis.ACLRulesBuilder.WithACLCommandRules(System.Action<StackExchange.Redis.ACLCommandRulesBuilder!>! buildAction) -> StackExchange.Redis.ACLRulesBuilder!
+StackExchange.Redis.ACLRulesBuilder.WithACLUserRules(System.Action<StackExchange.Redis.ACLUserRulesBuilder!>! buildAction) -> StackExchange.Redis.ACLRulesBuilder!
+StackExchange.Redis.ACLSelectorRules
+StackExchange.Redis.ACLSelectorRules.ACLSelectorRules(string![]? commandsAllowed, string![]? commandsDisallowed, string![]? categoriesAllowed, string![]? categoriesDisallowed, string![]? keysAllowedPatterns, string![]? keysAllowedReadForPatterns, string![]? keysAllowedWriteForPatterns) -> void
+StackExchange.Redis.ACLSelectorRulesBuilder
+StackExchange.Redis.ACLSelectorRulesBuilder.ACLSelectorRulesBuilder() -> void
+StackExchange.Redis.ACLSelectorRulesBuilder.Build() -> StackExchange.Redis.ACLSelectorRules!
+StackExchange.Redis.ACLSelectorRulesBuilder.CategoriesAllowed(params string![]! categories) -> StackExchange.Redis.ACLSelectorRulesBuilder!
+StackExchange.Redis.ACLSelectorRulesBuilder.CategoriesDisallowed(params string![]! categories) -> StackExchange.Redis.ACLSelectorRulesBuilder!
+StackExchange.Redis.ACLSelectorRulesBuilder.CommandsAllowed(params string![]! commands) -> StackExchange.Redis.ACLSelectorRulesBuilder!
+StackExchange.Redis.ACLSelectorRulesBuilder.CommandsDisallowed(params string![]! commands) -> StackExchange.Redis.ACLSelectorRulesBuilder!
+StackExchange.Redis.ACLSelectorRulesBuilder.KeysAllowedPatterns(params string![]! patterns) -> StackExchange.Redis.ACLSelectorRulesBuilder!
+StackExchange.Redis.ACLSelectorRulesBuilder.KeysAllowedReadForPatterns(params string![]! patterns) -> StackExchange.Redis.ACLSelectorRulesBuilder!
+StackExchange.Redis.ACLSelectorRulesBuilder.KeysAllowedWriteForPatterns(params string![]! patterns) -> StackExchange.Redis.ACLSelectorRulesBuilder!
+StackExchange.Redis.ACLUserRules
+StackExchange.Redis.ACLUserRules.ACLUserRules(bool resetUser, bool noPass, bool resetPass, StackExchange.Redis.ACLUserState? userState, string![]? passwordsToSet, string![]? passwordsToRemove, string![]? hashedPasswordsToSet, string![]? hashedPasswordsToRemove, bool clearSelectors) -> void
+StackExchange.Redis.ACLUserRulesBuilder
+StackExchange.Redis.ACLUserRulesBuilder.ACLUserRulesBuilder() -> void
+StackExchange.Redis.ACLUserRulesBuilder.Build() -> StackExchange.Redis.ACLUserRules!
+StackExchange.Redis.ACLUserRulesBuilder.ClearSelectors(bool clearSelectors) -> StackExchange.Redis.ACLUserRulesBuilder!
+StackExchange.Redis.ACLUserRulesBuilder.HashedPasswordsToRemove(params string![]! hashedPasswords) -> StackExchange.Redis.ACLUserRulesBuilder!
+StackExchange.Redis.ACLUserRulesBuilder.HashedPasswordsToSet(params string![]! hashedPasswords) -> StackExchange.Redis.ACLUserRulesBuilder!
+StackExchange.Redis.ACLUserRulesBuilder.NoPass(bool noPass) -> StackExchange.Redis.ACLUserRulesBuilder!
+StackExchange.Redis.ACLUserRulesBuilder.PasswordsToRemove(params string![]! passwords) -> StackExchange.Redis.ACLUserRulesBuilder!
+StackExchange.Redis.ACLUserRulesBuilder.PasswordsToSet(params string![]! passwords) -> StackExchange.Redis.ACLUserRulesBuilder!
+StackExchange.Redis.ACLUserRulesBuilder.ResetPass(bool resetPass) -> StackExchange.Redis.ACLUserRulesBuilder!
+StackExchange.Redis.ACLUserRulesBuilder.ResetUser(bool resetUser) -> StackExchange.Redis.ACLUserRulesBuilder!
+StackExchange.Redis.ACLUserRulesBuilder.UserState(StackExchange.Redis.ACLUserState? userState) -> StackExchange.Redis.ACLUserRulesBuilder!
+StackExchange.Redis.ACLUserState
+StackExchange.Redis.ACLUserState.OFF = 1 -> StackExchange.Redis.ACLUserState
+StackExchange.Redis.ACLUserState.ON = 0 -> StackExchange.Redis.ACLUserState
 StackExchange.Redis.Aggregate
 StackExchange.Redis.Aggregate.Max = 2 -> StackExchange.Redis.Aggregate
 StackExchange.Redis.Aggregate.Min = 1 -> StackExchange.Redis.Aggregate
@@ -1039,6 +1131,26 @@ StackExchange.Redis.IServer.AllowReplicaWrites.get -> bool
 StackExchange.Redis.IServer.AllowReplicaWrites.set -> void
 StackExchange.Redis.IServer.AllowSlaveWrites.get -> bool
 StackExchange.Redis.IServer.AllowSlaveWrites.set -> void
+StackExchange.Redis.IServer.AccessControlGetCategories(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue[]!
+StackExchange.Redis.IServer.AccessControlGetCategoriesAsync(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue[]!>!
+StackExchange.Redis.IServer.AccessControlGetCommands(StackExchange.Redis.RedisValue category, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue[]!
+StackExchange.Redis.IServer.AccessControlGetCommandsAsync(StackExchange.Redis.RedisValue category, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue[]!>!
+StackExchange.Redis.IServer.AccessControlDeleteUsers(StackExchange.Redis.RedisValue[]! usernames, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
+StackExchange.Redis.IServer.AccessControlDeleteUsersAsync(StackExchange.Redis.RedisValue[]! usernames, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
+StackExchange.Redis.IServer.AccessControlGeneratePassword(long bits, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue
+StackExchange.Redis.IServer.AccessControlGeneratePasswordAsync(long bits, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue>!
+StackExchange.Redis.IServer.AccessControlLoad(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> void
+StackExchange.Redis.IServer.AccessControlLoadAsync(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task!
+StackExchange.Redis.IServer.AccessControlLogReset(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> void
+StackExchange.Redis.IServer.AccessControlLogResetAsync(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task!
+StackExchange.Redis.IServer.AccessControlLog(long count, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Collections.Generic.KeyValuePair<string!, StackExchange.Redis.RedisValue>[]![]!
+StackExchange.Redis.IServer.AccessControlLogAsync(long count, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<System.Collections.Generic.KeyValuePair<string!, StackExchange.Redis.RedisValue>[]![]!>!
+StackExchange.Redis.IServer.AccessControlSave(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> void
+StackExchange.Redis.IServer.AccessControlSaveAsync(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task!
+StackExchange.Redis.IServer.AccessControlWhoAmI(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue
+StackExchange.Redis.IServer.AccessControlWhoAmIAsync(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue>!
+StackExchange.Redis.IServer.AccessControlSetUser(StackExchange.Redis.RedisValue userName, StackExchange.Redis.ACLRules! rules, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> void
+StackExchange.Redis.IServer.AccessControlSetUserAsync(StackExchange.Redis.RedisValue userName, StackExchange.Redis.ACLRules! rules, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task!
 StackExchange.Redis.IServer.ClientKill(long? id = null, StackExchange.Redis.ClientType? clientType = null, System.Net.EndPoint? endpoint = null, bool skipMe = true, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
 StackExchange.Redis.IServer.ClientKill(System.Net.EndPoint! endpoint, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> void
 StackExchange.Redis.IServer.ClientKill(StackExchange.Redis.ClientKillFilter! filter, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long

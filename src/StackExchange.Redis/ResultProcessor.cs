@@ -187,6 +187,9 @@ namespace StackExchange.Redis
         public static readonly HashEntryArrayProcessor
             HashEntryArray = new HashEntryArrayProcessor();
 
+        public static readonly KeyValuePairProcessor KeyValuePair = new KeyValuePairProcessor();
+        public static readonly ArrayOfKeyValueArrayProcessor ArrayOfKeyValueArray = new ArrayOfKeyValueArrayProcessor();
+
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Conditionally run on instance")]
         public void ConnectionFail(Message message, ConnectionFailureType fail, Exception? innerException, string? annotation, ConnectionMultiplexer? muxer)
         {
@@ -2886,6 +2889,41 @@ The coordinates as a two items x,y array (longitude,latitude).
                 }
                 return false;
             }
+        }
+
+        internal sealed class ArrayOfKeyValueArrayProcessor : ResultProcessor<KeyValuePair<string, RedisValue>[][]>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                switch (result.Resp2TypeArray)
+                {
+                    case ResultType.Array:
+                        var arrayOfArrays = result.GetItems();
+
+                        var returnArray = result.ToArray<KeyValuePair<string, RedisValue>[], KeyValuePairProcessor>(
+                            (in RawResult rawInnerArray, in KeyValuePairProcessor proc) =>
+                            {
+                                if (proc.TryParse(rawInnerArray, out KeyValuePair<string, RedisValue>[]? kvpArray))
+                                {
+                                    return kvpArray!;
+                                }
+                                else
+                                {
+                                    throw new ArgumentOutOfRangeException(nameof(rawInnerArray), $"Error processing {message.CommandAndKey}, could not decode array '{rawInnerArray}'");
+                                }
+                            },
+                            KeyValuePair)!;
+
+                        SetResult(message, returnArray);
+                        return true;
+                }
+                return false;
+            }
+        }
+        internal sealed class KeyValuePairProcessor : ValuePairInterleavedProcessorBase<KeyValuePair<string, RedisValue>>
+        {
+            protected override KeyValuePair<string, RedisValue> Parse(in RawResult first, in RawResult second, object? state) =>
+                new KeyValuePair<string, RedisValue>(first.GetString()!, second.AsRedisValue());
         }
     }
 
