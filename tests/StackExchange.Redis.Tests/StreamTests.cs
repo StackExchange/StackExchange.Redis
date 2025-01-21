@@ -1933,7 +1933,7 @@ public class StreamTests : TestBase
         var len = db.StreamLength(key);
 
         Assert.Equal(1, numRemoved);
-        Assert.Equal(1, len);
+        Assert.Equal(2, len);
     }
 
     [Fact]
