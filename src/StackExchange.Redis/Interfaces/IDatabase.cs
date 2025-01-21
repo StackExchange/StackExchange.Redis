@@ -2776,6 +2776,16 @@ namespace StackExchange.Redis
         long StreamTrim(RedisKey key, int maxLength, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Trim the stream to a specified minimum timestamp.
+        /// </summary>
+        /// <param name="key">The key of the stream.</param>
+        /// <param name="minId">All entries less than minId will be removed.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The number of messages removed from the stream.</returns>
+        /// <remarks><seealso href="https://redis.io/topics/streams-intro"/></remarks>
+        long StreamTrim(RedisKey key, RedisValue minId, CommandFlags flags);
+
+        /// <summary>
         /// If key already exists and is a string, this command appends the value at the end of the string.
         /// If key does not exist it is created and set as an empty string, so APPEND will be similar to SET in this special case.
         /// </summary>

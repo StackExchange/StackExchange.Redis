@@ -3007,6 +3007,20 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
+        public long StreamTrim(RedisKey key, RedisValue minId, CommandFlags flags = CommandFlags.None)
+        {
+            var values = new[] { StreamConstants.MinId, minId };
+            var msg = Message.Create(Database, flags, RedisCommand.XTRIM, key, values);
+            return ExecuteSync(msg, ResultProcessor.Int64);
+        }
+
+        public Task<long> StreamTrimAsync(RedisKey key, RedisValue minId, CommandFlags flags = CommandFlags.None)
+        {
+            var values = new[] { StreamConstants.MinId, minId };
+            var msg = Message.Create(Database, flags, RedisCommand.XTRIM, key, values);
+            return ExecuteAsync(msg, ResultProcessor.Int64);
+        }
+
         public long StringAppend(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.APPEND, key, value);

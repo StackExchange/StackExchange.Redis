@@ -1917,6 +1917,26 @@ public class StreamTests : TestBase
     }
 
     [Fact]
+    public void StreamTrimMinId()
+    {
+        using var conn = Create(require: RedisFeatures.v5_0_0);
+
+        var db = conn.GetDatabase();
+        var key = Me();
+
+        // Add a couple items and check length.
+        db.StreamAdd(key, "field1", "value1", 1111111110);
+        db.StreamAdd(key, "field2", "value2", 1111111111);
+        db.StreamAdd(key, "field3", "value3", 1111111112);
+
+        var numRemoved = db.StreamTrim(key, 1111111111, CommandFlags.None);
+        var len = db.StreamLength(key);
+
+        Assert.Equal(2, numRemoved);
+        Assert.Equal(1, len);
+    }
+
+    [Fact]
     public void StreamVerifyLength()
     {
         using var conn = Create(require: RedisFeatures.v5_0_0);

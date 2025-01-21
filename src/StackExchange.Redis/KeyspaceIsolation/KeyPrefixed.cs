@@ -642,6 +642,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<long> StreamTrimAsync(RedisKey key, int maxLength, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None) =>
             Inner.StreamTrimAsync(ToInner(key), maxLength, useApproximateMaxLength, flags);
 
+        public Task<long> StreamTrimAsync(RedisKey key, RedisValue minId, CommandFlags flags) =>
+            Inner.StreamTrimAsync(ToInner(key), minId, flags);
+
         public Task<long> StringAppendAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None) =>
             Inner.StringAppendAsync(ToInner(key), value, flags);
 
