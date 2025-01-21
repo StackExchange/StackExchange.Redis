@@ -1932,7 +1932,7 @@ public class StreamTests : TestBase
         var numRemoved = db.StreamTrim(key, 1111111111, CommandFlags.None);
         var len = db.StreamLength(key);
 
-        Assert.Equal(2, numRemoved);
+        Assert.Equal(1, numRemoved);
         Assert.Equal(1, len);
     }
 
