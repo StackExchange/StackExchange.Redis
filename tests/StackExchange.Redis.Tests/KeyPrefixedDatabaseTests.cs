@@ -1203,6 +1203,13 @@ public sealed class KeyPrefixedDatabaseTests
     }
 
     [Fact]
+    public void StreamTrimMinId()
+    {
+        prefixed.StreamTrim("key", 1111111111, CommandFlags.None);
+        mock.Received().StreamTrim("prefix:key", 1111111111, CommandFlags.None);
+    }
+
+    [Fact]
     public void StringAppend()
     {
         prefixed.StringAppend("key", "value", CommandFlags.None);
