@@ -2779,7 +2779,7 @@ namespace StackExchange.Redis
         /// Trim the stream to a specified minimum timestamp.
         /// </summary>
         /// <param name="key">The key of the stream.</param>
-        /// <param name="minId">All entries less than minId will be removed.</param>
+        /// <param name="minId">All entries with an id (timestamp) earlier minId will be removed.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of messages removed from the stream.</returns>
         /// <remarks><seealso href="https://redis.io/topics/streams-intro"/></remarks>
