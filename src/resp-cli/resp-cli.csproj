@@ -16,6 +16,7 @@
     <GenerateDocumentationFile>False</GenerateDocumentationFile>
     <NoPublicApi>True</NoPublicApi>
     <WarningsAsErrors Condition="'$(Configuration)'=='Debug'">false</WarningsAsErrors>
+    <RollForward>LatestMajor</RollForward>
   </PropertyGroup>
 
   <ItemGroup>
