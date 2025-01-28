@@ -3,5 +3,7 @@ StackExchange.Redis.IDatabase.ExecuteLease(string! command, params object![]! ar
 StackExchange.Redis.IDatabase.ExecuteLease(string! command, System.Collections.Generic.ICollection<object!>! args, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.Lease<byte>?
 StackExchange.Redis.IDatabaseAsync.ExecuteLeaseAsync(string! command, params object![]! args) -> System.Threading.Tasks.Task<StackExchange.Redis.Lease<byte>?>!
 StackExchange.Redis.IDatabaseAsync.ExecuteLeaseAsync(string! command, System.Collections.Generic.ICollection<object!>? args, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.Lease<byte>?>!
+StackExchange.Redis.IServer.ExecuteLease(string! command, params object![]! args) -> StackExchange.Redis.Lease<byte>?
 StackExchange.Redis.IServer.ExecuteLease(string! command, System.Collections.Generic.ICollection<object!>! args, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.Lease<byte>?
+StackExchange.Redis.IServer.ExecuteLeaseAsync(string! command, params object![]! args) -> System.Threading.Tasks.Task<StackExchange.Redis.Lease<byte>?>!
 StackExchange.Redis.IServer.ExecuteLeaseAsync(string! command, System.Collections.Generic.ICollection<object!>! args, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.Lease<byte>?>!

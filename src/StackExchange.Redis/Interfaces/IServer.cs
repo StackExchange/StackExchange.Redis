@@ -263,8 +263,25 @@ namespace StackExchange.Redis
         /// <remarks>This API should be considered an advanced feature; inappropriate use can be harmful.</remarks>
         RedisResult Execute(string command, params object[] args);
 
+        /// <summary>
+        /// Execute an arbitrary command against the server; this is primarily intended for
+        /// executing modules, but may also be used to provide access to new features that lack
+        /// a direct API.
+        ///
+        /// Response must be represented as a RESP simple string, bulk string, or integer.  Other response will
+        /// result in an error.
+        /// </summary>
+        /// <param name="command">The command to run.</param>
+        /// <param name="args">The arguments to pass for the command.</param>
+        /// <returns>A dynamic representation of the command's result.</returns>
+        /// <remarks>This API should be considered an advanced feature; inappropriate use can be harmful.</remarks>
+        Lease<byte>? ExecuteLease(string command, params object[] args);
+
         /// <inheritdoc cref="Execute(string, object[])"/>
         Task<RedisResult> ExecuteAsync(string command, params object[] args);
+
+        /// <inheritdoc cref="ExecuteLease(string, object[])"/>
+        Task<Lease<byte>?> ExecuteLeaseAsync(string command, params object[] args);
 
         /// <summary>
         /// Execute an arbitrary command against the server; this is primarily intended for
