@@ -317,6 +317,27 @@ namespace StackExchange.Redis
         Task<Lease<byte>?> ExecuteLeaseAsync(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Execute an arbitrary command against the server; this is primarily intended for
+        /// executing modules, but may also be used to provide access to new features that lack
+        /// a direct API.
+        ///
+        /// Response must be represented as a RESP simple string, bulk string, or integer.  Other response will
+        /// result in an error.
+        ///
+        /// This breaks out keys and args so collection can be reused, and avoid boxing.
+        /// <param name="command">The command to run.</param>
+        /// <param name="keys">The keys to use to chose slots in cluster mode.  These are NOT passed as part of the command</param>
+        /// <param name="args">The arguments to pass for the command.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>A dynamic representation of the command's result.</returns>
+        /// <remarks>This API should be considered an advanced feature; inappropriate use can be harmful.</remarks>
+        /// </summary>
+        Lease<byte>? ExecuteLeaseExplicit(string command, ICollection<RedisKey> keys, ICollection<RedisValue> args, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="ExecuteLeaseExplicit(string, ICollection{RedisKey}, ICollection{RedisValue}, CommandFlags)"/>
+        Task<Lease<byte>?> ExecuteLeaseExplicitAsync(string command, ICollection<RedisKey> keys, ICollection<RedisValue> args, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Delete all the keys of all databases on the server.
         /// </summary>
         /// <param name="flags">The command flags to use.</param>
