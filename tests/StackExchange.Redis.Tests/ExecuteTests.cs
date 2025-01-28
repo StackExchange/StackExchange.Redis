@@ -134,4 +134,66 @@ public class ExecuteTests : TestBase
             Assert.Equal("abc def", value4);
         }
     }
+
+    [Fact]
+    public async Task DBExecuteLeaseExplicit()
+    {
+        using var conn = Create();
+
+        var db = conn.GetDatabase();
+        var key = Me();
+
+        // sync tests
+        {
+            db.StringSet(key, "hello world");
+
+            using var lease = db.ExecuteLeaseExplicit("GET", new[] { (RedisKey)key }, new[] { (RedisValue)key });
+            Assert.NotNull(lease);
+
+            var value = lease.DecodeString();
+            Assert.Equal("hello world", value);
+        }
+
+        // async tests
+        {
+            await db.StringSetAsync(key, "abc def");
+
+            using var lease = await db.ExecuteLeaseExplicitAsync("GET", new[] { (RedisKey)key }, new[] { (RedisValue)key });
+            Assert.NotNull(lease);
+
+            var value = lease.DecodeString();
+            Assert.Equal("abc def", value);
+        }
+    }
+
+    [Fact]
+    public async Task ServerExecuteLeaseExplicit()
+    {
+        using var conn = Create();
+
+        var server = conn.GetServer(conn.GetEndPoints().First());
+        var key = Me();
+
+        // sync tests
+        {
+            server.Execute("SET", key, "hello world");
+
+            using var lease = server.ExecuteLeaseExplicit("GET", new[] { (RedisKey)key }, new[] { (RedisValue)key });
+            Assert.NotNull(lease);
+
+            var value = lease.DecodeString();
+            Assert.Equal("hello world", value);
+        }
+
+        // async tests
+        {
+            await server.ExecuteAsync("SET", key, "foo bar");
+
+            using var lease = await server.ExecuteLeaseExplicitAsync("GET", new[] { (RedisKey)key }, new[] { (RedisValue)key });
+            Assert.NotNull(lease);
+
+            var value = lease.DecodeString();
+            Assert.Equal("foo bar", value);
+        }
+    }
 }
