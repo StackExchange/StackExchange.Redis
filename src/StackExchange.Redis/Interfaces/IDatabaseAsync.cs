@@ -338,6 +338,12 @@ namespace StackExchange.Redis
         /// <inheritdoc cref="IDatabase.Execute(string, ICollection{object}, CommandFlags)"/>
         Task<RedisResult> ExecuteAsync(string command, ICollection<object>? args, CommandFlags flags = CommandFlags.None);
 
+        /// <inheritdoc cref="IDatabase.ExecuteLease(string, object[])"/>
+        Task<Lease<byte>?> ExecuteLeaseAsync(string command, params object[] args);
+
+        /// <inheritdoc cref="IDatabase.ExecuteLease(string, ICollection{object}, CommandFlags)"/>
+        Task<Lease<byte>?> ExecuteLeaseAsync(string command, ICollection<object>? args, CommandFlags flags = CommandFlags.None);
+
         /// <inheritdoc cref="IDatabase.ScriptEvaluate(string, RedisKey[], RedisValue[], CommandFlags)"/>
         Task<RedisResult> ScriptEvaluateAsync(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None);
 
