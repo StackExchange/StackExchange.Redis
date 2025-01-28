@@ -332,6 +332,12 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public RedisResult Execute(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None)
             => Inner.Execute(command, ToInner(args), flags);
 
+        public Lease<byte>? ExecuteLease(string command, params object[] args)
+            => Inner.ExecuteLease(command, ToInner(args), CommandFlags.None);
+
+        public Lease<byte>? ExecuteLease(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None)
+            => Inner.ExecuteLease(command, ToInner(args), flags);
+
         public RedisResult ScriptEvaluate(byte[] hash, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None) =>
             // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
             Inner.ScriptEvaluate(hash, ToInner(keys), values, flags);

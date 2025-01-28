@@ -1595,6 +1595,15 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.ScriptResult)!;
         }
 
+        public Lease<byte>? ExecuteLease(string command, params object[] args)
+            => ExecuteLease(command, args, CommandFlags.None);
+
+        public Lease<byte>? ExecuteLease(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = new ExecuteMessage(multiplexer?.CommandMap, Database, flags, command, args);
+            return ExecuteSync(msg, ResultProcessor.Lease);
+        }
+
         public Task<RedisResult> ExecuteAsync(string command, params object[] args)
             => ExecuteAsync(command, args, CommandFlags.None);
 
@@ -1602,6 +1611,15 @@ namespace StackExchange.Redis
         {
             var msg = new ExecuteMessage(multiplexer?.CommandMap, Database, flags, command, args);
             return ExecuteAsync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
+        }
+
+        public Task<Lease<byte>?> ExecuteLeaseAsync(string command, params object[] args)
+            => ExecuteLeaseAsync(command, args, CommandFlags.None);
+
+        public Task<Lease<byte>?> ExecuteLeaseAsync(string command, ICollection<object>? args, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = new ExecuteMessage(multiplexer?.CommandMap, Database, flags, command, args);
+            return ExecuteAsync<Lease<byte>?>(msg, ResultProcessor.Lease!, defaultValue: null);
         }
 
         public RedisResult ScriptEvaluate(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
