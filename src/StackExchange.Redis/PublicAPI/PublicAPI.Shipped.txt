@@ -1,5 +1,7 @@
 ﻿#nullable enable
 abstract StackExchange.Redis.RedisResult.IsNull.get -> bool
+override StackExchange.Redis.ACLSelector.ToString() -> string!
+override StackExchange.Redis.ACLUser.ToString() -> string!
 override StackExchange.Redis.ChannelMessage.Equals(object? obj) -> bool
 override StackExchange.Redis.ChannelMessage.GetHashCode() -> int
 override StackExchange.Redis.ChannelMessage.ToString() -> string!
@@ -76,6 +78,16 @@ readonly StackExchange.Redis.ACLSelectorRules.CommandsDisallowed -> string![]?
 readonly StackExchange.Redis.ACLSelectorRules.KeysAllowedPatterns -> string![]?
 readonly StackExchange.Redis.ACLSelectorRules.KeysAllowedReadForPatterns -> string![]?
 readonly StackExchange.Redis.ACLSelectorRules.KeysAllowedWriteForPatterns -> string![]?
+readonly StackExchange.Redis.ACLSelector.Channels -> string?
+readonly StackExchange.Redis.ACLSelector.Commmands -> string?
+readonly StackExchange.Redis.ACLSelector.Keys -> string?
+readonly StackExchange.Redis.ACLUser.Channels -> string?
+readonly StackExchange.Redis.ACLUser.Commands -> string?
+readonly StackExchange.Redis.ACLUser.Flags -> string![]?
+readonly StackExchange.Redis.ACLUser.Keys -> string?
+readonly StackExchange.Redis.ACLUser.Passwords -> string![]?
+readonly StackExchange.Redis.ACLUser.Selectors -> StackExchange.Redis.ACLSelector![]?
+readonly StackExchange.Redis.ACLUser.UserInfo -> System.Collections.Generic.Dictionary<string!, object!>?
 readonly StackExchange.Redis.ACLUserRules.ClearSelectors -> bool
 readonly StackExchange.Redis.ACLUserRules.HashedPasswordsToRemove -> string![]?
 readonly StackExchange.Redis.ACLUserRules.HashedPasswordsToSet -> string![]?
@@ -118,6 +130,8 @@ StackExchange.Redis.ACLRulesBuilder.AppendACLSelectorRules(System.Action<StackEx
 StackExchange.Redis.ACLRulesBuilder.Build() -> StackExchange.Redis.ACLRules!
 StackExchange.Redis.ACLRulesBuilder.WithACLCommandRules(System.Action<StackExchange.Redis.ACLCommandRulesBuilder!>! buildAction) -> StackExchange.Redis.ACLRulesBuilder!
 StackExchange.Redis.ACLRulesBuilder.WithACLUserRules(System.Action<StackExchange.Redis.ACLUserRulesBuilder!>! buildAction) -> StackExchange.Redis.ACLRulesBuilder!
+StackExchange.Redis.ACLSelector
+StackExchange.Redis.ACLSelector.ACLSelector(string? commands, string? keys, string? channels) -> void
 StackExchange.Redis.ACLSelectorRules
 StackExchange.Redis.ACLSelectorRules.ACLSelectorRules(string![]? commandsAllowed, string![]? commandsDisallowed, string![]? categoriesAllowed, string![]? categoriesDisallowed, string![]? keysAllowedPatterns, string![]? keysAllowedReadForPatterns, string![]? keysAllowedWriteForPatterns) -> void
 StackExchange.Redis.ACLSelectorRulesBuilder
@@ -130,6 +144,8 @@ StackExchange.Redis.ACLSelectorRulesBuilder.CommandsDisallowed(params string![]!
 StackExchange.Redis.ACLSelectorRulesBuilder.KeysAllowedPatterns(params string![]! patterns) -> StackExchange.Redis.ACLSelectorRulesBuilder!
 StackExchange.Redis.ACLSelectorRulesBuilder.KeysAllowedReadForPatterns(params string![]! patterns) -> StackExchange.Redis.ACLSelectorRulesBuilder!
 StackExchange.Redis.ACLSelectorRulesBuilder.KeysAllowedWriteForPatterns(params string![]! patterns) -> StackExchange.Redis.ACLSelectorRulesBuilder!
+StackExchange.Redis.ACLUser
+StackExchange.Redis.ACLUser.ACLUser(System.Collections.Generic.Dictionary<string!, object!>? userInfo, string![]? flags, string![]? passwords, string? commands, string? keys, string? channels, StackExchange.Redis.ACLSelector![]? selectors) -> void
 StackExchange.Redis.ACLUserRules
 StackExchange.Redis.ACLUserRules.ACLUserRules(bool resetUser, bool noPass, bool resetPass, StackExchange.Redis.ACLUserState? userState, string![]? passwordsToSet, string![]? passwordsToRemove, string![]? hashedPasswordsToSet, string![]? hashedPasswordsToRemove, bool clearSelectors) -> void
 StackExchange.Redis.ACLUserRulesBuilder
@@ -1135,6 +1151,8 @@ StackExchange.Redis.IServer.AccessControlGetCategories(StackExchange.Redis.Comma
 StackExchange.Redis.IServer.AccessControlGetCategoriesAsync(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue[]!>!
 StackExchange.Redis.IServer.AccessControlGetCommands(StackExchange.Redis.RedisValue category, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue[]!
 StackExchange.Redis.IServer.AccessControlGetCommandsAsync(StackExchange.Redis.RedisValue category, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue[]!>!
+StackExchange.Redis.IServer.AccessControlGetUser(StackExchange.Redis.RedisValue username, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.ACLUser?
+StackExchange.Redis.IServer.AccessControlGetUserAsync(StackExchange.Redis.RedisValue username, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.ACLUser?>!
 StackExchange.Redis.IServer.AccessControlDeleteUsers(StackExchange.Redis.RedisValue[]! usernames, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
 StackExchange.Redis.IServer.AccessControlDeleteUsersAsync(StackExchange.Redis.RedisValue[]! usernames, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
 StackExchange.Redis.IServer.AccessControlGeneratePassword(long bits, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue

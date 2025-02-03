@@ -140,6 +140,22 @@ namespace StackExchange.Redis
         Task<RedisValue> AccessControlGeneratePasswordAsync(long bits, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Gets the access control user for a specified username.
+        /// </summary>
+        /// <param name="username">The username to get the access control user for.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>The access control user associated with the specified username, or null if not found.</returns>
+        ACLUser? AccessControlGetUser(RedisValue username, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Gets the access control user for a specified username.
+        /// </summary>
+        /// <param name="username">The username to get the access control user for.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>A task representing the asynchronous operation, with the access control user associated with the specified username, or null if not found.</returns>
+        Task<ACLUser?> AccessControlGetUserAsync(RedisValue username, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Loads access control rules.
         /// </summary>
         /// <param name="flags">The command flags to use.</param>

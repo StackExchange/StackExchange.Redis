@@ -1,6 +1,4 @@
-using System.Linq;
-using System.Threading;
-using NSubstitute;
+using System;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -42,6 +40,42 @@ public class ACLIntegrationTests : TestBase
         Assert.NotNull(commands);
         Assert.Contains("sort", commands);
         Assert.Contains("spop", commands);
+    }
+
+    [Fact]
+    public void AccessControlGetUser_ShouldReturnUserDetails()
+    {
+        Action<ACLSelectorRulesBuilder> act = rules => rules.CommandsAllowed("GET", "SET");
+        // Arrange
+        var username = new RedisValue("testuser");
+        _redisServer.AccessControlSetUser("testuser", new ACLRulesBuilder()
+                        .AppendACLSelectorRules(rules => rules.CommandsAllowed("GET", "SET"))
+                        .AppendACLSelectorRules(rules => rules.KeysAllowedReadForPatterns("key*"))
+                        .WithACLUserRules(rules => rules.PasswordsToSet("psw1", "psw2"))
+                        .WithACLCommandRules(rules => rules.CommandsAllowed("HGET", "HSET")
+                                                            .KeysAllowedPatterns("key1", "key*")
+                                                            .PubSubAllowChannels("chan1", "chan*"))
+                        .Build());
+
+        // Act
+        var user = _redisServer.AccessControlGetUser(username);
+
+        // Assert
+        Assert.NotNull(user);
+        Assert.NotNull(user.Passwords);
+        Assert.True(user.Passwords.Length > 1);
+        Assert.NotNull(user.Selectors);
+        Assert.True(user.Selectors.Length > 1);
+    }
+
+    [Fact]
+    public void AccessControlGetUser_ShouldReturnNullForNonExistentUser()
+    {
+        // Act
+        var user = _redisServer.AccessControlGetUser("nonexistentuser");
+
+        // Assert
+        Assert.Null(user);
     }
 
     [Fact]

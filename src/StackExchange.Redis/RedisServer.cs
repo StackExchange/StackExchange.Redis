@@ -99,6 +99,18 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.RedisValue);
         }
 
+        public ACLUser? AccessControlGetUser(RedisValue username, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.ACL, RedisLiterals.GETUSER, username);
+            return ExecuteSync(msg, ResultProcessor.ACLUser);
+        }
+
+        public Task<ACLUser?> AccessControlGetUserAsync(RedisValue username, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.ACL, RedisLiterals.GETUSER, username);
+            return ExecuteAsync(msg, ResultProcessor.ACLUser);
+        }
+
         public void AccessControlLoad(CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(-1, flags, RedisCommand.ACL, RedisLiterals.LOAD);

@@ -187,6 +187,9 @@ namespace StackExchange.Redis
         public static readonly HashEntryArrayProcessor
             HashEntryArray = new HashEntryArrayProcessor();
 
+        public static readonly ACLUserProcessor
+            ACLUser = new ACLUserProcessor();
+
         public static readonly KeyValuePairProcessor KeyValuePair = new KeyValuePairProcessor();
         public static readonly ArrayOfKeyValueArrayProcessor ArrayOfKeyValueArray = new ArrayOfKeyValueArrayProcessor();
 
@@ -2924,6 +2927,106 @@ The coordinates as a two items x,y array (longitude,latitude).
         {
             protected override KeyValuePair<string, RedisValue> Parse(in RawResult first, in RawResult second, object? state) =>
                 new KeyValuePair<string, RedisValue>(first.GetString()!, second.AsRedisValue());
+        }
+
+        internal sealed class ACLUserProcessor : ResultProcessor<ACLUser?>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                ACLUser? user = null;
+                if (result.Resp2TypeArray == ResultType.Array)
+                {
+                    var items = result.GetItems();
+                    if (TryParseACLUser(items, out user))
+                    {
+                        SetResult(message, user);
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            private static bool TryParseACLUser(Sequence<RawResult> result, out ACLUser? user)
+            {
+                var iter = result.GetEnumerator();
+                bool parseResult = false;
+                Dictionary<string, object>? info = null;
+                string[]? flags = null;
+                string[]? passwords = null;
+                string? commands = null;
+                string? keys = null;
+                string? channels = null;
+                ACLSelector[]? selectors = null;
+                user = null;
+
+                while (iter.MoveNext())
+                {
+                    switch (iter.Current.GetString())
+                    {
+                        case "flags":
+                            flags = iter.GetNext().ToArray((in RawResult item) => item.GetString()!)!;
+                            parseResult = true;
+                            break;
+                        case "passwords":
+                            passwords = iter.GetNext().ToArray((in RawResult item) => item.GetString()!);
+                            parseResult = true;
+                            break;
+                        case "commands":
+                            commands = iter.GetNext().GetString()!;
+                            parseResult = true;
+                            break;
+                        case "keys":
+                            keys = iter.GetNext().GetString()!;
+                            parseResult = true;
+                            break;
+                        case "channels":
+                            channels = iter.GetNext().GetString()!;
+                            parseResult = true;
+                            break;
+                        case "selectors":
+                            selectors = iter.GetNext().ToArray((in RawResult item) => ToACLSelector(item));
+                            parseResult = true;
+                            break;
+                        default:
+                            info = info ?? new Dictionary<string, object>();
+                            info.Add(iter.Current.GetString()!, iter.GetNext());
+                            parseResult = false;
+                            break;
+                    }
+                }
+                if (parseResult)
+                {
+                    user = new ACLUser(info, flags, passwords, commands, keys, channels, selectors);
+                }
+                return parseResult;
+            }
+
+            private static ACLSelector ToACLSelector(RawResult result)
+            {
+                var iter = result.GetItems().GetEnumerator();
+                string? commands = null;
+                string? keys = null;
+                string? channels = null;
+
+                while (iter.MoveNext())
+                {
+                    switch (iter.Current.GetString())
+                    {
+                        case "commands":
+                            commands = iter.GetNext().GetString()!;
+                            break;
+                        case "keys":
+                            keys = iter.GetNext().GetString()!;
+                            break;
+                        case "channels":
+                            channels = iter.GetNext().GetString()!;
+                            break;
+                        default:
+                            break;
+                    }
+                }
+                return new ACLSelector(commands, keys, channels);
+            }
         }
     }
 

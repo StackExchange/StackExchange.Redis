@@ -89,6 +89,7 @@ namespace StackExchange.Redis
             GET = "GET",
             GETKEYS = "GETKEYS",
             GETNAME = "GETNAME",
+            GETUSER = "GETUSER",
             GT = "GT",
             HISTORY = "HISTORY",
             ID = "ID",
