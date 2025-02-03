@@ -2933,6 +2933,11 @@ The coordinates as a two items x,y array (longitude,latitude).
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
+                if (result.IsNull)
+                {
+                    SetResult(message, null);
+                    return true;
+                }
                 ACLUser? user = null;
                 if (result.Resp2TypeArray == ResultType.Array)
                 {
