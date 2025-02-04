@@ -156,6 +156,20 @@ namespace StackExchange.Redis
         Task<ACLUser?> AccessControlGetUserAsync(RedisValue username, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Lists all access control rules.
+        /// </summary>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>An array of Redis values representing the access control rules.</returns>
+        RedisValue[]? AccessControlList(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Asynchronously lists all access control rules.
+        /// </summary>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>A task representing the asynchronous operation, with an array of Redis values representing the access control rules.</returns>
+        Task<RedisValue[]?> AccessControlListAsync(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Loads access control rules.
         /// </summary>
         /// <param name="flags">The command flags to use.</param>

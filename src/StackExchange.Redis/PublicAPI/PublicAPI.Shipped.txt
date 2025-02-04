@@ -79,7 +79,7 @@ readonly StackExchange.Redis.ACLSelectorRules.KeysAllowedPatterns -> string![]?
 readonly StackExchange.Redis.ACLSelectorRules.KeysAllowedReadForPatterns -> string![]?
 readonly StackExchange.Redis.ACLSelectorRules.KeysAllowedWriteForPatterns -> string![]?
 readonly StackExchange.Redis.ACLSelector.Channels -> string?
-readonly StackExchange.Redis.ACLSelector.Commmands -> string?
+readonly StackExchange.Redis.ACLSelector.Commands -> string?
 readonly StackExchange.Redis.ACLSelector.Keys -> string?
 readonly StackExchange.Redis.ACLUser.Channels -> string?
 readonly StackExchange.Redis.ACLUser.Commands -> string?
@@ -1157,6 +1157,8 @@ StackExchange.Redis.IServer.AccessControlDeleteUsers(StackExchange.Redis.RedisVa
 StackExchange.Redis.IServer.AccessControlDeleteUsersAsync(StackExchange.Redis.RedisValue[]! usernames, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
 StackExchange.Redis.IServer.AccessControlGeneratePassword(long bits, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue
 StackExchange.Redis.IServer.AccessControlGeneratePasswordAsync(long bits, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue>!
+StackExchange.Redis.IServer.AccessControlList(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue[]?
+StackExchange.Redis.IServer.AccessControlListAsync(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue[]?>!
 StackExchange.Redis.IServer.AccessControlLoad(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> void
 StackExchange.Redis.IServer.AccessControlLoadAsync(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task!
 StackExchange.Redis.IServer.AccessControlLogReset(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> void

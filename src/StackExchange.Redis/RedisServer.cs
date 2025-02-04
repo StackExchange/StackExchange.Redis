@@ -111,6 +111,18 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.ACLUser);
         }
 
+        public RedisValue[]? AccessControlList(CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.ACL, RedisLiterals.LIST);
+            return ExecuteSync(msg, ResultProcessor.RedisValueArray);
+        }
+
+        public Task<RedisValue[]?> AccessControlListAsync(CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.ACL, RedisLiterals.LIST);
+            return ExecuteAsync(msg, ResultProcessor.RedisValueArray);
+        }
+
         public void AccessControlLoad(CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(-1, flags, RedisCommand.ACL, RedisLiterals.LOAD);

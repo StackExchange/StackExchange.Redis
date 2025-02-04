@@ -83,7 +83,7 @@ public class ACLSelector
     /// <summary>
     /// Gets the commands associated with the ACL user.
     /// </summary>
-    public readonly string? Commmands;
+    public readonly string? Commands;
 
     /// <summary>
     /// Gets the keys associated with the ACL user.
@@ -103,7 +103,7 @@ public class ACLSelector
     /// <param name="channels">The channels associated with the ACLSelector.</param>
     public ACLSelector(string? commands, string? keys, string? channels)
     {
-        Commmands = commands;
+        Commands = commands;
         Keys = keys;
         Channels = channels;
     }
@@ -114,6 +114,6 @@ public class ACLSelector
     /// <returns>A string that represents the current object.</returns>
     public override string ToString()
     {
-        return "ACLSelector{" + "Commmands='" + Commmands + "', Keys='" + Keys + "', Channels='" + Channels + "'}";
+        return "ACLSelector{" + "Commands='" + Commands + "', Keys='" + Keys + "', Channels='" + Channels + "'}";
     }
 }
