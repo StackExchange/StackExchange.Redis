@@ -5,7 +5,7 @@ namespace StackExchange.Redis;
 internal enum RedisCommand
 {
     NONE, // must be first for "zero reasons"
-
+    ACL,
     APPEND,
     ASKING,
     AUTH,
@@ -358,6 +358,7 @@ internal static class RedisCommandExtensions
                 return true;
             // Commands that can be issued anywhere
             case RedisCommand.NONE:
+            case RedisCommand.ACL:
             case RedisCommand.ASKING:
             case RedisCommand.AUTH:
             case RedisCommand.BGREWRITEAOF:
