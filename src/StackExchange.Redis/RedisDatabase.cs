@@ -446,6 +446,348 @@ namespace StackExchange.Redis
 
         private Task<T[]> AsyncCustomArrExecutor<T, TProcessor>(Message msg, TProcessor processor) where TProcessor : ResultProcessor<T[]> => ExecuteAsync<T[]>(msg, processor)!;
 
+        public RedisValue HashFieldGetAndDelete(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.HGETDEL, key, hashField);
+            return ExecuteSync(msg, ResultProcessor.RedisValue);
+        }
+
+        public Lease<byte>? HashFieldGetLeaseAndDelete(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.HGETDEL, key, hashField);
+            return ExecuteSync(msg, ResultProcessor.Lease);
+        }
+
+        public RedisValue[] HashFieldGetAndDelete(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None)
+        {
+            if (hashFields == null) throw new ArgumentNullException(nameof(hashFields));
+            if (hashFields.Length == 0) return Array.Empty<RedisValue>();
+            var msg = Message.Create(Database, flags, RedisCommand.HGETDEL, key, hashFields);
+            return ExecuteSync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
+        }
+
+        public Task<RedisValue> HashFieldGetAndDeleteAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.HGETDEL, key, hashField);
+            return ExecuteAsync(msg, ResultProcessor.RedisValue);
+        }
+
+        public Task<Lease<byte>?> HashFieldGetLeaseAndDeleteAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.HGETDEL, key, hashField);
+            return ExecuteAsync(msg, ResultProcessor.Lease);
+        }
+
+        public Task<RedisValue[]> HashFieldGetAndDeleteAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None)
+        {
+            if (hashFields == null) throw new ArgumentNullException(nameof(hashFields));
+            if (hashFields.Length == 0) return CompletedTask<RedisValue[]>.FromDefault(Array.Empty<RedisValue>(), asyncState);
+            var msg = Message.Create(Database, flags, RedisCommand.HGETDEL, key, hashFields);
+            return ExecuteAsync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
+        }
+
+        private delegate (RedisValue Precision, RedisValue Duration) CalculateExpiryArgs<T>(T expiry);
+
+        private (RedisValue Precision, RedisValue Time) CalculateExpiryValues(TimeSpan expiry)
+        {
+            long milliseconds = expiry.Ticks / TimeSpan.TicksPerMillisecond;
+            var useSeconds = milliseconds % 1000 == 0;
+            return useSeconds ? (RedisLiterals.EX, milliseconds / 1000) : (RedisLiterals.PX, milliseconds);
+        }
+
+        private (RedisValue Precision, RedisValue Time) CalculateExpiryValues(DateTime expiry)
+        {
+            long milliseconds = GetMillisecondsUntil(expiry);
+            var useSeconds = milliseconds % 1000 == 0;
+            return useSeconds ? (RedisLiterals.EXAT, milliseconds / 1000) : (RedisLiterals.PXAT, milliseconds);
+        }
+
+        private Message HashFieldGetAndSetExpiryMessage<T>(RedisKey key, RedisValue hashField, T? expiry, CalculateExpiryArgs<T> calculateExpiryArgs, bool persist, CommandFlags flags) where T : struct
+        {
+            if (expiry != null && persist)
+            {
+                throw new ArgumentException("Cannot specify both expiry and persist");
+            }
+            switch ((expiry, persist))
+            {
+                case (_, true): // Case when persist is true (expiry is disregarded)
+                    return Message.Create(Database, flags, RedisCommand.HGETEX, key, RedisLiterals.PERSIST, RedisLiterals.FIELDS, 1, hashField);
+                case (not null, _): // Case when expiry is not null
+                    var (precision, duration) = calculateExpiryArgs((T)expiry!);
+                    return Message.Create(Database, flags, RedisCommand.HGETEX, key, precision, duration, RedisLiterals.FIELDS, 1, hashField);
+                default: // Default case when both expiry and persist are default
+                    return Message.Create(Database, flags, RedisCommand.HGETEX, RedisLiterals.FIELDS, 1, hashField);
+            }
+        }
+
+        private Message HashFieldGetAndSetExpiryMessage<T>(RedisKey key, RedisValue[] hashFields, T? expiry, CalculateExpiryArgs<T> calculateExpiryArgs, bool persist, CommandFlags flags) where T : struct
+        {
+            if (expiry != null && persist)
+            {
+                throw new ArgumentException("Cannot specify both expiry and persist");
+            }
+            List<RedisValue>? values = null;
+            switch ((expiry, persist))
+            {
+                case (_, true): // Case when persist is true (expiry is disregarded)
+                    values = new List<RedisValue> { RedisLiterals.PERSIST, RedisLiterals.FIELDS, hashFields.Length };
+                    break;
+                case (not null, _): // Case when expiry is not null
+                    var (precision, duration) = calculateExpiryArgs((T)expiry!);
+                    values = new List<RedisValue> { precision, duration, RedisLiterals.FIELDS, hashFields.Length };
+                    break;
+                default: // Default case when both expiry and persist are default
+                    values = new List<RedisValue> { RedisLiterals.FIELDS, hashFields.Length };
+                    break;
+            }
+            values.AddRange(hashFields);
+            return Message.Create(Database, flags, RedisCommand.HGETEX, key, values.ToArray());
+        }
+
+        public RedisValue HashFieldGetAndSetExpiry(RedisKey key, RedisValue hashField, TimeSpan? expiry = null, bool persist = false, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = HashFieldGetAndSetExpiryMessage(key, hashField, expiry, CalculateExpiryValues, persist, flags);
+            return ExecuteSync(msg, ResultProcessor.RedisValue);
+        }
+
+        public RedisValue HashFieldGetAndSetExpiry(RedisKey key, RedisValue hashField, DateTime? expiry = null, bool persist = false, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = HashFieldGetAndSetExpiryMessage(key, hashField, expiry, CalculateExpiryValues, persist, flags);
+            return ExecuteSync(msg, ResultProcessor.RedisValue);
+        }
+
+        public Lease<byte>? HashFieldGetLeaseAndSetExpiry(RedisKey key, RedisValue hashField, TimeSpan? expiry = null, bool persist = false, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = HashFieldGetAndSetExpiryMessage(key, hashField, expiry, CalculateExpiryValues, persist, flags);
+            return ExecuteSync(msg, ResultProcessor.Lease);
+        }
+
+        public Lease<byte>? HashFieldGetLeaseAndSetExpiry(RedisKey key, RedisValue hashField, DateTime? expiry = null, bool persist = false, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = HashFieldGetAndSetExpiryMessage(key, hashField, expiry, CalculateExpiryValues, persist, flags);
+            return ExecuteSync(msg, ResultProcessor.Lease);
+        }
+
+        public RedisValue[] HashFieldGetAndSetExpiry(RedisKey key, RedisValue[] hashFields, TimeSpan? expiry = null, bool persist = false, CommandFlags flags = CommandFlags.None)
+        {
+            if (hashFields == null) throw new ArgumentNullException(nameof(hashFields));
+            if (hashFields.Length == 0) return Array.Empty<RedisValue>();
+            var msg = HashFieldGetAndSetExpiryMessage(key, hashFields, expiry, CalculateExpiryValues, persist, flags);
+            return ExecuteSync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
+        }
+
+        public RedisValue[] HashFieldGetAndSetExpiry(RedisKey key, RedisValue[] hashFields, DateTime? expiry = null, bool persist = false, CommandFlags flags = CommandFlags.None)
+        {
+            if (hashFields == null) throw new ArgumentNullException(nameof(hashFields));
+            if (hashFields.Length == 0) return Array.Empty<RedisValue>();
+            var msg = HashFieldGetAndSetExpiryMessage(key, hashFields, expiry, CalculateExpiryValues, persist, flags);
+            return ExecuteSync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
+        }
+
+        public Task<RedisValue> HashFieldGetAndSetExpiryAsync(RedisKey key, RedisValue hashField, TimeSpan? expiry = null, bool persist = false, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = HashFieldGetAndSetExpiryMessage(key, hashField, expiry, CalculateExpiryValues, persist, flags);
+            return ExecuteAsync(msg, ResultProcessor.RedisValue);
+        }
+
+        public Task<RedisValue> HashFieldGetAndSetExpiryAsync(RedisKey key, RedisValue hashField, DateTime? expiry = null, bool persist = false, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = HashFieldGetAndSetExpiryMessage(key, hashField, expiry, CalculateExpiryValues, persist, flags);
+            return ExecuteAsync(msg, ResultProcessor.RedisValue);
+        }
+
+        public Task<Lease<byte>?> HashFieldGetLeaseAndSetExpiryAsync(RedisKey key, RedisValue hashField, TimeSpan? expiry = null, bool persist = false, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = HashFieldGetAndSetExpiryMessage(key, hashField, expiry, CalculateExpiryValues, persist, flags);
+            return ExecuteAsync(msg, ResultProcessor.Lease);
+        }
+
+        public Task<Lease<byte>?> HashFieldGetLeaseAndSetExpiryAsync(RedisKey key, RedisValue hashField, DateTime? expiry = null, bool persist = false, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = HashFieldGetAndSetExpiryMessage(key, hashField, expiry, CalculateExpiryValues, persist, flags);
+            return ExecuteAsync(msg, ResultProcessor.Lease);
+        }
+
+        public Task<RedisValue[]> HashFieldGetAndSetExpiryAsync(RedisKey key, RedisValue[] hashFields, TimeSpan? expiry = null, bool persist = false, CommandFlags flags = CommandFlags.None)
+        {
+            if (hashFields == null) throw new ArgumentNullException(nameof(hashFields));
+            if (hashFields.Length == 0) return CompletedTask<RedisValue[]>.FromDefault(Array.Empty<RedisValue>(), asyncState);
+            var msg = HashFieldGetAndSetExpiryMessage(key, hashFields, expiry, CalculateExpiryValues, persist, flags);
+            return ExecuteAsync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
+        }
+
+        public Task<RedisValue[]> HashFieldGetAndSetExpiryAsync(RedisKey key, RedisValue[] hashFields, DateTime? expiry = null, bool persist = false, CommandFlags flags = CommandFlags.None)
+        {
+            if (hashFields == null) throw new ArgumentNullException(nameof(hashFields));
+            if (hashFields.Length == 0) return CompletedTask<RedisValue[]>.FromDefault(Array.Empty<RedisValue>(), asyncState);
+            var msg = HashFieldGetAndSetExpiryMessage(key, hashFields, expiry, CalculateExpiryValues, persist, flags);
+            return ExecuteAsync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
+        }
+
+        private Message HashFieldSetAndSetExpiryMessage<T>(RedisKey key, RedisValue hashField, T? expiry, CalculateExpiryArgs<T> calculateExpiryArgs, When when, bool keepTtl, CommandFlags flags) where T : struct
+        {
+            if (expiry != null && keepTtl)
+            {
+                throw new ArgumentException("Cannot specify both expiry and keepTtl");
+            }
+            switch ((when, expiry, keepTtl))
+            {
+                case (When.Always, _, true): // Case when keepTtl is true (expiry is disregarded)
+                    return Message.Create(Database, flags, RedisCommand.HSETEX, key, RedisLiterals.KEEPTTL, RedisLiterals.FIELDS, 1, hashField);
+                case (When.Always, not null, _): // Case when expiry is not null
+                    {
+                        var (precision, duration) = calculateExpiryArgs((T)expiry!);
+                        return Message.Create(Database, flags, RedisCommand.HSETEX, key, precision, duration, RedisLiterals.FIELDS, 1, hashField);
+                    }
+                case (When.Always, _, _): // Default case when both expiry and keepTtl are default
+                    return Message.Create(Database, flags, RedisCommand.HSETEX, RedisLiterals.FIELDS, 1, hashField);
+
+                case (When.Exists, _, true): // Case when keepTtl is true (expiry is disregarded)
+                case (When.NotExists, _, true):
+                    {
+                        var existance = when == When.Exists ? RedisLiterals.FXX : RedisLiterals.FNX;
+                        return Message.Create(Database, flags, RedisCommand.HSETEX, key, existance, RedisLiterals.KEEPTTL, RedisLiterals.FIELDS, 1, hashField);
+                    }
+                case (When.Exists, not null, _): // Case when expiry is not null
+                case (When.NotExists, not null, _):
+                    {
+                        var (precision, duration) = calculateExpiryArgs((T)expiry!);
+                        var existance = when == When.Exists ? RedisLiterals.FXX : RedisLiterals.FNX;
+                        return Message.Create(Database, flags, RedisCommand.HSETEX, key, existance, precision, duration, RedisLiterals.FIELDS, 1, hashField);
+                    }
+                default: // Only existance is specified
+                    {
+                        var existance = when == When.Exists ? RedisLiterals.FXX : RedisLiterals.FNX;
+                        return Message.Create(Database, flags, RedisCommand.HSETEX, key, existance, RedisLiterals.FIELDS, 1, hashField);
+                    }
+            }
+        }
+
+        private Message HashFieldSetAndSetExpiryMessage<T>(RedisKey key, RedisValue[] hashFields, T? expiry, CalculateExpiryArgs<T> calculateExpiryArgs, When when, bool keepTtl, CommandFlags flags) where T : struct
+        {
+            if (expiry != null && keepTtl)
+            {
+                throw new ArgumentException("Cannot specify both expiry and keepTtl");
+            }
+            List<RedisValue>? values = null;
+            switch ((when, expiry, keepTtl))
+            {
+                case (When.Always, _, true): // Case when keepTtl is true (expiry is disregarded)
+                    values = new List<RedisValue> { RedisLiterals.KEEPTTL, RedisLiterals.FIELDS, hashFields.Length };
+                    break;
+                case (When.Always, not null, _): // Case when expiry is not null
+                    {
+                        var (precision, duration) = calculateExpiryArgs((T)expiry!);
+                        values = new List<RedisValue> { precision, duration, RedisLiterals.FIELDS, hashFields.Length };
+                    }
+                    break;
+                case (When.Always, _, _): // Default case when both expiry and keepTtl are default
+                    values = new List<RedisValue> { RedisLiterals.FIELDS, hashFields.Length };
+                    break;
+                case (When.Exists, _, true): // Case when keepTtl is true (expiry is disregarded)
+                case (When.NotExists, _, true):
+                    {
+                        var existance = when == When.Exists ? RedisLiterals.FXX : RedisLiterals.FNX;
+                        values = new List<RedisValue> { existance, RedisLiterals.KEEPTTL, RedisLiterals.FIELDS, hashFields.Length };
+                    }
+                    break;
+                case (When.Exists, not null, _): // Case when expiry is not null
+                case (When.NotExists, not null, _):
+                    {
+                        var (precision, duration) = calculateExpiryArgs((T)expiry!);
+                        var existance = when == When.Exists ? RedisLiterals.FXX : RedisLiterals.FNX;
+                        values = new List<RedisValue> { existance, precision, duration, RedisLiterals.FIELDS, hashFields.Length };
+                    }
+                    break;
+                default: // Only existance is specified
+                    {
+                        var existance = when == When.Exists ? RedisLiterals.FXX : RedisLiterals.FNX;
+                        values = new List<RedisValue> { existance, RedisLiterals.FIELDS, hashFields.Length };
+                    }
+                    break;
+            }
+            values.AddRange(hashFields);
+            return Message.Create(Database, flags, RedisCommand.HSETEX, key, values.ToArray());
+        }
+
+        public RedisValue HashFieldSetAndSetExpiry(RedisKey key, RedisValue hashField, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = HashFieldSetAndSetExpiryMessage(key, hashField, expiry, CalculateExpiryValues, when, keepTtl, flags);
+            return ExecuteSync(msg, ResultProcessor.RedisValue);
+        }
+
+        public RedisValue HashFieldSetAndSetExpiry(RedisKey key, RedisValue hashField, DateTime? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = HashFieldSetAndSetExpiryMessage(key, hashField, expiry, CalculateExpiryValues, when, keepTtl, flags);
+            return ExecuteSync(msg, ResultProcessor.RedisValue);
+        }
+
+        public Lease<byte>? HashFieldSetLeaseAndSetExpiry(RedisKey key, RedisValue hashField, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = HashFieldSetAndSetExpiryMessage(key, hashField, expiry, CalculateExpiryValues, when, keepTtl, flags);
+            return ExecuteSync(msg, ResultProcessor.Lease);
+        }
+
+        public Lease<byte>? HashFieldSetLeaseAndSetExpiry(RedisKey key, RedisValue hashField, DateTime? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = HashFieldSetAndSetExpiryMessage(key, hashField, expiry, CalculateExpiryValues, when, keepTtl, flags);
+            return ExecuteSync(msg, ResultProcessor.Lease);
+        }
+
+        public RedisValue[] HashFieldSetAndSetExpiry(RedisKey key, RedisValue[] hashFields, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        {
+            if (hashFields == null) throw new ArgumentNullException(nameof(hashFields));
+            if (hashFields.Length == 0) return Array.Empty<RedisValue>();
+            var msg = HashFieldSetAndSetExpiryMessage(key, hashFields, expiry, CalculateExpiryValues, when, keepTtl, flags);
+            return ExecuteSync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
+        }
+        public RedisValue[] HashFieldSetAndSetExpiry(RedisKey key, RedisValue[] hashFields, DateTime? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        {
+            if (hashFields == null) throw new ArgumentNullException(nameof(hashFields));
+            if (hashFields.Length == 0) return Array.Empty<RedisValue>();
+            var msg = HashFieldSetAndSetExpiryMessage(key, hashFields, expiry, CalculateExpiryValues, when, keepTtl, flags);
+            return ExecuteSync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
+        }
+
+        public Task<RedisValue> HashFieldSetAndSetExpiryAsync(RedisKey key, RedisValue hashField, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = HashFieldSetAndSetExpiryMessage(key, hashField, expiry, CalculateExpiryValues, when, keepTtl, flags);
+            return ExecuteAsync(msg, ResultProcessor.RedisValue);
+        }
+
+        public Task<RedisValue> HashFieldSetAndSetExpiryAsync(RedisKey key, RedisValue hashField, DateTime? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = HashFieldSetAndSetExpiryMessage(key, hashField, expiry, CalculateExpiryValues, when, keepTtl, flags);
+            return ExecuteAsync(msg, ResultProcessor.RedisValue);
+        }
+
+        public Task<Lease<byte>?> HashFieldSetLeaseAndSetExpiryAsync(RedisKey key, RedisValue hashField, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = HashFieldSetAndSetExpiryMessage(key, hashField, expiry, CalculateExpiryValues, when, keepTtl, flags);
+            return ExecuteAsync(msg, ResultProcessor.Lease);
+        }
+
+        public Task<Lease<byte>?> HashFieldSetLeaseAndSetExpiryAsync(RedisKey key, RedisValue hashField, DateTime? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = HashFieldSetAndSetExpiryMessage(key, hashField, expiry, CalculateExpiryValues, when, keepTtl, flags);
+            return ExecuteAsync(msg, ResultProcessor.Lease);
+        }
+
+        public Task<RedisValue[]> HashFieldSetAndSetExpiryAsync(RedisKey key, RedisValue[] hashFields, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        {
+            if (hashFields == null) throw new ArgumentNullException(nameof(hashFields));
+            if (hashFields.Length == 0) return CompletedTask<RedisValue[]>.FromDefault(Array.Empty<RedisValue>(), asyncState);
+            var msg = HashFieldSetAndSetExpiryMessage(key, hashFields, expiry, CalculateExpiryValues, when, keepTtl, flags);
+            return ExecuteAsync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
+        }
+        public Task<RedisValue[]> HashFieldSetAndSetExpiryAsync(RedisKey key, RedisValue[] hashFields, DateTime? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        {
+            if (hashFields == null) throw new ArgumentNullException(nameof(hashFields));
+            if (hashFields.Length == 0) return CompletedTask<RedisValue[]>.FromDefault(Array.Empty<RedisValue>(), asyncState);
+            var msg = HashFieldSetAndSetExpiryMessage(key, hashFields, expiry, CalculateExpiryValues, when, keepTtl, flags);
+            return ExecuteAsync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
+        }
+
         public long[] HashFieldGetExpireDateTime(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None) =>
             HashFieldExecute(RedisCommand.HPEXPIRETIME, key, SyncCustomArrExecutor<long, ResultProcessor<long[]>>, ResultProcessor.Int64Array, flags, hashFields);
 
