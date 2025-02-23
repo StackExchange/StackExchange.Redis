@@ -414,18 +414,47 @@ namespace StackExchange.Redis
         private T HashFieldExpireExecute<T, TProcessor>(RedisKey key, long milliseconds, ExpireWhen when, Func<bool, RedisCommand> getCmd, CustomExecutor<T, TProcessor> executor, TProcessor processor, CommandFlags flags, params RedisValue[] hashFields)
         {
             if (hashFields == null) throw new ArgumentNullException(nameof(hashFields));
-            var useSeconds = milliseconds % 1000 == 0;
-            var cmd = getCmd(useSeconds);
-            long expiry = useSeconds ? (milliseconds / 1000) : milliseconds;
 
-            var values = when switch
+            bool useSeconds = (milliseconds % 1000) == 0;
+            var cmd = getCmd(useSeconds);
+            long expiry = useSeconds ? milliseconds / 1000 : milliseconds;
+
+            int baseLength = (when == ExpireWhen.Always) ? 3 : 4;
+            int totalLength = baseLength + hashFields.Length;
+
+            bool usePool = totalLength > 16;
+            RedisValue[] values = usePool
+                ? ArrayPool<RedisValue>.Shared.Rent(totalLength)
+                : new RedisValue[totalLength];
+
+            try
             {
-                ExpireWhen.Always => new List<RedisValue> { expiry, RedisLiterals.FIELDS, hashFields.Length },
-                _ => new List<RedisValue> { expiry, when.ToLiteral(), RedisLiterals.FIELDS, hashFields.Length },
-            };
-            values.AddRange(hashFields);
-            var msg = Message.Create(Database, flags, cmd, key, values.ToArray());
-            return executor(msg, processor);
+                values[0] = expiry;
+                if (when == ExpireWhen.Always)
+                {
+                    values[1] = RedisLiterals.FIELDS;
+                    values[2] = hashFields.Length;
+                }
+                else
+                {
+                    values[1] = when.ToLiteral();
+                    values[2] = RedisLiterals.FIELDS;
+                    values[3] = hashFields.Length;
+                }
+                Array.Copy(hashFields, 0, values, baseLength, hashFields.Length);
+
+                RedisValue[] finalValues = usePool ? new RedisValue[totalLength] : values;
+                if (usePool)
+                    Array.Copy(values, finalValues, totalLength);
+
+                var msg = Message.Create(Database, flags, cmd, key, finalValues);
+                return executor(msg, processor);
+            }
+            finally
+            {
+                if (usePool)
+                    ArrayPool<RedisValue>.Shared.Return(values);
+            }
         }
 
         private static RedisCommand PickExpireCommandByPrecision(bool useSeconds) => useSeconds ? RedisCommand.HEXPIRE : RedisCommand.HPEXPIRE;
