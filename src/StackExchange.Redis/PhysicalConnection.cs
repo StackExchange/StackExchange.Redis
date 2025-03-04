@@ -55,6 +55,8 @@ namespace StackExchange.Redis
 
         private int failureReported;
 
+        private int clientSentQuit;
+
         private int lastWriteTickCount, lastReadTickCount, lastBeatTickCount;
 
         private long bytesLastResult;
@@ -375,15 +377,6 @@ namespace StackExchange.Redis
             }
         }
 
-        /// <summary>
-        /// Did we ask for the shutdown? If so this leads to informational messages for tracking but not errors.
-        /// </summary>
-        private bool IsRequestedShutdown(PipeShutdownKind kind) => kind switch
-        {
-            PipeShutdownKind.ProtocolExitClient => true,
-            _ => false,
-        };
-
         public void RecordConnectionFailed(
             ConnectionFailureType failureType,
             Exception? innerException = null,
@@ -436,12 +429,12 @@ namespace StackExchange.Redis
 
                     var exMessage = new StringBuilder(failureType.ToString());
 
+                    // If the reason for the shutdown was we asked for the socket to die, don't log it as an error (only informational)
+                    weAskedForThis = Thread.VolatileRead(ref clientSentQuit) != 0;
+
                     var pipe = connectingPipe ?? _ioPipe;
                     if (pipe is SocketConnection sc)
                     {
-                        // If the reason for the shutdown was we asked for the socket to die, don't log it as an error (only informational)
-                        weAskedForThis = IsRequestedShutdown(sc.ShutdownKind);
-
                         exMessage.Append(" (").Append(sc.ShutdownKind);
                         if (sc.SocketError != SocketError.Success)
                         {
@@ -904,8 +897,12 @@ namespace StackExchange.Redis
 
         internal void WriteRaw(ReadOnlySpan<byte> bytes) => _ioPipe?.Output?.Write(bytes);
 
-        internal void RecordQuit() // don't blame redis if we fired the first shot
-            => (_ioPipe as SocketConnection)?.TrySetProtocolShutdown(PipeShutdownKind.ProtocolExitClient);
+        internal void RecordQuit()
+        {
+            // don't blame redis if we fired the first shot
+            Thread.VolatileWrite(ref clientSentQuit, 1);
+            (_ioPipe as SocketConnection)?.TrySetProtocolShutdown(PipeShutdownKind.ProtocolExitClient);
+        }
 
         internal static void WriteMultiBulkHeader(PipeWriter output, long count)
         {
