@@ -9,6 +9,7 @@ Current package versions:
 ## Unreleased
 - Fix: Respect `IReconnectRetryPolicy` timing in the case that a node that was present disconnects indefinitely ([#2853 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2853))
 - Changes max default retry policy backoff to 60 seconds ([#2853 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2853))
+- Fix [#2652](https://github.com/StackExchange/StackExchange.Redis/issues/2652): Track client-initiated shutdown for any pipe type ([#2814 by bgrainger](https://github.com/StackExchange/StackExchange.Redis/pull/2814))
 
 ## 2.8.24
 
