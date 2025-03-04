@@ -47,6 +47,7 @@ namespace StackExchange.Redis
         private int beating;
         private int failConnectCount = 0;
         private volatile bool isDisposed;
+        private volatile bool shouldResetConnectionRetryCount;
         private long nonPreferredEndpointCount;
 
         // private volatile int missedHeartbeats;
@@ -597,6 +598,8 @@ namespace StackExchange.Redis
                         // We need to time that out and cleanup the PhysicalConnection if needed, otherwise that reader and socket will remain open
                         // for the lifetime of the application due to being orphaned, yet still referenced by the active task doing the pipe read.
                     case (int)State.ConnectedEstablished:
+                        // Track that we should reset the count on the next disconnect, but not do so in a loop
+                        shouldResetConnectionRetryCount = true;
                         var tmp = physical;
                         if (tmp != null)
                         {
@@ -668,7 +671,14 @@ namespace StackExchange.Redis
                         }
                         break;
                     case (int)State.Disconnected:
-                        Interlocked.Exchange(ref connectTimeoutRetryCount, 0);
+                        // Only if we should reset the connection count
+                        // This should only happen after a successful reconnection, and not every time we bounce from BeginConnectAsync -> Disconnected
+                        // in a failure loop case that happens when a node goes missing forever.
+                        if (shouldResetConnectionRetryCount)
+                        {
+                            shouldResetConnectionRetryCount = false;
+                            Interlocked.Exchange(ref connectTimeoutRetryCount, 0);
+                        }
                         if (!ifConnectedOnly)
                         {
                             Multiplexer.Trace("Resurrecting " + ToString());
