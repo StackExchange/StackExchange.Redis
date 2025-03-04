@@ -506,44 +506,62 @@ namespace StackExchange.Redis
 
         private Message HashFieldGetAndSetExpiryMessage<T>(RedisKey key, RedisValue hashField, T? expiry, CalculateExpiryArgs<T> calculateExpiryArgs, bool persist, CommandFlags flags) where T : struct
         {
-            if (expiry != null && persist)
+            if (expiry != null && persist) throw new ArgumentException("Cannot specify both expiry and persist");
+
+            if (persist) // Case when persist is true (expiry is disregarded)
             {
-                throw new ArgumentException("Cannot specify both expiry and persist");
+                return Message.Create(Database, flags, RedisCommand.HGETEX, key, RedisLiterals.PERSIST, RedisLiterals.FIELDS, 1, hashField);
             }
-            switch ((expiry, persist))
+
+            if (expiry != null) // Check if expiry is not null
             {
-                case (_, true): // Case when persist is true (expiry is disregarded)
-                    return Message.Create(Database, flags, RedisCommand.HGETEX, key, RedisLiterals.PERSIST, RedisLiterals.FIELDS, 1, hashField);
-                case (not null, _): // Case when expiry is not null
-                    calculateExpiryArgs((T)expiry!, out RedisValue precision, out RedisValue time);
-                    return Message.Create(Database, flags, RedisCommand.HGETEX, key, precision, time, RedisLiterals.FIELDS, 1, hashField);
-                default: // Default case when both expiry and persist are default
-                    return Message.Create(Database, flags, RedisCommand.HGETEX, RedisLiterals.FIELDS, 1, hashField);
+                calculateExpiryArgs((T)expiry!, out RedisValue precision, out RedisValue time);
+                return Message.Create(Database, flags, RedisCommand.HGETEX, key, precision, time, RedisLiterals.FIELDS, 1, hashField);
             }
+
+            // Default case when neither expiry nor persist are set
+            return Message.Create(Database, flags, RedisCommand.HGETEX, RedisLiterals.FIELDS, 1, hashField);
         }
 
         private Message HashFieldGetAndSetExpiryMessage<T>(RedisKey key, RedisValue[] hashFields, T? expiry, CalculateExpiryArgs<T> calculateExpiryArgs, bool persist, CommandFlags flags) where T : struct
         {
-            if (expiry != null && persist)
+            if (expiry != null && persist) throw new ArgumentException("Cannot specify both expiry and persist");
+
+            // Calculate the total size of the array based on conditions
+            int arraySize = 0;
+            if (persist) // Case when persist is true (expiry is disregarded)
             {
-                throw new ArgumentException("Cannot specify both expiry and persist");
+                arraySize = 3;  // PERSIST, FIELDS, hashFields.Length
             }
-            List<RedisValue>? values = null;
-            switch ((expiry, persist))
+            else if (expiry != null) // Case when expiry is not null
             {
-                case (_, true): // Case when persist is true (expiry is disregarded)
-                    values = new List<RedisValue> { RedisLiterals.PERSIST, RedisLiterals.FIELDS, hashFields.Length };
-                    break;
-                case (not null, _): // Case when expiry is not null
-                    calculateExpiryArgs((T)expiry!, out RedisValue precision, out RedisValue time);
-                    values = new List<RedisValue> { precision, time, RedisLiterals.FIELDS, hashFields.Length };
-                    break;
-                default: // Default case when both expiry and persist are default
-                    values = new List<RedisValue> { RedisLiterals.FIELDS, hashFields.Length };
-                    break;
+                arraySize = 4;  // precision, time, FIELDS, hashFields.Length
             }
-            values.AddRange(hashFields);
-            return Message.Create(Database, flags, RedisCommand.HGETEX, key, values.ToArray());
+            else // Default case when both expiry and persist are default
+            {
+                arraySize = 2;  // FIELDS, hashFields.Length
+            }
+
+            // Create an array to hold the values (including hashFields)
+            RedisValue[] values = new RedisValue[arraySize + hashFields.Length];
+
+            int index = 0;
+            // Add PERSIST or expiry values, or just FIELDS
+            if (persist) // Case when persist is true (expiry is disregarded)
+            {
+                values[index++] = RedisLiterals.PERSIST;
+            }
+            else if (expiry != null) // Check if expiry is not null
+            {
+                calculateExpiryArgs((T)expiry!, out RedisValue precision, out RedisValue time);
+                values[index++] = precision;
+                values[index++] = time;
+            }
+            values[index++] = RedisLiterals.FIELDS;
+            values[index++] = hashFields.Length;
+            // Add hash fields to the array
+            Array.Copy(hashFields, 0, values, index, hashFields.Length);
+            return Message.Create(Database, flags, RedisCommand.HGETEX, key, values);
         }
 
         public RedisValue HashFieldGetAndSetExpiry(RedisKey key, RedisValue hashField, TimeSpan? expiry = null, bool persist = false, CommandFlags flags = CommandFlags.None)
@@ -628,88 +646,81 @@ namespace StackExchange.Redis
 
         private Message HashFieldSetAndSetExpiryMessage<T>(RedisKey key, RedisValue hashField, T? expiry, CalculateExpiryArgs<T> calculateExpiryArgs, When when, bool keepTtl, CommandFlags flags) where T : struct
         {
-            if (expiry != null && keepTtl)
-            {
-                throw new ArgumentException("Cannot specify both expiry and keepTtl");
-            }
-            switch ((when, expiry, keepTtl))
-            {
-                case (When.Always, _, true): // Case when keepTtl is true (expiry is disregarded)
-                    return Message.Create(Database, flags, RedisCommand.HSETEX, key, RedisLiterals.KEEPTTL, RedisLiterals.FIELDS, 1, hashField);
-                case (When.Always, not null, _): // Case when expiry is not null
-                    {
-                        calculateExpiryArgs((T)expiry!, out RedisValue precision, out RedisValue time);
-                        return Message.Create(Database, flags, RedisCommand.HSETEX, key, precision, time, RedisLiterals.FIELDS, 1, hashField);
-                    }
-                case (When.Always, _, _): // Default case when both expiry and keepTtl are default
-                    return Message.Create(Database, flags, RedisCommand.HSETEX, RedisLiterals.FIELDS, 1, hashField);
+            if (expiry != null && keepTtl) throw new ArgumentException("Cannot specify both expiry and keepTtl");
 
-                case (When.Exists, _, true): // Case when keepTtl is true (expiry is disregarded)
-                case (When.NotExists, _, true):
-                    {
-                        var existance = when == When.Exists ? RedisLiterals.FXX : RedisLiterals.FNX;
-                        return Message.Create(Database, flags, RedisCommand.HSETEX, key, existance, RedisLiterals.KEEPTTL, RedisLiterals.FIELDS, 1, hashField);
-                    }
-                case (When.Exists, not null, _): // Case when expiry is not null
-                case (When.NotExists, not null, _):
-                    {
-                        calculateExpiryArgs((T)expiry!, out RedisValue precision, out RedisValue time);
-                        var existance = when == When.Exists ? RedisLiterals.FXX : RedisLiterals.FNX;
-                        return Message.Create(Database, flags, RedisCommand.HSETEX, key, existance, precision, time, RedisLiterals.FIELDS, 1, hashField);
-                    }
-                default: // Only existance is specified
-                    {
-                        var existance = when == When.Exists ? RedisLiterals.FXX : RedisLiterals.FNX;
-                        return Message.Create(Database, flags, RedisCommand.HSETEX, key, existance, RedisLiterals.FIELDS, 1, hashField);
-                    }
+            if (when == When.Always)
+            {
+                if (keepTtl) // Case when keepTtl is true (expiry is disregarded)
+                {
+                    return Message.Create(Database, flags, RedisCommand.HSETEX, key, RedisLiterals.KEEPTTL, RedisLiterals.FIELDS, 1, hashField);
+                }
+
+                if (expiry != null) // Case when expiry is not null
+                {
+                    calculateExpiryArgs((T)expiry!, out RedisValue precision, out RedisValue time);
+                    return Message.Create(Database, flags, RedisCommand.HSETEX, key, precision, time, RedisLiterals.FIELDS, 1, hashField);
+                }
+                // Default case when both expiry and keepTtl are default
+                return Message.Create(Database, flags, RedisCommand.HSETEX, RedisLiterals.FIELDS, 1, hashField);
             }
+
+            var existance = when == When.Exists ? RedisLiterals.FXX : RedisLiterals.FNX;
+            if (keepTtl) // Case when keepTtl is true (expiry is disregarded)
+            {
+                return Message.Create(Database, flags, RedisCommand.HSETEX, key, existance, RedisLiterals.KEEPTTL, RedisLiterals.FIELDS, 1, hashField);
+            }
+            if (expiry != null) // Case when expiry is not null
+            {
+                calculateExpiryArgs((T)expiry!, out RedisValue precision, out RedisValue time);
+                return Message.Create(Database, flags, RedisCommand.HSETEX, key, existance, precision, time, RedisLiterals.FIELDS, 1, hashField);
+            }
+            // Only existance is specified
+            return Message.Create(Database, flags, RedisCommand.HSETEX, key, existance, RedisLiterals.FIELDS, 1, hashField);
         }
 
         private Message HashFieldSetAndSetExpiryMessage<T>(RedisKey key, RedisValue[] hashFields, T? expiry, CalculateExpiryArgs<T> calculateExpiryArgs, When when, bool keepTtl, CommandFlags flags) where T : struct
         {
-            if (expiry != null && keepTtl)
+            if (expiry != null && keepTtl) throw new ArgumentException("Cannot specify both expiry and keepTtl");
+
+            // Determine the base array size
+            int arraySize = when == When.Always ? 0 : 1;
+
+            if (keepTtl)
             {
-                throw new ArgumentException("Cannot specify both expiry and keepTtl");
+                arraySize += 3;  // KEEPTTL, FIELDS, hashFields.Length
             }
-            List<RedisValue>? values = null;
-            switch ((when, expiry, keepTtl))
+            else if (expiry != null)
             {
-                case (When.Always, _, true): // Case when keepTtl is true (expiry is disregarded)
-                    values = new List<RedisValue> { RedisLiterals.KEEPTTL, RedisLiterals.FIELDS, hashFields.Length };
-                    break;
-                case (When.Always, not null, _): // Case when expiry is not null
-                    {
-                        calculateExpiryArgs((T)expiry!, out RedisValue precision, out RedisValue time);
-                        values = new List<RedisValue> { precision, time, RedisLiterals.FIELDS, hashFields.Length };
-                    }
-                    break;
-                case (When.Always, _, _): // Default case when both expiry and keepTtl are default
-                    values = new List<RedisValue> { RedisLiterals.FIELDS, hashFields.Length };
-                    break;
-                case (When.Exists, _, true): // Case when keepTtl is true (expiry is disregarded)
-                case (When.NotExists, _, true):
-                    {
-                        var existance = when == When.Exists ? RedisLiterals.FXX : RedisLiterals.FNX;
-                        values = new List<RedisValue> { existance, RedisLiterals.KEEPTTL, RedisLiterals.FIELDS, hashFields.Length };
-                    }
-                    break;
-                case (When.Exists, not null, _): // Case when expiry is not null
-                case (When.NotExists, not null, _):
-                    {
-                        calculateExpiryArgs((T)expiry!, out RedisValue precision, out RedisValue time);
-                        var existance = when == When.Exists ? RedisLiterals.FXX : RedisLiterals.FNX;
-                        values = new List<RedisValue> { existance, precision, time, RedisLiterals.FIELDS, hashFields.Length };
-                    }
-                    break;
-                default: // Only existance is specified
-                    {
-                        var existance = when == When.Exists ? RedisLiterals.FXX : RedisLiterals.FNX;
-                        values = new List<RedisValue> { existance, RedisLiterals.FIELDS, hashFields.Length };
-                    }
-                    break;
+                arraySize += 4;  // precision, time, FIELDS, hashFields.Length
             }
-            values.AddRange(hashFields);
-            return Message.Create(Database, flags, RedisCommand.HSETEX, key, values.ToArray());
+            else
+            {
+                arraySize += 2;  // FIELDS, hashFields.Length
+            }
+
+            arraySize += hashFields.Length;
+            RedisValue[] values = new RedisValue[arraySize];
+            int index = 0;
+
+            if (when != When.Always)
+            {
+                values[index++] = when == When.Exists ? RedisLiterals.FXX : RedisLiterals.FNX;
+            }
+
+            if (keepTtl) // Case when keepTtl is true (expiry is disregarded)
+            {
+                values[index++] = RedisLiterals.KEEPTTL;
+            }
+            else if (expiry != null) // Case when expiry is not null
+            {
+                calculateExpiryArgs((T)expiry!, out RedisValue precision, out RedisValue time);
+                values[index++] = precision;
+                values[index++] = time;
+            }
+            values[index++] = RedisLiterals.FIELDS;
+            values[index++] = hashFields.Length;
+            Array.Copy(hashFields, 0, values, index, hashFields.Length);
+            return Message.Create(Database, flags, RedisCommand.HSETEX, key, values);
         }
 
         public RedisValue HashFieldSetAndSetExpiry(RedisKey key, RedisValue hashField, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None)
