@@ -486,20 +486,22 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
         }
 
-        private delegate (RedisValue Precision, RedisValue Duration) CalculateExpiryArgs<T>(T expiry);
+        private delegate void CalculateExpiryArgs<T>(T expiry, out RedisValue precision, out RedisValue time);
 
-        private (RedisValue Precision, RedisValue Time) CalculateExpiryValues(TimeSpan expiry)
+        private void CalculateExpiryValues(TimeSpan expiry, out RedisValue precision, out RedisValue time)
         {
             long milliseconds = expiry.Ticks / TimeSpan.TicksPerMillisecond;
             var useSeconds = milliseconds % 1000 == 0;
-            return useSeconds ? (RedisLiterals.EX, milliseconds / 1000) : (RedisLiterals.PX, milliseconds);
+            precision = useSeconds ? RedisLiterals.EX : RedisLiterals.PX;
+            time = useSeconds ? (milliseconds / 1000) : milliseconds;
         }
 
-        private (RedisValue Precision, RedisValue Time) CalculateExpiryValues(DateTime expiry)
+        private void CalculateExpiryValues(DateTime expiry, out RedisValue precision, out RedisValue time)
         {
             long milliseconds = GetMillisecondsUntil(expiry);
             var useSeconds = milliseconds % 1000 == 0;
-            return useSeconds ? (RedisLiterals.EXAT, milliseconds / 1000) : (RedisLiterals.PXAT, milliseconds);
+            precision = useSeconds ? RedisLiterals.EXAT : RedisLiterals.PXAT;
+            time = useSeconds ? (milliseconds / 1000) : milliseconds;
         }
 
         private Message HashFieldGetAndSetExpiryMessage<T>(RedisKey key, RedisValue hashField, T? expiry, CalculateExpiryArgs<T> calculateExpiryArgs, bool persist, CommandFlags flags) where T : struct
@@ -513,8 +515,8 @@ namespace StackExchange.Redis
                 case (_, true): // Case when persist is true (expiry is disregarded)
                     return Message.Create(Database, flags, RedisCommand.HGETEX, key, RedisLiterals.PERSIST, RedisLiterals.FIELDS, 1, hashField);
                 case (not null, _): // Case when expiry is not null
-                    var (precision, duration) = calculateExpiryArgs((T)expiry!);
-                    return Message.Create(Database, flags, RedisCommand.HGETEX, key, precision, duration, RedisLiterals.FIELDS, 1, hashField);
+                    calculateExpiryArgs((T)expiry!, out RedisValue precision, out RedisValue time);
+                    return Message.Create(Database, flags, RedisCommand.HGETEX, key, precision, time, RedisLiterals.FIELDS, 1, hashField);
                 default: // Default case when both expiry and persist are default
                     return Message.Create(Database, flags, RedisCommand.HGETEX, RedisLiterals.FIELDS, 1, hashField);
             }
@@ -533,8 +535,8 @@ namespace StackExchange.Redis
                     values = new List<RedisValue> { RedisLiterals.PERSIST, RedisLiterals.FIELDS, hashFields.Length };
                     break;
                 case (not null, _): // Case when expiry is not null
-                    var (precision, duration) = calculateExpiryArgs((T)expiry!);
-                    values = new List<RedisValue> { precision, duration, RedisLiterals.FIELDS, hashFields.Length };
+                    calculateExpiryArgs((T)expiry!, out RedisValue precision, out RedisValue time);
+                    values = new List<RedisValue> { precision, time, RedisLiterals.FIELDS, hashFields.Length };
                     break;
                 default: // Default case when both expiry and persist are default
                     values = new List<RedisValue> { RedisLiterals.FIELDS, hashFields.Length };
@@ -636,8 +638,8 @@ namespace StackExchange.Redis
                     return Message.Create(Database, flags, RedisCommand.HSETEX, key, RedisLiterals.KEEPTTL, RedisLiterals.FIELDS, 1, hashField);
                 case (When.Always, not null, _): // Case when expiry is not null
                     {
-                        var (precision, duration) = calculateExpiryArgs((T)expiry!);
-                        return Message.Create(Database, flags, RedisCommand.HSETEX, key, precision, duration, RedisLiterals.FIELDS, 1, hashField);
+                        calculateExpiryArgs((T)expiry!, out RedisValue precision, out RedisValue time);
+                        return Message.Create(Database, flags, RedisCommand.HSETEX, key, precision, time, RedisLiterals.FIELDS, 1, hashField);
                     }
                 case (When.Always, _, _): // Default case when both expiry and keepTtl are default
                     return Message.Create(Database, flags, RedisCommand.HSETEX, RedisLiterals.FIELDS, 1, hashField);
@@ -651,9 +653,9 @@ namespace StackExchange.Redis
                 case (When.Exists, not null, _): // Case when expiry is not null
                 case (When.NotExists, not null, _):
                     {
-                        var (precision, duration) = calculateExpiryArgs((T)expiry!);
+                        calculateExpiryArgs((T)expiry!, out RedisValue precision, out RedisValue time);
                         var existance = when == When.Exists ? RedisLiterals.FXX : RedisLiterals.FNX;
-                        return Message.Create(Database, flags, RedisCommand.HSETEX, key, existance, precision, duration, RedisLiterals.FIELDS, 1, hashField);
+                        return Message.Create(Database, flags, RedisCommand.HSETEX, key, existance, precision, time, RedisLiterals.FIELDS, 1, hashField);
                     }
                 default: // Only existance is specified
                     {
@@ -677,8 +679,8 @@ namespace StackExchange.Redis
                     break;
                 case (When.Always, not null, _): // Case when expiry is not null
                     {
-                        var (precision, duration) = calculateExpiryArgs((T)expiry!);
-                        values = new List<RedisValue> { precision, duration, RedisLiterals.FIELDS, hashFields.Length };
+                        calculateExpiryArgs((T)expiry!, out RedisValue precision, out RedisValue time);
+                        values = new List<RedisValue> { precision, time, RedisLiterals.FIELDS, hashFields.Length };
                     }
                     break;
                 case (When.Always, _, _): // Default case when both expiry and keepTtl are default
@@ -694,9 +696,9 @@ namespace StackExchange.Redis
                 case (When.Exists, not null, _): // Case when expiry is not null
                 case (When.NotExists, not null, _):
                     {
-                        var (precision, duration) = calculateExpiryArgs((T)expiry!);
+                        calculateExpiryArgs((T)expiry!, out RedisValue precision, out RedisValue time);
                         var existance = when == When.Exists ? RedisLiterals.FXX : RedisLiterals.FNX;
-                        values = new List<RedisValue> { existance, precision, duration, RedisLiterals.FIELDS, hashFields.Length };
+                        values = new List<RedisValue> { existance, precision, time, RedisLiterals.FIELDS, hashFields.Length };
                     }
                     break;
                 default: // Only existance is specified
