@@ -7,7 +7,8 @@ Current package versions:
 | [![StackExchange.Redis](https://img.shields.io/nuget/v/StackExchange.Redis.svg)](https://www.nuget.org/packages/StackExchange.Redis/) | [![StackExchange.Redis](https://img.shields.io/nuget/vpre/StackExchange.Redis.svg)](https://www.nuget.org/packages/StackExchange.Redis/) | [![StackExchange.Redis MyGet](https://img.shields.io/myget/stackoverflow/vpre/StackExchange.Redis.svg)](https://www.myget.org/feed/stackoverflow/package/nuget/StackExchange.Redis) |
 
 ## Unreleased
-No pending unreleased changes.
+- Fix: Respect `IReconnectRetryPolicy` timing in the case that a node that was present disconnects indefinitely ([#2853 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2853))
+- Changes may default retry policy backoff to 60 seconds ([#2853 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2853))
 
 ## 2.8.24
 
