@@ -7,7 +7,7 @@ Current package versions:
 | [![StackExchange.Redis](https://img.shields.io/nuget/v/StackExchange.Redis.svg)](https://www.nuget.org/packages/StackExchange.Redis/) | [![StackExchange.Redis](https://img.shields.io/nuget/vpre/StackExchange.Redis.svg)](https://www.nuget.org/packages/StackExchange.Redis/) | [![StackExchange.Redis MyGet](https://img.shields.io/myget/stackoverflow/vpre/StackExchange.Redis.svg)](https://www.myget.org/feed/stackoverflow/package/nuget/StackExchange.Redis) |
 
 ## Unreleased
-- Fix: Respect `IReconnectRetryPolicy` timing in the case that a node that was present disconnects indefinitely ([#2853 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2853))
+- Fix: Respect `IReconnectRetryPolicy` timing in the case that a node that was present disconnects indefinitely ([#2853](https://github.com/StackExchange/StackExchange.Redis/pull/2853) & [#2856](https://github.com/StackExchange/StackExchange.Redis/pull/2856) by NickCraver)
 - Changes max default retry policy backoff to 60 seconds ([#2853 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2853))
 - Fix [#2652](https://github.com/StackExchange/StackExchange.Redis/issues/2652): Track client-initiated shutdown for any pipe type ([#2814 by bgrainger](https://github.com/StackExchange/StackExchange.Redis/pull/2814))
 
