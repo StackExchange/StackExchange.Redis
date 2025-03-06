@@ -685,7 +685,10 @@ namespace StackExchange.Redis
                         }
                         if (!ifConnectedOnly && DueForConnectRetry())
                         {
-                            Multiplexer.Trace("Resurrecting " + ToString());
+                            // Increment count here, so that we don't re-enter in Connecting case up top - we don't want to re-enter and log there.
+                            Interlocked.Increment(ref connectTimeoutRetryCount);
+
+                            Multiplexer.Logger?.LogInformation($"Resurrecting {ToString()} (retry: {connectTimeoutRetryCount})");
                             Multiplexer.OnResurrecting(ServerEndPoint.EndPoint, ConnectionType);
                             TryConnect(null);
                         }
