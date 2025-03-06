@@ -18,6 +18,7 @@ public class ConnectingFailDetectionTests : TestBase
         try
         {
             using var conn = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true, shared: false);
+            conn.RawConfig.ReconnectRetryPolicy = new LinearRetry(200);
 
             var db = conn.GetDatabase();
             db.Ping();
@@ -57,6 +58,7 @@ public class ConnectingFailDetectionTests : TestBase
         try
         {
             using var conn = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true, shared: false);
+            conn.RawConfig.ReconnectRetryPolicy = new LinearRetry(200);
 
             var db = conn.GetDatabase();
             db.Ping();
