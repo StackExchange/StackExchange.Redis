@@ -550,6 +550,12 @@ namespace StackExchange.Redis
         private int connectStartTicks;
         private long connectTimeoutRetryCount = 0;
 
+        private bool DueForConnectRetry()
+        {
+            int connectTimeMilliseconds = unchecked(Environment.TickCount - Thread.VolatileRead(ref connectStartTicks));
+            return Multiplexer.RawConfig.ReconnectRetryPolicy.ShouldRetry(Interlocked.Read(ref connectTimeoutRetryCount), connectTimeMilliseconds);
+        }
+
         internal void OnHeartbeat(bool ifConnectedOnly)
         {
             bool runThisTime = false;
@@ -575,9 +581,7 @@ namespace StackExchange.Redis
                 switch (state)
                 {
                     case (int)State.Connecting:
-                        int connectTimeMilliseconds = unchecked(Environment.TickCount - Thread.VolatileRead(ref connectStartTicks));
-                        bool shouldRetry = Multiplexer.RawConfig.ReconnectRetryPolicy.ShouldRetry(Interlocked.Read(ref connectTimeoutRetryCount), connectTimeMilliseconds);
-                        if (shouldRetry)
+                        if (DueForConnectRetry())
                         {
                             Interlocked.Increment(ref connectTimeoutRetryCount);
                             var ex = ExceptionFactory.UnableToConnect(Multiplexer, "ConnectTimeout");
@@ -679,7 +683,7 @@ namespace StackExchange.Redis
                             shouldResetConnectionRetryCount = false;
                             Interlocked.Exchange(ref connectTimeoutRetryCount, 0);
                         }
-                        if (!ifConnectedOnly)
+                        if (!ifConnectedOnly && DueForConnectRetry())
                         {
                             Multiplexer.Trace("Resurrecting " + ToString());
                             Multiplexer.OnResurrecting(ServerEndPoint.EndPoint, ConnectionType);
