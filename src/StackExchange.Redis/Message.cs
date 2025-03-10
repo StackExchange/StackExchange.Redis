@@ -174,6 +174,7 @@ namespace StackExchange.Redis
             {
                 switch (Command)
                 {
+                    case RedisCommand.ACL:
                     case RedisCommand.BGREWRITEAOF:
                     case RedisCommand.BGSAVE:
                     case RedisCommand.CLIENT:
@@ -525,6 +526,26 @@ namespace StackExchange.Redis
             return new CommandKeyValuesKeyMessage(db, flags, command, key0, values, key1);
         }
 
+        internal static Message Create(int db, CommandFlags flags, RedisCommand command, RedisValue value, RedisValue[] values)
+        {
+#if NET6_0_OR_GREATER
+            ArgumentNullException.ThrowIfNull(values);
+#else
+            if (values == null) throw new ArgumentNullException(nameof(values));
+#endif
+            return new CommandValueValuesMessage(db, flags, command, value, values);
+        }
+
+        internal static Message Create(int db, CommandFlags flags, RedisCommand command, RedisValue value0, RedisValue value1, RedisValue[] values)
+        {
+#if NET6_0_OR_GREATER
+            ArgumentNullException.ThrowIfNull(values);
+#else
+            if (values == null) throw new ArgumentNullException(nameof(values));
+#endif
+            return new CommandValueValueValuesMessage(db, flags, command, value0, value1, values);
+        }
+
         internal static CommandFlags GetPrimaryReplicaFlags(CommandFlags flags)
         {
             // for the purposes of the switch, we only care about two bits
@@ -535,6 +556,7 @@ namespace StackExchange.Redis
         {
             switch (command)
             {
+                case RedisCommand.ACL:
                 case RedisCommand.ASKING:
                 case RedisCommand.AUTH:
                 case RedisCommand.BGREWRITEAOF:
@@ -1046,6 +1068,63 @@ namespace StackExchange.Redis
                 }
             }
             public override int ArgCount => values.Length;
+        }
+
+        private sealed class CommandValueValuesMessage : Message
+        {
+            private readonly RedisValue value;
+            private readonly RedisValue[] values;
+
+            public CommandValueValuesMessage(int db, CommandFlags flags, RedisCommand command, RedisValue value, RedisValue[] values) : base(db, flags, command)
+            {
+                this.value = value;
+                for (int i = 0; i < values.Length; i++)
+                {
+                    values[i].AssertNotNull();
+                }
+                this.values = values;
+            }
+
+            protected override void WriteImpl(PhysicalConnection physical)
+            {
+                physical.WriteHeader(command, values.Length + 1);
+                physical.WriteBulkString(value);
+                for (int i = 0; i < values.Length; i++)
+                {
+                    physical.WriteBulkString(values[i]);
+                }
+            }
+            public override int ArgCount => values.Length + 1;
+        }
+
+        private sealed class CommandValueValueValuesMessage : Message
+        {
+            private readonly RedisValue value0;
+            private readonly RedisValue value1;
+            private readonly RedisValue[] values;
+
+            public CommandValueValueValuesMessage(int db, CommandFlags flags, RedisCommand command, RedisValue value0, RedisValue value1, RedisValue[] values) : base(db, flags, command)
+            {
+                this.value0 = value0;
+                this.value1 = value1;
+                for (int i = 0; i < values.Length; i++)
+                {
+                    values[i].AssertNotNull();
+                }
+                this.values = values;
+            }
+
+            protected override void WriteImpl(PhysicalConnection physical)
+            {
+                physical.WriteHeader(command, values.Length + 2);
+                physical.WriteBulkString(value0);
+                physical.WriteBulkString(value1);
+                for (int i = 0; i < values.Length; i++)
+                {
+                    physical.WriteBulkString(values[i]);
+                }
+            }
+            public override int ArgCount => values.Length + 2;
         }
 
         private sealed class CommandKeysMessage : Message
