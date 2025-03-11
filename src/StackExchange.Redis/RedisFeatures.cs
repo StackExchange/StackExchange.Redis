@@ -44,7 +44,8 @@ namespace StackExchange.Redis
                                          v7_0_0_rc1 = new Version(6, 9, 240), // 7.0 RC1 is version 6.9.240
                                          v7_2_0_rc1 = new Version(7, 1, 240), // 7.2 RC1 is version 7.1.240
                                          v7_4_0_rc1 = new Version(7, 3, 240), // 7.4 RC1 is version 7.3.240
-                                         v7_4_0_rc2 = new Version(7, 3, 241); // 7.4 RC2 is version 7.3.241
+                                         v7_4_0_rc2 = new Version(7, 3, 241), // 7.4 RC2 is version 7.3.241
+                                         v8_0_0_rc1 = new Version(7, 9, 240); // 8.0 RC1 is version 7.9.240
 #pragma warning restore SA1310 // Field names should not contain underscore
 #pragma warning restore SA1311 // Static readonly fields should begin with upper-case letter
 

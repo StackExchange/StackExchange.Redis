@@ -565,10 +565,9 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the hash.</param>
         /// <param name="hashField">The field in the hash to get and set the expiration for.</param>
         /// <param name="expiry">The exact date and time to set the expiration to.</param>
-        /// <param name="persist">If true, the expiration will be removed. And 'expiry' parameter is ignored.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The value of the specified hash field.</returns>
-        RedisValue HashFieldGetAndSetExpiry(RedisKey key, RedisValue hashField, DateTime? expiry = null, bool persist = false, CommandFlags flags = CommandFlags.None);
+        RedisValue HashFieldGetAndSetExpiry(RedisKey key, RedisValue hashField, DateTime expiry, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Gets the value of the specified hash field and sets its expiration time, returning a lease.
@@ -587,10 +586,9 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the hash.</param>
         /// <param name="hashField">The field in the hash to get and set the expiration for.</param>
         /// <param name="expiry">The exact date and time to set the expiration to.</param>
-        /// <param name="persist">If true, the expiration will be removed. And 'expiry' parameter is ignored.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The value of the specified hash field as a lease.</returns>
-        Lease<byte>? HashFieldGetLeaseAndSetExpiry(RedisKey key, RedisValue hashField, DateTime? expiry = null, bool persist = false, CommandFlags flags = CommandFlags.None);
+        Lease<byte>? HashFieldGetLeaseAndSetExpiry(RedisKey key, RedisValue hashField, DateTime expiry, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Gets the values of the specified hash fields and sets their expiration times.
@@ -609,58 +607,34 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the hash.</param>
         /// <param name="hashFields">The fields in the hash to get and set the expiration for.</param>
         /// <param name="expiry">The exact date and time to set the expiration to.</param>
-        /// <param name="persist">If true, the expiration will be removed. And 'expiry' parameter is ignored.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The values of the specified hash fields.</returns>
-        RedisValue[] HashFieldGetAndSetExpiry(RedisKey key, RedisValue[] hashFields, DateTime? expiry = null, bool persist = false, CommandFlags flags = CommandFlags.None);
+        RedisValue[] HashFieldGetAndSetExpiry(RedisKey key, RedisValue[] hashFields, DateTime expiry, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Sets the value of the specified hash field and sets its expiration time.
         /// </summary>
         /// <param name="key">The key of the hash.</param>
-        /// <param name="hashField">The field in the hash to set and set the expiration for.</param>
+        /// <param name="field">The field in the hash to set and set the expiration for.</param>
+        /// <param name="value">The value in the hash to set and set the expiration for.</param>
         /// <param name="expiry">The expiration time to set.</param>
         /// <param name="keepTtl">Whether to maintain the existing field's TTL (KEEPTTL flag).</param>
         /// <param name="when">Which conditions to set the value under (defaults to always).</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The value of the specified hash field.</returns>
-        RedisValue HashFieldSetAndSetExpiry(RedisKey key, RedisValue hashField, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None);
+        /// <returns>0 if no fields were set,  1 if all the fields were set.</returns>
+        RedisValue HashFieldSetAndSetExpiry(RedisKey key, RedisValue field, RedisValue value, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Sets the value of the specified hash field and sets its expiration time.
         /// </summary>
         /// <param name="key">The key of the hash.</param>
-        /// <param name="hashField">The field in the hash to set and set the expiration for.</param>
+        /// <param name="field">The field in the hash to set and set the expiration for.</param>
+        /// <param name="value">The value in the hash to set and set the expiration for.</param>
         /// <param name="expiry">The exact date and time to set the expiration to.</param>
-        /// <param name="keepTtl">Whether to maintain the existing field's TTL (KEEPTTL flag).</param>
         /// <param name="when">Which conditions to set the value under (defaults to always).</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The value of the specified hash field.</returns>
-        RedisValue HashFieldSetAndSetExpiry(RedisKey key, RedisValue hashField, DateTime? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None);
-
-        /// <summary>
-        /// Sets the value of the specified hash field and sets its expiration time, returning a lease.
-        /// </summary>
-        /// <param name="key">The key of the hash.</param>
-        /// <param name="hashField">The field in the hash to set and set the expiration for.</param>
-        /// <param name="expiry">The expiration time to set.</param>
-        /// <param name="keepTtl">Whether to maintain the existing field's TTL (KEEPTTL flag).</param>
-        /// <param name="when">Which conditions to set the value under (defaults to always).</param>
-        /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The value of the specified hash field as a lease.</returns>
-        Lease<byte>? HashFieldSetLeaseAndSetExpiry(RedisKey key, RedisValue hashField, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None);
-
-        /// <summary>
-        /// Sets the value of the specified hash field and sets its expiration time, returning a lease.
-        /// </summary>
-        /// <param name="key">The key of the hash.</param>
-        /// <param name="hashField">The field in the hash to set and set the expiration for.</param>
-        /// <param name="expiry">The exact date and time to set the expiration to.</param>
-        /// <param name="keepTtl">Whether to maintain the existing field's TTL (KEEPTTL flag).</param>
-        /// <param name="when">Which conditions to set the value under (defaults to always).</param>
-        /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The value of the specified hash field as a lease.</returns>
-        Lease<byte>? HashFieldSetLeaseAndSetExpiry(RedisKey key, RedisValue hashField, DateTime? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None);
+        /// <returns>0 if no fields were set,  1 if all the fields were set.</returns>
+        RedisValue HashFieldSetAndSetExpiry(RedisKey key, RedisValue field, RedisValue value, DateTime expiry, When when = When.Always, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Sets the values of the specified hash fields and sets their expiration times.
@@ -671,8 +645,8 @@ namespace StackExchange.Redis
         /// <param name="keepTtl">Whether to maintain the existing fields' TTL (KEEPTTL flag).</param>
         /// <param name="when">Which conditions to set the values under (defaults to always).</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The values of the specified hash fields.</returns>
-        RedisValue[] HashFieldSetAndSetExpiry(RedisKey key, RedisValue[] hashFields, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None);
+        /// <returns>0 if no fields were set,  1 if all the fields were set.</returns>
+        RedisValue HashFieldSetAndSetExpiry(RedisKey key, HashEntry[] hashFields, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Sets the values of the specified hash fields and sets their expiration times.
@@ -680,11 +654,10 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the hash.</param>
         /// <param name="hashFields">The fields in the hash to set and set the expiration for.</param>
         /// <param name="expiry">The exact date and time to set the expiration to.</param>
-        /// <param name="keepTtl">Whether to maintain the existing fields' TTL (KEEPTTL flag).</param>
         /// <param name="when">Which conditions to set the values under (defaults to always).</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The values of the specified hash fields.</returns>
-        RedisValue[] HashFieldSetAndSetExpiry(RedisKey key, RedisValue[] hashFields, DateTime? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None);
+        /// <returns>0 if no fields were set,  1 if all the fields were set.</returns>
+        RedisValue HashFieldSetAndSetExpiry(RedisKey key, HashEntry[] hashFields, DateTime expiry, When when = When.Always, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Returns all fields and values of the hash stored at key.
