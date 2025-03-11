@@ -1,12 +1,10 @@
 name: CI
 
 on:
-  workflow_dispatch:
   pull_request:
   push:
     branches:
     - main
-    - ali/redis_container_on_wind_runner
     paths:
     - '*'
     - '!/docs/*' # Don't run workflow when files are only in the /docs directory
