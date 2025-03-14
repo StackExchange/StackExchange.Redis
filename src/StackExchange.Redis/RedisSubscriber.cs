@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
@@ -432,6 +434,86 @@ namespace StackExchange.Redis
             return EnsureSubscribedToServerAsync(sub, channel, flags, false);
         }
 
+        Task ISubscriber.SubscribeAllPrimariesAsync(RedisChannel channel, Action<RedisChannel, RedisValue> handler, CommandFlags flags)
+            => SubscribeAllPrimariesAsync(channel, handler, null, flags);
+
+        public Task<bool> SubscribeAllPrimariesAsync(RedisChannel channel, Action<RedisChannel, RedisValue>? handler, ChannelMessageQueue? queue, CommandFlags flags)
+        {
+            ThrowIfNull(channel);
+            if (handler == null && queue == null) { return CompletedTask<bool>.Default(null); }
+
+            var sub = multiplexer.GetOrAddSubscription(channel, flags);
+            sub.Add(handler, queue);
+            return EnsureSubscribedToPrimariesAsync(sub, channel, flags, false);
+        }
+
+        private Task<bool> EnsureSubscribedToPrimariesAsync(Subscription sub, RedisChannel channel, CommandFlags flags, bool internalCall)
+        {
+            if (sub.IsConnected) { return CompletedTask<bool>.Default(null); }
+
+            // TODO: Cleanup old hangers here?
+            sub.SetCurrentServer(null); // we're not appropriately connected, so blank it out for eligible reconnection
+            var tasks = new List<Task<bool>>();
+            foreach (var server in multiplexer.GetServerSnapshot())
+            {
+                if (!server.IsReplica)
+                {
+                    var message = sub.GetMessage(channel, SubscriptionAction.Subscribe, flags, internalCall);
+                    tasks.Add(ExecuteAsync(message, sub.Processor, server));
+                }
+            }
+
+            if (tasks.Count == 0)
+            {
+                return CompletedTask<bool>.Default(false);
+            }
+
+            // Create a new task that will collect all results and observe errors
+            return Task.Run(async () =>
+            {
+                // Wait for all tasks to complete
+                var results = await Task.WhenAll(tasks).ObserveErrors();
+                return results.All(result => result);
+            }).ObserveErrors();
+        }
+
+        Task ISubscriber.UnsubscribeAllPrimariesAsync(RedisChannel channel, Action<RedisChannel, RedisValue>? handler, CommandFlags flags)
+            => UnsubscribeAllPrimariesAsync(channel, handler, null, flags);
+
+        public Task<bool> UnsubscribeAllPrimariesAsync(in RedisChannel channel, Action<RedisChannel, RedisValue>? handler, ChannelMessageQueue? queue, CommandFlags flags)
+        {
+            ThrowIfNull(channel);
+            // Unregister the subscription handler/queue, and if that returns true (last handler removed), also disconnect from the server
+            return UnregisterSubscription(channel, handler, queue, out var sub)
+                ? UnsubscribeFromPrimariesAsync(sub, channel, flags, asyncState, false)
+                : CompletedTask<bool>.Default(asyncState);
+        }
+
+        private Task<bool> UnsubscribeFromPrimariesAsync(Subscription sub, RedisChannel channel, CommandFlags flags, object? asyncState, bool internalCall)
+        {
+            var tasks = new List<Task<bool>>();
+            foreach (var server in multiplexer.GetServerSnapshot())
+            {
+                if (!server.IsReplica)
+                {
+                    var message = sub.GetMessage(channel, SubscriptionAction.Unsubscribe, flags, internalCall);
+                    tasks.Add(multiplexer.ExecuteAsyncImpl(message, sub.Processor, asyncState, server));
+                }
+            }
+
+            if (tasks.Count == 0)
+            {
+                return CompletedTask<bool>.Default(false);
+            }
+
+            // Create a new task that will collect all results and observe errors
+            return Task.Run(async () =>
+            {
+                // Wait for all tasks to complete
+                var results = await Task.WhenAll(tasks).ObserveErrors();
+                return results.All(result => result);
+            }).ObserveErrors();
+        }
         public Task<bool> EnsureSubscribedToServerAsync(Subscription sub, RedisChannel channel, CommandFlags flags, bool internalCall)
         {
             if (sub.IsConnected) { return CompletedTask<bool>.Default(null); }
