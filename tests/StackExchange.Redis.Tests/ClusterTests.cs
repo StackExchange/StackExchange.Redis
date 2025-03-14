@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -744,6 +745,86 @@ public class ClusterTests : TestBase
         {
             Assert.Equal(PhysicalBridge.State.ConnectedEstablished, server.InteractiveConnectionState);
             Assert.Equal(PhysicalBridge.State.ConnectedEstablished, server.SubscriptionConnectionState);
+        }
+    }
+
+    [Fact]
+    public async void SubscribeAllPrimariesAsync()
+    {
+        var receivedNofitications = new ConcurrentDictionary<string, int>();
+        var expectedNofitications = new HashSet<string>();
+        Action<RedisChannel, RedisValue> Accept = (channel, message) => receivedNofitications[$"{message} on channel {channel}"] = 0;
+
+        var redis = Create(keepAlive: 1, connectTimeout: 3000, shared: false, allowAdmin: true);
+        var db = redis.GetDatabase();
+        SwitchKeySpaceNofitications(redis);
+
+        var sub = redis.GetSubscriber();
+        var channel = new RedisChannel("__key*@*__:*", RedisChannel.PatternMode.Pattern);
+        await sub.SubscribeAllPrimariesAsync(channel, Accept);
+
+        for (int i = 1; i < 3; i++)
+        {
+            await db.StringSetAsync($"k{i}", i);
+            expectedNofitications.Add($"set on channel __keyspace@0__:k{i}");
+            expectedNofitications.Add($"k{i} on channel __keyevent@0__:set");
+        }
+
+        // Wait for notifications to be processed
+        await Task.Delay(1000).ForAwait();
+        foreach (var notification in expectedNofitications)
+        {
+            Assert.Contains(notification, receivedNofitications);
+        }
+        SwitchKeySpaceNofitications(redis, false);
+
+        // Assert that all expected notifications are contained in received notifications
+        Assert.True(
+            expectedNofitications.IsSubsetOf(receivedNofitications.Keys),
+            $"Expected notifications were not received. Expected: {string.Join(", ", expectedNofitications)}, Received: {string.Join(", ", receivedNofitications)}");
+    }
+
+    [Fact]
+    public async void UnsubscribeAllPrimariesAsync()
+    {
+        var receivedNofitications = new ConcurrentDictionary<string, int>();
+        Action<RedisChannel, RedisValue> Accept = (channel, message) => receivedNofitications[$"{message} on channel {channel}"] = 0;
+
+        var redis = Create(keepAlive: 1, connectTimeout: 3000, shared: false, allowAdmin: true);
+        var db = redis.GetDatabase();
+        SwitchKeySpaceNofitications(redis);
+
+        var sub = redis.GetSubscriber();
+        var channel = new RedisChannel("__key*@*__:*", RedisChannel.PatternMode.Pattern);
+        await sub.SubscribeAllPrimariesAsync(channel, Accept);
+
+        for (int i = 1; i < 3; i++)
+        {
+            await db.StringSetAsync($"k{i}", i);
+        }
+
+        // Wait for notifications to be processed
+        await Task.Delay(1000).ForAwait();
+        Assert.NotEmpty(receivedNofitications);
+        receivedNofitications.Clear();
+        await sub.UnsubscribeAllPrimariesAsync(channel, Accept);
+        for (int i = 1; i < 3; i++)
+        {
+            await db.StringSetAsync($"k{i}", i);
+        }
+        await Task.Delay(1000).ForAwait();
+        Assert.Empty(receivedNofitications);
+
+        SwitchKeySpaceNofitications(redis, false);
+    }
+
+    private static void SwitchKeySpaceNofitications(IInternalConnectionMultiplexer redis, bool enable = true)
+    {
+        string onOff = enable ? "KEA" : "";
+        foreach (var endpoint in redis.GetEndPoints())
+        {
+            var server = redis.GetServer(endpoint);
+            if (!server.IsReplica) server.ConfigSet("notify-keyspace-events", onOff);
         }
     }
 }

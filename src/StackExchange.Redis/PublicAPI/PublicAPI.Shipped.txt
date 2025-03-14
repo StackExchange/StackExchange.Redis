@@ -1893,4 +1893,5 @@ virtual StackExchange.Redis.RedisResult.Length.get -> int
 virtual StackExchange.Redis.RedisResult.this[int index].get -> StackExchange.Redis.RedisResult!
 StackExchange.Redis.ConnectionMultiplexer.AddLibraryNameSuffix(string! suffix) -> void
 StackExchange.Redis.IConnectionMultiplexer.AddLibraryNameSuffix(string! suffix) -> void
-
+StackExchange.Redis.ISubscriber.SubscribeAllPrimariesAsync(StackExchange.Redis.RedisChannel channel, System.Action<StackExchange.Redis.RedisChannel, StackExchange.Redis.RedisValue>! handler, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task!
+StackExchange.Redis.ISubscriber.UnsubscribeAllPrimariesAsync(StackExchange.Redis.RedisChannel channel, System.Action<StackExchange.Redis.RedisChannel, StackExchange.Redis.RedisValue>? handler = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task!

@@ -62,6 +62,39 @@ namespace StackExchange.Redis
         Task SubscribeAsync(RedisChannel channel, Action<RedisChannel, RedisValue> handler, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Subscribe to perform some operation when a message to any primary node is broadcast, without any guarantee of ordered handling.
+        /// This is most useful when addressing key space notifications. For user controlled pub/sub channels, it should be used with caution and further it is not advised.
+        /// </summary>
+        /// <param name="channel">The channel to subscribe to.</param>
+        /// <param name="handler">The handler to invoke when a message is received on <paramref name="channel"/>.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <remarks>
+        /// See
+        /// <seealso href="https://redis.io/docs/latest/develop/use/keyspace-notifications/"/>,
+        /// <seealso href="https://redis.io/commands/subscribe"/>,
+        /// <seealso href="https://redis.io/commands/psubscribe"/>.
+        /// </remarks>
+        Task SubscribeAllPrimariesAsync(RedisChannel channel, Action<RedisChannel, RedisValue> handler, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Unsubscribe from a specified message channel on all primary nodes.
+        /// Note: if no handler is specified, the subscription is canceled regardless of the subscribers.
+        /// If a handler is specified, the subscription is only canceled if this handler is the last handler remaining against the channel.
+        /// This is used in combination with <see cref="SubscribeAllPrimariesAsync"/> and as mentioned there,
+        /// it is intended to use with key space notitications and not advised for user controlled pub/sub channels.
+        /// </summary>
+        /// <param name="channel">The channel that was subscribed to.</param>
+        /// <param name="handler">The handler to no longer invoke when a message is received on <paramref name="channel"/>.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <remarks>
+        /// See
+        /// <seealso href="https://redis.io/docs/latest/develop/use/keyspace-notifications/"/>,
+        /// <seealso href="https://redis.io/commands/unsubscribe"/>,
+        /// <seealso href="https://redis.io/commands/punsubscribe"/>.
+        /// </remarks>
+        Task UnsubscribeAllPrimariesAsync(RedisChannel channel, Action<RedisChannel, RedisValue>? handler = null, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Subscribe to perform some operation when a message to the preferred/active node is broadcast, as a queue that guarantees ordered handling.
         /// </summary>
         /// <param name="channel">The redis channel to subscribe to.</param>
