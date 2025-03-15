@@ -1119,6 +1119,13 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public async Task StreamTrimMinIdAsync()
+        {
+            await prefixed.StreamTrimAsync("key", 1111111111, CommandFlags.None);
+            await mock.Received().StreamTrimAsync("prefix:key", 1111111111, CommandFlags.None);
+        }
+
+        [Fact]
         public async Task StringAppendAsync()
         {
             await prefixed.StringAppendAsync("key", "value", CommandFlags.None);
