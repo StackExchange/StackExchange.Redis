@@ -87,8 +87,14 @@ namespace StackExchange.Redis
         public static readonly ResultProcessor<RedisValue>
             RedisValue = new RedisValueProcessor();
 
+        public static readonly ResultProcessor<RedisValue>
+            RedisValueFromArray = new RedisValueFromArrayProcessor();
+
         public static readonly ResultProcessor<Lease<byte>>
             Lease = new LeaseProcessor();
+
+        public static readonly ResultProcessor<Lease<byte>>
+            LeaseFromArray = new LeaseFromArrayProcessor();
 
         public static readonly ResultProcessor<RedisValue[]>
             RedisValueArray = new RedisValueArrayProcessor();
@@ -1835,6 +1841,25 @@ The coordinates as a two items x,y array (longitude,latitude).
             }
         }
 
+        private sealed class RedisValueFromArrayProcessor : ResultProcessor<RedisValue>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                switch (result.Resp2TypeBulkString)
+                {
+                    case ResultType.Array:
+                        var items = result.GetItems();
+                        if (items.Length == 1)
+                        { // treat an array of 1 like a single reply
+                            SetResult(message, items[0].AsRedisValue());
+                            return true;
+                        }
+                        break;
+                }
+                return false;
+            }
+        }
+
         private sealed class RoleProcessor : ResultProcessor<Role>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
@@ -1975,6 +2000,25 @@ The coordinates as a two items x,y array (longitude,latitude).
                     case ResultType.BulkString:
                         SetResult(message, result.AsLease()!);
                         return true;
+                }
+                return false;
+            }
+        }
+
+        private sealed class LeaseFromArrayProcessor : ResultProcessor<Lease<byte>>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                switch (result.Resp2TypeBulkString)
+                {
+                    case ResultType.Array:
+                        var items = result.GetItems();
+                        if (items.Length == 1)
+                        { // treat an array of 1 like a single reply
+                            SetResult(message, items[0].AsLease()!);
+                            return true;
+                        }
+                        break;
                 }
                 return false;
             }

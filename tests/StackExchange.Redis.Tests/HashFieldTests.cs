@@ -330,7 +330,7 @@ public class HashFieldTests : TestBase
         fieldResult = db.HashFieldGetAndSetExpiry(hashKey, "f1", persist: true);
         Assert.Equal(1, fieldResult);
         fieldTtl = db.HashFieldGetTimeToLive(hashKey, new RedisValue[] { "f1" })[0];
-        Assert.Equal(0, fieldTtl);
+        Assert.Equal(-1, fieldTtl);
 
         // testing multiple fields with timespan
         db.HashSet(hashKey, entries);
@@ -352,7 +352,7 @@ public class HashFieldTests : TestBase
         fieldResults = db.HashFieldGetAndSetExpiry(hashKey, fields, persist: true);
         Assert.Equal(values, fieldResults);
         fieldTtls = db.HashFieldGetTimeToLive(hashKey, fields);
-        Assert.Equal(new long[] { 0, 0 }, fieldTtls);
+        Assert.Equal(new long[] { -1, -1 }, fieldTtls);
     }
 
     [Fact]
@@ -379,7 +379,7 @@ public class HashFieldTests : TestBase
         fieldResult = await db.HashFieldGetAndSetExpiryAsync(hashKey, "f1", persist: true);
         Assert.Equal(1, fieldResult);
         fieldTtl = db.HashFieldGetTimeToLive(hashKey, new RedisValue[] { "f1" })[0];
-        Assert.Equal(0, fieldTtl);
+        Assert.Equal(-1, fieldTtl);
 
         // testing multiple fields with timespan
         db.HashSet(hashKey, entries);
@@ -401,7 +401,7 @@ public class HashFieldTests : TestBase
         fieldResults = await db.HashFieldGetAndSetExpiryAsync(hashKey, fields, persist: true);
         Assert.Equal(values, fieldResults);
         fieldTtls = db.HashFieldGetTimeToLive(hashKey, fields);
-        Assert.Equal(new long[] { 0, 0 }, fieldTtls);
+        Assert.Equal(new long[] { -1, -1 }, fieldTtls);
     }
 
     [Fact]
@@ -564,7 +564,7 @@ public class HashFieldTests : TestBase
         // multiple fields
         db.HashSet(hashKey, entries);
         var fieldResults = await db.HashFieldGetAndDeleteAsync(hashKey, fields);
-        Assert.Equal(fields, fieldResults);
+        Assert.Equal(values, fieldResults);
         Assert.False(db.HashExists(hashKey, "f1"));
         Assert.False(db.HashExists(hashKey, "f2"));
     }
