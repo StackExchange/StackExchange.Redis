@@ -309,7 +309,7 @@ public class HashFieldTests : TestBase
     [Fact]
     public void HashFieldGetAndSetExpiry()
     {
-        var db = Create(require: RedisFeatures.v8_0_0_rc1).GetDatabase();
+        var db = Create(require: RedisFeatures.v8_0_0_M04).GetDatabase();
         var hashKey = Me();
 
         // testing with timespan
@@ -358,7 +358,7 @@ public class HashFieldTests : TestBase
     [Fact]
     public async void HashFieldGetAndSetExpiryAsync()
     {
-        var db = Create(require: RedisFeatures.v8_0_0_rc1).GetDatabase();
+        var db = Create(require: RedisFeatures.v8_0_0_M04).GetDatabase();
         var hashKey = Me();
 
         // testing with timespan
@@ -407,7 +407,7 @@ public class HashFieldTests : TestBase
     [Fact]
     public void HashFieldSetAndSetExpiry()
     {
-        var db = Create(require: RedisFeatures.v8_0_0_rc1).GetDatabase();
+        var db = Create(require: RedisFeatures.v8_0_0_M04).GetDatabase();
         var hashKey = Me();
 
         // testing with timespan
@@ -470,7 +470,7 @@ public class HashFieldTests : TestBase
     [Fact]
     public async Task HashFieldSetAndSetExpiryAsync()
     {
-        var db = Create(require: RedisFeatures.v8_0_0_rc1).GetDatabase();
+        var db = Create(require: RedisFeatures.v8_0_0_M04).GetDatabase();
         var hashKey = Me();
 
         // testing with timespan
@@ -532,7 +532,7 @@ public class HashFieldTests : TestBase
     [Fact]
     public void HashFieldGetAndDelete()
     {
-        var db = Create(require: RedisFeatures.v8_0_0_rc1).GetDatabase();
+        var db = Create(require: RedisFeatures.v8_0_0_M04).GetDatabase();
         var hashKey = Me();
 
         // single field
@@ -552,7 +552,7 @@ public class HashFieldTests : TestBase
     [Fact]
     public async void HashFieldGetAndDeleteAsync()
     {
-        var db = Create(require: RedisFeatures.v8_0_0_rc1).GetDatabase();
+        var db = Create(require: RedisFeatures.v8_0_0_M04).GetDatabase();
         var hashKey = Me();
 
         // single field
