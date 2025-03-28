@@ -408,9 +408,14 @@ namespace StackExchange.Redis
             return message == null ? command.ToString() : (includeDetail ? message.CommandAndKey : message.CommandString);
         }
 
-        internal static Exception UnableToConnect(ConnectionMultiplexer muxer, string? failureMessage = null)
+        internal static Exception UnableToConnect(ConnectionMultiplexer muxer, string? failureMessage = null, string? connectionName = null)
         {
-            var sb = new StringBuilder("It was not possible to connect to the redis server(s).");
+            var sb = new StringBuilder("It was not possible to connect to the redis server(s)");
+            if (connectionName is not null)
+            {
+                sb.Append(' ').Append(connectionName);
+            }
+            sb.Append('.');
             Exception? inner = null;
             var failureType = ConnectionFailureType.UnableToConnect;
             if (muxer is not null)

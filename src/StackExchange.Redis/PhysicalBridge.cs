@@ -584,7 +584,7 @@ namespace StackExchange.Redis
                         if (DueForConnectRetry())
                         {
                             Interlocked.Increment(ref connectTimeoutRetryCount);
-                            var ex = ExceptionFactory.UnableToConnect(Multiplexer, "ConnectTimeout");
+                            var ex = ExceptionFactory.UnableToConnect(Multiplexer, "ConnectTimeout", Name);
                             LastException = ex;
                             Multiplexer.Logger?.LogError(ex, ex.Message);
                             Trace("Aborting connect");
