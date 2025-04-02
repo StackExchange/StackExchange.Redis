@@ -49,10 +49,13 @@ public class BasicOpsTests : TestBase
         Assert.Equal(10, (int)db.StringGet(key));
     }
 
-    [Fact]
-    public async Task PingMany()
+    [Theory]
+    [InlineData((int)MuxerMode.Default)]
+    [InlineData((int)MuxerMode.Async)]
+    [InlineData((int)MuxerMode.Sync)]
+    public async Task PingMany(int muxerMode)
     {
-        using var conn = Create();
+        using var conn = Create(muxerMode: (MuxerMode)muxerMode);
         var db = conn.GetDatabase();
         var tasks = new Task<TimeSpan>[100];
         for (int i = 0; i < tasks.Length; i++)

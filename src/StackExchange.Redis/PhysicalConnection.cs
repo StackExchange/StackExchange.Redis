@@ -81,13 +81,18 @@ namespace StackExchange.Redis
         /// ...but in those cases, we'll accept any null ref in a race - it's fine.
         /// </summary>
         private IDuplexPipe? _ioPipe;
-        internal bool HasOutputPipe => _ioPipe?.Output != null;
+
+        internal bool HasOutputPipe => _ioPipe?.Output is not null;
 
         private Socket? _socket;
         internal Socket? VolatileSocket => Volatile.Read(ref _socket);
 
+        private readonly MuxerMode mode;
+
         public PhysicalConnection(PhysicalBridge bridge)
         {
+            mode = bridge.Multiplexer.MuxerMode;
+
             lastWriteTickCount = lastReadTickCount = Environment.TickCount;
             lastBeatTickCount = 0;
             connectionType = bridge.ConnectionType;
@@ -1529,6 +1534,9 @@ namespace StackExchange.Redis
 
         internal async ValueTask<bool> ConnectedAsync(Socket? socket, ILogger? log, SocketManager manager)
         {
+            static Stream GetStream(Socket? socket)
+                => new NetworkStream(socket ?? throw new InvalidOperationException("No socket or stream available - possibly a tunnel error"));
+
             var bridge = BridgeCouldBeNull;
             if (bridge == null) return false;
 
@@ -1559,7 +1567,7 @@ namespace StackExchange.Redis
                         host = Format.ToStringHostOnly(bridge.ServerEndPoint.EndPoint);
                     }
 
-                    stream ??= new NetworkStream(socket ?? throw new InvalidOperationException("No socket or stream available - possibly a tunnel error"));
+                    stream ??= GetStream(socket);
                     var ssl = new SslStream(
                         innerStream: stream,
                         leaveInnerStreamOpen: false,
@@ -1602,17 +1610,23 @@ namespace StackExchange.Redis
                     stream = ssl;
                 }
 
-                if (stream is not null)
+                switch (mode)
                 {
-                    pipe = StreamConnection.GetDuplex(stream, manager.SendPipeOptions, manager.ReceivePipeOptions, name: bridge.Name);
+                    case MuxerMode.Sync:
+                        _ioPipe = new SyncPipe(stream ?? GetStream(socket));
+                        break;
+                    default:
+                        if (stream is not null)
+                        {
+                            pipe = StreamConnection.GetDuplex(stream, manager.SendPipeOptions, manager.ReceivePipeOptions, name: bridge.Name);
+                        }
+                        else
+                        {
+                            pipe = SocketConnection.Create(socket, manager.SendPipeOptions, manager.ReceivePipeOptions, name: bridge.Name);
+                        }
+                        _ioPipe = pipe;
+                        break;
                 }
-                else
-                {
-                    pipe = SocketConnection.Create(socket, manager.SendPipeOptions, manager.ReceivePipeOptions, name: bridge.Name);
-                }
-                OnWrapForLogging(ref pipe, _physicalName, manager);
-
-                _ioPipe = pipe;
 
                 log?.LogInformation($"{bridge.Name}: Connected ");
 
@@ -1862,17 +1876,69 @@ namespace StackExchange.Redis
         partial void OnWrapForLogging(ref IDuplexPipe pipe, string name, SocketManager mgr);
 
         internal void UpdateLastReadTime() => Interlocked.Exchange(ref lastReadTickCount, Environment.TickCount);
+
+        private void StartSyncReaderWriter()
+        {
+            Thread thread = new(static obj => ((PhysicalConnection)obj!).SyncRead())
+            {
+                Priority = ThreadPriority.AboveNormal,
+                Name = "read:" + _physicalName,
+            };
+            thread.Start(this);
+        }
+
+        private void SyncRead()
+        {
+            bool isReading = false;
+            try
+            {
+                _readStatus = ReadStatus.Init;
+                while (_ioPipe?.Input is { } input)
+                {
+                    // note: TryRead will give us back the same buffer in a tight loop
+                    // - so: only use that if we're making progress
+                    isReading = true;
+                    _readStatus = ReadStatus.ReadSync;
+                    input.TryRead(out var readResult);
+                    isReading = false;
+                    _readStatus = ReadStatus.UpdateWriteTime;
+                    UpdateLastReadTime();
+
+                    _readStatus = ReadStatus.ProcessBuffer;
+                    var buffer = readResult.Buffer;
+                    int handled = 0;
+                    if (!buffer.IsEmpty)
+                    {
+                        handled = ProcessBuffer(ref buffer); // updates buffer.Start
+                    }
+
+                    _readStatus = ReadStatus.MarkProcessed;
+                    Trace($"Processed {handled} messages");
+                    input.AdvanceTo(buffer.Start, buffer.End);
+
+                    if (handled == 0 && readResult.IsCompleted)
+                    {
+                        break; // no more data, or trailing incomplete messages
+                    }
+                }
+                Trace("EOF");
+                RecordConnectionFailed(ConnectionFailureType.SocketClosed);
+                _readStatus = ReadStatus.RanToCompletion;
+            }
+            catch (Exception ex)
+            {
+                ReadFault(ex, isReading);
+            }
+        }
+
         private async Task ReadFromPipe()
         {
             bool allowSyncRead = true, isReading = false;
             try
             {
                 _readStatus = ReadStatus.Init;
-                while (true)
+                while (_ioPipe?.Input is { } input)
                 {
-                    var input = _ioPipe?.Input;
-                    if (input == null) break;
-
                     // note: TryRead will give us back the same buffer in a tight loop
                     // - so: only use that if we're making progress
                     isReading = true;
@@ -1911,29 +1977,34 @@ namespace StackExchange.Redis
             }
             catch (Exception ex)
             {
-                _readStatus = ReadStatus.Faulted;
-                // this CEX is just a hardcore "seriously, read the actual value" - there's no
-                // convenient "Thread.VolatileRead<T>(ref T field) where T : class", and I don't
-                // want to make the field volatile just for this one place that needs it
-                if (isReading)
-                {
-                    var pipe = Volatile.Read(ref _ioPipe);
-                    if (pipe == null)
-                    {
-                        return;
-                        // yeah, that's fine... don't worry about it; we nuked it
-                    }
-
-                    // check for confusing read errors - no need to present "Reading is not allowed after reader was completed."
-                    if (pipe is SocketConnection sc && sc.ShutdownKind == PipeShutdownKind.ReadEndOfStream)
-                    {
-                        RecordConnectionFailed(ConnectionFailureType.SocketClosed, new EndOfStreamException());
-                        return;
-                    }
-                }
-                Trace("Faulted");
-                RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
+                ReadFault(ex, isReading);
             }
+        }
+
+        private void ReadFault(Exception ex, bool isReading)
+        {
+            _readStatus = ReadStatus.Faulted;
+            // this CEX is just a hardcore "seriously, read the actual value" - there's no
+            // convenient "Thread.VolatileRead<T>(ref T field) where T : class", and I don't
+            // want to make the field volatile just for this one place that needs it
+            if (isReading)
+            {
+                var pipe = Volatile.Read(ref _ioPipe);
+                if (pipe == null)
+                {
+                    return;
+                    // yeah, that's fine... don't worry about it; we nuked it
+                }
+
+                // check for confusing read errors - no need to present "Reading is not allowed after reader was completed."
+                if (pipe is SocketConnection sc && sc.ShutdownKind == PipeShutdownKind.ReadEndOfStream)
+                {
+                    RecordConnectionFailed(ConnectionFailureType.SocketClosed, new EndOfStreamException());
+                    return;
+                }
+            }
+            Trace("Faulted");
+            RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
         }
 
         private static readonly ArenaOptions s_arenaOptions = new ArenaOptions();
@@ -2118,7 +2189,18 @@ namespace StackExchange.Redis
         private volatile ReadStatus _readStatus;
         internal ReadStatus GetReadStatus() => _readStatus;
 
-        internal void StartReading() => ReadFromPipe().RedisFireAndForget();
+        internal void StartReading()
+        {
+            switch (mode)
+            {
+                case MuxerMode.Sync:
+                    StartSyncReaderWriter();
+                    break;
+                default:
+                    ReadFromPipe().RedisFireAndForget();
+                    break;
+            }
+        }
 
         internal static RawResult TryParseResult(
             bool isResp3,

@@ -262,6 +262,7 @@ public abstract class TestBase : IDisposable
         BacklogPolicy? backlogPolicy = null,
         Version? require = null,
         RedisProtocol? protocol = null,
+        MuxerMode muxerMode = MuxerMode.Default,
         [CallerMemberName] string caller = "")
     {
         if (Output == null)
@@ -276,7 +277,7 @@ public abstract class TestBase : IDisposable
         bool highIntegrity = HighIntegrity;
         if (shared && expectedFailCount == 0
             && _fixture != null && _fixture.IsEnabled
-            && CanShare(allowAdmin, password, tieBreaker, fail, disabledCommands, enabledCommands, channelPrefix, proxy, configuration, defaultDatabase, backlogPolicy, highIntegrity))
+            && CanShare(allowAdmin, password, tieBreaker, fail, disabledCommands, enabledCommands, channelPrefix, proxy, configuration, defaultDatabase, backlogPolicy, highIntegrity, muxerMode))
         {
             configuration = GetConfiguration();
             var fixtureConn = _fixture.GetConnection(this, protocol.Value, caller: caller);
@@ -314,6 +315,7 @@ public abstract class TestBase : IDisposable
             backlogPolicy,
             protocol,
             highIntegrity,
+            muxerMode,
             caller);
 
         ThrowIfIncorrectProtocol(conn, protocol);
@@ -337,7 +339,8 @@ public abstract class TestBase : IDisposable
         string? configuration,
         int? defaultDatabase,
         BacklogPolicy? backlogPolicy,
-        bool highIntegrity)
+        bool highIntegrity,
+        MuxerMode muxerMode)
         => enabledCommands == null
             && disabledCommands == null
             && fail
@@ -349,7 +352,8 @@ public abstract class TestBase : IDisposable
             && defaultDatabase == null
             && (allowAdmin == null || allowAdmin == true)
             && backlogPolicy == null
-            && !highIntegrity;
+            && !highIntegrity
+            && muxerMode == MuxerMode.Default;
 
     internal void ThrowIfIncorrectProtocol(IInternalConnectionMultiplexer conn, RedisProtocol? requiredProtocol)
     {
@@ -385,7 +389,7 @@ public abstract class TestBase : IDisposable
         }
     }
 
-    public static ConnectionMultiplexer CreateDefault(
+    internal static ConnectionMultiplexer CreateDefault(
         TextWriter? output,
         string configuration,
         string? clientName = null,
@@ -409,6 +413,7 @@ public abstract class TestBase : IDisposable
         BacklogPolicy? backlogPolicy = null,
         RedisProtocol? protocol = null,
         bool highIntegrity = false,
+        MuxerMode muxerMode = MuxerMode.Default,
         [CallerMemberName] string caller = "")
     {
         StringWriter? localLog = null;
@@ -445,6 +450,7 @@ public abstract class TestBase : IDisposable
             if (backlogPolicy is not null) config.BacklogPolicy = backlogPolicy;
             if (protocol is not null) config.Protocol = protocol;
             if (highIntegrity) config.HighIntegrity = highIntegrity;
+            if (muxerMode != MuxerMode.Async) config.MuxerMode = muxerMode;
             var watch = Stopwatch.StartNew();
             var task = ConnectionMultiplexer.ConnectAsync(config, log);
             if (!task.Wait(config.ConnectTimeout >= (int.MaxValue / 2) ? int.MaxValue : config.ConnectTimeout * 2))

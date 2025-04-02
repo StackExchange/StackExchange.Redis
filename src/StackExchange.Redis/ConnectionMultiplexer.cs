@@ -61,6 +61,9 @@ namespace StackExchange.Redis
             unchecked(Environment.TickCount - Thread.VolatileRead(ref lastReconfigiureTicks)) / 1000;
 
         private int _activeHeartbeatErrors, lastHeartbeatTicks;
+
+        internal MuxerMode MuxerMode { get; }
+
         internal long LastHeartbeatSecondsAgo =>
             pulse is null
             ? -1
@@ -132,6 +135,8 @@ namespace StackExchange.Redis
             EndPoints = endpoints ?? RawConfig.EndPoints.Clone();
             EndPoints.SetDefaultPorts(serverType, ssl: RawConfig.Ssl);
             Logger = configuration.LoggerFactory?.CreateLogger<ConnectionMultiplexer>();
+            MuxerMode = configuration.MuxerMode;
+            if (MuxerMode == MuxerMode.Default) MuxerMode = MuxerMode.Async;
 
             var map = CommandMap = configuration.GetCommandMap(serverType);
             if (!string.IsNullOrWhiteSpace(configuration.Password) && !configuration.TryResp3()) // RESP3 doesn't need AUTH (can issue as part of HELLO)

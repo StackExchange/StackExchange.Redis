@@ -55,9 +55,9 @@ namespace StackExchange.Redis
                 throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' requires a version value; the value '{value}' is not recognised.");
             }
 
-            internal static Proxy ParseProxy(string key, string value)
+            internal static T ParseEnum<T>(string key, string value, string label) where T : unmanaged
             {
-                if (!Enum.TryParse(value, true, out Proxy tmp)) throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' requires a proxy value; the value '{value}' is not recognised.");
+                if (!Enum.TryParse<T>(value, true, out T tmp)) throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' requires a {label} value; the value '{value}' is not recognised.");
                 return tmp;
             }
 
@@ -111,7 +111,8 @@ namespace StackExchange.Redis
                 Tunnel = "tunnel",
                 SetClientLibrary = "setlib",
                 Protocol = "protocol",
-                HighIntegrity = "highIntegrity";
+                HighIntegrity = "highIntegrity",
+                MuxerMode = "muxer";
 
             private static readonly Dictionary<string, string> normalizedOptions = new[]
             {
@@ -177,6 +178,8 @@ namespace StackExchange.Redis
         private BacklogPolicy? backlogPolicy;
 
         private ILoggerFactory? loggerFactory;
+
+        private MuxerMode? muxerMode;
 
         /// <summary>
         /// A LocalCertificateSelectionCallback delegate responsible for selecting the certificate used for authentication; note
@@ -790,6 +793,7 @@ namespace StackExchange.Redis
             heartbeatInterval = heartbeatInterval,
             heartbeatConsistencyChecks = heartbeatConsistencyChecks,
             highIntegrity = highIntegrity,
+            muxerMode = muxerMode,
         };
 
         /// <summary>
@@ -866,6 +870,7 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.ChannelPrefix, (string?)ChannelPrefix);
             Append(sb, OptionKeys.ConnectRetry, connectRetry);
             Append(sb, OptionKeys.Proxy, proxy);
+            Append(sb, OptionKeys.MuxerMode, muxerMode);
             Append(sb, OptionKeys.ConfigCheckSeconds, configCheckSeconds);
             Append(sb, OptionKeys.ResponseTimeout, responseTimeout);
             Append(sb, OptionKeys.DefaultDatabase, DefaultDatabase);
@@ -1024,7 +1029,10 @@ namespace StackExchange.Redis
                             SslHost = value;
                             break;
                         case OptionKeys.Proxy:
-                            Proxy = OptionKeys.ParseProxy(key, value);
+                            Proxy = OptionKeys.ParseEnum<Proxy>(key, value, "proxy");
+                            break;
+                        case OptionKeys.MuxerMode:
+                            MuxerMode = OptionKeys.ParseEnum<MuxerMode>(key, value, "muxer-mode");
                             break;
                         case OptionKeys.DefaultDatabase:
                             DefaultDatabase = OptionKeys.ParseInt32(key, value);
@@ -1105,7 +1113,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Allows custom transport implementations, such as http-tunneling via a proxy.
+        /// Allows custom transport implementations, such as http-tunnelling via a proxy.
         /// </summary>
         public Tunnel? Tunnel { get; set; }
 
@@ -1113,6 +1121,15 @@ namespace StackExchange.Redis
         /// Specify the redis protocol type.
         /// </summary>
         public RedisProtocol? Protocol { get; set; }
+
+        /// <summary>
+        /// Specify the multiplexing mode.
+        /// </summary>
+        internal MuxerMode MuxerMode
+        {
+            get => muxerMode ?? MuxerMode.Default;
+            set => muxerMode = value;
+        }
 
         internal bool TryResp3()
         {
