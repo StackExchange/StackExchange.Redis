@@ -1378,7 +1378,7 @@ namespace StackExchange.Redis
             {
                 bool reconfigureAll = fromBroadcast || publishReconfigure;
                 Trace("Configuration change detected; checking nodes", "Configuration");
-                ReconfigureAsync(first: false, reconfigureAll, null, blame, cause, publishReconfigure, flags).ObserveErrors();
+                ReconfigureAsync(first: false, reconfigureAll, Logger, blame, cause, publishReconfigure, flags).ObserveErrors();
                 return true;
             }
             else
@@ -1393,7 +1393,7 @@ namespace StackExchange.Redis
         /// This re-assessment of all server endpoints to get the current topology and adjust, the same as if we had first connected.
         /// </summary>
         public Task<bool> ReconfigureAsync(string reason) =>
-            ReconfigureAsync(first: false, reconfigureAll: false, log: null, blame: null, cause: reason);
+            ReconfigureAsync(first: false, reconfigureAll: false, log: Logger, blame: null, cause: reason);
 
         internal async Task<bool> ReconfigureAsync(bool first, bool reconfigureAll, ILogger? log, EndPoint? blame, string cause, bool publishReconfigure = false, CommandFlags publishReconfigureFlags = CommandFlags.None)
         {
