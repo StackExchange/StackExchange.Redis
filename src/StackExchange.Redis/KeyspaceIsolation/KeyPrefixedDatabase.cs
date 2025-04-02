@@ -81,6 +81,45 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public bool HashExists(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None) =>
             Inner.HashExists(ToInner(key), hashField, flags);
 
+        public RedisValue HashFieldGetAndDelete(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None) =>
+            Inner.HashFieldGetAndDelete(key, hashField, flags);
+
+        public Lease<byte>? HashFieldGetLeaseAndDelete(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None) =>
+            Inner.HashFieldGetLeaseAndDelete(key, hashField, flags);
+
+        public RedisValue[] HashFieldGetAndDelete(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None) =>
+            Inner.HashFieldGetAndDelete(key, hashFields, flags);
+
+        public RedisValue HashFieldGetAndSetExpiry(RedisKey key, RedisValue hashField, TimeSpan? expiry = null, bool persist = false, CommandFlags flags = CommandFlags.None) =>
+            Inner.HashFieldGetAndSetExpiry(key, hashField, expiry, persist, flags);
+
+        public RedisValue HashFieldGetAndSetExpiry(RedisKey key, RedisValue hashField, DateTime expiry, CommandFlags flags = CommandFlags.None) =>
+            Inner.HashFieldGetAndSetExpiry(key, hashField, expiry, flags);
+
+        public Lease<byte>? HashFieldGetLeaseAndSetExpiry(RedisKey key, RedisValue hashField, TimeSpan? expiry = null, bool persist = false, CommandFlags flags = CommandFlags.None) =>
+            Inner.HashFieldGetLeaseAndSetExpiry(key, hashField, expiry, persist, flags);
+
+        public Lease<byte>? HashFieldGetLeaseAndSetExpiry(RedisKey key, RedisValue hashField, DateTime expiry, CommandFlags flags = CommandFlags.None) =>
+            Inner.HashFieldGetLeaseAndSetExpiry(key, hashField, expiry, flags);
+
+        public RedisValue[] HashFieldGetAndSetExpiry(RedisKey key, RedisValue[] hashFields, TimeSpan? expiry = null, bool persist = false, CommandFlags flags = CommandFlags.None) =>
+            Inner.HashFieldGetAndSetExpiry(key, hashFields, expiry, persist, flags);
+
+        public RedisValue[] HashFieldGetAndSetExpiry(RedisKey key, RedisValue[] hashFields, DateTime expiry, CommandFlags flags = CommandFlags.None) =>
+            Inner.HashFieldGetAndSetExpiry(key, hashFields, expiry, flags);
+
+        public RedisValue HashFieldSetAndSetExpiry(RedisKey key, RedisValue field, RedisValue value, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
+            Inner.HashFieldSetAndSetExpiry(key, field, value, expiry, keepTtl, when, flags);
+
+        public RedisValue HashFieldSetAndSetExpiry(RedisKey key, RedisValue field, RedisValue value, DateTime expiry, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
+            Inner.HashFieldSetAndSetExpiry(key, field, value, expiry, when, flags);
+
+        public RedisValue HashFieldSetAndSetExpiry(RedisKey key, HashEntry[] hashFields, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
+            Inner.HashFieldSetAndSetExpiry(key, hashFields, expiry, keepTtl, when, flags);
+
+        public RedisValue HashFieldSetAndSetExpiry(RedisKey key, HashEntry[] hashFields, DateTime expiry, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
+            Inner.HashFieldSetAndSetExpiry(key, hashFields, expiry, when, flags);
+
         public ExpireResult[] HashFieldExpire(RedisKey key, RedisValue[] hashFields, TimeSpan expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None) =>
             Inner.HashFieldExpire(ToInner(key), hashFields, expiry, when, flags);
 
