@@ -91,7 +91,7 @@ namespace StackExchange.Redis
 
         public PhysicalConnection(PhysicalBridge bridge)
         {
-            mode = bridge.Multiplexer.MuxerMode;
+            mode = bridge.MuxerMode;
 
             lastWriteTickCount = lastReadTickCount = Environment.TickCount;
             lastBeatTickCount = 0;

@@ -2,7 +2,7 @@
 
 internal enum MuxerMode
 {
-    Default,
-    Async,
-    Sync,
+    Default = 0,
+    Async = 1,
+    Sync = 2,
 }

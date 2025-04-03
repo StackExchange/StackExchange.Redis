@@ -31,7 +31,7 @@ namespace BasicTest
             AddValidator(JitOptimizationsValidator.FailOnError);
 
             AddJob(Configure(Job.Default.WithRuntime(ClrRuntime.Net472)));
-            AddJob(Configure(Job.Default.WithRuntime(CoreRuntime.Core50)));
+            AddJob(Configure(Job.Default.WithRuntime(CoreRuntime.Core90)));
         }
     }
     internal class SlowConfig : CustomConfig
@@ -49,13 +49,16 @@ namespace BasicTest
         private ConnectionMultiplexer connection;
         private IDatabase db;
 
+        [Params("sync", "async")]
+        public string MuxerMode { get; set; }
+
         [GlobalSetup]
         public void Setup()
         {
             // Pipelines.Sockets.Unofficial.SocketConnection.AssertDependencies();
-            var options = ConfigurationOptions.Parse("127.0.0.1:6379");
+            var options = ConfigurationOptions.Parse($"127.0.0.1:6379,muxer={MuxerMode}");
             connection = ConnectionMultiplexer.Connect(options);
-            db = connection.GetDatabase(3);
+            db = connection.GetDatabase();
 
             db.KeyDelete(GeoKey);
             db.GeoAdd(GeoKey, 13.361389, 38.115556, "Palermo ");
@@ -68,14 +71,20 @@ namespace BasicTest
             }
         }
 
-        private static readonly RedisKey GeoKey = "GeoTest", IncrByKey = "counter", StringKey = "string", HashKey = "hash";
-        void IDisposable.Dispose()
+        [GlobalCleanup]
+        public void Cleanup()
         {
             mgr?.Dispose();
             connection?.Dispose();
             mgr = null;
             db = null;
             connection = null;
+        }
+
+        private static readonly RedisKey GeoKey = "GeoTest", IncrByKey = "counter", StringKey = "string", HashKey = "hash";
+        void IDisposable.Dispose()
+        {
+            Cleanup();
             GC.SuppressFinalize(this);
         }
 
@@ -84,7 +93,7 @@ namespace BasicTest
         /// <summary>
         /// Run INCRBY lots of times.
         /// </summary>
-        // [Benchmark(Description = "INCRBY/s", OperationsPerInvoke = COUNT)]
+        [Benchmark(Description = "INCRBY/s", OperationsPerInvoke = COUNT)]
         public int ExecuteIncrBy()
         {
             var rand = new Random(12345);
@@ -105,7 +114,7 @@ namespace BasicTest
         /// <summary>
         /// Run INCRBY lots of times.
         /// </summary>
-        // [Benchmark(Description = "INCRBY/a", OperationsPerInvoke = COUNT)]
+        [Benchmark(Description = "INCRBY/a", OperationsPerInvoke = COUNT)]
         public async Task<int> ExecuteIncrByAsync()
         {
             var rand = new Random(12345);

@@ -75,8 +75,12 @@ namespace StackExchange.Redis
 
         public DateTime? ConnectedAt { get; private set; }
 
+        private readonly MuxerMode muxerMode;
+        internal MuxerMode MuxerMode => muxerMode;
+
         public PhysicalBridge(ServerEndPoint serverEndPoint, ConnectionType type, int timeoutMilliseconds)
         {
+            muxerMode = serverEndPoint.Multiplexer.MuxerMode;
             ServerEndPoint = serverEndPoint;
             ConnectionType = type;
             Multiplexer = serverEndPoint.Multiplexer;

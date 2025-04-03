@@ -870,7 +870,10 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.ChannelPrefix, (string?)ChannelPrefix);
             Append(sb, OptionKeys.ConnectRetry, connectRetry);
             Append(sb, OptionKeys.Proxy, proxy);
-            Append(sb, OptionKeys.MuxerMode, muxerMode);
+            if (muxerMode != MuxerMode.Default)
+            {
+                Append(sb, OptionKeys.MuxerMode, muxerMode);
+            }
             Append(sb, OptionKeys.ConfigCheckSeconds, configCheckSeconds);
             Append(sb, OptionKeys.ResponseTimeout, responseTimeout);
             Append(sb, OptionKeys.DefaultDatabase, DefaultDatabase);
