@@ -816,10 +816,10 @@ namespace StackExchange.Redis
             try
             {
 #if NETCOREAPP
-                gotLock = _singleWriterMutex.Wait(0);
+                if (!message.IsFireAndForget) { gotLock = _singleWriterMutex.Wait(0); }
                 if (!gotLock)
 #else
-                token = _singleWriterMutex.TryWait(WaitOptions.NoDelay);
+                if (!message.IsFireAndForget) { token = _singleWriterMutex.TryWait(WaitOptions.NoDelay); }
                 if (!token.Success)
 #endif
                 {
@@ -1260,11 +1260,11 @@ namespace StackExchange.Redis
             {
                 // try to acquire it synchronously
 #if NETCOREAPP
-                gotLock = _singleWriterMutex.Wait(0);
+                if (!message.IsFireAndForget) { gotLock = _singleWriterMutex.Wait(0); }
                 if (!gotLock)
 #else
                 // note: timeout is specified in mutex-constructor
-                token = _singleWriterMutex.TryWait(options: WaitOptions.NoDelay);
+                if (!message.IsFireAndForget) { token = _singleWriterMutex.TryWait(options: WaitOptions.NoDelay); }
                 if (!token.Success)
 #endif
                 {

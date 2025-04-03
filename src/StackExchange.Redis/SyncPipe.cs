@@ -32,6 +32,7 @@ internal sealed class SyncPipe : IDuplexPipe, IMeasuredDuplexPipe
         {
             this.stream = stream;
             head = tail = new(0);
+            DebugLog($"Reader: initial node: {tail.Length}");
         }
 
         private readonly Stream stream;
@@ -61,7 +62,8 @@ internal sealed class SyncPipe : IDuplexPipe, IMeasuredDuplexPipe
             if (available < MIN_READ)
             {
                 // use a new segment
-                tail.Trim();
+                DebugLog($"Reader: appending; {available} of {tail.Length} remaining");
+                tail.TrimToCommitted();
                 tail = new(tail);
             }
 #if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
@@ -105,23 +107,38 @@ internal sealed class SyncPipe : IDuplexPipe, IMeasuredDuplexPipe
                 examinedTo = newExaminedTo;
             }
 
-            // discard entire pages
-            while (head is not null && discardTo >= head.EndIndex)
+            if (discardTo == tail.EndIndex)
             {
-                var tmp = head;
-                head = (Node)head.Next!;
-                tmp.Recycle();
-            }
-
-            // special-case for reading everything
-            if (head is null)
-            {
-                head = tail = new(discardTo);
+                // consuming everything we have
+                while (!ReferenceEquals(head, tail))
+                {
+                    var next = (Node)head.Next!;
+                    head.Recycle();
+                    head = next;
+                }
+                head.Reset(discardTo);
+                DebugLog($"Reusing root node at {discardTo}; available: {tail.AvailableBytes}");
             }
             else
             {
-                // discard partial last page
-                head.DiscardTo(discardTo);
+                // discard entire pages
+                while (head is not null && discardTo >= head.EndIndex)
+                {
+                    var tmp = head;
+                    head = (Node)head.Next!;
+                    tmp.Recycle();
+                }
+
+                // special-case for reading everything
+                if (head is null)
+                {
+                    head = tail = new(discardTo);
+                }
+                else
+                {
+                    // discard partial last page
+                    head.DiscardTo(discardTo);
+                }
             }
         }
 
@@ -137,16 +154,16 @@ internal sealed class SyncPipe : IDuplexPipe, IMeasuredDuplexPipe
             public long EndIndex => RunningIndex + Committed;
             public int Discarded { get; private set; }
             public int Committed { get; private set; }
-            public int AvailableBytes => Memory.Length - Committed;
+            public int AvailableBytes => buffer.Length - Committed;
+            public int Length => buffer.Length;
             public Span<byte> AvailableSpan => new(buffer, Committed, buffer.Length - Committed);
             public ArraySegment<byte> AvailableSegment => new(buffer, Committed, buffer.Length - Committed);
 
-            public void Trim()
+            public void TrimToCommitted()
             {
-                var mem = Memory;
-                if (mem.Length > Committed)
+                if (buffer.Length != Committed)
                 {
-                    Memory = mem.Slice(0, Committed);
+                    Memory = new(buffer, 0, Committed);
                 }
             }
 
@@ -160,12 +177,14 @@ internal sealed class SyncPipe : IDuplexPipe, IMeasuredDuplexPipe
             {
                 Memory = buffer = ArrayPool<byte>.Shared.Rent(PAGE_SIZE);
                 RunningIndex = previous.RunningIndex + previous.Committed;
+                DebugLog($"Reader: rented {buffer.Length} at offset {RunningIndex}");
                 previous.Next = this;
             }
 
             public Node(long runningIndex)
             {
                 Memory = buffer = ArrayPool<byte>.Shared.Rent(PAGE_SIZE);
+                DebugLog($"Reader: rented {buffer.Length} at root");
                 RunningIndex = runningIndex;
             }
 
@@ -173,11 +192,12 @@ internal sealed class SyncPipe : IDuplexPipe, IMeasuredDuplexPipe
             {
                 Next = null;
                 Committed = Discarded = 0;
-                var tmp = buffer;
+                var arr = buffer;
                 Memory = buffer = Array.Empty<byte>();
-                if (buffer is { Length: > 0 } arr)
+                if (arr.Length != 0)
                 {
                     ArrayPool<byte>.Shared.Return(arr);
+                    DebugLog($"Reader: returned {arr.Length}");
                 }
             }
 
@@ -187,8 +207,18 @@ internal sealed class SyncPipe : IDuplexPipe, IMeasuredDuplexPipe
                 Debug.Assert(newDiscard >= Discarded && newDiscard < Committed); // not <= because we only expect this to be used for partial discards
                 Discarded = (int)newDiscard;
             }
+
+            internal void Reset(long runningIndex)
+            {
+                RunningIndex = runningIndex;
+                Memory = buffer;
+                Committed = Discarded = 0;
+            }
         }
     }
+
+    [Conditional("DEBUG")]
+    private static void DebugLog(string message) => Console.WriteLine(message);
 
     private sealed class SyncPipeWriter : PipeWriter
     {
@@ -254,6 +284,7 @@ internal sealed class SyncPipe : IDuplexPipe, IMeasuredDuplexPipe
             if (committed + sizeHint <= MAX_BUFFER)
             {
                 var newBuffer = ArrayPool<byte>.Shared.Rent(committed + sizeHint);
+                DebugLog($"Writer: rented {newBuffer.Length}");
                 if (committed != 0)
                 {
                     new ReadOnlySpan<byte>(buffer, 0, committed).CopyTo(newBuffer);
@@ -270,6 +301,7 @@ internal sealed class SyncPipe : IDuplexPipe, IMeasuredDuplexPipe
                 // increase the buffer size
                 ReleaseBuffer();
                 buffer = ArrayPool<byte>.Shared.Rent(sizeHint);
+                DebugLog($"Writer: rented {buffer.Length}");
             }
             return buffer.Length - committed;
         }
@@ -289,6 +321,7 @@ internal sealed class SyncPipe : IDuplexPipe, IMeasuredDuplexPipe
             if (buffer is { Length: > 0 })
             {
                 ArrayPool<byte>.Shared.Return(buffer);
+                DebugLog($"Writer: released {buffer.Length}");
             }
             buffer = Array.Empty<byte>();
         }
