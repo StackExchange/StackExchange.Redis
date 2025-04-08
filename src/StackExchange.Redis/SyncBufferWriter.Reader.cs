@@ -3,7 +3,6 @@ using System.Buffers;
 using System.IO.Pipelines;
 using System.Threading;
 using System.Threading.Tasks;
-using Pipelines.Sockets.Unofficial.Arenas;
 
 namespace StackExchange.Redis;
 
@@ -17,8 +16,47 @@ internal sealed partial class SyncBufferWriter : PipeWriter
 
     public PipeReader Reader => reader ??= new(this);
 
+    private void CheckReadable()
+    {
+        if (readerCompleted) ThrowReaderCompleted();
+        static void ThrowReaderCompleted() => throw new InvalidOperationException("The reader has already been completed; additional reads are not allowed.");
+    }
+
     private void AdvanceReaderTo(SequencePosition consumed, SequencePosition examined)
-        => throw new NotImplementedException();
+    {
+        CheckReadable();
+        long readIndex = readHead.RunningIndex + readOffset, consumedIndex = GetIndex(in consumed), examinedIndex = GetIndex(in examined);
+        if (consumedIndex < readIndex) Throw(nameof(consumed));
+        if (consumedIndex > examinedIndex) Throw(nameof(examined));
+
+        if (consumedIndex == readIndex)
+        {
+            readerFailedProgressCount++;
+        }
+        else
+        {
+            readerFailedProgressCount = 0;
+            Segment node = readHead, end = readHead = (Segment)consumed.GetObject()!;
+            readOffset = consumed.GetInteger();
+
+            while (!ReferenceEquals(node, end))
+            {
+                node.Release();
+                node = (Segment)node.Next!;
+            }
+        }
+
+        // normally we retain the final segment; however, we can release it if
+        // the writer is completed and we've read everything
+        if (writerCompleted && ReleaseIfWriteEnd(consumed))
+        {
+            readOffset = 0;
+        }
+
+        static void Throw(string paramName) => throw new ArgumentOutOfRangeException(paramName);
+    }
+
+    private static long GetIndex(in SequencePosition position) => ((Segment)position.GetObject()!).RunningIndex + position.GetInteger();
 
     private void ResetReadProgress()
     {
@@ -28,12 +66,12 @@ internal sealed partial class SyncBufferWriter : PipeWriter
     private void CompleteReader(Exception? exception)
     {
         readerCompleted = true;
-        ResetReadProgress();
     }
 
     public ReadResult Read()
     {
         const int MAX_FAILED_PROGRESS = 1;
+        CheckReadable();
         if (++readerFailedProgressCount > MAX_FAILED_PROGRESS) ThrowNotMakingProgress();
 
         Segment endSegment;

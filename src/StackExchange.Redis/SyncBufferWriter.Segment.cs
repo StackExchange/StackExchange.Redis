@@ -37,11 +37,7 @@ internal sealed partial class SyncBufferWriter : PipeWriter
             return next;
         }
 
-        public void Commit(int bytes)
-        {
-            Debug.Assert(bytes >= 0 && bytes <= buffer.Length - committed);
-            committed += bytes;
-        }
+        public void Commit(int bytes) => committed += bytes;
 
         public void Release()
         {
@@ -54,7 +50,6 @@ internal sealed partial class SyncBufferWriter : PipeWriter
             {
                 ArrayPool<byte>.Shared.Return(tmp);
             }
-
         }
 
         internal ArraySegment<byte> WritableChunk() => new(buffer, committed, buffer.Length - committed);

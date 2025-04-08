@@ -19,6 +19,7 @@ internal sealed partial class SyncBufferWriter : PipeWriter
 
     private volatile bool writerCompleted;
     private Segment writeTail;
+    private int writeOffer;
     private const int SEGMENT_BYTES = 64 * 1024, MIN_CHUNK_BYTES = 128;
 
     public SyncBufferWriter()
@@ -27,18 +28,36 @@ internal sealed partial class SyncBufferWriter : PipeWriter
         readOffset = 0;
     }
 
+    internal bool IsDrained // for debugging
+    {
+        get
+        {
+            var tail = writeTail;
+            return tail.Memory.IsEmpty && ReferenceEquals(tail, readHead);
+        }
+    }
+
+    private void CheckWritable()
+    {
+        if (writerCompleted) ThrowWriterCompleted();
+        if (readerCompleted) ThrowReaderCompleted();
+        static void ThrowWriterCompleted() => throw new InvalidOperationException("The writer has already been completed; additional writes are not allowed.");
+        static void ThrowReaderCompleted() => throw new InvalidOperationException("The reader has already been completed; additional writes are not allowed.");
+    }
+
     public override void Advance(int bytes)
     {
+        CheckWritable();
         if (bytes != 0)
         {
+            if (bytes < 0 | bytes > writeOffer) ThrowOutOfRange();
             lock (WriteSyncLock)
             {
-                var tail = writeTail;
-                if (bytes < 0 | bytes > tail.Available) ThrowOutOfRange();
-            .Available
+                writeTail.Commit(bytes);
             }
+            ResetReadProgress();
         }
-        
+        writeOffer = 0;
 
         static void ThrowOutOfRange() => throw new ArgumentOutOfRangeException(nameof(bytes));
     }
@@ -53,7 +72,6 @@ internal sealed partial class SyncBufferWriter : PipeWriter
 
     public void Flush()
     {
-        throw new NotImplementedException();
     }
 
     public override ValueTask<FlushResult> FlushAsync(CancellationToken cancellationToken = default)
@@ -64,6 +82,7 @@ internal sealed partial class SyncBufferWriter : PipeWriter
 
     private ArraySegment<byte> GetWritableChunk(int sizeHint)
     {
+        CheckWritable();
         sizeHint = Math.Max(16, sizeHint);
         var tail = writeTail;
         var available = tail.Available;
@@ -74,7 +93,26 @@ internal sealed partial class SyncBufferWriter : PipeWriter
                 writeTail = tail = tail.TruncateAndAppend(SEGMENT_BYTES);
             }
         }
-        return tail.WritableChunk();
+        var chunk = tail.WritableChunk();
+        writeOffer = chunk.Count;
+        return chunk;
+    }
+
+    private bool ReleaseIfWriteEnd(in SequencePosition position)
+    {
+        Segment target;
+        bool release;
+        lock (WriteSyncLock)
+        {
+            target = writeTail;
+            release = ReferenceEquals(target, position.GetObject())
+                & target.Committed == position.GetInteger();
+        }
+        if (release)
+        {
+            target.Release();
+        }
+        return release;
     }
 
     public override Memory<byte> GetMemory(int sizeHint = 0)
