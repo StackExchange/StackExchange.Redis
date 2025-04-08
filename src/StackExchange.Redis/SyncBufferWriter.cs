@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Buffers;
 using System.IO.Pipelines;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -8,7 +10,7 @@ namespace StackExchange.Redis;
 // SyncBufferReader and SyncBufferWriter form two halves of a single entity.
 // The write API is more granular (get, advance, etc), so that is being used
 // as the primary API (to minimize method forwarding).
-internal sealed partial class SyncBufferWriter : PipeWriter
+internal partial class SyncBufferWriter : PipeWriter
 {
     // This type has independent single reader and single writer; the writer only appends from the
     // write-head, so: it doesn't need to synchronize with the reader; conversely, the reader can
@@ -70,8 +72,15 @@ internal sealed partial class SyncBufferWriter : PipeWriter
         Flush();
     }
 
-    public void Flush()
+    public virtual void Flush()
     {
+        ResetReadProgress();
+    }
+
+    internal static ArraySegment<byte> GetSegment(ReadOnlyMemory<byte> memory)
+    {
+        return MemoryMarshal.TryGetArray(memory, out var segment) ? segment : Throw();
+        static ArraySegment<byte> Throw() => throw new InvalidOperationException();
     }
 
     public override ValueTask<FlushResult> FlushAsync(CancellationToken cancellationToken = default)

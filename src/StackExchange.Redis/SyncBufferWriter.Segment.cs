@@ -5,7 +5,7 @@ using System.IO.Pipelines;
 
 namespace StackExchange.Redis;
 
-internal sealed partial class SyncBufferWriter : PipeWriter
+internal partial class SyncBufferWriter : PipeWriter
 {
     private sealed class Segment : ReadOnlySequenceSegment<byte>
     {

@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace StackExchange.Redis;
 
-internal sealed partial class SyncBufferWriter : PipeWriter
+internal partial class SyncBufferWriter : PipeWriter
 {
     private Segment readHead;
     private int readOffset;
@@ -22,7 +22,7 @@ internal sealed partial class SyncBufferWriter : PipeWriter
         static void ThrowReaderCompleted() => throw new InvalidOperationException("The reader has already been completed; additional reads are not allowed.");
     }
 
-    private void AdvanceReaderTo(SequencePosition consumed, SequencePosition examined)
+    internal void AdvanceReaderTo(in SequencePosition consumed, in SequencePosition examined)
     {
         CheckReadable();
         long readIndex = readHead.RunningIndex + readOffset, consumedIndex = GetIndex(in consumed), examinedIndex = GetIndex(in examined);
@@ -63,12 +63,12 @@ internal sealed partial class SyncBufferWriter : PipeWriter
         readerFailedProgressCount = 0;
     }
 
-    private void CompleteReader(Exception? exception)
+    internal void CompleteReader(Exception? exception)
     {
         readerCompleted = true;
     }
 
-    public ReadResult Read()
+    public virtual ReadResult Read()
     {
         const int MAX_FAILED_PROGRESS = 1;
         CheckReadable();
