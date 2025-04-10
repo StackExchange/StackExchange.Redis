@@ -2,6 +2,7 @@
 using System.Buffers;
 using System.Diagnostics;
 using System.IO.Pipelines;
+using System.Runtime.CompilerServices;
 
 namespace StackExchange.Redis;
 
@@ -37,7 +38,14 @@ internal partial class SyncBufferWriter : PipeWriter
             return next;
         }
 
-        public void Commit(int bytes) => committed += bytes;
+        public void Commit(int bytes)
+        {
+            if (bytes < 0 | bytes > Available) ThrowOutOfRange();
+            committed += bytes;
+
+            [MethodImpl(MethodImplOptions.NoInlining)]
+            static void ThrowOutOfRange() => throw new ArgumentOutOfRangeException(nameof(bytes));
+        }
 
         public void Release()
         {
@@ -52,6 +60,8 @@ internal partial class SyncBufferWriter : PipeWriter
             }
         }
 
-        internal ArraySegment<byte> WritableChunk() => new(buffer, committed, buffer.Length - committed);
+        internal Memory<byte> GetWritableMemory() => new(buffer, committed, buffer.Length - committed);
+
+        internal Span<byte> GetWritableSpan() => new(buffer, committed, buffer.Length - committed);
     }
 }

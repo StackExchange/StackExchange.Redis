@@ -1,7 +1,7 @@
 ﻿using System;
-using System.Buffers;
 using System.Diagnostics;
 using System.IO.Pipelines;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -20,9 +20,10 @@ internal partial class SyncBufferWriter : PipeWriter
     // must respect. There is no synchronization around the read-head.
     private object WriteSyncLock => this;
 
-    private volatile bool writerCompleted;
+    private int completed = 0;
+    private const int COMPLETED_READER = 1, COMPLETED_WRITER = 2;
     private Segment writeTail;
-    private int writeOffer;
+
     private const int SEGMENT_BYTES = 64 * 1024, MIN_CHUNK_BYTES = 128;
 
     public SyncBufferWriter()
@@ -40,35 +41,52 @@ internal partial class SyncBufferWriter : PipeWriter
         }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void CheckWritable()
     {
-        if (writerCompleted) ThrowWriterCompleted();
-        if (readerCompleted) ThrowReaderCompleted();
-        static void ThrowWriterCompleted() => throw new InvalidOperationException("The writer has already been completed; additional writes are not allowed.");
-        static void ThrowReaderCompleted() => throw new InvalidOperationException("The reader has already been completed; additional writes are not allowed.");
+        if (Volatile.Read(ref completed) != 0) SlowCheckWritable();
+    }
+
+    private bool WriterCompleted
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => (Volatile.Read(ref completed) & COMPLETED_WRITER) != 0;
+    }
+    private bool ReaderCompleted
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => (Volatile.Read(ref completed) & COMPLETED_READER) != 0;
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private void SlowCheckWritable()
+    {
+        var completed = Volatile.Read(ref this.completed);
+        if ((completed & COMPLETED_WRITER) != 0) throw new InvalidOperationException("The writer has already been completed; additional writes are not allowed.");
+        if ((completed & COMPLETED_READER) != 0) throw new InvalidOperationException("The reader has already been completed; additional writes are not allowed.");
+    }
+
+    private void SetCompleted(int flags)
+    {
+        int test;
+        do
+        {
+            test = Volatile.Read(ref completed);
+        }
+        while (Interlocked.CompareExchange(ref completed, test | flags, test) != test);
     }
 
     public override void Advance(int bytes)
     {
-        CheckWritable();
-        if (bytes != 0)
-        {
-            if (bytes < 0 | bytes > writeOffer) ThrowOutOfRange();
-            lock (WriteSyncLock)
-            {
-                writeTail.Commit(bytes);
-            }
-            ResetReadProgress();
-        }
-        writeOffer = 0;
-
-        static void ThrowOutOfRange() => throw new ArgumentOutOfRangeException(nameof(bytes));
+        // no need to check writable; that is checked in GetMemory etc
+        writeTail.Commit(bytes);
+        // if (bytes != 0) ResetReadProgress(); // defer this to Flush()
     }
 
     public override void CancelPendingFlush() { }
     public override void Complete(Exception? exception = null)
     {
-        writerCompleted = true;
+        SetCompleted(COMPLETED_WRITER);
         ResetReadProgress();
         Flush();
     }
@@ -100,25 +118,23 @@ internal partial class SyncBufferWriter : PipeWriter
     public override ValueTask<FlushResult> FlushAsync(CancellationToken cancellationToken = default)
     {
         Flush();
-        return new(new FlushResult(false, readerCompleted));
+        return new(new FlushResult(false, ReaderCompleted));
     }
 
-    private ArraySegment<byte> GetWritableChunk(int sizeHint)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private Segment GetWritableSegment(int sizeHint)
+    {
+        var tail = writeTail;
+        return tail.Available < Math.Min(Math.Max(16, sizeHint), MIN_CHUNK_BYTES) ? AppendNewSegment() : tail;
+    }
+
+    private Segment AppendNewSegment()
     {
         CheckWritable();
-        sizeHint = Math.Max(16, sizeHint);
-        var tail = writeTail;
-        var available = tail.Available;
-        if (available < Math.Min(sizeHint, MIN_CHUNK_BYTES))
+        lock (WriteSyncLock)
         {
-            lock (WriteSyncLock)
-            {
-                writeTail = tail = tail.TruncateAndAppend(SEGMENT_BYTES);
-            }
+            return writeTail = writeTail.TruncateAndAppend(SEGMENT_BYTES);
         }
-        var chunk = tail.WritableChunk();
-        writeOffer = chunk.Count;
-        return chunk;
     }
 
     private bool ReleaseIfWriteEnd(in SequencePosition position)
@@ -139,13 +155,8 @@ internal partial class SyncBufferWriter : PipeWriter
     }
 
     public override Memory<byte> GetMemory(int sizeHint = 0)
-    {
-        var chunk = GetWritableChunk(sizeHint);
-        return new(chunk.Array, chunk.Offset, chunk.Count);
-    }
+        => GetWritableSegment(sizeHint).GetWritableMemory();
+
     public override Span<byte> GetSpan(int sizeHint = 0)
-    {
-        var chunk = GetWritableChunk(sizeHint);
-        return new(chunk.Array, chunk.Offset, chunk.Count);
-    }
+        => GetWritableSegment(sizeHint).GetWritableSpan();
 }

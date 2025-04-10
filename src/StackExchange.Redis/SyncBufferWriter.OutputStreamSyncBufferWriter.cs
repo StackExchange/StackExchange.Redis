@@ -22,11 +22,15 @@ internal sealed class OutputStreamSyncBufferWriter(Stream destination) : SyncBuf
 
     public override void Flush()
     {
-        lock (progressLock)
+        if (!progressReleased)
         {
-            progressReleased = true;
-            Monitor.Pulse(progressLock);
+            lock (progressLock)
+            {
+                progressReleased = true;
+                Monitor.Pulse(progressLock);
+            }
         }
+
         base.Flush();
     }
 

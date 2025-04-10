@@ -15,21 +15,28 @@ namespace BasicTest
 {
     internal static class Program
     {
-        private static void Main(string[] args)
+        private static async Task Main2(string[] args)
         {
-#if DEBUG
             using var bench = new RedisBenchmarks();
             bench.MuxerMode = "sync";
             bench.Setup();
-            for (int i = 0; i < 1000; i++)
+            for (int j = 0; j < 25; j++)
             {
-                bench.ExecuteIncrBy();
+                for (int i = 0; i < 1000; i++)
+                {
+                    bench.ExecuteIncrBy();
+                }
+                for (int i = 0; i < 1000; i++)
+                {
+                    await bench.ExecuteIncrByAsync();
+                }
+                Console.WriteLine(j);
             }
             bench.Cleanup();
-#else
-            BenchmarkSwitcher.FromAssembly(typeof(Program).GetTypeInfo().Assembly).Run(args);
-#endif
         }
+
+        private static void Main(string[] args)
+            => BenchmarkSwitcher.FromAssembly(typeof(Program).GetTypeInfo().Assembly).Run(args);
     }
     internal class CustomConfig : ManualConfig
     {

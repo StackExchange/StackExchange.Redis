@@ -2,6 +2,7 @@
 using System.Buffers;
 using System.Diagnostics;
 using System.IO.Pipelines;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -11,12 +12,13 @@ internal partial class SyncBufferWriter : PipeWriter
 {
     private Segment readHead;
     private int readOffset;
-    private volatile bool readerCompleted;
     private volatile int readerFailedProgressCount;
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void CheckReadable()
     {
-        if (readerCompleted) ThrowReaderCompleted();
+        if ((Volatile.Read(ref completed) & COMPLETED_READER) != 0) ThrowReaderCompleted();
+        [MethodImpl(MethodImplOptions.NoInlining)]
         static void ThrowReaderCompleted() => throw new InvalidOperationException("The reader has already been completed; additional reads are not allowed.");
     }
 
@@ -48,7 +50,7 @@ internal partial class SyncBufferWriter : PipeWriter
 
         // normally we retain the final segment; however, we can release it if
         // the writer is completed and we've read everything
-        if (writerCompleted && ReleaseIfWriteEnd(consumed))
+        if (WriterCompleted && ReleaseIfWriteEnd(consumed))
         {
             readOffset = 0;
         }
@@ -58,15 +60,14 @@ internal partial class SyncBufferWriter : PipeWriter
 
     private static long GetIndex(in SequencePosition position) => ((Segment)position.GetObject()!).RunningIndex + position.GetInteger();
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void ResetReadProgress()
     {
         readerFailedProgressCount = 0;
     }
 
     internal void CompleteReader(Exception? exception)
-    {
-        readerCompleted = true;
-    }
+        => SetCompleted(COMPLETED_READER);
 
     public ReadResult Read()
     {
@@ -74,7 +75,7 @@ internal partial class SyncBufferWriter : PipeWriter
         CheckReadable();
 
         // check whether more data might be useful
-        if (readerFailedProgressCount != 0 & !writerCompleted) RequestMoreData();
+        if (readerFailedProgressCount != 0 & !WriterCompleted) RequestMoreData();
 
         if (++readerFailedProgressCount > MAX_FAILED_PROGRESS) ThrowNotMakingProgress();
 
@@ -87,7 +88,7 @@ internal partial class SyncBufferWriter : PipeWriter
         }
 
         var payload = new ReadOnlySequence<byte>(readHead, readOffset, endSegment, endIndex);
-        return new ReadResult(payload, isCanceled: false, isCompleted: writerCompleted);
+        return new ReadResult(payload, isCanceled: false, isCompleted: WriterCompleted);
 
         static void ThrowNotMakingProgress()
             => throw new InvalidOperationException("The reader has failed to make progress; a tight read-loop is not permitted.");
