@@ -1613,7 +1613,8 @@ namespace StackExchange.Redis
                 switch (mode)
                 {
                     case MuxerMode.Sync:
-                        _ioPipe = new SyncPipe(stream ?? GetStream(socket));
+
+                        _ioPipe = new SyncDuplexPipe(stream ?? GetStream(socket));
                         break;
                     default:
                         if (stream is not null)
