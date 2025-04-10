@@ -38,6 +38,8 @@ namespace BasicTest
         private static void Main(string[] args)
             => BenchmarkSwitcher.FromAssembly(typeof(Program).GetTypeInfo().Assembly).Run(args);
     }
+
+    /*
     internal class CustomConfig : ManualConfig
     {
         protected virtual Job Configure(Job j)
@@ -62,8 +64,10 @@ namespace BasicTest
                 .WithWarmupCount(1)
                 .WithIterationCount(5);
     }
+    */
 
-    [Config(typeof(CustomConfig))]
+    // [Config(typeof(CustomConfig))]
+    [MemoryDiagnoser]
     public class RedisBenchmarks : IDisposable
     {
         private SocketManager mgr;
@@ -235,7 +239,7 @@ namespace BasicTest
         }
     }
 
-    [Config(typeof(SlowConfig))]
+    // [Config(typeof(SlowConfig))]
     public class Issue898 : IDisposable
     {
         private readonly ConnectionMultiplexer mux;
