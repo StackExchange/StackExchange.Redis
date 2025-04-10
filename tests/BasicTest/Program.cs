@@ -67,7 +67,7 @@ namespace BasicTest
     */
 
     // [Config(typeof(CustomConfig))]
-    [MemoryDiagnoser]
+    [MemoryDiagnoser, OperationsPerSecond]
     public class RedisBenchmarks : IDisposable
     {
         private SocketManager mgr;
