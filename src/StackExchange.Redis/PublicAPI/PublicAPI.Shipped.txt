@@ -1893,4 +1893,4 @@ virtual StackExchange.Redis.RedisResult.Length.get -> int
 virtual StackExchange.Redis.RedisResult.this[int index].get -> StackExchange.Redis.RedisResult!
 StackExchange.Redis.ConnectionMultiplexer.AddLibraryNameSuffix(string! suffix) -> void
 StackExchange.Redis.IConnectionMultiplexer.AddLibraryNameSuffix(string! suffix) -> void
-
+StackExchange.Redis.ConfigurationOptions.SetUserPfxCertificate(string! userCertificatePath, string? password = null) -> void
