@@ -1524,10 +1524,7 @@ namespace StackExchange.Redis
                 if (!string.IsNullOrEmpty(certificatePath) && File.Exists(certificatePath))
                 {
                     var passwordPath = Environment.GetEnvironmentVariable("SERedis_ClientCertPasswordPath");
-                    if (!string.IsNullOrEmpty(passwordPath) && File.Exists(passwordPath))
-                    {
-                        return ConfigurationOptions.CreatePemUserCertificateCallback(certificatePath, passwordPath);
-                    }
+                    return ConfigurationOptions.CreatePemUserCertificateCallback(certificatePath, passwordPath);
                 }
 #endif
             }

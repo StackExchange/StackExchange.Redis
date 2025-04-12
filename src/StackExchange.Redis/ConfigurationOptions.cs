@@ -307,7 +307,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="userCertificatePath">The path for the the user certificate (commonly a .crt file).</param>
         /// <param name="userKeyPath">The path for the the user key (commonly a .key file).</param>
-        public void SetUserPemCertificate(string userCertificatePath, string userKeyPath)
+        public void SetUserPemCertificate(string userCertificatePath, string? userKeyPath = null)
         {
             CertificateSelectionCallback = CreatePemUserCertificateCallback(userCertificatePath, userKeyPath);
             Ssl = true;
@@ -326,7 +326,7 @@ namespace StackExchange.Redis
         }
 
 #if NET5_0_OR_GREATER
-        internal static LocalCertificateSelectionCallback CreatePemUserCertificateCallback(string userCertificatePath, string userKeyPath)
+        internal static LocalCertificateSelectionCallback CreatePemUserCertificateCallback(string userCertificatePath, string? userKeyPath)
         {
             // PEM handshakes not universally supported and causes a runtime error about ephemeral certificates; to avoid, export as PFX
             using var pem = X509Certificate2.CreateFromPemFile(userCertificatePath, userKeyPath);
