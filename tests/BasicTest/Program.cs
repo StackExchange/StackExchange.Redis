@@ -74,14 +74,20 @@ namespace BasicTest
         private ConnectionMultiplexer connection;
         private IDatabase db;
 
+#if !TEST_BASELINE
         [Params("sync", "async")]
+#endif
         public string MuxerMode { get; set; }
 
         [GlobalSetup]
         public void Setup()
         {
             // Pipelines.Sockets.Unofficial.SocketConnection.AssertDependencies();
+#if TEST_BASELINE
+            var options = ConfigurationOptions.Parse($"127.0.0.1:6379");
+#else
             var options = ConfigurationOptions.Parse($"127.0.0.1:6379,muxer={MuxerMode}");
+#endif
             connection = ConnectionMultiplexer.Connect(options);
             db = connection.GetDatabase();
 
