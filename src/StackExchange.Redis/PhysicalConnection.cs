@@ -1510,10 +1510,9 @@ namespace StackExchange.Redis
                     var password = Environment.GetEnvironmentVariable("SERedis_ClientCertPassword");
                     var pfxStorageFlags = Environment.GetEnvironmentVariable("SERedis_ClientCertStorageFlags");
                     X509KeyStorageFlags storageFlags = X509KeyStorageFlags.DefaultKeySet;
-                    if (!string.IsNullOrEmpty(pfxStorageFlags))
+                    if (!string.IsNullOrEmpty(pfxStorageFlags) && Enum.TryParse<X509KeyStorageFlags>(pfxStorageFlags, true, out var typedFlags))
                     {
-                        var tmp = Enum.Parse(typeof(X509KeyStorageFlags), pfxStorageFlags) as X509KeyStorageFlags?;
-                        if (tmp is not null) storageFlags = tmp.GetValueOrDefault();
+                        storageFlags = typedFlags;
                     }
 
                     return ConfigurationOptions.CreatePfxUserCertificateCallback(certificatePath, password, storageFlags);
