@@ -1504,21 +1504,28 @@ namespace StackExchange.Redis
         {
             try
             {
-                var pfxPath = Environment.GetEnvironmentVariable("SERedis_ClientCertPfxPath");
-                var pfxPassword = Environment.GetEnvironmentVariable("SERedis_ClientCertPassword");
-                var pfxStorageFlags = Environment.GetEnvironmentVariable("SERedis_ClientCertStorageFlags");
-
-                X509KeyStorageFlags? flags = null;
-                if (!string.IsNullOrEmpty(pfxStorageFlags))
+                var certificatePath = Environment.GetEnvironmentVariable("SERedis_ClientCertPfxPath");
+                if (!string.IsNullOrEmpty(certificatePath) && File.Exists(certificatePath))
                 {
-                    flags = Enum.Parse(typeof(X509KeyStorageFlags), pfxStorageFlags) as X509KeyStorageFlags?;
+                    var password = Environment.GetEnvironmentVariable("SERedis_ClientCertPassword");
+                    var pfxStorageFlags = Environment.GetEnvironmentVariable("SERedis_ClientCertStorageFlags");
+                    X509KeyStorageFlags storageFlags = X509KeyStorageFlags.DefaultKeySet;
+                    if (!string.IsNullOrEmpty(pfxStorageFlags) && Enum.TryParse<X509KeyStorageFlags>(pfxStorageFlags, true, out var typedFlags))
+                    {
+                        storageFlags = typedFlags;
+                    }
+
+                    return ConfigurationOptions.CreatePfxUserCertificateCallback(certificatePath, password, storageFlags);
                 }
 
-                if (!string.IsNullOrEmpty(pfxPath) && File.Exists(pfxPath))
+#if NET5_0_OR_GREATER
+                certificatePath = Environment.GetEnvironmentVariable("SERedis_ClientCertPemPath");
+                if (!string.IsNullOrEmpty(certificatePath) && File.Exists(certificatePath))
                 {
-                    return (sender, targetHost, localCertificates, remoteCertificate, acceptableIssuers) =>
-                        new X509Certificate2(pfxPath, pfxPassword ?? "", flags ?? X509KeyStorageFlags.DefaultKeySet);
+                    var passwordPath = Environment.GetEnvironmentVariable("SERedis_ClientCertPasswordPath");
+                    return ConfigurationOptions.CreatePemUserCertificateCallback(certificatePath, passwordPath);
                 }
+#endif
             }
             catch (Exception ex)
             {

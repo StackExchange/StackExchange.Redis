@@ -9,6 +9,8 @@ Current package versions:
 ## Unreleased
 No pending unreleased changes
 
+- Add `ConfigurationOptions.SetUserPemCertificate(...)` and `ConfigurationOptions.SetUserPfxCertificate(...)` methods to simplify using client certificates ([#2873 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2873))
+
 ## 2.8.31
 
 - Fix: Respect `IReconnectRetryPolicy` timing in the case that a node that was present disconnects indefinitely ([#2853](https://github.com/StackExchange/StackExchange.Redis/pull/2853) & [#2856](https://github.com/StackExchange/StackExchange.Redis/pull/2856) by NickCraver)
