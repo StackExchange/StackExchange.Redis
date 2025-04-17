@@ -59,6 +59,7 @@
         internal static readonly RedisValue SetId = "SETID";
 
         internal static readonly RedisValue MaxLen = "MAXLEN";
+        internal static readonly RedisValue MinId = "MINID";
 
         internal static readonly RedisValue MkStream = "MKSTREAM";
 
