@@ -10,6 +10,7 @@ Current package versions:
 No pending unreleased changes
 
 - Add `ConfigurationOptions.SetUserPemCertificate(...)` and `ConfigurationOptions.SetUserPfxCertificate(...)` methods to simplify using client certificates ([#2873 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2873))
+- Fix: Move `AuthenticateAsClient` to fully async after dropping older framework support, to help client thread starvation in cases TLS negotiation stalls server-side ([#2878 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2878))
 
 ## 2.8.31
 
