@@ -1585,10 +1585,10 @@ namespace StackExchange.Redis
                             }
                             else
                             {
-                                ssl.AuthenticateAsClient(host, config.SslProtocols, config.CheckCertificateRevocation);
+                                await ssl.AuthenticateAsClientAsync(host, config.SslProtocols, config.CheckCertificateRevocation).ForAwait();
                             }
 #else
-                            ssl.AuthenticateAsClient(host, config.SslProtocols, config.CheckCertificateRevocation);
+                            await ssl.AuthenticateAsClientAsync(host, config.SslProtocols, config.CheckCertificateRevocation).ForAwait();
 #endif
                         }
                         catch (Exception ex)
