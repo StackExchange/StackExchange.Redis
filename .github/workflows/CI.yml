@@ -18,7 +18,12 @@ jobs:
       TERM: xterm # Enable color output in GitHub Actions
     steps:
     - name: Checkout code
-      uses: actions/checkout@v1
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Fetch the full history
+    - name: Start Redis Services (docker-compose)
+      working-directory: ./tests/RedisConfigs
+      run: docker compose -f docker-compose.yml up -d --wait           
     - name: Install .NET SDK
       uses: actions/setup-dotnet@v3
       with:
@@ -27,9 +32,6 @@ jobs:
           8.0.x
     - name: .NET Build
       run: dotnet build Build.csproj -c Release /p:CI=true
-    - name: Start Redis Services (docker-compose)
-      working-directory: ./tests/RedisConfigs
-      run: docker compose -f docker-compose.yml up -d --wait
     - name: StackExchange.Redis.Tests
       run: dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj -c Release --logger trx --logger GitHubActions --results-directory ./test-results/ /p:CI=true
     - uses: dorny/test-reporter@v1
@@ -52,39 +54,85 @@ jobs:
       DOCKER_BUILDKIT: 1
     steps:
     - name: Checkout code
-      uses: actions/checkout@v1
-    # - name: Install .NET SDK
-    #   uses: actions/setup-dotnet@v3
-    #   with:
-    #     dotnet-version: | 
-    #       6.0.x
-    #       8.0.x
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Fetch the full history
+    - uses: Vampire/setup-wsl@v2
+      with:
+        distribution: Ubuntu-22.04
+    - name: Install Redis
+      shell: wsl-bash {0}
+      working-directory: ./tests/RedisConfigs
+      run: |
+        apt-get update
+        apt-get install curl gpg lsb-release libgomp1 jq -y
+        curl -fsSL https://packages.redis.io/gpg | gpg --dearmor -o /usr/share/keyrings/redis-archive-keyring.gpg
+        chmod 644 /usr/share/keyrings/redis-archive-keyring.gpg
+        echo "deb [signed-by=/usr/share/keyrings/redis-archive-keyring.gpg] https://packages.redis.io/deb $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/redis.list
+        apt-get update
+        apt-get install -y redis
+        mkdir redis
+    - name: Run redis-server
+      shell: wsl-bash {0}
+      working-directory: ./tests/RedisConfigs/redis
+      run: |
+        pwd
+        ls .
+        # Run each server instance in order
+        redis-server ../Basic/primary-6379.conf &
+        redis-server ../Basic/replica-6380.conf &
+        redis-server ../Basic/secure-6381.conf &
+        redis-server ../Failover/primary-6382.conf &
+        redis-server ../Failover/replica-6383.conf &
+        redis-server ../Cluster/cluster-7000.conf --dir ../Cluster &
+        redis-server ../Cluster/cluster-7001.conf --dir ../Cluster &
+        redis-server ../Cluster/cluster-7002.conf --dir ../Cluster &
+        redis-server ../Cluster/cluster-7003.conf --dir ../Cluster &
+        redis-server ../Cluster/cluster-7004.conf --dir ../Cluster &
+        redis-server ../Cluster/cluster-7005.conf --dir ../Cluster &
+        redis-server ../Sentinel/redis-7010.conf &
+        redis-server ../Sentinel/redis-7011.conf &
+        redis-server ../Sentinel/sentinel-26379.conf --sentinel &
+        redis-server ../Sentinel/sentinel-26380.conf --sentinel &
+        redis-server ../Sentinel/sentinel-26381.conf --sentinel &
+        # Wait for server instances to get ready
+        sleep 5
+        echo "Checking redis-server version with port 6379"
+        redis-cli -p 6379 INFO SERVER | grep redis_version || echo "Failed to get version for port 6379"
+        echo "Checking redis-server version with port 6380"
+        redis-cli -p 6380 INFO SERVER | grep redis_version || echo "Failed to get version for port 6380"
+        echo "Checking redis-server version with port 6381"
+        redis-cli -p 6381 INFO SERVER | grep redis_version || echo "Failed to get version for port 6381"
+        echo "Checking redis-server version with port 6382"
+        redis-cli -p 6382 INFO SERVER | grep redis_version || echo "Failed to get version for port 6382"
+        echo "Checking redis-server version with port 6383"
+        redis-cli -p 6383 INFO SERVER | grep redis_version || echo "Failed to get version for port 6383"
+        echo "Checking redis-server version with port 7000"
+        redis-cli -p 7000 INFO SERVER | grep redis_version || echo "Failed to get version for port 7000"
+        echo "Checking redis-server version with port 7001"
+        redis-cli -p 7001 INFO SERVER | grep redis_version || echo "Failed to get version for port 7001"
+        echo "Checking redis-server version with port 7002"
+        redis-cli -p 7002 INFO SERVER | grep redis_version || echo "Failed to get version for port 7002"
+        echo "Checking redis-server version with port 7003"
+        redis-cli -p 7003 INFO SERVER | grep redis_version || echo "Failed to get version for port 7003"
+        echo "Checking redis-server version with port 7004"
+        redis-cli -p 7004 INFO SERVER | grep redis_version || echo "Failed to get version for port 7004"
+        echo "Checking redis-server version with port 7005"
+        redis-cli -p 7005 INFO SERVER | grep redis_version || echo "Failed to get version for port 7005"
+        echo "Checking redis-server version with port 7010"
+        redis-cli -p 7010 INFO SERVER | grep redis_version || echo "Failed to get version for port 7010"
+        echo "Checking redis-server version with port 7011"
+        redis-cli -p 7011 INFO SERVER | grep redis_version || echo "Failed to get version for port 7011"
+        echo "Checking redis-server version with port 26379"
+        redis-cli -p 26379 INFO SERVER | grep redis_version || echo "Failed to get version for port 26379"
+        echo "Checking redis-server version with port 26380"
+        redis-cli -p 26380 INFO SERVER | grep redis_version || echo "Failed to get version for port 26380"
+        echo "Checking redis-server version with port 26381"
+        redis-cli -p 26381 INFO SERVER | grep redis_version || echo "Failed to get version for port 26381"
+      continue-on-error: true
+
     - name: .NET Build
       run: dotnet build Build.csproj -c Release /p:CI=true
-    # We can't do this combination - see https://github.com/actions/runner/issues/904
-    # - name: Start Redis Services (docker-compose)
-    #   working-directory: .\tests\RedisConfigs
-    #   run: docker compose -f docker-compose.yml up -d --wait
-    - name: Start Redis Services (v3.0.503)
-      working-directory: .\tests\RedisConfigs\3.0.503
-      run: |
-        .\redis-server.exe --service-install --service-name "redis-6379" "..\Basic\primary-6379-3.0.conf"
-        .\redis-server.exe --service-install --service-name "redis-6380" "..\Basic\replica-6380.conf"
-        .\redis-server.exe --service-install --service-name "redis-6381" "..\Basic\secure-6381.conf"
-        .\redis-server.exe --service-install --service-name "redis-6382" "..\Failover\primary-6382.conf"
-        .\redis-server.exe --service-install --service-name "redis-6383" "..\Failover\replica-6383.conf"
-        .\redis-server.exe --service-install --service-name "redis-7000" "..\Cluster\cluster-7000.conf" --dir "..\Cluster"
-        .\redis-server.exe --service-install --service-name "redis-7001" "..\Cluster\cluster-7001.conf" --dir "..\Cluster"
-        .\redis-server.exe --service-install --service-name "redis-7002" "..\Cluster\cluster-7002.conf" --dir "..\Cluster"
-        .\redis-server.exe --service-install --service-name "redis-7003" "..\Cluster\cluster-7003.conf" --dir "..\Cluster"
-        .\redis-server.exe --service-install --service-name "redis-7004" "..\Cluster\cluster-7004.conf" --dir "..\Cluster"
-        .\redis-server.exe --service-install --service-name "redis-7005" "..\Cluster\cluster-7005.conf" --dir "..\Cluster"
-        .\redis-server.exe --service-install --service-name "redis-7010" "..\Sentinel\redis-7010.conf"
-        .\redis-server.exe --service-install --service-name "redis-7011" "..\Sentinel\redis-7011.conf"
-        .\redis-server.exe --service-install --service-name "redis-26379" "..\Sentinel\sentinel-26379.conf" --sentinel
-        .\redis-server.exe --service-install --service-name "redis-26380" "..\Sentinel\sentinel-26380.conf" --sentinel
-        .\redis-server.exe --service-install --service-name "redis-26381" "..\Sentinel\sentinel-26381.conf" --sentinel
-        Start-Service redis-*
     - name: StackExchange.Redis.Tests
       run: dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj -c Release --logger trx --logger GitHubActions --results-directory ./test-results/ /p:CI=true
     - uses: dorny/test-reporter@v1
