@@ -12,6 +12,7 @@ No pending unreleased changes
 ## 2.8.37
 
 - Add `ConfigurationOptions.SetUserPemCertificate(...)` and `ConfigurationOptions.SetUserPfxCertificate(...)` methods to simplify using client certificates ([#2873 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2873))
+- Add logging for when a Multiplexer reconfigures ([#2864 by st-dev-gh](https://github.com/StackExchange/StackExchange.Redis/pull/2864))
 - Fix: Move `AuthenticateAsClient` to fully async after dropping older framework support, to help client thread starvation in cases TLS negotiation stalls server-side ([#2878 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2878))
 
 ## 2.8.31
