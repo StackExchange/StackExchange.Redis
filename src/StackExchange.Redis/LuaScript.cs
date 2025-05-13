@@ -239,7 +239,6 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// <para>The SHA1 hash of ExecutableScript.</para>
-        /// <para>This is sent to Redis instead of ExecutableScript during Evaluate and EvaluateAsync calls.</para>
         /// </summary>
         /// <remarks>Be aware that using hash directly is not resilient to Redis server restarts.</remarks>
         [EditorBrowsable(EditorBrowsableState.Never)]
@@ -265,6 +264,13 @@ namespace StackExchange.Redis
         /// <param name="ps">The parameter object to use.</param>
         /// <param name="withKeyPrefix">The key prefix to use, if any.</param>
         /// <param name="flags">The command flags to use.</param>
+        /// <remarks>
+        /// <para>
+        /// If a previously loaded script hash was not found in the server cache, the script will be reloaded.
+        /// After the SCRIPT LOAD command is executed to reload the script, EVAL will be used only once to execute it.
+        /// Any subsequent evaluations of the same script will use EVALSHA.
+        /// </para>
+        /// </remarks>
         public RedisResult Evaluate(IDatabase db, object? ps = null, RedisKey? withKeyPrefix = null, CommandFlags flags = CommandFlags.None)
         {
             Original.ExtractParameters(ps, withKeyPrefix, out RedisKey[]? keys, out RedisValue[]? args);
@@ -283,6 +289,13 @@ namespace StackExchange.Redis
         /// <param name="ps">The parameter object to use.</param>
         /// <param name="withKeyPrefix">The key prefix to use, if any.</param>
         /// <param name="flags">The command flags to use.</param>
+        /// <remarks>
+        /// <para>
+        /// If a previously loaded script hash was not found in the server cache, the script will be reloaded.
+        /// After the SCRIPT LOAD command is executed to reload the script, EVAL will be used only once to execute it.
+        /// Any subsequent evaluations of the same script will use EVALSHA.
+        /// </para>
+        /// </remarks>
         public Task<RedisResult> EvaluateAsync(IDatabaseAsync db, object? ps = null, RedisKey? withKeyPrefix = null, CommandFlags flags = CommandFlags.None)
         {
             Original.ExtractParameters(ps, withKeyPrefix, out RedisKey[]? keys, out RedisValue[]? args);
