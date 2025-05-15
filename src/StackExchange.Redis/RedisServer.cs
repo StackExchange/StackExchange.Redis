@@ -1037,12 +1037,40 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
         }
 
+        public Lease<byte>? ExecuteLease(string command, params object[] args) => ExecuteLease(command, args, CommandFlags.None);
+
+        public Lease<byte>? ExecuteLease(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = new RedisDatabase.ExecuteMessage(multiplexer?.CommandMap, -1, flags, command, args);
+            return ExecuteSync(msg, ResultProcessor.Lease, defaultValue: null);
+        }
+
+        public Lease<byte>? ExecuteLeaseExplicit(string command, ICollection<RedisKey> keys, ICollection<RedisValue> args, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = new RedisDatabase.ExecuteExplicitMessage(multiplexer?.CommandMap, -1, flags, command, keys, args);
+            return ExecuteSync(msg, ResultProcessor.Lease, defaultValue: null);
+        }
+
         public Task<RedisResult> ExecuteAsync(string command, params object[] args) => ExecuteAsync(command, args, CommandFlags.None);
 
         public Task<RedisResult> ExecuteAsync(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None)
         {
             var msg = new RedisDatabase.ExecuteMessage(multiplexer?.CommandMap, -1, flags, command, args);
             return ExecuteAsync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
+        }
+
+        public Task<Lease<byte>?> ExecuteLeaseAsync(string command, params object[] args) => ExecuteLeaseAsync(command, args, CommandFlags.None);
+
+        public Task<Lease<byte>?> ExecuteLeaseAsync(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = new RedisDatabase.ExecuteMessage(multiplexer?.CommandMap, -1, flags, command, args);
+            return ExecuteAsync<Lease<byte>?>(msg, ResultProcessor.Lease!, defaultValue: null);
+        }
+
+        public Task<Lease<byte>?> ExecuteLeaseExplicitAsync(string command, ICollection<RedisKey> keys, ICollection<RedisValue> args, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = new RedisDatabase.ExecuteExplicitMessage(multiplexer?.CommandMap, -1, flags, command, keys, args);
+            return ExecuteAsync<Lease<byte>?>(msg, ResultProcessor.Lease!, defaultValue: null);
         }
 
         /// <summary>
