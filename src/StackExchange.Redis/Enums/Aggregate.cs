@@ -9,13 +9,15 @@
         /// The values of the combined elements are added.
         /// </summary>
         Sum,
+
         /// <summary>
         /// The least value of the combined elements is used.
         /// </summary>
         Min,
+
         /// <summary>
         /// The greatest value of the combined elements is used.
         /// </summary>
-        Max
+        Max,
     }
 }

@@ -5,7 +5,7 @@ namespace StackExchange.Redis.Tests.Issues;
 
 public class SO23949477Tests : TestBase
 {
-    public SO23949477Tests(ITestOutputHelper output) : base (output) { }
+    public SO23949477Tests(ITestOutputHelper output) : base(output) { }
 
     [Fact]
     public void Execute()
@@ -16,12 +16,14 @@ public class SO23949477Tests : TestBase
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.SortedSetAdd(key, "c", 3, When.Always, CommandFlags.FireAndForget);
-        db.SortedSetAdd(key,
-            new[] {
-                    new SortedSetEntry("a", 1),
-                    new SortedSetEntry("b", 2),
-                    new SortedSetEntry("d", 4),
-                    new SortedSetEntry("e", 5)
+        db.SortedSetAdd(
+            key,
+            new[]
+            {
+                new SortedSetEntry("a", 1),
+                new SortedSetEntry("b", 2),
+                new SortedSetEntry("d", 4),
+                new SortedSetEntry("e", 5),
             },
             When.Always,
             CommandFlags.FireAndForget);

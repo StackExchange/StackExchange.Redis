@@ -9,7 +9,6 @@ public class RedisValueEquivalency
 {
     // internal storage types: null, integer, double, string, raw
     // public perceived types: int, long, double, bool, memory / byte[]
-
     [Fact]
     public void Int32_Matrix()
     {

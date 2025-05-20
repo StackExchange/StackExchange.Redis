@@ -10,7 +10,7 @@ public class Issue182Tests : TestBase
 {
     protected override string GetConfiguration() => $"{TestConfig.Current.PrimaryServerAndPort},responseTimeout=10000";
 
-    public Issue182Tests(ITestOutputHelper output) : base (output) { }
+    public Issue182Tests(ITestOutputHelper output) : base(output) { }
 
     [FactLongRunning]
     public async Task SetMembers()

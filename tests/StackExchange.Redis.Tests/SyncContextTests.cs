@@ -135,11 +135,13 @@ namespace StackExchange.Redis.Tests
             {
                 Log(_log, "sync-ctx: Post");
                 Incr();
-                ThreadPool.QueueUserWorkItem(static state =>
-                {
-                    var tuple = (Tuple<MySyncContext, SendOrPostCallback, object?>)state!;
-                    tuple.Item1.Invoke(tuple.Item2, tuple.Item3);
-                }, Tuple.Create<MySyncContext, SendOrPostCallback, object?>(this, d, state));
+                ThreadPool.QueueUserWorkItem(
+                    static state =>
+                    {
+                        var tuple = (Tuple<MySyncContext, SendOrPostCallback, object?>)state!;
+                        tuple.Item1.Invoke(tuple.Item2, tuple.Item3);
+                    },
+                    Tuple.Create<MySyncContext, SendOrPostCallback, object?>(this, d, state));
             }
 
             private void Invoke(SendOrPostCallback d, object? state)

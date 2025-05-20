@@ -58,7 +58,7 @@ public class WithKeyPrefixTests : TestBase
     [InlineData("abc")]
     [InlineData("")]
     [InlineData(null)]
-    public void NullDatabaseIsError(string prefix)
+    public void NullDatabaseIsError(string? prefix)
     {
         Assert.Throws<ArgumentNullException>(() =>
         {

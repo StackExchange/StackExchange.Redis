@@ -6,7 +6,7 @@ namespace StackExchange.Redis.Tests;
 [Collection(SharedConnectionFixture.Key)]
 public class AdhocTests : TestBase
 {
-    public AdhocTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base (output, fixture) { }
+    public AdhocTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
 
     [Fact]
     public void TestAdhocCommandsAPI()
@@ -20,7 +20,7 @@ public class AdhocTests : TestBase
         RedisKey key = Me();
 
         // note: if command renames are configured in
-        // the API, they will still work automatically 
+        // the API, they will still work automatically
         db.Execute("del", key);
         db.Execute("set", key, "12");
         db.Execute("incrby", key, 4);

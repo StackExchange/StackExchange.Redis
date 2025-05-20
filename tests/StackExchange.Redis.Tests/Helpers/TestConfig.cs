@@ -1,9 +1,9 @@
-﻿using System.IO;
-using System;
-using Newtonsoft.Json;
-using System.Threading;
+﻿using System;
+using System.IO;
 using System.Linq;
 using System.Net.Sockets;
+using System.Threading;
+using Newtonsoft.Json;
 
 namespace StackExchange.Redis.Tests;
 

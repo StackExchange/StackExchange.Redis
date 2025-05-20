@@ -1,6 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFrameworks>net472;net6.0</TargetFrameworks>
+    <TargetFrameworks>net481;net8.0</TargetFrameworks>
     <AssemblyName>StackExchange.Redis.Tests</AssemblyName>
     <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
     <SignAssembly>true</SignAssembly>
@@ -13,6 +13,7 @@
     <None Update="*.json" CopyToOutputDirectory="Always" />
     <EmbeddedResource Include="*Config.json" />
     <None Update="redislabs_ca.pem" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Certificates\*.pem" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

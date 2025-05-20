@@ -1,7 +1,7 @@
-﻿using Xunit;
-using System;
-using Xunit.Abstractions;
+﻿using System;
 using System.Threading.Tasks;
+using Xunit;
+using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
@@ -9,14 +9,15 @@ namespace StackExchange.Redis.Tests;
 [Collection(SharedConnectionFixture.Key)]
 public class GeoTests : TestBase
 {
-    public GeoTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base (output, fixture) { }
+    public GeoTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
 
     private static readonly GeoEntry
-        palermo = new GeoEntry(13.361389, 38.115556, "Palermo"),
-        catania = new GeoEntry(15.087269, 37.502669, "Catania"),
-        agrigento = new GeoEntry(13.5765, 37.311, "Agrigento"),
-        cefalù = new GeoEntry(14.0188, 38.0084, "Cefalù");
-    private static readonly GeoEntry[] all = { palermo, catania, agrigento, cefalù };
+        Palermo = new GeoEntry(13.361389, 38.115556, "Palermo"),
+        Catania = new GeoEntry(15.087269, 37.502669, "Catania"),
+        Agrigento = new GeoEntry(13.5765, 37.311, "Agrigento"),
+        Cefalù = new GeoEntry(14.0188, 38.0084, "Cefalù");
+
+    private static readonly GeoEntry[] All = { Palermo, Catania, Agrigento, Cefalù };
 
     [Fact]
     public void GeoAdd()
@@ -28,20 +29,20 @@ public class GeoTests : TestBase
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
         // add while not there
-        Assert.True(db.GeoAdd(key, cefalù.Longitude, cefalù.Latitude, cefalù.Member));
-        Assert.Equal(2, db.GeoAdd(key, new[] { palermo, catania }));
-        Assert.True(db.GeoAdd(key, agrigento));
+        Assert.True(db.GeoAdd(key, Cefalù.Longitude, Cefalù.Latitude, Cefalù.Member));
+        Assert.Equal(2, db.GeoAdd(key, new[] { Palermo, Catania }));
+        Assert.True(db.GeoAdd(key, Agrigento));
 
         // now add again
-        Assert.False(db.GeoAdd(key, cefalù.Longitude, cefalù.Latitude, cefalù.Member));
-        Assert.Equal(0, db.GeoAdd(key, new[] { palermo, catania }));
-        Assert.False(db.GeoAdd(key, agrigento));
+        Assert.False(db.GeoAdd(key, Cefalù.Longitude, Cefalù.Latitude, Cefalù.Member));
+        Assert.Equal(0, db.GeoAdd(key, new[] { Palermo, Catania }));
+        Assert.False(db.GeoAdd(key, Agrigento));
 
         // Validate
-        var pos = db.GeoPosition(key, palermo.Member);
+        var pos = db.GeoPosition(key, Palermo.Member);
         Assert.NotNull(pos);
-        Assert.Equal(palermo.Longitude, pos!.Value.Longitude, 5);
-        Assert.Equal(palermo.Latitude, pos!.Value.Latitude, 5);
+        Assert.Equal(Palermo.Longitude, pos!.Value.Longitude, 5);
+        Assert.Equal(Palermo.Latitude, pos!.Value.Latitude, 5);
     }
 
     [Fact]
@@ -52,7 +53,7 @@ public class GeoTests : TestBase
         var db = conn.GetDatabase();
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
-        db.GeoAdd(key, all, CommandFlags.FireAndForget);
+        db.GeoAdd(key, All, CommandFlags.FireAndForget);
         var val = db.GeoDistance(key, "Palermo", "Catania", GeoUnit.Meters);
         Assert.True(val.HasValue);
         Assert.Equal(166274.1516, val);
@@ -69,9 +70,9 @@ public class GeoTests : TestBase
         var db = conn.GetDatabase();
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
-        db.GeoAdd(key, all, CommandFlags.FireAndForget);
+        db.GeoAdd(key, All, CommandFlags.FireAndForget);
 
-        var hashes = db.GeoHash(key, new RedisValue[] { palermo.Member, "Nowhere", agrigento.Member });
+        var hashes = db.GeoHash(key, new RedisValue[] { Palermo.Member, "Nowhere", Agrigento.Member });
         Assert.NotNull(hashes);
         Assert.Equal(3, hashes.Length);
         Assert.Equal("sqc8b49rny0", hashes[0]);
@@ -93,12 +94,12 @@ public class GeoTests : TestBase
         var db = conn.GetDatabase();
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
-        db.GeoAdd(key, all, CommandFlags.FireAndForget);
+        db.GeoAdd(key, All, CommandFlags.FireAndForget);
 
-        var pos = db.GeoPosition(key, palermo.Member);
+        var pos = db.GeoPosition(key, Palermo.Member);
         Assert.True(pos.HasValue);
-        Assert.Equal(Math.Round(palermo.Longitude, 6), Math.Round(pos.Value.Longitude, 6));
-        Assert.Equal(Math.Round(palermo.Latitude, 6), Math.Round(pos.Value.Latitude, 6));
+        Assert.Equal(Math.Round(Palermo.Longitude, 6), Math.Round(pos.Value.Longitude, 6));
+        Assert.Equal(Math.Round(Palermo.Latitude, 6), Math.Round(pos.Value.Latitude, 6));
 
         pos = db.GeoPosition(key, "Nowhere");
         Assert.False(pos.HasValue);
@@ -112,7 +113,7 @@ public class GeoTests : TestBase
         var db = conn.GetDatabase();
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
-        db.GeoAdd(key, all, CommandFlags.FireAndForget);
+        db.GeoAdd(key, All, CommandFlags.FireAndForget);
 
         var pos = db.GeoPosition(key, "Palermo");
         Assert.True(pos.HasValue);
@@ -133,37 +134,37 @@ public class GeoTests : TestBase
         var db = conn.GetDatabase();
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
-        db.GeoAdd(key, all, CommandFlags.FireAndForget);
+        db.GeoAdd(key, All, CommandFlags.FireAndForget);
 
-        var results = db.GeoRadius(key, cefalù.Member, 60, GeoUnit.Miles, 2, Order.Ascending);
+        var results = db.GeoRadius(key, Cefalù.Member, 60, GeoUnit.Miles, 2, Order.Ascending);
         Assert.Equal(2, results.Length);
 
-        Assert.Equal(results[0].Member, cefalù.Member);
+        Assert.Equal(results[0].Member, Cefalù.Member);
         Assert.Equal(0, results[0].Distance);
         var position0 = results[0].Position;
         Assert.NotNull(position0);
-        Assert.Equal(Math.Round(position0!.Value.Longitude, 5), Math.Round(cefalù.Position.Longitude, 5));
-        Assert.Equal(Math.Round(position0!.Value.Latitude, 5), Math.Round(cefalù.Position.Latitude, 5));
+        Assert.Equal(Math.Round(position0!.Value.Longitude, 5), Math.Round(Cefalù.Position.Longitude, 5));
+        Assert.Equal(Math.Round(position0!.Value.Latitude, 5), Math.Round(Cefalù.Position.Latitude, 5));
         Assert.False(results[0].Hash.HasValue);
 
-        Assert.Equal(results[1].Member, palermo.Member);
+        Assert.Equal(results[1].Member, Palermo.Member);
         var distance1 = results[1].Distance;
         Assert.NotNull(distance1);
         Assert.Equal(Math.Round(36.5319, 6), Math.Round(distance1!.Value, 6));
         var position1 = results[1].Position;
         Assert.NotNull(position1);
-        Assert.Equal(Math.Round(position1!.Value.Longitude, 5), Math.Round(palermo.Position.Longitude, 5));
-        Assert.Equal(Math.Round(position1!.Value.Latitude, 5), Math.Round(palermo.Position.Latitude, 5));
+        Assert.Equal(Math.Round(position1!.Value.Longitude, 5), Math.Round(Palermo.Position.Longitude, 5));
+        Assert.Equal(Math.Round(position1!.Value.Latitude, 5), Math.Round(Palermo.Position.Latitude, 5));
         Assert.False(results[1].Hash.HasValue);
 
-        results = db.GeoRadius(key, cefalù.Member, 60, GeoUnit.Miles, 2, Order.Ascending, GeoRadiusOptions.None);
+        results = db.GeoRadius(key, Cefalù.Member, 60, GeoUnit.Miles, 2, Order.Ascending, GeoRadiusOptions.None);
         Assert.Equal(2, results.Length);
-        Assert.Equal(results[0].Member, cefalù.Member);
+        Assert.Equal(results[0].Member, Cefalù.Member);
         Assert.False(results[0].Position.HasValue);
         Assert.False(results[0].Distance.HasValue);
         Assert.False(results[0].Hash.HasValue);
 
-        Assert.Equal(results[1].Member, palermo.Member);
+        Assert.Equal(results[1].Member, Palermo.Member);
         Assert.False(results[1].Position.HasValue);
         Assert.False(results[1].Distance.HasValue);
         Assert.False(results[1].Hash.HasValue);
@@ -622,7 +623,6 @@ public class GeoTests : TestBase
         var exception = Assert.Throws<ArgumentException>(() =>
             db.GeoSearch(key, "irrelevant", circle, demandClosest: false));
 
-        Assert.Contains("demandClosest must be true if you are not limiting the count for a GEOSEARCH",
-            exception.Message);
+        Assert.Contains("demandClosest must be true if you are not limiting the count for a GEOSEARCH", exception.Message);
     }
 }

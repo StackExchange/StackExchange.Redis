@@ -273,7 +273,7 @@ public class KeyTests : TestBase
         db.ListLeftPush(key, "new value", flags: CommandFlags.FireAndForget);
 
         // Depending on server version, this is going to vary - we're sanity checking here.
-        var listTypes = new [] { "ziplist", "quicklist", "listpack" };
+        var listTypes = new[] { "ziplist", "quicklist", "listpack" };
         Assert.Contains(db.KeyEncoding(key), listTypes);
         Assert.Contains(await db.KeyEncodingAsync(key), listTypes);
 
@@ -381,7 +381,7 @@ public class KeyTests : TestBase
     {
         var strategy = new ServerSelectionStrategy(null!)
         {
-            ServerType = ServerType.Cluster
+            ServerType = ServerType.Cluster,
         };
         return strategy.HashSlot(key);
     }

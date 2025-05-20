@@ -161,7 +161,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// A unique 64-bit client ID (introduced in Redis 2.8.12).
         /// </summary>
-        public long Id { get;private set; }
+        public long Id { get; private set; }
 
         /// <summary>
         /// Format the object as a string.
@@ -222,7 +222,7 @@ namespace StackExchange.Redis
                 {
                     var client = new ClientInfo
                     {
-                        Raw = line
+                        Raw = line,
                     };
                     string[] tokens = line.Split(StringSplits.Space);
                     for (int i = 0; i < tokens.Length; i++)
@@ -291,7 +291,7 @@ namespace StackExchange.Redis
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
-                switch(result.Resp2TypeBulkString)
+                switch (result.Resp2TypeBulkString)
                 {
                     case ResultType.BulkString:
                         var raw = result.GetString();

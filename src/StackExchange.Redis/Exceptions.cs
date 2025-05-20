@@ -1,4 +1,5 @@
 ﻿using System;
+using System.ComponentModel;
 using System.Runtime.Serialization;
 
 namespace StackExchange.Redis
@@ -22,6 +23,10 @@ namespace StackExchange.Redis
         /// <param name="innerException">The inner exception.</param>
         public RedisCommandException(string message, Exception innerException) : base(message, innerException) { }
 
+#if NET8_0_OR_GREATER
+        [Obsolete(Obsoletions.LegacyFormatterImplMessage, DiagnosticId = Obsoletions.LegacyFormatterImplDiagId)]
+        [EditorBrowsable(EditorBrowsableState.Never)]
+#endif
         private RedisCommandException(SerializationInfo info, StreamingContext ctx) : base(info, ctx) { }
     }
 
@@ -46,15 +51,24 @@ namespace StackExchange.Redis
         /// </summary>
         public CommandStatus Commandstatus { get; }
 
+#if NET8_0_OR_GREATER
+        [Obsolete(Obsoletions.LegacyFormatterImplMessage, DiagnosticId = Obsoletions.LegacyFormatterImplDiagId)]
+        [EditorBrowsable(EditorBrowsableState.Never)]
+#endif
         private RedisTimeoutException(SerializationInfo info, StreamingContext ctx) : base(info, ctx)
         {
             Commandstatus = info.GetValue("commandStatus", typeof(CommandStatus)) as CommandStatus? ?? CommandStatus.Unknown;
         }
+
         /// <summary>
         /// Serialization implementation; not intended for general usage.
         /// </summary>
         /// <param name="info">Serialization info.</param>
         /// <param name="context">Serialization context.</param>
+#if NET8_0_OR_GREATER
+        [Obsolete(Obsoletions.LegacyFormatterImplMessage, DiagnosticId = Obsoletions.LegacyFormatterImplDiagId)]
+        [EditorBrowsable(EditorBrowsableState.Never)]
+#endif
         public override void GetObjectData(SerializationInfo info, StreamingContext context)
         {
             base.GetObjectData(info, context);
@@ -73,7 +87,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="failureType">The type of connection failure.</param>
         /// <param name="message">The message for the exception.</param>
-        public RedisConnectionException(ConnectionFailureType failureType, string message) : this(failureType, message, null, CommandStatus.Unknown) {}
+        public RedisConnectionException(ConnectionFailureType failureType, string message) : this(failureType, message, null, CommandStatus.Unknown) { }
 
         /// <summary>
         /// Creates a new <see cref="RedisConnectionException"/>.
@@ -81,7 +95,7 @@ namespace StackExchange.Redis
         /// <param name="failureType">The type of connection failure.</param>
         /// <param name="message">The message for the exception.</param>
         /// <param name="innerException">The inner exception.</param>
-        public RedisConnectionException(ConnectionFailureType failureType, string message, Exception? innerException) : this(failureType, message, innerException, CommandStatus.Unknown) {}
+        public RedisConnectionException(ConnectionFailureType failureType, string message, Exception? innerException) : this(failureType, message, innerException, CommandStatus.Unknown) { }
 
         /// <summary>
         /// Creates a new <see cref="RedisConnectionException"/>.
@@ -106,16 +120,25 @@ namespace StackExchange.Redis
         /// </summary>
         public CommandStatus CommandStatus { get; }
 
+#if NET8_0_OR_GREATER
+        [Obsolete(Obsoletions.LegacyFormatterImplMessage, DiagnosticId = Obsoletions.LegacyFormatterImplDiagId)]
+        [EditorBrowsable(EditorBrowsableState.Never)]
+#endif
         private RedisConnectionException(SerializationInfo info, StreamingContext ctx) : base(info, ctx)
         {
             FailureType = (ConnectionFailureType)info.GetInt32("failureType");
             CommandStatus = info.GetValue("commandStatus", typeof(CommandStatus)) as CommandStatus? ?? CommandStatus.Unknown;
         }
+
         /// <summary>
         /// Serialization implementation; not intended for general usage.
         /// </summary>
         /// <param name="info">Serialization info.</param>
         /// <param name="context">Serialization context.</param>
+#if NET8_0_OR_GREATER
+        [Obsolete(Obsoletions.LegacyFormatterImplMessage, DiagnosticId = Obsoletions.LegacyFormatterImplDiagId)]
+        [EditorBrowsable(EditorBrowsableState.Never)]
+#endif
         public override void GetObjectData(SerializationInfo info, StreamingContext context)
         {
             base.GetObjectData(info, context);
@@ -148,6 +171,10 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="info">Serialization info.</param>
         /// <param name="ctx">Serialization context.</param>
+#if NET8_0_OR_GREATER
+        [Obsolete(Obsoletions.LegacyFormatterImplMessage, DiagnosticId = Obsoletions.LegacyFormatterImplDiagId)]
+        [EditorBrowsable(EditorBrowsableState.Never)]
+#endif
         protected RedisException(SerializationInfo info, StreamingContext ctx) : base(info, ctx) { }
     }
 
@@ -163,6 +190,10 @@ namespace StackExchange.Redis
         /// <param name="message">The message for the exception.</param>
         public RedisServerException(string message) : base(message) { }
 
+#if NET8_0_OR_GREATER
+        [Obsolete(Obsoletions.LegacyFormatterImplMessage, DiagnosticId = Obsoletions.LegacyFormatterImplDiagId)]
+        [EditorBrowsable(EditorBrowsableState.Never)]
+#endif
         private RedisServerException(SerializationInfo info, StreamingContext ctx) : base(info, ctx) { }
     }
 }

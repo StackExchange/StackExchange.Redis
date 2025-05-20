@@ -96,9 +96,9 @@ public class StreamTests : TestBase
 
         var fields = new[]
         {
-                new NameValueEntry("field1", "value1"),
-                new NameValueEntry("field2", "value2")
-            };
+            new NameValueEntry("field1", "value1"),
+            new NameValueEntry("field2", "value2"),
+        };
 
         var messageId = db.StreamAdd(key, fields, id);
         var entries = db.StreamRange(key);
@@ -754,12 +754,15 @@ public class StreamTests : TestBase
         // Claim the 3 messages consumed by consumer2 for consumer1.
 
         // Get the pending messages for consumer2.
-        var pendingMessages = db.StreamPendingMessages(key, groupName,
+        var pendingMessages = db.StreamPendingMessages(
+            key,
+            groupName,
             10,
             consumer2);
 
         // Claim the messages for consumer1.
-        var messages = db.StreamClaim(key,
+        var messages = db.StreamClaim(
+                            key,
                             groupName,
                             consumer1,
                             0, // Min message idle time
@@ -801,12 +804,15 @@ public class StreamTests : TestBase
         // Claim the 3 messages consumed by consumer2 for consumer1.
 
         // Get the pending messages for consumer2.
-        var pendingMessages = db.StreamPendingMessages(key, groupName,
+        var pendingMessages = db.StreamPendingMessages(
+            key,
+            groupName,
             10,
             consumer2);
 
         // Claim the messages for consumer1.
-        var messageIds = db.StreamClaimIdsOnly(key,
+        var messageIds = db.StreamClaimIdsOnly(
+                            key,
                             groupName,
                             consumer1,
                             0, // Min message idle time
@@ -827,7 +833,6 @@ public class StreamTests : TestBase
 
         // Ask redis to read from the beginning of both stream, expect messages
         // for only the stream set to read from the beginning.
-
         using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
@@ -851,10 +856,10 @@ public class StreamTests : TestBase
         // Read for both streams from the beginning. We shouldn't get anything back for stream1.
         var pairs = new[]
         {
-                // StreamPosition.NewMessages will send ">" which indicates "Undelivered" messages.
-                new StreamPosition(stream1, StreamPosition.NewMessages),
-                new StreamPosition(stream2, StreamPosition.NewMessages)
-            };
+            // StreamPosition.NewMessages will send ">" which indicates "Undelivered" messages.
+            new StreamPosition(stream1, StreamPosition.NewMessages),
+            new StreamPosition(stream2, StreamPosition.NewMessages),
+        };
 
         var streams = db.StreamReadGroup(pairs, groupName, "test_consumer");
 
@@ -884,9 +889,9 @@ public class StreamTests : TestBase
         // We shouldn't get anything for either stream.
         var pairs = new[]
         {
-                new StreamPosition(stream1, StreamPosition.Beginning),
-                new StreamPosition(stream2, StreamPosition.Beginning)
-            };
+            new StreamPosition(stream1, StreamPosition.Beginning),
+            new StreamPosition(stream2, StreamPosition.Beginning),
+        };
 
         var streams = db.StreamReadGroup(pairs, groupName, "test_consumer");
 
@@ -921,9 +926,9 @@ public class StreamTests : TestBase
         // Read the new messages (messages created after the group was created).
         var pairs = new[]
         {
-                new StreamPosition(stream1, StreamPosition.NewMessages),
-                new StreamPosition(stream2, StreamPosition.NewMessages)
-            };
+            new StreamPosition(stream1, StreamPosition.NewMessages),
+            new StreamPosition(stream2, StreamPosition.NewMessages),
+        };
 
         var streams = db.StreamReadGroup(pairs, groupName, "test_consumer");
 
@@ -958,10 +963,10 @@ public class StreamTests : TestBase
 
         var pairs = new[]
         {
-                // Read after the first id in both streams
-                new StreamPosition(stream1, StreamPosition.NewMessages),
-                new StreamPosition(stream2, StreamPosition.NewMessages)
-            };
+            // Read after the first id in both streams
+            new StreamPosition(stream1, StreamPosition.NewMessages),
+            new StreamPosition(stream2, StreamPosition.NewMessages),
+        };
 
         // Restrict the count to 2 (expect only 1 message from first stream, 2 from the second).
         var streams = db.StreamReadGroup(pairs, groupName, "test_consumer", 2);
@@ -1008,7 +1013,8 @@ public class StreamTests : TestBase
 
         db.StreamCreateConsumerGroup(key, groupName, "0-0");
 
-        var pendingMessages = db.StreamPendingMessages(key,
+        var pendingMessages = db.StreamPendingMessages(
+            key,
             groupName,
             10,
             consumerName: RedisValue.Null);
@@ -1117,7 +1123,8 @@ public class StreamTests : TestBase
         db.StreamReadGroup(key, groupName, consumer2);
 
         // Get the pending info about the messages themselves.
-        var pendingMessageInfoList = db.StreamPendingMessages(key,
+        var pendingMessageInfoList = db.StreamPendingMessages(
+            key,
             groupName,
             10,
             consumer2);
@@ -1350,7 +1357,6 @@ public class StreamTests : TestBase
         // Add an entry and then delete it so the stream is empty, then run streaminfo
         // to ensure it functions properly on an empty stream. Namely, the first-entry
         // and last-entry messages should be null.
-
         var id = db.StreamAdd(key, "field1", "value1");
         db.StreamDelete(key, new[] { id });
 
@@ -1512,6 +1518,24 @@ public class StreamTests : TestBase
     }
 
     [Fact]
+    public void StreamReadLastMessage()
+    {
+        using var conn = Create(require: RedisFeatures.v7_4_0_rc1);
+        var db = conn.GetDatabase();
+        var key1 = Me();
+
+        // Read the entire stream from the beginning.
+        db.StreamRead(key1, "0-0");
+        db.StreamAdd(key1, "field2", "value2");
+        db.StreamAdd(key1, "fieldLast", "valueLast");
+        var entries = db.StreamRead(key1, "+");
+
+        Assert.NotNull(entries);
+        Assert.True(entries.Length > 0);
+        Assert.Equal(new[] { new NameValueEntry("fieldLast", "valueLast") }, entries[0].Values);
+    }
+
+    [Fact]
     public void StreamReadExpectedExceptionInvalidCountMultipleStream()
     {
         using var conn = Create(require: RedisFeatures.v5_0_0);
@@ -1520,7 +1544,7 @@ public class StreamTests : TestBase
         var streamPositions = new[]
         {
             new StreamPosition("key1", "0-0"),
-            new StreamPosition("key2", "0-0")
+            new StreamPosition("key2", "0-0"),
         };
         Assert.Throws<ArgumentOutOfRangeException>(() => db.StreamRead(streamPositions, 0));
     }
@@ -1571,9 +1595,9 @@ public class StreamTests : TestBase
         // Read from both streams at the same time.
         var streamList = new[]
         {
-                new StreamPosition(key1, "0-0"),
-                new StreamPosition(key2, "0-0")
-            };
+            new StreamPosition(key1, "0-0"),
+            new StreamPosition(key2, "0-0"),
+        };
 
         var streams = db.StreamRead(streamList);
 
@@ -1588,6 +1612,48 @@ public class StreamTests : TestBase
         Assert.Equal(2, streams[1].Entries.Length);
         Assert.Equal(id3, streams[1].Entries[0].Id);
         Assert.Equal(id4, streams[1].Entries[1].Id);
+    }
+
+    [Fact]
+    public void StreamReadMultipleStreamsLastMessage()
+    {
+        using var conn = Create(require: RedisFeatures.v7_4_0_rc1);
+
+        var db = conn.GetDatabase();
+        var key1 = Me() + "a";
+        var key2 = Me() + "b";
+
+        var id1 = db.StreamAdd(key1, "field1", "value1");
+        var id2 = db.StreamAdd(key1, "field2", "value2");
+        var id3 = db.StreamAdd(key2, "field3", "value3");
+        var id4 = db.StreamAdd(key2, "field4", "value4");
+
+        var streamList = new[] { new StreamPosition(key1, "0-0"), new StreamPosition(key2, "0-0") };
+        db.StreamRead(streamList);
+
+        var streams = db.StreamRead(streamList);
+
+        db.StreamAdd(key1, "field5", "value5");
+        db.StreamAdd(key1, "field6", "value6");
+        db.StreamAdd(key2, "field7", "value7");
+        db.StreamAdd(key2, "field8", "value8");
+
+        streamList = new[] { new StreamPosition(key1, "+"), new StreamPosition(key2, "+") };
+
+        streams = db.StreamRead(streamList);
+
+        Assert.NotNull(streams);
+        Assert.True(streams.Length == 2);
+
+        var stream1 = streams.Where(e => e.Key == key1).First();
+        Assert.NotNull(stream1.Entries);
+        Assert.True(stream1.Entries.Length > 0);
+        Assert.Equal(new[] { new NameValueEntry("field6", "value6") }, stream1.Entries[0].Values);
+
+        var stream2 = streams.Where(e => e.Key == key2).First();
+        Assert.NotNull(stream2.Entries);
+        Assert.True(stream2.Entries.Length > 0);
+        Assert.Equal(new[] { new NameValueEntry("field8", "value8") }, stream2.Entries[0].Values);
     }
 
     [Fact]
@@ -1606,9 +1672,9 @@ public class StreamTests : TestBase
 
         var streamList = new[]
         {
-                new StreamPosition(key1, "0-0"),
-                new StreamPosition(key2, "0-0")
-            };
+            new StreamPosition(key1, "0-0"),
+            new StreamPosition(key2, "0-0"),
+        };
 
         var streams = db.StreamRead(streamList, countPerStream: 1);
 
@@ -1640,11 +1706,11 @@ public class StreamTests : TestBase
 
         var streamList = new[]
         {
-                new StreamPosition(key1, "0-0"),
+            new StreamPosition(key1, "0-0"),
 
-                // read past the end of stream # 2
-                new StreamPosition(key2, id4)
-            };
+            // read past the end of stream # 2
+            new StreamPosition(key2, id4),
+        };
 
         var streams = db.StreamRead(streamList);
 
@@ -1671,10 +1737,10 @@ public class StreamTests : TestBase
 
         var streamList = new[]
         {
-                // Read past the end of both streams.
-                new StreamPosition(key1, id2),
-                new StreamPosition(key2, id4)
-            };
+            // Read past the end of both streams.
+            new StreamPosition(key1, id2),
+            new StreamPosition(key2, id4),
+        };
 
         var streams = db.StreamRead(streamList);
 
@@ -1694,7 +1760,6 @@ public class StreamTests : TestBase
         var id2 = db.StreamAdd(key, "field2", "value2");
 
         // Read after the final ID in the stream, we expect an empty array as a response.
-
         var entries = db.StreamRead(key, id2);
 
         Assert.Empty(entries);
@@ -1903,7 +1968,8 @@ public class StreamTests : TestBase
 
         db.StreamCreateConsumerGroup(key, groupName, StreamPosition.NewMessages);
 
-        db.StreamReadGroup(key,
+        db.StreamReadGroup(
+            key,
             groupName,
             consumer,
             StreamPosition.NewMessages,
@@ -1934,10 +2000,11 @@ public class StreamTests : TestBase
         db.StreamCreateConsumerGroup(key1, groupName, StreamPosition.NewMessages);
         db.StreamCreateConsumerGroup(key2, groupName, StreamPosition.NewMessages);
 
-        db.StreamReadGroup(new[]
+        db.StreamReadGroup(
+            new[]
             {
                 new StreamPosition(key1, StreamPosition.NewMessages),
-                new StreamPosition(key2, StreamPosition.NewMessages)
+                new StreamPosition(key2, StreamPosition.NewMessages),
             },
             groupName,
             consumer,
@@ -1958,7 +2025,10 @@ public class StreamTests : TestBase
         var db = conn.GetDatabase();
         var streamName = Me();
 
-        await db.StreamAddAsync(streamName, new[] {
+        await db.StreamAddAsync(
+            streamName,
+            new[]
+            {
                 new NameValueEntry("x", "blah"),
                 new NameValueEntry("msg", /*lang=json,strict*/ @"{""name"":""test"",""id"":123}"),
                 new NameValueEntry("y", "more blah"),

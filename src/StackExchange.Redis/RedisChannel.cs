@@ -27,7 +27,7 @@ namespace StackExchange.Redis
         public bool IsNullOrEmpty => Value == null || Value.Length == 0;
 
         /// <summary>
-        /// Indicates whether this channel represents a wildcard pattern (see <c>PSUBSCRIBE</c>)
+        /// Indicates whether this channel represents a wildcard pattern (see <c>PSUBSCRIBE</c>).
         /// </summary>
         public bool IsPattern => (Options & RedisChannelOptions.Pattern) != 0;
 
@@ -37,7 +37,6 @@ namespace StackExchange.Redis
         public bool IsSharded => (Options & RedisChannelOptions.Sharded) != 0;
 
         internal bool IsNull => Value == null;
-
 
         /// <summary>
         /// Indicates whether channels should use <see cref="PatternMode.Auto"/> when no <see cref="PatternMode"/>
@@ -51,19 +50,22 @@ namespace StackExchange.Redis
         private static PatternMode s_DefaultPatternMode = PatternMode.Auto;
 
         /// <summary>
-        /// Creates a new <see cref="RedisChannel"/> that does not act as a wildcard subscription
+        /// Creates a new <see cref="RedisChannel"/> that does not act as a wildcard subscription.
         /// </summary>
         public static RedisChannel Literal(string value) => new RedisChannel(value, PatternMode.Literal);
+
         /// <summary>
-        /// Creates a new <see cref="RedisChannel"/> that does not act as a wildcard subscription
+        /// Creates a new <see cref="RedisChannel"/> that does not act as a wildcard subscription.
         /// </summary>
         public static RedisChannel Literal(byte[] value) => new RedisChannel(value, PatternMode.Literal);
+
         /// <summary>
-        /// Creates a new <see cref="RedisChannel"/> that acts as a wildcard subscription
+        /// Creates a new <see cref="RedisChannel"/> that acts as a wildcard subscription.
         /// </summary>
         public static RedisChannel Pattern(string value) => new RedisChannel(value, PatternMode.Pattern);
+
         /// <summary>
-        /// Creates a new <see cref="RedisChannel"/> that acts as a wildcard subscription
+        /// Creates a new <see cref="RedisChannel"/> that acts as a wildcard subscription.
         /// </summary>
         public static RedisChannel Pattern(byte[] value) => new RedisChannel(value, PatternMode.Pattern);
 
@@ -189,7 +191,7 @@ namespace StackExchange.Redis
             RedisChannel rcObj => RedisValue.Equals(Value, rcObj.Value),
             string sObj => RedisValue.Equals(Value, Encoding.UTF8.GetBytes(sObj)),
             byte[] bObj => RedisValue.Equals(Value, bObj),
-            _ => false
+            _ => false,
         };
 
         /// <summary>
@@ -240,10 +242,12 @@ namespace StackExchange.Redis
             /// Will be treated as a pattern if it includes *.
             /// </summary>
             Auto = 0,
+
             /// <summary>
             /// Never a pattern.
             /// </summary>
             Literal = 1,
+
             /// <summary>
             /// Always a pattern.
             /// </summary>

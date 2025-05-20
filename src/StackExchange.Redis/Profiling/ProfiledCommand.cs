@@ -108,7 +108,6 @@ namespace StackExchange.Redis.Profiling
         {
             // this method can be called multiple times, depending on how the task completed (async vs not)
             //   so we actually have to guard against it.
-
             var now = Stopwatch.GetTimestamp();
             var oldVal = Interlocked.CompareExchange(ref CompletedTimeStamp, now, 0);
 

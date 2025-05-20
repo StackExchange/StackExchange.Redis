@@ -46,7 +46,7 @@ namespace StackExchange.Redis
         public long TotalOutstanding => Interactive.TotalOutstanding + Subscription.TotalOutstanding + Other.TotalOutstanding;
 
         /// <summary>
-        /// See Object.ToString();
+        /// See <see cref="object.ToString" />.
         /// </summary>
         public override string ToString()
         {

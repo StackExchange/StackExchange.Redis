@@ -383,8 +383,8 @@ namespace StackExchange.Redis.Server
                     {
                         sb.Append("process:").Append(process.Id).AppendLine();
                     }
-                    //var port = TcpPort();
-                    //if (port >= 0) sb.Append("tcp_port:").Append(port).AppendLine();
+                    // var port = TcpPort();
+                    // if (port >= 0) sb.Append("tcp_port:").Append(port).AppendLine();
                     break;
                 case "Clients":
                     AddHeader().Append("connected_clients:").Append(ClientCount).AppendLine();

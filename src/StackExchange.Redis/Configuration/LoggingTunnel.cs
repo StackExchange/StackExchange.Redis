@@ -1,6 +1,4 @@
-﻿using Pipelines.Sockets.Unofficial;
-using Pipelines.Sockets.Unofficial.Arenas;
-using System;
+﻿using System;
 using System.Buffers;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -12,12 +10,14 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Pipelines.Sockets.Unofficial;
+using Pipelines.Sockets.Unofficial.Arenas;
 using static StackExchange.Redis.PhysicalConnection;
 
 namespace StackExchange.Redis.Configuration;
 
 /// <summary>
-/// Captures redis traffic; intended for debug use 
+/// Captures redis traffic; intended for debug use.
 /// </summary>
 [Obsolete("This API is experimental, has security and performance implications, and may change without notice", false)]
 [SuppressMessage("ApiDesign", "RS0016:Add public types and members to the declared API", Justification = "Experimental API")]
@@ -28,7 +28,7 @@ public abstract class LoggingTunnel : Tunnel
     private readonly Tunnel? _tail;
 
     /// <summary>
-    /// Replay the RESP messages for a pair of streams, invoking a callback per operation
+    /// Replay the RESP messages for a pair of streams, invoking a callback per operation.
     /// </summary>
     public static async Task<long> ReplayAsync(Stream @out, Stream @in, Action<RedisResult, RedisResult> pair)
     {
@@ -51,7 +51,8 @@ public abstract class LoggingTunnel : Tunnel
                         // spoof an empty request for OOB messages
                         pair(RedisResult.NullSingle, received.Result);
                     }
-                } while (received.IsOutOfBand);
+                }
+                while (received.IsOutOfBand);
             }
             catch (Exception ex)
             {
@@ -72,9 +73,8 @@ public abstract class LoggingTunnel : Tunnel
         return count;
     }
 
-
     /// <summary>
-    /// Replay the RESP messages all the streams in a folder, invoking a callback per operation
+    /// Replay the RESP messages all the streams in a folder, invoking a callback per operation.
     /// </summary>
     /// <param name="path">The directory of captured files to replay.</param>
     /// <param name="pair">Operation to perform per replayed message pair.</param>
@@ -249,15 +249,14 @@ public abstract class LoggingTunnel : Tunnel
         static bool IsArrayOutOfBand(in RawResult result)
         {
             var items = result.GetItems();
-            return (items.Length >= 3 && items[0].IsEqual(message) || items[0].IsEqual(smessage))
+            return (items.Length >= 3 && (items[0].IsEqual(message) || items[0].IsEqual(smessage)))
                 || (items.Length >= 4 && items[0].IsEqual(pmessage));
-
         }
     }
     private static readonly CommandBytes message = "message", pmessage = "pmessage", smessage = "smessage";
 
     /// <summary>
-    /// Create a new instance of a <see cref="LoggingTunnel"/>
+    /// Create a new instance of a <see cref="LoggingTunnel"/>.
     /// </summary>
     protected LoggingTunnel(ConfigurationOptions? options = null, Tunnel? tail = null)
     {
@@ -287,7 +286,7 @@ public abstract class LoggingTunnel : Tunnel
             : base(options, tail)
         {
             this.path = path;
-            if (!Directory.Exists(path)) throw new InvalidOperationException("Directly does not exist: " + path);
+            if (!Directory.Exists(path)) throw new InvalidOperationException("Directory does not exist: " + path);
         }
 
         protected override Stream Log(Stream stream, EndPoint endpoint, ConnectionType connectionType)
@@ -324,7 +323,7 @@ public abstract class LoggingTunnel : Tunnel
     }
 
     /// <summary>
-    /// Perform logging on the provided stream
+    /// Perform logging on the provided stream.
     /// </summary>
     protected abstract Stream Log(Stream stream, EndPoint endpoint, ConnectionType connectionType);
 
@@ -353,10 +352,12 @@ public abstract class LoggingTunnel : Tunnel
             host = Format.ToStringHostOnly(endpoint);
         }
 
-        var ssl = new SslStream(stream, false,
-            _options.CertificateValidationCallback ?? PhysicalConnection.GetAmbientIssuerCertificateCallback(),
-            _options.CertificateSelectionCallback ?? PhysicalConnection.GetAmbientClientCertificateCallback(),
-            EncryptionPolicy.RequireEncryption);
+        var ssl = new SslStream(
+            innerStream: stream,
+            leaveInnerStreamOpen: false,
+            userCertificateValidationCallback: _options.CertificateValidationCallback ?? PhysicalConnection.GetAmbientIssuerCertificateCallback(),
+            userCertificateSelectionCallback: _options.CertificateSelectionCallback ?? PhysicalConnection.GetAmbientClientCertificateCallback(),
+            encryptionPolicy: EncryptionPolicy.RequireEncryption);
 
 #if NETCOREAPP3_1_OR_GREATER
         var configOptions = _options.SslClientAuthenticationOptions?.Invoke(host);
@@ -366,16 +367,16 @@ public abstract class LoggingTunnel : Tunnel
         }
         else
         {
-            ssl.AuthenticateAsClient(host, _options.SslProtocols, _options.CheckCertificateRevocation);
+            await ssl.AuthenticateAsClientAsync(host, _options.SslProtocols, _options.CheckCertificateRevocation).ForAwait();
         }
 #else
-        ssl.AuthenticateAsClient(host, _options.SslProtocols, _options.CheckCertificateRevocation);
+        await ssl.AuthenticateAsClientAsync(host, _options.SslProtocols, _options.CheckCertificateRevocation).ForAwait();
 #endif
         return ssl;
     }
 
     /// <summary>
-    /// Get a typical text representation of a redis command
+    /// Get a typical text representation of a redis command.
     /// </summary>
     public static string DefaultFormatCommand(RedisResult value)
     {
@@ -402,7 +403,7 @@ public abstract class LoggingTunnel : Tunnel
                 return sb.ToString();
             }
         }
-        catch {}
+        catch { }
         return value.Type.ToString();
 
         static bool IsSimple(RedisResult value)
@@ -433,7 +434,7 @@ public abstract class LoggingTunnel : Tunnel
     }
 
     /// <summary>
-    /// Get a typical text representation of a redis response
+    /// Get a typical text representation of a redis response.
     /// </summary>
     public static string DefaultFormatResponse(RedisResult value)
     {
