@@ -183,13 +183,17 @@ namespace StackExchange.Redis
             internal Message GetMessage(RedisChannel channel, SubscriptionAction action, CommandFlags flags, bool internalCall)
             {
                 var isPattern = channel._isPatternBased;
+                var isSharded = channel._isSharded;
                 var command = action switch
                 {
                     SubscriptionAction.Subscribe when isPattern => RedisCommand.PSUBSCRIBE,
                     SubscriptionAction.Unsubscribe when isPattern => RedisCommand.PUNSUBSCRIBE,
 
-                    SubscriptionAction.Subscribe when !isPattern => RedisCommand.SUBSCRIBE,
-                    SubscriptionAction.Unsubscribe when !isPattern => RedisCommand.UNSUBSCRIBE,
+                    SubscriptionAction.Subscribe when isSharded => RedisCommand.SSUBSCRIBE,
+                    SubscriptionAction.Unsubscribe when isSharded => RedisCommand.SUNSUBSCRIBE,
+
+                    SubscriptionAction.Subscribe when !isPattern && !isSharded => RedisCommand.SUBSCRIBE,
+                    SubscriptionAction.Unsubscribe when !isPattern && !isSharded => RedisCommand.UNSUBSCRIBE,
                     _ => throw new ArgumentOutOfRangeException(nameof(action), "This would be an impressive boolean feat"),
                 };
 
@@ -370,14 +374,14 @@ namespace StackExchange.Redis
         public long Publish(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None)
         {
             ThrowIfNull(channel);
-            var msg = Message.Create(-1, flags, RedisCommand.PUBLISH, channel, message);
+            var msg = channel.IsSharded ? Message.Create(-1, flags, RedisCommand.SPUBLISH, channel, message) : Message.Create(-1, flags, RedisCommand.PUBLISH, channel, message);
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
         public Task<long> PublishAsync(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None)
         {
             ThrowIfNull(channel);
-            var msg = Message.Create(-1, flags, RedisCommand.PUBLISH, channel, message);
+            var msg = channel.IsSharded ? Message.Create(-1, flags, RedisCommand.SPUBLISH, channel, message) : Message.Create(-1, flags, RedisCommand.PUBLISH, channel, message);
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
@@ -515,6 +519,7 @@ namespace StackExchange.Redis
             return false;
         }
 
+        // TODO: We need a new api to support SUNSUBSCRIBE all. Calling this now would unsubscribe both sharded and unsharded channels.
         public void UnsubscribeAll(CommandFlags flags = CommandFlags.None)
         {
             // TODO: Unsubscribe variadic commands to reduce round trips

@@ -1309,12 +1309,15 @@ StackExchange.Redis.RedisChannel
 StackExchange.Redis.RedisChannel.Equals(StackExchange.Redis.RedisChannel other) -> bool
 StackExchange.Redis.RedisChannel.IsNullOrEmpty.get -> bool
 StackExchange.Redis.RedisChannel.IsPattern.get -> bool
+StackExchange.Redis.RedisChannel.IsSharded.get -> bool
 StackExchange.Redis.RedisChannel.PatternMode
 StackExchange.Redis.RedisChannel.PatternMode.Auto = 0 -> StackExchange.Redis.RedisChannel.PatternMode
 StackExchange.Redis.RedisChannel.PatternMode.Literal = 1 -> StackExchange.Redis.RedisChannel.PatternMode
 StackExchange.Redis.RedisChannel.PatternMode.Pattern = 2 -> StackExchange.Redis.RedisChannel.PatternMode
 StackExchange.Redis.RedisChannel.RedisChannel() -> void
+StackExchange.Redis.RedisChannel.RedisChannel(byte[]? value, bool isSharded) -> void
 StackExchange.Redis.RedisChannel.RedisChannel(byte[]? value, StackExchange.Redis.RedisChannel.PatternMode mode) -> void
+StackExchange.Redis.RedisChannel.RedisChannel(string! value, bool isSharded) -> void
 StackExchange.Redis.RedisChannel.RedisChannel(string! value, StackExchange.Redis.RedisChannel.PatternMode mode) -> void
 StackExchange.Redis.RedisCommandException
 StackExchange.Redis.RedisCommandException.RedisCommandException(string! message) -> void

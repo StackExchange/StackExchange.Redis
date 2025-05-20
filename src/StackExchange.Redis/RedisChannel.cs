@@ -10,6 +10,7 @@ namespace StackExchange.Redis
     {
         internal readonly byte[]? Value;
         internal readonly bool _isPatternBased;
+        internal readonly bool _isSharded;
 
         /// <summary>
         /// Indicates whether the channel-name is either null or a zero-length value.
@@ -20,6 +21,11 @@ namespace StackExchange.Redis
         /// Indicates whether this channel represents a wildcard pattern (see <c>PSUBSCRIBE</c>).
         /// </summary>
         public bool IsPattern => _isPatternBased;
+
+        /// <summary>
+        /// Indicates whether this channel represents a shard channel (see <c>SSUBSCRIBE</c>)
+        /// </summary>
+        public bool IsSharded => _isSharded;
 
         internal bool IsNull => Value == null;
 
@@ -59,7 +65,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="value">The name of the channel to create.</param>
         /// <param name="mode">The mode for name matching.</param>
-        public RedisChannel(byte[]? value, PatternMode mode) : this(value, DeterminePatternBased(value, mode)) { }
+        public RedisChannel(byte[]? value, PatternMode mode) : this(value, DeterminePatternBased(value, mode), false) { }
 
         /// <summary>
         /// Create a new redis channel from a string, explicitly controlling the pattern mode.
@@ -68,10 +74,25 @@ namespace StackExchange.Redis
         /// <param name="mode">The mode for name matching.</param>
         public RedisChannel(string value, PatternMode mode) : this(value == null ? null : Encoding.UTF8.GetBytes(value), mode) { }
 
-        private RedisChannel(byte[]? value, bool isPatternBased)
+        /// <summary>
+        /// Create a new redis channel from a buffer, explicitly controlling the sharding mode.
+        /// </summary>
+        /// <param name="value">The name of the channel to create.</param>
+        /// <param name="isSharded">Whether the channel is sharded.</param>
+        public RedisChannel(byte[]? value, bool isSharded) : this(value, false, isSharded) {}
+
+        /// <summary>
+        /// Create a new redis channel from a string, explicitly controlling the sharding mode.
+        /// </summary>
+        /// <param name="value">The string name of the channel to create.</param>
+        /// <param name="isSharded">Whether the channel is sharded.</param>
+        public RedisChannel(string value, bool isSharded) : this(value == null ? null : Encoding.UTF8.GetBytes(value), isSharded) {}
+
+        private RedisChannel(byte[]? value, bool isPatternBased, bool isSharded)
         {
             Value = value;
             _isPatternBased = isPatternBased;
+            _isSharded = isSharded;
         }
 
         private static bool DeterminePatternBased(byte[]? value, PatternMode mode) => mode switch
@@ -123,7 +144,7 @@ namespace StackExchange.Redis
         /// <param name="x">The first <see cref="RedisChannel"/> to compare.</param>
         /// <param name="y">The second <see cref="RedisChannel"/> to compare.</param>
         public static bool operator ==(RedisChannel x, RedisChannel y) =>
-            x._isPatternBased == y._isPatternBased && RedisValue.Equals(x.Value, y.Value);
+            x._isPatternBased == y._isPatternBased && RedisValue.Equals(x.Value, y.Value) && x._isSharded == y._isSharded;
 
         /// <summary>
         /// Indicate whether two channel names are equal.
@@ -171,10 +192,10 @@ namespace StackExchange.Redis
         /// Indicate whether two channel names are equal.
         /// </summary>
         /// <param name="other">The <see cref="RedisChannel"/> to compare to.</param>
-        public bool Equals(RedisChannel other) => _isPatternBased == other._isPatternBased && RedisValue.Equals(Value, other.Value);
+        public bool Equals(RedisChannel other) => _isPatternBased == other._isPatternBased && RedisValue.Equals(Value, other.Value) && _isSharded == other._isSharded;
 
         /// <inheritdoc/>
-        public override int GetHashCode() => RedisValue.GetHashCode(Value) + (_isPatternBased ? 1 : 0);
+        public override int GetHashCode() => RedisValue.GetHashCode(Value) + (_isPatternBased ? 1 : 0) + (_isSharded ? 2 : 0);
 
         /// <summary>
         /// Obtains a string representation of the channel name.
