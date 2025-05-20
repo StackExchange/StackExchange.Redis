@@ -569,6 +569,9 @@ namespace StackExchange.Redis
                 case RedisCommand.SLAVEOF:
                 case RedisCommand.SLOWLOG:
                 case RedisCommand.SUBSCRIBE:
+                case RedisCommand.SPUBLISH:
+                case RedisCommand.SSUBSCRIBE:
+                case RedisCommand.SUNSUBSCRIBE:
                 case RedisCommand.SWAPDB:
                 case RedisCommand.SYNC:
                 case RedisCommand.TIME:

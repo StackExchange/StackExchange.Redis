@@ -1575,14 +1575,14 @@ namespace StackExchange.Redis
         public long Publish(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None)
         {
             if (channel.IsNullOrEmpty) throw new ArgumentNullException(nameof(channel));
-            var msg = Message.Create(-1, flags, RedisCommand.PUBLISH, channel, message);
+            var msg = Message.Create(-1, flags, channel.PublishCommand, channel, message);
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
         public Task<long> PublishAsync(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None)
         {
             if (channel.IsNullOrEmpty) throw new ArgumentNullException(nameof(channel));
-            var msg = Message.Create(-1, flags, RedisCommand.PUBLISH, channel, message);
+            var msg = Message.Create(-1, flags, channel.PublishCommand, channel, message);
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 

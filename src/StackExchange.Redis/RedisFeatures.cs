@@ -187,6 +187,11 @@ namespace StackExchange.Redis
         public bool SetVaradicAddRemove => Version.IsAtLeast(v2_4_0);
 
         /// <summary>
+        /// Are <see href="https://redis.io/commands/ssubscribe/">SSUBSCRIBE</see> and <see href="https://redis.io/commands/spublish/">SPUBLISH</see> available?
+        /// </summary>
+        public bool ShardedPubSub => Version.IsAtLeast(v7_0_0_rc1);
+
+        /// <summary>
         /// Are <see href="https://redis.io/commands/zpopmin/">ZPOPMIN</see> and <see href="https://redis.io/commands/zpopmax/">ZPOPMAX</see> available?
         /// </summary>
         public bool SortedSetPop => Version.IsAtLeast(v5_0_0);

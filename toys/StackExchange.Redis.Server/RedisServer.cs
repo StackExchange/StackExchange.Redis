@@ -479,7 +479,7 @@ namespace StackExchange.Redis.Server
             int index = 0;
             request.TryGetCommandBytes(0, out var cmd);
             var cmdString = TypedRedisValue.BulkString(cmd.ToArray());
-            var mode = cmd[0] == (byte)'p' ? RedisChannel.PatternMode.Pattern : RedisChannel.PatternMode.Literal;
+            var mode = cmd[0] == (byte)'p' ? RedisChannel.RedisChannelOptions.Pattern : RedisChannel.RedisChannelOptions.None;
             for (int i = 1; i < request.Count; i++)
             {
                 var channel = request.GetChannel(i, mode);
