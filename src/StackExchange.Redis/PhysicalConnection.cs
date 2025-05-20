@@ -1697,18 +1697,21 @@ namespace StackExchange.Redis
                     _readStatus = ReadStatus.PubSubPMessage;
 
                     var channel = items[2].AsRedisChannel(ChannelPrefix, RedisChannel.RedisChannelOptions.Pattern);
+
                     Trace("PMESSAGE: " + channel);
                     if (!channel.IsNull)
                     {
                         if (TryGetPubSubPayload(items[3], out var payload))
                         {
                             var sub = items[1].AsRedisChannel(ChannelPrefix, RedisChannel.RedisChannelOptions.Pattern);
+
                             _readStatus = ReadStatus.InvokePubSub;
                             muxer.OnMessage(sub, channel, payload);
                         }
                         else if (TryGetMultiPubSubPayload(items[3], out var payloads))
                         {
                             var sub = items[1].AsRedisChannel(ChannelPrefix, RedisChannel.RedisChannelOptions.Pattern);
+
                             _readStatus = ReadStatus.InvokePubSub;
                             muxer.OnMessage(sub, channel, payloads);
                         }

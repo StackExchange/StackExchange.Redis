@@ -174,6 +174,7 @@ namespace StackExchange.Redis
                     if (StartsWith(channelPrefix))
                     {
                         byte[] copy = Payload.Slice(channelPrefix.Length).ToArray();
+
                         return new RedisChannel(copy, options);
                     }
                     return default;

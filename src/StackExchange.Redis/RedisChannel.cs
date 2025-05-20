@@ -9,6 +9,7 @@ namespace StackExchange.Redis
     public readonly struct RedisChannel : IEquatable<RedisChannel>
     {
         internal readonly byte[]? Value;
+        
         internal readonly RedisChannelOptions Options;
 
         [Flags]
@@ -35,6 +36,11 @@ namespace StackExchange.Redis
         /// Indicates whether this channel represents a shard channel (see <c>SSUBSCRIBE</c>)
         /// </summary>
         public bool IsSharded => (Options & RedisChannelOptions.Sharded) != 0;
+
+        /// <summary>
+        /// Indicates whether this channel represents a shard channel (see <c>SSUBSCRIBE</c>)
+        /// </summary>
+        public bool IsSharded => _isSharded;
 
         internal bool IsNull => Value == null;
 
