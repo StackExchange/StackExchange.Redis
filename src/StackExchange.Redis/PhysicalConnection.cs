@@ -1670,10 +1670,10 @@ namespace StackExchange.Redis
                     // invoke the handlers
                     RedisChannel channel;
                     if (items[0].IsEqual(message)) {
-                        channel = items[1].AsRedisChannel(ChannelPrefix, RedisChannel.PatternMode.Literal, isSharded: false);
+                        channel = items[1].AsRedisChannel(ChannelPrefix, RedisChannel.RedisChannelOptions.None);
                         Trace("MESSAGE: " + channel);
                     } else {
-                        channel = items[1].AsRedisChannel(ChannelPrefix, RedisChannel.PatternMode.Literal, isSharded: true);
+                        channel = items[1].AsRedisChannel(ChannelPrefix, RedisChannel.RedisChannelOptions.Sharded);
                         Trace("SMESSAGE: " + channel);
                     }
                     if (!channel.IsNull)
@@ -1696,19 +1696,22 @@ namespace StackExchange.Redis
                 {
                     _readStatus = ReadStatus.PubSubPMessage;
 
-                    var channel = items[2].AsRedisChannel(ChannelPrefix, RedisChannel.PatternMode.Literal, isSharded: false);
+                    var channel = items[2].AsRedisChannel(ChannelPrefix, RedisChannel.RedisChannelOptions.Pattern);
+
                     Trace("PMESSAGE: " + channel);
                     if (!channel.IsNull)
                     {
                         if (TryGetPubSubPayload(items[3], out var payload))
                         {
-                            var sub = items[1].AsRedisChannel(ChannelPrefix, RedisChannel.PatternMode.Pattern, isSharded: false);
+                            var sub = items[1].AsRedisChannel(ChannelPrefix, RedisChannel.RedisChannelOptions.Pattern);
+
                             _readStatus = ReadStatus.InvokePubSub;
                             muxer.OnMessage(sub, channel, payload);
                         }
                         else if (TryGetMultiPubSubPayload(items[3], out var payloads))
                         {
-                            var sub = items[1].AsRedisChannel(ChannelPrefix, RedisChannel.PatternMode.Pattern, isSharded: false);
+                            var sub = items[1].AsRedisChannel(ChannelPrefix, RedisChannel.RedisChannelOptions.Pattern);
+
                             _readStatus = ReadStatus.InvokePubSub;
                             muxer.OnMessage(sub, channel, payloads);
                         }

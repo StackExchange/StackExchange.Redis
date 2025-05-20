@@ -73,7 +73,7 @@ namespace StackExchange.Redis
         public static readonly ResultProcessor<PersistResult[]> PersistResultArray = new PersistResultArrayProcessor();
 
         public static readonly ResultProcessor<RedisChannel[]>
-            RedisChannelArrayLiteral = new RedisChannelArrayProcessor(RedisChannel.PatternMode.Literal);
+            RedisChannelArrayLiteral = new RedisChannelArrayProcessor(RedisChannel.RedisChannelOptions.None);
 
         public static readonly ResultProcessor<RedisKey>
                     RedisKey = new RedisKeyProcessor();
@@ -1504,20 +1504,20 @@ namespace StackExchange.Redis
 
         private sealed class RedisChannelArrayProcessor : ResultProcessor<RedisChannel[]>
         {
-            private readonly RedisChannel.PatternMode mode;
-            public RedisChannelArrayProcessor(RedisChannel.PatternMode mode)
+            private readonly RedisChannel.RedisChannelOptions options;
+            public RedisChannelArrayProcessor(RedisChannel.RedisChannelOptions options)
             {
-                this.mode = mode;
+                this.options = options;
             }
 
             private readonly struct ChannelState // I would use a value-tuple here, but that is binding hell
             {
                 public readonly byte[]? Prefix;
-                public readonly RedisChannel.PatternMode Mode;
-                public ChannelState(byte[]? prefix, RedisChannel.PatternMode mode)
+                public readonly RedisChannel.RedisChannelOptions Options;
+                public ChannelState(byte[]? prefix, RedisChannel.RedisChannelOptions options)
                 {
                     Prefix = prefix;
-                    Mode = mode;
+                    Options = options;
                 }
             }
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
@@ -1526,8 +1526,8 @@ namespace StackExchange.Redis
                 {
                     case ResultType.Array:
                         var final = result.ToArray(
-                                (in RawResult item, in ChannelState state) => item.AsRedisChannel(state.Prefix, state.Mode, isSharded: false),
-                                new ChannelState(connection.ChannelPrefix, mode))!;
+                                (in RawResult item, in ChannelState state) => item.AsRedisChannel(state.Prefix, state.Options),
+                                new ChannelState(connection.ChannelPrefix, options))!;
 
                         SetResult(message, final);
                         return true;

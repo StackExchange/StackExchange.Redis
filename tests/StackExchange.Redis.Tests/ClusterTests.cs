@@ -1,11 +1,11 @@
-﻿using System;
+﻿using StackExchange.Redis.Profiling;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
-using StackExchange.Redis.Profiling;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -744,6 +744,64 @@ public class ClusterTests : TestBase
         {
             Assert.Equal(PhysicalBridge.State.ConnectedEstablished, server.InteractiveConnectionState);
             Assert.Equal(PhysicalBridge.State.ConnectedEstablished, server.SubscriptionConnectionState);
+        }
+    }
+
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ClusterPubSub(bool sharded)
+    {
+        var guid = Guid.NewGuid().ToString();
+        var channel = sharded ? RedisChannel.Sharded(guid) : RedisChannel.Literal(guid);
+        using var conn = Create(keepAlive: 1, connectTimeout: 3000, shared: false);
+        Assert.True(conn.IsConnected);
+
+        var pubsub = conn.GetSubscriber();
+        List<(RedisChannel, RedisValue)> received = new();
+        var queue = await pubsub.SubscribeAsync(channel);
+        _ = Task.Run(async () =>
+        {   // use queue API to have control over order
+            await foreach (var item in queue)
+            {
+                lock (received)
+                {
+                    received.Add((item.Channel, item.Message));
+                }
+            }
+        });
+
+        var db = conn.GetDatabase();
+        await Task.Delay(50); // let the sub settle (this isn't needed on RESP3, note)
+        await db.PingAsync();
+        for (int i = 0; i < 10; i++)
+        {
+            // check we get a hit
+            Assert.Equal(1, await db.PublishAsync(channel, i.ToString()));
+        }
+        await Task.Delay(50); // let the sub settle (this isn't needed on RESP3, note)
+        await db.PingAsync();
+        await pubsub.UnsubscribeAsync(channel);
+
+        (RedisChannel Channel, RedisValue Value)[] snap;
+        lock (received)
+        {
+            snap = received.ToArray(); // in case of concurrency
+        }
+        Log("items received: {0}", snap.Length);
+        Assert.Equal(10, snap.Length);
+        // separate log and validate loop here simplifies debugging (ask me how I know!)
+        for (int i = 0; i < 10; i++)
+        {
+            var pair = snap[i];
+            Log("element {0}: {1}/{2}", i, pair.Channel, pair.Value);
+        }
+        for (int i = 0; i < 10; i++)
+        {
+            var pair = snap[i];
+            Assert.Equal(channel, pair.Channel);
+            Assert.Equal(i, pair.Value);
         }
     }
 }
